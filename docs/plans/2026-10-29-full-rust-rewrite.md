@@ -161,7 +161,10 @@ Rust 侧 6 条对拍用例全部解开；文件层 16 条、适配器 5 条。�
 `crates/workspace-hook-config` 补齐 strict schema 校验、候选路径发现（`.git` 祖先链、
 `mode.json` / `.mode/config.json`、显式配置追加与去重）、读取错误三分类（syntax / schema / io）
 与运行时根归并，与 TS 在 18 棵临时目录树上对拍；spec 见
-`docs/specs/workspace-hook-config.md`。**未做**：settings 模型与 `saveHooks` 写路径、
+`docs/specs/workspace-hook-config.md`。**条目解析与包级快照也已完成（2026-10-30）**：
+`crates/workspace-hook-digest` 补 `resolve_entries` / `build_bundle_snapshot`（条目
+`reviewItemId`、门禁位、超时优先级、按类型裁剪字段），与 TS 在 8 组纯数据用例上逐字节
+对拍两个摘要；spec 见 `docs/specs/workspace-hook-digest.md`。**未做**：settings 模型与 `saveHooks` 写路径、
 `grantWorkspaceHookTrust` 转 Agent authority、频道注册；
 三件也还没有独立 spec（暂以 crate 文档标注的 TS 真源为准），接频道前需补齐。
 

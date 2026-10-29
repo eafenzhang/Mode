@@ -1,0 +1,1292 @@
+{
+  "cases": [
+    {
+      "name": "basic",
+      "workspacePath": "D:/ws",
+      "workspaceIdentity": "D:/ws",
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "sources": [
+        {
+          "canonicalPath": "D:/ws/.mode/config.json",
+          "baseDir": "D:/ws",
+          "discoveryOrder": 0,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": true,
+          "hooks": {
+            "timeoutMs": 45000,
+            "events": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo pre"
+                    }
+                  ]
+                },
+                {
+                  "hooks": [
+                    {
+                      "type": "process",
+                      "command": "node",
+                      "args": [
+                        "a.js",
+                        "b"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "Stop": [
+                {
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo stop",
+                      "statusMessage": "收尾中"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "runtimeRoot": {
+        "enabled": true,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 32768
+      },
+      "entries": [
+        {
+          "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+          "event": "PreToolUse",
+          "matcherIndex": 0,
+          "hookIndex": 0,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": "Bash",
+          "command": "echo pre",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": true,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "b5cb6a8428162ceeeb593fd844ead90cca2f0a7a9cf63a01f33c83bcd57e5a4f",
+          "type": "command"
+        },
+        {
+          "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+          "event": "PreToolUse",
+          "matcherIndex": 1,
+          "hookIndex": 0,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "node",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": true,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "253ebb11322c5c85dee9825ca3551b0f2cc57906add0344b01387691689043df",
+          "type": "process",
+          "args": [
+            "a.js",
+            "b"
+          ]
+        },
+        {
+          "reviewItemId": "workspace-hook-0-Stop-0-0",
+          "event": "Stop",
+          "matcherIndex": 0,
+          "hookIndex": 0,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "echo stop",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "statusMessage": "收尾中",
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": true,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "5c15b51c7ed37542f0f31a50671483e9c73986f32ac7a548ebea7ea2a29fe9ca",
+          "type": "command"
+        }
+      ],
+      "snapshot": {
+        "schemaVersion": 1,
+        "workspaceIdentity": "D:/ws",
+        "discoveredAt": "2026-10-30T00:00:00.000Z",
+        "sourceFiles": [
+          {
+            "canonicalPath": "D:/ws/.mode/config.json",
+            "baseDir": "D:/ws",
+            "discoveryOrder": 0,
+            "configFileKind": ".mode/config.json",
+            "explicitProjectConfig": false,
+            "editable": true,
+            "hooksRoot": {
+              "timeoutMs": 45000
+            }
+          }
+        ],
+        "hooks": [
+          {
+            "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+            "event": "PreToolUse",
+            "matcherIndex": 0,
+            "hookIndex": 0,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": "Bash",
+            "command": "echo pre",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": true,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "b5cb6a8428162ceeeb593fd844ead90cca2f0a7a9cf63a01f33c83bcd57e5a4f",
+            "type": "command"
+          },
+          {
+            "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+            "event": "PreToolUse",
+            "matcherIndex": 1,
+            "hookIndex": 0,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "node",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": true,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "253ebb11322c5c85dee9825ca3551b0f2cc57906add0344b01387691689043df",
+            "type": "process",
+            "args": [
+              "a.js",
+              "b"
+            ]
+          },
+          {
+            "reviewItemId": "workspace-hook-0-Stop-0-0",
+            "event": "Stop",
+            "matcherIndex": 0,
+            "hookIndex": 0,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "echo stop",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "statusMessage": "收尾中",
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": true,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "5c15b51c7ed37542f0f31a50671483e9c73986f32ac7a548ebea7ea2a29fe9ca",
+            "type": "command"
+          }
+        ],
+        "digestAlgorithm": "sha256",
+        "bundleDigest": "828b98a2411871cad1944b6fa019751d352a191d4e87a148ea94f1338e8b3791"
+      }
+    },
+    {
+      "name": "source-disabled",
+      "workspacePath": "D:/ws",
+      "workspaceIdentity": "D:/ws",
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "sources": [
+        {
+          "canonicalPath": "D:/ws/mode.json",
+          "baseDir": "D:/ws",
+          "discoveryOrder": 0,
+          "configFileKind": "mode.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {
+            "enabled": false,
+            "events": {
+              "Stop": [
+                {
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo stop"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "runtimeRoot": {
+        "enabled": true,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 32768
+      },
+      "entries": [
+        {
+          "reviewItemId": "workspace-hook-0-Stop-0-0",
+          "event": "Stop",
+          "matcherIndex": 0,
+          "hookIndex": 0,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": "mode.json",
+          "matcher": null,
+          "command": "echo stop",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": false,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": false,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "ea75eb16d9eae159a06e8c7c96ae8095046b00ddf0ce8d429e4e2db406a69a17",
+          "type": "command"
+        }
+      ],
+      "snapshot": {
+        "schemaVersion": 1,
+        "workspaceIdentity": "D:/ws",
+        "discoveredAt": "2026-10-30T00:00:00.000Z",
+        "sourceFiles": [
+          {
+            "canonicalPath": "D:/ws/mode.json",
+            "baseDir": "D:/ws",
+            "discoveryOrder": 0,
+            "configFileKind": "mode.json",
+            "explicitProjectConfig": false,
+            "editable": false,
+            "hooksRoot": {
+              "enabled": false
+            }
+          }
+        ],
+        "hooks": [
+          {
+            "reviewItemId": "workspace-hook-0-Stop-0-0",
+            "event": "Stop",
+            "matcherIndex": 0,
+            "hookIndex": 0,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": "mode.json",
+            "matcher": null,
+            "command": "echo stop",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": false,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": false,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "ea75eb16d9eae159a06e8c7c96ae8095046b00ddf0ce8d429e4e2db406a69a17",
+            "type": "command"
+          }
+        ],
+        "digestAlgorithm": "sha256",
+        "bundleDigest": "60f5f685371b1e451469f9394ac2d101047f2d705769e4e33a742479140b43ec"
+      }
+    },
+    {
+      "name": "hook-disabled-and-root-disabled",
+      "workspacePath": "D:/ws",
+      "workspaceIdentity": "D:/ws",
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "sources": [
+        {
+          "canonicalPath": "D:/ws/.mode/config.json",
+          "baseDir": "D:/ws",
+          "discoveryOrder": 1,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {
+            "enabled": true,
+            "events": {
+              "Stop": [
+                {
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo a",
+                      "enabled": false
+                    }
+                  ]
+                },
+                {
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo b",
+                      "enabled": true
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "runtimeRoot": {
+        "enabled": false,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 32768
+      },
+      "entries": [
+        {
+          "reviewItemId": "workspace-hook-0-Stop-0-0",
+          "event": "Stop",
+          "matcherIndex": 0,
+          "hookIndex": 0,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "echo a",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": false,
+          "runtimeHooksEnabled": false,
+          "configuredEnabled": false,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "f4a549c4203477104ceb66a31f22f3a5058e558db2b74ffe0ec4c01a674a9399",
+          "type": "command"
+        },
+        {
+          "reviewItemId": "workspace-hook-0-Stop-1-0",
+          "event": "Stop",
+          "matcherIndex": 1,
+          "hookIndex": 0,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "echo b",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": false,
+          "configuredEnabled": false,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "927b92cf1e49b0decb9a3cf0e93613f47088155910262d7f5d21d1884ac5ad76",
+          "type": "command"
+        }
+      ],
+      "snapshot": {
+        "schemaVersion": 1,
+        "workspaceIdentity": "D:/ws",
+        "discoveredAt": "2026-10-30T00:00:00.000Z",
+        "sourceFiles": [
+          {
+            "canonicalPath": "D:/ws/.mode/config.json",
+            "baseDir": "D:/ws",
+            "discoveryOrder": 1,
+            "configFileKind": ".mode/config.json",
+            "explicitProjectConfig": false,
+            "editable": false,
+            "hooksRoot": {
+              "enabled": true
+            }
+          }
+        ],
+        "hooks": [
+          {
+            "reviewItemId": "workspace-hook-0-Stop-0-0",
+            "event": "Stop",
+            "matcherIndex": 0,
+            "hookIndex": 0,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "echo a",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": true,
+            "declarationEnabled": false,
+            "runtimeHooksEnabled": false,
+            "configuredEnabled": false,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "f4a549c4203477104ceb66a31f22f3a5058e558db2b74ffe0ec4c01a674a9399",
+            "type": "command"
+          },
+          {
+            "reviewItemId": "workspace-hook-0-Stop-1-0",
+            "event": "Stop",
+            "matcherIndex": 1,
+            "hookIndex": 0,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "echo b",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": false,
+            "configuredEnabled": false,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "927b92cf1e49b0decb9a3cf0e93613f47088155910262d7f5d21d1884ac5ad76",
+            "type": "command"
+          }
+        ],
+        "digestAlgorithm": "sha256",
+        "bundleDigest": "9689e8cd59f497487a632db31d76228f08ca9ba92271f6ca832715cb443f77ce"
+      }
+    },
+    {
+      "name": "shell-and-async",
+      "workspacePath": "D:/ws",
+      "workspaceIdentity": "D:/ws",
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "sources": [
+        {
+          "canonicalPath": "D:/ws/.mode/config.json",
+          "baseDir": "D:/ws",
+          "discoveryOrder": 2,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {
+            "events": {
+              "PostToolUse": [
+                {
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "one",
+                      "shell": true
+                    },
+                    {
+                      "type": "command",
+                      "command": "two",
+                      "shell": "bash -lc"
+                    },
+                    {
+                      "type": "command",
+                      "command": "three",
+                      "async": true
+                    },
+                    {
+                      "type": "command",
+                      "command": "four",
+                      "async": false
+                    },
+                    {
+                      "type": "process",
+                      "command": "five",
+                      "args": []
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "runtimeRoot": {
+        "enabled": true,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 32768
+      },
+      "entries": [
+        {
+          "reviewItemId": "workspace-hook-0-PostToolUse-0-0",
+          "event": "PostToolUse",
+          "matcherIndex": 0,
+          "hookIndex": 0,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "one",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "187a322b2a3dd206840ed7bd1cb108c9689ef0adaa12d5d3bee635515d077c02",
+          "type": "command",
+          "shell": true
+        },
+        {
+          "reviewItemId": "workspace-hook-0-PostToolUse-0-1",
+          "event": "PostToolUse",
+          "matcherIndex": 0,
+          "hookIndex": 1,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "two",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "3a3eb765c182a243be8954069eb3bb2dc76a1b86113ca810fe70bdcc3bfa89d8",
+          "type": "command",
+          "shell": "bash -lc"
+        },
+        {
+          "reviewItemId": "workspace-hook-0-PostToolUse-0-2",
+          "event": "PostToolUse",
+          "matcherIndex": 0,
+          "hookIndex": 2,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "three",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "563e1a88079d38cff47ec88757381c5923b5b819b0092a1463de913226d286b4",
+          "type": "command",
+          "async": true
+        },
+        {
+          "reviewItemId": "workspace-hook-0-PostToolUse-0-3",
+          "event": "PostToolUse",
+          "matcherIndex": 0,
+          "hookIndex": 3,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "four",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "7d39f551b4642e3d9988307d368975fec0d971ad6e4e207efc0e5f733edda742",
+          "type": "command"
+        },
+        {
+          "reviewItemId": "workspace-hook-0-PostToolUse-0-4",
+          "event": "PostToolUse",
+          "matcherIndex": 0,
+          "hookIndex": 4,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "five",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "76cf8849ea1db8d9a9ae1e3c3b8b78fae02e3ec06b3112bfd56b013250a016eb",
+          "type": "process"
+        }
+      ],
+      "snapshot": {
+        "schemaVersion": 1,
+        "workspaceIdentity": "D:/ws",
+        "discoveredAt": "2026-10-30T00:00:00.000Z",
+        "sourceFiles": [
+          {
+            "canonicalPath": "D:/ws/.mode/config.json",
+            "baseDir": "D:/ws",
+            "discoveryOrder": 2,
+            "configFileKind": ".mode/config.json",
+            "explicitProjectConfig": false,
+            "editable": false,
+            "hooksRoot": {}
+          }
+        ],
+        "hooks": [
+          {
+            "reviewItemId": "workspace-hook-0-PostToolUse-0-0",
+            "event": "PostToolUse",
+            "matcherIndex": 0,
+            "hookIndex": 0,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "one",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "187a322b2a3dd206840ed7bd1cb108c9689ef0adaa12d5d3bee635515d077c02",
+            "type": "command",
+            "shell": true
+          },
+          {
+            "reviewItemId": "workspace-hook-0-PostToolUse-0-1",
+            "event": "PostToolUse",
+            "matcherIndex": 0,
+            "hookIndex": 1,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "two",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "3a3eb765c182a243be8954069eb3bb2dc76a1b86113ca810fe70bdcc3bfa89d8",
+            "type": "command",
+            "shell": "bash -lc"
+          },
+          {
+            "reviewItemId": "workspace-hook-0-PostToolUse-0-2",
+            "event": "PostToolUse",
+            "matcherIndex": 0,
+            "hookIndex": 2,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "three",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "563e1a88079d38cff47ec88757381c5923b5b819b0092a1463de913226d286b4",
+            "type": "command",
+            "async": true
+          },
+          {
+            "reviewItemId": "workspace-hook-0-PostToolUse-0-3",
+            "event": "PostToolUse",
+            "matcherIndex": 0,
+            "hookIndex": 3,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "four",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "7d39f551b4642e3d9988307d368975fec0d971ad6e4e207efc0e5f733edda742",
+            "type": "command"
+          },
+          {
+            "reviewItemId": "workspace-hook-0-PostToolUse-0-4",
+            "event": "PostToolUse",
+            "matcherIndex": 0,
+            "hookIndex": 4,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "five",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "76cf8849ea1db8d9a9ae1e3c3b8b78fae02e3ec06b3112bfd56b013250a016eb",
+            "type": "process"
+          }
+        ],
+        "digestAlgorithm": "sha256",
+        "bundleDigest": "07e598371231a64d1f557f942e504a3a113b4c9dbe0d1661fda5e4a702acfc55"
+      }
+    },
+    {
+      "name": "timeouts",
+      "workspacePath": "D:/ws",
+      "workspaceIdentity": "D:/ws",
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "sources": [
+        {
+          "canonicalPath": "D:/ws/.mode/config.json",
+          "baseDir": "D:/ws",
+          "discoveryOrder": 0,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {
+            "timeoutMs": 20000,
+            "maxOutputBytes": 2048,
+            "events": {
+              "SessionStart": [
+                {
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "a",
+                      "timeout": 2
+                    },
+                    {
+                      "type": "command",
+                      "command": "b",
+                      "timeoutMs": 500
+                    },
+                    {
+                      "type": "process",
+                      "command": "c",
+                      "timeout": 3
+                    },
+                    {
+                      "type": "command",
+                      "command": "d",
+                      "timeoutMs": 0.4
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "runtimeRoot": {
+        "enabled": true,
+        "timeoutMs": 10000,
+        "maxOutputBytes": 1024
+      },
+      "entries": [
+        {
+          "reviewItemId": "workspace-hook-0-SessionStart-0-0",
+          "event": "SessionStart",
+          "matcherIndex": 0,
+          "hookIndex": 0,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "a",
+          "resolvedTimeoutMs": 2000,
+          "resolvedMaxOutputBytes": 1024,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "afa61f3e04d3f01be1063d15ba97c6557e401e1bd530c48ffea551ba56f6b440",
+          "type": "command"
+        },
+        {
+          "reviewItemId": "workspace-hook-0-SessionStart-0-1",
+          "event": "SessionStart",
+          "matcherIndex": 0,
+          "hookIndex": 1,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "b",
+          "resolvedTimeoutMs": 500,
+          "resolvedMaxOutputBytes": 1024,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "d1806e4064f55f296e04813ae7ea4f4d4d4ef7c0d86b3239d4f933fcd784a23b",
+          "type": "command"
+        },
+        {
+          "reviewItemId": "workspace-hook-0-SessionStart-0-2",
+          "event": "SessionStart",
+          "matcherIndex": 0,
+          "hookIndex": 2,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "c",
+          "resolvedTimeoutMs": 10000,
+          "resolvedMaxOutputBytes": 1024,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "4d3dc0fca2962f231e1ee40c603074c172533bf679acc9b8c281b01516ce2196",
+          "type": "process"
+        },
+        {
+          "reviewItemId": "workspace-hook-0-SessionStart-0-3",
+          "event": "SessionStart",
+          "matcherIndex": 0,
+          "hookIndex": 3,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "d",
+          "resolvedTimeoutMs": 1,
+          "resolvedMaxOutputBytes": 1024,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "31056b0335e587e1f49eee090f527d9989e66815890d8984466409d14801aef5",
+          "type": "command"
+        }
+      ],
+      "snapshot": {
+        "schemaVersion": 1,
+        "workspaceIdentity": "D:/ws",
+        "discoveredAt": "2026-10-30T00:00:00.000Z",
+        "sourceFiles": [
+          {
+            "canonicalPath": "D:/ws/.mode/config.json",
+            "baseDir": "D:/ws",
+            "discoveryOrder": 0,
+            "configFileKind": ".mode/config.json",
+            "explicitProjectConfig": false,
+            "editable": false,
+            "hooksRoot": {
+              "timeoutMs": 20000,
+              "maxOutputBytes": 2048
+            }
+          }
+        ],
+        "hooks": [
+          {
+            "reviewItemId": "workspace-hook-0-SessionStart-0-0",
+            "event": "SessionStart",
+            "matcherIndex": 0,
+            "hookIndex": 0,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "a",
+            "resolvedTimeoutMs": 2000,
+            "resolvedMaxOutputBytes": 1024,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "afa61f3e04d3f01be1063d15ba97c6557e401e1bd530c48ffea551ba56f6b440",
+            "type": "command"
+          },
+          {
+            "reviewItemId": "workspace-hook-0-SessionStart-0-1",
+            "event": "SessionStart",
+            "matcherIndex": 0,
+            "hookIndex": 1,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "b",
+            "resolvedTimeoutMs": 500,
+            "resolvedMaxOutputBytes": 1024,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "d1806e4064f55f296e04813ae7ea4f4d4d4ef7c0d86b3239d4f933fcd784a23b",
+            "type": "command"
+          },
+          {
+            "reviewItemId": "workspace-hook-0-SessionStart-0-2",
+            "event": "SessionStart",
+            "matcherIndex": 0,
+            "hookIndex": 2,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "c",
+            "resolvedTimeoutMs": 10000,
+            "resolvedMaxOutputBytes": 1024,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "4d3dc0fca2962f231e1ee40c603074c172533bf679acc9b8c281b01516ce2196",
+            "type": "process"
+          },
+          {
+            "reviewItemId": "workspace-hook-0-SessionStart-0-3",
+            "event": "SessionStart",
+            "matcherIndex": 0,
+            "hookIndex": 3,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "d",
+            "resolvedTimeoutMs": 1,
+            "resolvedMaxOutputBytes": 1024,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "31056b0335e587e1f49eee090f527d9989e66815890d8984466409d14801aef5",
+            "type": "command"
+          }
+        ],
+        "digestAlgorithm": "sha256",
+        "bundleDigest": "ce5c03da98682e9737ded2c95eb6df3eb1ca59a5ef788ce4eb922595d61aaaa3"
+      }
+    },
+    {
+      "name": "two-sources",
+      "workspacePath": "D:/ws",
+      "workspaceIdentity": "D:/ws",
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "sources": [
+        {
+          "canonicalPath": "D:/ws/.mode/config.json",
+          "baseDir": "D:/ws",
+          "discoveryOrder": 0,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": true,
+          "hooks": {
+            "events": {
+              "Stop": [
+                {
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "local"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "canonicalPath": "D:/ws/.config/custom.json",
+          "baseDir": "D:/ws/.config",
+          "discoveryOrder": 1,
+          "configFileKind": "explicit",
+          "explicitProjectConfig": true,
+          "editable": false,
+          "hooks": {
+            "events": {
+              "Stop": [
+                {
+                  "hooks": [
+                    {
+                      "type": "process",
+                      "command": "explicit"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "runtimeRoot": {
+        "enabled": true,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 32768
+      },
+      "entries": [
+        {
+          "reviewItemId": "workspace-hook-0-Stop-0-0",
+          "event": "Stop",
+          "matcherIndex": 0,
+          "hookIndex": 0,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "local",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": true,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "a1c82dabf7617cde569e77c984d6ed1f42cc97c9908b0bb65f5fe5bb12769d92",
+          "type": "command"
+        },
+        {
+          "reviewItemId": "workspace-hook-1-Stop-0-0",
+          "event": "Stop",
+          "matcherIndex": 0,
+          "hookIndex": 0,
+          "sourceFileIndex": 1,
+          "sourceRelativePath": ".config/custom.json",
+          "matcher": null,
+          "command": "explicit",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "bfdcc8996efb70d25ae045750a3de91dce6a111065e396c3f0603c7b1583abbd",
+          "type": "process"
+        }
+      ],
+      "snapshot": {
+        "schemaVersion": 1,
+        "workspaceIdentity": "D:/ws",
+        "discoveredAt": "2026-10-30T00:00:00.000Z",
+        "sourceFiles": [
+          {
+            "canonicalPath": "D:/ws/.mode/config.json",
+            "baseDir": "D:/ws",
+            "discoveryOrder": 0,
+            "configFileKind": ".mode/config.json",
+            "explicitProjectConfig": false,
+            "editable": true,
+            "hooksRoot": {}
+          },
+          {
+            "canonicalPath": "D:/ws/.config/custom.json",
+            "baseDir": "D:/ws/.config",
+            "discoveryOrder": 1,
+            "configFileKind": "explicit",
+            "explicitProjectConfig": true,
+            "editable": false,
+            "hooksRoot": {}
+          }
+        ],
+        "hooks": [
+          {
+            "reviewItemId": "workspace-hook-0-Stop-0-0",
+            "event": "Stop",
+            "matcherIndex": 0,
+            "hookIndex": 0,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": ".mode/config.json",
+            "matcher": null,
+            "command": "local",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": true,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "a1c82dabf7617cde569e77c984d6ed1f42cc97c9908b0bb65f5fe5bb12769d92",
+            "type": "command"
+          },
+          {
+            "reviewItemId": "workspace-hook-1-Stop-0-0",
+            "event": "Stop",
+            "matcherIndex": 0,
+            "hookIndex": 0,
+            "sourceFileIndex": 1,
+            "sourceRelativePath": ".config/custom.json",
+            "matcher": null,
+            "command": "explicit",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "bfdcc8996efb70d25ae045750a3de91dce6a111065e396c3f0603c7b1583abbd",
+            "type": "process"
+          }
+        ],
+        "digestAlgorithm": "sha256",
+        "bundleDigest": "86d901497cfc55a761a5186528f972563b2a35f15440b4c3f5ce36b1cbb1eaf2"
+      }
+    },
+    {
+      "name": "nested-relative-paths",
+      "workspacePath": "D:/ws",
+      "workspaceIdentity": "D:/ws",
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "sources": [
+        {
+          "canonicalPath": "D:/ws/packages/app/.mode/config.json",
+          "baseDir": "D:/ws/packages/app",
+          "discoveryOrder": 0,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {
+            "events": {
+              "UserPromptSubmit": [
+                {
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "x"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "runtimeRoot": {
+        "enabled": true,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 32768
+      },
+      "entries": [
+        {
+          "reviewItemId": "workspace-hook-0-UserPromptSubmit-0-0",
+          "event": "UserPromptSubmit",
+          "matcherIndex": 0,
+          "hookIndex": 0,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": "packages/app/.mode/config.json",
+          "matcher": null,
+          "command": "x",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": false,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "5c910976ed5830ff3c425b3f14bf8f52e49b7115e4b03180946cc836938a8a1e",
+          "type": "command"
+        }
+      ],
+      "snapshot": {
+        "schemaVersion": 1,
+        "workspaceIdentity": "D:/ws",
+        "discoveredAt": "2026-10-30T00:00:00.000Z",
+        "sourceFiles": [
+          {
+            "canonicalPath": "D:/ws/packages/app/.mode/config.json",
+            "baseDir": "D:/ws/packages/app",
+            "discoveryOrder": 0,
+            "configFileKind": ".mode/config.json",
+            "explicitProjectConfig": false,
+            "editable": false,
+            "hooksRoot": {}
+          }
+        ],
+        "hooks": [
+          {
+            "reviewItemId": "workspace-hook-0-UserPromptSubmit-0-0",
+            "event": "UserPromptSubmit",
+            "matcherIndex": 0,
+            "hookIndex": 0,
+            "sourceFileIndex": 0,
+            "sourceRelativePath": "packages/app/.mode/config.json",
+            "matcher": null,
+            "command": "x",
+            "resolvedTimeoutMs": 60000,
+            "resolvedMaxOutputBytes": 32768,
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "editable": false,
+            "declarationDigestAlgorithm": "sha256",
+            "hookDeclarationDigest": "5c910976ed5830ff3c425b3f14bf8f52e49b7115e4b03180946cc836938a8a1e",
+            "type": "command"
+          }
+        ],
+        "digestAlgorithm": "sha256",
+        "bundleDigest": "936c720ee7aa6e99fcc8d5a7dd1143805b2516a6189bfb38dfc02719529705c2"
+      }
+    },
+    {
+      "name": "empty",
+      "workspacePath": "D:/ws",
+      "workspaceIdentity": "D:/ws",
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "sources": [
+        {
+          "canonicalPath": "D:/ws/.mode/config.json",
+          "baseDir": "D:/ws",
+          "discoveryOrder": 0,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {}
+        },
+        {
+          "canonicalPath": "D:/ws/mode.json",
+          "baseDir": "D:/ws",
+          "discoveryOrder": 1,
+          "configFileKind": "mode.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {
+            "events": {
+              "Stop": []
+            }
+          }
+        }
+      ],
+      "runtimeRoot": {
+        "enabled": true,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 32768
+      },
+      "entries": [],
+      "snapshot": null
+    }
+  ]
+}

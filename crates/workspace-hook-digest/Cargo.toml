@@ -10,6 +10,7 @@ name = "workspace_hook_digest"
 path = "src/lib.rs"
 
 [dependencies]
+workspace-hook-config = { path = "../workspace-hook-config" }
 serde_json.workspace = true
 sha2.workspace = true
 

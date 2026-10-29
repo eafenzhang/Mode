@@ -8,6 +8,10 @@
 //! 与 TS 的已知差异：`path.resolve/relative` 用词法规范化实现（不访问文件系统），
 //! 对已存在的路径两者结果一致；纯词法输入（如 `a/../b`）也按词法归约。
 
+mod snapshot;
+
+pub use snapshot::{build_bundle_snapshot, resolve_entries, HookEntry, Snapshot};
+
 use std::path::{Component, Path, PathBuf};
 
 use serde_json::{json, Value};
