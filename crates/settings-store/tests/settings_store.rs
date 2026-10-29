@@ -140,3 +140,16 @@ fn write_document_creates_dirs_and_pretty_json() {
         value
     );
 }
+
+#[test]
+fn ensure_default_project_is_idempotent() {
+    let home = unique_home("project");
+    let first = settings_store::ensure_default_project(&home).expect("首次创建");
+    assert!(first.created, "首次应报告 created=true");
+    assert_eq!(first.path, home.join("ModeProject"));
+    assert!(first.path.is_dir());
+
+    let second = settings_store::ensure_default_project(&home).expect("再次调用");
+    assert!(!second.created, "已存在时应报告 created=false");
+    assert_eq!(second.path, first.path);
+}

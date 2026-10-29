@@ -7,8 +7,10 @@
 
 pub mod document;
 pub mod paths;
+pub mod project;
 pub mod store;
 
 pub use document::{allowed_keys, apply_patch, defaults, merge_persisted, normalize};
 pub use paths::{resolve_home, resolve_settings_paths, HomeEnv, SettingsPaths};
+pub use project::{ensure_default_project, DefaultProject, DEFAULT_PROJECT_NAME};
 pub use store::{read_document, write_document, ReadOptions, ReadOutcome};
