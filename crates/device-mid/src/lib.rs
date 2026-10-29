@@ -16,6 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use atomic_file::{acquire_file_lock, write_json_atomic, AtomicError, WriteOptions};
 
+
 pub const STATE_FILE_NAME: &str = "telemetry-state.json";
 pub const DEVICE_MID_KEY: &str = "deviceMid";
 
@@ -42,6 +43,10 @@ impl DeviceMidStore {
     pub fn ensure(&self) -> Result<String, AtomicError> {
         if let Some(existing) = self.read()? {
             return Ok(existing);
+        }
+        // 锁目录建在数据文件旁边：父目录不存在时 create_dir 会失败，先补齐。
+        if let Some(parent) = self.state_file.parent() {
+            std::fs::create_dir_all(parent)?;
         }
         // 与 TS 相同的临界区：锁内重读，避免两个进程同时生成两个 id。
         let _lock = acquire_file_lock(&self.state_file, &self.options)?;

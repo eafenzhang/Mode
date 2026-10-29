@@ -32,6 +32,7 @@ members = [
   "crates/updater-verify",
   "crates/workspace-identity",
   "crates/tray",
+  "crates/conversation-mirror",
   "crates/deeplink",
   "crates/device-mid",
   "apps/desktop-tauri/src-tauri",

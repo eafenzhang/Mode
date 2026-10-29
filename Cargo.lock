@@ -644,6 +644,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "conversation-mirror"
+version = "0.1.0"
+dependencies = [
+ "atomic-file",
+ "device-mid",
+ "serde",
+ "serde_json",
+ "workspace-identity",
+]
+
+[[package]]
 name = "cookie"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

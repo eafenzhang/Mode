@@ -1,0 +1,20 @@
+[package]
+name = "conversation-mirror"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "远程工作区对话镜像存储与 origin 校验（对应 services/src/conversation-mirror）"
+
+[lib]
+name = "conversation_mirror"
+path = "src/lib.rs"
+
+[dependencies]
+atomic-file = { path = "../atomic-file" }
+device-mid = { path = "../device-mid" }
+workspace-identity = { path = "../workspace-identity" }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
