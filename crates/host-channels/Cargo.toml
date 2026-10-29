@@ -12,6 +12,7 @@ path = "src/lib.rs"
 [dependencies]
 conversation-mirror = { path = "../conversation-mirror" }
 project-memory = { path = "../project-memory" }
+settings-store = { path = "../settings-store" }
 rpc-host = { path = "../rpc-host" }
 rpc-wire = { path = "../rpc-wire" }
 serde.workspace = true

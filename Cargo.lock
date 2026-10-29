@@ -1750,6 +1750,7 @@ dependencies = [
  "rpc-wire",
  "serde",
  "serde_json",
+ "settings-store",
  "tokio",
 ]
 

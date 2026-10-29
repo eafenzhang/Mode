@@ -18,8 +18,9 @@ use std::time::Duration;
 
 use host_channels::{
     AttachmentTransferChannel, ClientConfigChannel, ClientScenesChannel, ConversationMirrorChannel,
-    MediaPreviewChannel, MemoryChannel, ATTACHMENT_TRANSFER_CHANNEL, CLIENT_CONFIG_CHANNEL,
-    CLIENT_SCENES_CHANNEL, CONVERSATION_MIRROR_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
+    MediaPreviewChannel, MemoryChannel, SettingChannel, ATTACHMENT_TRANSFER_CHANNEL,
+    CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, CONVERSATION_MIRROR_CHANNEL,
+    MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL, SETTING_CHANNEL,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter};
@@ -64,7 +65,8 @@ impl InprocessState {
                 | CLIENT_CONFIG_CHANNEL
                 | CLIENT_SCENES_CHANNEL
                 | MEDIA_PREVIEW_CHANNEL
-                | CONVERSATION_MIRROR_CHANNEL => owned.push(name),
+                | CONVERSATION_MIRROR_CHANNEL
+                | SETTING_CHANNEL => owned.push(name),
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
                 other => crate::host::shell_log(&format!("inprocess channel ignored (not ported yet): {other}")),
             }
@@ -192,6 +194,22 @@ fn build_server(
                     conversation_mirror::ConversationMirrorService::new(data_root.to_path_buf()),
                 )),
             ),
+            SETTING_CHANNEL => {
+                let env = settings_store::HomeEnv::from_process();
+                let paths = settings_store::resolve_settings_paths(&env);
+                let home = paths.home.clone();
+                let current_base = data_root
+                    .parent()
+                    .map(std::path::Path::to_path_buf)
+                    .unwrap_or_else(|| home.clone());
+                server.register_channel(
+                    SETTING_CHANNEL,
+                    Arc::new(SettingChannel::new(
+                        Arc::new(settings_store::SettingsService::new(paths, current_base)),
+                        home,
+                    )),
+                );
+            }
             other => crate::host::shell_log(&format!("inprocess channel not constructible: {other}")),
         }
     }

@@ -12,12 +12,14 @@ pub mod attachment_transfer;
 pub mod client_metadata;
 pub mod conversation_mirror;
 pub mod media_preview;
+pub mod setting;
 pub mod memory_channel;
 
 pub use attachment_transfer::AttachmentTransferChannel;
 pub use client_metadata::{ClientConfigChannel, ClientScenesChannel};
 pub use conversation_mirror::ConversationMirrorChannel;
 pub use media_preview::MediaPreviewChannel;
+pub use setting::SettingChannel;
 pub use memory_channel::{MemoryChannel, LIST_MEMORIES, READ_MEMORY_FILE};
 
 pub const MEMORY_CHANNEL: &str = "memory";
@@ -26,3 +28,4 @@ pub const CLIENT_CONFIG_CHANNEL: &str = "client-config";
 pub const CLIENT_SCENES_CHANNEL: &str = "client-scenes";
 pub const MEDIA_PREVIEW_CHANNEL: &str = "media-preview";
 pub const CONVERSATION_MIRROR_CHANNEL: &str = "conversation-mirror";
+pub const SETTING_CHANNEL: &str = "setting";

@@ -9,10 +9,12 @@ pub mod data_dir;
 pub mod document;
 pub mod paths;
 pub mod project;
+pub mod service;
 pub mod store;
 
 pub use data_dir::{copy_data_directory, is_path_equal_or_inside, update_data_base_dir, validate_data_base_dir_target, DataDirError};
 pub use document::{allowed_keys, apply_patch, defaults, merge_persisted, normalize};
 pub use paths::{resolve_home, resolve_settings_paths, HomeEnv, SettingsPaths};
+pub use service::SettingsService;
 pub use project::{ensure_default_project, DefaultProject, DEFAULT_PROJECT_NAME};
 pub use store::{read_document, write_document, ReadOptions, ReadOutcome};
