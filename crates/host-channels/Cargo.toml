@@ -12,6 +12,7 @@ path = "src/lib.rs"
 [dependencies]
 conversation-mirror = { path = "../conversation-mirror" }
 credential-store = { path = "../credential-store" }
+file-service = { path = "../file-service" }
 project-memory = { path = "../project-memory" }
 settings-store = { path = "../settings-store" }
 system-service = { path = "../system-service" }

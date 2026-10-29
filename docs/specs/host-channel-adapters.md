@@ -1,8 +1,8 @@
 # Spec：壳内频道适配器（`crates/host-channels`）
 
-状态：2026-10-29。已适配九个频道：`memory`、`prompt-attachment-transfer`、
+状态：2026-10-29。已适配十个频道：`memory`、`prompt-attachment-transfer`、
 `client-config`、`client-scenes`、`media-preview`、`conversation-mirror`、`setting`、
-`credential`、`system`。
+`credential`、`system`、`file`。
 范围：**RPC 方法名与参数形状**到服务调用的翻译、错误映射。服务实现本身在各自的 crate。
 
 ## 参数形状
@@ -121,6 +121,18 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
 **与 TS 的已知差异**：连接失败的错误文本、HTTP 客户端（reqwest/rustls）、重定向上限
 （10 vs 20）、homedir 的最后一级兜底；都只影响诊断字段，不是接口契约。
 
+## file
+
+17 个方法，全部以位置参数对象调用；方法与语义见 `file-service.md`。两个返回形态必须保持：
+
+- `readFileRange` 返回**顶层二进制**（`Value::Bytes`），不能包进对象；
+- `listWorkspaceFilesRange` 返回**裸字符串**（`Value::Str`）。
+
+`listWorkspaceFilesLength` 在能放进 i32 时回 `Int`，否则回 JSON 数字。
+
+**与 TS 的已知差异**：排序比较器、UTF-16 跨代理项切块、非法规则降级、错误文案；
+详见 `file-service.md` 的差异表。
+
 ## 与路由的约定
 
 - 适配器只被壳内 `ChannelServer` 调用（`inprocess.rs`）；base scope 与
@@ -144,6 +156,8 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
   解密错误的 code 与消息前缀、坏文件不被覆盖、未知方法报错。
 - `tests/system_channel.rs`（6 条）：info 字段、非 Windows 空 shell 列表、
   探测结果的 camelCase 形状、空目标、畸形请求、未知方法。
+- `tests/file_channel.rs`（7 条）：对象参数、camelCase 字段、顶层二进制、长度 Int、
+  裸字符串分块、ignore 读写、错误映射。
 - `tests/channel_names.rs`（漂移守卫）：频道名与 TS `ServiceChannels` 一致。
 - `tests/pipeline.rs`（3 条）：真 RPC 帧 → 路由 → `ChannelServer` → 回帧；`base_scope_only`
   路由把 scoped 帧留给 Node Host；未知方法回 `PromiseError`。

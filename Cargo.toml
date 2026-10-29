@@ -39,6 +39,7 @@ members = [
   "crates/conversation-mirror",
   "crates/credential-store",
   "crates/deeplink",
+  "crates/file-service",
   "crates/device-mid",
   "apps/desktop-tauri/src-tauri",
 ]

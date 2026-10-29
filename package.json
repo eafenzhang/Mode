@@ -21,6 +21,7 @@
     "rpc-wire:fixtures": "tsx scripts/generate-rpc-wire-fixtures.ts",
     "settings:fixtures": "tsx scripts/generate-settings-fixtures.ts",
     "credential:fixtures": "tsx scripts/generate-credential-fixtures.ts",
+    "file:fixtures": "tsx scripts/generate-file-fixtures.ts",
     "verify:self-developed": "tsx scripts/upstream-overlap-check.ts --strict",
     "build": "pnpm -r build",
     "build:mode": "node scripts/build-mode.mjs",

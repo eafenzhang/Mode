@@ -1,0 +1,419 @@
+{
+  "generatedBy": "scripts/generate-file-fixtures.ts",
+  "codec": {
+    "entries": [
+      {
+        "name": "src",
+        "path": "/ws/src",
+        "relativePath": "src",
+        "type": "directory"
+      },
+      {
+        "name": "a.ts",
+        "path": "/ws/src/a.ts",
+        "relativePath": "src/a.ts",
+        "type": "file"
+      },
+      {
+        "name": "with\ttab.ts",
+        "path": "/ws/src/with\ttab.ts",
+        "relativePath": "src/with\ttab.ts",
+        "type": "file"
+      },
+      {
+        "name": "with\nnewline.ts",
+        "path": "/ws/src/with\nnewline.ts",
+        "relativePath": "src/with\nnewline.ts",
+        "type": "file"
+      },
+      {
+        "name": "back\\slash.md",
+        "path": "/ws/docs/back\\slash.md",
+        "relativePath": "docs/back\\slash.md",
+        "type": "file"
+      },
+      {
+        "name": "说明.md",
+        "path": "/ws/中文/说明.md",
+        "relativePath": "中文/说明.md",
+        "type": "file"
+      }
+    ],
+    "packed": "directory\tsrc\nfile\tsrc/a.ts\nfile\tsrc/with\\ttab.ts\nfile\tsrc/with\\nnewline.ts\nfile\tdocs/back\\\\slash.md\nfile\t中文/说明.md",
+    "unpackPosix": [
+      {
+        "name": "src",
+        "path": "/ws/src",
+        "relativePath": "src",
+        "type": "directory"
+      },
+      {
+        "name": "a.ts",
+        "path": "/ws/src/a.ts",
+        "relativePath": "src/a.ts",
+        "type": "file"
+      },
+      {
+        "name": "with\ttab.ts",
+        "path": "/ws/src/with\ttab.ts",
+        "relativePath": "src/with\ttab.ts",
+        "type": "file"
+      },
+      {
+        "name": "with\nnewline.ts",
+        "path": "/ws/src/with\nnewline.ts",
+        "relativePath": "src/with\nnewline.ts",
+        "type": "file"
+      },
+      {
+        "name": "back\\slash.md",
+        "path": "/ws/docs/back\\slash.md",
+        "relativePath": "docs/back\\slash.md",
+        "type": "file"
+      },
+      {
+        "name": "说明.md",
+        "path": "/ws/中文/说明.md",
+        "relativePath": "中文/说明.md",
+        "type": "file"
+      }
+    ],
+    "unpackWindows": [
+      {
+        "name": "src",
+        "path": "C:\\ws\\src",
+        "relativePath": "src",
+        "type": "directory"
+      },
+      {
+        "name": "a.ts",
+        "path": "C:\\ws\\src\\a.ts",
+        "relativePath": "src/a.ts",
+        "type": "file"
+      },
+      {
+        "name": "with\ttab.ts",
+        "path": "C:\\ws\\src\\with\ttab.ts",
+        "relativePath": "src/with\ttab.ts",
+        "type": "file"
+      },
+      {
+        "name": "with\nnewline.ts",
+        "path": "C:\\ws\\src\\with\nnewline.ts",
+        "relativePath": "src/with\nnewline.ts",
+        "type": "file"
+      },
+      {
+        "name": "back\\slash.md",
+        "path": "C:\\ws\\docs\\back\\slash.md",
+        "relativePath": "docs/back\\slash.md",
+        "type": "file"
+      },
+      {
+        "name": "说明.md",
+        "path": "C:\\ws\\中文\\说明.md",
+        "relativePath": "中文/说明.md",
+        "type": "file"
+      }
+    ]
+  },
+  "search": {
+    "entries": [
+      {
+        "name": "main",
+        "path": "/ws/main",
+        "relativePath": "main",
+        "type": "directory"
+      },
+      {
+        "name": "main.ts",
+        "path": "/ws/src/main.ts",
+        "relativePath": "src/main.ts",
+        "type": "file"
+      },
+      {
+        "name": "main.test.ts",
+        "path": "/ws/src/main.test.ts",
+        "relativePath": "src/main.test.ts",
+        "type": "file"
+      },
+      {
+        "name": "main.ts",
+        "path": "/ws/app/main.ts",
+        "relativePath": "app/main.ts",
+        "type": "file"
+      },
+      {
+        "name": "readme.md",
+        "path": "/ws/docs/readme.md",
+        "relativePath": "docs/readme.md",
+        "type": "file"
+      },
+      {
+        "name": "README.md",
+        "path": "/ws/README.md",
+        "relativePath": "README.md",
+        "type": "file"
+      }
+    ],
+    "queries": [
+      {
+        "query": "main",
+        "limit": 3,
+        "requireQuery": false,
+        "expected": [
+          "main",
+          "src/main.ts",
+          "app/main.ts"
+        ]
+      },
+      {
+        "query": "mt",
+        "limit": 5,
+        "requireQuery": false,
+        "expected": [
+          "src/main.ts",
+          "app/main.ts",
+          "src/main.test.ts"
+        ]
+      },
+      {
+        "query": "  ",
+        "limit": 2,
+        "requireQuery": false,
+        "expected": [
+          "src/main.ts",
+          "src/main.test.ts"
+        ]
+      },
+      {
+        "query": "",
+        "limit": 10,
+        "requireQuery": true,
+        "expected": []
+      },
+      {
+        "query": "zzz",
+        "limit": 10,
+        "requireQuery": false,
+        "expected": []
+      }
+    ]
+  },
+  "filter": {
+    "cases": [
+      {
+        "name": "node_modules",
+        "relativePath": "node_modules",
+        "type": "directory",
+        "ignoreRulesActive": true,
+        "decision": {
+          "include": true,
+          "traverse": true
+        }
+      },
+      {
+        "name": "node_modules",
+        "relativePath": "node_modules",
+        "type": "directory",
+        "ignoreRulesActive": false,
+        "decision": {
+          "include": false,
+          "traverse": false
+        }
+      },
+      {
+        "name": ".github",
+        "relativePath": ".github",
+        "type": "directory",
+        "ignoreRulesActive": true,
+        "decision": {
+          "include": false,
+          "traverse": true
+        }
+      },
+      {
+        "name": "workflows",
+        "relativePath": ".github/workflows",
+        "type": "directory",
+        "ignoreRulesActive": true,
+        "decision": {
+          "include": false,
+          "traverse": true
+        }
+      },
+      {
+        "name": "a.dll",
+        "relativePath": "lib/a.dll",
+        "type": "file",
+        "ignoreRulesActive": true,
+        "decision": {
+          "include": false,
+          "traverse": false
+        }
+      },
+      {
+        "name": ".env.local",
+        "relativePath": ".env.local",
+        "type": "file",
+        "ignoreRulesActive": true,
+        "decision": {
+          "include": false,
+          "traverse": false
+        }
+      },
+      {
+        "name": "ok.rs",
+        "relativePath": "src/ok.rs",
+        "type": "file",
+        "ignoreRulesActive": true,
+        "decision": {
+          "include": true,
+          "traverse": false
+        }
+      },
+      {
+        "name": "cmake-build-debug",
+        "relativePath": "cmake-build-debug",
+        "type": "directory",
+        "ignoreRulesActive": false,
+        "decision": {
+          "include": false,
+          "traverse": false
+        }
+      }
+    ]
+  },
+  "ignore": {
+    "rulesContent": "# comment\nnode_modules/\n*.log\n!keep.log\n/root-only.txt\nbuild/**\ndocs/\n",
+    "matchCases": [
+      {
+        "path": "node_modules",
+        "type": "directory",
+        "ignored": true
+      },
+      {
+        "path": "node_modules/pkg",
+        "type": "directory",
+        "ignored": true
+      },
+      {
+        "path": "src/app.log",
+        "type": "file",
+        "ignored": true
+      },
+      {
+        "path": "src/keep.log",
+        "type": "file",
+        "ignored": false
+      },
+      {
+        "path": "root-only.txt",
+        "type": "file",
+        "ignored": true
+      },
+      {
+        "path": "nested/root-only.txt",
+        "type": "file",
+        "ignored": false
+      },
+      {
+        "path": "build/x/y.js",
+        "type": "file",
+        "ignored": true
+      },
+      {
+        "path": "docs",
+        "type": "directory",
+        "ignored": true
+      },
+      {
+        "path": "src/app.ts",
+        "type": "file",
+        "ignored": false
+      }
+    ],
+    "readExisting": {
+      "content": "# comment\nnode_modules/\n*.log\n!keep.log\n/root-only.txt\nbuild/**\ndocs/\n",
+      "source": "file"
+    },
+    "loadSourceExisting": "file",
+    "createdFromGitignore": {
+      "gitignoreContent": "dist/\ncustom/\n*.tmp\n",
+      "loadSource": "created-from-gitignore",
+      "read": {
+        "content": "dist/\ncustom/\n*.tmp\n\n# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====\n.git/\n.hg/\n.svn/\nnode_modules/\nbower_components/\njspm_packages/\n__pycache__/\nsite-packages/\nvenv/\ncoverage/\nhtmlcov/\nlcov-report/\ncmakefiles/\ncmake-build-*/\nbazel-*/\npods/\nderiveddata/\nstorybook-static/\nplaywright-report/\ntest-results/\nallure-results/\nallure-report/\ncdk.out/\n*.egg-info/\n*.dist-info/\neggs/\npip-wheel-metadata/\nwheels/\n# ----- ↑ 以上为 Mode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----\n# 自定义规则写在下方（本行提示可删除）\n",
+        "source": "file"
+      }
+    },
+    "createdFromTemplate": {
+      "loadSource": "created-from-template",
+      "read": {
+        "content": "# Mode 工作区文件搜索忽略规则（.zcodeignore）\n# 语法与 .gitignore 一致，只影响 Mode 的 @ 文件候选 / Command Center / 文件树搜索，\n# 不影响文件树浏览、上传或 Agent 文件访问。\n# 修改 .gitignore 不会自动同步到本文件；可在设置页「从 .gitignore 同步」。\n\n\n# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====\n.git/\n.hg/\n.svn/\nnode_modules/\nbower_components/\njspm_packages/\n__pycache__/\nsite-packages/\nvenv/\ncoverage/\nhtmlcov/\nlcov-report/\ncmakefiles/\ncmake-build-*/\nbazel-*/\npods/\nderiveddata/\nstorybook-static/\nplaywright-report/\ntest-results/\nallure-results/\nallure-report/\ncdk.out/\n*.egg-info/\n*.dist-info/\neggs/\npip-wheel-metadata/\nwheels/\n# ----- ↑ 以上为 Mode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----\n# 自定义规则写在下方（本行提示可删除）\n",
+        "source": "file"
+      }
+    },
+    "syncCases": [
+      {
+        "current": "dist/\ncustom/\n",
+        "gitignore": "build/\n",
+        "expected": "build/\n\n# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====\n.git/\n.hg/\n.svn/\nnode_modules/\nbower_components/\njspm_packages/\n__pycache__/\nsite-packages/\nvenv/\ncoverage/\nhtmlcov/\nlcov-report/\ncmakefiles/\ncmake-build-*/\nbazel-*/\npods/\nderiveddata/\nstorybook-static/\nplaywright-report/\ntest-results/\nallure-results/\nallure-report/\ncdk.out/\n*.egg-info/\n*.dist-info/\neggs/\npip-wheel-metadata/\nwheels/\n# ----- ↑ 以上为 Mode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----\n# 自定义规则写在下方（本行提示可删除）\n"
+      },
+      {
+        "current": "",
+        "gitignore": "",
+        "expected": "# Mode 工作区文件搜索忽略规则（.zcodeignore）\n# 语法与 .gitignore 一致，只影响 Mode 的 @ 文件候选 / Command Center / 文件树搜索，\n# 不影响文件树浏览、上传或 Agent 文件访问。\n# 修改 .gitignore 不会自动同步到本文件；可在设置页「从 .gitignore 同步」。\n\n\n# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====\n.git/\n.hg/\n.svn/\nnode_modules/\nbower_components/\njspm_packages/\n__pycache__/\nsite-packages/\nvenv/\ncoverage/\nhtmlcov/\nlcov-report/\ncmakefiles/\ncmake-build-*/\nbazel-*/\npods/\nderiveddata/\nstorybook-static/\nplaywright-report/\ntest-results/\nallure-results/\nallure-report/\ncdk.out/\n*.egg-info/\n*.dist-info/\neggs/\npip-wheel-metadata/\nwheels/\n# ----- ↑ 以上为 Mode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----\n# 自定义规则写在下方（本行提示可删除）\n"
+      },
+      {
+        "current": "not-a-template\n",
+        "gitignore": "dist/\n",
+        "expected": "dist/\n\n# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====\n.git/\n.hg/\n.svn/\nnode_modules/\nbower_components/\njspm_packages/\n__pycache__/\nsite-packages/\nvenv/\ncoverage/\nhtmlcov/\nlcov-report/\ncmakefiles/\ncmake-build-*/\nbazel-*/\npods/\nderiveddata/\nstorybook-static/\nplaywright-report/\ntest-results/\nallure-results/\nallure-report/\ncdk.out/\n*.egg-info/\n*.dist-info/\neggs/\npip-wheel-metadata/\nwheels/\n# ----- ↑ 以上为 Mode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----\n# 自定义规则写在下方（本行提示可删除）\n"
+      }
+    ],
+    "resetCases": [
+      {
+        "current": "dist/\ncustom/\n",
+        "gitignore": "build/\n",
+        "expected": "build/\n\n# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====\n.git/\n.hg/\n.svn/\nnode_modules/\nbower_components/\njspm_packages/\n__pycache__/\nsite-packages/\nvenv/\ncoverage/\nhtmlcov/\nlcov-report/\ncmakefiles/\ncmake-build-*/\nbazel-*/\npods/\nderiveddata/\nstorybook-static/\nplaywright-report/\ntest-results/\nallure-results/\nallure-report/\ncdk.out/\n*.egg-info/\n*.dist-info/\neggs/\npip-wheel-metadata/\nwheels/\n# ----- ↑ 以上为 Mode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----\n# 自定义规则写在下方（本行提示可删除）\n"
+      },
+      {
+        "current": "",
+        "gitignore": "",
+        "expected": "# Mode 工作区文件搜索忽略规则（.zcodeignore）\n# 语法与 .gitignore 一致，只影响 Mode 的 @ 文件候选 / Command Center / 文件树搜索，\n# 不影响文件树浏览、上传或 Agent 文件访问。\n# 修改 .gitignore 不会自动同步到本文件；可在设置页「从 .gitignore 同步」。\n\n\n# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====\n.git/\n.hg/\n.svn/\nnode_modules/\nbower_components/\njspm_packages/\n__pycache__/\nsite-packages/\nvenv/\ncoverage/\nhtmlcov/\nlcov-report/\ncmakefiles/\ncmake-build-*/\nbazel-*/\npods/\nderiveddata/\nstorybook-static/\nplaywright-report/\ntest-results/\nallure-results/\nallure-report/\ncdk.out/\n*.egg-info/\n*.dist-info/\neggs/\npip-wheel-metadata/\nwheels/\n# ----- ↑ 以上为 Mode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----\n# 自定义规则写在下方（本行提示可删除）\n"
+      },
+      {
+        "current": "not-a-template\n",
+        "gitignore": "dist/\n",
+        "expected": "dist/\n\n# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====\n.git/\n.hg/\n.svn/\nnode_modules/\nbower_components/\njspm_packages/\n__pycache__/\nsite-packages/\nvenv/\ncoverage/\nhtmlcov/\nlcov-report/\ncmakefiles/\ncmake-build-*/\nbazel-*/\npods/\nderiveddata/\nstorybook-static/\nplaywright-report/\ntest-results/\nallure-results/\nallure-report/\ncdk.out/\n*.egg-info/\n*.dist-info/\neggs/\npip-wheel-metadata/\nwheels/\n# ----- ↑ 以上为 Mode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----\n# 自定义规则写在下方（本行提示可删除）\n"
+      }
+    ],
+    "transformNoMarkers": {
+      "content": "dist/\n\n# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====\n.git/\n.hg/\n.svn/\nnode_modules/\nbower_components/\njspm_packages/\n__pycache__/\nsite-packages/\nvenv/\ncoverage/\nhtmlcov/\nlcov-report/\ncmakefiles/\ncmake-build-*/\nbazel-*/\npods/\nderiveddata/\nstorybook-static/\nplaywright-report/\ntest-results/\nallure-results/\nallure-report/\ncdk.out/\n*.egg-info/\n*.dist-info/\neggs/\npip-wheel-metadata/\nwheels/\n# ----- ↑ 以上为 Mode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----\n# 自定义规则写在下方（本行提示可删除）\n"
+    }
+  },
+  "tree": {
+    "files": [
+      "README.md",
+      ".gitignore",
+      "src/main.ts",
+      "src/util.ts",
+      "logs/app.log",
+      "logs/keep.log",
+      ".github/workflows/ci.yml",
+      "node_modules/pkg/index.js",
+      "ignored-dir/a.ts"
+    ],
+    "dirs": [
+      "src",
+      "logs",
+      "ignored-dir",
+      ".github",
+      ".github/workflows",
+      "node_modules",
+      "node_modules/pkg"
+    ],
+    "modeignore": "node_modules/\n*.log\n!keep.log\nignored-dir/\n",
+    "length": 142,
+    "packed": "directory\tlogs\ndirectory\tsrc\nfile\t.github/workflows/ci.yml\nfile\t.gitignore\nfile\tlogs/keep.log\nfile\tREADME.md\nfile\tsrc/main.ts\nfile\tsrc/util.ts"
+  }
+}
