@@ -52,21 +52,21 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 
 ---
 
-## 进度快照（2026-10-27 更新）
+## 进度快照（2026-10-29 更新）
 
 > 证据：`docs/plans/2026-10-20-installed-0.0.61-acceptance.md`（已安装 0.0.61 自动化门禁与真机验收）、
 > `docs/plans/2026-10-20-runtime-ui-fixes.md`（0.0.61→0.0.63 运行态修复）、
 > `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`（LR-0..LR-4 执行记录）、
 > `docs/specs/legacy-electron-eol.md`（旧 Electron 线 EOL 执行记录）、
 > `docs/plans/2026-10-25-installed-0.0.85-acceptance.md`（0.0.85→0.0.92 逐版验收；0.0.92 节为本快照输入）、
-> `docs/plans/2026-10-27-0.0.92-acceptance-followups.md`（0.0.92 验收后改造项与判据）。
+> `docs/plans/2026-10-27-0.0.92-acceptance-followups.md`（0.0.92 验收后改造项与判据；2026-10-29 收口：9 项中 8 项通过真机验收，P1-1 为外部阻塞）。
 
 | 阶段 | 状态 | 已达成 | 仍阻塞阶段关闭 |
 | --- | --- | --- | --- |
 | M0 | 进行中 | 语言门禁、clean-room spec、上游基线、Rust 工具链、helper P1 与黑盒对拍 | `browser-import-helper` C# 重写与真实 Windows 会话验收（P2） |
 | M1 | **已关闭（2026-10-20）** | v0.0.59 三平台出包首次全绿，v0.0.60/61 按三平台同发口径发布；10 命令 E2E、clippy/rustfmt、协议生成物 | 无；体积口径由 DR-M5-2b 放开，macOS/Linux 真机验收转入 M5 |
 | M2 | 代码面完成，验收未过 | 工具/权限/会话流/对拍矩阵与 CI 门禁；Rust workspace 30 suites / 202 passed（2026-10-20 验收）；stdio 审批帧映射（2026-10-22，+13 用例） | 真实模型 20 个端到端任务未执行 |
-| M3 | 进行中 | LR-0..LR-4 Host sidecar 接线；插件市场/IM/Web/TUI 复用既有实现；0.0.61 真机核心链路通过；**Host 自动重生（§22.4）、`exportLogs`（§27）（2026-10-26），半开管道心跳（§22.5）、终端 PTY 下沉到壳、通知点击聚焦（2026-10-27）**；0.0.92 真人操作验收核心链路通过 | 插件/MCP/Skills **负载**的 CDN 发布与产品接线（Host sidecar 已按 DR-M3-2 随包发布，不是缺口）；插件安装/卸载、IM 真账号、两台实机 LAN/RD/Web、TUI 交互验收；**杀 Host/心跳/失败屏 retry 真机用例（需外部会话）、远程工作区任务通知、出站 RD 首帧、exportLogs 体积口径** |
+| M3 | 进行中 | LR-0..LR-4 Host sidecar 接线；插件市场/IM/Web/TUI 复用既有实现；0.0.61 真机核心链路通过；**Host 自动重生（§22.4）、`exportLogs`（§27）（2026-10-26），半开管道心跳（§22.5）、终端 PTY 下沉到壳、通知点击聚焦（2026-10-27）**；0.0.92 真人操作验收核心链路通过；**0.0.99 装后复验（2026-10-29）：破坏性用例 A/B/C、本地与远程任务通知及点击聚焦、`exportLogs` 体积口径、终端跨 Host/跨 reload reattach、心跳 kill 后进主界面、渲染层 typecheck 硬门禁全部通过** | 插件/MCP/Skills **负载**的 CDN 发布与产品接线（Host sidecar 已按 DR-M3-2 随包发布，不是缺口）；插件安装/卸载、IM 真账号、两台实机 LAN/RD/Web、TUI 交互验收；**只剩出站 RD 首帧（P1-1，需对端值守点 60 s 同意窗并取对端 Host 日志）** |
 | M4 | 进行中 | UI 基础件 adapter 全量切换、业务代码对旧 `components/ui/*` 引用清零；上游重合度 9.17%（2026-10-24 复测） | 旧 UI 文件看屏验收与删除；重合度清零；Rust 台账 514 缺失项与法务收口 |
 | M5 | 进行中 | 三平台 Release 发布口径已启用、Windows 自动发版连续跑通；旧 Electron 线代码/CI 已下线（`d71ed992`） | 三平台签名、EOL 公告与历史文档归档、差分更新、mac/Linux 真机安装/升级 |
 
@@ -116,6 +116,18 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > 推进的工程面——P0-1 外部编排脚本（绕开「验收会话自托管于目标 Host」的限制，自动跑
 > 杀 Host/心跳/失败屏三条用例）与 P2-1 渲染层 typecheck 接入 CI（当前 19 个存量错误）。
 > 二者见 `docs/plans/2026-10-27-0.0.92-acceptance-followups.md`。
+>
+> **2026-10-29 追加（0.0.92 验收后改造计划收口）**：计划 9 项里 **8 项通过真机验收**——
+> 破坏性用例 A/B/C（自然杀 Host 换代、半开管道心跳 kill、崩溃循环失败屏重试）、
+> 远程工作区任务通知与点击聚焦（本地 completed→横幅 380 ms、点击→聚焦 110 ms；远程自提交
+> ≤1.36 s 出横幅、点击 249 ms 回前台）、`exportLogs` 默认导出 0.37 MB（6 个 Host 线文件
+> 正文 + 13 条 `omittedFile` 清单）、心跳 kill 后整页 reload 用时 1466 ms 回主界面、
+> 终端跨 Host 死亡与跨整页 reload reattach（杀 Host 后原 PTY 1940 存活并重新挂接）、
+> 渲染层 typecheck 硬门禁。**P1-1 出站远程桌面首帧记为外部阻塞**：对端 2026-10-29 09:08
+> 仍在线（ping 17 ms、45880 可达），但 §5.3 需要被控端有人值守点掉 60 s 同意窗并提供
+> 对端 Host 日志，本机无法单侧完成；本机可自证部分已复核，日志归属更正后不再把
+> 「主控日志无 `media start requested`」当失败证据。验收载具是本地构建的 0.0.99
+> （安装版 0.0.93 不含本轮代码），证据在 `.plan/accept-0.0.99/`。计划已标注终止推进。
 
 ## M0 地基与纪律（2–4 周）
 
