@@ -10,6 +10,7 @@ name = "host_channels"
 path = "src/lib.rs"
 
 [dependencies]
+conversation-mirror = { path = "../conversation-mirror" }
 project-memory = { path = "../project-memory" }
 rpc-host = { path = "../rpc-host" }
 rpc-wire = { path = "../rpc-wire" }

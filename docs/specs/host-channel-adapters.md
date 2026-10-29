@@ -1,7 +1,7 @@
 # Spec：壳内频道适配器（`crates/host-channels`）
 
-状态：2026-10-29。已适配五个频道：`memory`、`prompt-attachment-transfer`、
-`client-config`、`client-scenes`、`media-preview`。
+状态：2026-10-29。已适配六个频道：`memory`、`prompt-attachment-transfer`、
+`client-config`、`client-scenes`、`media-preview`、`conversation-mirror`。
 范围：**RPC 方法名与参数形状**到服务调用的翻译、错误映射。服务实现本身在各自的 crate。
 
 ## 参数形状
@@ -54,6 +54,17 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
 所以本地只走 **inline**。`refreshPlaybackUrl` / `release` 在 TS 里是可选方法，本地服务没有，
 这里同样按未知方法报错。扩展名表来自 `packages/shared/src/media-preview.ts`，两边必须同步。
 
+## conversation-mirror
+
+| 方法 | 参数 | 返回 |
+| --- | --- | --- |
+| `getMirrorIdentity` | 无 | `{deviceId,label}` |
+| `publishSnapshot` | `{snapshot}` | `{stored,reason?,recordCount}`（origin 必须是**别人**） |
+| `writeLocalSnapshot` | `{snapshot}` | 同上（origin 必须是**自己**） |
+| `readWorkspaceSnapshots` | `{workspacePath}` | `{snapshots:[…]}` |
+
+存储、校验与有界化语义见 `conversation-mirror.md`；适配器只做参数解析与 `spawn_blocking`。
+
 ## 与路由的约定
 
 - 适配器只被壳内 `ChannelServer` 调用（`inprocess.rs`），当前只接管 **base scope**；
@@ -69,5 +80,6 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
 - `tests/client_metadata.rs`（3 条）：两个常量返回值、未知方法报错。
 - `tests/media_preview.rs`（5 条）：inline 音频 base64 与 mediaType、kind 不匹配、
   不支持扩展名、8 MiB 上限、目录/未知方法、大小写与反斜杠归一。
+- `tests/conversation_mirror_channel.rs`（2 条）：身份与两条 origin 规则、读取回环。
 - `tests/pipeline.rs`（3 条）：真 RPC 帧 → 路由 → `ChannelServer` → 回帧；scoped 帧转发；
   未知方法回 `PromiseError`。

@@ -17,9 +17,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use host_channels::{
-    AttachmentTransferChannel, ClientConfigChannel, ClientScenesChannel, MediaPreviewChannel,
-    MemoryChannel, ATTACHMENT_TRANSFER_CHANNEL, CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL,
-    MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
+    AttachmentTransferChannel, ClientConfigChannel, ClientScenesChannel, ConversationMirrorChannel,
+    MediaPreviewChannel, MemoryChannel, ATTACHMENT_TRANSFER_CHANNEL, CLIENT_CONFIG_CHANNEL,
+    CLIENT_SCENES_CHANNEL, CONVERSATION_MIRROR_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter};
@@ -63,7 +63,8 @@ impl InprocessState {
                 | ATTACHMENT_TRANSFER_CHANNEL
                 | CLIENT_CONFIG_CHANNEL
                 | CLIENT_SCENES_CHANNEL
-                | MEDIA_PREVIEW_CHANNEL => owned.push(name),
+                | MEDIA_PREVIEW_CHANNEL
+                | CONVERSATION_MIRROR_CHANNEL => owned.push(name),
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
                 other => eprintln!("[mode-tauri] inprocess channel ignored (not ported yet): {other}"),
             }
@@ -182,6 +183,12 @@ fn build_server(
             MEDIA_PREVIEW_CHANNEL => server.register_channel(
                 MEDIA_PREVIEW_CHANNEL,
                 Arc::new(MediaPreviewChannel),
+            ),
+            CONVERSATION_MIRROR_CHANNEL => server.register_channel(
+                CONVERSATION_MIRROR_CHANNEL,
+                Arc::new(ConversationMirrorChannel::new(
+                    conversation_mirror::ConversationMirrorService::new(data_root.to_path_buf()),
+                )),
             ),
             other => eprintln!("[mode-tauri] inprocess channel not constructible: {other}"),
         }

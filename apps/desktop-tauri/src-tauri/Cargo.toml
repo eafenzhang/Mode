@@ -65,6 +65,7 @@ tauri-plugin-single-instance.workspace = true
 platform = { path = "../../../crates/platform" }
 sidecar-host = { path = "../../../crates/sidecar-host" }
 protocol = { path = "../../../crates/protocol" }
+conversation-mirror = { path = "../../../crates/conversation-mirror" }
 host-channels = { path = "../../../crates/host-channels" }
 rpc-host = { path = "../../../crates/rpc-host" }
 project-memory = { path = "../../../crates/project-memory" }
