@@ -22,7 +22,8 @@ fn owned_base_request_routes_local() {
     let router = FrameRouter::new(["setting", "file"]);
     let frame = promise(1, "setting", "get");
     match router.route(&frame) {
-        FrameRoute::Local { scope_id, request } => {
+        FrameRoute::Local { scope_id, request, payload } => {
+            assert!(!payload.is_empty(), "Local 必须带原始 payload");
             assert_eq!(scope_id, None);
             assert_eq!(request.header.channel(), Some("setting"));
         }
@@ -35,7 +36,8 @@ fn owned_scoped_request_keeps_scope_id() {
     let router = FrameRouter::new(["setting"]);
     let frame = encode_scoped_frame(7, &promise(2, "setting", "get")).unwrap();
     match router.route(&frame) {
-        FrameRoute::Local { scope_id, request } => {
+        FrameRoute::Local { scope_id, request, payload } => {
+            assert!(!payload.is_empty(), "Local 必须带原始 payload");
             assert_eq!(scope_id, Some(7));
             assert_eq!(request.header.channel(), Some("setting"));
         }

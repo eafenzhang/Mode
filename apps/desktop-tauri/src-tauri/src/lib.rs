@@ -10,6 +10,7 @@
 use tauri::Runtime;
 
 pub mod host;
+pub mod inprocess;
 pub mod single_instance;
 pub mod terminal;
 pub mod web_assets;

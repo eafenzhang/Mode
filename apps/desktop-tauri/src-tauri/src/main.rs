@@ -75,7 +75,14 @@ fn main() {
             supervisor.current().startup_id(),
             supervisor.current().pid()
         );
+        // 壳内频道（M4b）：开关 `MODE_HOST_INPROCESS_CHANNELS` 为空时整条链路不介入，
+        // 帧仍逐字节转发给 Node Host。数据根与 Host 同口径（含 setting.json 的自定义指针）。
+        let inprocess = mode_tauri::inprocess::InprocessState::from_env(
+            std::sync::Arc::clone(&supervisor),
+            mode_tauri::host::resolve_data_root(&handle),
+        );
         app.manage(supervisor);
+        app.manage(inprocess);
 
         // 窗口必须在 Rust 侧建：`WindowConfig` 没有 `initialization_script` 字段，
         // 配置里的窗口拿不到注入（见 mode_tauri::window 的模块文档）。

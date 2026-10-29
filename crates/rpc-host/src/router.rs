@@ -16,9 +16,13 @@ pub enum FrameRoute {
     /// 附件控制帧（scope-ready / scope-detach），由调用方处理 attachment 生命周期。
     Control(AttachmentControl),
     /// 本地（Rust）服务面拥有的请求。
+    ///
+    /// `payload` 是**剥掉 scope 前缀后的原始字节**：直接交给 `ChannelServer`，
+    /// 避免「解析后再编码」带来的字节差异（对象分支的 JSON 文本要原样保留）。
     Local {
         scope_id: Option<u32>,
         request: RpcMessage,
+        payload: Vec<u8>,
     },
     /// 不属于本地频道：原样转发给遗留 Host（保留 scoped 前缀）。
     Legacy,
@@ -66,6 +70,7 @@ impl FrameRouter {
                 Some(channel) if self.owned.contains(channel) => FrameRoute::Local {
                     scope_id,
                     request,
+                    payload: payload.to_vec(),
                 },
                 // 本地不认识的请求（含 cancel/dispose）交给遗留 Host：那里知道 id 对应什么。
                 _ => FrameRoute::Legacy,

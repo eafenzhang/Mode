@@ -65,12 +65,17 @@ tauri-plugin-single-instance.workspace = true
 platform = { path = "../../../crates/platform" }
 sidecar-host = { path = "../../../crates/sidecar-host" }
 protocol = { path = "../../../crates/protocol" }
+host-channels = { path = "../../../crates/host-channels" }
+rpc-host = { path = "../../../crates/rpc-host" }
+project-memory = { path = "../../../crates/project-memory" }
+settings-store = { path = "../../../crates/settings-store" }
 updater = { path = "../../../crates/updater" }
 tray = { path = "../../../crates/tray" }
 deeplink = { path = "../../../crates/deeplink" }
 serde.workspace = true
 serde_json.workspace = true
 tauri.workspace = true
+tokio.workspace = true
 # main.rs 要注册插件本体（deeplink crate 只用它的 API），故这里直接依赖。
 tauri-plugin-deep-link.workspace = true
 

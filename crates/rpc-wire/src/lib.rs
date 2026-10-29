@@ -61,4 +61,51 @@ impl Value {
     pub fn str(value: impl Into<String>) -> Self {
         Self::Str(value.into())
     }
+
+    /// 转成 `serde_json::Value`（对象分支按原文本解析；二进制按嵌套标记还原成数组）。
+    ///
+    /// 用途：频道适配器把 RPC 参数交给业务层时统一用 `serde_json` 建模。
+    pub fn to_json(&self) -> serde_json::Value {
+        match self {
+            Self::Undefined => serde_json::Value::Null,
+            Self::Str(text) => serde_json::Value::String(text.clone()),
+            Self::Int(number) => serde_json::Value::from(*number),
+            Self::Array(items) => {
+                serde_json::Value::Array(items.iter().map(Self::to_json).collect())
+            }
+            Self::Json(text) => {
+                serde_json::from_str(text).unwrap_or(serde_json::Value::Null)
+            }
+            // 与 TS 的 JSON 回退一致：嵌套二进制带上标记与 base64。
+            Self::Bytes(bytes) | Self::Buffer(bytes) => serde_json::json!({
+                "__mode_rpc_nested_uint8array_v1": true,
+                "base64": base64_encode(bytes),
+            }),
+        }
+    }
+}
+
+fn base64_encode(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] =
+        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = *chunk.get(1).unwrap_or(&0) as u32;
+        let b2 = *chunk.get(2).unwrap_or(&0) as u32;
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+        out.push(ALPHABET[((triple >> 18) & 0x3f) as usize] as char);
+        out.push(ALPHABET[((triple >> 12) & 0x3f) as usize] as char);
+        out.push(if chunk.len() > 1 {
+            ALPHABET[((triple >> 6) & 0x3f) as usize] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            ALPHABET[(triple & 0x3f) as usize] as char
+        } else {
+            '='
+        });
+    }
+    out
 }

@@ -144,6 +144,14 @@ bytes ──► FrameRouter::route
 `FrameRouter` 的 owned 集合为空，所有帧走 Legacy，行为与今天逐字节一致；回滚只需去掉该
 环境变量重启。
 
+**已实现（2026-10-29）**：`apps/desktop-tauri/src-tauri/src/inprocess.rs` 接上了上述设计，
+首个频道为 `memory`（`crates/host-channels` 适配器 → `crates/project-memory`）。
+`host_send` 按 `FrameRouter` 分四路：Local 投给消费任务（独占 `ChannelServer`，按 Host 代
+重建）、Dropped 丢弃、Control/Legacy 原样转发。本地回帧经 `push_local_frame` 进同一条
+入方向队列。开关为空时 `decide` 恒为 Forward，转发路径与接线前逐字节一致。
+**尚未做**：真机打开开关跑一遍（本轮只做编译与单元验收）；Control 帧仍归 Node Host；
+`host`/`setting` 频道未接管。
+
 **先接的频道（2026-10-29 二次更正）**：**不能用 `host` 诊断面**——渲染层的半开管道心跳
 走 `host.ping`（spec §22.5），搬进壳等于让看门狗测壳自己，Node Host 停摆就发现不了。
 也**不用 `setting`**：它有四个方法，其中 `updateDataBaseDir` 要拷贝整个数据目录，属 W3 的

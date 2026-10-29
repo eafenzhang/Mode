@@ -24,7 +24,11 @@ use sidecar_host::bridge::{
 };
 use sidecar_host::respawn::{RespawnHistory, MAX_QUICK_CRASHES};
 use sidecar_host::{data_base_dir_from, HostConfig, HostHandle};
+use settings_store::paths::MODE_DATA_ROOT_DIR_NAME;
+use settings_store::{read_document, resolve_settings_paths, HomeEnv, ReadOutcome, ReadOptions};
 use tauri::{AppHandle, Manager, Runtime, State};
+
+use crate::inprocess::{InprocessState, RouteDecision};
 
 /// 入方向长轮询的单次上限：到点回空帧，页面立刻再轮询（不把一次 invoke 挂太久）。
 const RECV_TIMEOUT: Duration = Duration::from_secs(10);
@@ -367,6 +371,41 @@ fn watch_loop<R: Runtime>(app: AppHandle<R>, supervisor: Arc<HostSupervisor>) {
 }
 
 /// 让主窗口整页重载（新一代的注入脚本会采用新 startupId）。
+/// 壳内频道要用的数据根（`{base}/.mode`）。
+///
+/// 与 Host 的 `resolveDataRoot` 同口径：显式 `MODE_DATA_BASE_DIR` 优先；否则读默认根
+/// `setting.json` 里的 `dataBaseDir` 指针（用户改过数据目录时 Host 也走这条）。
+/// 指针读取失败/缺失都回落 `{home}/.mode`，不阻断启动。
+pub fn resolve_data_root<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
+    let home = app
+        .path()
+        .home_dir()
+        .unwrap_or_else(|_| PathBuf::from("."));
+    let env_base = std::env::var_os("MODE_DATA_BASE_DIR");
+    let base = data_base_dir_from(env_base.as_deref(), &home);
+    if env_base.is_some() {
+        return base.join(MODE_DATA_ROOT_DIR_NAME);
+    }
+
+    let env = HomeEnv {
+        mode_desktop_home_dir: std::env::var_os("MODE_DESKTOP_HOME_DIR"),
+        home: std::env::var_os("HOME"),
+        user_profile: std::env::var_os("USERPROFILE"),
+        fallback_home: home,
+    };
+    let paths = resolve_settings_paths(&env);
+    // 启动早期读取：坏文件的重试交给正常路径（3×300ms），最坏情况只影响启动门面。
+    let options = ReadOptions::default();
+    match read_document(&paths, &options) {
+        ReadOutcome::Loaded(value) => value
+            .get("dataBaseDir")
+            .and_then(|value| value.as_str())
+            .map(|dir| Path::new(dir).join(MODE_DATA_ROOT_DIR_NAME))
+            .unwrap_or_else(|| base.join(MODE_DATA_ROOT_DIR_NAME)),
+        _ => base.join(MODE_DATA_ROOT_DIR_NAME),
+    }
+}
+
 fn reload_main_window<R: Runtime>(app: &AppHandle<R>) {
     match app.get_webview_window(crate::MAIN_WINDOW_LABEL) {
         Some(window) => {
@@ -382,16 +421,25 @@ fn reload_main_window<R: Runtime>(app: &AppHandle<R>) {
 #[tauri::command(rename = "host_send")]
 pub fn host_send(
     supervisor: State<'_, Arc<HostSupervisor>>,
+    inprocess: State<'_, Arc<InprocessState>>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), String> {
     let bytes = match request.body() {
         tauri::ipc::InvokeBody::Raw(bytes) => bytes.clone(),
         other => return Err(format!("host_send 期望 raw body，实收 {other:?}")),
     };
-    supervisor
-        .current()
-        .send_frame(&bytes)
-        .map_err(|error| error.to_string())
+    // 开关为空时 `decide` 恒为 Forward，下面的转发路径与接线前逐字节相同。
+    match inprocess.decide(&bytes) {
+        RouteDecision::Local(payload) => {
+            inprocess.dispatch(payload);
+            Ok(())
+        }
+        RouteDecision::Dropped => Ok(()),
+        RouteDecision::Forward => supervisor
+            .current()
+            .send_frame(&bytes)
+            .map_err(|error| error.to_string()),
+    }
 }
 
 /// Host → 页面：长轮询一帧，按 raw bytes 返回（页面拿到 `ArrayBuffer`，必须自己包 `Uint8Array`）。
