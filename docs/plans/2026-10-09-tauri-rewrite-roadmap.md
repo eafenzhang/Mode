@@ -153,7 +153,7 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > `conversation-mirror`、`setting`、`credential`、`system`。
 > **未验证/未做**：真机打开开关、`host` 频道（半开管道心跳不能搬）、hooks 频道本体
 > （`grant` 依赖 Agent authority，随 W4 接）、`onboarding-record`（注入依赖未移植）、
-> `file` / `fileWatcher`（`ignore` / `globset` / `notify` 离线不可得）、
+> `file` / `fileWatcher`（待做；`ignore` / `notify` 已实测可联网获取）、
 > `setting` 的写队列/账号 CAS/补丁类型校验。
 
 ## M0 地基与纪律（2–4 周）

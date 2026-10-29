@@ -110,9 +110,10 @@ TS `ServiceChannels` 的漂移守卫。**真机打开开关尚未验证**；控�
 Node Host，scoped 帧已能本地接管（按 scope 复用服务面）。剩余域的障碍：`hooks` 的
 trust / config / digest 三件已就位，但 `grantWorkspaceHookTrust` 必须转发给 Agent
 authority（`mode-protocol` 客户端），壳内暂无该客户端，因此频道本体推迟到 W4 与 Agent
-控制面一起接；`onboarding-record` 依赖未移植的 OAuth/任务服务；`fileWatcher` 需要的
-`notify` crate 不在本机 cargo 缓存。各频道都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到
-壳内，适配层契约见 `docs/specs/host-channel-adapters.md`。
+控制面一起接；`onboarding-record` 依赖未移植的 OAuth/任务服务。`fileWatcher` 的依赖
+**不是**阻塞：`notify 8.2.1` 可从 crates.io 拉取并编译（本机缓存缺失 ≠ 不可用）。各频道都经
+`MODE_HOST_INPROCESS_CHANNELS` 可切到壳内，适配层契约见
+`docs/specs/host-channel-adapters.md`。
 
 `crates/workspace-identity` —— 路径归一 / 身份 key / SHA-256 前 12 位 hash（session 目录与
 对话镜像目录共用），见 `docs/specs/workspace-identity.md`。
@@ -281,10 +282,11 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 2. **W1 剩余基元**：`file` / `fs` / `paths`、SQLite 迁移门禁（基线改由 Rust 迁移生成 +
    `--base-ref` 只增校验）。`credential` 已落地（`crates/credential-store`，
    AES-256-GCM + 文件托管密钥；TS 注释里的 keyring 仍是后续项）。
-3. **`file` 域阻塞（2026-10-29 新发现）**：TS 的 `.zcodeignore` 明确要求用 `ignore` 包做
-   gitignore 解析（"禁止在本仓库手写 gitignore 解析"），而 Rust 的 `ignore` / `globset`
-   不在本机 cargo 缓存；`file-watcher` 的 `notify` 同样缺失。两域都要先解决离线依赖
-   （换 crates 源或先 vendor），否则只能做出语义漂移的半成品。
+3. **`file` / `file-watcher` 依赖已确认可得（2026-10-29 实测）**：Rust 的
+   `ignore 0.4.34`（gitignore 语义参考实现）与 `notify 8.2.1` 都能从 crates.io 拉取并
+   编译成功。本机 cargo 缓存里没有不等于不可用——用 `--offline` 判断依赖可得性会误判。
+   下一步可直接做 `file` 域（17 个方法，重点是 `.modeignore` 解析、列式打包 codec、
+   60s 指纹缓存与搜索 top-K）。
 4. **hooks 频道本体（阻塞在 W4）**：discovery、`saveHooks` 原子写可先做，但
    `grantWorkspaceHookTrust` 必须转发给 Agent authority，壳内需要 `mode-protocol` 客户端；
    与 W4 的 Agent 控制面一起接，避免壳直接写 trust store。`onboarding-record` 同样
