@@ -30,6 +30,7 @@ members = [
   "crates/tauri-test-manifest",
   "crates/updater",
   "crates/updater-verify",
+  "crates/workspace-hook-trust",
   "crates/workspace-identity",
   "crates/tray",
   "crates/conversation-mirror",
