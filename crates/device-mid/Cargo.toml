@@ -1,0 +1,17 @@
+[package]
+name = "device-mid"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "设备身份 deviceMid（telemetry-state.json），对应 services/src/device/deviceMid.ts"
+
+[lib]
+name = "device_mid"
+path = "src/lib.rs"
+
+[dependencies]
+atomic-file = { path = "../atomic-file" }
+serde_json.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

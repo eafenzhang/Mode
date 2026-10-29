@@ -100,6 +100,10 @@ credential / task-index 的共同前置。
 `media-preview`（本地 inline：扩展名/kind 校验 + 8 MiB 上限 + base64）。两者都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到壳内，
 适配层契约见 `docs/specs/host-channel-adapters.md`。
 
+`crates/device-mid` —— 设备身份 `telemetry-state.json`（锁内生成 UUID v4、保留未知字段、
+原子写回），`conversation-mirror` / onboarding / 遥测的共同前置，见
+`docs/specs/device-mid.md`。
+
 `crates/settings-store` —— `setting.json` 的路径解析（三级 home 回落）、坏文件隔离
 （3×300 ms 重试后改名备份）、原子写回，对应 `docs/specs/settings-store.md`；模型层
 （默认值 / `merge_persisted` / `apply_patch` / `normalize`）由 zod 生成的黄金样例对拍
