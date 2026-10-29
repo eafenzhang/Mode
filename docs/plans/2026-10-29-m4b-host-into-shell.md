@@ -85,6 +85,12 @@ config 0.19）。本轮把 externals 闭包按 `host-sidecar-ship.ts` 的同一�
   （同一频道内按到达顺序处理；不允许为了吞吐打乱顺序）。
 - 形态：纯库（`crates/rpc-host`），不接产品，可在 `cargo test` 里用假频道跑通。
 - 退出条件：与 TS `ChannelServer` 的行为对拍（同输入 → 同输出帧序），含取消与事件。
+- **2026-10-29 完成**：`crates/rpc-host` 实现分派、错误映射（`Error`→PromiseError，
+  其余值→PromiseErrorObj）、事件连发/释放、取消令牌、pending 补发与超时、`dispose`。
+  行为真源与差异写在 `docs/specs/rpc-host-dispatch.md`；10 条 `#[tokio::test]` 用例覆盖。
+  说明：并发模型与 TS 一致（每个 Promise 独立执行、响应可按 id 乱序匹配），
+  **同一订阅的事件顺序由频道实现保证**——比原计划「同一频道按到达顺序处理」更贴近 TS，
+  且不牺牲吞吐。
 
 ### M4b-3 帧路由（灰度开关）
 

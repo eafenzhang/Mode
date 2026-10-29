@@ -21,6 +21,7 @@ members = [
   "crates/platform",
   "crates/protocol",
   "crates/rpc-wire",
+  "crates/rpc-host",
   "crates/sidecar-host",
   "crates/tauri-test-manifest",
   "crates/updater",

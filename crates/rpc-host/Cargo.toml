@@ -1,0 +1,15 @@
+[package]
+name = "rpc-host"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "壳内 RPC 服务面：频道注册、分派、事件与取消（对应 TS ChannelServer，docs/specs/rpc-wire-format.md）"
+
+[lib]
+name = "rpc_host"
+path = "src/lib.rs"
+
+[dependencies]
+rpc-wire = { path = "../rpc-wire" }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["time"] }
