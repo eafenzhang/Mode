@@ -12,7 +12,6 @@
 
 mod error;
 mod repo;
-mod selection;
 
 pub use error::{OffPeakRepoError, Result};
 pub use repo::{
@@ -21,4 +20,4 @@ pub use repo::{
     ReleaseClaimOptions,
     SchedulingPatch, TaskScope, OFF_PEAK_CLAIM_STALE_MS,
 };
-pub use selection::{parse_model_selection, ModelSelection, SelectionOptions};
+pub use model_selection::{parse_model_selection, serialize_model_selection, ModelSelection, SelectionOptions};

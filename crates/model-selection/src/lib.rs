@@ -1,15 +1,14 @@
 //! `ModelSelection` 的严格解析与落盘编码。
 //!
 //! 行为真源：`packages/shared/src/model-selection.ts` 的 `modelSelectionSchema`
-//! 与 `offPeakTaskRepo.ts` 的 `serializeOffPeakModelSelection`。
+//! 与各 Repo 的 `serialize*ModelSelection`。
 //!
 //! zod 的 `.strict()` 拒绝未知键、`.trim().min(1)` 会 trim 后校验非空；
-//! 编码按 `providerId → modelId → options` 的对象字面量插入序手工拼接。
+//! 编码按 `providerId → modelId → options` 的对象字面量插入序手工拼接，
+//! `options` 为空对象时整个字段省略（对应 `Object.keys(...).length > 0`）。
 
 use serde::Serialize;
 use serde_json::Value;
-
-use crate::error::{OffPeakRepoError, Result};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -74,18 +73,16 @@ fn json_string(value: &str) -> String {
 }
 
 /// 按 TS 对象插入序编码；`options` 为空对象时整个字段省略。
-pub fn serialize_model_selection(selection: &ModelSelection) -> Result<String> {
+///
+/// 返回的错误是可直接透传的校验文案（调用方自行决定是否加前缀）。
+pub fn serialize_model_selection(selection: &ModelSelection) -> Result<String, String> {
     let provider_id = selection.provider_id.trim();
     let model_id = selection.model_id.trim();
     if provider_id.is_empty() {
-        return Err(OffPeakRepoError::Message(
-            "modelSelection.providerId 不能为空".to_owned(),
-        ));
+        return Err("modelSelection.providerId 不能为空".to_owned());
     }
     if model_id.is_empty() {
-        return Err(OffPeakRepoError::Message(
-            "modelSelection.modelId 不能为空".to_owned(),
-        ));
+        return Err("modelSelection.modelId 不能为空".to_owned());
     }
     let reasoning_level = match selection
         .options
@@ -95,9 +92,7 @@ pub fn serialize_model_selection(selection: &ModelSelection) -> Result<String> {
         Some(level) => {
             let level = level.trim();
             if level.is_empty() {
-                return Err(OffPeakRepoError::Message(
-                    "modelSelection.options.reasoningLevel 不能为空".to_owned(),
-                ));
+                return Err("modelSelection.options.reasoningLevel 不能为空".to_owned());
             }
             Some(level)
         }
@@ -123,14 +118,17 @@ mod tests {
     #[test]
     fn strict_parse_rejects_unknown_keys_and_empty_values() {
         assert!(parse_model_selection(r#"{"providerId":"p","modelId":"m"}"#).is_some());
-        assert!(parse_model_selection(r#"{"providerId":" p ","modelId":"m"}"#)
-            .unwrap()
-            .provider_id
-            .eq("p"));
+        assert_eq!(
+            parse_model_selection(r#"{"providerId":" p ","modelId":"m"}"#)
+                .unwrap()
+                .provider_id,
+            "p"
+        );
         assert!(parse_model_selection(r#"{"providerId":"p","modelId":"m","x":1}"#).is_none());
         assert!(parse_model_selection(r#"{"providerId":"  ","modelId":"m"}"#).is_none());
-        assert!(parse_model_selection(r#"{"providerId":"p","modelId":"m","options":{"x":1}}"#)
-            .is_none());
+        assert!(
+            parse_model_selection(r#"{"providerId":"p","modelId":"m","options":{"x":1}}"#).is_none()
+        );
         assert!(parse_model_selection(
             r#"{"providerId":"p","modelId":"m","options":{"reasoningLevel":""}}"#
         )

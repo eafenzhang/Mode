@@ -14,7 +14,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::error::{OffPeakRepoError, Result};
-use crate::selection::{parse_model_selection, serialize_model_selection, ModelSelection};
+use model_selection::{parse_model_selection, serialize_model_selection, ModelSelection};
 
 /// 认领超时回收：`claim_running=1` 超过该时长仍未结算视为持有者已崩溃。
 ///
@@ -458,7 +458,8 @@ impl OffPeakTaskRepo {
             &params.workspace_path,
             params.workspace_identity.as_deref(),
         );
-        let model_selection = serialize_model_selection(&params.model_selection)?;
+        let model_selection = serialize_model_selection(&params.model_selection)
+            .map_err(OffPeakRepoError::Message)?;
         self.with_conn(|connection| {
             connection.execute(
                 "INSERT INTO off_peak_tasks (
@@ -709,7 +710,8 @@ impl OffPeakTaskRepo {
                     "Off-Peak task 缺少有效 ModelSelection: {off_peak_task_id}"
                 )));
             };
-            let model_selection = serialize_model_selection(&next_selection)?;
+            let model_selection = serialize_model_selection(&next_selection)
+                .map_err(OffPeakRepoError::Message)?;
             let now = options.now.unwrap_or_else(|| self.now());
             connection.execute(
                 "UPDATE off_peak_tasks SET

@@ -34,7 +34,9 @@ scheduler 轮询(20s) ─ claimDue / claimManualRuns ────┤
 ```
 
 - **调度状态机**的唯一写入方仍是 `AutomationRepo`（`tasks-index.sqlite`）；runtime 只按其
-  doc 契约调用，不新增状态字段。
+  doc 契约调用，不新增状态字段。同一契约已有 Rust 实现 `crates/automation-repo`
+  （70 步与 TS 对拍，见 `docs/specs/automation-repo.md`），但尚未接入本运行时：
+  在频道接线完成前，实际写入方仍是 TS `AutomationRepo`。
 - **AutomationRuntime**（`packages/services/src/session/automationRuntime.ts`）是进程内模块，
   持有自己的 `AutomationRepo` 连接；由 host-standalone 在服务面就绪后创建并 `start()`，
   dispose 时 `stop()`（停轮询、释放在途认领、退订终态订阅）。

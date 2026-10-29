@@ -1,0 +1,19 @@
+[package]
+name = "automation-repo"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "定时任务仓库：automations / automation_runs 状态机与运行历史（对应 services/src/session/automationRepo）"
+
+[lib]
+name = "automation_repo"
+path = "src/lib.rs"
+
+[dependencies]
+tasks-db = { path = "../tasks-db" }
+workspace-identity = { path = "../workspace-identity" }
+model-selection = { path = "../model-selection" }
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true

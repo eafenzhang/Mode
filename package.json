@@ -27,6 +27,7 @@
     "tasks-db:fixtures": "tsx scripts/generate-tasks-db-fixtures.ts",
     "task-index:fixtures": "tsx scripts/generate-task-index-fixtures.ts",
     "off-peak:fixtures": "tsx scripts/generate-off-peak-fixtures.ts",
+    "automation:fixtures": "tsx scripts/generate-automation-fixtures.ts",
     "verify:self-developed": "tsx scripts/upstream-overlap-check.ts --strict",
     "build": "pnpm -r build",
     "build:mode": "node scripts/build-mode.mjs",

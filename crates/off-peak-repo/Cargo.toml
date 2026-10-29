@@ -12,6 +12,7 @@ path = "src/lib.rs"
 [dependencies]
 tasks-db = { path = "../tasks-db" }
 workspace-identity = { path = "../workspace-identity" }
+model-selection = { path = "../model-selection" }
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
