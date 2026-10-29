@@ -116,6 +116,37 @@ renderer（WebView）
   `crates/rpc-wire::scope`，与 TS 有 3 条黄金样例对拍 + 7 条路由用例。
   壳内接线（Tauri 桥读写、开关、回滚）仍未做，属于下一增量。
 
+#### 壳内接线设计（2026-10-29 定稿，待实现）
+
+**入方向**（`host_send`）：现有实现把 raw body 直接写 sidecar stdin。改为：
+
+```
+bytes ──► FrameRouter::route
+   ├─ Local    → ChannelServer::handle_frame（进程内，不写 stdin）
+   ├─ Legacy   → supervisor.send_frame（逐字节，与今天一致）
+   ├─ Control  → supervisor.send_frame（scope 生命周期仍归 Node Host）
+   └─ Rejected → 丢弃 + 计数（对应 TS 的 frame_rejected）
+```
+
+**出方向**（`host_recv`）：本地回帧不能绕过现有长轮询，否则渲染层收不到。两条来源
+（sidecar stdout、本地 `mpsc`）合并成**一条**投递路径：sidecar 侧起一个常驻 blocking 任务
+把 `next_frame(timeout)` 推进 mpsc，`host_recv` 用 `tokio::select!` 等两个接收端。
+**跨来源不承诺顺序**（TS 的多频道本来也不承诺），同一来源顺序不变；同一频道只会落在一个
+来源上（启动期归属固定），因此该频道内不乱序。
+
+**Initialize 只能有一份**：渲染层把 `Initialize` 当连接建立信号，Node Host 已经在发。
+本地 `ChannelServer` 必须 `defer_init = true` 构造且**永不调用 `ready()`**。
+
+**生命周期绑定**：本地服务面属于「一代 Host」——sidecar 换代时必须 `dispose()` 旧的
+`ChannelServer` 并在新代重建，否则本地 active id 与对端 id 空间错位（对端 id 从 0 重新计数）。
+
+**开关与回滚**：`MODE_HOST_INPROCESS_CHANNELS=<逗号分隔频道>` 启动时读取一次；为空时
+`FrameRouter` 的 owned 集合为空，所有帧走 Legacy，行为与今天逐字节一致；回滚只需去掉该
+环境变量重启。
+
+**先接的频道**：`host` 诊断面（只读 `describe`/`ping`）。它不承载业务状态，能证明
+「路由 → 本地服务 → 回帧」全链路，同时把风险限制在最小面。
+
 ### M4b-4 逐域迁移（按风险从低到高）
 
 | 顺序 | 域 | 频道 | 依赖 | 摘掉的字节 |
