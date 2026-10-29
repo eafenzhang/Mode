@@ -1221,10 +1221,8 @@ test("必选成员要么是真实现、要么被拒 / 降级留痕；可选成�
   // （注意：其中四个在 `IPlatformService` 里声明成可选，渲染层却**不加守卫**地调它们——
   //  这正是「覆盖规则必须跟着调用点走」的原因，见 review I1。）
   const consumerOnly = usage.unsafeCalls.filter((name) => !declaredAll.has(name));
-  assert.ok(
-    consumerOnly.length > 0,
-    "应当存在「渲染层直接调用、但 globals.d.ts 未声明」的成员（否则这段断言是空的）",
-  );
+  // 这一批会随声明面收敛到 0（MCP 三个成员已在 globals.d.ts 声明、调用点也补了守卫），
+  // 因此不再要求非空；扫描本身的敏感性由上一组用例的 fileCount / unsafeCalls 计数兜住。
   for (const name of consumerOnly) {
     const withoutConsumedValue = platformService.get(name);
     assert.ok(

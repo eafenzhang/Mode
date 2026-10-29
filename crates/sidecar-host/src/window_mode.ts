@@ -216,8 +216,6 @@
     "pairLanPeer",
     "getLanPairedPeers",
     "getLanPeerWorkspaces",
-    "loadMcpFromUserDirectory",
-    "migrateLegacyCommonMcp",
     "rdGetPeerCapability",
     "rdStartSession",
     "rdGetControlledState",
@@ -225,7 +223,6 @@
     "rdSetServerEnabled",
     "rdRevokeClient",
     "rdAuthorizeClient",
-    "saveMcpToUserDirectory",
   ];
   /**
    * 必选、M1 未实现，但**调用方不消费返回值**的成员：留一个「降级空操作」并留痕。

@@ -221,11 +221,24 @@ export function createDesktopPlatform(options: {
           },
         }
       : {}),
-    // 这三个在 IPlatformService 里是可选的，但两条注入面（旧 preload / Tauri shim）
-    // 都提供了实现；可选链会把「平台不支持」伪装成 undefined 返回值，故用非空断言。
-    loadMcpFromUserDirectory: (payload) => window.mode.loadMcpFromUserDirectory!(payload),
-    saveMcpToUserDirectory: (payload) => window.mode.saveMcpToUserDirectory!(payload),
-    migrateLegacyCommonMcp: (payload) => window.mode.migrateLegacyCommonMcp!(payload),
+    // 这三个在 IPlatformService 里是可选的。两条注入面（旧 preload / Tauri shim）都提供了实现，
+    // 但可选链会把「平台不支持」伪装成 undefined 返回值，所以这里保留「缺了就抛」的语义，
+    // 同时把存在性判断显式写出来：非空断言在注入面缺失时只会抛 TypeError 且无法归因。
+    loadMcpFromUserDirectory: (payload) => {
+      const call = window.mode?.loadMcpFromUserDirectory;
+      if (!call) throw new Error("window.mode.loadMcpFromUserDirectory is not available");
+      return call(payload);
+    },
+    saveMcpToUserDirectory: (payload) => {
+      const call = window.mode?.saveMcpToUserDirectory;
+      if (!call) throw new Error("window.mode.saveMcpToUserDirectory is not available");
+      return call(payload);
+    },
+    migrateLegacyCommonMcp: (payload) => {
+      const call = window.mode?.migrateLegacyCommonMcp;
+      if (!call) throw new Error("window.mode.migrateLegacyCommonMcp is not available");
+      return call(payload);
+    },
     openExternal: (url) => window.mode.openExternal(url),
     // 社群入口在 LR-5 从拒绝桩升级为注入层真实现（spec §10.7），这里恢复直通委托。
     openCommunity: () => window.mode.openCommunity(),
