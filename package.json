@@ -16,6 +16,7 @@
     "check:rust-ledger": "tsx scripts/rust-ledger-gap.ts",
     "check:cli": "pnpm --dir apps/mode-cli check",
     "check:sqlite-schema": "tsx scripts/check-sqlite-schema.ts",
+    "check:tasks-schema-parity": "tsx scripts/check-tasks-schema-parity.ts",
     "sqlite-schema:update": "tsx scripts/check-sqlite-schema.ts --update",
     "measure:host-startup": "tsx scripts/measure-host-startup.ts",
     "rpc-wire:fixtures": "tsx scripts/generate-rpc-wire-fixtures.ts",

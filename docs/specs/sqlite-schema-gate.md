@@ -33,6 +33,23 @@
 - 新增表、列、索引允许；删除或修改已存在项一律违规。
 - 快照按数据库名、表名、列顺序、索引名排序，保证跨平台与跨运行稳定。
 
+## 生产者对拍（过渡期）
+
+任务库通过 `crates/tasks-db` 完成了 schema + 迁移的 Rust 复刻，但**写库的所有者仍是
+Node Host**，所以门禁的权威生产者暂时仍是 TS：
+
+- `scripts/check-tasks-schema-parity.ts`（`pnpm check:tasks-schema-parity`）在同一台
+  机器上分别跑 TS `buildTasksSchemaSnapshot()` 与 Rust `tasks-db-snapshot` 二进制，
+  按 `canonicalSchemaJson` 逐表比较；不一致直接失败并列出缺失/多出/变化的表。
+- `.github/workflows/sqlite-schema.yml` 在门禁步骤前执行该对拍（需要 Rust toolchain）。
+  路径过滤包含 `crates/tasks-db/**`，Rust 侧单独改动也会触发。
+- 本地 cargo 不在 PATH 时用 `CARGO=D:\tools\cargo-msvc.cmd pnpm check:tasks-schema-parity`。
+
+**何时切换生产者**：等 Rust 任务域真正接管写库（Repo / 频道落地）后，把
+`sqlite-schema-snapshot.ts` 的 `tasks` 快照改为调用 Rust 二进制，并重新生成基线；
+`--base-ref` 的「相对目标分支只增」语义不变。在那之前切生产者会让门禁看不到 TS 侧
+的迁移变化，属于反向削弱，不做。
+
 ## 失败语义
 
 - 历史基线读取失败（非「路径不存在」）必须报错，不能静默跳过。

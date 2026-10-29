@@ -9,6 +9,8 @@ on:
       - "packages/services/src/session/tasksDatabase/**"
       - "apps/mode-cli/packages/adapters/src/storage/session-store/**"
       - "scripts/check-sqlite-schema.ts"
+      - "scripts/check-tasks-schema-parity.ts"
+      - "crates/tasks-db/**"
       - "scripts/sqlite-schema-snapshot.ts"
       - "scripts/lib/sqlite-schema.ts"
       - "scripts/sqlite-schema-baseline.json"
@@ -19,6 +21,8 @@ on:
       - "packages/services/src/session/tasksDatabase/**"
       - "apps/mode-cli/packages/adapters/src/storage/session-store/**"
       - "scripts/check-sqlite-schema.ts"
+      - "scripts/check-tasks-schema-parity.ts"
+      - "crates/tasks-db/**"
       - "scripts/sqlite-schema-snapshot.ts"
       - "scripts/lib/sqlite-schema.ts"
       - "scripts/sqlite-schema-baseline.json"
@@ -46,6 +50,9 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Task schema producers agree (TS vs Rust)
+        run: pnpm check:tasks-schema-parity
       - name: SQLite schema additive gate
         shell: bash
         run: |

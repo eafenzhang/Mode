@@ -294,9 +294,11 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 4. **W3-3 任务 / 会话域**：体量最大（≈12.2k 行）。**任务库 schema + 迁移已 Rust 化**
    （`crates/tasks-db`，含 3 条冻结迁移、checksum 对拍、adopt/0002/0003、WAL 锁等待与
    快照函数；见 `docs/specs/tasks-db.md`），但这**不代表任务域已迁**：三个 Repo 的
-   `ensureReady`、任务索引/自动化/闲时任务频道与会话链路仍在 TS。下一步先把 SQLite
-   门禁的生产者切到 Rust（基线改由 Rust 迁移生成 + `--base-ref` 只增校验），再做 Repo
-   与频道。
+   `ensureReady`、任务索引/自动化/闲时任务频道与会话链路仍在 TS。
+   **门禁生产者对拍已加**（`pnpm check:tasks-schema-parity`，CI 同时跑 TS 与 Rust 快照），
+   但生产者**暂不切换**：Node 仍写任务库，现在切会让门禁看不到 TS 迁移变化。等 Rust
+   任务域接管写库后再把 `tasks` 快照换成 Rust 二进制并重生成基线（`--base-ref` 语义不变）。
+   之后的顺序是 Repo → 频道 → 会话链路。
 
 **本轮发现的数据根风险（未改，先记录）**：壳的 `resolve_data_root` 在未设置
 `MODE_DATA_BASE_DIR` 时会读 `setting.json` 的 `dataBaseDir` 指针，而 `resolve_config`
