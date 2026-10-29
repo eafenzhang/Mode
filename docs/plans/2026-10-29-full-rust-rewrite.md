@@ -96,7 +96,8 @@ credential / task-index 的共同前置。
 
 **W3 已迁完整域（2026-10-29）**：`memory`（`crates/project-memory`）、
 `prompt-attachment-transfer`（本地零拷贝 + 三 no-op + 不 emit 的进度订阅）、
-`client-config` / `client-scenes`（审计版常量：官方服务开关恒 false，短路在凭证与网络之前）。两者都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到壳内，
+`client-config` / `client-scenes`（审计版常量：官方服务开关恒 false，短路在凭证与网络之前）、
+`media-preview`（本地 inline：扩展名/kind 校验 + 8 MiB 上限 + base64）。两者都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到壳内，
 适配层契约见 `docs/specs/host-channel-adapters.md`。
 
 `crates/settings-store` —— `setting.json` 的路径解析（三级 home 回落）、坏文件隔离

@@ -1,7 +1,7 @@
 # Spec：壳内频道适配器（`crates/host-channels`）
 
-状态：2026-10-29。已适配四个频道：`memory`、`prompt-attachment-transfer`、
-`client-config`、`client-scenes`。
+状态：2026-10-29。已适配五个频道：`memory`、`prompt-attachment-transfer`、
+`client-config`、`client-scenes`、`media-preview`。
 范围：**RPC 方法名与参数形状**到服务调用的翻译、错误映射。服务实现本身在各自的 crate。
 
 ## 参数形状
@@ -44,6 +44,16 @@
 Rust 适配器如实复制这个分支，**不实现网络路径**。若官方服务重新启用，这两条必须与 TS
 同步改造；在此之前它们只是把两个频道的所有权从 Node 侧移走，行为等价。
 
+## media-preview
+
+| 方法 | 参数 | 行为 |
+| --- | --- | --- |
+| `prepare` | `{path, expectedKind}` | 校验扩展名与 `kind` → stat 必须是普通文件 → 超过 **8 MiB** 报错 → 读全文并 base64，返回 `{kind:"inline", dataBase64, mediaType, path, size}` |
+
+当前宿主没有注入 `authorizeLocalMediaPreviewPath`（那是远端/Electron 的 `local-url` 分支），
+所以本地只走 **inline**。`refreshPlaybackUrl` / `release` 在 TS 里是可选方法，本地服务没有，
+这里同样按未知方法报错。扩展名表来自 `packages/shared/src/media-preview.ts`，两边必须同步。
+
 ## 与路由的约定
 
 - 适配器只被壳内 `ChannelServer` 调用（`inprocess.rs`），当前只接管 **base scope**；
@@ -57,5 +67,7 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
 - `tests/attachment_channel.rs`（5 条）：sizeBytes 优先、stat 回落、三方法 no-op、
   进度订阅不 emit、未知事件报错。
 - `tests/client_metadata.rs`（3 条）：两个常量返回值、未知方法报错。
+- `tests/media_preview.rs`（5 条）：inline 音频 base64 与 mediaType、kind 不匹配、
+  不支持扩展名、8 MiB 上限、目录/未知方法、大小写与反斜杠归一。
 - `tests/pipeline.rs`（3 条）：真 RPC 帧 → 路由 → `ChannelServer` → 回帧；scoped 帧转发；
   未知方法回 `PromiseError`。
