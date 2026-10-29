@@ -513,6 +513,17 @@ module-not-found；真正摘除需要「按需资产下发」基建（复用 Ass
 
 ### M4b（2–4 周）：Host 并入壳 + IPC 换代
 
+> **2026-10-29 立项与前提核验**：子计划
+> `docs/plans/2026-10-29-m4b-host-into-shell.md`。实测 externals 闭包未剪枝 102.61 MiB、
+> 剪枝后 26.12 MiB（node-pty 7.14 / 飞书 9.24 / node-forge 1.57 / protobufjs 1.15 /
+> ssh2 1.07 / undici 1.05 / 其余 ≈4），加上 ≈5.5 MiB 的 Host bundle 才是 `host-sidecar/`
+> 的 31.60 MiB。**「砍掉 35 MB」不是一个可承诺的数字**：终端（node-pty）、凭据
+> （node-forge）、provider（undici）三条能真正摘掉，净减 ≈15–17 MiB；飞书的 ≈10.4 MiB
+> 取决于 IM 是否 Rust 重写，`ssh2` 因 LR-4 保留 SSH 后端而**不会**消失。因此对外口径改为
+> 「终态 `host-sidecar/` ≤ 2 MiB」；工作量按域计为单人 6–10 周，阶段内用 M4b-0…M4b-5
+> 六个里程碑跟踪。本轮已落地 M4b-0 的第一块：`docs/specs/rpc-wire-format.md` +
+> `crates/rpc-wire`（RPC 线格式 Rust 侧，28 条黄金样例与 TS 逐字节对拍）。
+
 先把 `settings / credentials / task-index sqlite / file ops` 四件最小面 Rust 化
 （`node-forge`→ring、`node:sqlite`→rusqlite），再把 `host-standalone` 的服务装配搬进壳的
 async runtime（tokio + tauri state），renderer↔Host 从「stdio 帧 + 二进制 RPC 序列化」

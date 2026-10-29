@@ -1,0 +1,117 @@
+{
+  "generatedBy": "scripts/generate-rpc-wire-fixtures.ts",
+  "entries": [
+    {
+      "name": "undefined",
+      "hex": "00"
+    },
+    {
+      "name": "null",
+      "hex": "05046e756c6c"
+    },
+    {
+      "name": "true",
+      "hex": "050474727565"
+    },
+    {
+      "name": "false",
+      "hex": "050566616c7365"
+    },
+    {
+      "name": "empty-string",
+      "hex": "0100"
+    },
+    {
+      "name": "ascii-string",
+      "hex": "010568656c6c6f"
+    },
+    {
+      "name": "utf8-string",
+      "hex": "0110e6a8a1e5bc8f204d6f646520f09f9880"
+    },
+    {
+      "name": "string-128-bytes",
+      "hex": "0180017878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878"
+    },
+    {
+      "name": "uint8array",
+      "hex": "02040001ff80"
+    },
+    {
+      "name": "vsbuffer",
+      "hex": "03040001ff80"
+    },
+    {
+      "name": "int-0",
+      "hex": "0600"
+    },
+    {
+      "name": "int-1",
+      "hex": "0601"
+    },
+    {
+      "name": "int-127",
+      "hex": "067f"
+    },
+    {
+      "name": "int-128",
+      "hex": "068001"
+    },
+    {
+      "name": "int-16384",
+      "hex": "06808001"
+    },
+    {
+      "name": "int-max",
+      "hex": "06ffffffff07"
+    },
+    {
+      "name": "int-min",
+      "hex": "068080808008"
+    },
+    {
+      "name": "int-negative-one",
+      "hex": "06ffffffff0f"
+    },
+    {
+      "name": "int-negative-large",
+      "hex": "06c0bbf8ff0f"
+    },
+    {
+      "name": "float",
+      "hex": "0503312e35"
+    },
+    {
+      "name": "beyond-int32",
+      "hex": "050a32313437343833363438"
+    },
+    {
+      "name": "nan",
+      "hex": "05046e756c6c"
+    },
+    {
+      "name": "empty-array",
+      "hex": "0400"
+    },
+    {
+      "name": "array-mixed",
+      "hex": "0404060101016100040206020603"
+    },
+    {
+      "name": "empty-object",
+      "hex": "05027b7d"
+    },
+    {
+      "name": "object-flat",
+      "hex": "05187b2261223a312c2262223a2278222c2263223a747275657d"
+    },
+    {
+      "name": "object-nested",
+      "hex": "052e7b227461736b223a7b226964223a227431222c227374657073223a5b312c325d2c226d657461223a6e756c6c7d7d"
+    },
+    {
+      "name": "object-with-nested-bytes",
+      "hex": "05447b227061796c6f6164223a7b225f5f6d6f64655f7270635f6e65737465645f75696e743861727261795f7631223a747275652c22626173653634223a224277674a227d7d"
+    }
+  ]
+}

@@ -17,6 +17,7 @@
     "check:cli": "pnpm --dir apps/mode-cli check",
     "check:sqlite-schema": "tsx scripts/check-sqlite-schema.ts",
     "sqlite-schema:update": "tsx scripts/check-sqlite-schema.ts --update",
+    "rpc-wire:fixtures": "tsx scripts/generate-rpc-wire-fixtures.ts",
     "verify:self-developed": "tsx scripts/upstream-overlap-check.ts --strict",
     "build": "pnpm -r build",
     "build:mode": "node scripts/build-mode.mjs",

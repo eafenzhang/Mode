@@ -20,6 +20,7 @@ members = [
   "crates/browser-import-host",
   "crates/platform",
   "crates/protocol",
+  "crates/rpc-wire",
   "crates/sidecar-host",
   "crates/tauri-test-manifest",
   "crates/updater",

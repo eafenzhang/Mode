@@ -1,0 +1,16 @@
+[package]
+name = "rpc-wire"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "@mode/rpc 二进制序列化的 Rust 侧；与 TS 实现逐字节对拍（docs/specs/rpc-wire-format.md）"
+
+[lib]
+name = "rpc_wire"
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
