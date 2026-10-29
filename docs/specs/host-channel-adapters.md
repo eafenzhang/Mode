@@ -1,0 +1,46 @@
+# Spec：壳内频道适配器（`crates/host-channels`）
+
+状态：2026-10-29。已适配两个频道：`memory`、`prompt-attachment-transfer`。
+范围：**RPC 方法名与参数形状**到服务调用的翻译、错误映射。服务实现本身在各自的 crate。
+
+## 参数形状
+
+`ProxyChannel` 把 `channel.call(ctx, method, ...args)` 编码成
+`arg = [位置参数 0, 位置参数 1, …]`。适配器统一用 `params::first_arg_object` 取第一个
+对象参数，`params::required_string` 取必填字符串。对象参数在 RPC 层是 `Value::Json`
+（原样 JSON 文本），`Value::to_json()` 负责解析。
+
+## memory
+
+| 方法 | 参数 | 返回 |
+| --- | --- | --- |
+| `listProjectMemories` | 无 | 工作区数组（见 `project-memory-service.md`） |
+| `readProjectMemoryFile` | `{workspaceId, fileName}` | `{content, updatedAt}` |
+
+错误映射：`MemoryError` → `ChannelError::Error`，有错误码时附 `extra["code"]`：
+`PROJECT_MEMORY_PREVIEW_LIMIT_EXCEEDED` / `PROJECT_MEMORY_FILE_CHANGED`。
+
+## prompt-attachment-transfer
+
+| 方法 | 参数 | 行为 |
+| --- | --- | --- |
+| `stage` | `{operationId, localPath, sizeBytes?, …}` | 返回 `{operationId, ref: localPath, bytes, staged:false}`；`sizeBytes>0` 优先，否则 `stat(localPath)`，失败回落 `0` |
+| `adopt` / `cancel` / `cleanup` | `operationId` | no-op（`undefined`） |
+| `onDynamicProgress` | 订阅 `operationId` | 返回可释放订阅，**永不 emit**（本地零拷贝没有上传进度） |
+
+未知方法/未知事件一律报错，不静默成功——否则客户端会误以为操作已生效。
+
+## 与路由的约定
+
+- 适配器只被壳内 `ChannelServer` 调用（`inprocess.rs`），当前只接管 **base scope**；
+  scoped 帧由 `FrameRouter::base_scope_only` 留给 Node Host（本地回帧不带 scope 前缀）。
+- `ChannelServer` 以 `defer_init = true` 构造且从不 `ready()`：`Initialize` 只能由 Node Host 发。
+- 开关 `MODE_HOST_INPROCESS_CHANNELS` 逐个列出频道名；未移植的名字被忽略并留一行日志。
+
+## 验收
+
+- `crates/host-channels/tests/memory_channel.rs`（4 条）：列表、读取、错误码透传、参数校验。
+- `tests/attachment_channel.rs`（5 条）：sizeBytes 优先、stat 回落、三方法 no-op、
+  进度订阅不 emit、未知事件报错。
+- `tests/pipeline.rs`（3 条）：真 RPC 帧 → 路由 → `ChannelServer` → 回帧；scoped 帧转发；
+  未知方法回 `PromiseError`。

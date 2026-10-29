@@ -145,7 +145,8 @@ bytes ──► FrameRouter::route
 环境变量重启。
 
 **已实现（2026-10-29）**：`apps/desktop-tauri/src-tauri/src/inprocess.rs` 接上了上述设计，
-首个频道为 `memory`（`crates/host-channels` 适配器 → `crates/project-memory`）。
+已适配两个频道：`memory`（`crates/project-memory`）与 `prompt-attachment-transfer`
+（本地零拷贝 + no-op 生命周期，`crates/host-channels`）。
 `host_send` 按 `FrameRouter` 分四路：Local 投给消费任务（独占 `ChannelServer`，按 Host 代
 重建）、Dropped 丢弃、Control/Legacy 原样转发。本地回帧经 `push_local_frame` 进同一条
 入方向队列。开关为空时 `decide` 恒为 Forward，转发路径与接线前逐字节一致。
