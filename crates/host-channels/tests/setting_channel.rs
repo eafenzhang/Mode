@@ -1,7 +1,7 @@
 //! `setting` 频道适配器：读默认值、补丁更新、默认项目、数据目录指针。
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -24,17 +24,17 @@ fn unique_home(name: &str) -> PathBuf {
     home
 }
 
-fn channel(home: &PathBuf) -> SettingChannel {
+fn channel(home: &Path) -> SettingChannel {
     let env = HomeEnv {
         mode_desktop_home_dir: None,
-        home: Some(home.clone().into_os_string()),
+        home: Some(home.as_os_str().to_os_string()),
         user_profile: None,
-        fallback_home: home.clone(),
+        fallback_home: home.to_path_buf(),
     };
     let paths = resolve_settings_paths(&env);
     SettingChannel::new(
-        Arc::new(SettingsService::new(paths, home.clone())),
-        home.clone(),
+        Arc::new(SettingsService::new(paths, home.to_path_buf())),
+        home.to_path_buf(),
     )
 }
 
