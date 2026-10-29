@@ -40,6 +40,7 @@ members = [
   "crates/credential-store",
   "crates/deeplink",
   "crates/file-service",
+  "crates/file-watcher",
   "crates/device-mid",
   "apps/desktop-tauri/src-tauri",
 ]

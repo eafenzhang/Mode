@@ -13,6 +13,7 @@ path = "src/lib.rs"
 conversation-mirror = { path = "../conversation-mirror" }
 credential-store = { path = "../credential-store" }
 file-service = { path = "../file-service" }
+file-watcher = { path = "../file-watcher" }
 project-memory = { path = "../project-memory" }
 settings-store = { path = "../settings-store" }
 system-service = { path = "../system-service" }

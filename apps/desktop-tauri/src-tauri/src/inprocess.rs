@@ -18,10 +18,10 @@ use std::time::Duration;
 
 use host_channels::{
     AttachmentTransferChannel, ClientConfigChannel, ClientScenesChannel, ConversationMirrorChannel,
-    CredentialChannel, FileChannel, MediaPreviewChannel, MemoryChannel, SettingChannel,
-    SystemChannel, ATTACHMENT_TRANSFER_CHANNEL, CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL,
-    CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL, FILE_CHANNEL, MEDIA_PREVIEW_CHANNEL,
-    MEMORY_CHANNEL, SETTING_CHANNEL, SYSTEM_CHANNEL,
+    CredentialChannel, FileChannel, FileWatcherChannel, MediaPreviewChannel, MemoryChannel,
+    SettingChannel, SystemChannel, ATTACHMENT_TRANSFER_CHANNEL, CLIENT_CONFIG_CHANNEL,
+    CLIENT_SCENES_CHANNEL, CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL, FILE_CHANNEL,
+    FILE_WATCHER_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL, SETTING_CHANNEL, SYSTEM_CHANNEL,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
@@ -73,7 +73,8 @@ impl InprocessState {
                 | SETTING_CHANNEL
                 | CREDENTIAL_CHANNEL
                 | SYSTEM_CHANNEL
-                | FILE_CHANNEL => owned.push(name),
+                | FILE_CHANNEL
+                | FILE_WATCHER_CHANNEL => owned.push(name),
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
                 other => crate::host::shell_log(&format!("inprocess channel ignored (not ported yet): {other}")),
             }
@@ -304,6 +305,15 @@ fn build_server(
                     Arc::new(FileChannel::new(Arc::new(file_service::FileService::new(
                         options,
                     )))),
+                );
+            }
+            FILE_WATCHER_CHANNEL => {
+                let service = file_watcher::FileWatcherService::with_warn_sink(Some(Arc::new(
+                    |message: &str| crate::host::shell_log(message),
+                )));
+                server.register_channel(
+                    FILE_WATCHER_CHANNEL,
+                    Arc::new(FileWatcherChannel::new(Arc::new(service))),
                 );
             }
             other => crate::host::shell_log(&format!("inprocess channel not constructible: {other}")),

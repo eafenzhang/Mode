@@ -66,6 +66,7 @@ platform = { path = "../../../crates/platform" }
 sidecar-host = { path = "../../../crates/sidecar-host" }
 protocol = { path = "../../../crates/protocol" }
 conversation-mirror = { path = "../../../crates/conversation-mirror" }
+file-watcher = { path = "../../../crates/file-watcher" }
 file-service = { path = "../../../crates/file-service" }
 credential-store = { path = "../../../crates/credential-store" }
 host-channels = { path = "../../../crates/host-channels" }

@@ -1,8 +1,8 @@
 # Spec：壳内频道适配器（`crates/host-channels`）
 
-状态：2026-10-29。已适配十个频道：`memory`、`prompt-attachment-transfer`、
+状态：2026-10-29。已适配十一个频道：`memory`、`prompt-attachment-transfer`、
 `client-config`、`client-scenes`、`media-preview`、`conversation-mirror`、`setting`、
-`credential`、`system`、`file`。
+`credential`、`system`、`file`、`file-watcher`。
 范围：**RPC 方法名与参数形状**到服务调用的翻译、错误映射。服务实现本身在各自的 crate。
 
 ## 参数形状
@@ -133,6 +133,21 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
 **与 TS 的已知差异**：排序比较器、UTF-16 跨代理项切块、非法规则降级、错误文案；
 详见 `file-service.md` 的差异表。
 
+## file-watcher
+
+三个方法 + 一个动态事件：
+
+| 成员 | 形状 |
+| --- | --- |
+| `watch` | `{path, recursive?}` → `{id}` |
+| `unwatch` | `{id}` → `undefined` |
+| `disposeAll` | 无参数 → `undefined` |
+| `onDynamicChange` | 事件订阅，arg 是 watcher id（裸字符串）；事件 `{dirPath, changedPath?}` |
+
+这是壳内第一个**事件型**频道：`listen` 返回的释放函数会在 EventDispose 或 Host 换代
+`dispose` 时调用，从而摘掉订阅。失效 id 返回永不触发的空订阅，不向订阅链路抛错。
+防抖与错误语义见 `file-watcher-service.md`。
+
 ## 与路由的约定
 
 - 适配器只被壳内 `ChannelServer` 调用（`inprocess.rs`）；base scope 与
@@ -158,6 +173,8 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
   探测结果的 camelCase 形状、空目标、畸形请求、未知方法。
 - `tests/file_channel.rs`（7 条）：对象参数、camelCase 字段、顶层二进制、长度 Int、
   裸字符串分块、ignore 读写、错误映射。
+- `tests/file_watcher_channel.rs`（5 条）：watch 返回 id、`onDynamicChange` 的 JSON 事件、
+  失效 id 无事件、错误与未知命令、JSON 编码的 id。
 - `tests/channel_names.rs`（漂移守卫）：频道名与 TS `ServiceChannels` 一致。
 - `tests/pipeline.rs`（3 条）：真 RPC 帧 → 路由 → `ChannelServer` → 回帧；`base_scope_only`
   路由把 scoped 帧留给 Node Host；未知方法回 `PromiseError`。
