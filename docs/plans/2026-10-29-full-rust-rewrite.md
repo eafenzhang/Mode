@@ -190,7 +190,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | --- | --- | --- | --- | --- | --- |
 | 1 | 设置 / 客户端配置 | ≈3.3k | 壳内 `settings` | W1 | `setting` / `client-config` / `client-scenes` 已接管 |
 | 2 | 文件 / fs / 监视 | ≈2.8k | `ignore` + `notify` + std | W1 | `file` / `file-watcher` 已接管 |
-| 3 | 任务 / 会话 / 任务索引 | ≈12.2k | `rusqlite` + tokio | W1 + SQLite 迁移 | 任务库 schema+迁移已 Rust 化（`crates/tasks-db`）；任务索引 Repo、闲时任务 Repo 与定时任务 Repo 已整体迁移（`crates/task-index-repo`、`crates/off-peak-repo`、`crates/automation-repo`）；任务频道与会话链路**未**迁移 |
+| 3 | 任务 / 会话 / 任务索引 | ≈12.2k | `rusqlite` + tokio | W1 + SQLite 迁移 | 任务库 schema+迁移已 Rust 化（`crates/tasks-db`）；任务索引 Repo、闲时任务 Repo 与定时任务 Repo 已整体迁移（`crates/task-index-repo`、`crates/off-peak-repo`、`crates/automation-repo`，共用 `ModelSelection` 解析/编码抽至 `crates/model-selection`）；Automation 运行时（20s 轮询 + manual 派发）已在 TS host-standalone 重建，写库所有者仍是 TS Repo；任务频道与会话链路**未**迁移 |
 | 4 | 凭据 | 277 | `ring`（文件托管密钥） | W1 | `credential` 已接管（`crates/credential-store`） |
 | 5 | 终端旧路径 | 1,354 | 壳已有 PTY | W2 | 未开始 |
 | 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 | 未开始 |
@@ -303,6 +303,16 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
    （`crates/automation-repo`：37 个公开方法、创建上限、截止结算、认领回收、
    30s→15min 退避与 5 次放弃、manual run 生命周期、运行历史与清理；
    与真实 TS `AutomationRepo` 70 步逐步对拍；见 `docs/specs/automation-repo.md`）。
+   三个 Repo 共用的 `ModelSelection` 严格解析与落盘编码已抽成 `crates/model-selection`
+   （off-peak-repo 改用共享实现，删除本地副本）。
+   **TS 侧 Automation 运行时已重建（2026-10-24，`8f2d024d`）**：20s 轮询
+   `claimDue`/`claimManualRuns`、manual 派发与终态结算在 host-standalone 进程内运行
+   （`packages/services/src/session/automationRuntime.ts`，契约见
+   `docs/specs/automation-runtime.md`）。该运行时仍以 TS `AutomationRepo` 为写库所有者，
+   Rust `automation-repo` 要等任务/会话频道接线后随运行时一起翻面。
+   **随 Electron 线删除且未恢复的两条链**（记录为该域收口缺口）：闲时任务派发链
+   （spec 已声明为独立后续工作，`OffPeakTaskRepo` 只有 Repo 没有 runtime）与
+   keep-awake（Electron `powerSaveBlocker` 在 Tauri 线无对应接线）。
    仍未迁：任务频道与会话链路。
    **门禁生产者对拍已加**（`pnpm check:tasks-schema-parity`，CI 同时跑 TS 与 Rust 快照），
    但生产者**暂不切换**：Node 仍写任务库，现在切会让门禁看不到 TS 迁移变化。等 Rust
@@ -314,3 +324,14 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 始终把「env ?? home」作为 `MODE_DATA_BASE_DIR` 传给 Node Host，后者因而忽略该指针。
 两者在「设置页改过数据目录且未设环境变量」时不指向同一棵树，所有壳内频道（含
 `credential`）都会与 Node 读写不同目录。修这条要单独对齐启动路径，不在本频道范围内。
+
+**2026-10-30 工作区清理（knip 收口，待提交）**：展开 knip 全仓覆盖后删除死代码——
+`packages/formal-proof`（形式化对拍实验包，`product-projection` / `projection-state`
+的注释引用同步摘除）、`apps/mode-cli/packages/debug`（开发调试面板）、
+`node-repl-host` 陈旧 dist-types、M4 换装前被替换的旧 UI primitives
+（`packages/ui/src/components/ui/*`、`ai-elements/*` 及配套字体）、fa-IR 语言包
+（locale 收敛为 en-US / zh-CN）；未用依赖随 `pnpm-lock.yaml` 一并清出。
+`docs/specs/m4-ui-foundation.md` 同步删除从未接入产品路径的 P1.2 参考骨架
+（`AppShell` / `WorkspaceFrame` / `usePanelResize` 等），布局要求改以
+`WorkspaceShellLayout` 为准。删除面不触及 §2 计数口径中的 Agent 运行时六包与
+services 主体（services 仅去 3 个无引用文件），现状盘点数量级不变。
