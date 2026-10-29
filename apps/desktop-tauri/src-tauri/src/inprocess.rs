@@ -17,7 +17,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use host_channels::{
-    AttachmentTransferChannel, MemoryChannel, ATTACHMENT_TRANSFER_CHANNEL, MEMORY_CHANNEL,
+    AttachmentTransferChannel, ClientConfigChannel, ClientScenesChannel, MemoryChannel,
+    ATTACHMENT_TRANSFER_CHANNEL, CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, MEMORY_CHANNEL,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter};
@@ -57,7 +58,10 @@ impl InprocessState {
         let mut owned = Vec::new();
         for name in requested {
             match name.as_str() {
-                MEMORY_CHANNEL | ATTACHMENT_TRANSFER_CHANNEL => owned.push(name),
+                MEMORY_CHANNEL
+                | ATTACHMENT_TRANSFER_CHANNEL
+                | CLIENT_CONFIG_CHANNEL
+                | CLIENT_SCENES_CHANNEL => owned.push(name),
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
                 other => eprintln!("[mode-tauri] inprocess channel ignored (not ported yet): {other}"),
             }
@@ -164,6 +168,14 @@ fn build_server(
             ATTACHMENT_TRANSFER_CHANNEL => server.register_channel(
                 ATTACHMENT_TRANSFER_CHANNEL,
                 Arc::new(AttachmentTransferChannel),
+            ),
+            CLIENT_CONFIG_CHANNEL => server.register_channel(
+                CLIENT_CONFIG_CHANNEL,
+                Arc::new(ClientConfigChannel),
+            ),
+            CLIENT_SCENES_CHANNEL => server.register_channel(
+                CLIENT_SCENES_CHANNEL,
+                Arc::new(ClientScenesChannel),
             ),
             other => eprintln!("[mode-tauri] inprocess channel not constructible: {other}"),
         }

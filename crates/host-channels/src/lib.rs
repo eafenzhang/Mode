@@ -8,10 +8,14 @@
 mod params;
 
 pub mod attachment_transfer;
+pub mod client_metadata;
 pub mod memory_channel;
 
 pub use attachment_transfer::AttachmentTransferChannel;
+pub use client_metadata::{ClientConfigChannel, ClientScenesChannel};
 pub use memory_channel::{MemoryChannel, LIST_MEMORIES, READ_MEMORY_FILE};
 
 pub const MEMORY_CHANNEL: &str = "memory";
 pub const ATTACHMENT_TRANSFER_CHANNEL: &str = "prompt-attachment-transfer";
+pub const CLIENT_CONFIG_CHANNEL: &str = "client-config";
+pub const CLIENT_SCENES_CHANNEL: &str = "client-scenes";

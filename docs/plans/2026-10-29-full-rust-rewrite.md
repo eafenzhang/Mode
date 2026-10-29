@@ -94,9 +94,9 @@ SQLite（任务库、会话库、迁移）、日志、进程管理（spawn/kill/
 对应 `docs/specs/atomic-file.md`，8 条用例（含 6 线程并发写不产生半截）。它是 settings /
 credential / task-index 的共同前置。
 
-**W3 已迁完整域（2026-10-29）**：`memory`（`crates/project-memory`）与
-`prompt-attachment-transfer`（`crates/host-channels::attachment_transfer`，本地零拷贝 +
-三 no-op + 不 emit 的进度订阅）。两者都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到壳内，
+**W3 已迁完整域（2026-10-29）**：`memory`（`crates/project-memory`）、
+`prompt-attachment-transfer`（本地零拷贝 + 三 no-op + 不 emit 的进度订阅）、
+`client-config` / `client-scenes`（审计版常量：官方服务开关恒 false，短路在凭证与网络之前）。两者都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到壳内，
 适配层契约见 `docs/specs/host-channel-adapters.md`。
 
 `crates/settings-store` —— `setting.json` 的路径解析（三级 home 回落）、坏文件隔离
