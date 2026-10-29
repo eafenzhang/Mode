@@ -189,7 +189,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | --- | --- | --- | --- | --- | --- |
 | 1 | 设置 / 客户端配置 | ≈3.3k | 壳内 `settings` | W1 | `setting` / `client-config` / `client-scenes` 已接管 |
 | 2 | 文件 / fs / 监视 | ≈2.8k | `ignore` + `notify` + std | W1 | `file` / `file-watcher` 已接管 |
-| 3 | 任务 / 会话 / 任务索引 | ≈12.2k | `rusqlite` + tokio | W1 + SQLite 迁移 | 未开始 |
+| 3 | 任务 / 会话 / 任务索引 | ≈12.2k | `rusqlite` + tokio | W1 + SQLite 迁移 | 任务库 schema+迁移已 Rust 化（`crates/tasks-db`，`docs/specs/tasks-db.md`）；任务域（Repo / 频道 / 会话）**未**迁移 |
 | 4 | 凭据 | 277 | `ring`（文件托管密钥） | W1 | `credential` 已接管（`crates/credential-store`） |
 | 5 | 终端旧路径 | 1,354 | 壳已有 PTY | W2 | 未开始 |
 | 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 | 未开始 |
@@ -291,7 +291,12 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
    `grantWorkspaceHookTrust` 必须转发给 Agent authority，壳内需要 `mode-protocol` 客户端；
    与 W4 的 Agent 控制面一起接，避免壳直接写 trust store。`onboarding-record` 同样
    被注入依赖挡住（`loadUserId` 需要 OAuth、`hasExistingLocalTask` 需要任务库）。
-4. **W3-3 任务 / 会话域**：体量最大（≈12.2k 行），依赖 SQLite 迁移先落地。
+4. **W3-3 任务 / 会话域**：体量最大（≈12.2k 行）。**任务库 schema + 迁移已 Rust 化**
+   （`crates/tasks-db`，含 3 条冻结迁移、checksum 对拍、adopt/0002/0003、WAL 锁等待与
+   快照函数；见 `docs/specs/tasks-db.md`），但这**不代表任务域已迁**：三个 Repo 的
+   `ensureReady`、任务索引/自动化/闲时任务频道与会话链路仍在 TS。下一步先把 SQLite
+   门禁的生产者切到 Rust（基线改由 Rust 迁移生成 + `--base-ref` 只增校验），再做 Repo
+   与频道。
 
 **本轮发现的数据根风险（未改，先记录）**：壳的 `resolve_data_root` 在未设置
 `MODE_DATA_BASE_DIR` 时会读 `setting.json` 的 `dataBaseDir` 指针，而 `resolve_config`

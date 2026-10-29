@@ -1,0 +1,1247 @@
+{
+  "generatedBy": "scripts/generate-tasks-db-fixtures.ts",
+  "migrations": [
+    {
+      "id": "0001_adopt_task_schema",
+      "checksum": "3e8337b015d94b05dd31a6003f3acc649e821794cfa288bc0af3022698bd4d17"
+    },
+    {
+      "id": "0002_provider_selection",
+      "checksum": "7244ef7c351f8d02750ab1953fff09f493a71befbf1b6e2d4bab726b0c6b48fc"
+    },
+    {
+      "id": "0003_official_glm_selection",
+      "checksum": "8987adb50ae412a46c294141c1af89ccfc252f22d41351bdf4c7528f56edc8b4"
+    }
+  ],
+  "snapshot": {
+    "tables": {
+      "automation_runs": {
+        "columns": [
+          {
+            "name": "attempts",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "automation_id",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "created_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "dispatch_status",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": "'claimed'",
+            "primaryKey": 0
+          },
+          {
+            "name": "error",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "model_selection",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "outcome",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "run_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 1
+          },
+          {
+            "name": "scheduled_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "trigger",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": "'schedule'",
+            "primaryKey": 0
+          },
+          {
+            "name": "updated_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "workspace_key",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_automation_runs_by_automation",
+            "sql": "CREATE INDEX idx_automation_runs_by_automation ON automation_runs (automation_id, created_at DESC)"
+          }
+        ]
+      },
+      "automations": {
+        "columns": [
+          {
+            "name": "automation_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 1
+          },
+          {
+            "name": "bot_delivery_target",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "claimed_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "created_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "cron_expr",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "dispatch_attempts",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "dispatch_status",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": "'idle'",
+            "primaryKey": 0
+          },
+          {
+            "name": "enabled",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1",
+            "primaryKey": 0
+          },
+          {
+            "name": "end_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "last_error",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "last_run_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "lifecycle_status",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": "'active'",
+            "primaryKey": 0
+          },
+          {
+            "name": "location_kind",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": "'local'",
+            "primaryKey": 0
+          },
+          {
+            "name": "max_runs",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "mode",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "model",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "model_selection",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "next_run_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "prompt",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "provider",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "recurring",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1",
+            "primaryKey": 0
+          },
+          {
+            "name": "retry_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "run_count",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "running",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "schedule_edited_by_user",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "schedule_rule",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "scheduled_run_count",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "target_task_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "thought_level",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "title",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": "''",
+            "primaryKey": 0
+          },
+          {
+            "name": "updated_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "workspace_identity",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "workspace_key",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "workspace_path",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_automations_due",
+            "sql": "CREATE INDEX idx_automations_due ON automations (enabled, next_run_at)"
+          },
+          {
+            "name": "idx_automations_retry",
+            "sql": "CREATE INDEX idx_automations_retry ON automations (enabled, retry_at)"
+          },
+          {
+            "name": "idx_automations_target_task",
+            "sql": "CREATE INDEX idx_automations_target_task ON automations(target_task_id) WHERE target_task_id IS NOT NULL"
+          },
+          {
+            "name": "idx_automations_workspace",
+            "sql": "CREATE INDEX idx_automations_workspace ON automations (workspace_key)"
+          }
+        ]
+      },
+      "off_peak_tasks": {
+        "columns": [
+          {
+            "name": "attempt_count",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "claim_running",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "claimed_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "conversation_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "created_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "ended_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "failure_reason",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "files_changed",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "history_deleted_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "last_error",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "model",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "model_selection",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "next_poll_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "off_peak_task_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 1
+          },
+          {
+            "name": "permission_mode",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "prompt",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "queue_position",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "queued_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "registered_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "schedulable",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "server_ticket_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "settled_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "started_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "thought_level",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "title",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": "''",
+            "primaryKey": 0
+          },
+          {
+            "name": "updated_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "workspace_identity",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "workspace_key",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "workspace_path",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_off_peak_bound_active",
+            "sql": "CREATE UNIQUE INDEX idx_off_peak_bound_active ON off_peak_tasks(workspace_key,session_id) WHERE session_id IS NOT NULL AND status NOT IN ('completed','failed','cancelled')"
+          },
+          {
+            "name": "idx_off_peak_pick",
+            "sql": "CREATE INDEX idx_off_peak_pick ON off_peak_tasks (status, queued_at)"
+          },
+          {
+            "name": "idx_off_peak_ws",
+            "sql": "CREATE INDEX idx_off_peak_ws ON off_peak_tasks (workspace_key, status)"
+          }
+        ]
+      },
+      "task_group_members": {
+        "columns": [
+          {
+            "name": "added_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "created_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "group_id",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "sort_order",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "task_id",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 2
+          },
+          {
+            "name": "updated_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "workspace_identity",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "workspace_key",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 1
+          },
+          {
+            "name": "workspace_path",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_task_group_members_group_order",
+            "sql": "CREATE INDEX idx_task_group_members_group_order ON task_group_members (group_id, sort_order, added_at)"
+          }
+        ]
+      },
+      "task_group_view_node_orders": {
+        "columns": [
+          {
+            "name": "created_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "node_key",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 2
+          },
+          {
+            "name": "node_type",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 1
+          },
+          {
+            "name": "sort_order",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "updated_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_task_group_view_node_orders_order",
+            "sql": "CREATE INDEX idx_task_group_view_node_orders_order ON task_group_view_node_orders (sort_order, created_at)"
+          }
+        ]
+      },
+      "task_group_workspace_bootstraps": {
+        "columns": [
+          {
+            "name": "created_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "group_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "updated_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "workspace_key",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 1
+          }
+        ],
+        "indexes": []
+      },
+      "task_groups": {
+        "columns": [
+          {
+            "name": "color",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": "'gray'",
+            "primaryKey": 0
+          },
+          {
+            "name": "created_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "group_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 1
+          },
+          {
+            "name": "title",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "updated_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          }
+        ],
+        "indexes": []
+      },
+      "tasks": {
+        "columns": [
+          {
+            "name": "archived",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "created_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "cron_automation_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "deleted",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "forked_from_task_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "last_unread_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "meta_json",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": "'{}'",
+            "primaryKey": 0
+          },
+          {
+            "name": "migration_source",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "mode",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": "'build'",
+            "primaryKey": 0
+          },
+          {
+            "name": "model",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "off_peak_task_id",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "pinned",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "provider",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "searchable_text",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": "''",
+            "primaryKey": 0
+          },
+          {
+            "name": "task_id",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 2
+          },
+          {
+            "name": "task_status",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "title",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": "''",
+            "primaryKey": 0
+          },
+          {
+            "name": "title_overridden",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0",
+            "primaryKey": 0
+          },
+          {
+            "name": "unread_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "updated_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "workspace_identity",
+            "type": "TEXT",
+            "notNull": false,
+            "defaultValue": null,
+            "primaryKey": 0
+          },
+          {
+            "name": "workspace_key",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 1
+          },
+          {
+            "name": "workspace_path",
+            "type": "TEXT",
+            "notNull": true,
+            "defaultValue": null,
+            "primaryKey": 0
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_tasks_cron_automation",
+            "sql": "CREATE INDEX idx_tasks_cron_automation ON tasks(cron_automation_id, updated_at DESC) WHERE cron_automation_id IS NOT NULL AND deleted=0"
+          },
+          {
+            "name": "idx_tasks_off_peak_task",
+            "sql": "CREATE INDEX idx_tasks_off_peak_task ON tasks(off_peak_task_id, updated_at DESC) WHERE off_peak_task_id IS NOT NULL AND deleted=0"
+          },
+          {
+            "name": "idx_tasks_workspace_archived_updated",
+            "sql": "CREATE INDEX idx_tasks_workspace_archived_updated ON tasks (workspace_key, archived, updated_at DESC) WHERE deleted = 0"
+          },
+          {
+            "name": "idx_tasks_workspace_pinned_updated",
+            "sql": "CREATE INDEX idx_tasks_workspace_pinned_updated ON tasks (workspace_key, pinned, updated_at DESC) WHERE deleted = 0"
+          }
+        ]
+      }
+    }
+  },
+  "legacySelection": {
+    "cases": [
+      {
+        "id": "custom-builtin-bigmodel",
+        "model": "custom:builtin:bigmodel:glm-4.6",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"bigmodel-api\",\"modelId\":\"glm-4.6\"}"
+      },
+      {
+        "id": "custom-builtin-start-plan",
+        "model": "custom:builtin:zai-start-plan:GLM-5.3",
+        "provider": null,
+        "thoughtLevel": "high",
+        "expected": "{\"providerId\":\"account:zai-start-plan\",\"modelId\":\"GLM-5.3\",\"options\":{\"reasoningLevel\":\"high\"}}"
+      },
+      {
+        "id": "custom-builtin-coding-plan",
+        "model": "custom:builtin:zai-coding-plan:glm-4.7",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"account:zai-individual-coding-plan\",\"modelId\":\"glm-4.7\"}"
+      },
+      {
+        "id": "custom-builtin-unknown",
+        "model": "custom:builtin:unknown:glm-5",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": null
+      },
+      {
+        "id": "custom-builtin-empty-provider",
+        "model": "custom:builtin::glm-5",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": null
+      },
+      {
+        "id": "custom-builtin-encoded-model",
+        "model": "custom:builtin:bigmodel:glm%2F4.6",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"bigmodel-api\",\"modelId\":\"glm/4.6\"}"
+      },
+      {
+        "id": "custom-builtin-extra-colons",
+        "model": "custom:builtin:zai:vendor/model:variant",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"zai-api\",\"modelId\":\"vendor/model:variant\"}"
+      },
+      {
+        "id": "custom-builtin-empty-model",
+        "model": "custom:builtin:bigmodel:",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": null
+      },
+      {
+        "id": "custom-provider-model",
+        "model": "custom:openrouter:anthropic/claude-sonnet-4",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"openrouter\",\"modelId\":\"anthropic/claude-sonnet-4\"}"
+      },
+      {
+        "id": "custom-provider-encoded",
+        "model": "custom:my%20provider:model%2Fone",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"my provider\",\"modelId\":\"model/one\"}"
+      },
+      {
+        "id": "custom-provider-decoded-utf8",
+        "model": "custom:p%2Fq:m%C3%A9",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"p/q\",\"modelId\":\"mé\"}"
+      },
+      {
+        "id": "custom-provider-bad-percent",
+        "model": "custom:bad%ZZ:model",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"bad%ZZ\",\"modelId\":\"model\"}"
+      },
+      {
+        "id": "custom-model-bad-percent",
+        "model": "custom:ok:bad%ZZ",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"ok\",\"modelId\":\"bad%ZZ\"}"
+      },
+      {
+        "id": "custom-no-separator",
+        "model": "custom:abc",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": null
+      },
+      {
+        "id": "custom-empty-provider",
+        "model": "custom::model",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": null
+      },
+      {
+        "id": "custom-chained-not-builtin",
+        "model": "custom:a:b:c",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"a\",\"modelId\":\"b:c\"}"
+      },
+      {
+        "id": "custom-trailing-colon",
+        "model": "custom:prov:",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": null
+      },
+      {
+        "id": "provider-model",
+        "model": "openai/gpt-5",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"openai\",\"modelId\":\"gpt-5\"}"
+      },
+      {
+        "id": "provider-model-level",
+        "model": "openai/gpt-5$high",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"openai\",\"modelId\":\"gpt-5\",\"options\":{\"reasoningLevel\":\"high\"}}"
+      },
+      {
+        "id": "provider-model-level-padded",
+        "model": "openai/gpt-5$  high  ",
+        "provider": "ignored-column",
+        "thoughtLevel": "low",
+        "expected": "{\"providerId\":\"openai\",\"modelId\":\"gpt-5\",\"options\":{\"reasoningLevel\":\"high\"}}"
+      },
+      {
+        "id": "provider-model-level-empty",
+        "model": "openai/gpt-5$   ",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"openai\",\"modelId\":\"gpt-5$\"}"
+      },
+      {
+        "id": "provider-model-dollar-start",
+        "model": "openai/$high",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"openai\",\"modelId\":\"$high\"}"
+      },
+      {
+        "id": "provider-model-dollar-end",
+        "model": "openai/gpt-5$",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"openai\",\"modelId\":\"gpt-5$\"}"
+      },
+      {
+        "id": "provider-model-extra-slashes",
+        "model": "zai/models/glm-5",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"zai\",\"modelId\":\"models/glm-5\"}"
+      },
+      {
+        "id": "provider-model-empty-provider",
+        "model": "/gpt-5",
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": null
+      },
+      {
+        "id": "provider-column-only",
+        "model": "  gpt-5  ",
+        "provider": "  openai  ",
+        "thoughtLevel": "  high  ",
+        "expected": "{\"providerId\":\"openai\",\"modelId\":\"gpt-5\",\"options\":{\"reasoningLevel\":\"high\"}}"
+      },
+      {
+        "id": "provider-column-glm",
+        "model": "glm-4.6",
+        "provider": "glm",
+        "thoughtLevel": null,
+        "expected": null
+      },
+      {
+        "id": "provider-column-mode",
+        "model": "gpt-5",
+        "provider": "mode",
+        "thoughtLevel": null,
+        "expected": null
+      },
+      {
+        "id": "slash-overrides-glm",
+        "model": "zai/glm-5",
+        "provider": "glm",
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"zai\",\"modelId\":\"glm-5\"}"
+      },
+      {
+        "id": "model-empty",
+        "model": "",
+        "provider": "openai",
+        "thoughtLevel": null,
+        "expected": "null"
+      },
+      {
+        "id": "model-whitespace",
+        "model": "   ",
+        "provider": "openai",
+        "thoughtLevel": null,
+        "expected": "null"
+      },
+      {
+        "id": "model-null",
+        "model": null,
+        "provider": null,
+        "thoughtLevel": null,
+        "expected": "null"
+      },
+      {
+        "id": "model-null-with-provider",
+        "model": null,
+        "provider": "openai",
+        "thoughtLevel": "high",
+        "expected": "null"
+      },
+      {
+        "id": "custom-uppercase-prefix",
+        "model": "CUSTOM:openai:gpt-5",
+        "provider": "openai",
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"openai\",\"modelId\":\"CUSTOM:openai:gpt-5\"}"
+      },
+      {
+        "id": "provider-column-plain",
+        "model": "plain-model",
+        "provider": "openai",
+        "thoughtLevel": null,
+        "expected": "{\"providerId\":\"openai\",\"modelId\":\"plain-model\"}"
+      },
+      {
+        "id": "thought-level-whitespace",
+        "model": "openai/gpt-5",
+        "provider": null,
+        "thoughtLevel": "   ",
+        "expected": "{\"providerId\":\"openai\",\"modelId\":\"gpt-5\"}"
+      }
+    ]
+  }
+}
