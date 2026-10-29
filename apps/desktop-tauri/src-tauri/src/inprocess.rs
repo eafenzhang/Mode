@@ -66,7 +66,7 @@ impl InprocessState {
                 | MEDIA_PREVIEW_CHANNEL
                 | CONVERSATION_MIRROR_CHANNEL => owned.push(name),
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
-                other => eprintln!("[mode-tauri] inprocess channel ignored (not ported yet): {other}"),
+                other => crate::host::shell_log(&format!("inprocess channel ignored (not ported yet): {other}")),
             }
         }
         let enabled = !owned.is_empty();
@@ -93,18 +93,20 @@ impl InprocessState {
                     match pushed {
                         Ok(Ok(())) => {}
                         Ok(Err(error)) => {
-                            eprintln!("[mode-tauri] inprocess frame dropped: {error}")
+                            crate::host::shell_log(&format!("inprocess frame dropped: {error}"))
                         }
                         Err(error) => {
-                            eprintln!("[mode-tauri] inprocess forward task failed: {error}")
+                            crate::host::shell_log(&format!("inprocess forward task failed: {error}"))
                         }
                     }
                 }
             });
-            eprintln!(
-                "[mode-tauri] inprocess channels enabled: {}",
+            // release 是 windows_subsystem="windows"：eprintln 没有 stderr 落地，
+            // 这条诊断必须走壳侧结构化日志，否则「开没开、丢了帧」都不可观察。
+            crate::host::shell_log(&format!(
+                "inprocess channels enabled: {}",
                 owned.join(",")
-            );
+            ));
         }
 
         Arc::new(Self {
@@ -127,7 +129,7 @@ impl InprocessState {
 
     pub fn dispatch(&self, payload: Vec<u8>) {
         if self.local_tx.send(payload).is_err() {
-            eprintln!("[mode-tauri] inprocess consumer is gone; frame dropped");
+            crate::host::shell_log("inprocess consumer is gone; frame dropped");
         }
     }
 }
@@ -190,7 +192,7 @@ fn build_server(
                     conversation_mirror::ConversationMirrorService::new(data_root.to_path_buf()),
                 )),
             ),
-            other => eprintln!("[mode-tauri] inprocess channel not constructible: {other}"),
+            other => crate::host::shell_log(&format!("inprocess channel not constructible: {other}")),
         }
     }
     server

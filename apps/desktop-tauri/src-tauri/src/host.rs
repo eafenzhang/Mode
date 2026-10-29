@@ -70,7 +70,7 @@ fn shell_log_path() -> Option<PathBuf> {
     Some(platform::commands::logs::log_dir_for_data_base_dir(&base).join("host-shell.log"))
 }
 
-fn shell_log(message: &str) {
+pub(crate) fn shell_log(message: &str) {
     let Some(path) = shell_log_path() else {
         return;
     };
