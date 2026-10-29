@@ -15,6 +15,7 @@ pub const FORBIDDEN_DIR_CODE: &str = "DATA_BASE_DIR_FORBIDDEN_WINDOWS_INSTALL_DI
 pub enum DataDirError {
     Io(std::io::Error),
     TargetExists(PathBuf),
+    Write(String),
     Forbidden { target: PathBuf, forbidden: PathBuf },
 }
 
@@ -23,6 +24,7 @@ impl std::fmt::Display for DataDirError {
         match self {
             Self::Io(error) => write!(formatter, "{error}"),
             Self::TargetExists(path) => write!(formatter, "目标文件已存在：{}", path.display()),
+            Self::Write(reason) => write!(formatter, "写入 setting.json 失败：{reason}"),
             Self::Forbidden { target, forbidden } => write!(
                 formatter,
                 "不能把数据目录放进应用安装目录：{}（{}）",
@@ -110,4 +112,43 @@ fn copy_dir(source: &Path, target: &Path) -> Result<(), DataDirError> {
         }
     }
     Ok(())
+}
+
+/// `setting.updateDataBaseDir` 的编排：校验 → 复制 → 原子更新 `setting.json` 指针。
+///
+/// 顺序与 TS 一致：`None`/空白表示回到 home；目标与原目录相同时不复制，只写指针。
+/// 任一步失败都保留旧配置（复制失败时还没写 setting；写失败时数据已在新目录，指针未变）。
+pub fn update_data_base_dir(
+    paths: &crate::paths::SettingsPaths,
+    current_base: &Path,
+    new_dir: Option<&str>,
+    windows: bool,
+    forbidden_dirs: &[PathBuf],
+) -> Result<PathBuf, DataDirError> {
+    let target = match new_dir.map(str::trim) {
+        Some(value) if !value.is_empty() => PathBuf::from(value),
+        _ => paths.home.clone(),
+    };
+    validate_data_base_dir_target(&target, forbidden_dirs, windows)?;
+    if target != current_base {
+        copy_data_directory(current_base, &target)?;
+    }
+
+    let mut document = match crate::store::read_document(paths, &crate::store::ReadOptions::default())
+    {
+        crate::store::ReadOutcome::Loaded(value) => value,
+        _ => serde_json::json!({}),
+    };
+    if !document.is_object() {
+        document = serde_json::json!({});
+    }
+    if let Some(object) = document.as_object_mut() {
+        object.insert(
+            "dataBaseDir".to_string(),
+            serde_json::Value::String(target.to_string_lossy().into_owned()),
+        );
+    }
+    crate::store::write_document(paths, &document, &atomic_file::WriteOptions::default())
+        .map_err(|error| DataDirError::Write(error.to_string()))?;
+    Ok(target)
 }

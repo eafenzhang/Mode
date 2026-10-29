@@ -214,3 +214,47 @@ fn windows_install_dir_validation_rejects_inside_paths() {
         &forbidden
     ));
 }
+
+#[test]
+fn update_data_base_dir_copies_and_persists_pointer() {
+    let home = unique_home("update-db");
+    fs::create_dir_all(home.join(".mode/v2")).expect("建旧数据目录");
+    fs::write(home.join(".mode/v2/keep.json"), "{}").expect("写数据");
+
+    let paths = resolve_settings_paths(&env_for(&home));
+    let new_base = unique_home("update-db-new");
+    let target = settings_store::update_data_base_dir(
+        &paths,
+        &home,
+        Some(new_base.to_str().expect("utf8")),
+        false,
+        &[],
+    )
+    .expect("更新成功");
+
+    assert_eq!(target, new_base);
+    assert!(new_base.join(".mode/v2/keep.json").is_file(), "数据必须被复制");
+    let document: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&paths.file).expect("读 setting")).expect("JSON");
+    assert_eq!(
+        document["dataBaseDir"],
+        new_base.to_string_lossy().as_ref()
+    );
+}
+
+#[test]
+fn update_data_base_dir_rejects_forbidden_target_without_writing_settings() {
+    let home = unique_home("update-forbidden");
+    let paths = resolve_settings_paths(&env_for(&home));
+    let forbidden = vec![std::path::PathBuf::from("C:/Program Files/Mode")];
+
+    let error = settings_store::update_data_base_dir(
+        &paths,
+        &home,
+        Some("C:/Program Files/Mode/data"),
+        true,
+        &forbidden,
+    );
+    assert!(error.is_err(), "安装目录内必须拒绝");
+    assert!(!paths.file.exists(), "失败时不得写 setting.json");
+}
