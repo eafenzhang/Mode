@@ -10,6 +10,7 @@ name = "rpc_wire"
 path = "src/lib.rs"
 
 [dependencies]
+serde_json.workspace = true
 
 [dev-dependencies]
 serde.workspace = true

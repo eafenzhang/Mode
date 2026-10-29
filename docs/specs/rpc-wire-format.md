@@ -57,6 +57,18 @@ Host sidecar ↔ 壳的帧 = `[4 字节大端无符号长度][payload]`，payloa
 `id` 按 int32 编码（JS number 走 Int 分支）。超出 int32 的 id 在 TS 侧会落到 JSON 回退，
 属未定义行为，Rust 侧不复制。首元素不是这四个取值的帧不是合法 RPC 请求。
 
+## scoped 帧与附件控制帧
+
+只出现在**页面桥 ↔ Host** 这一段（单端口多路复用，`packages/rpc/src/frameMultiplexer.ts`）：
+
+- **base 帧**：不带前缀，逐字节不变；
+- **scoped 帧**：`[0xFF][scopeId 4 字节大端][payload]`。scope id 取值 1..=2³²−1，
+  0 保留给 base，编码时非法值直接报错；marker 在但整帧不足 5 字节判为**畸形并被丢弃**；
+- **控制帧**：`[0xFE][JSON]`，body 固定为
+  `{"type":"scope-ready"|"scope-detach","scopeId":N}`。编码时键序固定为
+  `type` → `scopeId`（与 TS 对象字面量序一致）；解析侧接受任意键序，形状不合法返回
+  `null`（调用方丢弃）。控制帧先于 RPC 校验处理，不属于任何 scope。
+
 ## 序列化结构（payload 内部）
 
 ```
@@ -124,7 +136,7 @@ cargo test -p rpc-wire
 ```
 
 - 黄金文件：`crates/rpc-wire/tests/fixtures/values.json`（序列化样例）与
-  `frames.json`（分帧、协议消息头、RPC 信封），每条含名称与十六进制。
+  `frames.json`（分帧、协议消息头、RPC 信封、scoped/控制帧），每条含名称与十六进制。
 - 判定：Rust 编码对每个样例产出的字节必须与黄金字节**完全相等**；Rust 解码必须能把
   黄金字节解出等价结构并原样再编码回去。
 - 新增 tag、改变分派顺序或改信封形状时，先改 TS 实现与本 spec，再重新生成黄金文件；
@@ -132,6 +144,7 @@ cargo test -p rpc-wire
 
 ## 非目标
 
-- 不定义 scoped attachment 头（`SCOPED_FRAME_MARKER`）与流控帧（`saturated`/`drained`）。
+- 不定义流控帧（`saturated`/`drained`）与附件生命周期语义（scope 何时 attach/detach 由
+  `2026-10-19-lr4-attachment-spike.md` 与 `rpc-host-dispatch.md` 决定）。
 - 不定义频道名、方法名与事件语义。
 - 不承诺与上游 `zai-org/ZCode` 的线格式一致；这里的真源是本仓库的 TS 实现。

@@ -4,9 +4,11 @@
 //! 入站帧是已经剥掉 stdio 长度前缀的 RPC payload。
 
 mod channel;
+mod router;
 mod server;
 
 pub use channel::{
     BoxFuture, CancellationToken, ChannelError, EventCallback, ServerChannel, Subscription,
 };
+pub use router::{FrameRoute, FrameRouter};
 pub use server::ChannelServer;

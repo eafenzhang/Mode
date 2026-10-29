@@ -109,6 +109,10 @@ renderer（WebView）
   下行路径，否则渲染层会看到乱序。
 - 退出条件：开关为空时行为与今天完全一致（字节级回归）；打开一个只读频道
   （`host` 诊断面）时 UI 正常。
+- **2026-10-29 判定层完成**：`crates/rpc-host::router` 的 `FrameRouter` 按启动期传入的
+  频道集合分流（`Local` / `Legacy` / `Control` / `Rejected`），scoped 帧与控制帧的编解码在
+  `crates/rpc-wire::scope`，与 TS 有 3 条黄金样例对拍 + 7 条路由用例。
+  壳内接线（Tauri 桥读写、开关、回滚）仍未做，属于下一增量。
 
 ### M4b-4 逐域迁移（按风险从低到高）
 

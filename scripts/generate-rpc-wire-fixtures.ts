@@ -17,7 +17,13 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { BufferWriter, VSBuffer, serialize } from "../packages/rpc/src/index.js";
+import {
+  BufferWriter,
+  encodeControlFrame,
+  encodeScopedFrame,
+  serialize,
+  VSBuffer,
+} from "../packages/rpc/src/index.js";
 import {
   ProtocolMessage,
   ProtocolMessageType,
@@ -133,6 +139,24 @@ const stdioEntries = [
   },
 ];
 
+const scopeEntries = [
+  {
+    name: "scoped-payload",
+    kind: "scoped",
+    hex: hex(encodeScopedFrame(7, encodeValue("hi"))),
+  },
+  {
+    name: "control-ready",
+    kind: "control",
+    hex: hex(encodeControlFrame({ type: "scope-ready", scopeId: 3 })),
+  },
+  {
+    name: "control-detach",
+    kind: "control",
+    hex: hex(encodeControlFrame({ type: "scope-detach", scopeId: 9 })),
+  },
+];
+
 const envelopeEntries = [
   {
     name: "promise-no-arg",
@@ -180,6 +204,7 @@ writeFileSync(
       stdio: stdioEntries,
       envelopes: envelopeEntries,
       responses: responseEntries,
+      scopes: scopeEntries,
     },
     null,
     2,
@@ -188,5 +213,6 @@ writeFileSync(
 console.log(
   `[rpc-wire] values=${valueEntries.length} messages=${messageEntries.length} ` +
     `stdio=${stdioEntries.length} envelopes=${envelopeEntries.length} ` +
-    `responses=${responseEntries.length} → ${path.relative(ROOT, FIXTURE_DIR)}`,
+    `responses=${responseEntries.length} scopes=${scopeEntries.length} → ` +
+    path.relative(ROOT, FIXTURE_DIR),
 );

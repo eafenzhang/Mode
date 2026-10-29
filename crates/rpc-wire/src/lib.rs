@@ -9,6 +9,7 @@
 mod codec;
 mod envelope;
 mod frame;
+pub mod scope;
 mod stdio;
 mod vql;
 
@@ -19,6 +20,7 @@ pub use envelope::{
     response_type, EnvelopeError, RequestHeader, ResponseHeader, RpcFrame, RpcMessage, RpcResponse,
 };
 pub use frame::{decode_message, encode_message, message_type, ProtocolMessage, HEADER_SIZE};
+pub use scope::{decode_control_frame, decode_frame as decode_scope_frame, encode_control_frame, encode_scoped_frame, AttachmentControl, DecodedFrame, ScopeError, CONTROL_FRAME_MARKER, MAX_SCOPE_ID, SCOPED_FRAME_HEADER_BYTES, SCOPED_FRAME_MARKER};
 pub use stdio::{encode_stdio_frame, StdioError, StdioFrameDecoder, MAX_FRAME_BYTES};
 pub use vql::{read_int_vql, write_int_vql};
 

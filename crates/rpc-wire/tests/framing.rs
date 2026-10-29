@@ -2,10 +2,11 @@
 //! （`scripts/generate-rpc-wire-fixtures.ts` 产出 `fixtures/frames.json`）。
 
 use rpc_wire::{
-    decode_message, decode_rpc_frame, decode_rpc_message, decode_rpc_response, encode_message,
-    encode_rpc_message, encode_rpc_response, encode_stdio_frame, is_rpc_request_frame,
-    is_rpc_response_frame, request_type, EnvelopeError, RequestHeader, ResponseHeader, RpcFrame,
-    StdioFrameDecoder, Value,
+    decode_control_frame, decode_message, decode_rpc_frame, decode_rpc_message,
+    decode_rpc_response, decode_scope_frame, encode_control_frame, encode_message,
+    encode_rpc_message, encode_rpc_response, encode_scoped_frame, encode_stdio_frame,
+    is_rpc_request_frame, is_rpc_response_frame, request_type, DecodedFrame, EnvelopeError,
+    RequestHeader, ResponseHeader, RpcFrame, StdioFrameDecoder, Value,
 };
 
 #[derive(serde::Deserialize)]
@@ -14,6 +15,14 @@ struct Fixtures {
     stdio: Vec<StdioEntry>,
     envelopes: Vec<HexEntry>,
     responses: Vec<HexEntry>,
+    scopes: Vec<ScopeEntry>,
+}
+
+#[derive(serde::Deserialize)]
+struct ScopeEntry {
+    name: String,
+    kind: String,
+    hex: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -222,4 +231,39 @@ fn rejects_garbage_frames_without_panicking() {
         Err(EnvelopeError::UnknownRequestType(999))
     ));
     assert_eq!(request_type::PROMISE, 100);
+}
+
+#[test]
+fn scoped_and_control_frames_round_trip_byte_for_byte() {
+    let fixtures = load();
+    assert_eq!(fixtures.scopes.len(), 3);
+    for entry in &fixtures.scopes {
+        let bytes = from_hex(&entry.hex);
+        match entry.kind.as_str() {
+            "scoped" => {
+                let DecodedFrame::Scoped { scope_id, payload } =
+                    decode_scope_frame(&bytes).expect("scoped 帧必须可解析")
+                else {
+                    panic!("{} 应是 scoped 帧", entry.name);
+                };
+                assert_eq!(
+                    encode_scoped_frame(scope_id, payload).unwrap(),
+                    bytes,
+                    "{} 再编码不一致",
+                    entry.name
+                );
+            }
+            "control" => {
+                let control = decode_control_frame(&bytes)
+                    .unwrap_or_else(|| panic!("{} 应是控制帧", entry.name));
+                assert_eq!(
+                    encode_control_frame(&control).unwrap(),
+                    bytes,
+                    "{} 再编码不一致",
+                    entry.name
+                );
+            }
+            other => panic!("未知样例类型 {other}"),
+        }
+    }
 }

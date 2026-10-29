@@ -61,6 +61,16 @@ pub struct RpcMessage {
     pub body: Value,
 }
 
+impl RequestHeader {
+    /// 请求所属频道；`PromiseCancel` / `EventDispose` 没有频道，返回 `None`。
+    pub fn channel(&self) -> Option<&str> {
+        match self {
+            Self::Promise { channel, .. } | Self::EventListen { channel, .. } => Some(channel),
+            Self::PromiseCancel { .. } | Self::EventDispose { .. } => None,
+        }
+    }
+}
+
 /// 服务端回帧：`Initialize` 的 header 只有类型，其余带 `id`。
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResponseHeader {

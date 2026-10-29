@@ -73,5 +73,22 @@
       "name": "event-fire",
       "hex": "040206cc01060405107b2270726f6772657373223a302e357d"
     }
+  ],
+  "scopes": [
+    {
+      "name": "scoped-payload",
+      "kind": "scoped",
+      "hex": "ff0000000701026869"
+    },
+    {
+      "name": "control-ready",
+      "kind": "control",
+      "hex": "fe7b2274797065223a2273636f70652d7265616479222c2273636f70654964223a337d"
+    },
+    {
+      "name": "control-detach",
+      "kind": "control",
+      "hex": "fe7b2274797065223a2273636f70652d646574616368222c2273636f70654964223a397d"
+    }
   ]
 }
