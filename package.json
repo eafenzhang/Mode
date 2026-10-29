@@ -25,6 +25,7 @@
     "file:fixtures": "tsx scripts/generate-file-fixtures.ts",
     "commands:fixtures": "tsx scripts/generate-commands-fixtures.ts",
     "tasks-db:fixtures": "tsx scripts/generate-tasks-db-fixtures.ts",
+    "task-index:fixtures": "tsx scripts/generate-task-index-fixtures.ts",
     "verify:self-developed": "tsx scripts/upstream-overlap-check.ts --strict",
     "build": "pnpm -r build",
     "build:mode": "node scripts/build-mode.mjs",
