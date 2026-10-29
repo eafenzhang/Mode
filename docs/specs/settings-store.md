@@ -1,8 +1,9 @@
 # Spec：settings 文件层（`crates/settings-store`）
 
-状态：2026-10-29 实现（W1-1a）。行为真源：
+状态：2026-10-29 实现（W1-1a / W1-1b / W1-1c）。行为真源：
 `packages/services/src/setting/settingService.ts` 的 `resolveUserHomeDir` /
-`getSettingsDir` / `readSettingsWithMeta` / `writeSettings`（仅文件层部分）。
+`getSettingsDir` / `readSettingsWithMeta` / `writeSettings` / `updateDataBaseDir` /
+`ensureDefaultProject`。
 
 ## 路径
 
@@ -62,18 +63,32 @@ cargo test -p settings-store
 2. 补丁**不做类型校验**：TS 的 patch schema 会让非法补丁整条 `update` 抛错；这里非法值
    在合并时回落默认值。需要严格语义的调用方应自行校验。
 
+## 数据目录迁移与默认项目（W1-1c）
+
+| 函数 | 语义 |
+| --- | --- |
+| `update_data_base_dir(paths, current_base, new_dir, windows, forbidden)` | `new_dir` trim 后为空 → 回落 `paths.home`；校验禁写目录 → 目标不同才复制 `{old}/.mode/v2` → `{new}/.mode/v2` → 把解析后的目标路径写入 `setting.json` 的 `dataBaseDir` |
+| `copy_data_directory(old_base, new_base)` | 只复制 `.mode/v2`；**跳过** `setting.json` 与 `setting.json.*`（原子写中间态复制会 ENOENT）、跳过符号链接；**不覆盖**已存在的目标文件（对应 TS `force: false`） |
+| `validate_data_base_dir_target(target, forbidden, windows)` | 仅 Windows 生效：目标等于或位于安装目录内 → `Forbidden` |
+| `ensure_default_project(home)` | 在 home 下建 `ModeProject/`，返回 `{path, created}`；已存在时 `created=false` |
+
+`SettingsService::update_data_base_dir` 的顺序与 TS 一致：**先复制、后写指针**；禁写时
+不改 `setting.json`。已知差异见 `host-channel-adapters.md` 的 `setting` 小节。
+
 ## 不在本层（后续）
 
 - **历史迁移**：`legacyAccountConnectionSettings`、`closeToTray`/`messageStreamShowReasoning`
   等一次性迁移以及 `sanitize*` 预处理；黄金样例刻意避开会触发迁移的输入。
 - **写队列与 `expectedAccountSettings` 校验**：并发更新的先后判定。
-- **写队列与 `expectedAccountSettings` 校验**：并发更新的先后判定。
-- **setting 频道**：`get` / `update` / `updateDataBaseDir` 等方法面与首个本地频道接线。
+- **setting 频道语义**：四个方法的接线已在 `crates/host-channels`，但写队列、账号 CAS 与
+  补丁类型校验仍未补齐。
 
 ## 验收
 
-`crates/settings-store/tests/settings_store.rs`（7 条）：路径优先级、空白回落、缺失、
-合法加载、坏文件隔离（备份内容保留）、重试自愈（模拟另一写者写完）、原子写回形态。
+`crates/settings-store/tests/settings_store.rs`（12 条）：路径优先级、空白回落、缺失、
+合法加载、坏文件隔离（备份内容保留）、重试自愈（模拟另一写者写完）、原子写回形态、
+`ensureDefaultProject` 幂等、数据目录复制跳过 `setting.json` 且不覆盖、Windows 安装目录
+禁写、迁移后持久化指针、禁写时不写 `setting.json`。
 
 `crates/settings-store/tests/document_parity.rs`（5 条）：默认值与顶层键对拍；6 组
 「合并 + 补丁」与 TS 期望逐字段相等；未知顶层键丢弃而可选字段保留；类型不匹配逐字段回落；

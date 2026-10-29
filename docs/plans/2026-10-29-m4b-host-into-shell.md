@@ -159,15 +159,19 @@ bytes ──► FrameRouter::route
 端到端管线（真帧 → 路由 → ChannelServer → 回帧、未知方法错误帧、scoped 转发）在
 `crates/host-channels/tests/pipeline.rs` 有 3 条用例。
 
-**尚未做**：真机打开开关跑一遍（本轮只做编译、单元与管线验收）；Control 帧仍归 Node Host；
-`host`/`setting` 频道未接管；scoped 帧不支持本地接管。
+**2026-10-29 续**：已接管频道扩到 7 个（新增 `setting`、`client-config`、
+`client-scenes`、`media-preview`、`conversation-mirror`）；scoped 帧已支持本地接管——
+按 scope 惰性建独立 `ChannelServer`，回帧经 `encode_scoped_frame` 加 `0xFF + scopeId`
+前缀，Host 换代时一并 `dispose`。**尚未做**：真机打开开关跑一遍（目前只做编译、单元与
+管线验收）；Control 帧仍归 Node Host；`host` 频道不接管（心跳不能测壳自己）。
 
 **先接的频道（2026-10-29 二次更正）**：**不能用 `host` 诊断面**——渲染层的半开管道心跳
 走 `host.ping`（spec §22.5），搬进壳等于让看门狗测壳自己，Node Host 停摆就发现不了。
 也**不用 `setting`**：它有四个方法，其中 `updateDataBaseDir` 要拷贝整个数据目录，属 W3 的
 完整域迁移。第一个本地频道改为 **`memory`**——两个只读方法、无写路径、无活性语义，
 Rust 实现已完成（`crates/project-memory` + `docs/specs/project-memory-service.md`，
-7 条用例），可直接接路由开关。
+7 条用例），可直接接路由开关。**2026-10-29 续**：W1-1c 补齐数据目录迁移与
+`ensureDefaultProject` 后，`setting` 已作为完整域接管（四个方法）。
 
 ### M4b-4 逐域迁移（按风险从低到高）
 
@@ -185,6 +189,11 @@ Rust 实现已完成（`crates/project-memory` + `docs/specs/project-memory-serv
 
 每域完成的定义（缺一不可）：该频道的 TS 实现保留为 oracle；对拍矩阵覆盖正常/错误/取消/
 事件四类；`MODE_HOST_INPROCESS_CHANNELS` 打开后该域的真机用例通过；关闭开关仍走 TS 路径。
+
+**截至 2026-10-29 的进度**：已完成 `memory`、`prompt-attachment-transfer`、
+`client-config` / `client-scenes`、`media-preview`、`conversation-mirror`、`setting`；
+`hooks` 的 trust store / 配置解析 / 摘要三件前置已就位（摘要与 TS 黄金字节对拍），
+频道本体（discovery、写入、grant 转发）未接。其余域未开始。
 
 ### M4b-5 默认切换与删装配
 
@@ -211,12 +220,18 @@ W0 地基 → W1 平台基元 → W2 传输切换 → W3 逐域迁移 → W6 删
 | 中间状态的字节口径被误当成目标 | §1 的字节归因只用于判断「哪个域迁完能摘哪个包」；唯一承诺是「核心发运集不含 Node 运行时」 |
 | 迁移期回归发现晚 | 每域必须保留 TS oracle 与开关回滚；真机用例在每域出口跑 |
 
-## 6. 已知差距（本轮未做）
+## 6. 已知差距
 
-- **嵌套 `Uint8Array` 的还原**：Rust 侧 `Value::Json` 原样承载 JSON 文本，不解
-  `__mode_rpc_nested_uint8array_v1` 标记。在补齐前，Rust 侧不得承接含二进制附件的消息
-  （skill sync、附件传输）。
-- **协议层（M4b-1）与帧长度前缀**尚未实现。
+- **嵌套 `Uint8Array` 的还原**：编码方向已按 TS 写入
+  `{"__mode_rpc_nested_uint8array_v1":true,"base64":"…"}` 标记；Rust 侧仍把 Object
+  当作不透明 JSON 文本（`Value::Json`）承载，**解码时不还原**。在补齐前，Rust 侧不得
+  承接含二进制附件的消息（skill sync、附件传输）。
+- **协议层已实现**：`crates/rpc-wire` 的 `frame` / `stdio` / `envelope` 与 TS 有 14 条
+  黄金样例对拍；§6 原先列出的这项差距已关闭。
+- **`setting` 频道的语义差异**：Rust 侧无写队列、无 `expectedAccountSettings` 账号 CAS、
+  补丁不做 schema 类型校验（非法值逐字段回落）；开启开关前需补齐或明确降级，
+  详见 `docs/specs/settings-store.md`。
 - **启动分解基线**待取：标记已随宿主代码落地，当前在跑的实例是旧构建；下次启动后跑
   `pnpm measure:host-startup` 即可得到四段耗时。
-- 本轮没有改变任何产品路径：Node Host 仍是唯一所有者，行为与之前一致。
+- 默认仍不改变产品路径：开关为空时 Node Host 是唯一所有者；打开开关只影响列出的 7 个
+  频道，真机行为尚未验收。

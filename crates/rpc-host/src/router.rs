@@ -32,8 +32,8 @@ pub enum FrameRoute {
 
 pub struct FrameRouter {
     owned: HashSet<String>,
-    /// 是否允许接管带 scope 前缀的帧。壳内服务面目前只服务 base scope：本地回帧不会
-    /// 重新加 scope 前缀，接管 scoped 帧会让响应错投（被当成 base 帧）。
+    /// 是否允许接管带 scope 前缀的帧。壳内接线为每个 scope 复用独立服务面并为回帧加
+    /// `0xFF + scopeId` 前缀，所以用 `new`；`base_scope_only` 留给只服务 base 的场景。
     allow_scoped: bool,
 }
 

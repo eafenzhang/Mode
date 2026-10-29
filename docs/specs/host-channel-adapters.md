@@ -1,7 +1,7 @@
 # Spec：壳内频道适配器（`crates/host-channels`）
 
-状态：2026-10-29。已适配六个频道：`memory`、`prompt-attachment-transfer`、
-`client-config`、`client-scenes`、`media-preview`、`conversation-mirror`。
+状态：2026-10-29。已适配七个频道：`memory`、`prompt-attachment-transfer`、
+`client-config`、`client-scenes`、`media-preview`、`conversation-mirror`、`setting`。
 范围：**RPC 方法名与参数形状**到服务调用的翻译、错误映射。服务实现本身在各自的 crate。
 
 ## 参数形状
@@ -65,10 +65,31 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
 
 存储、校验与有界化语义见 `conversation-mirror.md`；适配器只做参数解析与 `spawn_blocking`。
 
+## setting
+
+| 方法 | 参数 | 返回 |
+| --- | --- | --- |
+| `get` | 无 | 完整 `AppSettings`（默认值合并后） |
+| `update` | `patch` 对象（第二个参数 `expectedAccountSettings` **当前被忽略**） | `undefined` |
+| `updateDataBaseDir` | 位置参数 `newDir`（空/缺省 → 用户 home） | `undefined` |
+| `ensureDefaultProject` | 位置参数 `homedir`（缺省 → 用户 home） | `{path, created}` |
+
+数据目录迁移的复制规则、禁写校验与写入顺序见 `settings-store.md`。
+
+**与 TS 的已知差异（开启开关前需补齐或明确降级）**：
+
+- 无写队列：并发 `update` 不串行化，后写补丁可能覆盖先写字段。
+- 无 `expectedAccountSettings` 账号 CAS；第二个参数被丢弃。
+- 补丁不做 schema 类型校验，非法值在合并时逐字段回落（TS 会整条抛错）。
+- 数据目录指针持久化的是**解析后的目标路径**（清空时回落 home），TS 持久化调用方原值。
+- `updateDataBaseDir` 的禁写错误不附 `extra["code"]`；TS 会带
+  `DATA_BASE_DIR_FORBIDDEN_WINDOWS_INSTALL_DIR`。
+
 ## 与路由的约定
 
-- 适配器只被壳内 `ChannelServer` 调用（`inprocess.rs`），当前只接管 **base scope**；
-  scoped 帧由 `FrameRouter::base_scope_only` 留给 Node Host（本地回帧不带 scope 前缀）。
+- 适配器只被壳内 `ChannelServer` 调用（`inprocess.rs`）；base scope 与
+  `scope-ready` 的 remote scope 分别持有独立服务面实例，scoped 回帧由
+  `encode_scoped_frame` 加 `0xFF + scopeId` 前缀。
 - `ChannelServer` 以 `defer_init = true` 构造且从不 `ready()`：`Initialize` 只能由 Node Host 发。
 - 开关 `MODE_HOST_INPROCESS_CHANNELS` 逐个列出频道名；未移植的名字被忽略并留一行日志。
 
@@ -81,5 +102,8 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
 - `tests/media_preview.rs`（5 条）：inline 音频 base64 与 mediaType、kind 不匹配、
   不支持扩展名、8 MiB 上限、目录/未知方法、大小写与反斜杠归一。
 - `tests/conversation_mirror_channel.rs`（2 条）：身份与两条 origin 规则、读取回环。
-- `tests/pipeline.rs`（3 条）：真 RPC 帧 → 路由 → `ChannelServer` → 回帧；scoped 帧转发；
-  未知方法回 `PromiseError`。
+- `tests/setting_channel.rs`（3 条）：默认值读取 + 补丁落盘、默认项目只建一次、
+  数据目录迁移写指针。
+- `tests/channel_names.rs`（漂移守卫）：频道名与 TS `ServiceChannels` 一致。
+- `tests/pipeline.rs`（3 条）：真 RPC 帧 → 路由 → `ChannelServer` → 回帧；`base_scope_only`
+  路由把 scoped 帧留给 Node Host；未知方法回 `PromiseError`。

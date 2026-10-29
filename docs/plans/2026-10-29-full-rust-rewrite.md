@@ -73,7 +73,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | RPC 线格式 | `crates/rpc-wire` + `docs/specs/rpc-wire-format.md`，与 TS 字节级对拍 | **已完成**（`5e926cb9`） |
 | 协议层 | 13 字节 `ProtocolMessage` 头、stdio 4 字节前缀、请求与回帧信封的 Rust 编解码 | **已完成**（`crates/rpc-wire::frame/stdio/envelope`，14 条黄金样例对拍） |
 | 壳内 ChannelServer | 频道注册、分派、事件订阅/取消、错误映射、pending 与超时 | **已完成**（`crates/rpc-host` + `docs/specs/rpc-host-dispatch.md`，10 条行为用例） |
-| 帧路由 | 按频道分流（Rust 服务面 vs 遗留 Node），启动期一次性开关 | **已完成**：判定层 + 壳内接线（`inprocess.rs`），首个频道 `memory`；开关默认关闭，真机未验 |
+| 帧路由 | 按频道分流（Rust 服务面 vs 遗留 Node），启动期一次性开关 | **已完成**：判定层 + 壳内接线（`inprocess.rs`）；已接管 7 个频道，scoped 控制帧登记并按 scope 复用服务面；开关默认关闭，真机未验 |
 | 启动分解度量 | `measure:host-startup`（host 四个 `startup_mark` + 解析脚本与 4 条单测） | **已完成**（标记已入 host；基线等下一次真实启动后读取） |
 
 出口：开关为空时产品行为与今天字节级一致；打开只读频道时 UI 正常。
@@ -94,17 +94,21 @@ SQLite（任务库、会话库、迁移）、日志、进程管理（spawn/kill/
 对应 `docs/specs/atomic-file.md`，8 条用例（含 6 线程并发写不产生半截）。它是 settings /
 credential / task-index 的共同前置。
 
-**W3 已迁完整域（2026-10-29，6 个）**：`memory`（`crates/project-memory`）、
+**W3 已迁完整域（2026-10-29，7 个）**：`memory`（`crates/project-memory`）、
 `prompt-attachment-transfer`（本地零拷贝 + 三 no-op + 不 emit 的进度订阅）、
 `client-config` / `client-scenes`（审计版常量：官方服务开关恒 false，短路在凭证与网络之前）、
 `media-preview`（本地 inline：扩展名/kind 校验 + 8 MiB 上限 + base64）、
-`conversation-mirror`（存储 + origin 校验 + 有界化 + 适配器）。
+`conversation-mirror`（存储 + origin 校验 + 有界化 + 适配器）、
+`setting`（`get` / `update` / `updateDataBaseDir` / `ensureDefaultProject` 四方法，
+含数据目录迁移）。
 
-六个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
-TS `ServiceChannels` 的漂移守卫。**真机打开开关尚未验证**；scoped 帧与 `host` 频道仍归
-Node Host。剩余域的障碍：`hooks` 需写路径 + trust store 对拍；`onboarding-record` 依赖
-未移植的 OAuth/任务服务；`fileWatcher` 需要的 `notify` crate 不在本机 cargo 缓存。两者都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到壳内，
-适配层契约见 `docs/specs/host-channel-adapters.md`。
+七个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
+TS `ServiceChannels` 的漂移守卫。**真机打开开关尚未验证**；控制帧与 `host` 频道仍归
+Node Host，scoped 帧已能本地接管（按 scope 复用服务面）。剩余域的障碍：`hooks` 的
+trust / config / digest 三件已就位，还差 discovery、写路径与 grant 转发；
+`onboarding-record` 依赖未移植的 OAuth/任务服务；`fileWatcher` 需要的 `notify` crate
+不在本机 cargo 缓存。各频道都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到壳内，适配层契约见
+`docs/specs/host-channel-adapters.md`。
 
 `crates/workspace-identity` —— 路径归一 / 身份 key / SHA-256 前 12 位 hash（session 目录与
 对话镜像目录共用），见 `docs/specs/workspace-identity.md`。
@@ -116,7 +120,22 @@ Node Host。剩余域的障碍：`hooks` 需写路径 + trust store 对拍；`on
 `crates/settings-store` —— `setting.json` 的路径解析（三级 home 回落）、坏文件隔离
 （3×300 ms 重试后改名备份）、原子写回，对应 `docs/specs/settings-store.md`；模型层
 （默认值 / `merge_persisted` / `apply_patch` / `normalize`）由 zod 生成的黄金样例对拍
-（`pnpm settings:fixtures`，6 组用例）。**未含**历史迁移、写队列与 setting 频道。
+（`pnpm settings:fixtures`，6 组用例）。**W1-1c 已完成（2026-10-29）**：
+`updateDataBaseDir` 的完整编排——`{old}/.mode/v2` → `{new}/.mode/v2` 复制（跳过
+`setting.json*`、符号链接，不覆盖目标）、Windows 安装目录禁写、`ensureDefaultProject`，
+以及「先复制数据目录、再持久化指针」的顺序（`settings-store` 共 17 条用例）。
+**与 TS 的已知差异**：无写队列（并发补丁不串行化）、无 `expectedAccountSettings`
+账号 CAS、补丁不做 schema 类型校验（非法值逐字段回落）；`setting` 频道已接管，但开启
+开关前需补齐这些差异或明确降级。
+
+**hooks 前置三件已完成（2026-10-29）**：`crates/workspace-hook-trust`（trust store
+严格解析，`deny_unknown_fields`，语法或 schema 任一不合法即整体 fail-closed）、
+`crates/workspace-hook-config`（超时 / 输出上限 / 门禁的纯解析）、
+`crates/workspace-hook-digest`（条目级与包级摘要，含 `canonicalOptional` 的
+`["unset"]` / `["set", v]` 区分）。摘要与 TS `createWorkspaceHookDeclarationDigest`
+有黄金字节对拍（`scripts/generate-hook-digest-fixtures.ts`）。**未做**：三个来源目录的
+discovery、`saveHooks` 写路径、`grantWorkspaceHookTrust` 转 Agent authority、频道注册；
+三件也还没有独立 spec（暂以 crate 文档标注的 TS 真源为准），接频道前需补齐。
 
 **SQLite 迁移的额外约束**：迁移从 TS 翻到 Rust 时，`docs/specs/sqlite-schema-gate.md`
 的基线必须改由 Rust 迁移生成，并用 `--base-ref` 证明与 TS 时代基线只增不减；否则已安装
@@ -130,6 +149,12 @@ Node Host。剩余域的障碍：`hooks` 需写路径 + trust store 对拍；`on
 remote scope、流控（`saturated`/`drained`）逐项对拍。完成后 `stdioFrames`/`stdoutGuard`
 从产品路径退场。
 
+**已开始（2026-10-29）**：壳内服务面支持按 scope 复用——`scope-ready` / `scope-detach`
+控制帧仍转发 Node（未移植频道的生命周期归它），同时登记进 `LocalScopeRegistry`；消费
+任务为每个 scope 惰性建独立 `ChannelServer`，回帧加 `0xFF + scopeId` 前缀；Host 换代时
+base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、`stdioFrames` /
+`stdoutGuard` 退场、流控（`saturated` / `drained`）与 scoped attachment 的真机对拍。
+
 出口：`desktop-continuous` 与 `web-remote-replayable` 两条链路语义不变；帧序无乱序；
 断链/半开管道/换代行为与今天一致（复用 P1-3/P2-3/P2-4 的验收脚本）。
 
@@ -137,25 +162,25 @@ remote scope、流控（`saturated`/`drained`）逐项对拍。完成后 `stdioF
 
 按依赖与风险排序，每域独立完成、独立开关、独立回滚：
 
-| 序 | 域 | TS 行数 | Rust 目标 | 关键依赖 |
-| --- | --- | --- | --- | --- |
-| 1 | 设置 / 客户端配置 | ≈3.3k | 壳内 `settings` | W1 |
-| 2 | 文件 / fs / 监视 | ≈2.8k | `notify` + std | W1 |
-| 3 | 任务 / 会话 / 任务索引 | ≈12.2k | `rusqlite` + tokio | W1 + SQLite 迁移 |
-| 4 | 凭据 | 277 | `ring` + keyring | W1 |
-| 5 | 终端旧路径 | 1,354 | 壳已有 PTY | W2 |
-| 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 |
-| 7 | provider / 模型选择 / orcarouter / bigmodel | ≈7.5k | `reqwest` + `rustls` | W1 |
-| 8 | usage-stats / coding-plan | ≈5.4k | 壳内聚合 | W1 |
-| 9 | 远程工作区 / SSH / WSL / Docker | 远程链路 | `russh` + 本地进程 | W2 |
-| 10 | LAN 配对 / 发现 | ≈1.5k | UDP + 壳内 HTTP | W2 |
-| 11 | 远程桌面 | 媒体面已有 Rust helper | 壳内协调器 | W2 |
-| 12 | 云账号 / 设备目录 / OAuth | ≈4k | `reqwest` + 本地密钥 | W1 |
-| 13 | 对话共享 / 镜像 / 遥测 | ≈5.5k | 壳内 | W3-3 |
-| 14 | skills / skill-sync / mcp-sync / plugin-sync / plugins | ≈4.5k | 壳内（素材仍是 JS） | W1 |
-| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 |
-| 16 | cua-permission-broker / cua-pip | ≈2.4k | 壳内 | 现有 helper |
-| 17 | 其余（media-preview、prompt-attachment-transfer、off-peak-task…） | ≈2k | 壳内 | W1 |
+| 序 | 域 | TS 行数 | Rust 目标 | 关键依赖 | 进度（2026-10-29） |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 设置 / 客户端配置 | ≈3.3k | 壳内 `settings` | W1 | `setting` / `client-config` / `client-scenes` 已接管 |
+| 2 | 文件 / fs / 监视 | ≈2.8k | `notify` + std | W1 | 未开始 |
+| 3 | 任务 / 会话 / 任务索引 | ≈12.2k | `rusqlite` + tokio | W1 + SQLite 迁移 | 未开始 |
+| 4 | 凭据 | 277 | `ring` + keyring | W1 | 未开始 |
+| 5 | 终端旧路径 | 1,354 | 壳已有 PTY | W2 | 未开始 |
+| 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 | 未开始 |
+| 7 | provider / 模型选择 / orcarouter / bigmodel | ≈7.5k | `reqwest` + `rustls` | W1 | 未开始 |
+| 8 | usage-stats / coding-plan | ≈5.4k | 壳内聚合 | W1 | 未开始 |
+| 9 | 远程工作区 / SSH / WSL / Docker | 远程链路 | `russh` + 本地进程 | W2 | 未开始 |
+| 10 | LAN 配对 / 发现 | ≈1.5k | UDP + 壳内 HTTP | W2 | 未开始 |
+| 11 | 远程桌面 | 媒体面已有 Rust helper | 壳内协调器 | W2 | 未开始 |
+| 12 | 云账号 / 设备目录 / OAuth | ≈4k | `reqwest` + 本地密钥 | W1 | 未开始 |
+| 13 | 对话共享 / 镜像 / 遥测 | ≈5.5k | 壳内 | W3-3 | `conversation-mirror` 已接管 |
+| 14 | skills / skill-sync / mcp-sync / plugin-sync / plugins | ≈4.5k | 壳内（素材仍是 JS） | W1 | 未开始 |
+| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` 已接管；`hooks` 前置三件就绪 |
+| 16 | cua-permission-broker / cua-pip | ≈2.4k | 壳内 | 现有 helper | 未开始 |
+| 17 | 其余（media-preview、prompt-attachment-transfer、off-peak-task…） | ≈2k | 壳内 | W1 | `media-preview` / `prompt-attachment-transfer` 已接管 |
 
 **每域完成定义**（缺一不可）：TS 实现保留为 oracle → 正常/错误/取消/事件四类对拍 →
 真机用例通过 → 打开该域开关无回归 → 关闭开关仍走 TS。全部域完成后才允许删 TS 实现。
@@ -228,11 +253,12 @@ remote scope、流控（`saturated`/`drained`）逐项对拍。完成后 `stdioF
 - 路线图 M3 的「两台实机 LAN/RD/Web、IM 真账号、TUI 交互验收」不因重写取消，
   而是移到对应波次的出口。
 
-## 10. 下一步（本轮之后立即执行）
+## 10. 下一步（2026-10-29 续）
 
-1. W0 协议层：13 字节头 + stdio 4 字节前缀的 Rust 编解码与黄金对拍。
-2. W1-1 settings：先在 `crates/atomic-file` 之上做 `setting.json` 的读写与 schema 校验，
-   再用它做第一个本地频道并接上 W0 的路由开关；启动基线在下一次启动后用
-   `pnpm measure:host-startup` 读。
-3. W0 壳内 ChannelServer（纯库 + 假频道测试）。
-4. W1 第一个基元：settings（壳已在读 `settings.json`，切口最小）。
+1. **真机验收开关**：打开 `MODE_HOST_INPROCESS_CHANNELS` 跑已接管的 7 个频道，核对回帧、
+   事件与错误路径；关闭开关回归 Node 路径。启动四段耗时用 `pnpm measure:host-startup` 读取。
+2. **hooks 频道本体**：discovery（`.mode` / `.agents` / `.claude` 三来源）、`saveHooks`
+   原子写路径、`grantWorkspaceHookTrust` 转 Agent authority，然后注册进开关。
+3. **W1 剩余基元**：`file` / `fs` / `paths`（含 `notify` 引入）、`credential`
+   （`ring` + keyring）、SQLite 迁移门禁（基线改由 Rust 迁移生成 + `--base-ref` 只增校验）。
+4. **W3-3 任务 / 会话域**：体量最大（≈12.2k 行），依赖 SQLite 迁移先落地。
