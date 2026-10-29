@@ -36,6 +36,8 @@
 | DR-04 | 上游基线                    | 把上游 main 导入为本仓库 `upstream/zcode-baseline` 分支（一次性 fetch + branch）                                                                                                                                                                                                                                         | 兑现 NOTICE"对照上游仓库 diff 追溯"；给 M4 的 diff 清零验收当标尺                                         |
 | DR-05 | 仓库形态                    | **同仓库并存**（`crates/`、`apps/desktop-tauri/` 与旧栈同仓），旧栈打 EOL 后归档                                                                                                                                                                                                                                         | 复用协议定义、测试基线、CI 与第三方台账；避免双仓漂移                                                     |
 | DR-06 | 与电脑控制（CUA）一期的归口 | 电脑控制并行会话已在做 **Rust addon（napi-rs + windows-rs）+ Rust 工具链接入 + electron-builder 打包**（`docs/specs/computer-use-windows-runtime.md`）——**Rust 工具链、cargo CI job、electron-builder 打包规则以先落地的一期为准**，M0 的 C# helper Rust 化跟进其约定；两者同期只允许一处改 `electron-builder.config.js` | 电脑控制一期实质上就是路线图要的"Rust 先行试水"，重复引入两套 Cargo workspace/CI 只会互相打架             |
+| DR-07 | 真源翻转与 oracle | TS 运行时在删除前始终是可执行 oracle；删除前置 = 对拍矩阵全绿 + 20 个真实模型任务 + 性能不回退；翻转点写进 `agent-runtime-parity-matrix.md` | 没有 oracle 的重写无法证明行为等价 |
+| DR-08 | 重写范围（2026-10-29，用户决策） | **凡能 Rust 化的全部重写，工程量不作取舍依据**：宿主服务面、Agent 运行时、Web/远程服务端、TUI、IM 四通道全部纳入；波次只按依赖与风险排序。保留的仅：WebView 渲染层（React/CSS）、插件/MCP/Skills 第三方负载、浏览器扩展注入脚本 | 以成本裁剪会留下永久双栈；全量重写后核心发运集不含 Node，双写与漂移窗口才真正关闭 |
 
 ---
 
@@ -128,6 +130,14 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > 对端 Host 日志，本机无法单侧完成；本机可自证部分已复核，日志归属更正后不再把
 > 「主控日志无 `media start requested`」当失败证据。验收载具是本地构建的 0.0.99
 > （安装版 0.0.93 不含本轮代码），证据在 `.plan/accept-0.0.99/`。计划已标注终止推进。
+>
+> **2026-10-29 决策（DR-08）**：重写范围改为「能 Rust 化的全部重写，工程量不作取舍
+> 依据」。宿主服务面（110,841 行）、Agent 运行时（363,880 行）、Web/远程服务端（17,766 行，
+> 含 web UI 计数）、TUI（9,837 行）与 IM 四通道全部纳入；保留的只有 WebView 渲染层
+> （React/CSS）、插件/MCP/Skills 第三方负载与浏览器扩展注入脚本。波次只按依赖与风险排序，见
+> `docs/plans/2026-10-29-full-rust-rewrite.md`；M4b 的机制子计划为
+> `docs/plans/2026-10-29-m4b-host-into-shell.md`。M3 的三项让行决策（IM/TUI/Web）
+> 只保留「不在 M3 阶段内」的含义，长期复用结论作废。
 
 ## M0 地基与纪律（2–4 周）
 
@@ -340,6 +350,12 @@ web_assets_extraction 仍维持 CI/MSVC 权威口径。〕
 > 156 条测试全绿，M3 不新增 `crates/server`）；
 > TUI 见 `docs/plans/2026-10-18-m3-tui-status.md`（DR-TUI-1：沿用 TS 客户端，M3 不新增
 > `crates/tui`；33 个场景仅有编译面证据，交互验收待人工）。
+>
+> 〔**2026-10-29 终态更替（DR-08）**：上面的 DR-IM-1 / DR-PM-1 / DR-WEB-1 / DR-TUI-1
+> 只对「M3 阶段内不新增对应 crate」有效，其「长期复用 TS 实现」的结论作废——全量 Rust 化
+> 后 IM 四通道改 Rust 自实现、市场逻辑进壳、Web/远程服务端改 axum、TUI 改 ratatui，
+> 见 `docs/plans/2026-10-29-full-rust-rewrite.md` W5。新 crate 仍不在 M3 阶段内落地，
+> M3 的出口口径与验收清单不变。〕
 
 **Files:**
 
@@ -478,10 +494,11 @@ skills / subagents / plugin-sync / mcp-*）；`apps/mode-cli` 运行时装配 �
 `packages/rpc` 3.5k；8 个 Node 依赖（node-forge / ws / axios / undici / node-pty / yaml /
 smol-toml / yazl）。
 
-**3.4 明确不可删**：`packages/ui` 19k + HTML/CSS；TUI 14k（DR-TUI-1，除非 CLI 要单二进制）；
-IM bot SDK（**2026-10-23 裁决为可选 feature**：按通道动态 import、移出核心闭包，
-larksuite 25 MB / wecom 568 KB）；插件/技能的 JS 执行面（执行面保留，承载方式改为
-子进程 + 自家二进制，见 M5 P2 裁决）。
+**3.4 明确不可删**：`packages/ui` 19k + HTML/CSS（WebView 渲染面，DR-08 仍保留）；
+插件/技能的 JS 执行面（执行面保留，承载方式改为子进程 + 自家二进制，见 M5 P2 裁决）。
+〔**2026-10-29 修正（DR-08）**：TUI 14k 与 IM bot SDK 不再是「不可删」——TUI 改 ratatui、
+IM 四通道改 Rust 自实现后，这两块随对应波次一起删除，见
+`docs/plans/2026-10-29-full-rust-rewrite.md` W5。〕
 
 **删除的硬前置**：TS 运行时仍是 oracle（DR-07）——对拍矩阵全绿 + 真实模型 20 个端到端任务
 验收 + 性能 bench 不回退，三者缺一不可。
@@ -514,15 +531,16 @@ module-not-found；真正摘除需要「按需资产下发」基建（复用 Ass
 ### M4b（2–4 周）：Host 并入壳 + IPC 换代
 
 > **2026-10-29 立项与前提核验**：子计划
-> `docs/plans/2026-10-29-m4b-host-into-shell.md`。实测 externals 闭包未剪枝 102.61 MiB、
-> 剪枝后 26.12 MiB（node-pty 7.14 / 飞书 9.24 / node-forge 1.57 / protobufjs 1.15 /
-> ssh2 1.07 / undici 1.05 / 其余 ≈4），加上 ≈5.5 MiB 的 Host bundle 才是 `host-sidecar/`
-> 的 31.60 MiB。**「砍掉 35 MB」不是一个可承诺的数字**：终端（node-pty）、凭据
-> （node-forge）、provider（undici）三条能真正摘掉，净减 ≈15–17 MiB；飞书的 ≈10.4 MiB
-> 取决于 IM 是否 Rust 重写，`ssh2` 因 LR-4 保留 SSH 后端而**不会**消失。因此对外口径改为
-> 「终态 `host-sidecar/` ≤ 2 MiB」；工作量按域计为单人 6–10 周，阶段内用 M4b-0…M4b-5
-> 六个里程碑跟踪。本轮已落地 M4b-0 的第一块：`docs/specs/rpc-wire-format.md` +
-> `crates/rpc-wire`（RPC 线格式 Rust 侧，28 条黄金样例与 TS 逐字节对拍）。
+> `docs/plans/2026-10-29-m4b-host-into-shell.md`，上位计划
+> `docs/plans/2026-10-29-full-rust-rewrite.md`（DR-08：能 Rust 化的全部重写，工程量不作
+> 约束）。实测 externals 闭包未剪枝 102.61 MiB、剪枝后 26.12 MiB（node-pty 7.14 /
+> 飞书 9.24 / node-forge 1.57 / protobufjs 1.15 / ssh2 1.07 / undici 1.05 / 其余 ≈4），
+> 加上 ≈5.5 MiB 的 Host bundle 才是 `host-sidecar/` 的 31.60 MiB。**这是中间状态，
+> 不是目标口径**：全量 Rust 化之后没有 Node 宿主，这些包全部由 Rust 实现取代，唯一承诺是
+> 「核心发运集不含 Node 运行时」。M4b 自身的机制（线格式、壳内 ChannelServer、帧路由）
+> 对应总计划 W0–W3；IM/TUI/Web 服务端/SSH 分别进 W5 与 W3-9。本轮已落地 M4b-0 的
+> 第一块：`docs/specs/rpc-wire-format.md` + `crates/rpc-wire`（RPC 线格式 Rust 侧，
+> 28 条黄金样例与 TS 逐字节对拍）。本阶段标题里的「2–4 周」不再是排期约束（DR-08）。
 
 先把 `settings / credentials / task-index sqlite / file ops` 四件最小面 Rust 化
 （`node-forge`→ring、`node:sqlite`→rusqlite），再把 `host-standalone` 的服务装配搬进壳的
@@ -588,7 +606,9 @@ P1.1–P1.7 顺序、验收与两项待裁决）。
   稳定性：子进程隔离保留（不做进程内嵌入）、无 native ABI/DLL、bundle 是冻结字节。
   通用性：作者契约零变化；native addon 类插件 fail closed；npm-MCP 的通用性由「按需 JS 运行时
   资产」回退承担（sha256 + CDN，复用 AssetCache 骨架）——89 MB 的 Node 从「随包常驻」变成
-  「装了 npm MCP 才出现」。其余两项（IM bot Rust 化、TUI ratatui）仍按需评估。
+  「装了 npm MCP 才出现」。〔2026-10-29 DR-08：IM bot Rust 化与 TUI ratatui 不再「按需
+  评估」，已分别纳入 `2026-10-29-full-rust-rewrite.md` 的 W5；同理 `crates/server`
+  （axum）与市场逻辑也进 W5。〕
 
 ### M5a（4–8 周）：Agent 切产品路径 + Node 退场
 

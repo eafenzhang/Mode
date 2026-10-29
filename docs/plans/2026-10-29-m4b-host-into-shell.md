@@ -1,5 +1,10 @@
 # M4b：Host 并入壳（2026-10-29 立项）
 
+> **2026-10-29 决策升级**：本轮起改为「能 Rust 化的全部重写，工程量不作约束」，
+> 上位计划见 `docs/plans/2026-10-29-full-rust-rewrite.md`。本文件仍是 Host 并入壳的
+> **机制子计划**（线格式、路由、所有权），对应总计划的 W0–W3；其中 IM 通道与 SSH 不再
+> 「取决于产品裁决」，分别进 W5（Rust 自实现四通道）与 W3-9（russh）。
+>
 > 上游依据：`docs/plans/2026-10-09-tauri-rewrite-roadmap.md` §M4b。
 > 本轮已落地的第一块：`docs/specs/rpc-wire-format.md` + `crates/rpc-wire`
 > （RPC 线格式 Rust 侧 + 与 TS 的字节级黄金对拍）。
@@ -29,21 +34,23 @@ config 0.19）。本轮把 externals 闭包按 `host-sidecar-ship.ts` 的同一�
 
 结论：
 
-1. **「砍掉 35 MB」不成立为一个数字**。M4b 完成且 IM 通道仍走 Node 时，净减约
-   15–17 MiB；只有把飞书/企微通道也重写（或改为纯按需资产）才接近 26 MiB。
-   对外表述应改为「host-sidecar 载荷随各域迁移逐步下降，终态 ≤ 2 MiB」。
+1. **「砍掉 35 MB」不是终态口径**。全量 Rust 化之后没有 Node 宿主，
+   `node-pty`/`node-forge`/`undici`/`ssh2`/飞书/企微/protobufjs 全部由 Rust 实现取代，
+   不存在「能砍多少」的问题；对外只承诺「核心发运集不含 Node 运行时」。
+   下表只是**中间状态**的字节归因，用来判断哪些域迁完可以立刻摘掉哪些包。
 2. **T_ready 的 200–400 ms 仍是估计**。现有 `measure:cold-start` 只给总时长
    （2026-10-23 基线 825 ms），没有「Node boot / 存储 / 服务装配」的分解，M4b-0
    要补这条分解，否则改完无法归因。
-3. **收益实现顺序应与风险相反**：先做不依赖 IM/SSH 决策的域（setting、file、task-index、
-   credential），把 node-forge/undici/node-pty 的字节真正摘掉；IM 与 SSH 单独立项。
+3. **字节释放跟随域迁移**：先迁移不依赖外部协议的域（settings、file、task-index、
+   credential、terminal），把 node-pty/node-forge/undici 的字节真正摘掉；IM 与 SSH
+   按 W5/W3-9 的 Rust 实现推进，不再作为「放弃项」。
 
 ## 2. 目标与边界
 
 - 目标：renderer ↔ Host 的 RPC 不再经过「Node 子进程 + stdio 帧」；服务面由壳直接持有，
   终态 `host-sidecar/` 目录从发运集消失，`T_ready` ≤ 500 ms（同口径复测）。
-- 不在本阶段：Agent 运行时（`mode.cjs`）退出——那是 M5a；插件/MCP/Skills 负载的承载方式
-  （M5 的 P2 裁决）也不变。
+- 不在本文件：Agent 运行时退出（总计划 W4）与生态面替换（W5，IM/TUI/server）——
+  它们同属全量 Rust 化，但机制与本文件的线格式/路由无关。
 - 不变的所有者：Host 进程事实（重生/退避）仍归壳 `HostSupervisor`；迁移期间 Node Host
   仍是未被迁移频道的唯一所有者，**同一频道同一时刻只能有一个所有者**。
 
@@ -102,8 +109,8 @@ renderer（WebView）
 | 5 | 终端旧路径 | `terminal` | 壳已持有 PTY | 7.14 MiB |
 | 6 | Git | `git` | 需 `gitoxide` 或调用系统 git | 0 |
 | 7 | provider / 模型 | `provider` / `model` | `reqwest` 替换 `undici` | ~1.05 MiB |
-| 8 | IM 通道 | `bots` | **需产品裁决**（Rust 重写 / 按需资产 / fail-closed） | 9.24–10.4 MiB |
-| 9 | SSH/WSL/Docker | `remote` | 需 Rust SSH 客户端 | 0（ssh2 保留） |
+| 8 | IM 通道 | `bots` | Rust 自实现四通道（总计划 W5；不再复用 SDK） | 9.24–10.4 MiB |
+| 9 | SSH/WSL/Docker | `remote` | `russh` + 本地进程（总计划 W3-9） | 1.07 MiB |
 
 每域完成的定义（缺一不可）：该频道的 TS 实现保留为 oracle；对拍矩阵覆盖正常/错误/取消/
 事件四类；`MODE_HOST_INPROCESS_CHANNELS` 打开后该域的真机用例通过；关闭开关仍走 TS 路径。
@@ -116,11 +123,11 @@ renderer（WebView）
   两条链路语义（`desktop-continuous` / `web-remote-replayable`）不变；
   20 个真实模型任务的验收口径不降低（DR-07 的硬前置不变）。
 
-## 4. 工作量与建议
+## 4. 工作量
 
-按「每域 2–5 天（含对拍与真机）」估算：M4b-1/2/3 约 1.5–2.5 周，九个域约 4–6 周，
-M4b-5 收口 3–5 天。**单人总量 6–10 周**，且第 8 域（IM）取决于产品裁决。
-建议把路线图的「2–4 周」改成按域里程碑跟踪，而不是整阶段承诺。
+**工程量不作为约束**（2026-10-29 决策，见总计划 DR-08）。本文件只固定顺序与验收：
+W0 地基 → W1 平台基元 → W2 传输切换 → W3 逐域迁移 → W6 删除编排。
+每个域的完成定义与总计划一致（四类对拍 + 真机 + 开关回滚），不做「按成本裁剪」的取舍。
 
 ## 5. 风险与对冲
 
@@ -130,7 +137,7 @@ M4b-5 收口 3–5 天。**单人总量 6–10 周**，且第 8 域（IM）取�
 | 事件与响应乱序 | 路由按频道绑定同一条下行路径；按到达顺序处理，不为吞吐并发化 |
 | scoped attachment / 远程 scope 被拆坏 | 路由发生在 scope 解复用之后；先补 scope 级对拍再动 |
 | Rust 编解码与 TS 微差（负数、浮点、嵌套二进制） | 黄金字节对拍进 CI；Object 分支的嵌套 `Uint8Array` 还原尚未实现，见 §6 |
-| 收益被高估（IM/SSH 字节摘不掉） | §1 已按域量化；对外只承诺「终态 ≤ 2 MiB」，不承诺单一 35 MB 数字 |
+| 中间状态的字节口径被误当成目标 | §1 的字节归因只用于判断「哪个域迁完能摘哪个包」；唯一承诺是「核心发运集不含 Node 运行时」 |
 | 迁移期回归发现晚 | 每域必须保留 TS oracle 与开关回滚；真机用例在每域出口跑 |
 
 ## 6. 已知差距（本轮未做）
