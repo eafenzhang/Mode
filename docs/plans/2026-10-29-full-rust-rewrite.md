@@ -71,7 +71,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | 项 | 产出 | 状态 |
 | --- | --- | --- |
 | RPC 线格式 | `crates/rpc-wire` + `docs/specs/rpc-wire-format.md`，与 TS 字节级对拍 | **已完成**（`5e926cb9`） |
-| 协议层 | 13 字节 `ProtocolMessage` 头、stdio 4 字节前缀、请求/响应/事件/cancel 的 Rust 编解码 | 待做 |
+| 协议层 | 13 字节 `ProtocolMessage` 头、stdio 4 字节前缀、请求与回帧信封的 Rust 编解码 | **已完成**（`crates/rpc-wire::frame/stdio/envelope`，14 条黄金样例对拍） |
 | 壳内 ChannelServer | 频道注册、分派、事件订阅/取消、错误映射、顺序保证 | 待做 |
 | 帧路由 | 按频道分流（Rust 服务面 vs 遗留 Node），启动期一次性开关 | 待做 |
 | 启动分解度量 | `measure:host-startup`（Node boot / 数据根 / 服务装配 / 首帧） | 待做 |

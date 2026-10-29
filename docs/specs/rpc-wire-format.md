@@ -13,13 +13,51 @@ attachment、帧解码与现有对拍都会失效。
 这份 spec 只描述**字节形态**，不描述频道语义（频道在 `packages/shared/src/channels.ts`，
 命令面在 `docs/specs/tauri-platform-commands.md`）。
 
-## 帧骨架
+## 进程分帧（stdio）
 
-一条 RPC 消息 = 一次 `serialize()` 调用写出的字节串；多帧在 stdio 上以 **4 字节大端长度
-前缀**分隔（`packages/desktop/src/host-standalone/stdioFrames.ts`）。长度前缀与 scoped
-attachment 头不属于本 spec 的 `serialize`/`deserialize`。
+Host sidecar ↔ 壳的帧 = `[4 字节大端无符号长度][payload]`，payload 就是上面的
+`serialize` 结果，两侧都不解释它。
 
-`serialize` 的递归结构：
+- 单帧上限 **64 MiB**（`MAX_FRAME_BYTES`）：长度前缀是攻击面，超限即判定该流不可恢复——
+  后续字节全部丢弃、只报一次，不再尝试重新对齐。
+- 收方向必须自己处理粘包/分片：够 4 字节才读长度，够 `4 + length` 才消费，不能在 body
+  未到齐时提前消费首部。
+
+## 协议消息头（`SocketProtocol`，13 字节）
+
+用于 socket/MessagePort 一类流式传输：`type(1) + id(4 BE) + ack(4 BE) + length(4 BE)`，
+随后是 `length` 字节的 payload。
+
+| type | 名称 |
+| --- | --- |
+| 0 | None |
+| 1 | Regular |
+| 2 | Control |
+| 3 | Ack |
+| 5 | Disconnect |
+| 6 | ReplayRequest |
+| 7 | Pause |
+| 8 | Resume |
+| 9 | KeepAlive |
+
+只有 `Regular` 会把 payload 向上抛；`length = 0` 的 `Regular` 抛一个空帧。未知 type
+**不报错**（TS 侧是直接读出来再忽略），Rust 侧按原始 `u8` 保存并原样回写。
+
+## RPC 信封
+
+一条 RPC 消息的 payload = `serialize(header)` + `serialize(body)`，header 是数组：
+
+| 请求类型 | 取值 | header | body |
+| --- | --- | --- | --- |
+| Promise | 100 | `[100, id, channel, method]` | 调用参数 |
+| PromiseCancel | 101 | `[101, id]` | `undefined` |
+| EventListen | 102 | `[102, id, channel, event]` | 订阅参数 |
+| EventDispose | 103 | `[103, id]` | `undefined` |
+
+`id` 按 int32 编码（JS number 走 Int 分支）。超出 int32 的 id 在 TS 侧会落到 JSON 回退，
+属未定义行为，Rust 侧不复制。首元素不是这四个取值的帧不是合法 RPC 请求。
+
+## 序列化结构（payload 内部）
 
 ```
 value := tag [length] payload?
@@ -85,14 +123,15 @@ pnpm rpc-wire:fixtures
 cargo test -p rpc-wire
 ```
 
-- 黄金文件：`crates/rpc-wire/tests/fixtures/values.json`（每条含名称、值描述、十六进制）。
-- 判定：Rust `serialize` 对每个样例产出的字节必须与黄金字节**完全相等**；Rust `deserialize`
-  必须能把黄金字节解出等价结构并原样再编码回去。
-- 新增 tag 或改变分派顺序时，先改 TS 实现与本 spec，再重新生成黄金文件；不允许只改 Rust
-  让用例变绿。
+- 黄金文件：`crates/rpc-wire/tests/fixtures/values.json`（序列化样例）与
+  `frames.json`（分帧、协议消息头、RPC 信封），每条含名称与十六进制。
+- 判定：Rust 编码对每个样例产出的字节必须与黄金字节**完全相等**；Rust 解码必须能把
+  黄金字节解出等价结构并原样再编码回去。
+- 新增 tag、改变分派顺序或改信封形状时，先改 TS 实现与本 spec，再重新生成黄金文件；
+  不允许只改 Rust 让用例变绿。
 
 ## 非目标
 
-- 不定义帧外的长度前缀、scoped attachment 头与流控帧（`saturated`/`drained`）。
+- 不定义 scoped attachment 头（`SCOPED_FRAME_MARKER`）与流控帧（`saturated`/`drained`）。
 - 不定义频道名、方法名与事件语义。
 - 不承诺与上游 `zai-org/ZCode` 的线格式一致；这里的真源是本仓库的 TS 实现。

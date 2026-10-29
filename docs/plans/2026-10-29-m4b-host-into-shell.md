@@ -72,6 +72,12 @@ config 0.19）。本轮把 externals 闭包按 `host-sidecar-ship.ts` 的同一�
   以及 scoped attachment 头的解析边界——只做编解码，不做频道。
 - 对拍：与 TS `protocol.ts`/`ipc.ts` 的行为对齐，同样用黄金字节；不读上游实现。
 - 退出条件：一条真实 RPC 请求/响应在 Rust 侧编解码后与 TS 字节一致（含错误响应）。
+- **2026-10-29 完成（除 scoped 头）**：`crates/rpc-wire` 新增 `frame`（13 字节头，未知
+  type 原样保留）、`stdio`（4 字节前缀 + 分片/粘包 + 64 MiB 上限与「只报一次」）、
+  `envelope`（四种请求 + 五种回帧 + `is_rpc_request_frame`/`is_rpc_response_frame`/
+  `decode_rpc_frame`）。14 条黄金样例（4 消息头、2 stdio、5 请求信封、5 回帧）逐字节对拍；
+  `cargo test -p rpc-wire` 27 条通过。scoped attachment 头按 spec 非目标，留给
+  M4b-3 的路由前处理。
 
 ### M4b-2 壳内 ChannelServer
 

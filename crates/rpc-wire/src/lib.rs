@@ -7,9 +7,19 @@
 //! 直到 M4b 把服务面搬进壳。
 
 mod codec;
+mod envelope;
+mod frame;
+mod stdio;
 mod vql;
 
-pub use codec::{deserialize, serialize, DecodeError};
+pub use codec::{decode_from, deserialize, encode_into, serialize, DecodeError, Reader};
+pub use envelope::{
+    decode_rpc_frame, decode_rpc_message, decode_rpc_response, encode_rpc_message,
+    encode_rpc_response, is_rpc_request_frame, is_rpc_response_frame, request_type,
+    response_type, EnvelopeError, RequestHeader, ResponseHeader, RpcFrame, RpcMessage, RpcResponse,
+};
+pub use frame::{decode_message, encode_message, message_type, ProtocolMessage, HEADER_SIZE};
+pub use stdio::{encode_stdio_frame, StdioError, StdioFrameDecoder, MAX_FRAME_BYTES};
 pub use vql::{read_int_vql, write_int_vql};
 
 /// 数据类型的 1 字节标签（与 TS `DataType` 枚举逐值对应）。

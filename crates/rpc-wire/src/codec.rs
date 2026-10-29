@@ -74,11 +74,11 @@ impl<'a> Reader<'a> {
 /// 把值编码成线格式字节。
 pub fn serialize(value: &Value) -> Vec<u8> {
     let mut out = Vec::new();
-    write_value(&mut out, value);
+    encode_into(&mut out, value);
     out
 }
 
-fn write_value(out: &mut Vec<u8>, value: &Value) {
+pub fn encode_into(out: &mut Vec<u8>, value: &Value) {
     match value {
         Value::Undefined => out.push(tag::UNDEFINED),
         Value::Str(text) => {
@@ -104,7 +104,7 @@ fn write_value(out: &mut Vec<u8>, value: &Value) {
             out.push(tag::ARRAY);
             write_length(out, items.len());
             for item in items {
-                write_value(out, item);
+                encode_into(out, item);
             }
         }
         Value::Json(text) => {
@@ -129,7 +129,7 @@ fn write_length(out: &mut Vec<u8>, length: usize) {
 /// 说明调用方切错了帧；这里直接报错，避免静默丢字节。
 pub fn deserialize(bytes: &[u8]) -> Result<Value, DecodeError> {
     let mut reader = Reader::new(bytes);
-    let value = read_value(&mut reader)?;
+    let value = decode_from(&mut reader)?;
     if reader.remaining() != 0 {
         return Err(DecodeError::TrailingBytes {
             offset: reader.position(),
@@ -139,7 +139,7 @@ pub fn deserialize(bytes: &[u8]) -> Result<Value, DecodeError> {
     Ok(value)
 }
 
-fn read_value(reader: &mut Reader<'_>) -> Result<Value, DecodeError> {
+pub fn decode_from(reader: &mut Reader<'_>) -> Result<Value, DecodeError> {
     let tag_offset = reader.position();
     let kind = reader.read_u8()?;
     match kind {
@@ -164,7 +164,7 @@ fn read_value(reader: &mut Reader<'_>) -> Result<Value, DecodeError> {
             let length = read_length(reader)?;
             let mut items = Vec::with_capacity(length.min(1024));
             for _ in 0..length {
-                items.push(read_value(reader)?);
+                items.push(decode_from(reader)?);
             }
             Ok(Value::Array(items))
         }
