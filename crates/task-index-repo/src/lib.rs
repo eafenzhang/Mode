@@ -11,18 +11,22 @@
 //! 数据库 schema 与冻结迁移由 `tasks-db` 提供。规范见
 //! `docs/specs/task-index-repo.md`。
 //!
-//! 明确未纳入（下一片：分组视图与分组管理）：`hasGroupedWorkspaceBootstrapRun`、
-//! `createTaskGroup`、`renameTaskGroup`、`updateTaskGroupColor`、`deleteTaskGroup`、
-//! `initializeGroupedTaskAtTop`、`queryGroupedTaskView`、`queryGroupedTaskViewStructure`、
-//! `applyGroupedTaskViewOrder`、`syncTaskMetaAtGroupedTop`。
+//! 明确未纳入：任务索引频道与会话链路（`host-channels` 接线、`sessions-index` 联动）。
 
 mod error;
+mod grouped;
 mod js;
 mod meta;
 mod remote;
 mod repo;
 
 pub use error::{Result, TaskIndexRepoError};
+pub use grouped::{
+    GroupedTaskGroupRefs, GroupedTaskRef, GroupedTaskView, GroupedTaskViewNode,
+    GroupedTaskViewOrderInput, GroupedTaskViewQuery, GroupedTaskViewStructure,
+    GroupedTaskViewStructureMember, GroupedTaskViewStructureTopOrder,
+    GroupedTaskViewTopLevelNodeRef, TaskGroup,
+};
 pub use meta::{
     parse_last_error_value, parse_mode_task_meta, parse_task_goal_value, ErrorAttribution, ModeTaskChangeSummary, ModeTaskChangedFile,
     ModeTaskGoal, ModeTaskGoalTime, ModeTaskLastError, ModeTaskMeta, CRON_DEFAULT_GROUP_ID,
@@ -30,7 +34,7 @@ pub use meta::{
 };
 pub use repo::{
     mark_tasks_storage_migrated, mark_tasks_storage_prepared, AgentPatch, ArchiveStaleTasksParams,
-    ClearUnreadResult, ListDeletedTaskIdsParams, ListTaskMetasParams, SyncTaskMetaParams,
-    TaskIndexRepo, TaskIndexStatePatch, TaskListItem, TaskListKind, TaskListQuery, TaskListResult,
-    TaskListSortBy, TaskListWorkspaceScope, TaskRef,
+    ClearUnreadResult, ListDeletedTaskIdsParams, ListTaskMetasParams, SyncTaskMetaAtGroupedTop,
+    SyncTaskMetaParams, TaskIndexRepo, TaskIndexStatePatch, TaskListItem, TaskListKind, TaskListQuery,
+    TaskListResult, TaskListSortBy, TaskListWorkspaceScope, TaskRef,
 };

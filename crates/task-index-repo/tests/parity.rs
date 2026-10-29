@@ -13,9 +13,10 @@ use rusqlite::{params, Connection};
 use serde_json::{json, Map, Value};
 use task_index_repo::{
     parse_last_error_value, parse_mode_task_meta, parse_task_goal_value, AgentPatch,
-    ArchiveStaleTasksParams, ListDeletedTaskIdsParams, ListTaskMetasParams, ModeTaskMeta,
-    SyncTaskMetaParams, TaskIndexRepo, TaskIndexStatePatch, TaskListKind, TaskListQuery,
-    TaskListSortBy, TaskListWorkspaceScope, TaskRef,
+    ArchiveStaleTasksParams, GroupedTaskGroupRefs, GroupedTaskRef, GroupedTaskViewOrderInput,
+    GroupedTaskViewQuery, GroupedTaskViewTopLevelNodeRef, ListDeletedTaskIdsParams,
+    ListTaskMetasParams, ModeTaskMeta, SyncTaskMetaParams, TaskIndexRepo, TaskIndexStatePatch,
+    TaskListKind, TaskListQuery, TaskListSortBy, TaskListWorkspaceScope, TaskRef,
 };
 use tasks_db::RunOptions;
 
@@ -271,10 +272,11 @@ fn snapshot(db_path: &Path) -> Value {
         let mut statement = connection
             .prepare("SELECT group_id, title, color, created_at, updated_at FROM task_groups ORDER BY group_id")
             .expect("prepare group snapshot");
-        statement
+        let mut rows = statement
             .query_map([], |row| {
+                let group_id: String = row.get(0)?;
                 Ok(json!({
-                    "group_id": row.get::<_, String>(0)?,
+                    "group_id": normalize_group_id_json(&group_id),
                     "title": row.get::<_, String>(1)?,
                     "color": row.get::<_, String>(2)?,
                     "created_at": 0,
@@ -283,7 +285,25 @@ fn snapshot(db_path: &Path) -> Value {
             })
             .expect("query group snapshot")
             .collect::<rusqlite::Result<Vec<_>>>()
-            .expect("collect group snapshot")
+            .expect("collect group snapshot");
+        // 归一生效后才出现重复 id（多个 createTaskGroup），按 (id,title) 补稳定序。
+        rows.sort_by(|left, right| {
+            (
+                left["group_id"].as_str(),
+                left["title"]
+                    .as_str()
+                    .map(str::to_lowercase)
+                    .unwrap_or_default(),
+            )
+                .cmp(&(
+                    right["group_id"].as_str(),
+                    right["title"]
+                        .as_str()
+                        .map(str::to_lowercase)
+                        .unwrap_or_default(),
+                ))
+        });
+        rows
     };
 
     let task_group_members = {
@@ -296,8 +316,9 @@ fn snapshot(db_path: &Path) -> Value {
             .expect("prepare member snapshot");
         statement
             .query_map([], |row| {
+                let group_id: String = row.get(0)?;
                 Ok(json!({
-                    "group_id": row.get::<_, String>(0)?,
+                    "group_id": normalize_group_id_json(&group_id),
                     "workspace_key": row.get::<_, String>(1)?,
                     "workspace_path": row.get::<_, String>(2)?,
                     "workspace_identity": row.get::<_, Option<String>>(3)?,
@@ -320,11 +341,18 @@ fn snapshot(db_path: &Path) -> Value {
                  FROM task_group_view_node_orders ORDER BY node_type, node_key",
             )
             .expect("prepare order snapshot");
-        statement
+        let mut rows = statement
             .query_map([], |row| {
+                let node_type: String = row.get(0)?;
+                let node_key: String = row.get(1)?;
+                let node_key = if node_type == "group" {
+                    normalize_group_id_json(&node_key)
+                } else {
+                    json!(node_key)
+                };
                 Ok(json!({
-                    "node_type": row.get::<_, String>(0)?,
-                    "node_key": row.get::<_, String>(1)?,
+                    "node_type": node_type,
+                    "node_key": node_key,
                     "sort_order": row.get::<_, i64>(2)?,
                     "created_at": 0,
                     "updated_at": 0,
@@ -332,7 +360,20 @@ fn snapshot(db_path: &Path) -> Value {
             })
             .expect("query order snapshot")
             .collect::<rusqlite::Result<Vec<_>>>()
-            .expect("collect order snapshot")
+            .expect("collect order snapshot");
+        rows.sort_by(|left, right| {
+            (
+                left["node_type"].as_str(),
+                left["node_key"].as_str(),
+                left["sort_order"].as_i64(),
+            )
+                .cmp(&(
+                    right["node_type"].as_str(),
+                    right["node_key"].as_str(),
+                    right["sort_order"].as_i64(),
+                ))
+        });
+        rows
     };
 
     json!({
@@ -350,6 +391,207 @@ fn sql_to_json(value: rusqlite::types::Value) -> Value {
         rusqlite::types::Value::Real(value) => json!(value),
         rusqlite::types::Value::Text(value) => json!(value),
         rusqlite::types::Value::Blob(value) => json!(value),
+    }
+}
+
+fn normalize_group_id_json(value: &str) -> Value {
+    if value.starts_with("task-group-") {
+        json!("task-group-normalized")
+    } else {
+        json!(value)
+    }
+}
+
+fn normalize_group_value(value: &Value) -> Value {
+    let mut object = value.as_object().cloned().unwrap_or_default();
+    if let Some(id) = object.get("id").and_then(Value::as_str) {
+        object.insert("id".to_owned(), normalize_group_id_json(id));
+    }
+    object.insert("createdAt".to_owned(), json!(0));
+    object.insert("updatedAt".to_owned(), json!(0));
+    Value::Object(object)
+}
+
+fn normalize_view_output(value: Value) -> Value {
+    let mut object = match value {
+        Value::Object(object) => object,
+        other => return other,
+    };
+    let Some(Value::Array(nodes)) = object.get("nodes").cloned() else {
+        return Value::Object(object);
+    };
+    let nodes = nodes
+        .into_iter()
+        .map(|node| {
+            let mut node = match node {
+                Value::Object(node) => node,
+                other => return other,
+            };
+            if node.get("type").and_then(Value::as_str) == Some("group") {
+                if let Some(group) = node.get("group").cloned() {
+                    node.insert("group".to_owned(), normalize_group_value(&group));
+                }
+            }
+            Value::Object(node)
+        })
+        .collect();
+    object.insert("nodes".to_owned(), Value::Array(nodes));
+    Value::Object(object)
+}
+
+fn normalize_structure_output(value: Value) -> Value {
+    let mut object = match value {
+        Value::Object(object) => object,
+        other => return other,
+    };
+    if let Some(Value::Array(groups)) = object.get("groups").cloned() {
+        object.insert(
+            "groups".to_owned(),
+            Value::Array(groups.iter().map(normalize_group_value).collect()),
+        );
+    }
+    if let Some(Value::Array(members)) = object.get("members").cloned() {
+        let members = members
+            .into_iter()
+            .map(|member| {
+                let mut member = match member {
+                    Value::Object(member) => member,
+                    other => return other,
+                };
+                member.insert("addedAt".to_owned(), json!(0));
+                Value::Object(member)
+            })
+            .collect();
+        object.insert("members".to_owned(), Value::Array(members));
+    }
+    Value::Object(object)
+}
+
+fn normalize_dispatch_output(op: &str, value: Value) -> Value {
+    match op {
+        "queryGroupedTaskView" | "applyGroupedTaskViewOrder" => normalize_view_output(value),
+        "queryGroupedTaskViewStructure" => normalize_structure_output(value),
+        "createTaskGroup" | "renameTaskGroup" | "updateTaskGroupColor" => {
+            normalize_group_value(&value)
+        }
+        _ => value,
+    }
+}
+
+fn workspace_scopes(input: &Value) -> Vec<TaskListWorkspaceScope> {
+    input
+        .as_array()
+        .map(|scopes| {
+            scopes
+                .iter()
+                .map(|scope| TaskListWorkspaceScope {
+                    workspace_path: string_at(scope, "workspacePath"),
+                    workspace_identity: optional_string_at(scope, "workspaceIdentity"),
+                    workspace_purpose: optional_string_at(scope, "workspacePurpose"),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn grouped_ref(input: &Value) -> GroupedTaskRef {
+    GroupedTaskRef {
+        workspace_path: string_at(input, "workspacePath"),
+        workspace_identity: optional_string_at(input, "workspaceIdentity"),
+        task_id: string_at(input, "taskId"),
+    }
+}
+
+fn grouped_view_query(input: &Value) -> GroupedTaskViewQuery {
+    GroupedTaskViewQuery {
+        workspace_scopes: workspace_scopes(&input["workspaceScopes"]),
+        include_all_workspaces: input
+            .get("includeAllWorkspaces")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        provider: optional_string_at(input, "provider"),
+    }
+}
+
+fn grouped_order_input(input: &Value) -> GroupedTaskViewOrderInput {
+    let top_level_nodes = input["topLevelNodes"]
+        .as_array()
+        .map(|nodes| {
+            nodes
+                .iter()
+                .map(|node| match node.get("type").and_then(Value::as_str) {
+                    Some("group") => GroupedTaskViewTopLevelNodeRef::Group {
+                        group_id: string_at(node, "groupId"),
+                    },
+                    _ => GroupedTaskViewTopLevelNodeRef::Task {
+                        task: grouped_ref(&node["task"]),
+                    },
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let groups = input["groups"]
+        .as_array()
+        .map(|groups| {
+            groups
+                .iter()
+                .map(|group| GroupedTaskGroupRefs {
+                    group_id: string_at(group, "groupId"),
+                    task_refs: group["taskRefs"]
+                        .as_array()
+                        .map(|refs| refs.iter().map(grouped_ref).collect())
+                        .unwrap_or_default(),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    GroupedTaskViewOrderInput {
+        workspace_scopes: workspace_scopes(&input["workspaceScopes"]),
+        top_level_nodes,
+        groups,
+        provider: optional_string_at(input, "provider"),
+    }
+}
+
+fn first_difference(expected: &Value, actual: &Value, path: &str) -> Option<String> {
+    match (expected, actual) {
+        (Value::Object(left), Value::Object(right)) => {
+            for key in left.keys().chain(right.keys()) {
+                let next = format!("{path}/{key}");
+                match (left.get(key), right.get(key)) {
+                    (Some(l), Some(r)) => {
+                        if let Some(difference) = first_difference(l, r, &next) {
+                            return Some(difference);
+                        }
+                    }
+                    (l, r) => {
+                        return Some(format!(
+                            "{next}: ts={l:?} rust={r:?}"
+                        ))
+                    }
+                }
+            }
+            None
+        }
+        (Value::Array(left), Value::Array(right)) => {
+            for index in 0..left.len().min(right.len()) {
+                let next = format!("{path}[{index}]");
+                if let Some(difference) = first_difference(&left[index], &right[index], &next) {
+                    return Some(difference);
+                }
+            }
+            if left.len() != right.len() {
+                Some(format!(
+                    "{path}: length ts={} rust={}",
+                    left.len(),
+                    right.len()
+                ))
+            } else {
+                None
+            }
+        }
+        (left, right) if left == right => None,
+        (left, right) => Some(format!("{path}: ts={left:?} rust={right:?}")),
     }
 }
 
@@ -514,6 +756,47 @@ fn dispatch(
                 provider: optional_string_at(input, "provider"),
             },
         )?)?,
+        "hasGroupedWorkspaceBootstrapRun" => {
+            serde_json::to_value(repo.has_grouped_workspace_bootstrap_run()?)?
+        }
+        "queryGroupedTaskViewStructure" => serde_json::to_value(
+            repo.query_grouped_task_view_structure(&workspace_scopes(&input["workspaceScopes"]))?,
+        )?,
+        "queryGroupedTaskView" => {
+            serde_json::to_value(repo.query_grouped_task_view(&grouped_view_query(input))?)?
+        }
+        "createTaskGroup" => serde_json::to_value(repo.create_task_group(
+            input.get("title").and_then(Value::as_str),
+            input.get("color").and_then(Value::as_str),
+        )?)?,
+        "renameTaskGroup" => serde_json::to_value(repo.rename_task_group(
+            &string_at(input, "groupId"),
+            &string_at(input, "title"),
+        )?)?,
+        "updateTaskGroupColor" => serde_json::to_value(repo.update_task_group_color(
+            &string_at(input, "groupId"),
+            &string_at(input, "color"),
+        )?)?,
+        "deleteTaskGroup" => {
+            repo.delete_task_group(&string_at(input, "groupId"))?;
+            Value::Null
+        }
+        "initializeGroupedTaskAtTop" => {
+            Value::Bool(repo.initialize_grouped_task_at_top(&grouped_ref(input))?)
+        }
+        "applyGroupedTaskViewOrder" => serde_json::to_value(
+            repo.apply_grouped_task_view_order(&grouped_order_input(input))?,
+        )?,
+        "syncTaskMetaAtGroupedTop" => serde_json::to_value(repo.sync_task_meta_at_grouped_top(
+            SyncTaskMetaParams {
+                meta: parse_meta(input, "meta"),
+                pinned: input.get("pinned").and_then(Value::as_bool),
+                archived: input.get("archived").and_then(Value::as_bool),
+                deleted: input.get("deleted").and_then(Value::as_bool),
+                title_overridden: input.get("titleOverridden").and_then(Value::as_bool),
+                searchable_text: optional_string_at(input, "searchableText"),
+            },
+        )?)?,
         "close" => {
             repo.close();
             Value::Null
@@ -557,6 +840,7 @@ fn ts_fixture_steps_match() {
             }
             _ => {
                 let output = result.unwrap_or_else(|error| panic!("{id}: 意外错误 {error}"));
+                let output = normalize_dispatch_output(op, output);
                 assert_eq!(
                     output, step["output"],
                     "{id}: 方法返回值必须与 TS 深度相等"
@@ -564,7 +848,11 @@ fn ts_fixture_steps_match() {
             }
         }
         let actual = snapshot(&db_path);
-        assert_eq!(actual, step["snapshot"], "{id}: DB 快照必须与 TS 一致");
+        if actual != step["snapshot"] {
+            let detail = first_difference(&step["snapshot"], &actual, "")
+                .unwrap_or_else(|| "（无差异定位）".to_owned());
+            panic!("{id}: DB 快照必须与 TS 一致\n{detail}");
+        }
     }
     repo.close();
 }

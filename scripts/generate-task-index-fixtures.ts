@@ -617,6 +617,40 @@ function readMetaJson(raw: string): unknown {
   }
 }
 
+// `createTaskGroup` 使用 `randomUUID()`，分组时间戳来自 `Date.now()`：
+// 两者都不是跨进程可比的事实，fixture 统一归一化为占位 id 与 0 时间。
+const normalizeGroupId = (value: unknown): unknown =>
+  typeof value === "string" && value.startsWith("task-group-") ? "task-group-normalized" : value;
+
+function normalizeGroupValue(group: Record<string, unknown>): Record<string, unknown> {
+  return { ...group, id: normalizeGroupId(group.id), createdAt: 0, updatedAt: 0 };
+}
+
+function normalizeViewOutput(value: unknown): unknown {
+  const view = value as { nodes: Array<Record<string, unknown>> };
+  return {
+    nodes: view.nodes.map((node) =>
+      node.type === "group"
+        ? { ...node, group: normalizeGroupValue(node.group as Record<string, unknown>) }
+        : node,
+    ),
+  };
+}
+
+function normalizeStructureOutput(value: unknown): unknown {
+  const structure = value as {
+    groups: Array<Record<string, unknown>>;
+    members: Array<Record<string, unknown>>;
+    topLevelOrders: unknown[];
+  };
+  return {
+    ...structure,
+    groups: structure.groups.map(normalizeGroupValue),
+    // addedAt 来自 `Date.now()`（系统分组回填），跨进程不可比，归一为 0。
+    members: structure.members.map((member) => ({ ...member, addedAt: 0 })),
+  };
+}
+
 function snapshot(dbPath: string): Snapshot {
   const db = new DatabaseSync(dbPath);
   try {
@@ -631,17 +665,42 @@ function snapshot(dbPath: string): Snapshot {
       db
         .prepare("SELECT * FROM task_groups ORDER BY group_id")
         .all() as unknown as Array<Record<string, unknown>>
-    ).map((row) => ({ ...row, created_at: 0, updated_at: 0 }));
+    )
+      .map((row) => ({ ...row, group_id: normalizeGroupId(row.group_id), created_at: 0, updated_at: 0 }))
+      // 归一生效后才出现重复 id（多个 createTaskGroup），按 (id,title) 补稳定序。
+      .sort(
+        (left, right) =>
+          String(left.group_id).localeCompare(String(right.group_id)) ||
+          String(left.title).toLowerCase().localeCompare(String(right.title).toLowerCase()),
+      );
     const taskGroupMembers = (
       db
         .prepare("SELECT * FROM task_group_members ORDER BY workspace_key, task_id")
         .all() as unknown as Array<Record<string, unknown>>
-    ).map((row) => ({ ...row, added_at: 0, created_at: 0, updated_at: 0 }));
+    ).map((row) => ({
+      ...row,
+      group_id: normalizeGroupId(row.group_id),
+      added_at: 0,
+      created_at: 0,
+      updated_at: 0,
+    }));
     const taskGroupViewNodeOrders = (
       db
         .prepare("SELECT * FROM task_group_view_node_orders ORDER BY node_type, node_key")
         .all() as unknown as Array<Record<string, unknown>>
-    ).map((row) => ({ ...row, created_at: 0, updated_at: 0 }));
+    )
+      .map((row) => ({
+        ...row,
+        node_key: row.node_type === "group" ? normalizeGroupId(row.node_key) : row.node_key,
+        created_at: 0,
+        updated_at: 0,
+      }))
+      .sort(
+        (left, right) =>
+          String(left.node_type).localeCompare(String(right.node_type)) ||
+          String(left.node_key).localeCompare(String(right.node_key)) ||
+          Number(left.sort_order) - Number(right.sort_order),
+      );
     return { tasks, taskGroups, taskGroupMembers, taskGroupViewNodeOrders };
   } finally {
     db.close();
@@ -669,14 +728,16 @@ async function record(
   op: string,
   input: unknown,
   run: () => Promise<unknown> | unknown,
+  normalizeOutput?: (output: unknown) => unknown,
 ): Promise<void> {
   try {
-    const output = await run();
+    const raw = await run();
+    const output = raw === undefined ? null : raw;
     steps.push({
       id,
       op,
       input,
-      output: output === undefined ? null : output,
+      output: normalizeOutput ? normalizeOutput(output) : output,
       snapshot: snapshot(dbPath),
     });
   } catch (error) {
@@ -866,6 +927,352 @@ async function main(): Promise<void> {
       "queryTaskList",
       listQuery({ provider: "claude" }),
       () => repo.queryTaskList(listQuery({ provider: "claude" })),
+    );
+
+    // ── 分组视图与分组管理 ──
+    const aScope = { workspacePath: WS_A };
+    const groupedQuery = (overrides: Record<string, unknown>) => ({
+      workspaceScopes: [aScope],
+      ...overrides,
+    });
+
+    await record(dbPath, "grouped-has-run-before", "hasGroupedWorkspaceBootstrapRun", {}, () =>
+      repo.hasGroupedWorkspaceBootstrapRun(),
+    );
+    await record(
+      dbPath,
+      "grouped-structure-before-bootstrap",
+      "queryGroupedTaskViewStructure",
+      groupedQuery({}),
+      () => repo.queryGroupedTaskViewStructure(groupedQuery({}) as never),
+      normalizeStructureOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-view-a-bootstrap",
+      "queryGroupedTaskView",
+      groupedQuery({}),
+      () => repo.queryGroupedTaskView(groupedQuery({}) as never),
+      normalizeViewOutput,
+    );
+    await record(dbPath, "grouped-has-run-after", "hasGroupedWorkspaceBootstrapRun", {}, () =>
+      repo.hasGroupedWorkspaceBootstrapRun(),
+    );
+    await record(
+      dbPath,
+      "grouped-structure-after-bootstrap",
+      "queryGroupedTaskViewStructure",
+      groupedQuery({}),
+      () => repo.queryGroupedTaskViewStructure(groupedQuery({}) as never),
+      normalizeStructureOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-view-ac",
+      "queryGroupedTaskView",
+      { workspaceScopes: [aScope, { workspacePath: WS_C }] },
+      () =>
+        repo.queryGroupedTaskView({ workspaceScopes: [aScope, { workspacePath: WS_C }] }),
+      normalizeViewOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-view-all",
+      "queryGroupedTaskView",
+      { workspaceScopes: [], includeAllWorkspaces: true },
+      () => repo.queryGroupedTaskView({ workspaceScopes: [], includeAllWorkspaces: true }),
+      normalizeViewOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-view-provider-glm",
+      "queryGroupedTaskView",
+      groupedQuery({ provider: "glm" }),
+      () => repo.queryGroupedTaskView(groupedQuery({ provider: "glm" }) as never),
+      normalizeViewOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-structure-remote",
+      "queryGroupedTaskViewStructure",
+      { workspaceScopes: [{ workspacePath: "/srv/ws", workspaceIdentity: WS_B }] },
+      () =>
+        repo.queryGroupedTaskViewStructure({
+          workspaceScopes: [{ workspacePath: "/srv/ws", workspaceIdentity: WS_B }],
+        }),
+      normalizeStructureOutput,
+    );
+
+    const betaRef = { workspacePath: WS_C, taskId: "task-beta" };
+    await record(dbPath, "grouped-init-top-beta", "initializeGroupedTaskAtTop", betaRef, () =>
+      repo.initializeGroupedTaskAtTop(betaRef),
+    );
+    await record(dbPath, "grouped-init-top-beta-again", "initializeGroupedTaskAtTop", betaRef, () =>
+      repo.initializeGroupedTaskAtTop(betaRef),
+    );
+    await record(
+      dbPath,
+      "grouped-init-top-pinned",
+      "initializeGroupedTaskAtTop",
+      { workspacePath: WS_A, taskId: "task-pinned" },
+      () => repo.initializeGroupedTaskAtTop({ workspacePath: WS_A, taskId: "task-pinned" }),
+    );
+    await record(
+      dbPath,
+      "grouped-init-top-member",
+      "initializeGroupedTaskAtTop",
+      { workspacePath: WS_A, taskId: "task-active" },
+      () => repo.initializeGroupedTaskAtTop({ workspacePath: WS_A, taskId: "task-active" }),
+    );
+    await record(
+      dbPath,
+      "grouped-init-top-missing",
+      "initializeGroupedTaskAtTop",
+      { workspacePath: WS_A, taskId: "nope" },
+      () => repo.initializeGroupedTaskAtTop({ workspacePath: WS_A, taskId: "nope" }),
+    );
+
+    const orderInput = {
+      workspaceScopes: [aScope],
+      topLevelNodes: [
+        { type: "task", task: { workspacePath: WS_A, taskId: "task-offpeak" } },
+        { type: "group", groupId: "g-legacy" },
+      ],
+      groups: [
+        {
+          groupId: "g-legacy",
+          taskRefs: [
+            { workspacePath: WS_A, taskId: "task-unread" },
+            { workspacePath: WS_A, taskId: "task-extra-meta" },
+          ],
+        },
+      ],
+    };
+    await record(
+      dbPath,
+      "grouped-apply-order-a",
+      "applyGroupedTaskViewOrder",
+      orderInput,
+      () => repo.applyGroupedTaskViewOrder(orderInput as never),
+      normalizeViewOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-view-after-apply",
+      "queryGroupedTaskView",
+      groupedQuery({}),
+      () => repo.queryGroupedTaskView(groupedQuery({}) as never),
+      normalizeViewOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-apply-order-unknown-group",
+      "applyGroupedTaskViewOrder",
+      {
+        workspaceScopes: [aScope],
+        topLevelNodes: [{ type: "group", groupId: "nope" }],
+        groups: [],
+      },
+      () =>
+        repo.applyGroupedTaskViewOrder({
+          workspaceScopes: [aScope],
+          topLevelNodes: [{ type: "group", groupId: "nope" }],
+          groups: [],
+        }),
+      normalizeViewOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-apply-order-out-of-scope",
+      "applyGroupedTaskViewOrder",
+      {
+        workspaceScopes: [{ workspacePath: WS_C }],
+        topLevelNodes: [
+          { type: "task", task: { workspacePath: WS_A, taskId: "task-active" } },
+        ],
+        groups: [],
+      },
+      () =>
+        repo.applyGroupedTaskViewOrder({
+          workspaceScopes: [{ workspacePath: WS_C }],
+          topLevelNodes: [{ type: "task", task: { workspacePath: WS_A, taskId: "task-active" } }],
+          groups: [],
+        }),
+      normalizeViewOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-apply-order-invisible",
+      "applyGroupedTaskViewOrder",
+      {
+        workspaceScopes: [aScope],
+        topLevelNodes: [
+          { type: "task", task: { workspacePath: WS_A, taskId: "task-deleted" } },
+        ],
+        groups: [],
+      },
+      () =>
+        repo.applyGroupedTaskViewOrder({
+          workspaceScopes: [aScope],
+          topLevelNodes: [{ type: "task", task: { workspacePath: WS_A, taskId: "task-deleted" } }],
+          groups: [],
+        }),
+      normalizeViewOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-apply-order-duplicate",
+      "applyGroupedTaskViewOrder",
+      {
+        workspaceScopes: [aScope],
+        topLevelNodes: [],
+        groups: [
+          { groupId: "g-legacy", taskRefs: [{ workspacePath: WS_A, taskId: "task-active" }] },
+          { groupId: "g-legacy", taskRefs: [{ workspacePath: WS_A, taskId: "task-active" }] },
+        ],
+      },
+      () =>
+        repo.applyGroupedTaskViewOrder({
+          workspaceScopes: [aScope],
+          topLevelNodes: [],
+          groups: [
+            { groupId: "g-legacy", taskRefs: [{ workspacePath: WS_A, taskId: "task-active" }] },
+            { groupId: "g-legacy", taskRefs: [{ workspacePath: WS_A, taskId: "task-active" }] },
+          ],
+        }),
+      normalizeViewOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-apply-order-provider-skip",
+      "applyGroupedTaskViewOrder",
+      {
+        workspaceScopes: [aScope],
+        provider: "claude",
+        topLevelNodes: [
+          { type: "task", task: { workspacePath: WS_A, taskId: "task-offpeak" } },
+        ],
+        groups: [{ groupId: "g-legacy", taskRefs: [{ workspacePath: WS_A, taskId: "task-unread" }] }],
+      },
+      () =>
+        repo.applyGroupedTaskViewOrder({
+          workspaceScopes: [aScope],
+          provider: "claude",
+          topLevelNodes: [
+            { type: "task", task: { workspacePath: WS_A, taskId: "task-offpeak" } },
+          ],
+          groups: [{ groupId: "g-legacy", taskRefs: [{ workspacePath: WS_A, taskId: "task-unread" }] }],
+        }),
+      normalizeViewOutput,
+    );
+
+    await record(
+      dbPath,
+      "group-rename",
+      "renameTaskGroup",
+      { groupId: "g-legacy", title: "  renamed legacy  " },
+      () => repo.renameTaskGroup({ groupId: "g-legacy", title: "  renamed legacy  " }),
+      (value) => normalizeGroupValue(value as Record<string, unknown>),
+    );
+    await record(
+      dbPath,
+      "group-rename-blank",
+      "renameTaskGroup",
+      { groupId: "g-legacy", title: "   " },
+      () => repo.renameTaskGroup({ groupId: "g-legacy", title: "   " }),
+      (value) => normalizeGroupValue(value as Record<string, unknown>),
+    );
+    await record(
+      dbPath,
+      "group-rename-missing",
+      "renameTaskGroup",
+      { groupId: "nope", title: "x" },
+      () => repo.renameTaskGroup({ groupId: "nope", title: "x" }),
+      (value) => normalizeGroupValue(value as Record<string, unknown>),
+    );
+    await record(
+      dbPath,
+      "group-color",
+      "updateTaskGroupColor",
+      { groupId: "g-legacy", color: "purple" },
+      () => repo.updateTaskGroupColor({ groupId: "g-legacy", color: "purple" }),
+      (value) => normalizeGroupValue(value as Record<string, unknown>),
+    );
+    await record(
+      dbPath,
+      "group-color-invalid",
+      "updateTaskGroupColor",
+      { groupId: "g-legacy", color: "chartreuse" },
+      () => repo.updateTaskGroupColor({ groupId: "g-legacy", color: "chartreuse" as never }),
+      (value) => normalizeGroupValue(value as Record<string, unknown>),
+    );
+    await record(
+      dbPath,
+      "group-color-missing",
+      "updateTaskGroupColor",
+      { groupId: "nope", color: "blue" },
+      () => repo.updateTaskGroupColor({ groupId: "nope", color: "blue" }),
+      (value) => normalizeGroupValue(value as Record<string, unknown>),
+    );
+
+    const rootDraftMeta = taskDetail({
+      taskId: "task-root-draft",
+      title: "root draft",
+      workspacePath: WS_A,
+      createdAt: 3100,
+      updatedAt: 3100,
+      mode: "build",
+      provider: "glm",
+      status: "running",
+    });
+    await record(
+      dbPath,
+      "sync-at-top-new",
+      "syncTaskMetaAtGroupedTop",
+      { meta: rootDraftMeta, searchableText: "root draft body" },
+      () =>
+        repo.syncTaskMetaAtGroupedTop({
+          meta: rootDraftMeta as never,
+          searchableText: "root draft body",
+        }),
+    );
+    await record(
+      dbPath,
+      "sync-at-top-again",
+      "syncTaskMetaAtGroupedTop",
+      { meta: rootDraftMeta },
+      () => repo.syncTaskMetaAtGroupedTop({ meta: rootDraftMeta as never }),
+    );
+
+    await record(
+      dbPath,
+      "group-create",
+      "createTaskGroup",
+      { title: "  custom group  ", color: "green" },
+      () => repo.createTaskGroup({ title: "  custom group  ", color: "green" }),
+      (value) => normalizeGroupValue(value as Record<string, unknown>),
+    );
+    await record(
+      dbPath,
+      "group-create-default",
+      "createTaskGroup",
+      {},
+      () => repo.createTaskGroup(),
+      (value) => normalizeGroupValue(value as Record<string, unknown>),
+    );
+    await record(
+      dbPath,
+      "group-delete",
+      "deleteTaskGroup",
+      { groupId: "g-legacy" },
+      () => repo.deleteTaskGroup({ groupId: "g-legacy" }),
+    );
+    await record(
+      dbPath,
+      "group-delete-again",
+      "deleteTaskGroup",
+      { groupId: "g-legacy" },
+      () => repo.deleteTaskGroup({ groupId: "g-legacy" }),
     );
 
     const seededMeta = taskDetail({

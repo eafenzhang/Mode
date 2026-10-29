@@ -25,10 +25,10 @@ use crate::meta::{
 use crate::remote::is_remote_workspace_identity;
 
 const TASK_SEARCH_TEXT_MAX_CHARS: usize = 200_000;
-const GROUPED_TASK_ORDER_STEP: i64 = 1000;
+pub(crate) const GROUPED_TASK_ORDER_STEP: i64 = 1000;
 const PROVIDER_COLUMN: &str = "provider";
 
-const ROW_COLUMNS: &str = "workspace_key, workspace_path, workspace_identity, task_id, title, \
+pub(crate) const ROW_COLUMNS: &str = "workspace_key, workspace_path, workspace_identity, task_id, title, \
 task_status, provider, mode, model, migration_source, forked_from_task_id, cron_automation_id, \
 off_peak_task_id, created_at, updated_at, unread_at, last_unread_at, pinned, archived, deleted, \
 title_overridden, searchable_text, meta_json";
@@ -170,6 +170,14 @@ pub struct SyncTaskMetaParams {
     pub searchable_text: Option<String>,
 }
 
+/// `syncTaskMetaAtGroupedTop` 的回包：写入结果与是否首次初始化了顶层顺序。
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncTaskMetaAtGroupedTop {
+    pub meta: ModeTaskMeta,
+    pub initialized_grouped_order: bool,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct TaskIndexStatePatch {
     pub pinned: Option<bool>,
@@ -205,34 +213,34 @@ pub struct ClearUnreadResult {
 }
 
 #[derive(Clone, Debug)]
-struct TaskIndexRow {
-    workspace_key: String,
-    workspace_path: String,
-    workspace_identity: Option<String>,
-    task_id: String,
-    title: String,
-    task_status: Option<String>,
-    provider: Option<String>,
-    mode: String,
-    model: Option<String>,
-    migration_source: Option<String>,
-    forked_from_task_id: Option<String>,
-    cron_automation_id: Option<String>,
-    off_peak_task_id: Option<String>,
-    created_at: i64,
-    updated_at: i64,
-    unread_at: Option<i64>,
-    last_unread_at: i64,
-    pinned: i64,
-    archived: i64,
-    deleted: i64,
-    title_overridden: i64,
-    searchable_text: String,
-    meta_json: String,
+pub(crate) struct TaskIndexRow {
+    pub(crate) workspace_key: String,
+    pub(crate) workspace_path: String,
+    pub(crate) workspace_identity: Option<String>,
+    pub(crate) task_id: String,
+    pub(crate) title: String,
+    pub(crate) task_status: Option<String>,
+    pub(crate) provider: Option<String>,
+    pub(crate) mode: String,
+    pub(crate) model: Option<String>,
+    pub(crate) migration_source: Option<String>,
+    pub(crate) forked_from_task_id: Option<String>,
+    pub(crate) cron_automation_id: Option<String>,
+    pub(crate) off_peak_task_id: Option<String>,
+    pub(crate) created_at: i64,
+    pub(crate) updated_at: i64,
+    pub(crate) unread_at: Option<i64>,
+    pub(crate) last_unread_at: i64,
+    pub(crate) pinned: i64,
+    pub(crate) archived: i64,
+    pub(crate) deleted: i64,
+    pub(crate) title_overridden: i64,
+    pub(crate) searchable_text: String,
+    pub(crate) meta_json: String,
 }
 
 impl TaskIndexRow {
-    fn read(row: &Row<'_>) -> rusqlite::Result<Self> {
+    pub(crate) fn read(row: &Row<'_>) -> rusqlite::Result<Self> {
         Ok(Self {
             workspace_key: row.get(0)?,
             workspace_path: row.get(1)?,
@@ -324,7 +332,7 @@ impl TaskIndexRepo {
         &self.db_path
     }
 
-    fn now(&self) -> i64 {
+    pub(crate) fn now(&self) -> i64 {
         (self.clock)()
     }
 
@@ -360,6 +368,10 @@ impl TaskIndexRepo {
         self.backfill_off_peak_task_markers(connection)?;
         self.backfill_off_peak_group_memberships(connection)?;
         self.cleanup_deleted_task_grouping_references(connection)?;
+        // 回填只在首次初始化执行一次（TS 用 `initializePromise` 等价语义）。
+        // 不记住会重复回填：`backfillOffPeakGroupMemberships` 的 INSERT OR IGNORE
+        // 会在用户把闲时任务移出系统分组后再次把它加回去、并重建已被清空的分组。
+        mark_tasks_storage_prepared(&self.db_path);
         Ok(())
     }
 
@@ -375,7 +387,7 @@ impl TaskIndexRepo {
             .clear();
     }
 
-    fn with_conn<T>(&self, operation: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
+    pub(crate) fn with_conn<T>(&self, operation: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
         let state = self.state.lock().expect("task index state poisoned");
         let connection = state
             .db
@@ -384,7 +396,7 @@ impl TaskIndexRepo {
         operation(connection)
     }
 
-    fn with_write_conn<T>(
+    pub(crate) fn with_write_conn<T>(
         &self,
         key: &str,
         operation: impl FnOnce(&Connection) -> Result<T>,
@@ -597,7 +609,7 @@ impl TaskIndexRepo {
         Ok(())
     }
 
-    fn next_grouped_top_sort_order(&self, connection: &Connection) -> Result<i64> {
+    pub(crate) fn next_grouped_top_sort_order(&self, connection: &Connection) -> Result<i64> {
         let minimum: Option<i64> = connection
             .query_row(
                 "SELECT MIN(sort_order) FROM task_group_view_node_orders",
@@ -611,7 +623,7 @@ impl TaskIndexRepo {
 
     // ── 行读写 ────────────────────────────────────────────────────────────
 
-    fn get_task_row(
+    pub(crate) fn get_task_row(
         &self,
         connection: &Connection,
         workspace_key: &str,
@@ -931,6 +943,61 @@ impl TaskIndexRepo {
         );
         let key = format!("{workspace_key}\u{0000}{}", params.meta.task_id);
         self.with_write_conn(&key, |connection| {
+            self.sync_task_meta_body(connection, &params)
+        })
+    }
+
+    /// 首次公开 root task 时，原子提交 task row 与 grouped 顶层顺序。
+    pub fn sync_task_meta_at_grouped_top(
+        &self,
+        params: SyncTaskMetaParams,
+    ) -> Result<SyncTaskMetaAtGroupedTop> {
+        self.ensure_ready()?;
+        let workspace_key = resolve_workspace_key(
+            &params.meta.workspace_path,
+            params.meta.workspace_identity.as_deref(),
+        );
+        let key = format!("{workspace_key}\u{0000}{}", params.meta.task_id);
+        self.with_write_conn(&key, |connection| {
+            connection.execute_batch("BEGIN IMMEDIATE")?;
+            let outcome = (|| -> Result<(ModeTaskMeta, bool)> {
+                let meta = self.sync_task_meta_body(connection, &params)?;
+                let initialized_grouped_order = self.initialize_grouped_task_at_top_ready(
+                    connection,
+                    &crate::grouped::GroupedTaskRef {
+                        workspace_path: params.meta.workspace_path.clone(),
+                        workspace_identity: params.meta.workspace_identity.clone(),
+                        task_id: params.meta.task_id.clone(),
+                    },
+                )?;
+                Ok((meta, initialized_grouped_order))
+            })();
+            match outcome {
+                Ok((meta, initialized_grouped_order)) => {
+                    connection.execute_batch("COMMIT")?;
+                    Ok(SyncTaskMetaAtGroupedTop {
+                        meta,
+                        initialized_grouped_order,
+                    })
+                }
+                Err(error) => {
+                    let _ = connection.execute_batch("ROLLBACK");
+                    Err(error)
+                }
+            }
+        })
+    }
+
+    fn sync_task_meta_body(
+        &self,
+        connection: &Connection,
+        params: &SyncTaskMetaParams,
+    ) -> Result<ModeTaskMeta> {
+        let workspace_key = resolve_workspace_key(
+            &params.meta.workspace_path,
+            params.meta.workspace_identity.as_deref(),
+        );
+        {
             let existing = self.get_task_row(connection, &workspace_key, &params.meta.task_id)?;
             let existing_meta = existing.as_ref().map(row_to_meta);
             let title_overridden = params
@@ -1010,7 +1077,7 @@ impl TaskIndexRepo {
                         .unwrap_or_else(|| existing.as_ref().is_some_and(|row| row.deleted == 1)),
                     title_overridden,
                     write_unread_at: false,
-                    searchable_text: params.searchable_text,
+                    searchable_text: params.searchable_text.clone(),
                 },
             )?;
 
@@ -1041,7 +1108,7 @@ impl TaskIndexRepo {
                 )?;
             }
             Ok(persisted)
-        })
+        }
     }
 
     pub fn seed_task_meta_if_missing(&self, meta: &ModeTaskMeta) -> Result<ModeTaskMeta> {
@@ -1361,7 +1428,7 @@ impl TaskIndexRepo {
     }
 }
 
-fn bool_int(value: bool) -> i64 {
+pub(crate) fn bool_int(value: bool) -> i64 {
     if value {
         1
     } else {
@@ -1404,7 +1471,7 @@ fn resolve_row_workspace_identity(row: &TaskIndexRow) -> Option<String> {
     None
 }
 
-fn row_to_meta(row: &TaskIndexRow) -> ModeTaskMeta {
+pub(crate) fn row_to_meta(row: &TaskIndexRow) -> ModeTaskMeta {
     let workspace_identity = resolve_row_workspace_identity(row);
     let parsed = serde_json::from_str::<Value>(&row.meta_json)
         .ok()
@@ -1452,7 +1519,7 @@ fn row_to_meta(row: &TaskIndexRow) -> ModeTaskMeta {
     }
 }
 
-fn row_to_task_list_item(row: &TaskIndexRow, search: Option<&str>) -> TaskListItem {
+pub(crate) fn row_to_task_list_item(row: &TaskIndexRow, search: Option<&str>) -> TaskListItem {
     let meta = row_to_meta(row);
     let snippets = build_search_snippets(&row.searchable_text, search);
     if snippets.is_empty() {
@@ -1469,7 +1536,7 @@ fn row_to_task_list_item(row: &TaskIndexRow, search: Option<&str>) -> TaskListIt
     }
 }
 
-fn normalize_workspace_keys(scopes: &[TaskListWorkspaceScope]) -> Vec<String> {
+pub(crate) fn normalize_workspace_keys(scopes: &[TaskListWorkspaceScope]) -> Vec<String> {
     let mut keys: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     for scope in scopes {

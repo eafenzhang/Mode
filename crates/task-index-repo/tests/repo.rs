@@ -141,6 +141,71 @@ fn ensure_ready_is_idempotent_and_backfills_off_peak() {
 }
 
 #[test]
+fn ensure_ready_does_not_repeat_group_backfill() {
+    let temp = temp_dir();
+    let path = temp.0.join("tasks.sqlite");
+    {
+        let connection = migrated_db(&path);
+        connection
+            .execute(
+                "INSERT INTO off_peak_tasks (
+                   off_peak_task_id, title, session_id, prompt, permission_mode,
+                   workspace_key, workspace_path, status, queued_at, created_at, updated_at
+                 ) VALUES ('op-1', 'op', 'task-1', 'p', 'default', 'D:/ws', 'D:/ws', 'queued', 1, 1, 1)",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO tasks (
+                   workspace_key, workspace_path, task_id, title, mode, created_at, updated_at, meta_json
+                 ) VALUES ('D:/ws', 'D:/ws', 'task-1', 'task', 'build', 1, 2, '{}')",
+                [],
+            )
+            .unwrap();
+    }
+
+    let repo = TaskIndexRepo::new(&path);
+    repo.ensure_ready().unwrap();
+    {
+        // 模拟用户把闲时任务移出系统分组后删除空分组。
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute("DELETE FROM task_group_members WHERE task_id='task-1'", [])
+            .unwrap();
+        connection
+            .execute(
+                "DELETE FROM task_groups WHERE group_id='mode-default-group-off-peak'",
+                [],
+            )
+            .unwrap();
+    }
+
+    repo.ensure_ready().unwrap();
+
+    let connection = Connection::open(&path).unwrap();
+    let groups: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM task_groups WHERE group_id='mode-default-group-off-peak'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        groups, 0,
+        "首次初始化后的 ensure_ready 不得重建用户已移出的系统分组"
+    );
+    let memberships: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM task_group_members WHERE task_id='task-1'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(memberships, 0, "回填只能执行一次，不能把任务重新拉回分组");
+}
+
+#[test]
 fn crud_flow_matches_expected_state_transitions() {
     let temp = temp_dir();
     let path = temp.0.join("tasks.sqlite");

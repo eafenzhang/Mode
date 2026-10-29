@@ -1,6 +1,6 @@
 # Spec：任务索引仓库（`crates/task-index-repo`）
 
-状态：2026-10-29 实现（W3-3 任务域第一批：核心任务行 + 列表/搜索）。
+状态：2026-10-29 实现（W3-3 任务域第二批：分组视图与分组管理完成，Repo 面收口）。
 行为真源（clean-room：只读本仓库 TS）：
 
 - `packages/services/src/session/taskIndexRepo.ts`（本轮列出的方法）
@@ -14,7 +14,7 @@
 
 ## 范围
 
-本 crate 只接管任务索引的**核心行 + 列表/搜索**。数据库仍由 `crates/tasks-db`
+本 crate 接管 `TaskIndexRepo` 的全部公开方法。数据库仍由 `crates/tasks-db`
 负责 schema 与冻结迁移；本 crate 复用 `tasks_db::run_migrations`，不复制 DDL。
 
 纳入方法：
@@ -35,18 +35,44 @@
 | `list_sessions_by_automation` | `listSessionsByAutomation` | `deleted=0`，按 `created_at DESC, task_id DESC` |
 | `query_task_list` | `queryTaskList` | workspace 集合、kind、provider、搜索、limit、snippet |
 | `archive_stale_tasks` | `archiveStaleTasks` | `olderThanDays` 至少 1 天；只归档未删/未归档/未置顶/无未读的 completed 行 |
+| `has_grouped_workspace_bootstrap_run` | `hasGroupedWorkspaceBootstrapRun` | `task_group_workspace_bootstraps` 是否有任意行 |
+| `create_task_group` | `createTaskGroup` | id = `task-group-<uuid v4>`；标题 trim 后空则 `New Group`；颜色缺省 `gray`；同时分配顶层排序 |
+| `rename_task_group` | `renameTaskGroup` | 标题 trim 后空则 `New Group`；不存在/读回失败按 TS 文案报错 |
+| `update_task_group_color` | `updateTaskGroupColor` | 先校验 7 种颜色，再更新 |
+| `delete_task_group` | `deleteTaskGroup` | 单事务删组 + 顶层排序；成员由外键级联删除 |
+| `initialize_grouped_task_at_top` | `initializeGroupedTaskAtTop` | 仅未删/未归档/未置顶、且无成员关系与顶层排序时分配 `min - 1000` |
+| `query_grouped_task_view` | `queryGroupedTaskView` | workspace bootstrap、组可见性、组内/顶层排序补全、cron 组固定倒序 |
+| `query_grouped_task_view_structure` | `queryGroupedTaskViewStructure` | 只读三张分组表，不 join tasks、不写回 |
+| `apply_grouped_task_view_order` | `applyGroupedTaskViewOrder` | 校验后单事务重写成员与顶层排序，并写全局 bootstrap 标记 |
+| `sync_task_meta_at_grouped_top` | `syncTaskMetaAtGroupedTop` | `sync_task_meta` + 顶层顺序初始化包在同一个 `BEGIN IMMEDIATE` 里 |
 
-明确不纳入（下一片：分组视图与分组管理）：
-`hasGroupedWorkspaceBootstrapRun`、`createTaskGroup`、`renameTaskGroup`、
-`updateTaskGroupColor`、`deleteTaskGroup`、`initializeGroupedTaskAtTop`、
-`queryGroupedTaskView`、`queryGroupedTaskViewStructure`、`applyGroupedTaskViewOrder`、
-`syncTaskMetaAtGroupedTop`。本 crate 不为它们提供近似实现。
+分组表的写入副作用（`ensure_ready` 回填、`sync_task_meta` 首次获得
+cron/off-peak 标记）与 TS 一致。
 
-但有两类**分组表写入是已纳入方法的副作用**，必须保持一致：
+## 分组视图语义
 
-- `ensure_ready` 的 `backfillOffPeakGroupMemberships` / `cleanupDeletedTaskGroupingReferences`；
-- `sync_task_meta` 首次获得 `cronAutomationId` / `offPeakTaskId` 时的
-  `ensureSystemGroupMembership`。
+- workspace bootstrap 只执行一次：`task_group_workspace_bootstraps` 出现任意行后
+  不再自动建组；`apply_grouped_task_view_order` 会写全局 ONCE_KEY 行永久关闭。
+- workspace 组 id = `workspace-group-` + `sha256(workspaceKey)` 前 24 位十六进制；
+  颜色 = `sha256` 首字节 `% 6` 取 `red/orange/yellow/green/blue/purple`；
+  标题取路径最后一段（去尾部分隔符，JS trim 后为空则回落 `Workspace`）。
+- 排序步长 `GROUPED_TASK_ORDER_STEP = 1000`；新顶层节点取 `MIN - 1000`，
+  补齐缺失节点取 `MAX + 1000`（按 `createdAt` 倒序、再按节点 key 升序写入）。
+- cron 系统分组不参与成员排序，固定按 `createdAt` 倒序、再按节点 key 倒序。
+- 组可见性：带 bootstrap 记录的组只在其 workspace 可见；无记录的组始终可见。
+- `queryGroupedTaskView` 的 tasks 查询**不读** `off_peak_task_id` 列
+  （TS SELECT 清单里没有），因此 off-peak 身份只可能来自 `meta_json`。
+- 顶层 task 节点 key 是 `JSON.stringify([workspaceKey, taskId])`；
+  成员表用 `workspaceKey + "\0" + taskId`（NUL 不能进 `node_key`）。
+- 错误文案逐字一致：`Task group 不存在，无法重命名`、
+  `Task group 颜色无效`、`Grouped task order 包含不存在的 group` 等。
+
+## 初始化回填只跑一次
+
+`ensure_ready` 首次完成迁移与三个回填后写入进程内 prepared 注册表（等价 TS
+`initializePromise`）。否则 `backfillOffPeakGroupMemberships` 的 `INSERT OR IGNORE`
+会在用户把闲时任务移出系统分组后再次把它加回去，并重建已清空的分组；
+`tests/repo.rs::ensure_ready_does_not_repeat_group_backfill` 覆盖该回归。
 
 ## 行 → `ModeTaskMeta` 投影
 
@@ -110,32 +136,28 @@
 ## 时钟
 
 - `TaskIndexRepo::with_clock(path, fn)` 注入 `now_ms`；默认 `SystemTime`。
-- 时钟只影响 `archive_stale_tasks` 的 cutoff 与系统分组成员行的
+- 时钟只影响 `archive_stale_tasks` 的 cutoff 与分组写入的
   `created_at/updated_at/added_at`。fixture 固定 `clockMs = 2_000_000_000_000`，Rust 对拍
-  使用同一值；分组行快照把时间列归一为 0。重复生成 fixture 字节稳定。
+  使用同一值；分组行快照把时间列归一为 0。
 
 ## 与 TS 的差异
 
 | 差异 | 影响 |
 | --- | --- |
-| 无模块级 prepared/migrated 注册表时每次 `ensure_ready` 都跑幂等回填 | 结果一致，只多一点 SQL |
-| 不提供 `syncTaskMetaAtGroupedTop` 等分组 admission | 属于下一片；本轮不写近似实现 |
-| `normalizeWorkspaceKeys` 用码点排序，不是 `localeCompare` | 大小写/重音混合的 key 顺序可能不同；fixture 使用小写 ASCII key |
+| `normalizeWorkspaceKeys` / 节点排序用码点序，不是 `localeCompare` | 大小写/重音混合时顺序可能不同；fixture 使用小写 ASCII key 并在归一后显式定序 |
 | 搜索小写用 Unicode 默认映射，不是宿主 locale 的 `toLocaleLowerCase` | 非 ASCII 大小写折叠可能不同；fixture 搜索词为 ASCII |
 | UTF-16 切断增补平面字符 | Rust 产生 U+FFFD，JS 产生孤立代理项；仅影响极端正文 |
 | `update_task_state` 的 `unreadAt: undefined`（present-undefined 清空）用 `Some(None)` 表达 | TS 的 `"unreadAt" in patch` 语义保留；API 不接受 JSON null 充当 undefined |
 | `meta_json` 属性顺序 | 不比较原始字节，比较解析后的 JSON |
 | Rust API 使用强类型 `ModeTaskMeta` | TS 写入时原样 `JSON.stringify` 调用方对象（可含未知字段、可不带 `target.summaryTitle`）；Rust 按 schema 形状序列化（未知字段无法进入，`target.summaryTitle` 恒输出 `null`） |
 | `close({throwOnError})` | Rust 返回 `Result`，不区分该选项 |
+| `create_task_group` 的 id 由 `uuid v4` 生成 | 与 TS `randomUUID()` 同样不可跨进程比较；fixture 归一为 `task-group-normalized` |
+| 分组写入的时间戳由注入时钟决定 | fixture 把分组表时间列与结构输出的 `addedAt` 归一为 0 |
 
-## 下一片（分组视图与分组管理）
+## 下一片
 
-- 分组结构查询：`queryGroupedTaskViewStructure`、`queryGroupedTaskView`、
-  `applyGroupedTaskViewOrder`；
-- 分组 CRUD 与颜色校验、workspace bootstrap 一次性初始化；
-- 顶层/组内排序分配（`GROUPED_TASK_ORDER_STEP = 1000`）与 `task_group_view_node_orders`；
-- `syncTaskMetaAtGroupedTop` 的原子 admission；
-- 验收：同一 fixture 扩展分组步骤，Rust 输出与 TS 深度相等；时间列归一策略不变。
+- `host-channels` 的任务索引频道与会话链路接线（本 crate 已提供全部 Repo 方法）；
+- `AutomationRepo` / `OffPeakTaskRepo` 等其余任务域表（如仍需 Rust 化）。
 
 ## 验收
 

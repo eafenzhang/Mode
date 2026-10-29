@@ -8,6 +8,8 @@ use std::fmt;
 pub enum TaskIndexRepoError {
     /// 连接尚未通过 `ensure_ready` 建立。
     NotInitialized,
+    /// 业务校验错误：文案与 TS `throw new Error(...)` 完全一致。
+    Message(String),
     /// 目标 task 不存在（或已删除），对应 TS 抛出的 Error。
     TaskNotFound(String),
     /// 任务库迁移 / schema 错误。
@@ -24,6 +26,7 @@ impl fmt::Display for TaskIndexRepoError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotInitialized => formatter.write_str("task index sqlite 尚未初始化"),
+            Self::Message(message) => formatter.write_str(message),
             Self::TaskNotFound(task_id) => {
                 write!(formatter, "task index 中不存在 task: {task_id}")
             }

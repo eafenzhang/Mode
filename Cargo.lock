@@ -4589,6 +4589,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tasks-db",
+ "uuid",
 ]
 
 [[package]]
