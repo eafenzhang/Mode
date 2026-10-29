@@ -164,7 +164,11 @@ Rust 侧 6 条对拍用例全部解开；文件层 16 条、适配器 5 条。�
 `docs/specs/workspace-hook-config.md`。**条目解析与包级快照也已完成（2026-10-30）**：
 `crates/workspace-hook-digest` 补 `resolve_entries` / `build_bundle_snapshot`（条目
 `reviewItemId`、门禁位、超时优先级、按类型裁剪字段），与 TS 在 8 组纯数据用例上逐字节
-对拍两个摘要；spec 见 `docs/specs/workspace-hook-digest.md`。**未做**：settings 模型与 `saveHooks` 写路径、
+对拍两个摘要；spec 见 `docs/specs/workspace-hook-digest.md`。**保存侧也已完成（2026-10-30）**：
+`crates/workspace-hooks-service` 覆盖 UI Hook → 配置的写回投影、根级 enabled 归并、
+按用户/工程拆分的 `saveHooks`、同目录 fsync+rename 原子写与「已审核开关」的摘要守卫，
+与 TS 在混合来源保存与 5 组开关用例上对拍；spec 见
+`docs/specs/workspace-hooks-service.md`。**未做**：读侧 `loadHooks`（trust store 接线）、
 `grantWorkspaceHookTrust` 转 Agent authority、频道注册；
 三件也还没有独立 spec（暂以 crate 文档标注的 TS 真源为准），接频道前需补齐。
 

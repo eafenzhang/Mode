@@ -41,6 +41,7 @@ members = [
   "crates/workspace-hook-config",
   "crates/workspace-hook-digest",
   "crates/workspace-hook-trust",
+  "crates/workspace-hooks-service",
   "crates/workspace-identity",
   "crates/tray",
   "crates/conversation-mirror",

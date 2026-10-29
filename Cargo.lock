@@ -6259,6 +6259,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "workspace-hooks-service"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "workspace-hook-config",
+ "workspace-hook-digest",
+]
+
+[[package]]
 name = "workspace-identity"
 version = "0.1.0"
 dependencies = [

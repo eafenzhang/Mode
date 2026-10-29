@@ -1,0 +1,1158 @@
+{
+  "pure": {
+    "events": [
+      {
+        "hooks": [
+          {
+            "id": "user-1",
+            "event": "SessionStart",
+            "type": "command",
+            "command": "echo user",
+            "enabled": true,
+            "editable": true,
+            "location": {
+              "source": "mode",
+              "scope": "user",
+              "directoryPath": "<home>/.mode/cli"
+            }
+          },
+          {
+            "id": "proj-1",
+            "event": "PreToolUse",
+            "matcher": "Bash",
+            "type": "command",
+            "command": "echo proj",
+            "enabled": false,
+            "editable": true,
+            "timeout": 2,
+            "custom": {
+              "extra": "kept"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            },
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            }
+          },
+          {
+            "id": "proj-2",
+            "event": "PreToolUse",
+            "matcher": "Bash",
+            "type": "process",
+            "command": "node",
+            "args": [
+              "a.js"
+            ],
+            "async": true,
+            "shell": "bash",
+            "timeout": 1.5,
+            "enabled": true,
+            "editable": true,
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            },
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": false,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            }
+          }
+        ],
+        "expected": {
+          "SessionStart": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "echo user",
+                  "enabled": true
+                }
+              ]
+            }
+          ],
+          "PreToolUse": [
+            {
+              "matcher": "Bash",
+              "hooks": [
+                {
+                  "extra": "kept",
+                  "type": "command",
+                  "command": "echo proj",
+                  "enabled": false,
+                  "timeout": 2
+                },
+                {
+                  "type": "process",
+                  "command": "node",
+                  "enabled": false,
+                  "args": [
+                    "a.js"
+                  ],
+                  "timeoutMs": 1500
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "hooks": [
+          {
+            "id": "proj-1",
+            "event": "PreToolUse",
+            "type": "command",
+            "command": "echo proj",
+            "enabled": false,
+            "editable": true,
+            "timeout": 2,
+            "custom": {
+              "extra": "kept"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            },
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            }
+          },
+          {
+            "id": "proj-2",
+            "event": "PreToolUse",
+            "type": "process",
+            "command": "node",
+            "args": [
+              "a.js"
+            ],
+            "async": true,
+            "shell": "bash",
+            "timeout": 1.5,
+            "enabled": true,
+            "editable": true,
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            },
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": false,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            }
+          }
+        ],
+        "expected": {
+          "PreToolUse": [
+            {
+              "hooks": [
+                {
+                  "extra": "kept",
+                  "type": "command",
+                  "command": "echo proj",
+                  "enabled": false,
+                  "timeout": 2
+                },
+                {
+                  "type": "process",
+                  "command": "node",
+                  "enabled": false,
+                  "args": [
+                    "a.js"
+                  ],
+                  "timeoutMs": 1500
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "rootEnabled": [
+      {
+        "hooks": [
+          {
+            "id": "user-1",
+            "event": "SessionStart",
+            "type": "command",
+            "command": "echo user",
+            "enabled": true,
+            "editable": true,
+            "location": {
+              "source": "mode",
+              "scope": "user",
+              "directoryPath": "<home>/.mode/cli"
+            }
+          },
+          {
+            "id": "proj-1",
+            "event": "PreToolUse",
+            "matcher": "Bash",
+            "type": "command",
+            "command": "echo proj",
+            "enabled": false,
+            "editable": true,
+            "timeout": 2,
+            "custom": {
+              "extra": "kept"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            },
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            }
+          },
+          {
+            "id": "proj-2",
+            "event": "PreToolUse",
+            "matcher": "Bash",
+            "type": "process",
+            "command": "node",
+            "args": [
+              "a.js"
+            ],
+            "async": true,
+            "shell": "bash",
+            "timeout": 1.5,
+            "enabled": true,
+            "editable": true,
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            },
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": false,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            }
+          }
+        ],
+        "expected": true
+      },
+      {
+        "existing": false,
+        "hooks": [
+          {
+            "id": "proj-1",
+            "event": "PreToolUse",
+            "matcher": "Bash",
+            "type": "command",
+            "command": "echo proj",
+            "enabled": true,
+            "editable": true,
+            "timeout": 2,
+            "custom": {
+              "extra": "kept"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            },
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            }
+          }
+        ],
+        "expected": false
+      },
+      {
+        "existing": true,
+        "hooks": [
+          {
+            "id": "proj-1",
+            "event": "PreToolUse",
+            "matcher": "Bash",
+            "type": "command",
+            "command": "echo proj",
+            "enabled": false,
+            "editable": true,
+            "timeout": 2,
+            "custom": {
+              "extra": "kept"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            },
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            }
+          }
+        ],
+        "expected": true
+      }
+    ]
+  },
+  "save": [
+    {
+      "name": "mixed-sources",
+      "files": [
+        {
+          "path": "ws/.mode/config.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": false,\n    \"events\": {\n      \"Stop\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"old\"\n            }\n          ]\n        }\n      ]\n    }\n  },\n  \"other\": 1\n}"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": false,\n    \"timeoutMs\": 5000\n  }\n}"
+        }
+      ],
+      "hooks": [
+        {
+          "id": "user-1",
+          "event": "SessionStart",
+          "type": "command",
+          "command": "echo user",
+          "enabled": true,
+          "editable": true,
+          "location": {
+            "source": "mode",
+            "scope": "user",
+            "directoryPath": "<root>/home/.mode/cli"
+          }
+        },
+        {
+          "id": "proj-1",
+          "event": "PreToolUse",
+          "matcher": "Bash",
+          "type": "command",
+          "command": "echo proj",
+          "enabled": false,
+          "editable": true,
+          "timeout": 2,
+          "custom": {
+            "extra": "kept"
+          },
+          "location": {
+            "source": "mode",
+            "scope": "project",
+            "directoryPath": "<root>/ws/.mode",
+            "projectPath": "<root>/ws"
+          },
+          "configuredState": {
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "sourcePath": "<root>/ws/.mode/config.json"
+          }
+        },
+        {
+          "id": "proj-2",
+          "event": "PreToolUse",
+          "matcher": "Bash",
+          "type": "process",
+          "command": "node",
+          "args": [
+            "a.js"
+          ],
+          "async": true,
+          "shell": "bash",
+          "timeout": 1.5,
+          "enabled": true,
+          "editable": true,
+          "location": {
+            "source": "mode",
+            "scope": "project",
+            "directoryPath": "<root>/ws/.mode",
+            "projectPath": "<root>/ws"
+          },
+          "configuredState": {
+            "sourceRootEnabled": true,
+            "declarationEnabled": false,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "sourcePath": "<root>/ws/.mode/config.json"
+          }
+        },
+        {
+          "id": "other-1",
+          "event": "Stop",
+          "type": "command",
+          "command": "echo other",
+          "enabled": true,
+          "editable": true,
+          "location": {
+            "source": "mode",
+            "scope": "project",
+            "directoryPath": "<root>/other/.mode",
+            "projectPath": "<root>/other"
+          },
+          "configuredState": {
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "sourcePath": "<root>/other/.mode/config.json"
+          }
+        },
+        {
+          "id": "locked-1",
+          "event": "Stop",
+          "type": "command",
+          "command": "echo locked",
+          "enabled": true,
+          "editable": false,
+          "location": {
+            "source": "mode",
+            "scope": "project",
+            "directoryPath": "<root>/ws/.mode",
+            "projectPath": "<root>/ws"
+          }
+        }
+      ],
+      "expect": [
+        "ws/.mode/config.json",
+        "home/.mode/cli/config.json"
+      ],
+      "result": {
+        "ws/.mode/config.json": {
+          "hooks": {
+            "enabled": false,
+            "events": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "extra": "kept",
+                      "type": "command",
+                      "command": "echo proj",
+                      "enabled": false,
+                      "timeout": 2
+                    },
+                    {
+                      "type": "process",
+                      "command": "node",
+                      "enabled": false,
+                      "args": [
+                        "a.js"
+                      ],
+                      "timeoutMs": 1500
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "other": 1
+        },
+        "home/.mode/cli/config.json": {
+          "hooks": {
+            "enabled": true,
+            "timeoutMs": 5000,
+            "events": {
+              "SessionStart": [
+                {
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo user",
+                      "enabled": true
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "creates-files",
+      "files": [],
+      "hooks": [
+        {
+          "id": "user-1",
+          "event": "SessionStart",
+          "type": "command",
+          "command": "echo user",
+          "enabled": true,
+          "editable": true,
+          "location": {
+            "source": "mode",
+            "scope": "user",
+            "directoryPath": "<root>/home/.mode/cli"
+          }
+        },
+        {
+          "id": "proj-1",
+          "event": "PreToolUse",
+          "matcher": "Bash",
+          "type": "command",
+          "command": "echo proj",
+          "enabled": false,
+          "editable": true,
+          "timeout": 2,
+          "custom": {
+            "extra": "kept"
+          },
+          "location": {
+            "source": "mode",
+            "scope": "project",
+            "directoryPath": "<root>/ws/.mode",
+            "projectPath": "<root>/ws"
+          },
+          "configuredState": {
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "sourcePath": "<root>/ws/.mode/config.json"
+          }
+        }
+      ],
+      "expect": [
+        "ws/.mode/config.json",
+        "home/.mode/cli/config.json"
+      ],
+      "result": {
+        "ws/.mode/config.json": {
+          "hooks": {
+            "events": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "extra": "kept",
+                      "type": "command",
+                      "command": "echo proj",
+                      "enabled": false,
+                      "timeout": 2
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "home/.mode/cli/config.json": {
+          "hooks": {
+            "enabled": true,
+            "events": {
+              "SessionStart": [
+                {
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo user",
+                      "enabled": true
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "keeps-existing-root-enabled",
+      "files": [
+        {
+          "path": "ws/.mode/config.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": true\n  }\n}"
+        }
+      ],
+      "hooks": [
+        {
+          "id": "proj-1",
+          "event": "PreToolUse",
+          "matcher": "Bash",
+          "type": "command",
+          "command": "echo proj",
+          "enabled": true,
+          "editable": true,
+          "timeout": 2,
+          "custom": {
+            "extra": "kept"
+          },
+          "location": {
+            "source": "mode",
+            "scope": "project",
+            "directoryPath": "<root>/ws/.mode",
+            "projectPath": "<root>/ws"
+          },
+          "configuredState": {
+            "sourceRootEnabled": true,
+            "declarationEnabled": true,
+            "runtimeHooksEnabled": true,
+            "configuredEnabled": true,
+            "sourcePath": "<root>/ws/.mode/config.json"
+          }
+        }
+      ],
+      "expect": [
+        "ws/.mode/config.json",
+        "home/.mode/cli/config.json"
+      ],
+      "result": {
+        "ws/.mode/config.json": {
+          "hooks": {
+            "enabled": true,
+            "events": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "extra": "kept",
+                      "type": "command",
+                      "command": "echo proj",
+                      "enabled": true,
+                      "timeout": 2
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "home/.mode/cli/config.json": {
+          "hooks": {
+            "events": {}
+          }
+        }
+      }
+    }
+  ],
+  "toggle": {
+    "scenarios": [
+      {
+        "name": "toggle-off",
+        "configPath": "ws/.mode/config.json",
+        "snapshot": {
+          "schemaVersion": 1,
+          "workspaceIdentity": "<root>/ws",
+          "discoveredAt": "2026-10-30T00:00:00.000Z",
+          "sourceFiles": [
+            {
+              "canonicalPath": "<root>/ws/.mode/config.json",
+              "baseDir": "<root>/ws",
+              "discoveryOrder": 0,
+              "configFileKind": ".mode/config.json",
+              "explicitProjectConfig": false,
+              "editable": true,
+              "hooksRoot": {}
+            }
+          ],
+          "hooks": [
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "event": "PreToolUse",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": "Bash",
+              "command": "echo a",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "1cbd3dbabe23d86b2b1f9b3f333f7009dba5370fd82ea21d461454f8805fcf54",
+              "type": "command"
+            },
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "event": "PreToolUse",
+              "matcherIndex": 1,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "node",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "9a9875bbf8f609df3309fc0059f2fb3548af31367ced4fded7db88f873821e2f",
+              "type": "process",
+              "args": [
+                "b.js"
+              ]
+            }
+          ],
+          "digestAlgorithm": "sha256",
+          "bundleDigest": "d1e8d0dce33db69e0ab67414b45a92d02f76bea51c1d8125892c2c8b83461ed7"
+        },
+        "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+        "enabled": false,
+        "configBefore": "{\n  \"hooks\": {\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo a\"\n            }\n          ]\n        },\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"b.js\"\n              ]\n            }\n          ]\n        }\n      ]\n    }\n  },\n  \"other\": \"kept\"\n}",
+        "error": null,
+        "result": {
+          "hooks": {
+            "events": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo a",
+                      "enabled": false
+                    }
+                  ]
+                },
+                {
+                  "hooks": [
+                    {
+                      "type": "process",
+                      "command": "node",
+                      "args": [
+                        "b.js"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "other": "kept"
+        }
+      },
+      {
+        "name": "toggle-on-second",
+        "configPath": "ws/.mode/config.json",
+        "snapshot": {
+          "schemaVersion": 1,
+          "workspaceIdentity": "<root>/ws",
+          "discoveredAt": "2026-10-30T00:00:00.000Z",
+          "sourceFiles": [
+            {
+              "canonicalPath": "<root>/ws/.mode/config.json",
+              "baseDir": "<root>/ws",
+              "discoveryOrder": 0,
+              "configFileKind": ".mode/config.json",
+              "explicitProjectConfig": false,
+              "editable": true,
+              "hooksRoot": {}
+            }
+          ],
+          "hooks": [
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "event": "PreToolUse",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": "Bash",
+              "command": "echo a",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "1cbd3dbabe23d86b2b1f9b3f333f7009dba5370fd82ea21d461454f8805fcf54",
+              "type": "command"
+            },
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "event": "PreToolUse",
+              "matcherIndex": 1,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "node",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "9a9875bbf8f609df3309fc0059f2fb3548af31367ced4fded7db88f873821e2f",
+              "type": "process",
+              "args": [
+                "b.js"
+              ]
+            }
+          ],
+          "digestAlgorithm": "sha256",
+          "bundleDigest": "d1e8d0dce33db69e0ab67414b45a92d02f76bea51c1d8125892c2c8b83461ed7"
+        },
+        "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+        "enabled": true,
+        "configBefore": "{\n  \"hooks\": {\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo a\"\n            }\n          ]\n        },\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"b.js\"\n              ]\n            }\n          ]\n        }\n      ]\n    }\n  },\n  \"other\": \"kept\"\n}",
+        "error": null,
+        "result": {
+          "hooks": {
+            "events": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo a"
+                    }
+                  ]
+                },
+                {
+                  "hooks": [
+                    {
+                      "type": "process",
+                      "command": "node",
+                      "args": [
+                        "b.js"
+                      ],
+                      "enabled": true
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "other": "kept"
+        }
+      },
+      {
+        "name": "unknown-id",
+        "configPath": "ws/.mode/config.json",
+        "snapshot": {
+          "schemaVersion": 1,
+          "workspaceIdentity": "<root>/ws",
+          "discoveredAt": "2026-10-30T00:00:00.000Z",
+          "sourceFiles": [
+            {
+              "canonicalPath": "<root>/ws/.mode/config.json",
+              "baseDir": "<root>/ws",
+              "discoveryOrder": 0,
+              "configFileKind": ".mode/config.json",
+              "explicitProjectConfig": false,
+              "editable": true,
+              "hooksRoot": {}
+            }
+          ],
+          "hooks": [
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "event": "PreToolUse",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": "Bash",
+              "command": "echo a",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "1cbd3dbabe23d86b2b1f9b3f333f7009dba5370fd82ea21d461454f8805fcf54",
+              "type": "command"
+            },
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "event": "PreToolUse",
+              "matcherIndex": 1,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "node",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "9a9875bbf8f609df3309fc0059f2fb3548af31367ced4fded7db88f873821e2f",
+              "type": "process",
+              "args": [
+                "b.js"
+              ]
+            }
+          ],
+          "digestAlgorithm": "sha256",
+          "bundleDigest": "d1e8d0dce33db69e0ab67414b45a92d02f76bea51c1d8125892c2c8b83461ed7"
+        },
+        "reviewItemId": "workspace-hook-missing",
+        "enabled": true,
+        "configBefore": "{\n  \"hooks\": {\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo a\"\n            }\n          ]\n        },\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"b.js\"\n              ]\n            }\n          ]\n        }\n      ]\n    }\n  },\n  \"other\": \"kept\"\n}",
+        "error": {
+          "code": "workspace_hooks_snapshot_mismatch",
+          "message": "Workspace Hook toggle target is not the current editable project config"
+        },
+        "result": null
+      },
+      {
+        "name": "declaration-changed",
+        "configPath": "ws/.mode/config.json",
+        "snapshot": {
+          "schemaVersion": 1,
+          "workspaceIdentity": "<root>/ws",
+          "discoveredAt": "2026-10-30T00:00:00.000Z",
+          "sourceFiles": [
+            {
+              "canonicalPath": "<root>/ws/.mode/config.json",
+              "baseDir": "<root>/ws",
+              "discoveryOrder": 0,
+              "configFileKind": ".mode/config.json",
+              "explicitProjectConfig": false,
+              "editable": true,
+              "hooksRoot": {}
+            }
+          ],
+          "hooks": [
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "event": "PreToolUse",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": "Bash",
+              "command": "echo a",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "1cbd3dbabe23d86b2b1f9b3f333f7009dba5370fd82ea21d461454f8805fcf54",
+              "type": "command"
+            },
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "event": "PreToolUse",
+              "matcherIndex": 1,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "node",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "9a9875bbf8f609df3309fc0059f2fb3548af31367ced4fded7db88f873821e2f",
+              "type": "process",
+              "args": [
+                "b.js"
+              ]
+            }
+          ],
+          "digestAlgorithm": "sha256",
+          "bundleDigest": "d1e8d0dce33db69e0ab67414b45a92d02f76bea51c1d8125892c2c8b83461ed7"
+        },
+        "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+        "enabled": true,
+        "configBefore": "{\n  \"hooks\": {\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo changed\"\n            }\n          ]\n        }\n      ]\n    }\n  }\n}",
+        "error": {
+          "code": "workspace_hooks_snapshot_mismatch",
+          "message": "Workspace Hook declaration changed after review"
+        },
+        "result": null
+      },
+      {
+        "name": "unreadable",
+        "configPath": "ws/.mode/config.json",
+        "snapshot": {
+          "schemaVersion": 1,
+          "workspaceIdentity": "<root>/ws",
+          "discoveredAt": "2026-10-30T00:00:00.000Z",
+          "sourceFiles": [
+            {
+              "canonicalPath": "<root>/ws/.mode/config.json",
+              "baseDir": "<root>/ws",
+              "discoveryOrder": 0,
+              "configFileKind": ".mode/config.json",
+              "explicitProjectConfig": false,
+              "editable": true,
+              "hooksRoot": {}
+            }
+          ],
+          "hooks": [
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "event": "PreToolUse",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": "Bash",
+              "command": "echo a",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "1cbd3dbabe23d86b2b1f9b3f333f7009dba5370fd82ea21d461454f8805fcf54",
+              "type": "command"
+            },
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "event": "PreToolUse",
+              "matcherIndex": 1,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "node",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "9a9875bbf8f609df3309fc0059f2fb3548af31367ced4fded7db88f873821e2f",
+              "type": "process",
+              "args": [
+                "b.js"
+              ]
+            }
+          ],
+          "digestAlgorithm": "sha256",
+          "bundleDigest": "d1e8d0dce33db69e0ab67414b45a92d02f76bea51c1d8125892c2c8b83461ed7"
+        },
+        "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+        "enabled": true,
+        "configBefore": "{ not json",
+        "error": {
+          "code": "workspace_hooks_config_unreadable",
+          "message": "Workspace Hook config could not be read"
+        },
+        "result": null
+      }
+    ],
+    "snapshot": {
+      "schemaVersion": 1,
+      "workspaceIdentity": "<root>/ws",
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "sourceFiles": [
+        {
+          "canonicalPath": "<root>/ws/.mode/config.json",
+          "baseDir": "<root>/ws",
+          "discoveryOrder": 0,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": true,
+          "hooksRoot": {}
+        }
+      ],
+      "hooks": [
+        {
+          "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+          "event": "PreToolUse",
+          "matcherIndex": 0,
+          "hookIndex": 0,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": "Bash",
+          "command": "echo a",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": true,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "1cbd3dbabe23d86b2b1f9b3f333f7009dba5370fd82ea21d461454f8805fcf54",
+          "type": "command"
+        },
+        {
+          "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+          "event": "PreToolUse",
+          "matcherIndex": 1,
+          "hookIndex": 0,
+          "sourceFileIndex": 0,
+          "sourceRelativePath": ".mode/config.json",
+          "matcher": null,
+          "command": "node",
+          "resolvedTimeoutMs": 60000,
+          "resolvedMaxOutputBytes": 32768,
+          "sourceRootEnabled": true,
+          "declarationEnabled": true,
+          "runtimeHooksEnabled": true,
+          "configuredEnabled": true,
+          "editable": true,
+          "declarationDigestAlgorithm": "sha256",
+          "hookDeclarationDigest": "9a9875bbf8f609df3309fc0059f2fb3548af31367ced4fded7db88f873821e2f",
+          "type": "process",
+          "args": [
+            "b.js"
+          ]
+        }
+      ],
+      "digestAlgorithm": "sha256",
+      "bundleDigest": "d1e8d0dce33db69e0ab67414b45a92d02f76bea51c1d8125892c2c8b83461ed7"
+    }
+  }
+}

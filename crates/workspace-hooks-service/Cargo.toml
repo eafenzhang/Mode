@@ -1,0 +1,15 @@
+[package]
+name = "workspace-hooks-service"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Workspace Hook 保存路径：UI Hook 投影回配置、原子写与已审核开关（对应 services/src/hooks 的写侧）"
+
+[lib]
+name = "workspace_hooks_service"
+path = "src/lib.rs"
+
+[dependencies]
+workspace-hook-config = { path = "../workspace-hook-config" }
+workspace-hook-digest = { path = "../workspace-hook-digest" }
+serde_json.workspace = true
