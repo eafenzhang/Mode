@@ -190,7 +190,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | --- | --- | --- | --- | --- | --- |
 | 1 | 设置 / 客户端配置 | ≈3.3k | 壳内 `settings` | W1 | `setting` / `client-config` / `client-scenes` 已接管 |
 | 2 | 文件 / fs / 监视 | ≈2.8k | `ignore` + `notify` + std | W1 | `file` / `file-watcher` 已接管 |
-| 3 | 任务 / 会话 / 任务索引 | ≈12.2k | `rusqlite` + tokio | W1 + SQLite 迁移 | 任务库 schema+迁移已 Rust 化（`crates/tasks-db`）；**任务索引 Repo 已整体迁移**（`crates/task-index-repo`，含分组视图/分组管理，`docs/specs/task-index-repo.md`）；automation/off-peak Repo、任务频道与会话链路**未**迁移 |
+| 3 | 任务 / 会话 / 任务索引 | ≈12.2k | `rusqlite` + tokio | W1 + SQLite 迁移 | 任务库 schema+迁移已 Rust 化（`crates/tasks-db`）；任务索引 Repo 与闲时任务 Repo 已整体迁移（`crates/task-index-repo`、`crates/off-peak-repo`）；Automation Repo、任务频道与会话链路**未**迁移 |
 | 4 | 凭据 | 277 | `ring`（文件托管密钥） | W1 | `credential` 已接管（`crates/credential-store`） |
 | 5 | 终端旧路径 | 1,354 | 壳已有 PTY | W2 | 未开始 |
 | 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 | 未开始 |
@@ -298,11 +298,13 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
    （`crates/task-index-repo`：`ensure_ready/close`、meta CRUD、状态写入、列表/搜索、
    归档清理、分组视图与分组管理、`syncTaskMetaAtGroupedTop`；与真实 TS
    `TaskIndexRepo` 95 步逐步对拍；见 `docs/specs/task-index-repo.md`）。
-   仍未迁：automation/off-peak Repo、任务频道与会话链路。
+   闲时任务 Repo 也已迁（`crates/off-peak-repo`：状态机守卫、认领回收、核销 outbox，
+   50 步对拍；见 `docs/specs/off-peak-repo.md`）。仍未迁：Automation Repo、
+   任务频道与会话链路。
    **门禁生产者对拍已加**（`pnpm check:tasks-schema-parity`，CI 同时跑 TS 与 Rust 快照），
    但生产者**暂不切换**：Node 仍写任务库，现在切会让门禁看不到 TS 迁移变化。等 Rust
    任务域接管写库后再把 `tasks` 快照换成 Rust 二进制并重生成基线（`--base-ref` 语义不变）。
-   之后的顺序是自动化/闲时 Repo → 频道 → 会话链路。
+   之后的顺序是 Automation Repo → 频道 → 会话链路。
 
 **本轮发现的数据根风险（未改，先记录）**：壳的 `resolve_data_root` 在未设置
 `MODE_DATA_BASE_DIR` 时会读 `setting.json` 的 `dataBaseDir` 指针，而 `resolve_config`
