@@ -4,6 +4,20 @@
 //! `resolveWorkspaceHookTimeoutMs` / `resolveWorkspaceHookMaxOutputBytes` /
 //! `resolveWorkspaceHookConfiguredGates`。摘要与信任判定都以这些结果为输入，
 //! 所以数值口径必须逐字一致。
+//!
+//! 2026-10-30 起补齐发现层：`schema`（严格校验）与 `discovery`（候选路径发现、读取、
+//! 运行时根归并），真源同 `packages/shared/src/workspace-hook-config.ts`。
+
+mod discovery;
+mod schema;
+
+pub use discovery::{
+    create_workspace_hook_source_input, discover_workspace_hook_config_paths, path_to_forward_slashes,
+    read_workspace_hook_project_sources, resolve_path, resolve_workspace_hook_runtime_root,
+    ConfigPathRef, RuntimeRoot, RuntimeRootInput, SourceInput, SourceReadError,
+    DEFAULT_WORKSPACE_HOOK_MAX_OUTPUT_BYTES, DEFAULT_WORKSPACE_HOOK_TIMEOUT_MS,
+};
+pub use schema::{validate_hooks_config, ValidationError, WORKSPACE_HOOK_EVENT_NAMES};
 
 /// 超时：`timeoutMs` 优先；`command` 类型允许秒级 `timeout` 换算；否则用默认值。
 /// 结果 `max(1, round(x))`。

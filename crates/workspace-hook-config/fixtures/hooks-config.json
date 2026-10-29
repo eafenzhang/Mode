@@ -1,0 +1,1038 @@
+{
+  "scenarios": [
+    {
+      "name": "worktree-ancestors",
+      "tree": [
+        {
+          "path": "repo/.git"
+        },
+        {
+          "path": "repo/mode.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": true,\n    \"timeoutMs\": 45000,\n    \"maxOutputBytes\": 1024,\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo pre\",\n              \"shell\": true,\n              \"extraPassthrough\": 1\n            }\n          ]\n        }\n      ],\n      \"Stop\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"stop.js\"\n              ]\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        },
+        {
+          "path": "repo/.mode/config.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": true,\n    \"timeoutMs\": 45000,\n    \"maxOutputBytes\": 1024,\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo pre\",\n              \"shell\": true,\n              \"extraPassthrough\": 1\n            }\n          ]\n        }\n      ],\n      \"Stop\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"stop.js\"\n              ]\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        },
+        {
+          "path": "repo/src/mode.json",
+          "content": "{\"hooks\":{\"enabled\":false}}"
+        },
+        {
+          "path": "repo/src/deep/.mode/config.json",
+          "content": "{\"hooks\":{}}"
+        }
+      ],
+      "cwd": "repo/src/deep",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        },
+        {
+          "path": "<root>/repo/.mode/config.json",
+          "explicitProjectConfig": false
+        },
+        {
+          "path": "<root>/repo/src/mode.json",
+          "explicitProjectConfig": false
+        },
+        {
+          "path": "<root>/repo/src/deep/.mode/config.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [
+        {
+          "canonicalPath": "<root>/repo/mode.json",
+          "baseDir": "<root>/repo",
+          "discoveryOrder": 0,
+          "configFileKind": "mode.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {
+            "enabled": true,
+            "timeoutMs": 45000,
+            "maxOutputBytes": 1024,
+            "events": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo pre",
+                      "shell": true,
+                      "extraPassthrough": 1
+                    }
+                  ]
+                }
+              ],
+              "Stop": [
+                {
+                  "hooks": [
+                    {
+                      "type": "process",
+                      "command": "node",
+                      "args": [
+                        "stop.js"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "canonicalPath": "<root>/repo/.mode/config.json",
+          "baseDir": "<root>/repo",
+          "discoveryOrder": 1,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {
+            "enabled": true,
+            "timeoutMs": 45000,
+            "maxOutputBytes": 1024,
+            "events": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo pre",
+                      "shell": true,
+                      "extraPassthrough": 1
+                    }
+                  ]
+                }
+              ],
+              "Stop": [
+                {
+                  "hooks": [
+                    {
+                      "type": "process",
+                      "command": "node",
+                      "args": [
+                        "stop.js"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "canonicalPath": "<root>/repo/src/mode.json",
+          "baseDir": "<root>/repo/src",
+          "discoveryOrder": 2,
+          "configFileKind": "mode.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {
+            "enabled": false
+          }
+        },
+        {
+          "canonicalPath": "<root>/repo/src/deep/.mode/config.json",
+          "baseDir": "<root>/repo/src/deep",
+          "discoveryOrder": 3,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": true,
+          "hooks": {}
+        }
+      ],
+      "errors": []
+    },
+    {
+      "name": "no-worktree-marker",
+      "tree": [
+        {
+          "path": "standalone/mode.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": true,\n    \"timeoutMs\": 45000,\n    \"maxOutputBytes\": 1024,\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo pre\",\n              \"shell\": true,\n              \"extraPassthrough\": 1\n            }\n          ]\n        }\n      ],\n      \"Stop\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"stop.js\"\n              ]\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        },
+        {
+          "path": "standalone/nested/.mode/config.json",
+          "content": "{\"hooks\":{}}"
+        }
+      ],
+      "cwd": "standalone/nested",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/standalone/nested/.mode/config.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [
+        {
+          "canonicalPath": "<root>/standalone/nested/.mode/config.json",
+          "baseDir": "<root>/standalone/nested",
+          "discoveryOrder": 0,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": true,
+          "hooks": {}
+        }
+      ],
+      "errors": []
+    },
+    {
+      "name": "git-marker-is-file",
+      "tree": [
+        {
+          "path": "worktree/.git",
+          "content": "gitdir: ../.git/worktrees/wt\n"
+        },
+        {
+          "path": "worktree/mode.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": true,\n    \"timeoutMs\": 45000,\n    \"maxOutputBytes\": 1024,\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo pre\",\n              \"shell\": true,\n              \"extraPassthrough\": 1\n            }\n          ]\n        }\n      ],\n      \"Stop\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"stop.js\"\n              ]\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        }
+      ],
+      "cwd": "worktree/sub",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/worktree/mode.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [
+        {
+          "canonicalPath": "<root>/worktree/mode.json",
+          "baseDir": "<root>/worktree",
+          "discoveryOrder": 0,
+          "configFileKind": "mode.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {
+            "enabled": true,
+            "timeoutMs": 45000,
+            "maxOutputBytes": 1024,
+            "events": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo pre",
+                      "shell": true,
+                      "extraPassthrough": 1
+                    }
+                  ]
+                }
+              ],
+              "Stop": [
+                {
+                  "hooks": [
+                    {
+                      "type": "process",
+                      "command": "node",
+                      "args": [
+                        "stop.js"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "errors": []
+    },
+    {
+      "name": "explicit-duplicates-auto-discovered",
+      "tree": [
+        {
+          "path": "repo/.git"
+        },
+        {
+          "path": "repo/.mode/config.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": true,\n    \"timeoutMs\": 45000,\n    \"maxOutputBytes\": 1024,\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo pre\",\n              \"shell\": true,\n              \"extraPassthrough\": 1\n            }\n          ]\n        }\n      ],\n      \"Stop\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"stop.js\"\n              ]\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": "repo/.mode/config.json",
+      "refs": [
+        {
+          "path": "<root>/repo/.mode/config.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [
+        {
+          "canonicalPath": "<root>/repo/.mode/config.json",
+          "baseDir": "<root>/repo",
+          "discoveryOrder": 0,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": true,
+          "hooks": {
+            "enabled": true,
+            "timeoutMs": 45000,
+            "maxOutputBytes": 1024,
+            "events": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo pre",
+                      "shell": true,
+                      "extraPassthrough": 1
+                    }
+                  ]
+                }
+              ],
+              "Stop": [
+                {
+                  "hooks": [
+                    {
+                      "type": "process",
+                      "command": "node",
+                      "args": [
+                        "stop.js"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "errors": []
+    },
+    {
+      "name": "explicit-outside-scan",
+      "tree": [
+        {
+          "path": "repo/mode.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": true,\n    \"timeoutMs\": 45000,\n    \"maxOutputBytes\": 1024,\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo pre\",\n              \"shell\": true,\n              \"extraPassthrough\": 1\n            }\n          ]\n        }\n      ],\n      \"Stop\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"stop.js\"\n              ]\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        },
+        {
+          "path": "config/custom.json",
+          "content": "{\"hooks\":{\"enabled\":false}}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": "config/custom.json",
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        },
+        {
+          "path": "<root>/config/custom.json",
+          "explicitProjectConfig": true
+        }
+      ],
+      "sources": [
+        {
+          "canonicalPath": "<root>/repo/mode.json",
+          "baseDir": "<root>/repo",
+          "discoveryOrder": 0,
+          "configFileKind": "mode.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {
+            "enabled": true,
+            "timeoutMs": 45000,
+            "maxOutputBytes": 1024,
+            "events": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo pre",
+                      "shell": true,
+                      "extraPassthrough": 1
+                    }
+                  ]
+                }
+              ],
+              "Stop": [
+                {
+                  "hooks": [
+                    {
+                      "type": "process",
+                      "command": "node",
+                      "args": [
+                        "stop.js"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "canonicalPath": "<root>/config/custom.json",
+          "baseDir": "<root>/config",
+          "discoveryOrder": 1,
+          "configFileKind": "explicit",
+          "explicitProjectConfig": true,
+          "editable": false,
+          "hooks": {
+            "enabled": false
+          }
+        }
+      ],
+      "errors": []
+    },
+    {
+      "name": "read-errors-and-skips",
+      "tree": [
+        {
+          "path": "repo/.git"
+        },
+        {
+          "path": "repo/mode.json",
+          "content": "{ not json"
+        },
+        {
+          "path": "repo/.mode/config.json",
+          "content": "{\"hooks\":{\"unknownKey\":1}}"
+        },
+        {
+          "path": "repo/.mode/extra.json"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        },
+        {
+          "path": "<root>/repo/.mode/config.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [],
+      "errors": [
+        {
+          "path": "<root>/repo/mode.json",
+          "category": "syntax"
+        },
+        {
+          "path": "<root>/repo/.mode/config.json",
+          "category": "schema"
+        }
+      ]
+    },
+    {
+      "name": "schema-edge-cases",
+      "tree": [
+        {
+          "path": "repo/.git"
+        },
+        {
+          "path": "repo/mode.json",
+          "content": "{\"hooks\":{\"events\":{\"UnknownEvent\":[]}}}"
+        },
+        {
+          "path": "repo/.mode/config.json",
+          "content": "{\"hooks\":{\"events\":{\"Stop\":[{\"hooks\":[]}]}}}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        },
+        {
+          "path": "<root>/repo/.mode/config.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [],
+      "errors": [
+        {
+          "path": "<root>/repo/mode.json",
+          "category": "schema"
+        },
+        {
+          "path": "<root>/repo/.mode/config.json",
+          "category": "schema"
+        }
+      ]
+    },
+    {
+      "name": "non-object-and-missing-hooks",
+      "tree": [
+        {
+          "path": "repo/.git"
+        },
+        {
+          "path": "repo/mode.json",
+          "content": "[1,2,3]"
+        },
+        {
+          "path": "repo/.mode/config.json",
+          "content": "{\"other\":true}"
+        },
+        {
+          "path": "repo/src/mode.json",
+          "content": "{\"hooks\":null}"
+        },
+        {
+          "path": "repo/src/.mode/config.json",
+          "content": "{\"hooks\":{\"timeoutMs\":-5}}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        },
+        {
+          "path": "<root>/repo/.mode/config.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [],
+      "errors": []
+    },
+    {
+      "name": "invalid-hooks-null",
+      "tree": [
+        {
+          "path": "repo/mode.json",
+          "content": "{\"hooks\":null}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [],
+      "errors": [
+        {
+          "path": "<root>/repo/mode.json",
+          "category": "schema"
+        }
+      ]
+    },
+    {
+      "name": "invalid-negative-timeout",
+      "tree": [
+        {
+          "path": "repo/.mode/config.json",
+          "content": "{\"hooks\":{\"timeoutMs\":-5}}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/.mode/config.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [],
+      "errors": [
+        {
+          "path": "<root>/repo/.mode/config.json",
+          "category": "schema"
+        }
+      ]
+    },
+    {
+      "name": "invalid-hook-type",
+      "tree": [
+        {
+          "path": "repo/mode.json",
+          "content": "{\"hooks\":{\"events\":{\"Stop\":[{\"hooks\":[{\"type\":\"script\",\"command\":\"x\"}]}]}}}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [],
+      "errors": [
+        {
+          "path": "<root>/repo/mode.json",
+          "category": "schema"
+        }
+      ]
+    },
+    {
+      "name": "invalid-missing-command",
+      "tree": [
+        {
+          "path": "repo/mode.json",
+          "content": "{\"hooks\":{\"events\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\"}]}]}}}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [],
+      "errors": [
+        {
+          "path": "<root>/repo/mode.json",
+          "category": "schema"
+        }
+      ]
+    },
+    {
+      "name": "invalid-shell-false",
+      "tree": [
+        {
+          "path": "repo/mode.json",
+          "content": "{\"hooks\":{\"events\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"x\",\"shell\":false}]}]}}}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [],
+      "errors": [
+        {
+          "path": "<root>/repo/mode.json",
+          "category": "schema"
+        }
+      ]
+    },
+    {
+      "name": "invalid-events-array",
+      "tree": [
+        {
+          "path": "repo/mode.json",
+          "content": "{\"hooks\":{\"events\":[]}}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [],
+      "errors": [
+        {
+          "path": "<root>/repo/mode.json",
+          "category": "schema"
+        }
+      ]
+    },
+    {
+      "name": "invalid-matcher-extra-key",
+      "tree": [
+        {
+          "path": "repo/mode.json",
+          "content": "{\"hooks\":{\"events\":{\"Stop\":[{\"matcher\":\"x\",\"extra\":1,\"hooks\":[{\"type\":\"process\",\"command\":\"y\"}]}]}}}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [],
+      "errors": [
+        {
+          "path": "<root>/repo/mode.json",
+          "category": "schema"
+        }
+      ]
+    },
+    {
+      "name": "passthrough-unknown-fields",
+      "tree": [
+        {
+          "path": "repo/.mode/config.json",
+          "content": "{\"hooks\":{\"events\":{\"Stop\":[{\"hooks\":[{\"type\":\"process\",\"command\":\"y\",\"args\":[\"a\"],\"unknownField\":{\"nested\":[1,2]}}]}]}}}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/.mode/config.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [
+        {
+          "canonicalPath": "<root>/repo/.mode/config.json",
+          "baseDir": "<root>/repo",
+          "discoveryOrder": 0,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": true,
+          "hooks": {
+            "events": {
+              "Stop": [
+                {
+                  "hooks": [
+                    {
+                      "type": "process",
+                      "command": "y",
+                      "args": [
+                        "a"
+                      ],
+                      "unknownField": {
+                        "nested": [
+                          1,
+                          2
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "errors": []
+    },
+    {
+      "name": "directory-named-mode-json",
+      "tree": [
+        {
+          "path": "repo/.git"
+        },
+        {
+          "path": "repo/mode.json"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [],
+      "errors": [
+        {
+          "path": "<root>/repo/mode.json",
+          "category": "io"
+        }
+      ]
+    },
+    {
+      "name": "mode-json-and-editable",
+      "tree": [
+        {
+          "path": "repo/.git"
+        },
+        {
+          "path": "repo/mode.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": true,\n    \"timeoutMs\": 45000,\n    \"maxOutputBytes\": 1024,\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo pre\",\n              \"shell\": true,\n              \"extraPassthrough\": 1\n            }\n          ]\n        }\n      ],\n      \"Stop\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"stop.js\"\n              ]\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        },
+        {
+          "path": "repo/.mode/config.json",
+          "content": "{\"hooks\":{\"enabled\":true}}"
+        },
+        {
+          "path": "repo/pkg/mode.json",
+          "content": "{\"hooks\":{\"enabled\":true}}"
+        }
+      ],
+      "cwd": "repo",
+      "explicit": null,
+      "refs": [
+        {
+          "path": "<root>/repo/mode.json",
+          "explicitProjectConfig": false
+        },
+        {
+          "path": "<root>/repo/.mode/config.json",
+          "explicitProjectConfig": false
+        }
+      ],
+      "sources": [
+        {
+          "canonicalPath": "<root>/repo/mode.json",
+          "baseDir": "<root>/repo",
+          "discoveryOrder": 0,
+          "configFileKind": "mode.json",
+          "explicitProjectConfig": false,
+          "editable": false,
+          "hooks": {
+            "enabled": true,
+            "timeoutMs": 45000,
+            "maxOutputBytes": 1024,
+            "events": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "echo pre",
+                      "shell": true,
+                      "extraPassthrough": 1
+                    }
+                  ]
+                }
+              ],
+              "Stop": [
+                {
+                  "hooks": [
+                    {
+                      "type": "process",
+                      "command": "node",
+                      "args": [
+                        "stop.js"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "canonicalPath": "<root>/repo/.mode/config.json",
+          "baseDir": "<root>/repo",
+          "discoveryOrder": 1,
+          "configFileKind": ".mode/config.json",
+          "explicitProjectConfig": false,
+          "editable": true,
+          "hooks": {
+            "enabled": true
+          }
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "runtimeRoots": [
+    {
+      "roots": [],
+      "expected": {
+        "enabled": false,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 32768
+      }
+    },
+    {
+      "roots": [
+        null
+      ],
+      "expected": {
+        "enabled": false,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 32768
+      }
+    },
+    {
+      "roots": [
+        {
+          "enabled": true
+        }
+      ],
+      "expected": {
+        "enabled": true,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 32768
+      }
+    },
+    {
+      "roots": [
+        {
+          "enabled": false
+        },
+        {
+          "enabled": true
+        }
+      ],
+      "expected": {
+        "enabled": true,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 32768
+      }
+    },
+    {
+      "roots": [
+        {
+          "timeoutMs": 1000.6
+        },
+        {
+          "timeoutMs": 2000
+        }
+      ],
+      "expected": {
+        "enabled": false,
+        "timeoutMs": 2000,
+        "maxOutputBytes": 32768
+      }
+    },
+    {
+      "roots": [
+        null,
+        {
+          "maxOutputBytes": 0.4
+        },
+        {
+          "maxOutputBytes": 1024
+        }
+      ],
+      "expected": {
+        "enabled": false,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 1024
+      }
+    },
+    {
+      "roots": [
+        {
+          "enabled": true,
+          "timeoutMs": -3,
+          "maxOutputBytes": -1
+        }
+      ],
+      "expected": {
+        "enabled": true,
+        "timeoutMs": 1,
+        "maxOutputBytes": 1
+      }
+    },
+    {
+      "roots": [
+        {
+          "enabled": true
+        },
+        null,
+        {
+          "timeoutMs": 0.5
+        }
+      ],
+      "expected": {
+        "enabled": true,
+        "timeoutMs": 1,
+        "maxOutputBytes": 32768
+      }
+    }
+  ],
+  "sourceInputs": [
+    {
+      "input": {
+        "path": "<root>/ws/.mode/config.json",
+        "cwd": "<root>/ws",
+        "explicit": false
+      },
+      "expected": {
+        "canonicalPath": "<root>/ws/.mode/config.json",
+        "baseDir": "<root>/ws",
+        "discoveryOrder": 0,
+        "configFileKind": ".mode/config.json",
+        "explicitProjectConfig": false,
+        "editable": true,
+        "hooks": {
+          "events": {}
+        }
+      }
+    },
+    {
+      "input": {
+        "path": "<root>/ws/mode.json",
+        "cwd": "<root>/ws",
+        "explicit": false
+      },
+      "expected": {
+        "canonicalPath": "<root>/ws/mode.json",
+        "baseDir": "<root>/ws",
+        "discoveryOrder": 1,
+        "configFileKind": "mode.json",
+        "explicitProjectConfig": false,
+        "editable": false,
+        "hooks": {}
+      }
+    },
+    {
+      "input": {
+        "path": "<root>/ws/mode.json",
+        "cwd": "<root>/ws",
+        "explicit": true
+      },
+      "expected": {
+        "canonicalPath": "<root>/ws/mode.json",
+        "baseDir": "<root>/ws",
+        "discoveryOrder": 2,
+        "configFileKind": "explicit",
+        "explicitProjectConfig": true,
+        "editable": false,
+        "hooks": {}
+      }
+    },
+    {
+      "input": {
+        "path": "<root>/other/.mode/config.json",
+        "cwd": "<root>/ws",
+        "explicit": true
+      },
+      "expected": {
+        "canonicalPath": "<root>/other/.mode/config.json",
+        "baseDir": "<root>/other",
+        "discoveryOrder": 3,
+        "configFileKind": "explicit",
+        "explicitProjectConfig": true,
+        "editable": false,
+        "hooks": {}
+      }
+    },
+    {
+      "input": {
+        "path": "<root>/other/.mode/config.json",
+        "cwd": "<root>/ws",
+        "explicit": false
+      },
+      "expected": {
+        "canonicalPath": "<root>/other/.mode/config.json",
+        "baseDir": "<root>/other",
+        "discoveryOrder": 4,
+        "configFileKind": ".mode/config.json",
+        "explicitProjectConfig": false,
+        "editable": false,
+        "hooks": {}
+      }
+    }
+  ]
+}

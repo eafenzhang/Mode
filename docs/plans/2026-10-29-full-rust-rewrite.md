@@ -157,8 +157,12 @@ Rust 侧 6 条对拍用例全部解开；文件层 16 条、适配器 5 条。�
 `crates/workspace-hook-config`（超时 / 输出上限 / 门禁的纯解析）、
 `crates/workspace-hook-digest`（条目级与包级摘要，含 `canonicalOptional` 的
 `["unset"]` / `["set", v]` 区分）。摘要与 TS `createWorkspaceHookDeclarationDigest`
-有黄金字节对拍（`scripts/generate-hook-digest-fixtures.ts`）。**未做**：三个来源目录的
-discovery、`saveHooks` 写路径、`grantWorkspaceHookTrust` 转 Agent authority、频道注册；
+有黄金字节对拍（`scripts/generate-hook-digest-fixtures.ts`）。**发现层已完成（2026-10-30）**：
+`crates/workspace-hook-config` 补齐 strict schema 校验、候选路径发现（`.git` 祖先链、
+`mode.json` / `.mode/config.json`、显式配置追加与去重）、读取错误三分类（syntax / schema / io）
+与运行时根归并，与 TS 在 18 棵临时目录树上对拍；spec 见
+`docs/specs/workspace-hook-config.md`。**未做**：settings 模型与 `saveHooks` 写路径、
+`grantWorkspaceHookTrust` 转 Agent authority、频道注册；
 三件也还没有独立 spec（暂以 crate 文档标注的 TS 真源为准），接频道前需补齐。
 
 **SQLite 迁移的额外约束**：迁移从 TS 翻到 Rust 时，`docs/specs/sqlite-schema-gate.md`
@@ -202,7 +206,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 12 | 云账号 / 设备目录 / OAuth | ≈4k | `reqwest` + 本地密钥 | W1 | 未开始 |
 | 13 | 对话共享 / 镜像 / 遥测 | ≈5.5k | 壳内 | W3-3 | `conversation-mirror` 已接管 |
 | 14 | skills / skill-sync / mcp-sync / plugin-sync / plugins | ≈4.5k | 壳内（素材仍是 JS） | W1 | 未开始 |
-| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` / `commands` 已接管；`hooks` 前置三件就绪，频道本体因 grant 依赖 Agent authority 推迟到 W4 |
+| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` / `commands` 已接管；`hooks` 前置三件与配置发现层就绪（`workspace-hook-config` / `-digest` / `-trust`），剩 settings 模型、`saveHooks` 与频道本体；grant 依赖 Agent authority，整体推迟到 W4 |
 | 16 | cua-permission-broker / cua-pip | ≈2.4k | 壳内 | 现有 helper | 未开始 |
 | 17 | 其余（media-preview、prompt-attachment-transfer、off-peak-task…） | ≈2k | 壳内 | W1 | `media-preview` / `prompt-attachment-transfer` 已接管 |
 | 18 | 系统信息 / 内网探测 | ≈0.5k | 壳内 | W1 | `system` 已接管 |

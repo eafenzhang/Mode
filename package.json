@@ -29,6 +29,7 @@
     "off-peak:fixtures": "tsx scripts/generate-off-peak-fixtures.ts",
     "automation:fixtures": "tsx scripts/generate-automation-fixtures.ts",
     "automation-schedule:fixtures": "tsx scripts/generate-automation-schedule-fixtures.ts",
+    "workspace-hook-config:fixtures": "tsx scripts/generate-workspace-hook-config-fixtures.ts",
     "verify:self-developed": "tsx scripts/upstream-overlap-check.ts --strict",
     "build": "pnpm -r build",
     "build:mode": "node scripts/build-mode.mjs",

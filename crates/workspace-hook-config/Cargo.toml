@@ -10,3 +10,4 @@ name = "workspace_hook_config"
 path = "src/lib.rs"
 
 [dependencies]
+serde_json = { workspace = true }
