@@ -216,6 +216,39 @@ fn next_frame_reports_timeout_then_closed_for_a_silent_host() {
 }
 
 #[test]
+fn local_frames_join_the_same_inbound_queue() {
+    // 壳内服务面的回帧与 sidecar 自己的帧走同一个出口：顺序按入队，`host_recv` 不用改。
+    let mut config = silent_config("local-frame", "setInterval(function () {}, 1000);");
+    config.ready_timeout = Duration::from_secs(60);
+    let handle = HostHandle::spawn(config).expect("拉起沉默 Host");
+
+    handle
+        .push_local_frame(b"local-1".to_vec())
+        .expect("本地帧入队");
+    handle
+        .push_local_frame(b"local-2".to_vec())
+        .expect("本地帧入队");
+    assert_eq!(
+        handle
+            .next_frame(Duration::from_millis(200))
+            .expect("读到帧"),
+        Some(b"local-1".to_vec())
+    );
+    assert_eq!(
+        handle
+            .next_frame(Duration::from_millis(200))
+            .expect("读到帧"),
+        Some(b"local-2".to_vec())
+    );
+
+    handle.shutdown().expect("shutdown 成功");
+    assert!(matches!(
+        handle.push_local_frame(vec![1]),
+        Err(HostError::TransportClosed)
+    ));
+}
+
+#[test]
 fn shutdown_kills_a_silent_host_and_leaves_no_process() {
     let mut config = silent_config("silent", "setInterval(function () {}, 1000);");
     config.ready_timeout = Duration::from_secs(60); // 别让看门狗抢在用例的 shutdown 之前

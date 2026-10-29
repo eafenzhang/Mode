@@ -433,6 +433,32 @@ impl HostHandle {
         }
     }
 
+    /// 壳内服务面的回帧注入**同一条**入方向队列。
+    ///
+    /// 为什么复用队列而不是另开通道：页面只通过 `host_recv` 一个出口取帧，两条来源若各走
+    /// 一路，`host_recv` 就得在两个阻塞读之间做选择，未选中的那一帧会丢。注入同一队列后，
+    /// 帧按入队顺序出队，`host_recv` 与背压逻辑完全不变。
+    ///
+    /// 队列满时与 reader 一样等待（200 ms 一次），传输关闭后返回 `TransportClosed`。
+    pub fn push_local_frame(&self, frame: Vec<u8>) -> Result<(), HostError> {
+        let mut queue = lock(&self.inner.inbound);
+        while queue.frames.len() >= self.inner.capacity && !queue.closed {
+            let (waited, _) = self
+                .inner
+                .inbound_space
+                .wait_timeout(queue, Duration::from_millis(200))
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            queue = waited;
+        }
+        if queue.closed {
+            return Err(HostError::TransportClosed);
+        }
+        queue.frames.push_back(frame);
+        drop(queue);
+        self.inner.inbound_ready.notify_all();
+        Ok(())
+    }
+
     /// 退出清理：关 stdin → 杀整棵进程树 → 收尸。**幂等**，可重复调用。
     pub fn shutdown(&self) -> Result<(), HostError> {
         self.inner.shutting_down.store(true, Ordering::SeqCst);
