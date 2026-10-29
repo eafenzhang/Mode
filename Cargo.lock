@@ -3951,6 +3951,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "settings-store"
+version = "0.1.0"
+dependencies = [
+ "atomic-file",
+ "serde_json",
+]
+
+[[package]]
 name = "sha2"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"

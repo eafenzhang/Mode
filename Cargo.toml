@@ -23,6 +23,7 @@ members = [
   "crates/protocol",
   "crates/rpc-wire",
   "crates/rpc-host",
+  "crates/settings-store",
   "crates/sidecar-host",
   "crates/tauri-test-manifest",
   "crates/updater",

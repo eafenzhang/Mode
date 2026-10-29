@@ -89,6 +89,10 @@ SQLite（任务库、会话库、迁移）、日志、进程管理（spawn/kill/
 对应 `docs/specs/atomic-file.md`，8 条用例（含 6 线程并发写不产生半截）。它是 settings /
 credential / task-index 的共同前置。
 
+`crates/settings-store` —— `setting.json` 的路径解析（三级 home 回落）、坏文件隔离
+（3×300 ms 重试后改名备份）、原子写回，对应 `docs/specs/settings-store.md`，7 条用例
+（含「另一写者写完即自愈」）。**未含** schema 校验、默认值合并、历史迁移与 setting 频道。
+
 **SQLite 迁移的额外约束**：迁移从 TS 翻到 Rust 时，`docs/specs/sqlite-schema-gate.md`
 的基线必须改由 Rust 迁移生成，并用 `--base-ref` 证明与 TS 时代基线只增不减；否则已安装
 用户升级即坏库。

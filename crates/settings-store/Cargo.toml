@@ -1,0 +1,17 @@
+[package]
+name = "settings-store"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "setting.json 的路径解析、坏文件隔离与原子写回（对应 services/src/setting/settingService.ts 的文件层）"
+
+[lib]
+name = "settings_store"
+path = "src/lib.rs"
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[dependencies]
+atomic-file = { path = "../atomic-file" }
+serde_json.workspace = true
