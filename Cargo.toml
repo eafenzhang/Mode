@@ -31,6 +31,7 @@ members = [
   "crates/updater",
   "crates/updater-verify",
   "crates/workspace-hook-config",
+  "crates/workspace-hook-digest",
   "crates/workspace-hook-trust",
   "crates/workspace-identity",
   "crates/tray",

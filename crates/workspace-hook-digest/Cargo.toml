@@ -1,0 +1,17 @@
+[package]
+name = "workspace-hook-digest"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Workspace Hook 两级摘要（条目/包），对应 shared/workspace-hook-digest.ts"
+
+[lib]
+name = "workspace_hook_digest"
+path = "src/lib.rs"
+
+[dependencies]
+serde_json.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

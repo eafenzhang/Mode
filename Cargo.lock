@@ -5973,6 +5973,14 @@ name = "workspace-hook-config"
 version = "0.1.0"
 
 [[package]]
+name = "workspace-hook-digest"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "workspace-hook-trust"
 version = "0.1.0"
 dependencies = [
