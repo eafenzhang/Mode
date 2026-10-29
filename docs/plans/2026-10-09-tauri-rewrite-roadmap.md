@@ -147,6 +147,8 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > 与 TS 密文对拍）、`system-service`（系统信息 / shell 列表 / 内网探测）、
 > `file-service`（17 个方法：索引/搜索、读取、`.modeignore`，与 TS 黄金数据对拍）、
 > `file-watcher`（150ms 防抖 + 动态事件，首个事件型频道）、
+> `tasks-db`（任务库 schema + 3 条冻结迁移，checksum/快照/旧数据导入与 TS 对拍；
+> CI 增加 TS↔Rust 快照实时对拍，生产者暂不切换）、
 > `device-mid`、`workspace-identity`；
 > hooks 前置三件（trust store / 配置解析 / 摘要，摘要与 TS 黄金字节对拍）。
 > W2 已开始：壳内服务面按 scope 复用，scoped 回帧加 `0xFF + scopeId` 前缀。
@@ -156,6 +158,7 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > `commands`。
 > **未验证/未做**：真机打开开关、`host` 频道（半开管道心跳不能搬）、hooks 频道本体
 > （`grant` 依赖 Agent authority，随 W4 接）、`onboarding-record`（注入依赖未移植）、
+> 任务域 Repo/频道/会话链路（schema 与迁移已 Rust 化，域本身未迁）、
 > `setting` 的写队列/账号 CAS/补丁类型校验。
 
 ## M0 地基与纪律（2–4 周）
