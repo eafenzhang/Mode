@@ -32,6 +32,7 @@ members = [
   "crates/off-peak-repo",
   "crates/model-selection",
   "crates/automation-repo",
+  "crates/automation-schedule",
   "crates/sidecar-host",
   "crates/system-service",
   "crates/tauri-test-manifest",

@@ -37,6 +37,10 @@ scheduler 轮询(20s) ─ claimDue / claimManualRuns ────┤
   doc 契约调用，不新增状态字段。同一契约已有 Rust 实现 `crates/automation-repo`
   （70 步与 TS 对拍，见 `docs/specs/automation-repo.md`），但尚未接入本运行时：
   在频道接线完成前，实际写入方仍是 TS `AutomationRepo`。
+  调度计算（cron 与 `scheduleRule` 推进）同样已有 Rust 实现
+  `crates/automation-schedule`（见 `docs/specs/automation-schedule.md`），本运行时仍调用
+  TS `computeAutomationNextRunAt`；两者在下一次派发后各自推进 `next_run_at`，必须同时翻面，
+  否则会出现「谁写库谁按另一套规则推进」的漂移。
 - **AutomationRuntime**（`packages/services/src/session/automationRuntime.ts`）是进程内模块，
   持有自己的 `AutomationRepo` 连接；由 host-standalone 在服务面就绪后创建并 `start()`，
   dispose 时 `stop()`（停轮询、释放在途认领、退订终态订阅）。
