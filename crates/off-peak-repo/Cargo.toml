@@ -1,0 +1,18 @@
+[package]
+name = "off-peak-repo"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "闲时任务仓库：off_peak_tasks 状态机与调度认领（对应 services/src/session/offPeakTaskRepo）"
+
+[lib]
+name = "off_peak_repo"
+path = "src/lib.rs"
+
+[dependencies]
+tasks-db = { path = "../tasks-db" }
+workspace-identity = { path = "../workspace-identity" }
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true

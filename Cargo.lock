@@ -3050,6 +3050,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "off-peak-repo"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tasks-db",
+ "uuid",
+ "workspace-identity",
+]
+
+[[package]]
 name = "oid-registry"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

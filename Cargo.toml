@@ -29,6 +29,7 @@ members = [
   "crates/settings-store",
   "crates/tasks-db",
   "crates/task-index-repo",
+  "crates/off-peak-repo",
   "crates/sidecar-host",
   "crates/system-service",
   "crates/tauri-test-manifest",
