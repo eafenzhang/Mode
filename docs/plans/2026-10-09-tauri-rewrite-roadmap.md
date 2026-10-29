@@ -138,6 +138,16 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > `docs/plans/2026-10-29-full-rust-rewrite.md`；M4b 的机制子计划为
 > `docs/plans/2026-10-29-m4b-host-into-shell.md`。M3 的三项让行决策（IM/TUI/Web）
 > 只保留「不在 M3 阶段内」的含义，长期复用结论作废。
+>
+> **2026-10-29 首轮进度（M4b/W0–W3）**：W0 全部完成——RPC 线格式、分帧/协议头/信封、
+> 壳内 `ChannelServer`、`FrameRouter`（含 scoped/控制帧）与壳内接线；启动分段计时
+> （`startup_mark` + `pnpm measure:host-startup`）。W1 已落四个基元：`atomic-file`
+> （原子写 + 跨进程锁）、`settings-store`（setting.json 文件层 + zod 黄金对拍的默认值/
+> 合并/补丁）、`device-mid`、`workspace-identity`。W3 已迁 6 个完整域并注册进
+> `MODE_HOST_INPROCESS_CHANNELS`（默认关闭）：`memory`、`prompt-attachment-transfer`、
+> `client-config`、`client-scenes`、`media-preview`、`conversation-mirror`。
+> **未验证/未做**：真机打开开关、scoped 帧接管、`host` 频道（半开管道心跳不能搬）、
+> `hooks`/`onboarding-record`（依赖未移植）、`fileWatcher`（`notify` 离线不可得）。
 
 ## M0 地基与纪律（2–4 周）
 

@@ -94,11 +94,16 @@ SQLite（任务库、会话库、迁移）、日志、进程管理（spawn/kill/
 对应 `docs/specs/atomic-file.md`，8 条用例（含 6 线程并发写不产生半截）。它是 settings /
 credential / task-index 的共同前置。
 
-**W3 已迁完整域（2026-10-29）**：`memory`（`crates/project-memory`）、
+**W3 已迁完整域（2026-10-29，6 个）**：`memory`（`crates/project-memory`）、
 `prompt-attachment-transfer`（本地零拷贝 + 三 no-op + 不 emit 的进度订阅）、
 `client-config` / `client-scenes`（审计版常量：官方服务开关恒 false，短路在凭证与网络之前）、
-`media-preview`（本地 inline：扩展名/kind 校验 + 8 MiB 上限 + base64）；
-`conversation-mirror`（数据层 + 频道适配器 + 壳内注册）。两者都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到壳内，
+`media-preview`（本地 inline：扩展名/kind 校验 + 8 MiB 上限 + base64）、
+`conversation-mirror`（存储 + origin 校验 + 有界化 + 适配器）。
+
+六个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
+TS `ServiceChannels` 的漂移守卫。**真机打开开关尚未验证**；scoped 帧与 `host` 频道仍归
+Node Host。剩余域的障碍：`hooks` 需写路径 + trust store 对拍；`onboarding-record` 依赖
+未移植的 OAuth/任务服务；`fileWatcher` 需要的 `notify` crate 不在本机 cargo 缓存。两者都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到壳内，
 适配层契约见 `docs/specs/host-channel-adapters.md`。
 
 `crates/workspace-identity` —— 路径归一 / 身份 key / SHA-256 前 12 位 hash（session 目录与
