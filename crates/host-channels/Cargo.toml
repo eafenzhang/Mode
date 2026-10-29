@@ -14,6 +14,7 @@ conversation-mirror = { path = "../conversation-mirror" }
 credential-store = { path = "../credential-store" }
 project-memory = { path = "../project-memory" }
 settings-store = { path = "../settings-store" }
+system-service = { path = "../system-service" }
 rpc-host = { path = "../rpc-host" }
 rpc-wire = { path = "../rpc-wire" }
 serde.workspace = true

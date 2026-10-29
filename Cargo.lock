@@ -1764,6 +1764,7 @@ dependencies = [
  "serde",
  "serde_json",
  "settings-store",
+ "system-service",
  "tokio",
 ]
 
@@ -2498,6 +2499,7 @@ dependencies = [
  "serde_json",
  "settings-store",
  "sidecar-host",
+ "system-service",
  "tauri",
  "tauri-build",
  "tauri-plugin-deep-link",
@@ -4323,6 +4325,19 @@ dependencies = [
  "pkg-config",
  "toml 0.8.2",
  "version-compare",
+]
+
+[[package]]
+name = "system-service"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url",
 ]
 
 [[package]]

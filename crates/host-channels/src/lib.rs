@@ -15,6 +15,7 @@ pub mod conversation_mirror;
 pub mod credential;
 pub mod media_preview;
 pub mod setting;
+pub mod system;
 pub mod memory_channel;
 
 pub use attachment_transfer::AttachmentTransferChannel;
@@ -23,6 +24,7 @@ pub use conversation_mirror::ConversationMirrorChannel;
 pub use credential::CredentialChannel;
 pub use media_preview::MediaPreviewChannel;
 pub use setting::SettingChannel;
+pub use system::SystemChannel;
 pub use memory_channel::{MemoryChannel, LIST_MEMORIES, READ_MEMORY_FILE};
 
 pub const MEMORY_CHANNEL: &str = "memory";
@@ -33,3 +35,4 @@ pub const MEDIA_PREVIEW_CHANNEL: &str = "media-preview";
 pub const CONVERSATION_MIRROR_CHANNEL: &str = "conversation-mirror";
 pub const SETTING_CHANNEL: &str = "setting";
 pub const CREDENTIAL_CHANNEL: &str = "credential";
+pub const SYSTEM_CHANNEL: &str = "system";

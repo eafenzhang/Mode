@@ -144,15 +144,17 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > （`startup_mark` + `pnpm measure:host-startup`）。W1 已落：`atomic-file`
 > （原子写 + 跨进程锁 + 私有写）、`settings-store`（W1-1a/1b/1c：文件层、默认值/合并/补丁、
 > 数据目录迁移与 `ensureDefaultProject`）、`credential-store`（AES-256-GCM + 坏文件隔离，
-> 与 TS 密文对拍）、`device-mid`、`workspace-identity`；
+> 与 TS 密文对拍）、`system-service`（系统信息 / shell 列表 / 内网探测）、`device-mid`、
+> `workspace-identity`；
 > hooks 前置三件（trust store / 配置解析 / 摘要，摘要与 TS 黄金字节对拍）。
 > W2 已开始：壳内服务面按 scope 复用，scoped 回帧加 `0xFF + scopeId` 前缀。
-> W3 已迁 8 个完整域并注册进 `MODE_HOST_INPROCESS_CHANNELS`（默认关闭）：`memory`、
+> W3 已迁 9 个完整域并注册进 `MODE_HOST_INPROCESS_CHANNELS`（默认关闭）：`memory`、
 > `prompt-attachment-transfer`、`client-config`、`client-scenes`、`media-preview`、
-> `conversation-mirror`、`setting`、`credential`。
+> `conversation-mirror`、`setting`、`credential`、`system`。
 > **未验证/未做**：真机打开开关、`host` 频道（半开管道心跳不能搬）、hooks 频道本体
-> （`grant` 依赖 Agent authority，随 W4 接）、`onboarding-record`（依赖未移植）、
-> `fileWatcher`（`notify` 离线不可得）、`setting` 的写队列/账号 CAS/补丁类型校验。
+> （`grant` 依赖 Agent authority，随 W4 接）、`onboarding-record`（注入依赖未移植）、
+> `file` / `fileWatcher`（`ignore` / `globset` / `notify` 离线不可得）、
+> `setting` 的写队列/账号 CAS/补丁类型校验。
 
 ## M0 地基与纪律（2–4 周）
 

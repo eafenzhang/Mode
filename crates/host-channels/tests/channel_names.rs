@@ -16,6 +16,7 @@ fn every_local_channel_name_exists_in_service_channels() {
         ("conversation-mirror", "ConversationMirror"),
         ("setting", "Setting"),
         ("credential", "Credential"),
+        ("system", "System"),
     ];
     for (value, key) in names {
         let expected = format!("{key}: \"{value}\"");
@@ -37,6 +38,7 @@ fn local_channel_names_are_unique() {
         host_channels::CONVERSATION_MIRROR_CHANNEL,
         host_channels::SETTING_CHANNEL,
         host_channels::CREDENTIAL_CHANNEL,
+        host_channels::SYSTEM_CHANNEL,
     ];
     let mut sorted = names.to_vec();
     sorted.sort_unstable();

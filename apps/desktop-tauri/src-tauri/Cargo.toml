@@ -72,6 +72,7 @@ rpc-host = { path = "../../../crates/rpc-host" }
 rpc-wire = { path = "../../../crates/rpc-wire" }
 project-memory = { path = "../../../crates/project-memory" }
 settings-store = { path = "../../../crates/settings-store" }
+system-service = { path = "../../../crates/system-service" }
 updater = { path = "../../../crates/updater" }
 tray = { path = "../../../crates/tray" }
 deeplink = { path = "../../../crates/deeplink" }

@@ -94,16 +94,18 @@ SQLite（任务库、会话库、迁移）、日志、进程管理（spawn/kill/
 对应 `docs/specs/atomic-file.md`，8 条用例（含 6 线程并发写不产生半截）。它是 settings /
 credential / task-index 的共同前置。
 
-**W3 已迁完整域（2026-10-29，8 个）**：`memory`（`crates/project-memory`）、
+**W3 已迁完整域（2026-10-29，9 个）**：`memory`（`crates/project-memory`）、
 `prompt-attachment-transfer`（本地零拷贝 + 三 no-op + 不 emit 的进度订阅）、
 `client-config` / `client-scenes`（审计版常量：官方服务开关恒 false，短路在凭证与网络之前）、
 `media-preview`（本地 inline：扩展名/kind 校验 + 8 MiB 上限 + base64）、
 `conversation-mirror`（存储 + origin 校验 + 有界化 + 适配器）、
 `setting`（`get` / `update` / `updateDataBaseDir` / `ensureDefaultProject` 四方法，
 含数据目录迁移）、`credential`（`load` / `save` / `delete` / `list`，AES-256-GCM +
-跨进程锁 + 坏文件隔离，见 `docs/specs/credential-store.md`）。
+跨进程锁 + 坏文件隔离，见 `docs/specs/credential-store.md`）、
+`system`（`info` / `listIntegratedTerminalShells` / `probeIntranet`，见
+`docs/specs/system-service.md`）。
 
-八个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
+九个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
 TS `ServiceChannels` 的漂移守卫。**真机打开开关尚未验证**；控制帧与 `host` 频道仍归
 Node Host，scoped 帧已能本地接管（按 scope 复用服务面）。剩余域的障碍：`hooks` 的
 trust / config / digest 三件已就位，但 `grantWorkspaceHookTrust` 必须转发给 Agent
@@ -138,6 +140,12 @@ AES-256-GCM 密文（`enc:v1:` + base64url，三段）、`sha256(MODE_CREDENTIAL
 Rust 侧 6 条对拍用例全部解开；文件层 16 条、适配器 5 条。规范见
 `docs/specs/credential-store.md`。TS 注释里的「后续切 Electron safeStorage/keyring」仍未做，
 当前密钥随文件托管。
+
+**`system` 已完成（2026-10-29）**：`crates/system-service` 实现三个方法——
+`info`（homedir/platform）、Windows 集成终端 shell 列表（ComSpec/Git Bash，`PATH` +
+`PATHEXT` 与 win32 路径语义）、内网探测（TCP + HTTP、每目标重试、marker 校验、聚合与
+策略）。10 条单元测试 + 7 条探测测试 + 6 条频道测试；规范见
+`docs/specs/system-service.md`。**已知差异**：连接失败文本、HTTP 客户端与重定向上限。
 
 **hooks 前置三件已完成（2026-10-29）**：`crates/workspace-hook-trust`（trust store
 严格解析，`deny_unknown_fields`，语法或 schema 任一不合法即整体 fail-closed）、
@@ -192,6 +200,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` 已接管；`hooks` 前置三件就绪，频道本体因 grant 依赖 Agent authority 推迟到 W4 |
 | 16 | cua-permission-broker / cua-pip | ≈2.4k | 壳内 | 现有 helper | 未开始 |
 | 17 | 其余（media-preview、prompt-attachment-transfer、off-peak-task…） | ≈2k | 壳内 | W1 | `media-preview` / `prompt-attachment-transfer` 已接管 |
+| 18 | 系统信息 / 内网探测 | ≈0.5k | 壳内 | W1 | `system` 已接管 |
 
 **每域完成定义**（缺一不可）：TS 实现保留为 oracle → 正常/错误/取消/事件四类对拍 →
 真机用例通过 → 打开该域开关无回归 → 关闭开关仍走 TS。全部域完成后才允许删 TS 实现。
@@ -266,16 +275,21 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 
 ## 10. 下一步（2026-10-29 续）
 
-1. **真机验收开关**：打开 `MODE_HOST_INPROCESS_CHANNELS` 跑已接管的 8 个频道，核对回帧、
+1. **真机验收开关**：打开 `MODE_HOST_INPROCESS_CHANNELS` 跑已接管的 9 个频道，核对回帧、
    事件与错误路径；关闭开关回归 Node 路径。启动四段耗时用 `pnpm measure:host-startup` 读取。
    验收凭据频道时用一份临时数据根，避免把真实 `credentials.json` 写坏。
-2. **W1 剩余基元**：`file` / `fs` / `paths`（含 `notify` 引入）、SQLite 迁移门禁
-   （基线改由 Rust 迁移生成 + `--base-ref` 只增校验）。`credential` 已落地
-   （`crates/credential-store`，AES-256-GCM + 文件托管密钥；TS 注释里的 keyring 仍是后续项）。
-3. **hooks 频道本体（阻塞在 W4）**：discovery、`saveHooks` 原子写可先做，但
+2. **W1 剩余基元**：`file` / `fs` / `paths`、SQLite 迁移门禁（基线改由 Rust 迁移生成 +
+   `--base-ref` 只增校验）。`credential` 已落地（`crates/credential-store`，
+   AES-256-GCM + 文件托管密钥；TS 注释里的 keyring 仍是后续项）。
+3. **`file` 域阻塞（2026-10-29 新发现）**：TS 的 `.zcodeignore` 明确要求用 `ignore` 包做
+   gitignore 解析（"禁止在本仓库手写 gitignore 解析"），而 Rust 的 `ignore` / `globset`
+   不在本机 cargo 缓存；`file-watcher` 的 `notify` 同样缺失。两域都要先解决离线依赖
+   （换 crates 源或先 vendor），否则只能做出语义漂移的半成品。
+4. **hooks 频道本体（阻塞在 W4）**：discovery、`saveHooks` 原子写可先做，但
    `grantWorkspaceHookTrust` 必须转发给 Agent authority，壳内需要 `mode-protocol` 客户端；
-   与 W4 的 Agent 控制面一起接，避免壳直接写 trust store。
-4. **W3-3 任务 / 会话域**：体量最大（≈12.2k 行），依赖 SQLite 迁移先落地。
+   与 W4 的 Agent 控制面一起接，避免壳直接写 trust store。`onboarding-record` 同样
+   被注入依赖挡住（`loadUserId` 需要 OAuth、`hasExistingLocalTask` 需要任务库）。
+5. **W3-3 任务 / 会话域**：体量最大（≈12.2k 行），依赖 SQLite 迁移先落地。
 
 **本轮发现的数据根风险（未改，先记录）**：壳的 `resolve_data_root` 在未设置
 `MODE_DATA_BASE_DIR` 时会读 `setting.json` 的 `dataBaseDir` 指针，而 `resolve_config`

@@ -18,10 +18,10 @@ use std::time::Duration;
 
 use host_channels::{
     AttachmentTransferChannel, ClientConfigChannel, ClientScenesChannel, ConversationMirrorChannel,
-    CredentialChannel, MediaPreviewChannel, MemoryChannel, SettingChannel,
+    CredentialChannel, MediaPreviewChannel, MemoryChannel, SettingChannel, SystemChannel,
     ATTACHMENT_TRANSFER_CHANNEL, CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL,
     CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
-    SETTING_CHANNEL,
+    SETTING_CHANNEL, SYSTEM_CHANNEL,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
@@ -71,7 +71,8 @@ impl InprocessState {
                 | MEDIA_PREVIEW_CHANNEL
                 | CONVERSATION_MIRROR_CHANNEL
                 | SETTING_CHANNEL
-                | CREDENTIAL_CHANNEL => owned.push(name),
+                | CREDENTIAL_CHANNEL
+                | SYSTEM_CHANNEL => owned.push(name),
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
                 other => crate::host::shell_log(&format!("inprocess channel ignored (not ported yet): {other}")),
             }
@@ -286,6 +287,10 @@ fn build_server(
                     Arc::new(CredentialChannel::new(Arc::new(store))),
                 );
             }
+            SYSTEM_CHANNEL => server.register_channel(
+                SYSTEM_CHANNEL,
+                Arc::new(SystemChannel::new(Arc::new(system_service::SystemService::new()))),
+            ),
             other => crate::host::shell_log(&format!("inprocess channel not constructible: {other}")),
         }
     }

@@ -1,8 +1,8 @@
 # Spec：壳内频道适配器（`crates/host-channels`）
 
-状态：2026-10-29。已适配八个频道：`memory`、`prompt-attachment-transfer`、
+状态：2026-10-29。已适配九个频道：`memory`、`prompt-attachment-transfer`、
 `client-config`、`client-scenes`、`media-preview`、`conversation-mirror`、`setting`、
-`credential`。
+`credential`、`system`。
 范围：**RPC 方法名与参数形状**到服务调用的翻译、错误映射。服务实现本身在各自的 crate。
 
 ## 参数形状
@@ -107,6 +107,20 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
   （`packages/services/src/node.ts` 的选项未接线），壳内不转发；接回该通知时要同时补桥接。
 - 文件按字典序写回（`serde_json` 默认 Map），语义等价。
 
+## system
+
+| 方法 | 参数 | 返回 |
+| --- | --- | --- |
+| `info` | 无 | `{homedir, platform}` |
+| `listIntegratedTerminalShells` | 无 | `IntegratedTerminalShellOption[]` |
+| `probeIntranet` | 位置参数 `request` 对象 | `IntranetProbeResult` |
+
+`probeIntranet` 的归一化、重试与聚合见 `system-service.md`；适配器只做对象解析与
+`spawn` 语义（探测本身在 tokio 里 await）。
+
+**与 TS 的已知差异**：连接失败的错误文本、HTTP 客户端（reqwest/rustls）、重定向上限
+（10 vs 20）、homedir 的最后一级兜底；都只影响诊断字段，不是接口契约。
+
 ## 与路由的约定
 
 - 适配器只被壳内 `ChannelServer` 调用（`inprocess.rs`）；base scope 与
@@ -128,6 +142,8 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
   数据目录迁移写指针。
 - `tests/credential_channel.rs`（5 条）：save/load（含 null）/delete/list 往返、缺参报错、
   解密错误的 code 与消息前缀、坏文件不被覆盖、未知方法报错。
+- `tests/system_channel.rs`（6 条）：info 字段、非 Windows 空 shell 列表、
+  探测结果的 camelCase 形状、空目标、畸形请求、未知方法。
 - `tests/channel_names.rs`（漂移守卫）：频道名与 TS `ServiceChannels` 一致。
 - `tests/pipeline.rs`（3 条）：真 RPC 帧 → 路由 → `ChannelServer` → 回帧；`base_scope_only`
   路由把 scoped 帧留给 Node Host；未知方法回 `PromiseError`。

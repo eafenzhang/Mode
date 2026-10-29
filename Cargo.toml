@@ -27,6 +27,7 @@ members = [
   "crates/rpc-host",
   "crates/settings-store",
   "crates/sidecar-host",
+  "crates/system-service",
   "crates/tauri-test-manifest",
   "crates/updater",
   "crates/updater-verify",
