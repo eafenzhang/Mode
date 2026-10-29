@@ -79,6 +79,9 @@ export const HOST_CHANNEL = "host";
 /** 第一件事：接管 stdout。任何在此之后装载的模块写到 stdout 的字节都会被转到 stderr。 */
 const stdoutGuard = new StdoutGuard();
 
+/** 启动计时起点（模块初始化时刻）：只服务 `startup_mark` 诊断行，不参与就绪判定。 */
+const startupClockStartedAt = Date.now();
+
 // 文件日志（2026-10-25）：Host 自身的日志镜像到数据根 v2/logs/host-<date>.log。
 // sink 异步就绪，就绪前的行进有界缓冲（顺序保留）；文件写失败静默退化为仅 stderr。
 let hostLogFileSink: HostLogFileSink | null = null;
@@ -94,6 +97,15 @@ const log = (line: string): void => {
       pendingHostLogLines.splice(0, pendingHostLogLines.length - 200);
     }
   }
+};
+
+/**
+ * 启动分段计时（M4b 归因用）：只加日志，不改变启动流程与就绪判定。
+ * `elapsedMs` 从模块初始化起算，因此第一段包含 Node 启动与模块装载。
+ * 解析入口：`scripts/measure-host-startup.ts`（`pnpm measure:host-startup`）。
+ */
+const logStartupMark = (phase: string): void => {
+  log(`startup_mark phase=${phase} elapsedMs=${Date.now() - startupClockStartedAt}`);
 };
 
 const startupId = process.env.MODE_HOST_STARTUP_ID?.trim() || `host-${process.pid}`;
@@ -363,6 +375,7 @@ async function bootstrap(): Promise<ChannelServer> {
       ` pty=${nativeDeps.pty.ok ? `ok(spawnVerified=${String(nativeDeps.pty.spawnVerified)})` : "FAIL"}` +
       ` cua=${nativeDeps.cua.injected ? `injected(${String(nativeDeps.cua.ok)})` : "not-injected"}`,
   );
+  logStartupMark("native_deps");
 
   // ② 真存储：任务索引（应用阶段 `preparing_host_storage`，i18n 文案「准备任务索引」）。
   //    用公共入口 `@mode/services/storage-startup` 的 `prepareTasksIndexStorage`：
@@ -392,6 +405,7 @@ async function bootstrap(): Promise<ChannelServer> {
     reportTasksIndexPhase(phase, migration);
   });
   log(`storage_prepared path=${tasksIndexPath}`);
+  logStartupMark("storage");
 
   // ③ 真服务面（应用阶段 starting_services）。
   startup.report("starting_services");
@@ -406,6 +420,7 @@ async function bootstrap(): Promise<ChannelServer> {
     `services_ready channels=${surface.channelNames.length}` +
       ` builtinConfig=${surface.builtinProviderConfig.source}(exists=${String(surface.builtinProviderConfig.exists)})`,
   );
+  logStartupMark("services");
 
   // ④ `deferInit = true`：先把频道注册齐再 ready()，否则 Initialize 可能抢在 registerChannel 之前
   //    （与 Task 0 的 Host 替身同一理由）。真服务频道与诊断频道都过守卫。
@@ -422,6 +437,7 @@ async function bootstrap(): Promise<ChannelServer> {
   startup.report("ready");
   recordStartupState();
   server.ready();
+  logStartupMark("ready");
   return server;
 }
 

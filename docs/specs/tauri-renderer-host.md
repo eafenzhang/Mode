@@ -1086,6 +1086,13 @@ services + 存储准备 + `server.ready()`**。
 而是它**没有已存在的外部可观察点**：壳不打印它，加一条探针就是改被测对象。
 代价与替代见 §13.5 与 §20 的追加登记。
 
+**启动分段（2026-10-29 追加，M4b 归因用）**：Host 在四个启动节点各写一行
+`[mode-host-sidecar] startup_mark phase=<p> elapsedMs=<n>`（`native_deps` / `storage` /
+`services` / `ready`）。`elapsedMs` 从 **Host 模块初始化**起算，所以第一段包含 Node 启动与
+模块装载。它只为**分解**服务：`T_ready` 的权威起止点仍是上表那两行，本标记不改变口径、
+也不参与任何就绪判定。解析：`pnpm measure:host-startup`（读最新
+`host-YYYY-MM-DD.log`，同名多次启动只取最后一组）。
+
 **样本与统计量**：
 
 - **每个样本一个全新的空数据基目录**（`MODE_DATA_BASE_DIR` 指向新目录，并**双覆写**

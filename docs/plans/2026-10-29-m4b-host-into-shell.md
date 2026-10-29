@@ -62,8 +62,10 @@ config 0.19）。本轮把 externals 闭包按 `host-sidecar-ship.ts` 的同一�
       （7 个 tag、VQL、分派顺序、负数与超出 int32 数字的行为、Object 的 JSON 回退）。
 - [x] `crates/rpc-wire`：Rust 侧 `serialize`/`deserialize`，28 条黄金样例与 TS 实现
       逐字节对拍（`cargo test -p rpc-wire` 8 条：6 单元 + 2 对拍）。
-- [ ] `measure:host-startup`：在既有 `measure:cold-start` 之外补分解（Node boot / 数据根
-      打开 / 服务装配 / 首帧）。**这是 M4b 的归因尺子，先于任何搬迁**。
+- [x] `measure:host-startup`：host 在 `native_deps` / `storage` / `services` / `ready` 四个
+      节点写 `startup_mark ... elapsedMs=`（只加日志，不改流程），`scripts/measure-host-startup.ts`
+      从最新 host 日志解析，4 条单测覆盖多次启动与旧构建。**这是 M4b 的归因尺子**；基线要等
+      下一次真实启动（当前安装版不含标记）。
 - 退出条件：线格式对拍常绿；启动分解有基线。
 
 ### M4b-1 协议层 Rust 侧
@@ -162,5 +164,6 @@ W0 地基 → W1 平台基元 → W2 传输切换 → W3 逐域迁移 → W6 删
   `__mode_rpc_nested_uint8array_v1` 标记。在补齐前，Rust 侧不得承接含二进制附件的消息
   （skill sync、附件传输）。
 - **协议层（M4b-1）与帧长度前缀**尚未实现。
-- **启动分解基线**未测（M4b-0 未完成项）。
+- **启动分解基线**待取：标记已随宿主代码落地，当前在跑的实例是旧构建；下次启动后跑
+  `pnpm measure:host-startup` 即可得到四段耗时。
 - 本轮没有改变任何产品路径：Node Host 仍是唯一所有者，行为与之前一致。
