@@ -3955,6 +3955,7 @@ name = "settings-store"
 version = "0.1.0"
 dependencies = [
  "atomic-file",
+ "serde",
  "serde_json",
 ]
 

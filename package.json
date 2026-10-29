@@ -19,6 +19,7 @@
     "sqlite-schema:update": "tsx scripts/check-sqlite-schema.ts --update",
     "measure:host-startup": "tsx scripts/measure-host-startup.ts",
     "rpc-wire:fixtures": "tsx scripts/generate-rpc-wire-fixtures.ts",
+    "settings:fixtures": "tsx scripts/generate-settings-fixtures.ts",
     "verify:self-developed": "tsx scripts/upstream-overlap-check.ts --strict",
     "build": "pnpm -r build",
     "build:mode": "node scripts/build-mode.mjs",

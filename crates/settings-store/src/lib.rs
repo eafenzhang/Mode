@@ -5,8 +5,10 @@
 //! `packages/services/src/setting/settingService.ts` 的 `resolveUserHomeDir` /
 //! `getSettingsDir` / `readSettingsWithMeta` / `writeSettings`。
 
+pub mod document;
 pub mod paths;
 pub mod store;
 
+pub use document::{allowed_keys, apply_patch, defaults, merge_persisted, normalize};
 pub use paths::{resolve_home, resolve_settings_paths, HomeEnv, SettingsPaths};
 pub use store::{read_document, write_document, ReadOptions, ReadOutcome};
