@@ -73,7 +73,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | RPC 线格式 | `crates/rpc-wire` + `docs/specs/rpc-wire-format.md`，与 TS 字节级对拍 | **已完成**（`5e926cb9`） |
 | 协议层 | 13 字节 `ProtocolMessage` 头、stdio 4 字节前缀、请求与回帧信封的 Rust 编解码 | **已完成**（`crates/rpc-wire::frame/stdio/envelope`，14 条黄金样例对拍） |
 | 壳内 ChannelServer | 频道注册、分派、事件订阅/取消、错误映射、pending 与超时 | **已完成**（`crates/rpc-host` + `docs/specs/rpc-host-dispatch.md`，10 条行为用例） |
-| 帧路由 | 按频道分流（Rust 服务面 vs 遗留 Node），启动期一次性开关 | **已完成**：判定层 + 壳内接线（`inprocess.rs`）；已接管 7 个频道，scoped 控制帧登记并按 scope 复用服务面；开关默认关闭，真机未验 |
+| 帧路由 | 按频道分流（Rust 服务面 vs 遗留 Node），启动期一次性开关 | **已完成**：判定层 + 壳内接线（`inprocess.rs`）；已接管 12 个频道，scoped 控制帧登记并按 scope 复用服务面；开关默认关闭，真机未验 |
 | 启动分解度量 | `measure:host-startup`（host 四个 `startup_mark` + 解析脚本与 4 条单测） | **已完成**（标记已入 host；基线等下一次真实启动后读取） |
 
 出口：开关为空时产品行为与今天字节级一致；打开只读频道时 UI 正常。
@@ -94,7 +94,7 @@ SQLite（任务库、会话库、迁移）、日志、进程管理（spawn/kill/
 对应 `docs/specs/atomic-file.md`，8 条用例（含 6 线程并发写不产生半截）。它是 settings /
 credential / task-index 的共同前置。
 
-**W3 已迁完整域（2026-10-29，11 个）**：`memory`（`crates/project-memory`）、
+**W3 已迁完整域（2026-10-29，12 个）**：`memory`（`crates/project-memory`）、
 `prompt-attachment-transfer`（本地零拷贝 + 三 no-op + 不 emit 的进度订阅）、
 `client-config` / `client-scenes`（审计版常量：官方服务开关恒 false，短路在凭证与网络之前）、
 `media-preview`（本地 inline：扩展名/kind 校验 + 8 MiB 上限 + base64）、
@@ -105,9 +105,11 @@ credential / task-index 的共同前置。
 `system`（`info` / `listIntegratedTerminalShells` / `probeIntranet`，见
 `docs/specs/system-service.md`）、`file`（17 个方法：索引/搜索、文本与二进制读取、
 `.modeignore` 管理，见 `docs/specs/file-service.md`）、`file-watcher`（watch/unwatch/
-disposeAll + `onDynamicChange` 事件，150ms 防抖，见 `docs/specs/file-watcher-service.md`）。
+disposeAll + `onDynamicChange` 事件，150ms 防抖，见 `docs/specs/file-watcher-service.md`）、
+`commands`（6 个方法：list / 写 / 改 / 删 / 启停 / 主目录；目录优先级、enable override、
+插件命令，见 `docs/specs/commands-service.md`）。
 
-十一个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
+十二个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
 TS `ServiceChannels` 的漂移守卫。**真机打开开关尚未验证**；控制帧与 `host` 频道仍归
 Node Host，scoped 帧已能本地接管（按 scope 复用服务面）。剩余域的障碍：`hooks` 的
 trust / config / digest 三件已就位，但 `grantWorkspaceHookTrust` 必须转发给 Agent
@@ -199,7 +201,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 12 | 云账号 / 设备目录 / OAuth | ≈4k | `reqwest` + 本地密钥 | W1 | 未开始 |
 | 13 | 对话共享 / 镜像 / 遥测 | ≈5.5k | 壳内 | W3-3 | `conversation-mirror` 已接管 |
 | 14 | skills / skill-sync / mcp-sync / plugin-sync / plugins | ≈4.5k | 壳内（素材仍是 JS） | W1 | 未开始 |
-| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` 已接管；`hooks` 前置三件就绪，频道本体因 grant 依赖 Agent authority 推迟到 W4 |
+| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` / `commands` 已接管；`hooks` 前置三件就绪，频道本体因 grant 依赖 Agent authority 推迟到 W4 |
 | 16 | cua-permission-broker / cua-pip | ≈2.4k | 壳内 | 现有 helper | 未开始 |
 | 17 | 其余（media-preview、prompt-attachment-transfer、off-peak-task…） | ≈2k | 壳内 | W1 | `media-preview` / `prompt-attachment-transfer` 已接管 |
 | 18 | 系统信息 / 内网探测 | ≈0.5k | 壳内 | W1 | `system` 已接管 |
@@ -277,7 +279,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 
 ## 10. 下一步（2026-10-29 续）
 
-1. **真机验收开关**：打开 `MODE_HOST_INPROCESS_CHANNELS` 跑已接管的 11 个频道，核对回帧、
+1. **真机验收开关**：打开 `MODE_HOST_INPROCESS_CHANNELS` 跑已接管的 12 个频道，核对回帧、
    事件与错误路径；关闭开关回归 Node 路径。启动四段耗时用 `pnpm measure:host-startup` 读取。
    验收凭据频道时用一份临时数据根，避免把真实 `credentials.json` 写坏；验收 `file` 时用
    空 workspace，注意首次扫描会创建 `.modeignore`；验收 `file-watcher` 时确认

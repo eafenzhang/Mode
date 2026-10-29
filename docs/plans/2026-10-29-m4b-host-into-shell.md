@@ -159,15 +159,16 @@ bytes ──► FrameRouter::route
 端到端管线（真帧 → 路由 → ChannelServer → 回帧、未知方法错误帧、scoped 转发）在
 `crates/host-channels/tests/pipeline.rs` 有 3 条用例。
 
-**2026-10-29 续**：已接管频道扩到 11 个（新增 `setting`、`client-config`、
+**2026-10-29 续**：已接管频道扩到 12 个（新增 `setting`、`client-config`、
 `client-scenes`、`media-preview`、`conversation-mirror`、`credential`、`system`、`file`、
-`file-watcher`）；scoped 帧已支持本地接管——按 scope 惰性建独立 `ChannelServer`，回帧经
+`file-watcher`、`commands`）；scoped 帧已支持本地接管——按 scope 惰性建独立 `ChannelServer`，回帧经
 `encode_scoped_frame` 加 `0xFF + scopeId` 前缀，Host 换代时一并 `dispose`。
 **尚未做**：真机打开开关跑一遍（目前只做编译、单元与管线验收）；Control 帧仍归 Node
 Host；`host` 频道不接管（心跳不能测壳自己）。`credential` 见
 `docs/specs/credential-store.md`，`system` 见 `docs/specs/system-service.md`，
 `file` 见 `docs/specs/file-service.md`，`file-watcher` 见
-`docs/specs/file-watcher-service.md`（首个事件型频道）。
+`docs/specs/file-watcher-service.md`（首个事件型频道），`commands` 见
+`docs/specs/commands-service.md`（目录优先级 + enable override + 插件命令）。
 
 **先接的频道（2026-10-29 二次更正）**：**不能用 `host` 诊断面**——渲染层的半开管道心跳
 走 `host.ping`（spec §22.5），搬进壳等于让看门狗测壳自己，Node Host 停摆就发现不了。
@@ -195,8 +196,8 @@ Rust 实现已完成（`crates/project-memory` + `docs/specs/project-memory-serv
 事件四类；`MODE_HOST_INPROCESS_CHANNELS` 打开后该域的真机用例通过；关闭开关仍走 TS 路径。
 
 **截至 2026-10-29 的进度**：已完成 `memory`、`prompt-attachment-transfer`、
-`client-config` / `client-scenes`、`media-preview`、`conversation-mirror`、`setting`；
-`hooks` 的 trust store / 配置解析 / 摘要三件前置已就位（摘要与 TS 黄金字节对拍），
+`client-config` / `client-scenes`、`media-preview`、`conversation-mirror`、`setting`、
+`commands`；`hooks` 的 trust store / 配置解析 / 摘要三件前置已就位（摘要与 TS 黄金字节对拍），
 频道本体（discovery、写入、grant 转发）未接。其余域未开始。
 
 ### M4b-5 默认切换与删装配

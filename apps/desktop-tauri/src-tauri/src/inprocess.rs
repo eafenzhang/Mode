@@ -17,11 +17,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use host_channels::{
-    AttachmentTransferChannel, ClientConfigChannel, ClientScenesChannel, ConversationMirrorChannel,
-    CredentialChannel, FileChannel, FileWatcherChannel, MediaPreviewChannel, MemoryChannel,
-    SettingChannel, SystemChannel, ATTACHMENT_TRANSFER_CHANNEL, CLIENT_CONFIG_CHANNEL,
-    CLIENT_SCENES_CHANNEL, CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL, FILE_CHANNEL,
-    FILE_WATCHER_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL, SETTING_CHANNEL, SYSTEM_CHANNEL,
+    AttachmentTransferChannel, ClientConfigChannel, ClientScenesChannel, CommandsChannel,
+    ConversationMirrorChannel, CredentialChannel, FileChannel, FileWatcherChannel,
+    MediaPreviewChannel, MemoryChannel, SettingChannel, SystemChannel, ATTACHMENT_TRANSFER_CHANNEL,
+    CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL, CONVERSATION_MIRROR_CHANNEL,
+    CREDENTIAL_CHANNEL, FILE_CHANNEL, FILE_WATCHER_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
+    SETTING_CHANNEL, SYSTEM_CHANNEL,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
@@ -74,7 +75,8 @@ impl InprocessState {
                 | CREDENTIAL_CHANNEL
                 | SYSTEM_CHANNEL
                 | FILE_CHANNEL
-                | FILE_WATCHER_CHANNEL => owned.push(name),
+                | FILE_WATCHER_CHANNEL
+                | COMMANDS_CHANNEL => owned.push(name),
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
                 other => crate::host::shell_log(&format!("inprocess channel ignored (not ported yet): {other}")),
             }
@@ -314,6 +316,19 @@ fn build_server(
                 server.register_channel(
                     FILE_WATCHER_CHANNEL,
                     Arc::new(FileWatcherChannel::new(Arc::new(service))),
+                );
+            }
+            COMMANDS_CHANNEL => {
+                // 命令域的真源以**用户 home** 为根（`{home}/.mode/commands`、
+                // `{home}/.mode/cli/config.json`），自定义数据目录（`data_root`）不参与，
+                // 与 TS `resolveUserHomeDir()` 一致；因此这里不传 `data_root`。
+                server.register_channel(
+                    COMMANDS_CHANNEL,
+                    Arc::new(CommandsChannel::new(Arc::new(
+                        commands_service::CommandsService::new(
+                            commands_service::CommandsServiceOptions::from_process(),
+                        ),
+                    ))),
                 );
             }
             other => crate::host::shell_log(&format!("inprocess channel not constructible: {other}")),

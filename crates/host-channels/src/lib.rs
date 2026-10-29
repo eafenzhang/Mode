@@ -4,13 +4,14 @@
 //! 参数形状与 `ProxyChannel` 一致：`arg` 是**位置参数数组**，对象参数以 `Value::Json` 承载。
 //!
 //! 已适配：`memory`（两个只读方法）、`prompt-attachment-transfer`（本地零拷贝 + 四个 no-op）、
-//! `credential`（四个文件方法）。
+//! `credential`（四个文件方法）、`commands`（6 个命令管理方法）。
 
 mod base64;
 mod params;
 
 pub mod attachment_transfer;
 pub mod client_metadata;
+pub mod commands;
 pub mod conversation_mirror;
 pub mod credential;
 pub mod file;
@@ -22,6 +23,7 @@ pub mod memory_channel;
 
 pub use attachment_transfer::AttachmentTransferChannel;
 pub use client_metadata::{ClientConfigChannel, ClientScenesChannel};
+pub use commands::CommandsChannel;
 pub use conversation_mirror::ConversationMirrorChannel;
 pub use credential::CredentialChannel;
 pub use file::FileChannel;
@@ -42,3 +44,4 @@ pub const CREDENTIAL_CHANNEL: &str = "credential";
 pub const SYSTEM_CHANNEL: &str = "system";
 pub const FILE_CHANNEL: &str = "file";
 pub const FILE_WATCHER_CHANNEL: &str = "file-watcher";
+pub const COMMANDS_CHANNEL: &str = "commands";

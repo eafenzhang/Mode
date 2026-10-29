@@ -19,6 +19,7 @@ fn every_local_channel_name_exists_in_service_channels() {
         ("system", "System"),
         ("file", "File"),
         ("file-watcher", "FileWatcher"),
+        ("commands", "Commands"),
     ];
     for (value, key) in names {
         let expected = format!("{key}: \"{value}\"");
@@ -43,6 +44,7 @@ fn local_channel_names_are_unique() {
         host_channels::SYSTEM_CHANNEL,
         host_channels::FILE_CHANNEL,
         host_channels::FILE_WATCHER_CHANNEL,
+        host_channels::COMMANDS_CHANNEL,
     ];
     let mut sorted = names.to_vec();
     sorted.sort_unstable();

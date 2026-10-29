@@ -1,8 +1,8 @@
 # Spec：壳内频道适配器（`crates/host-channels`）
 
-状态：2026-10-29。已适配十一个频道：`memory`、`prompt-attachment-transfer`、
+状态：2026-10-29。已适配十二个频道：`memory`、`prompt-attachment-transfer`、
 `client-config`、`client-scenes`、`media-preview`、`conversation-mirror`、`setting`、
-`credential`、`system`、`file`、`file-watcher`。
+`credential`、`system`、`file`、`file-watcher`、`commands`。
 范围：**RPC 方法名与参数形状**到服务调用的翻译、错误映射。服务实现本身在各自的 crate。
 
 ## 参数形状
@@ -148,6 +148,28 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
 `dispose` 时调用，从而摘掉订阅。失效 id 返回永不触发的空订阅，不向订阅链路抛错。
 防抖与错误语义见 `file-watcher-service.md`。
 
+## commands
+
+6 个方法，全部以位置参数对象调用；目录优先级、插件命令与写路径语义见
+`commands-service.md`。
+
+| 方法 | 参数 | 返回 |
+| --- | --- | --- |
+| `list` | `{agentSource?, workspacePath?, workspaceIdentity?}` | `CommandsListResult`（camelCase） |
+| `writeCommandFile` | `CommandCreateParams` | `{command}` |
+| `updateCommandFile` | `CommandUpdateParams` | `{command}` |
+| `deleteCommandFile` | `CommandDeleteParams` | `undefined` |
+| `setCommandEnabled` | `CommandSetEnabledParams` | `undefined` |
+| `getPrimaryUserCommandsDirectory` | `{agentSource?}` | `{path}` |
+
+服务是同步文件 IO（小文件读写 + 配置文件的跨进程锁），适配器统一丢进 `spawn_blocking`，
+与 `credential` 同口径。错误消息原样透传（`Command file already exists: …`、
+`Missing workspace path for project command`、`Invalid command file name: …`）。
+`workspaceIdentity` 与 `commandId` 在 TS 侧被接收但从不使用，这里同样接收后忽略。
+
+命令域的真源以**用户 home** 为根（`{home}/.mode/commands`、`{home}/.mode/cli/config.json`），
+不使用壳的 `data_root`；这与 TS `resolveUserHomeDir()` 一致。
+
 ## 与路由的约定
 
 - 适配器只被壳内 `ChannelServer` 调用（`inprocess.rs`）；base scope 与
@@ -175,6 +197,12 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
   裸字符串分块、ignore 读写、错误映射。
 - `tests/file_watcher_channel.rs`（5 条）：watch 返回 id、`onDynamicChange` 的 JSON 事件、
   失效 id 无事件、错误与未知命令、JSON 编码的 id。
+- `tests/commands_channel.rs`（6 条）：camelCase `list`、workspace 参数与
+  `workspaceIdentity` 忽略、写/改/启停/删往返、主目录创建、project 缺 workspace 报错、
+  参数校验与未知方法。
+- `crates/commands-service/tests/parity.rs`（7 条）：`pnpm commands:fixtures` 的黄金数据
+  对拍 markdown 解析/生成、文件名、12 个 list 场景（目录优先级、enable override、
+  插件命令）与 override 落盘。
 - `tests/channel_names.rs`（漂移守卫）：频道名与 TS `ServiceChannels` 一致。
 - `tests/pipeline.rs`（3 条）：真 RPC 帧 → 路由 → `ChannelServer` → 回帧；`base_scope_only`
   路由把 scoped 帧留给 Node Host；未知方法回 `PromiseError`。

@@ -150,9 +150,10 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > `device-mid`、`workspace-identity`；
 > hooks 前置三件（trust store / 配置解析 / 摘要，摘要与 TS 黄金字节对拍）。
 > W2 已开始：壳内服务面按 scope 复用，scoped 回帧加 `0xFF + scopeId` 前缀。
-> W3 已迁 11 个完整域并注册进 `MODE_HOST_INPROCESS_CHANNELS`（默认关闭）：`memory`、
+> W3 已迁 12 个完整域并注册进 `MODE_HOST_INPROCESS_CHANNELS`（默认关闭）：`memory`、
 > `prompt-attachment-transfer`、`client-config`、`client-scenes`、`media-preview`、
-> `conversation-mirror`、`setting`、`credential`、`system`、`file`、`file-watcher`。
+> `conversation-mirror`、`setting`、`credential`、`system`、`file`、`file-watcher`、
+> `commands`。
 > **未验证/未做**：真机打开开关、`host` 频道（半开管道心跳不能搬）、hooks 频道本体
 > （`grant` 依赖 Agent authority，随 W4 接）、`onboarding-record`（注入依赖未移植）、
 > `setting` 的写队列/账号 CAS/补丁类型校验。

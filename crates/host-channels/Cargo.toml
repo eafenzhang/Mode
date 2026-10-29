@@ -10,6 +10,7 @@ name = "host_channels"
 path = "src/lib.rs"
 
 [dependencies]
+commands-service = { path = "../commands-service" }
 conversation-mirror = { path = "../conversation-mirror" }
 credential-store = { path = "../credential-store" }
 file-service = { path = "../file-service" }

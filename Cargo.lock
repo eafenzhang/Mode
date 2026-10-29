@@ -625,6 +625,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "commands-service"
+version = "0.1.0"
+dependencies = [
+ "atomic-file",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1818,6 +1827,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 name = "host-channels"
 version = "0.1.0"
 dependencies = [
+ "commands-service",
  "conversation-mirror",
  "credential-store",
  "file-service",
@@ -2607,6 +2617,7 @@ dependencies = [
 name = "mode-tauri"
 version = "0.1.0"
 dependencies = [
+ "commands-service",
  "conversation-mirror",
  "credential-store",
  "deeplink",

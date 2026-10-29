@@ -1,0 +1,1214 @@
+{
+  "generatedBy": "scripts/generate-commands-fixtures.ts",
+  "rootToken": "<ROOT>",
+  "parser": {
+    "cases": [
+      {
+        "content": "just a body\n",
+        "filePath": "/ws/.mode/commands/simple.md",
+        "expected": {
+          "name": "/simple",
+          "prompt": "just a body",
+          "content": "just a body\n",
+          "filePath": "/ws/.mode/commands/simple.md"
+        }
+      },
+      {
+        "content": "---\ndescription: hello\nargument-hint: [name]\n---\n\nbody line\nsecond\n",
+        "filePath": "/ws/.mode/commands/front.md",
+        "expected": {
+          "name": "/front",
+          "prompt": "body line\nsecond",
+          "content": "\nbody line\nsecond\n",
+          "filePath": "/ws/.mode/commands/front.md",
+          "description": "hello",
+          "argumentHint": "[name]"
+        }
+      },
+      {
+        "content": "---\ndescription: hello: world\n---\nbody",
+        "filePath": "/ws/.mode/commands/colon.md",
+        "expected": {
+          "name": "/colon",
+          "prompt": "body",
+          "content": "body",
+          "filePath": "/ws/.mode/commands/colon.md",
+          "description": "hello: world"
+        }
+      },
+      {
+        "content": "---\nargument-hint: |\n  first\n  second\nother: x\n---\nbody",
+        "filePath": "/ws/.mode/commands/multiline.md",
+        "expected": {
+          "name": "/multiline",
+          "prompt": "body",
+          "content": "body",
+          "filePath": "/ws/.mode/commands/multiline.md",
+          "argumentHint": "| first second"
+        }
+      },
+      {
+        "content": "intro line\n---\ndescription: d\n---\nbody",
+        "filePath": "/ws/.mode/commands/intro.md",
+        "expected": {
+          "name": "/intro",
+          "prompt": "body",
+          "content": "body",
+          "filePath": "/ws/.mode/commands/intro.md",
+          "description": "d"
+        }
+      },
+      {
+        "content": "  ---  \r\ndescription: d\r\n  ---\r\nbody\r\n",
+        "filePath": "/ws/.mode/commands/indented.md",
+        "expected": {
+          "name": "/indented",
+          "prompt": "body",
+          "content": "body\r\n",
+          "filePath": "/ws/.mode/commands/indented.md",
+          "description": "d"
+        }
+      },
+      {
+        "content": "---\nDescription: upper\nArgument-Hint: x\n---\nbody",
+        "filePath": "/ws/.mode/commands/upper.md",
+        "expected": {
+          "name": "/upper",
+          "prompt": "body",
+          "content": "body",
+          "filePath": "/ws/.mode/commands/upper.md",
+          "description": "upper",
+          "argumentHint": "x"
+        }
+      },
+      {
+        "content": "---\ndescription: unclosed\nbody",
+        "filePath": "/ws/.mode/commands/unclosed.md",
+        "expected": {
+          "name": "/unclosed",
+          "prompt": "---\ndescription: unclosed\nbody",
+          "content": "---\ndescription: unclosed\nbody",
+          "filePath": "/ws/.mode/commands/unclosed.md"
+        }
+      },
+      {
+        "content": "---\ndescription:\n---\nbody",
+        "filePath": "/ws/.mode/commands/empty-desc.md",
+        "expected": {
+          "name": "/empty-desc",
+          "prompt": "body",
+          "content": "body",
+          "filePath": "/ws/.mode/commands/empty-desc.md"
+        }
+      },
+      {
+        "content": "body",
+        "filePath": "C:\\ws\\.mode\\commands\\WIN.MD",
+        "expected": {
+          "name": "/WIN",
+          "prompt": "body",
+          "content": "body",
+          "filePath": "C:\\ws\\.mode\\commands\\WIN.MD"
+        }
+      }
+    ]
+  },
+  "generator": {
+    "cases": [
+      {
+        "config": {
+          "name": "/a",
+          "prompt": "  raw prompt\n"
+        },
+        "expected": "  raw prompt\n"
+      },
+      {
+        "config": {
+          "name": "/a",
+          "prompt": "body",
+          "description": "  desc  ",
+          "argumentHint": " [x] "
+        },
+        "expected": "---\ndescription: desc\nargument-hint: [x]\n---\n\nbody"
+      },
+      {
+        "config": {
+          "name": "/a",
+          "prompt": "new body",
+          "description": "new"
+        },
+        "existing": "---\nallowed-tools: Bash\n  continuation\ndescription: old\nargument-hint: old\n---\nold body",
+        "expected": "---\nallowed-tools: Bash\n  continuation\ndescription: new\n---\n\nnew body"
+      },
+      {
+        "config": {
+          "name": "/a",
+          "prompt": "body",
+          "description": "   ",
+          "argumentHint": ""
+        },
+        "expected": "body"
+      },
+      {
+        "config": {
+          "name": "/a",
+          "prompt": "body"
+        },
+        "existing": "intro\n---\nallowed-tools: Bash\n  keep line\n---\nold",
+        "expected": "---\nallowed-tools: Bash\n  keep line\n---\n\nbody"
+      },
+      {
+        "config": {
+          "name": "/a",
+          "prompt": "body",
+          "description": "d"
+        },
+        "existing": "---\npre-key: value\n  stray\nDescription: OLD\n---\nold",
+        "expected": "---\npre-key: value\n  stray\ndescription: d\n---\n\nbody"
+      }
+    ]
+  },
+  "fileNames": {
+    "cases": [
+      {
+        "name": "/a",
+        "expected": "a.md"
+      },
+      {
+        "name": "a/b",
+        "expected": "a/b.md"
+      },
+      {
+        "name": "//a",
+        "expected": "/a.md"
+      },
+      {
+        "name": "/nested/deep",
+        "expected": "nested/deep.md"
+      },
+      {
+        "name": "/A.MD",
+        "expected": "A.MD.md"
+      }
+    ]
+  },
+  "list": {
+    "scenarios": [
+      {
+        "id": "priority-and-scope-order",
+        "dirs": [],
+        "files": [
+          [
+            "home/.mode/commands/c.md",
+            "user mode"
+          ],
+          [
+            "home/.agents/commands/d.md",
+            "user agents"
+          ],
+          [
+            "ws/.mode/commands/a.md",
+            "---\ndescription: project a\n---\n\nmode body"
+          ],
+          [
+            "ws/.agents/commands/b.md",
+            "agents body"
+          ]
+        ],
+        "jsonFiles": [],
+        "config": null,
+        "listParams": {
+          "workspacePath": "ws"
+        },
+        "expected": {
+          "commands": [
+            {
+              "name": "/a",
+              "prompt": "mode body",
+              "content": "\nmode body",
+              "filePath": "<ROOT>/ws/.mode/commands/a.md",
+              "description": "project a",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "project",
+                "directoryPath": "<ROOT>/ws/.mode/commands",
+                "projectPath": "<ROOT>/ws"
+              },
+              "id": "modeAgent:mode:project:/a",
+              "source": "user",
+              "enabled": true,
+              "scope": "project",
+              "projectPath": "<ROOT>/ws"
+            },
+            {
+              "name": "/c",
+              "prompt": "user mode",
+              "content": "user mode",
+              "filePath": "<ROOT>/home/.mode/commands/c.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<ROOT>/home/.mode/commands"
+              },
+              "id": "modeAgent:mode:global:/c",
+              "source": "user",
+              "enabled": true,
+              "scope": "global"
+            }
+          ],
+          "userCommands": [
+            {
+              "name": "/a",
+              "prompt": "mode body",
+              "content": "\nmode body",
+              "filePath": "<ROOT>/ws/.mode/commands/a.md",
+              "description": "project a",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "project",
+                "directoryPath": "<ROOT>/ws/.mode/commands",
+                "projectPath": "<ROOT>/ws"
+              },
+              "id": "modeAgent:mode:project:/a",
+              "source": "user",
+              "enabled": true,
+              "scope": "project",
+              "projectPath": "<ROOT>/ws"
+            },
+            {
+              "name": "/c",
+              "prompt": "user mode",
+              "content": "user mode",
+              "filePath": "<ROOT>/home/.mode/commands/c.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<ROOT>/home/.mode/commands"
+              },
+              "id": "modeAgent:mode:global:/c",
+              "source": "user",
+              "enabled": true,
+              "scope": "global"
+            }
+          ],
+          "pluginCommands": [],
+          "capability": {
+            "userScopeAvailable": true
+          }
+        }
+      },
+      {
+        "id": "agents-fallback",
+        "dirs": [
+          "ws/.mode/commands"
+        ],
+        "files": [
+          [
+            "ws/.agents/commands/nested/b.md",
+            "project agents nested"
+          ],
+          [
+            "home/.mode/commands/g.md",
+            "global mode"
+          ]
+        ],
+        "jsonFiles": [],
+        "config": null,
+        "listParams": {
+          "workspacePath": "ws"
+        },
+        "expected": {
+          "commands": [
+            {
+              "name": "/nested/b",
+              "prompt": "project agents nested",
+              "content": "project agents nested",
+              "filePath": "<ROOT>/ws/.agents/commands/nested/b.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "agents",
+                "scope": "project",
+                "directoryPath": "<ROOT>/ws/.agents/commands",
+                "projectPath": "<ROOT>/ws"
+              },
+              "id": "modeAgent:agents:project:/nested/b",
+              "source": "user",
+              "enabled": true,
+              "scope": "project",
+              "projectPath": "<ROOT>/ws"
+            },
+            {
+              "name": "/g",
+              "prompt": "global mode",
+              "content": "global mode",
+              "filePath": "<ROOT>/home/.mode/commands/g.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<ROOT>/home/.mode/commands"
+              },
+              "id": "modeAgent:mode:global:/g",
+              "source": "user",
+              "enabled": true,
+              "scope": "global"
+            }
+          ],
+          "userCommands": [
+            {
+              "name": "/nested/b",
+              "prompt": "project agents nested",
+              "content": "project agents nested",
+              "filePath": "<ROOT>/ws/.agents/commands/nested/b.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "agents",
+                "scope": "project",
+                "directoryPath": "<ROOT>/ws/.agents/commands",
+                "projectPath": "<ROOT>/ws"
+              },
+              "id": "modeAgent:agents:project:/nested/b",
+              "source": "user",
+              "enabled": true,
+              "scope": "project",
+              "projectPath": "<ROOT>/ws"
+            },
+            {
+              "name": "/g",
+              "prompt": "global mode",
+              "content": "global mode",
+              "filePath": "<ROOT>/home/.mode/commands/g.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<ROOT>/home/.mode/commands"
+              },
+              "id": "modeAgent:mode:global:/g",
+              "source": "user",
+              "enabled": true,
+              "scope": "global"
+            }
+          ],
+          "pluginCommands": [],
+          "capability": {
+            "userScopeAvailable": true
+          }
+        }
+      },
+      {
+        "id": "dedupe-first-wins",
+        "dirs": [],
+        "files": [
+          [
+            "ws/.mode/commands/same.md",
+            "project same"
+          ],
+          [
+            "home/.mode/commands/same.md",
+            "global same"
+          ]
+        ],
+        "jsonFiles": [],
+        "config": null,
+        "listParams": {
+          "workspacePath": "ws"
+        },
+        "expected": {
+          "commands": [
+            {
+              "name": "/same",
+              "prompt": "project same",
+              "content": "project same",
+              "filePath": "<ROOT>/ws/.mode/commands/same.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "project",
+                "directoryPath": "<ROOT>/ws/.mode/commands",
+                "projectPath": "<ROOT>/ws"
+              },
+              "id": "modeAgent:mode:project:/same",
+              "source": "user",
+              "enabled": true,
+              "scope": "project",
+              "projectPath": "<ROOT>/ws"
+            }
+          ],
+          "userCommands": [
+            {
+              "name": "/same",
+              "prompt": "project same",
+              "content": "project same",
+              "filePath": "<ROOT>/ws/.mode/commands/same.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "project",
+                "directoryPath": "<ROOT>/ws/.mode/commands",
+                "projectPath": "<ROOT>/ws"
+              },
+              "id": "modeAgent:mode:project:/same",
+              "source": "user",
+              "enabled": true,
+              "scope": "project",
+              "projectPath": "<ROOT>/ws"
+            }
+          ],
+          "pluginCommands": [],
+          "capability": {
+            "userScopeAvailable": true
+          }
+        }
+      },
+      {
+        "id": "enable-overrides",
+        "dirs": [],
+        "files": [
+          [
+            "home/.mode/commands/off.md",
+            "off body"
+          ],
+          [
+            "home/.mode/commands/on.md",
+            "on body"
+          ]
+        ],
+        "jsonFiles": [],
+        "config": {
+          "command": {
+            "<ROOT>/home/.mode/commands/off.md": {
+              "enable": false
+            },
+            "<ROOT>/home/.mode/commands/not-a-bool.md": {
+              "enable": "no"
+            }
+          },
+          "theme": "dark"
+        },
+        "listParams": {},
+        "expected": {
+          "commands": [
+            {
+              "name": "/off",
+              "prompt": "off body",
+              "content": "off body",
+              "filePath": "<ROOT>/home/.mode/commands/off.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<ROOT>/home/.mode/commands"
+              },
+              "id": "modeAgent:mode:global:/off",
+              "source": "user",
+              "enabled": false,
+              "scope": "global"
+            },
+            {
+              "name": "/on",
+              "prompt": "on body",
+              "content": "on body",
+              "filePath": "<ROOT>/home/.mode/commands/on.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<ROOT>/home/.mode/commands"
+              },
+              "id": "modeAgent:mode:global:/on",
+              "source": "user",
+              "enabled": true,
+              "scope": "global"
+            }
+          ],
+          "userCommands": [
+            {
+              "name": "/off",
+              "prompt": "off body",
+              "content": "off body",
+              "filePath": "<ROOT>/home/.mode/commands/off.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<ROOT>/home/.mode/commands"
+              },
+              "id": "modeAgent:mode:global:/off",
+              "source": "user",
+              "enabled": false,
+              "scope": "global"
+            },
+            {
+              "name": "/on",
+              "prompt": "on body",
+              "content": "on body",
+              "filePath": "<ROOT>/home/.mode/commands/on.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<ROOT>/home/.mode/commands"
+              },
+              "id": "modeAgent:mode:global:/on",
+              "source": "user",
+              "enabled": true,
+              "scope": "global"
+            }
+          ],
+          "pluginCommands": [],
+          "capability": {
+            "userScopeAvailable": true
+          }
+        }
+      },
+      {
+        "id": "plugins-inline-with-override",
+        "dirs": [],
+        "files": [
+          [
+            "home/.mode/commands/u.md",
+            "user body"
+          ],
+          [
+            "plugin-a/.mode-plugin/plugin.json",
+            "{\"name\":\"plugin-a\",\"commands\":\"commands\"}"
+          ],
+          [
+            "plugin-a/commands/alpha.md",
+            "---\ndescription: alpha\n---\n\nalpha body"
+          ],
+          [
+            "plugin-a/commands/nested/beta.md",
+            "beta body"
+          ],
+          [
+            "plugin-a/commands/notes.txt",
+            "ignored"
+          ]
+        ],
+        "jsonFiles": [],
+        "config": {
+          "plugins": {
+            "dirs": [
+              "<ROOT>/plugin-a"
+            ]
+          },
+          "command": {
+            "<ROOT>/plugin-a/commands/alpha.md": {
+              "enable": false
+            }
+          }
+        },
+        "listParams": {},
+        "expected": {
+          "commands": [
+            {
+              "name": "/u",
+              "prompt": "user body",
+              "content": "user body",
+              "filePath": "<ROOT>/home/.mode/commands/u.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<ROOT>/home/.mode/commands"
+              },
+              "id": "modeAgent:mode:global:/u",
+              "source": "user",
+              "enabled": true,
+              "scope": "global"
+            },
+            {
+              "name": "/alpha",
+              "prompt": "alpha body",
+              "content": "\nalpha body",
+              "filePath": "<ROOT>/plugin-a/commands/alpha.md",
+              "description": "alpha",
+              "enabled": false,
+              "id": "plugin:inline:plugin-a:/alpha:<ROOT>/plugin-a/commands/alpha.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "inline",
+              "pluginName": "plugin-a",
+              "scope": "global",
+              "source": "plugin"
+            },
+            {
+              "name": "/nested/beta",
+              "prompt": "beta body",
+              "content": "beta body",
+              "filePath": "<ROOT>/plugin-a/commands/nested/beta.md",
+              "enabled": true,
+              "id": "plugin:inline:plugin-a:/nested/beta:<ROOT>/plugin-a/commands/nested/beta.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "inline",
+              "pluginName": "plugin-a",
+              "scope": "global",
+              "source": "plugin"
+            }
+          ],
+          "userCommands": [
+            {
+              "name": "/u",
+              "prompt": "user body",
+              "content": "user body",
+              "filePath": "<ROOT>/home/.mode/commands/u.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<ROOT>/home/.mode/commands"
+              },
+              "id": "modeAgent:mode:global:/u",
+              "source": "user",
+              "enabled": true,
+              "scope": "global"
+            }
+          ],
+          "pluginCommands": [
+            {
+              "name": "/alpha",
+              "prompt": "alpha body",
+              "content": "\nalpha body",
+              "filePath": "<ROOT>/plugin-a/commands/alpha.md",
+              "description": "alpha",
+              "enabled": false,
+              "id": "plugin:inline:plugin-a:/alpha:<ROOT>/plugin-a/commands/alpha.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "inline",
+              "pluginName": "plugin-a",
+              "scope": "global",
+              "source": "plugin"
+            },
+            {
+              "name": "/nested/beta",
+              "prompt": "beta body",
+              "content": "beta body",
+              "filePath": "<ROOT>/plugin-a/commands/nested/beta.md",
+              "enabled": true,
+              "id": "plugin:inline:plugin-a:/nested/beta:<ROOT>/plugin-a/commands/nested/beta.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "inline",
+              "pluginName": "plugin-a",
+              "scope": "global",
+              "source": "plugin"
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          }
+        }
+      },
+      {
+        "id": "plugins-disabled",
+        "dirs": [],
+        "files": [
+          [
+            "plugin-b/.mode-plugin/plugin.json",
+            "{\"name\":\"plugin-b\",\"commands\":\"commands\"}"
+          ],
+          [
+            "plugin-b/commands/x.md",
+            "x body"
+          ]
+        ],
+        "jsonFiles": [],
+        "config": {
+          "plugins": {
+            "dirs": [
+              "<ROOT>/plugin-b"
+            ],
+            "enabled": false
+          }
+        },
+        "listParams": {},
+        "expected": {
+          "commands": [],
+          "userCommands": [],
+          "pluginCommands": [],
+          "capability": {
+            "userScopeAvailable": true
+          }
+        }
+      },
+      {
+        "id": "plugin-default-commands-dir",
+        "dirs": [],
+        "files": [
+          [
+            "plugin-c/.mode-plugin/plugin.json",
+            "{\"name\":\"plugin-c\"}"
+          ],
+          [
+            "plugin-c/commands/x.md",
+            "x body"
+          ]
+        ],
+        "jsonFiles": [],
+        "config": {
+          "plugins": {
+            "dirs": [
+              "<ROOT>/plugin-c"
+            ]
+          }
+        },
+        "listParams": {},
+        "expected": {
+          "commands": [
+            {
+              "name": "/x",
+              "prompt": "x body",
+              "content": "x body",
+              "filePath": "<ROOT>/plugin-c/commands/x.md",
+              "enabled": true,
+              "id": "plugin:inline:plugin-c:/x:<ROOT>/plugin-c/commands/x.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "inline",
+              "pluginName": "plugin-c",
+              "scope": "global",
+              "source": "plugin"
+            }
+          ],
+          "userCommands": [],
+          "pluginCommands": [
+            {
+              "name": "/x",
+              "prompt": "x body",
+              "content": "x body",
+              "filePath": "<ROOT>/plugin-c/commands/x.md",
+              "enabled": true,
+              "id": "plugin:inline:plugin-c:/x:<ROOT>/plugin-c/commands/x.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "inline",
+              "pluginName": "plugin-c",
+              "scope": "global",
+              "source": "plugin"
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          }
+        }
+      },
+      {
+        "id": "official-cache-default-and-enabled",
+        "dirs": [],
+        "files": [
+          [
+            "home/.mode/cli/plugins/cache/mode-plugins-official/demo/1.0.0/.mode-plugin/plugin.json",
+            "{\"name\":\"demo\",\"commands\":\"commands\"}"
+          ],
+          [
+            "home/.mode/cli/plugins/cache/mode-plugins-official/demo/1.0.0/commands/export.md",
+            "demo body"
+          ],
+          [
+            "home/.mode/cli/plugins/cache/mode-plugins-official/pdf/2.0.0/.mode-plugin/plugin.json",
+            "{\"name\":\"pdf\",\"commands\":\"commands\"}"
+          ],
+          [
+            "home/.mode/cli/plugins/cache/mode-plugins-official/pdf/2.0.0/commands/render.md",
+            "pdf body"
+          ]
+        ],
+        "jsonFiles": [],
+        "config": {
+          "plugins": {
+            "enabledPlugins": {
+              "demo@mode-plugins-official": true
+            }
+          }
+        },
+        "listParams": {},
+        "expected": {
+          "commands": [
+            {
+              "name": "/export",
+              "prompt": "demo body",
+              "content": "demo body",
+              "filePath": "<ROOT>/home/.mode/cli/plugins/cache/mode-plugins-official/demo/1.0.0/commands/export.md",
+              "enabled": true,
+              "id": "plugin:mode-plugins-official:demo:/export:<ROOT>/home/.mode/cli/plugins/cache/mode-plugins-official/demo/1.0.0/commands/export.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "mode-plugins-official",
+              "pluginName": "demo",
+              "scope": "global",
+              "source": "plugin"
+            },
+            {
+              "name": "/render",
+              "prompt": "pdf body",
+              "content": "pdf body",
+              "filePath": "<ROOT>/home/.mode/cli/plugins/cache/mode-plugins-official/pdf/2.0.0/commands/render.md",
+              "enabled": true,
+              "id": "plugin:mode-plugins-official:pdf:/render:<ROOT>/home/.mode/cli/plugins/cache/mode-plugins-official/pdf/2.0.0/commands/render.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "mode-plugins-official",
+              "pluginName": "pdf",
+              "scope": "global",
+              "source": "plugin"
+            }
+          ],
+          "userCommands": [],
+          "pluginCommands": [
+            {
+              "name": "/export",
+              "prompt": "demo body",
+              "content": "demo body",
+              "filePath": "<ROOT>/home/.mode/cli/plugins/cache/mode-plugins-official/demo/1.0.0/commands/export.md",
+              "enabled": true,
+              "id": "plugin:mode-plugins-official:demo:/export:<ROOT>/home/.mode/cli/plugins/cache/mode-plugins-official/demo/1.0.0/commands/export.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "mode-plugins-official",
+              "pluginName": "demo",
+              "scope": "global",
+              "source": "plugin"
+            },
+            {
+              "name": "/render",
+              "prompt": "pdf body",
+              "content": "pdf body",
+              "filePath": "<ROOT>/home/.mode/cli/plugins/cache/mode-plugins-official/pdf/2.0.0/commands/render.md",
+              "enabled": true,
+              "id": "plugin:mode-plugins-official:pdf:/render:<ROOT>/home/.mode/cli/plugins/cache/mode-plugins-official/pdf/2.0.0/commands/render.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "mode-plugins-official",
+              "pluginName": "pdf",
+              "scope": "global",
+              "source": "plugin"
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          }
+        }
+      },
+      {
+        "id": "suppressed-builtins-canonicalized",
+        "dirs": [],
+        "files": [
+          [
+            "home/.mode/cli/plugins/cache/mode-plugins-official/demo/1.0.0/.mode-plugin/plugin.json",
+            "{\"name\":\"demo\",\"commands\":\"commands\"}"
+          ],
+          [
+            "home/.mode/cli/plugins/cache/mode-plugins-official/demo/1.0.0/commands/export.md",
+            "demo body"
+          ]
+        ],
+        "jsonFiles": [],
+        "config": {
+          "plugins": {
+            "enabledPlugins": {
+              "demo@mode-plugins-official": true
+            },
+            "suppressedBuiltins": [
+              "demo@zcode-plugins-official"
+            ]
+          }
+        },
+        "listParams": {},
+        "expected": {
+          "commands": [],
+          "userCommands": [],
+          "pluginCommands": [],
+          "capability": {
+            "userScopeAvailable": true
+          }
+        }
+      },
+      {
+        "id": "installed-plugins-json",
+        "dirs": [],
+        "files": [
+          [
+            "installed/.mode-plugin/plugin.json",
+            "{\"name\":\"installed\",\"commands\":\"commands\"}"
+          ],
+          [
+            "installed/commands/run.md",
+            "run body"
+          ]
+        ],
+        "jsonFiles": [
+          [
+            "home/.mode/cli/plugins/installed_plugins.json",
+            {
+              "plugins": [
+                {
+                  "id": "installed@zcode-plugins-official",
+                  "marketplace": "zcode-plugins-official",
+                  "installPath": "<ROOT>/installed"
+                },
+                {
+                  "id": "relative",
+                  "marketplace": "m",
+                  "installPath": "relative/path"
+                }
+              ]
+            }
+          ]
+        ],
+        "config": {
+          "plugins": {
+            "enabledPlugins": {
+              "installed@mode-plugins-official": true
+            }
+          }
+        },
+        "listParams": {},
+        "expected": {
+          "commands": [
+            {
+              "name": "/run",
+              "prompt": "run body",
+              "content": "run body",
+              "filePath": "<ROOT>/installed/commands/run.md",
+              "enabled": true,
+              "id": "plugin:mode-plugins-official:installed:/run:<ROOT>/installed/commands/run.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "mode-plugins-official",
+              "pluginName": "installed",
+              "scope": "global",
+              "source": "plugin"
+            }
+          ],
+          "userCommands": [],
+          "pluginCommands": [
+            {
+              "name": "/run",
+              "prompt": "run body",
+              "content": "run body",
+              "filePath": "<ROOT>/installed/commands/run.md",
+              "enabled": true,
+              "id": "plugin:mode-plugins-official:installed:/run:<ROOT>/installed/commands/run.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "mode-plugins-official",
+              "pluginName": "installed",
+              "scope": "global",
+              "source": "plugin"
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          }
+        }
+      },
+      {
+        "id": "custom-storage-dir",
+        "dirs": [],
+        "files": [
+          [
+            "store/cli/plugins/cache/mode-plugins-official/demo/1.0.0/.mode-plugin/plugin.json",
+            "{\"name\":\"demo\",\"commands\":\"commands\"}"
+          ],
+          [
+            "store/cli/plugins/cache/mode-plugins-official/demo/1.0.0/commands/export.md",
+            "demo body"
+          ]
+        ],
+        "jsonFiles": [],
+        "config": {
+          "storage": {
+            "dir": "<ROOT>/store"
+          },
+          "plugins": {
+            "enabledPlugins": {
+              "demo@mode-plugins-official": true
+            }
+          }
+        },
+        "listParams": {},
+        "expected": {
+          "commands": [
+            {
+              "name": "/export",
+              "prompt": "demo body",
+              "content": "demo body",
+              "filePath": "<ROOT>/store/cli/plugins/cache/mode-plugins-official/demo/1.0.0/commands/export.md",
+              "enabled": true,
+              "id": "plugin:mode-plugins-official:demo:/export:<ROOT>/store/cli/plugins/cache/mode-plugins-official/demo/1.0.0/commands/export.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "mode-plugins-official",
+              "pluginName": "demo",
+              "scope": "global",
+              "source": "plugin"
+            }
+          ],
+          "userCommands": [],
+          "pluginCommands": [
+            {
+              "name": "/export",
+              "prompt": "demo body",
+              "content": "demo body",
+              "filePath": "<ROOT>/store/cli/plugins/cache/mode-plugins-official/demo/1.0.0/commands/export.md",
+              "enabled": true,
+              "id": "plugin:mode-plugins-official:demo:/export:<ROOT>/store/cli/plugins/cache/mode-plugins-official/demo/1.0.0/commands/export.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "mode-plugins-official",
+              "pluginName": "demo",
+              "scope": "global",
+              "source": "plugin"
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          }
+        }
+      },
+      {
+        "id": "agent-source-filter-keeps-plugins",
+        "dirs": [],
+        "files": [
+          [
+            "home/.mode/commands/u.md",
+            "u body"
+          ],
+          [
+            "plugin-d/.mode-plugin/plugin.json",
+            "{\"name\":\"plugin-d\",\"commands\":\"commands\"}"
+          ],
+          [
+            "plugin-d/commands/z.md",
+            "z body"
+          ]
+        ],
+        "jsonFiles": [],
+        "config": {
+          "plugins": {
+            "dirs": [
+              "<ROOT>/plugin-d"
+            ]
+          }
+        },
+        "listParams": {
+          "agentSource": "modeAgent"
+        },
+        "expected": {
+          "commands": [
+            {
+              "name": "/u",
+              "prompt": "u body",
+              "content": "u body",
+              "filePath": "<ROOT>/home/.mode/commands/u.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<ROOT>/home/.mode/commands"
+              },
+              "id": "modeAgent:mode:global:/u",
+              "source": "user",
+              "enabled": true,
+              "scope": "global"
+            },
+            {
+              "name": "/z",
+              "prompt": "z body",
+              "content": "z body",
+              "filePath": "<ROOT>/plugin-d/commands/z.md",
+              "enabled": true,
+              "id": "plugin:inline:plugin-d:/z:<ROOT>/plugin-d/commands/z.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "inline",
+              "pluginName": "plugin-d",
+              "scope": "global",
+              "source": "plugin"
+            }
+          ],
+          "userCommands": [
+            {
+              "name": "/u",
+              "prompt": "u body",
+              "content": "u body",
+              "filePath": "<ROOT>/home/.mode/commands/u.md",
+              "agentSource": "modeAgent",
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<ROOT>/home/.mode/commands"
+              },
+              "id": "modeAgent:mode:global:/u",
+              "source": "user",
+              "enabled": true,
+              "scope": "global"
+            }
+          ],
+          "pluginCommands": [
+            {
+              "name": "/z",
+              "prompt": "z body",
+              "content": "z body",
+              "filePath": "<ROOT>/plugin-d/commands/z.md",
+              "enabled": true,
+              "id": "plugin:inline:plugin-d:/z:<ROOT>/plugin-d/commands/z.md",
+              "pluginEnabled": true,
+              "pluginMarketplace": "inline",
+              "pluginName": "plugin-d",
+              "scope": "global",
+              "source": "plugin"
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          }
+        }
+      }
+    ]
+  },
+  "override": {
+    "cases": [
+      {
+        "id": "disable-then-enable-drops-entry",
+        "initial": {
+          "theme": "dark"
+        },
+        "calls": [
+          {
+            "filePath": "<ROOT>/home/.mode/commands/a.md",
+            "enabled": false
+          },
+          {
+            "filePath": "<ROOT>/home/.mode/commands/a.md",
+            "enabled": true
+          }
+        ],
+        "expected": {
+          "theme": "dark"
+        }
+      },
+      {
+        "id": "preserves-unrelated-entries",
+        "initial": {
+          "command": {
+            "<ROOT>/home/.mode/commands/other.md": {
+              "enable": false
+            }
+          },
+          "theme": "light"
+        },
+        "calls": [
+          {
+            "filePath": "<ROOT>/home/.mode/commands/a.md",
+            "enabled": false
+          }
+        ],
+        "expected": {
+          "command": {
+            "<ROOT>/home/.mode/commands/other.md": {
+              "enable": false
+            },
+            "<ROOT>/home/.mode/commands/a.md": {
+              "enable": false
+            }
+          },
+          "theme": "light"
+        }
+      }
+    ]
+  }
+}
