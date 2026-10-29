@@ -26,6 +26,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | 插件 / MCP / Skills **负载** | 第三方 npm/TS 代码，版权与兼容性都不允许改写 | 自家二进制 + 嵌入 JS 引擎（M5 P2 裁决），宿主 Rust、负载不动 |
 | 浏览器扩展与页面注入脚本 | 必须跑在目标浏览器里 | 扩展 JS 保留；**宿主侧 CDP 客户端**可 Rust 化（可选，见 §5 W5） |
 | 第三方 SDK 的对外契约 | 飞书/企微等协议要实现，但不复用其 SDK | Rust 自实现 HTTP/WS 客户端 |
+| Windows XP 被控端（`apps/remote-agent`，Go，12,903 行） | XP 产物固定用 Go 1.10.8（最后一个支持 XP 的工具链）；现代 Rust 的最低 Windows 目标不含 XP | Go（手工构建、随 Release 单独上传，不在自动构建链里）。若放弃 XP，才可并入 Rust |
 
 **由此得到一条硬规则**：本计划完成时，核心发运集里**不再有 Node 运行时**；
 唯一保留的 JS 执行面是插件负载的嵌入引擎（或按需运行时）。
@@ -189,7 +190,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | --- | --- | --- | --- | --- | --- |
 | 1 | 设置 / 客户端配置 | ≈3.3k | 壳内 `settings` | W1 | `setting` / `client-config` / `client-scenes` 已接管 |
 | 2 | 文件 / fs / 监视 | ≈2.8k | `ignore` + `notify` + std | W1 | `file` / `file-watcher` 已接管 |
-| 3 | 任务 / 会话 / 任务索引 | ≈12.2k | `rusqlite` + tokio | W1 + SQLite 迁移 | 任务库 schema+迁移已 Rust 化（`crates/tasks-db`，`docs/specs/tasks-db.md`）；任务域（Repo / 频道 / 会话）**未**迁移 |
+| 3 | 任务 / 会话 / 任务索引 | ≈12.2k | `rusqlite` + tokio | W1 + SQLite 迁移 | 任务库 schema+迁移已 Rust 化（`crates/tasks-db`）；**核心任务行 + 列表/搜索已迁**（`crates/task-index-repo`，`docs/specs/task-index-repo.md`）；分组视图/分组管理、任务频道与会话链路**未**迁移 |
 | 4 | 凭据 | 277 | `ring`（文件托管密钥） | W1 | `credential` 已接管（`crates/credential-store`） |
 | 5 | 终端旧路径 | 1,354 | 壳已有 PTY | W2 | 未开始 |
 | 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 | 未开始 |
@@ -293,8 +294,10 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
    被注入依赖挡住（`loadUserId` 需要 OAuth、`hasExistingLocalTask` 需要任务库）。
 4. **W3-3 任务 / 会话域**：体量最大（≈12.2k 行）。**任务库 schema + 迁移已 Rust 化**
    （`crates/tasks-db`，含 3 条冻结迁移、checksum 对拍、adopt/0002/0003、WAL 锁等待与
-   快照函数；见 `docs/specs/tasks-db.md`），但这**不代表任务域已迁**：三个 Repo 的
-   `ensureReady`、任务索引/自动化/闲时任务频道与会话链路仍在 TS。
+   快照函数；见 `docs/specs/tasks-db.md`）。**任务索引核心 Repo 已迁**
+   （`crates/task-index-repo`：`ensure_ready/close`、meta CRUD、状态写入、列表/搜索、
+   归档清理；与真实 TS `TaskIndexRepo` 逐步对拍；见 `docs/specs/task-index-repo.md`）。
+   仍未迁：分组视图与分组管理（下一片）、automation/off-peak Repo、任务频道与会话链路。
    **门禁生产者对拍已加**（`pnpm check:tasks-schema-parity`，CI 同时跑 TS 与 Rust 快照），
    但生产者**暂不切换**：Node 仍写任务库，现在切会让门禁看不到 TS 迁移变化。等 Rust
    任务域接管写库后再把 `tasks` 快照换成 Rust 二进制并重生成基线（`--base-ref` 语义不变）。
