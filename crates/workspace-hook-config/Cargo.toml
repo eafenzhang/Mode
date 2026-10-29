@@ -1,0 +1,12 @@
+[package]
+name = "workspace-hook-config"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Workspace Hook 配置纯解析（超时/输出上限/门禁归并），对应 shared/workspace-hook-config.ts"
+
+[lib]
+name = "workspace_hook_config"
+path = "src/lib.rs"
+
+[dependencies]
