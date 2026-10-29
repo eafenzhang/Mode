@@ -164,12 +164,14 @@ Rust 侧 6 条对拍用例全部解开；文件层 16 条、适配器 5 条。�
 `docs/specs/workspace-hook-config.md`。**条目解析与包级快照也已完成（2026-10-30）**：
 `crates/workspace-hook-digest` 补 `resolve_entries` / `build_bundle_snapshot`（条目
 `reviewItemId`、门禁位、超时优先级、按类型裁剪字段），与 TS 在 8 组纯数据用例上逐字节
-对拍两个摘要；spec 见 `docs/specs/workspace-hook-digest.md`。**保存侧也已完成（2026-10-30）**：
+对拍两个摘要；spec 见 `docs/specs/workspace-hook-digest.md`。**保存侧与读侧也已完成（2026-10-30）**：
 `crates/workspace-hooks-service` 覆盖 UI Hook → 配置的写回投影、根级 enabled 归并、
 按用户/工程拆分的 `saveHooks`、同目录 fsync+rename 原子写与「已审核开关」的摘要守卫，
-与 TS 在混合来源保存与 5 组开关用例上对拍；spec 见
-`docs/specs/workspace-hooks-service.md`。**未做**：读侧 `loadHooks`（trust store 接线）、
-`grantWorkspaceHookTrust` 转 Agent authority、频道注册；
+以及读侧的三类来源投影（工程快照 / 用户 mode / legacy settings.json）、固定来源顺序的
+`loadHooks`、trust store 读取与 `trustStoreCorrupt` 判定；写侧与 TS 在混合来源保存与 5 组
+开关用例上对拍，读侧在 5 组来源组合上对拍（`fixtures/hooks-load.json`）；spec 见
+`docs/specs/workspace-hooks-service.md`。**未做**：`grantWorkspaceHookTrust` 转
+Agent authority、频道注册；
 三件也还没有独立 spec（暂以 crate 文档标注的 TS 真源为准），接频道前需补齐。
 
 **SQLite 迁移的额外约束**：迁移从 TS 翻到 Rust 时，`docs/specs/sqlite-schema-gate.md`
@@ -213,7 +215,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 12 | 云账号 / 设备目录 / OAuth | ≈4k | `reqwest` + 本地密钥 | W1 | 未开始 |
 | 13 | 对话共享 / 镜像 / 遥测 | ≈5.5k | 壳内 | W3-3 | `conversation-mirror` 已接管 |
 | 14 | skills / skill-sync / mcp-sync / plugin-sync / plugins | ≈4.5k | 壳内（素材仍是 JS） | W1 | 未开始 |
-| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` / `commands` 已接管；`hooks` 前置三件与配置发现层就绪（`workspace-hook-config` / `-digest` / `-trust`），剩 settings 模型、`saveHooks` 与频道本体；grant 依赖 Agent authority，整体推迟到 W4 |
+| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` / `commands` 已接管；`hooks` 的服务面（读侧 `loadHooks` + `saveHooks` + 已审核开关）已 Rust 化并对拍，剩 `grantWorkspaceHookTrust` 与频道本体；grant 依赖 Agent authority，整体推迟到 W4 |
 | 16 | cua-permission-broker / cua-pip | ≈2.4k | 壳内 | 现有 helper | 未开始 |
 | 17 | 其余（media-preview、prompt-attachment-transfer、off-peak-task…） | ≈2k | 壳内 | W1 | `media-preview` / `prompt-attachment-transfer` 已接管 |
 | 18 | 系统信息 / 内网探测 | ≈0.5k | 壳内 | W1 | `system` 已接管 |
@@ -299,9 +301,10 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 2. **W1 剩余基元**：`fs` 剩余工具与 SQLite 迁移门禁（基线改由 Rust 迁移生成 +
    `--base-ref` 只增校验）。`credential` 已落地（`crates/credential-store`，
    AES-256-GCM + 文件托管密钥；TS 注释里的 keyring 仍是后续项）。
-3. **hooks 频道本体（阻塞在 W4）**：discovery、`saveHooks` 原子写可先做，但
-   `grantWorkspaceHookTrust` 必须转发给 Agent authority，壳内需要 `mode-protocol` 客户端；
-   与 W4 的 Agent 控制面一起接，避免壳直接写 trust store。`onboarding-record` 同样
+3. **hooks 频道本体（阻塞在 W4）**：discovery、`saveHooks` 原子写与读侧 `loadHooks`
+   已先做完并对拍，剩 `grantWorkspaceHookTrust`——它必须转发给 Agent authority，壳内需要
+   `mode-protocol` 客户端；与 W4 的 Agent 控制面一起接，避免壳直接写 trust store。
+   `onboarding-record` 同样
    被注入依赖挡住（`loadUserId` 需要 OAuth、`hasExistingLocalTask` 需要任务库）。
 4. **W3-3 任务 / 会话域**：体量最大（≈12.2k 行）。**任务库 schema + 迁移已 Rust 化**
    （`crates/tasks-db`，含 3 条冻结迁移、checksum 对拍、adopt/0002/0003、WAL 锁等待与

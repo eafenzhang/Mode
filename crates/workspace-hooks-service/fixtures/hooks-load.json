@@ -1,0 +1,1181 @@
+{
+  "cases": [
+    {
+      "name": "basic",
+      "files": [
+        {
+          "path": "ws/.mode/config.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": true,\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo proj\",\n              \"statusMessage\": \"检查\"\n            }\n          ]\n        },\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"x.js\"\n              ],\n              \"timeoutMs\": 2500\n            }\n          ]\n        }\n      ],\n      \"Stop\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo stop\",\n              \"env\": {\n                \"A\": \"1\"\n              }\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        },
+        {
+          "path": "ws/.agents/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Read\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"echo legacy\",\n            \"timeoutMs\": 1500\n          }\n        ]\n      },\n      {\n        \"hooks\": [\n          {\n            \"type\": \"script\",\n            \"command\": \"ignored\"\n          }\n        ]\n      }\n    ],\n    \"UnknownEvent\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"ignored\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": "ws/.claude/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Read\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"echo legacy\",\n            \"timeoutMs\": 1500\n          }\n        ]\n      },\n      {\n        \"hooks\": [\n          {\n            \"type\": \"script\",\n            \"command\": \"ignored\"\n          }\n        ]\n      }\n    ],\n    \"UnknownEvent\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"ignored\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"hooks\": {\n    \"events\": {\n      \"SessionStart\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo user\"\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.agents/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"echo claude-user\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"echo claude-user\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        }
+      ],
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "expected": {
+        "hooks": [
+          {
+            "id": "workspace-hook-0-PreToolUse-0-0",
+            "event": "PreToolUse",
+            "matcher": "Bash",
+            "type": "command",
+            "command": "echo proj",
+            "statusMessage": "检查",
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            },
+            "workspaceHook": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json",
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "sourceFileIndex": 0,
+              "workspaceIdentity": "<root>/ws",
+              "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840",
+              "hookDeclarationDigest": "5817ddb391228f70dd47e328f5f638831f758a0a3b0f919295d4272c0fd86007",
+              "trustState": "pending_trust"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "workspace-hook-0-PreToolUse-1-0",
+            "event": "PreToolUse",
+            "type": "process",
+            "command": "node",
+            "args": [
+              "x.js"
+            ],
+            "timeout": 2.5,
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            },
+            "workspaceHook": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json",
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "sourceFileIndex": 0,
+              "workspaceIdentity": "<root>/ws",
+              "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840",
+              "hookDeclarationDigest": "5f13ed43d8f7bab8465209da8f78e0d5f35c4240a79604c775b6b445bb8870f0",
+              "trustState": "pending_trust"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "workspace-hook-0-Stop-0-0",
+            "event": "Stop",
+            "type": "command",
+            "command": "echo stop",
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            },
+            "workspaceHook": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json",
+              "reviewItemId": "workspace-hook-0-Stop-0-0",
+              "sourceFileIndex": 0,
+              "workspaceIdentity": "<root>/ws",
+              "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840",
+              "hookDeclarationDigest": "5c15b51c7ed37542f0f31a50671483e9c73986f32ac7a548ebea7ea2a29fe9ca",
+              "trustState": "pending_trust"
+            },
+            "custom": {
+              "env": {
+                "A": "1"
+              }
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "hook-agents-project-0",
+            "event": "PreToolUse",
+            "matcher": "Read",
+            "type": "command",
+            "command": "echo legacy",
+            "timeout": 2,
+            "enabled": false,
+            "editable": false,
+            "location": {
+              "source": "agents",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.agents",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "hook-claude-project-0",
+            "event": "PreToolUse",
+            "matcher": "Read",
+            "type": "command",
+            "command": "echo legacy",
+            "timeout": 2,
+            "enabled": false,
+            "editable": false,
+            "location": {
+              "source": "claude",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.claude",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "hook-mode-user-0",
+            "event": "SessionStart",
+            "type": "command",
+            "command": "echo user",
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/home/.mode/cli/config.json"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "user",
+              "directoryPath": "<root>/home/.mode/cli"
+            }
+          },
+          {
+            "id": "hook-agents-user-0",
+            "event": "Stop",
+            "type": "command",
+            "command": "echo claude-user",
+            "enabled": false,
+            "editable": false,
+            "location": {
+              "source": "agents",
+              "scope": "user",
+              "directoryPath": "<root>/home/.agents"
+            }
+          },
+          {
+            "id": "hook-claude-user-0",
+            "event": "Stop",
+            "type": "command",
+            "command": "echo claude-user",
+            "enabled": false,
+            "editable": false,
+            "location": {
+              "source": "claude",
+              "scope": "user",
+              "directoryPath": "<root>/home/.claude"
+            }
+          }
+        ],
+        "hooksEnabled": true,
+        "snapshot": {
+          "schemaVersion": 1,
+          "workspaceIdentity": "<root>/ws",
+          "discoveredAt": "<discoveredAt>",
+          "sourceFiles": [
+            {
+              "canonicalPath": "<root>/ws/.mode/config.json",
+              "baseDir": "<root>/ws",
+              "discoveryOrder": 0,
+              "configFileKind": ".mode/config.json",
+              "explicitProjectConfig": false,
+              "editable": true,
+              "hooksRoot": {
+                "enabled": true
+              }
+            }
+          ],
+          "hooks": [
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "event": "PreToolUse",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": "Bash",
+              "command": "echo proj",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "statusMessage": "检查",
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "5817ddb391228f70dd47e328f5f638831f758a0a3b0f919295d4272c0fd86007",
+              "type": "command"
+            },
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "event": "PreToolUse",
+              "matcherIndex": 1,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "node",
+              "resolvedTimeoutMs": 2500,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "5f13ed43d8f7bab8465209da8f78e0d5f35c4240a79604c775b6b445bb8870f0",
+              "type": "process",
+              "args": [
+                "x.js"
+              ]
+            },
+            {
+              "reviewItemId": "workspace-hook-0-Stop-0-0",
+              "event": "Stop",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "echo stop",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "5c15b51c7ed37542f0f31a50671483e9c73986f32ac7a548ebea7ea2a29fe9ca",
+              "type": "command"
+            }
+          ],
+          "digestAlgorithm": "sha256",
+          "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840"
+        },
+        "trustStoreCorrupt": false
+      }
+    },
+    {
+      "name": "trusted",
+      "files": [
+        {
+          "path": "ws/.mode/config.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": true,\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo proj\",\n              \"statusMessage\": \"检查\"\n            }\n          ]\n        },\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"x.js\"\n              ],\n              \"timeoutMs\": 2500\n            }\n          ]\n        }\n      ],\n      \"Stop\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo stop\",\n              \"env\": {\n                \"A\": \"1\"\n              }\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        },
+        {
+          "path": "ws/.agents/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Read\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"echo legacy\",\n            \"timeoutMs\": 1500\n          }\n        ]\n      },\n      {\n        \"hooks\": [\n          {\n            \"type\": \"script\",\n            \"command\": \"ignored\"\n          }\n        ]\n      }\n    ],\n    \"UnknownEvent\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"ignored\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": "ws/.claude/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Read\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"echo legacy\",\n            \"timeoutMs\": 1500\n          }\n        ]\n      },\n      {\n        \"hooks\": [\n          {\n            \"type\": \"script\",\n            \"command\": \"ignored\"\n          }\n        ]\n      }\n    ],\n    \"UnknownEvent\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"ignored\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"hooks\": {\n    \"events\": {\n      \"SessionStart\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo user\"\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.agents/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"echo claude-user\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"echo claude-user\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.mode/security/workspace-hook-trust-v1.json",
+          "content": "{\n  \"schemaVersion\": 1,\n  \"records\": [\n    {\n      \"workspaceIdentity\": \"<root>/ws\",\n      \"hookDeclarationDigest\": \"5817ddb391228f70dd47e328f5f638831f758a0a3b0f919295d4272c0fd86007\",\n      \"digestAlgorithm\": \"sha256\",\n      \"decision\": \"trusted\",\n      \"grantedAt\": \"2026-10-30T00:00:00.000Z\",\n      \"bundleDigestAtGrant\": \"5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840\",\n      \"eventAtGrant\": \"PreToolUse\",\n      \"displayCommandAtGrant\": \"echo proj\",\n      \"sourcePathAtGrant\": \".mode/config.json\",\n      \"sourceDiscoveryOrderAtGrant\": 0,\n      \"matcherAtGrant\": \"Bash\",\n      \"matcherIndexAtGrant\": 0,\n      \"hookIndexAtGrant\": 0\n    }\n  ]\n}"
+        }
+      ],
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "expected": {
+        "hooks": [
+          {
+            "id": "workspace-hook-0-PreToolUse-0-0",
+            "event": "PreToolUse",
+            "matcher": "Bash",
+            "type": "command",
+            "command": "echo proj",
+            "statusMessage": "检查",
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            },
+            "workspaceHook": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json",
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "sourceFileIndex": 0,
+              "workspaceIdentity": "<root>/ws",
+              "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840",
+              "hookDeclarationDigest": "5817ddb391228f70dd47e328f5f638831f758a0a3b0f919295d4272c0fd86007",
+              "trustState": "trusted_persistent"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "workspace-hook-0-PreToolUse-1-0",
+            "event": "PreToolUse",
+            "type": "process",
+            "command": "node",
+            "args": [
+              "x.js"
+            ],
+            "timeout": 2.5,
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            },
+            "workspaceHook": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json",
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "sourceFileIndex": 0,
+              "workspaceIdentity": "<root>/ws",
+              "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840",
+              "hookDeclarationDigest": "5f13ed43d8f7bab8465209da8f78e0d5f35c4240a79604c775b6b445bb8870f0",
+              "trustState": "pending_trust"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "workspace-hook-0-Stop-0-0",
+            "event": "Stop",
+            "type": "command",
+            "command": "echo stop",
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            },
+            "workspaceHook": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json",
+              "reviewItemId": "workspace-hook-0-Stop-0-0",
+              "sourceFileIndex": 0,
+              "workspaceIdentity": "<root>/ws",
+              "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840",
+              "hookDeclarationDigest": "5c15b51c7ed37542f0f31a50671483e9c73986f32ac7a548ebea7ea2a29fe9ca",
+              "trustState": "pending_trust"
+            },
+            "custom": {
+              "env": {
+                "A": "1"
+              }
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "hook-agents-project-0",
+            "event": "PreToolUse",
+            "matcher": "Read",
+            "type": "command",
+            "command": "echo legacy",
+            "timeout": 2,
+            "enabled": false,
+            "editable": false,
+            "location": {
+              "source": "agents",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.agents",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "hook-claude-project-0",
+            "event": "PreToolUse",
+            "matcher": "Read",
+            "type": "command",
+            "command": "echo legacy",
+            "timeout": 2,
+            "enabled": false,
+            "editable": false,
+            "location": {
+              "source": "claude",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.claude",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "hook-mode-user-0",
+            "event": "SessionStart",
+            "type": "command",
+            "command": "echo user",
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/home/.mode/cli/config.json"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "user",
+              "directoryPath": "<root>/home/.mode/cli"
+            }
+          },
+          {
+            "id": "hook-agents-user-0",
+            "event": "Stop",
+            "type": "command",
+            "command": "echo claude-user",
+            "enabled": false,
+            "editable": false,
+            "location": {
+              "source": "agents",
+              "scope": "user",
+              "directoryPath": "<root>/home/.agents"
+            }
+          },
+          {
+            "id": "hook-claude-user-0",
+            "event": "Stop",
+            "type": "command",
+            "command": "echo claude-user",
+            "enabled": false,
+            "editable": false,
+            "location": {
+              "source": "claude",
+              "scope": "user",
+              "directoryPath": "<root>/home/.claude"
+            }
+          }
+        ],
+        "hooksEnabled": true,
+        "snapshot": {
+          "schemaVersion": 1,
+          "workspaceIdentity": "<root>/ws",
+          "discoveredAt": "<discoveredAt>",
+          "sourceFiles": [
+            {
+              "canonicalPath": "<root>/ws/.mode/config.json",
+              "baseDir": "<root>/ws",
+              "discoveryOrder": 0,
+              "configFileKind": ".mode/config.json",
+              "explicitProjectConfig": false,
+              "editable": true,
+              "hooksRoot": {
+                "enabled": true
+              }
+            }
+          ],
+          "hooks": [
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "event": "PreToolUse",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": "Bash",
+              "command": "echo proj",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "statusMessage": "检查",
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "5817ddb391228f70dd47e328f5f638831f758a0a3b0f919295d4272c0fd86007",
+              "type": "command"
+            },
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "event": "PreToolUse",
+              "matcherIndex": 1,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "node",
+              "resolvedTimeoutMs": 2500,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "5f13ed43d8f7bab8465209da8f78e0d5f35c4240a79604c775b6b445bb8870f0",
+              "type": "process",
+              "args": [
+                "x.js"
+              ]
+            },
+            {
+              "reviewItemId": "workspace-hook-0-Stop-0-0",
+              "event": "Stop",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "echo stop",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "5c15b51c7ed37542f0f31a50671483e9c73986f32ac7a548ebea7ea2a29fe9ca",
+              "type": "command"
+            }
+          ],
+          "digestAlgorithm": "sha256",
+          "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840"
+        },
+        "trustStoreCorrupt": false
+      }
+    },
+    {
+      "name": "corrupt-trust",
+      "files": [
+        {
+          "path": "ws/.mode/config.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": true,\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo proj\",\n              \"statusMessage\": \"检查\"\n            }\n          ]\n        },\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"x.js\"\n              ],\n              \"timeoutMs\": 2500\n            }\n          ]\n        }\n      ],\n      \"Stop\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo stop\",\n              \"env\": {\n                \"A\": \"1\"\n              }\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        },
+        {
+          "path": "ws/.agents/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Read\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"echo legacy\",\n            \"timeoutMs\": 1500\n          }\n        ]\n      },\n      {\n        \"hooks\": [\n          {\n            \"type\": \"script\",\n            \"command\": \"ignored\"\n          }\n        ]\n      }\n    ],\n    \"UnknownEvent\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"ignored\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": "ws/.claude/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Read\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"echo legacy\",\n            \"timeoutMs\": 1500\n          }\n        ]\n      },\n      {\n        \"hooks\": [\n          {\n            \"type\": \"script\",\n            \"command\": \"ignored\"\n          }\n        ]\n      }\n    ],\n    \"UnknownEvent\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"ignored\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"hooks\": {\n    \"events\": {\n      \"SessionStart\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo user\"\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.agents/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"echo claude-user\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"echo claude-user\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.mode/security/workspace-hook-trust-v1.json",
+          "content": "{ not json"
+        }
+      ],
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "expected": {
+        "hooks": [
+          {
+            "id": "workspace-hook-0-PreToolUse-0-0",
+            "event": "PreToolUse",
+            "matcher": "Bash",
+            "type": "command",
+            "command": "echo proj",
+            "statusMessage": "检查",
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            },
+            "workspaceHook": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json",
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "sourceFileIndex": 0,
+              "workspaceIdentity": "<root>/ws",
+              "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840",
+              "hookDeclarationDigest": "5817ddb391228f70dd47e328f5f638831f758a0a3b0f919295d4272c0fd86007",
+              "trustState": "pending_trust"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "workspace-hook-0-PreToolUse-1-0",
+            "event": "PreToolUse",
+            "type": "process",
+            "command": "node",
+            "args": [
+              "x.js"
+            ],
+            "timeout": 2.5,
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            },
+            "workspaceHook": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json",
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "sourceFileIndex": 0,
+              "workspaceIdentity": "<root>/ws",
+              "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840",
+              "hookDeclarationDigest": "5f13ed43d8f7bab8465209da8f78e0d5f35c4240a79604c775b6b445bb8870f0",
+              "trustState": "pending_trust"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "workspace-hook-0-Stop-0-0",
+            "event": "Stop",
+            "type": "command",
+            "command": "echo stop",
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            },
+            "workspaceHook": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json",
+              "reviewItemId": "workspace-hook-0-Stop-0-0",
+              "sourceFileIndex": 0,
+              "workspaceIdentity": "<root>/ws",
+              "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840",
+              "hookDeclarationDigest": "5c15b51c7ed37542f0f31a50671483e9c73986f32ac7a548ebea7ea2a29fe9ca",
+              "trustState": "pending_trust"
+            },
+            "custom": {
+              "env": {
+                "A": "1"
+              }
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "hook-agents-project-0",
+            "event": "PreToolUse",
+            "matcher": "Read",
+            "type": "command",
+            "command": "echo legacy",
+            "timeout": 2,
+            "enabled": false,
+            "editable": false,
+            "location": {
+              "source": "agents",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.agents",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "hook-claude-project-0",
+            "event": "PreToolUse",
+            "matcher": "Read",
+            "type": "command",
+            "command": "echo legacy",
+            "timeout": 2,
+            "enabled": false,
+            "editable": false,
+            "location": {
+              "source": "claude",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.claude",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "hook-mode-user-0",
+            "event": "SessionStart",
+            "type": "command",
+            "command": "echo user",
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/home/.mode/cli/config.json"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "user",
+              "directoryPath": "<root>/home/.mode/cli"
+            }
+          },
+          {
+            "id": "hook-agents-user-0",
+            "event": "Stop",
+            "type": "command",
+            "command": "echo claude-user",
+            "enabled": false,
+            "editable": false,
+            "location": {
+              "source": "agents",
+              "scope": "user",
+              "directoryPath": "<root>/home/.agents"
+            }
+          },
+          {
+            "id": "hook-claude-user-0",
+            "event": "Stop",
+            "type": "command",
+            "command": "echo claude-user",
+            "enabled": false,
+            "editable": false,
+            "location": {
+              "source": "claude",
+              "scope": "user",
+              "directoryPath": "<root>/home/.claude"
+            }
+          }
+        ],
+        "hooksEnabled": true,
+        "snapshot": {
+          "schemaVersion": 1,
+          "workspaceIdentity": "<root>/ws",
+          "discoveredAt": "<discoveredAt>",
+          "sourceFiles": [
+            {
+              "canonicalPath": "<root>/ws/.mode/config.json",
+              "baseDir": "<root>/ws",
+              "discoveryOrder": 0,
+              "configFileKind": ".mode/config.json",
+              "explicitProjectConfig": false,
+              "editable": true,
+              "hooksRoot": {
+                "enabled": true
+              }
+            }
+          ],
+          "hooks": [
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "event": "PreToolUse",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": "Bash",
+              "command": "echo proj",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "statusMessage": "检查",
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "5817ddb391228f70dd47e328f5f638831f758a0a3b0f919295d4272c0fd86007",
+              "type": "command"
+            },
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "event": "PreToolUse",
+              "matcherIndex": 1,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "node",
+              "resolvedTimeoutMs": 2500,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "5f13ed43d8f7bab8465209da8f78e0d5f35c4240a79604c775b6b445bb8870f0",
+              "type": "process",
+              "args": [
+                "x.js"
+              ]
+            },
+            {
+              "reviewItemId": "workspace-hook-0-Stop-0-0",
+              "event": "Stop",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "echo stop",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "5c15b51c7ed37542f0f31a50671483e9c73986f32ac7a548ebea7ea2a29fe9ca",
+              "type": "command"
+            }
+          ],
+          "digestAlgorithm": "sha256",
+          "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840"
+        },
+        "trustStoreCorrupt": true
+      }
+    },
+    {
+      "name": "invalid-user-config",
+      "files": [
+        {
+          "path": "ws/.mode/config.json",
+          "content": "{\n  \"hooks\": {\n    \"enabled\": true,\n    \"events\": {\n      \"PreToolUse\": [\n        {\n          \"matcher\": \"Bash\",\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo proj\",\n              \"statusMessage\": \"检查\"\n            }\n          ]\n        },\n        {\n          \"hooks\": [\n            {\n              \"type\": \"process\",\n              \"command\": \"node\",\n              \"args\": [\n                \"x.js\"\n              ],\n              \"timeoutMs\": 2500\n            }\n          ]\n        }\n      ],\n      \"Stop\": [\n        {\n          \"hooks\": [\n            {\n              \"type\": \"command\",\n              \"command\": \"echo stop\",\n              \"env\": {\n                \"A\": \"1\"\n              }\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\"hooks\":{\"events\":[]}}"
+        }
+      ],
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "expected": {
+        "hooks": [
+          {
+            "id": "workspace-hook-0-PreToolUse-0-0",
+            "event": "PreToolUse",
+            "matcher": "Bash",
+            "type": "command",
+            "command": "echo proj",
+            "statusMessage": "检查",
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            },
+            "workspaceHook": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json",
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "sourceFileIndex": 0,
+              "workspaceIdentity": "<root>/ws",
+              "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840",
+              "hookDeclarationDigest": "5817ddb391228f70dd47e328f5f638831f758a0a3b0f919295d4272c0fd86007",
+              "trustState": "pending_trust"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "workspace-hook-0-PreToolUse-1-0",
+            "event": "PreToolUse",
+            "type": "process",
+            "command": "node",
+            "args": [
+              "x.js"
+            ],
+            "timeout": 2.5,
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            },
+            "workspaceHook": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json",
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "sourceFileIndex": 0,
+              "workspaceIdentity": "<root>/ws",
+              "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840",
+              "hookDeclarationDigest": "5f13ed43d8f7bab8465209da8f78e0d5f35c4240a79604c775b6b445bb8870f0",
+              "trustState": "pending_trust"
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            }
+          },
+          {
+            "id": "workspace-hook-0-Stop-0-0",
+            "event": "Stop",
+            "type": "command",
+            "command": "echo stop",
+            "enabled": true,
+            "editable": true,
+            "configuredState": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json"
+            },
+            "workspaceHook": {
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "sourcePath": "<root>/ws/.mode/config.json",
+              "reviewItemId": "workspace-hook-0-Stop-0-0",
+              "sourceFileIndex": 0,
+              "workspaceIdentity": "<root>/ws",
+              "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840",
+              "hookDeclarationDigest": "5c15b51c7ed37542f0f31a50671483e9c73986f32ac7a548ebea7ea2a29fe9ca",
+              "trustState": "pending_trust"
+            },
+            "custom": {
+              "env": {
+                "A": "1"
+              }
+            },
+            "location": {
+              "source": "mode",
+              "scope": "project",
+              "directoryPath": "<root>/ws/.mode",
+              "projectPath": "<root>/ws"
+            }
+          }
+        ],
+        "hooksEnabled": true,
+        "snapshot": {
+          "schemaVersion": 1,
+          "workspaceIdentity": "<root>/ws",
+          "discoveredAt": "<discoveredAt>",
+          "sourceFiles": [
+            {
+              "canonicalPath": "<root>/ws/.mode/config.json",
+              "baseDir": "<root>/ws",
+              "discoveryOrder": 0,
+              "configFileKind": ".mode/config.json",
+              "explicitProjectConfig": false,
+              "editable": true,
+              "hooksRoot": {
+                "enabled": true
+              }
+            }
+          ],
+          "hooks": [
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-0-0",
+              "event": "PreToolUse",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": "Bash",
+              "command": "echo proj",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "statusMessage": "检查",
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "5817ddb391228f70dd47e328f5f638831f758a0a3b0f919295d4272c0fd86007",
+              "type": "command"
+            },
+            {
+              "reviewItemId": "workspace-hook-0-PreToolUse-1-0",
+              "event": "PreToolUse",
+              "matcherIndex": 1,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "node",
+              "resolvedTimeoutMs": 2500,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "5f13ed43d8f7bab8465209da8f78e0d5f35c4240a79604c775b6b445bb8870f0",
+              "type": "process",
+              "args": [
+                "x.js"
+              ]
+            },
+            {
+              "reviewItemId": "workspace-hook-0-Stop-0-0",
+              "event": "Stop",
+              "matcherIndex": 0,
+              "hookIndex": 0,
+              "sourceFileIndex": 0,
+              "sourceRelativePath": ".mode/config.json",
+              "matcher": null,
+              "command": "echo stop",
+              "resolvedTimeoutMs": 60000,
+              "resolvedMaxOutputBytes": 32768,
+              "sourceRootEnabled": true,
+              "declarationEnabled": true,
+              "runtimeHooksEnabled": true,
+              "configuredEnabled": true,
+              "editable": true,
+              "declarationDigestAlgorithm": "sha256",
+              "hookDeclarationDigest": "5c15b51c7ed37542f0f31a50671483e9c73986f32ac7a548ebea7ea2a29fe9ca",
+              "type": "command"
+            }
+          ],
+          "digestAlgorithm": "sha256",
+          "bundleDigest": "5b98a91c84116cd445f9db7b1816160306852e9fb2ee10bac95426adac7f9840"
+        },
+        "trustStoreCorrupt": false
+      }
+    },
+    {
+      "name": "empty",
+      "files": [],
+      "discoveredAt": "2026-10-30T00:00:00.000Z",
+      "expected": {
+        "hooks": [],
+        "hooksEnabled": false,
+        "snapshot": null,
+        "trustStoreCorrupt": false
+      }
+    }
+  ]
+}

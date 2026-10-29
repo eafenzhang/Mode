@@ -4,6 +4,7 @@
 //! 替换成 `<root>`；本测试在自己的临时根下重放，并做同样的归一化后比较。
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
@@ -40,13 +41,20 @@ fn assert_json(label: &str, expected: &Value, actual: &Value) {
 
 struct TempRoot(PathBuf);
 
+/// 并行用例可能在同一时钟刻度取到相同纳秒值，仅靠时间戳会让两个临时根互相清理。
+static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
 impl TempRoot {
     fn new() -> Self {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_nanos())
             .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("zc-hooks-save-{}-{nanos}", std::process::id()));
+        let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "zc-hooks-save-{}-{nanos}-{counter}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&path).expect("创建临时目录");
         Self(path)
     }

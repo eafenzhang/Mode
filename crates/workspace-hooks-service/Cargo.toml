@@ -12,4 +12,5 @@ path = "src/lib.rs"
 [dependencies]
 workspace-hook-config = { path = "../workspace-hook-config" }
 workspace-hook-digest = { path = "../workspace-hook-digest" }
+workspace-hook-trust = { path = "../workspace-hook-trust" }
 serde_json.workspace = true

@@ -6265,6 +6265,7 @@ dependencies = [
  "serde_json",
  "workspace-hook-config",
  "workspace-hook-digest",
+ "workspace-hook-trust",
 ]
 
 [[package]]
