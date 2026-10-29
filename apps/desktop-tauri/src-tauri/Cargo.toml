@@ -66,6 +66,7 @@ platform = { path = "../../../crates/platform" }
 sidecar-host = { path = "../../../crates/sidecar-host" }
 protocol = { path = "../../../crates/protocol" }
 conversation-mirror = { path = "../../../crates/conversation-mirror" }
+credential-store = { path = "../../../crates/credential-store" }
 host-channels = { path = "../../../crates/host-channels" }
 rpc-host = { path = "../../../crates/rpc-host" }
 rpc-wire = { path = "../../../crates/rpc-wire" }

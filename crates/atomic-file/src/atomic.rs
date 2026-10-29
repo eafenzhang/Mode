@@ -36,10 +36,29 @@ pub fn write_json_atomic(
     write_text_atomic(path, &text, options)
 }
 
+/// 原子写入私有文本：临时文件在 Unix 上以 `0600` 创建（对应 TS
+/// `atomicWritePrivateTextFile` 的 `mode: 0o600`）。Windows 没有可移植的等价位。
+pub fn write_private_text_atomic(
+    path: &Path,
+    contents: &str,
+    options: &WriteOptions,
+) -> Result<(), AtomicError> {
+    write_bytes_atomic_with_mode(path, contents.as_bytes(), options, true)
+}
+
 pub fn write_bytes_atomic(
     path: &Path,
     bytes: &[u8],
     options: &WriteOptions,
+) -> Result<(), AtomicError> {
+    write_bytes_atomic_with_mode(path, bytes, options, false)
+}
+
+fn write_bytes_atomic_with_mode(
+    path: &Path,
+    bytes: &[u8],
+    options: &WriteOptions,
+    private: bool,
 ) -> Result<(), AtomicError> {
     let parent = parent_dir(path);
     fs::create_dir_all(&parent)?;
@@ -55,13 +74,35 @@ pub fn write_bytes_atomic(
     cleanup_stale_temps(path, &temp, options.temp_file_stale_ms);
 
     let result = (|| {
-        fs::write(&temp, bytes)?;
+        write_temp(&temp, bytes, private)?;
         rename_with_retry(&temp, path, &options.rename_retry_delays_ms)
     })();
     if result.is_err() {
         let _ = fs::remove_file(&temp);
     }
     result
+}
+
+fn write_temp(temp: &Path, bytes: &[u8], private: bool) -> Result<(), std::io::Error> {
+    if !private {
+        return fs::write(temp, bytes);
+    }
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(temp)?;
+        file.write_all(bytes)
+    }
+    #[cfg(not(unix))]
+    {
+        fs::write(temp, bytes)
+    }
 }
 
 fn parent_dir(path: &Path) -> PathBuf {

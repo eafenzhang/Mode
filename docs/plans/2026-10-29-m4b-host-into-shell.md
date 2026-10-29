@@ -159,11 +159,12 @@ bytes ──► FrameRouter::route
 端到端管线（真帧 → 路由 → ChannelServer → 回帧、未知方法错误帧、scoped 转发）在
 `crates/host-channels/tests/pipeline.rs` 有 3 条用例。
 
-**2026-10-29 续**：已接管频道扩到 7 个（新增 `setting`、`client-config`、
-`client-scenes`、`media-preview`、`conversation-mirror`）；scoped 帧已支持本地接管——
-按 scope 惰性建独立 `ChannelServer`，回帧经 `encode_scoped_frame` 加 `0xFF + scopeId`
-前缀，Host 换代时一并 `dispose`。**尚未做**：真机打开开关跑一遍（目前只做编译、单元与
-管线验收）；Control 帧仍归 Node Host；`host` 频道不接管（心跳不能测壳自己）。
+**2026-10-29 续**：已接管频道扩到 8 个（新增 `setting`、`client-config`、
+`client-scenes`、`media-preview`、`conversation-mirror`、`credential`）；scoped 帧已支持
+本地接管——按 scope 惰性建独立 `ChannelServer`，回帧经 `encode_scoped_frame` 加
+`0xFF + scopeId` 前缀，Host 换代时一并 `dispose`。**尚未做**：真机打开开关跑一遍（目前只做
+编译、单元与管线验收）；Control 帧仍归 Node Host；`host` 频道不接管（心跳不能测壳自己）。
+`credential` 的文件、密文与密钥派生见 `docs/specs/credential-store.md`，与 TS 密文有对拍。
 
 **先接的频道（2026-10-29 二次更正）**：**不能用 `host` 诊断面**——渲染层的半开管道心跳
 走 `host.ping`（spec §22.5），搬进壳等于让看门狗测壳自己，Node Host 停摆就发现不了。
@@ -233,5 +234,8 @@ W0 地基 → W1 平台基元 → W2 传输切换 → W3 逐域迁移 → W6 删
   详见 `docs/specs/settings-store.md`。
 - **启动分解基线**待取：标记已随宿主代码落地，当前在跑的实例是旧构建；下次启动后跑
   `pnpm measure:host-startup` 即可得到四段耗时。
-- 默认仍不改变产品路径：开关为空时 Node Host 是唯一所有者；打开开关只影响列出的 7 个
+- **`credential` 的密钥托管**：与 TS 一样用文件托管密钥（`MODE_CREDENTIAL_SECRET` 或
+  fallback 串派生），未接系统钥匙串；Host 私有的 `onDidMutate` 当前没有调用方，
+  壳内不转发。密钥派生必须与 Node 逐字节一致，否则切关时旧凭据会解不开。
+- 默认仍不改变产品路径：开关为空时 Node Host 是唯一所有者；打开开关只影响列出的 8 个
   频道，真机行为尚未验收。

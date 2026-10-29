@@ -94,21 +94,23 @@ SQLite（任务库、会话库、迁移）、日志、进程管理（spawn/kill/
 对应 `docs/specs/atomic-file.md`，8 条用例（含 6 线程并发写不产生半截）。它是 settings /
 credential / task-index 的共同前置。
 
-**W3 已迁完整域（2026-10-29，7 个）**：`memory`（`crates/project-memory`）、
+**W3 已迁完整域（2026-10-29，8 个）**：`memory`（`crates/project-memory`）、
 `prompt-attachment-transfer`（本地零拷贝 + 三 no-op + 不 emit 的进度订阅）、
 `client-config` / `client-scenes`（审计版常量：官方服务开关恒 false，短路在凭证与网络之前）、
 `media-preview`（本地 inline：扩展名/kind 校验 + 8 MiB 上限 + base64）、
 `conversation-mirror`（存储 + origin 校验 + 有界化 + 适配器）、
 `setting`（`get` / `update` / `updateDataBaseDir` / `ensureDefaultProject` 四方法，
-含数据目录迁移）。
+含数据目录迁移）、`credential`（`load` / `save` / `delete` / `list`，AES-256-GCM +
+跨进程锁 + 坏文件隔离，见 `docs/specs/credential-store.md`）。
 
-七个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
+八个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
 TS `ServiceChannels` 的漂移守卫。**真机打开开关尚未验证**；控制帧与 `host` 频道仍归
 Node Host，scoped 帧已能本地接管（按 scope 复用服务面）。剩余域的障碍：`hooks` 的
-trust / config / digest 三件已就位，还差 discovery、写路径与 grant 转发；
-`onboarding-record` 依赖未移植的 OAuth/任务服务；`fileWatcher` 需要的 `notify` crate
-不在本机 cargo 缓存。各频道都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到壳内，适配层契约见
-`docs/specs/host-channel-adapters.md`。
+trust / config / digest 三件已就位，但 `grantWorkspaceHookTrust` 必须转发给 Agent
+authority（`mode-protocol` 客户端），壳内暂无该客户端，因此频道本体推迟到 W4 与 Agent
+控制面一起接；`onboarding-record` 依赖未移植的 OAuth/任务服务；`fileWatcher` 需要的
+`notify` crate 不在本机 cargo 缓存。各频道都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到
+壳内，适配层契约见 `docs/specs/host-channel-adapters.md`。
 
 `crates/workspace-identity` —— 路径归一 / 身份 key / SHA-256 前 12 位 hash（session 目录与
 对话镜像目录共用），见 `docs/specs/workspace-identity.md`。
@@ -127,6 +129,15 @@ trust / config / digest 三件已就位，还差 discovery、写路径与 grant 
 **与 TS 的已知差异**：无写队列（并发补丁不串行化）、无 `expectedAccountSettings`
 账号 CAS、补丁不做 schema 类型校验（非法值逐字段回落）；`setting` 频道已接管，但开启
 开关前需补齐这些差异或明确降级。
+
+**`credential` 已完成（2026-10-29）**：`crates/credential-store` 复刻 TS 的
+AES-256-GCM 密文（`enc:v1:` + base64url，三段）、`sha256(MODE_CREDENTIAL_SECRET)` 或
+`mode-credential-fallback:{platform}:{homedir}:{username}` 的密钥派生（Windows 用
+`GetUserNameW`、Unix 用 `getpwuid_r`，与 Node 对齐）、整文件 read-modify-write 的跨进程锁、
+坏文件排他备份与「禁止自动覆盖」。`pnpm credential:fixtures` 用真实 TS provider 生成密文，
+Rust 侧 6 条对拍用例全部解开；文件层 16 条、适配器 5 条。规范见
+`docs/specs/credential-store.md`。TS 注释里的「后续切 Electron safeStorage/keyring」仍未做，
+当前密钥随文件托管。
 
 **hooks 前置三件已完成（2026-10-29）**：`crates/workspace-hook-trust`（trust store
 严格解析，`deny_unknown_fields`，语法或 schema 任一不合法即整体 fail-closed）、
@@ -167,7 +178,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 1 | 设置 / 客户端配置 | ≈3.3k | 壳内 `settings` | W1 | `setting` / `client-config` / `client-scenes` 已接管 |
 | 2 | 文件 / fs / 监视 | ≈2.8k | `notify` + std | W1 | 未开始 |
 | 3 | 任务 / 会话 / 任务索引 | ≈12.2k | `rusqlite` + tokio | W1 + SQLite 迁移 | 未开始 |
-| 4 | 凭据 | 277 | `ring` + keyring | W1 | 未开始 |
+| 4 | 凭据 | 277 | `ring`（文件托管密钥） | W1 | `credential` 已接管（`crates/credential-store`） |
 | 5 | 终端旧路径 | 1,354 | 壳已有 PTY | W2 | 未开始 |
 | 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 | 未开始 |
 | 7 | provider / 模型选择 / orcarouter / bigmodel | ≈7.5k | `reqwest` + `rustls` | W1 | 未开始 |
@@ -178,7 +189,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 12 | 云账号 / 设备目录 / OAuth | ≈4k | `reqwest` + 本地密钥 | W1 | 未开始 |
 | 13 | 对话共享 / 镜像 / 遥测 | ≈5.5k | 壳内 | W3-3 | `conversation-mirror` 已接管 |
 | 14 | skills / skill-sync / mcp-sync / plugin-sync / plugins | ≈4.5k | 壳内（素材仍是 JS） | W1 | 未开始 |
-| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` 已接管；`hooks` 前置三件就绪 |
+| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` 已接管；`hooks` 前置三件就绪，频道本体因 grant 依赖 Agent authority 推迟到 W4 |
 | 16 | cua-permission-broker / cua-pip | ≈2.4k | 壳内 | 现有 helper | 未开始 |
 | 17 | 其余（media-preview、prompt-attachment-transfer、off-peak-task…） | ≈2k | 壳内 | W1 | `media-preview` / `prompt-attachment-transfer` 已接管 |
 
@@ -255,10 +266,19 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 
 ## 10. 下一步（2026-10-29 续）
 
-1. **真机验收开关**：打开 `MODE_HOST_INPROCESS_CHANNELS` 跑已接管的 7 个频道，核对回帧、
+1. **真机验收开关**：打开 `MODE_HOST_INPROCESS_CHANNELS` 跑已接管的 8 个频道，核对回帧、
    事件与错误路径；关闭开关回归 Node 路径。启动四段耗时用 `pnpm measure:host-startup` 读取。
-2. **hooks 频道本体**：discovery（`.mode` / `.agents` / `.claude` 三来源）、`saveHooks`
-   原子写路径、`grantWorkspaceHookTrust` 转 Agent authority，然后注册进开关。
-3. **W1 剩余基元**：`file` / `fs` / `paths`（含 `notify` 引入）、`credential`
-   （`ring` + keyring）、SQLite 迁移门禁（基线改由 Rust 迁移生成 + `--base-ref` 只增校验）。
+   验收凭据频道时用一份临时数据根，避免把真实 `credentials.json` 写坏。
+2. **W1 剩余基元**：`file` / `fs` / `paths`（含 `notify` 引入）、SQLite 迁移门禁
+   （基线改由 Rust 迁移生成 + `--base-ref` 只增校验）。`credential` 已落地
+   （`crates/credential-store`，AES-256-GCM + 文件托管密钥；TS 注释里的 keyring 仍是后续项）。
+3. **hooks 频道本体（阻塞在 W4）**：discovery、`saveHooks` 原子写可先做，但
+   `grantWorkspaceHookTrust` 必须转发给 Agent authority，壳内需要 `mode-protocol` 客户端；
+   与 W4 的 Agent 控制面一起接，避免壳直接写 trust store。
 4. **W3-3 任务 / 会话域**：体量最大（≈12.2k 行），依赖 SQLite 迁移先落地。
+
+**本轮发现的数据根风险（未改，先记录）**：壳的 `resolve_data_root` 在未设置
+`MODE_DATA_BASE_DIR` 时会读 `setting.json` 的 `dataBaseDir` 指针，而 `resolve_config`
+始终把「env ?? home」作为 `MODE_DATA_BASE_DIR` 传给 Node Host，后者因而忽略该指针。
+两者在「设置页改过数据目录且未设环境变量」时不指向同一棵树，所有壳内频道（含
+`credential`）都会与 Node 读写不同目录。修这条要单独对齐启动路径，不在本频道范围内。

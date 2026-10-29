@@ -18,9 +18,10 @@ use std::time::Duration;
 
 use host_channels::{
     AttachmentTransferChannel, ClientConfigChannel, ClientScenesChannel, ConversationMirrorChannel,
-    MediaPreviewChannel, MemoryChannel, SettingChannel, ATTACHMENT_TRANSFER_CHANNEL,
-    CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, CONVERSATION_MIRROR_CHANNEL,
-    MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL, SETTING_CHANNEL,
+    CredentialChannel, MediaPreviewChannel, MemoryChannel, SettingChannel,
+    ATTACHMENT_TRANSFER_CHANNEL, CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL,
+    CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
+    SETTING_CHANNEL,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
@@ -69,7 +70,8 @@ impl InprocessState {
                 | CLIENT_SCENES_CHANNEL
                 | MEDIA_PREVIEW_CHANNEL
                 | CONVERSATION_MIRROR_CHANNEL
-                | SETTING_CHANNEL => owned.push(name),
+                | SETTING_CHANNEL
+                | CREDENTIAL_CHANNEL => owned.push(name),
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
                 other => crate::host::shell_log(&format!("inprocess channel ignored (not ported yet): {other}")),
             }
@@ -264,6 +266,24 @@ fn build_server(
                         Arc::new(settings_store::SettingsService::new(paths, current_base)),
                         home,
                     )),
+                );
+            }
+            CREDENTIAL_CHANNEL => {
+                // 坏凭据文件必须留下可观察的告警：服务层日志走不了 Node 的 logger，
+                // 用壳侧结构化日志记录路径与备份名（不记录任何值）。
+                let store = credential_store::CredentialStore::new(data_root.to_path_buf())
+                    .with_corrupt_listener(Arc::new(|path, backup| {
+                        crate::host::shell_log(&format!(
+                            "credential store corrupt: path={} backup={}",
+                            path.display(),
+                            backup
+                                .map(|path| path.display().to_string())
+                                .unwrap_or_else(|| "<none>".to_string())
+                        ));
+                    }));
+                server.register_channel(
+                    CREDENTIAL_CHANNEL,
+                    Arc::new(CredentialChannel::new(Arc::new(store))),
                 );
             }
             other => crate::host::shell_log(&format!("inprocess channel not constructible: {other}")),

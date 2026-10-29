@@ -16,7 +16,12 @@ task-index 都复用它，而不是各写一份。
 write_text_atomic(path, text, &options)
 write_bytes_atomic(path, bytes, &options)
 write_json_atomic(path, &serde_json::Value, &options)
+write_private_text_atomic(path, text, &options)   // Unix 临时文件 0600
 ```
+
+`write_private_text_atomic` 对应 TS `atomicWritePrivateTextFile`：其余步骤完全相同，只在
+Unix 上以 `0600` 创建临时文件（rename 后目标就是 0600）。Windows 没有可移植的等价位。
+凭据文件用它；crate 自己负责在写之前取锁时，传 `use_file_lock=false` 避免重复加锁自旋。
 
 顺序（失败任一步都要清理本次临时文件）：
 

@@ -18,7 +18,9 @@ mod atomic;
 mod liveness;
 mod lock;
 
-pub use atomic::{write_bytes_atomic, write_json_atomic, write_text_atomic};
+pub use atomic::{
+    write_bytes_atomic, write_json_atomic, write_private_text_atomic, write_text_atomic,
+};
 pub use lock::{acquire_file_lock, FileLock};
 
 use std::path::PathBuf;

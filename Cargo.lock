@@ -733,6 +733,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "credential-store"
+version = "0.1.0"
+dependencies = [
+ "atomic-file",
+ "libc",
+ "ring",
+ "serde_json",
+ "sha2",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "crossbeam-channel"
 version = "0.5.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1745,6 +1757,7 @@ name = "host-channels"
 version = "0.1.0"
 dependencies = [
  "conversation-mirror",
+ "credential-store",
  "project-memory",
  "rpc-host",
  "rpc-wire",
@@ -2473,6 +2486,7 @@ name = "mode-tauri"
 version = "0.1.0"
 dependencies = [
  "conversation-mirror",
+ "credential-store",
  "deeplink",
  "host-channels",
  "platform",

@@ -1,7 +1,8 @@
 # Spec：壳内频道适配器（`crates/host-channels`）
 
-状态：2026-10-29。已适配七个频道：`memory`、`prompt-attachment-transfer`、
-`client-config`、`client-scenes`、`media-preview`、`conversation-mirror`、`setting`。
+状态：2026-10-29。已适配八个频道：`memory`、`prompt-attachment-transfer`、
+`client-config`、`client-scenes`、`media-preview`、`conversation-mirror`、`setting`、
+`credential`。
 范围：**RPC 方法名与参数形状**到服务调用的翻译、错误映射。服务实现本身在各自的 crate。
 
 ## 参数形状
@@ -85,6 +86,27 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
 - `updateDataBaseDir` 的禁写错误不附 `extra["code"]`；TS 会带
   `DATA_BASE_DIR_FORBIDDEN_WINDOWS_INSTALL_DIR`。
 
+## credential
+
+| 方法 | 参数 | 返回 |
+| --- | --- | --- |
+| `load` | 位置参数 `key` | JSON `"value"` 或 `null` |
+| `save` | 位置参数 `key`, `value` | `undefined` |
+| `delete` | 位置参数 `key` | `undefined` |
+| `list` | 位置参数 `prefix` | `string[]`（键名升序，不解密） |
+
+四个方法都是同步文件 IO（锁可能等待），统一丢进 `spawn_blocking`。文件层、密文格式与
+密钥派生见 `credential-store.md`。
+
+**与 TS 的已知差异**：
+
+- 解密失败同时带 `code = MODE_CREDENTIAL_DECRYPT_FAILED` 与「凭据解密失败：」消息前缀，
+  渲染层两种识别方式都能命中。
+- 键校验失败的文案是固定英文，不是 zod 文案（非契约）。
+- Host 私有的 `onDidMutate`（`onProviderProvisioningSourceChanged`）当前**没有调用方**
+  （`packages/services/src/node.ts` 的选项未接线），壳内不转发；接回该通知时要同时补桥接。
+- 文件按字典序写回（`serde_json` 默认 Map），语义等价。
+
 ## 与路由的约定
 
 - 适配器只被壳内 `ChannelServer` 调用（`inprocess.rs`）；base scope 与
@@ -104,6 +126,8 @@ Rust 适配器如实复制这个分支，**不实现网络路径**。若官方�
 - `tests/conversation_mirror_channel.rs`（2 条）：身份与两条 origin 规则、读取回环。
 - `tests/setting_channel.rs`（3 条）：默认值读取 + 补丁落盘、默认项目只建一次、
   数据目录迁移写指针。
+- `tests/credential_channel.rs`（5 条）：save/load（含 null）/delete/list 往返、缺参报错、
+  解密错误的 code 与消息前缀、坏文件不被覆盖、未知方法报错。
 - `tests/channel_names.rs`（漂移守卫）：频道名与 TS `ServiceChannels` 一致。
 - `tests/pipeline.rs`（3 条）：真 RPC 帧 → 路由 → `ChannelServer` → 回帧；`base_scope_only`
   路由把 scoped 帧留给 Node Host；未知方法回 `PromiseError`。
