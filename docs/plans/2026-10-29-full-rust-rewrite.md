@@ -84,6 +84,11 @@ settings、data-root、paths、credential（`ring` + 系统钥匙串）、fs/fil
 SQLite（任务库、会话库、迁移）、日志、进程管理（spawn/kill/taskkill 语义）、storage
 （磁盘用量）、system（环境/OS 信息）、media-preview。
 
+**已完成（2026-10-29）**：`crates/atomic-file` —— 原子写（临时文件 + rename + 退避重试 +
+过期临时文件清理）与跨进程文件锁（目录 CAS + owner 文件 + 死进程/无主锁回收 + 超时），
+对应 `docs/specs/atomic-file.md`，8 条用例（含 6 线程并发写不产生半截）。它是 settings /
+credential / task-index 的共同前置。
+
 **SQLite 迁移的额外约束**：迁移从 TS 翻到 Rust 时，`docs/specs/sqlite-schema-gate.md`
 的基线必须改由 Rust 迁移生成，并用 `--base-ref` 证明与 TS 时代基线只增不减；否则已安装
 用户升级即坏库。
@@ -197,6 +202,8 @@ remote scope、流控（`saturated`/`drained`）逐项对拍。完成后 `stdioF
 ## 10. 下一步（本轮之后立即执行）
 
 1. W0 协议层：13 字节头 + stdio 4 字节前缀的 Rust 编解码与黄金对拍。
-2. W0 壳内接线：Tauri 桥读写 + 启动期开关 + 回滚；启动基线在下一次启动后用 `pnpm measure:host-startup` 读。
+2. W1-1 settings：先在 `crates/atomic-file` 之上做 `setting.json` 的读写与 schema 校验，
+   再用它做第一个本地频道并接上 W0 的路由开关；启动基线在下一次启动后用
+   `pnpm measure:host-startup` 读。
 3. W0 壳内 ChannelServer（纯库 + 假频道测试）。
 4. W1 第一个基元：settings（壳已在读 `settings.json`，切口最小）。

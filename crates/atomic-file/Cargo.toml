@@ -1,0 +1,19 @@
+[package]
+name = "atomic-file"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "原子写文件 + 跨进程锁（对应 packages/services/src/fs/atomicFileUtils.ts 与 shared/node/atomicFileLock.ts）"
+
+[lib]
+name = "atomic_file"
+path = "src/lib.rs"
+
+[dependencies]
+serde_json.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
