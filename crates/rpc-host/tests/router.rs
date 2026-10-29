@@ -108,3 +108,21 @@ fn ownership_is_fixed_at_construction() {
     assert!(!router.owns("file"));
     assert_eq!(router.owned_channels().count(), 1);
 }
+
+#[test]
+fn base_scope_only_router_forwards_scoped_owned_requests() {
+    let inner = promise(8, "setting", "get");
+    let scoped = encode_scoped_frame(3, &inner).unwrap();
+    assert!(
+        matches!(
+            FrameRouter::new(["setting"]).route(&scoped),
+            FrameRoute::Local { scope_id: Some(3), .. }
+        ),
+        "默认 router 允许接管 scoped 帧"
+    );
+    assert_eq!(
+        FrameRouter::base_scope_only(["setting"]).route(&scoped),
+        FrameRoute::Legacy,
+        "只服务 base scope 的 router 必须把 scoped 帧留给 Node Host"
+    );
+}

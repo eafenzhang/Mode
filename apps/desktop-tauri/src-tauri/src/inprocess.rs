@@ -61,7 +61,7 @@ impl InprocessState {
             }
         }
         let enabled = !owned.is_empty();
-        let router = FrameRouter::new(owned.iter().cloned());
+        let router = FrameRouter::base_scope_only(owned.iter().cloned());
         let (local_tx, local_rx) = unbounded_channel::<Vec<u8>>();
 
         if enabled {

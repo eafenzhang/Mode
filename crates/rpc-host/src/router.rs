@@ -32,12 +32,24 @@ pub enum FrameRoute {
 
 pub struct FrameRouter {
     owned: HashSet<String>,
+    /// 是否允许接管带 scope 前缀的帧。壳内服务面目前只服务 base scope：本地回帧不会
+    /// 重新加 scope 前缀，接管 scoped 帧会让响应错投（被当成 base 帧）。
+    allow_scoped: bool,
 }
 
 impl FrameRouter {
     pub fn new(owned: impl IntoIterator<Item = impl Into<String>>) -> Self {
         Self {
             owned: owned.into_iter().map(Into::into).collect(),
+            allow_scoped: true,
+        }
+    }
+
+    /// 只接管 base scope 的帧；scoped 帧即使频道已移植也转发给 Node Host。
+    pub fn base_scope_only(owned: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        Self {
+            allow_scoped: false,
+            ..Self::new(owned)
         }
     }
 
@@ -67,11 +79,15 @@ impl FrameRouter {
 
         match decode_rpc_frame(payload) {
             Ok(RpcFrame::Request(request)) => match request.header.channel() {
-                Some(channel) if self.owned.contains(channel) => FrameRoute::Local {
-                    scope_id,
-                    request,
-                    payload: payload.to_vec(),
-                },
+                Some(channel)
+                    if self.owned.contains(channel) && (scope_id.is_none() || self.allow_scoped) =>
+                {
+                    FrameRoute::Local {
+                        scope_id,
+                        request,
+                        payload: payload.to_vec(),
+                    }
+                }
                 // 本地不认识的请求（含 cancel/dispose）交给遗留 Host：那里知道 id 对应什么。
                 _ => FrameRoute::Legacy,
             },

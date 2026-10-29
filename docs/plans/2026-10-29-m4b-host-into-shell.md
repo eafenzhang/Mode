@@ -149,8 +149,14 @@ bytes ──► FrameRouter::route
 `host_send` 按 `FrameRouter` 分四路：Local 投给消费任务（独占 `ChannelServer`，按 Host 代
 重建）、Dropped 丢弃、Control/Legacy 原样转发。本地回帧经 `push_local_frame` 进同一条
 入方向队列。开关为空时 `decide` 恒为 Forward，转发路径与接线前逐字节一致。
-**尚未做**：真机打开开关跑一遍（本轮只做编译与单元验收）；Control 帧仍归 Node Host；
-`host`/`setting` 频道未接管。
+**scope 限制（2026-10-29 补）**：壳内服务面只接管 **base scope** 的帧。本地回帧不会
+重新加 scope 前缀，接管 scoped 帧会让响应被当成 base 帧错投；`FrameRouter::base_scope_only`
+把 scoped 帧留给 Node Host（`allow_scoped` 是构造期策略，已有用例覆盖）。
+端到端管线（真帧 → 路由 → ChannelServer → 回帧、未知方法错误帧、scoped 转发）在
+`crates/host-channels/tests/pipeline.rs` 有 3 条用例。
+
+**尚未做**：真机打开开关跑一遍（本轮只做编译、单元与管线验收）；Control 帧仍归 Node Host；
+`host`/`setting` 频道未接管；scoped 帧不支持本地接管。
 
 **先接的频道（2026-10-29 二次更正）**：**不能用 `host` 诊断面**——渲染层的半开管道心跳
 走 `host.ping`（spec §22.5），搬进壳等于让看门狗测壳自己，Node Host 停摆就发现不了。
