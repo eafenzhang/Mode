@@ -2479,6 +2479,7 @@ dependencies = [
  "project-memory",
  "protocol",
  "rpc-host",
+ "rpc-wire",
  "serde",
  "serde_json",
  "settings-store",

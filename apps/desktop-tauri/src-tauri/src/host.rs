@@ -430,8 +430,8 @@ pub fn host_send(
     };
     // 开关为空时 `decide` 恒为 Forward，下面的转发路径与接线前逐字节相同。
     match inprocess.decide(&bytes) {
-        RouteDecision::Local(payload) => {
-            inprocess.dispatch(payload);
+        RouteDecision::Local { scope_id, payload } => {
+            inprocess.dispatch(scope_id, payload);
             Ok(())
         }
         RouteDecision::Dropped => Ok(()),

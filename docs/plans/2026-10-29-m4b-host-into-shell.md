@@ -150,9 +150,12 @@ bytes ──► FrameRouter::route
 `host_send` 按 `FrameRouter` 分四路：Local 投给消费任务（独占 `ChannelServer`，按 Host 代
 重建）、Dropped 丢弃、Control/Legacy 原样转发。本地回帧经 `push_local_frame` 进同一条
 入方向队列。开关为空时 `decide` 恒为 Forward，转发路径与接线前逐字节一致。
-**scope 限制（2026-10-29 补）**：壳内服务面只接管 **base scope** 的帧。本地回帧不会
-重新加 scope 前缀，接管 scoped 帧会让响应被当成 base 帧错投；`FrameRouter::base_scope_only`
-把 scoped 帧留给 Node Host（`allow_scoped` 是构造期策略，已有用例覆盖）。
+**scope 支持（2026-10-29 更新）**：壳内服务面已支持按 scope 复用服务面——控制帧
+`scope-ready` / `scope-detach` 仍转发给 Node（未移植频道的生命周期归它），同时登记到
+`LocalScopeRegistry`；消费任务为每个挂接的 scope 惰性建独立 `ChannelServer`，回帧经
+`encode_scoped_frame` 加 `0xFF + scopeId` 前缀；Host 换代时 base 与所有 scope 一起
+`dispose`。若某个 scope 出站包装失败，走 `host::shell_log` 留痕。
+`FrameRouter::base_scope_only` 仍保留给「只想接 base」的场景。
 端到端管线（真帧 → 路由 → ChannelServer → 回帧、未知方法错误帧、scoped 转发）在
 `crates/host-channels/tests/pipeline.rs` 有 3 条用例。
 

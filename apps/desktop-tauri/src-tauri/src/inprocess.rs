@@ -23,7 +23,7 @@ use host_channels::{
     MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL, SETTING_CHANNEL,
 };
 use project_memory::ProjectMemoryService;
-use rpc_host::{ChannelServer, FrameRoute, FrameRouter};
+use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 use crate::host::HostSupervisor;
@@ -32,8 +32,8 @@ const ENV_CHANNELS: &str = "MODE_HOST_INPROCESS_CHANNELS";
 
 /// 一帧的去向。
 pub enum RouteDecision {
-    /// 本地服务面处理；带上剥掉 scope 前缀后的原始 payload。
-    Local(Vec<u8>),
+    /// 本地服务面处理；带上剥掉 scope 前缀后的原始 payload 与所属 scope。
+    Local { scope_id: Option<u32>, payload: Vec<u8> },
     /// 已判定为不可处理（畸形帧/非请求）：丢弃，不回帧也不转发。
     Dropped,
     /// 交给遗留 Node Host（逐字节转发）。
@@ -42,8 +42,11 @@ pub enum RouteDecision {
 
 pub struct InprocessState {
     router: FrameRouter,
-    local_tx: UnboundedSender<Vec<u8>>,
+    local_tx: UnboundedSender<(Option<u32>, Vec<u8>)>,
     enabled: bool,
+    /// 页面桥声明挂接/回收的 remote scope。服务面目前只接管 base scope；这张表先如实
+    /// 记录，供下一步按 scope 复用 `ChannelServer` 与回帧加前缀时使用。
+    scopes: std::sync::Mutex<LocalScopeRegistry>,
 }
 
 impl InprocessState {
@@ -72,8 +75,8 @@ impl InprocessState {
             }
         }
         let enabled = !owned.is_empty();
-        let router = FrameRouter::base_scope_only(owned.iter().cloned());
-        let (local_tx, local_rx) = unbounded_channel::<Vec<u8>>();
+        let router = FrameRouter::new(owned.iter().cloned());
+        let (local_tx, local_rx) = unbounded_channel::<(Option<u32>, Vec<u8>)>();
 
         if enabled {
             let (out_tx, mut out_rx) = unbounded_channel::<Vec<u8>>();
@@ -115,6 +118,7 @@ impl InprocessState {
             router,
             local_tx,
             enabled,
+            scopes: std::sync::Mutex::new(LocalScopeRegistry::new()),
         })
     }
 
@@ -123,14 +127,31 @@ impl InprocessState {
             return RouteDecision::Forward;
         }
         match self.router.route(frame) {
-            FrameRoute::Local { payload, .. } => RouteDecision::Local(payload),
+            FrameRoute::Local {
+                payload, scope_id, ..
+            } => RouteDecision::Local { scope_id, payload },
             FrameRoute::Rejected => RouteDecision::Dropped,
-            FrameRoute::Control(_) | FrameRoute::Legacy => RouteDecision::Forward,
+            FrameRoute::Control(control) => {
+                // 控制帧仍要转发给 Node（未移植频道的 scope 生命周期归它），
+                // 这里先把挂接状态同步到壳内登记表。
+                if let Ok(mut scopes) = self.scopes.lock() {
+                    match control {
+                        rpc_wire::AttachmentControl::ScopeReady(scope_id) => {
+                            scopes.attach(scope_id);
+                        }
+                        rpc_wire::AttachmentControl::ScopeDetach(scope_id) => {
+                            scopes.detach(scope_id);
+                        }
+                    }
+                }
+                RouteDecision::Forward
+            }
+            FrameRoute::Legacy => RouteDecision::Forward,
         }
     }
 
-    pub fn dispatch(&self, payload: Vec<u8>) {
-        if self.local_tx.send(payload).is_err() {
+    pub fn dispatch(&self, scope_id: Option<u32>, payload: Vec<u8>) {
+        if self.local_tx.send((scope_id, payload)).is_err() {
             crate::host::shell_log("inprocess consumer is gone; frame dropped");
         }
     }
@@ -140,22 +161,57 @@ async fn run_consumer(
     supervisor: Arc<HostSupervisor>,
     owned: Vec<String>,
     data_root: PathBuf,
-    mut rx: UnboundedReceiver<Vec<u8>>,
+    mut rx: UnboundedReceiver<(Option<u32>, Vec<u8>)>,
     out_tx: UnboundedSender<Vec<u8>>,
 ) {
     let mut generation = supervisor.current().startup_id().to_string();
-    let mut server = build_server(out_tx.clone(), &owned, &data_root);
-    while let Some(payload) = rx.recv().await {
+    let mut base = build_server(out_tx.clone(), &owned, &data_root);
+    let mut scoped: std::collections::HashMap<u32, ChannelServer> = std::collections::HashMap::new();
+    while let Some((scope_id, payload)) = rx.recv().await {
         let current = supervisor.current().startup_id().to_string();
         if current != generation {
-            // 换代：对端 id 空间从 0 重新计数，旧 active 请求/订阅必须全部释放。
-            server.dispose();
-            server = build_server(out_tx.clone(), &owned, &data_root);
+            // 换代：对端 id 空间从 0 重新计数，base 与各 scope 的 active 请求都必须释放。
+            base.dispose();
+            for (_, mut server) in scoped.drain() {
+                server.dispose();
+            }
+            base = build_server(out_tx.clone(), &owned, &data_root);
             generation = current;
         }
-        server.handle_frame(&payload);
+        match scope_id {
+            None => base.handle_frame(&payload),
+            Some(scope) => {
+                let server = scoped
+                    .entry(scope)
+                    .or_insert_with(|| build_server(scoped_out(&out_tx, scope), &owned, &data_root));
+                server.handle_frame(&payload);
+            }
+        }
     }
-    server.dispose();
+    base.dispose();
+    for (_, mut server) in scoped.drain() {
+        server.dispose();
+    }
+}
+
+/// 每个 remote scope 一个出站包装：回帧必须带 `0xFF + scopeId` 前缀，
+/// 否则对端会当成 base 帧错投。
+fn scoped_out(out: &UnboundedSender<Vec<u8>>, scope_id: u32) -> UnboundedSender<Vec<u8>> {
+    let (tx, mut rx) = unbounded_channel::<Vec<u8>>();
+    let out = out.clone();
+    tauri::async_runtime::spawn(async move {
+        while let Some(payload) = rx.recv().await {
+            match rpc_wire::scope::encode_scoped_frame(scope_id, &payload) {
+                Ok(frame) => {
+                    let _ = out.send(frame);
+                }
+                Err(error) => crate::host::shell_log(&format!(
+                    "inprocess scope wrap failed scope={scope_id}: {error:?}"
+                )),
+            }
+        }
+    });
+    tx
 }
 
 fn build_server(

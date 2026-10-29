@@ -5,10 +5,12 @@
 
 mod channel;
 mod router;
+mod scope_registry;
 mod server;
 
 pub use channel::{
     BoxFuture, CancellationToken, ChannelError, EventCallback, ServerChannel, Subscription,
 };
 pub use router::{FrameRoute, FrameRouter};
+pub use scope_registry::LocalScopeRegistry;
 pub use server::ChannelServer;

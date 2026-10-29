@@ -68,6 +68,7 @@ protocol = { path = "../../../crates/protocol" }
 conversation-mirror = { path = "../../../crates/conversation-mirror" }
 host-channels = { path = "../../../crates/host-channels" }
 rpc-host = { path = "../../../crates/rpc-host" }
+rpc-wire = { path = "../../../crates/rpc-wire" }
 project-memory = { path = "../../../crates/project-memory" }
 settings-store = { path = "../../../crates/settings-store" }
 updater = { path = "../../../crates/updater" }
