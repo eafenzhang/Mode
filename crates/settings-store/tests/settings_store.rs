@@ -153,3 +153,64 @@ fn ensure_default_project_is_idempotent() {
     assert!(!second.created, "已存在时应报告 created=false");
     assert_eq!(second.path, first.path);
 }
+
+#[test]
+fn copy_data_directory_skips_setting_json_and_refuses_overwrite() {
+    let old_base = unique_home("copy-old");
+    let new_base = unique_home("copy-new");
+    let v2 = old_base.join(".mode/v2");
+    fs::create_dir_all(v2.join("nested")).expect("建源目录");
+    fs::write(v2.join("keep.json"), "{}").expect("写文件");
+    fs::write(v2.join("nested/deep.txt"), "x").expect("写嵌套文件");
+    fs::write(v2.join("setting.json"), "{}").expect("写 setting");
+    fs::write(v2.join("setting.json.lock"), "x").expect("写锁");
+    fs::write(v2.join("setting.json.1.tmp"), "x").expect("写临时文件");
+
+    settings_store::copy_data_directory(&old_base, &new_base).expect("复制成功");
+    let copied = new_base.join(".mode/v2");
+    assert!(copied.join("keep.json").is_file());
+    assert!(copied.join("nested/deep.txt").is_file());
+    assert!(!copied.join("setting.json").exists());
+    assert!(!copied.join("setting.json.lock").exists());
+    assert!(!copied.join("setting.json.1.tmp").exists());
+
+    fs::write(copied.join("keep.json"), "conflict").expect("造冲突");
+    assert!(
+        settings_store::copy_data_directory(&old_base, &new_base).is_err(),
+        "已存在的目标文件不能被覆盖"
+    );
+}
+
+#[test]
+fn windows_install_dir_validation_rejects_inside_paths() {
+    let forbidden = PathBuf::from("C:/Program Files/Mode");
+    assert!(
+        settings_store::validate_data_base_dir_target(
+            &PathBuf::from("C:/Program Files/Mode/data"),
+            std::slice::from_ref(&forbidden),
+            true
+        )
+        .is_err()
+    );
+    assert!(
+        settings_store::validate_data_base_dir_target(
+            &PathBuf::from("D:/ModeData"),
+            std::slice::from_ref(&forbidden),
+            true
+        )
+        .is_ok()
+    );
+    assert!(
+        settings_store::validate_data_base_dir_target(
+            &PathBuf::from("C:/Program Files/Mode/data"),
+            std::slice::from_ref(&forbidden),
+            false
+        )
+        .is_ok(),
+        "非 Windows 不启用该限制"
+    );
+    assert!(settings_store::is_path_equal_or_inside(
+        &PathBuf::from(r"C:\Program Files\Mode\data"),
+        &forbidden
+    ));
+}
