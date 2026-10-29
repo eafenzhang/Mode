@@ -100,6 +100,9 @@ credential / task-index 的共同前置。
 `media-preview`（本地 inline：扩展名/kind 校验 + 8 MiB 上限 + base64）。两者都经 `MODE_HOST_INPROCESS_CHANNELS` 可切到壳内，
 适配层契约见 `docs/specs/host-channel-adapters.md`。
 
+`crates/workspace-identity` —— 路径归一 / 身份 key / SHA-256 前 12 位 hash（session 目录与
+对话镜像目录共用），见 `docs/specs/workspace-identity.md`。
+
 `crates/device-mid` —— 设备身份 `telemetry-state.json`（锁内生成 UUID v4、保留未知字段、
 原子写回），`conversation-mirror` / onboarding / 遥测的共同前置，见
 `docs/specs/device-mid.md`。

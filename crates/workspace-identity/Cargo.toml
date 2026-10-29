@@ -1,0 +1,13 @@
+[package]
+name = "workspace-identity"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "workspaceIdentity 归一与 workspaceKey/hash（对应 shared/remote-workspace-identity.ts 与 services/paths.ts）"
+
+[lib]
+name = "workspace_identity"
+path = "src/lib.rs"
+
+[dependencies]
+sha2.workspace = true
