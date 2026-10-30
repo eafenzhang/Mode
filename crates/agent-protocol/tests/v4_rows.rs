@@ -246,3 +246,129 @@ fn artifact_and_subagent_rows_round_trip() {
     assert_eq!(row.summary_text, "完成");
     assert!(row.backgrounded.is_some());
 }
+
+#[test]
+fn hook_invocation_round_trips_with_execution_projection() {
+    use agent_protocol::v4_rows::{HookInvocationRow, HookProjectionSourceKind};
+
+    let value = json!({
+        "rowId": 9,
+        "turnId": "turn-1",
+        "createdAt": 1700000000000u64,
+        "createdAtSeq": 11,
+        "kind": "hookInvocation",
+        "hookInvocationId": "hook-1",
+        "hookEventName": "PreToolUse",
+        "hookCount": 1,
+        "state": "completed",
+        "startedAt": 1700000000001u64,
+        "endedAt": 1700000000002u64,
+        "durationMs": 1000,
+        "lane": "toolBefore",
+        "anchorToolCallId": "call-1",
+        "executions": [{
+            "hookRunId": "run-1",
+            "hookIndex": 0,
+            "didExecute": true,
+            "state": "completed",
+            "outcome": "success",
+            "startedAt": 1700000000001u64,
+            "endedAt": 1700000000002u64,
+            "durationMs": 1000,
+            "displayName": "demo hook",
+            "sourceKind": "plugin",
+            "pluginName": "demo-plugin",
+            "toolName": "Bash"
+        }]
+    });
+    let row: HookInvocationRow = round_trip(&value);
+    assert_eq!(row.executions.len(), 1);
+    assert_eq!(
+        row.executions[0].source_kind,
+        HookProjectionSourceKind::Plugin
+    );
+}
+
+#[test]
+fn timeline_marker_payloads_round_trip() {
+    use agent_protocol::v4_rows::{TimelineMarkerPayload, TimelineMarkerRow};
+
+    let cases = [
+        json!({ "type": "compact", "origin": "auto", "status": "success", "tokensBefore": 10, "tokensAfter": 4 }),
+        json!({ "type": "forkNotice", "parentSessionId": "sess-parent", "parentRowId": 1 }),
+        json!({ "type": "forkCreated", "childSessionId": "sess-child", "atRowId": 2 }),
+        json!({ "type": "modelChange", "fromProvider": "zai", "fromModel": "glm-4", "toProvider": "zai", "toModel": "glm-4.6", "toThought": "high" }),
+        json!({ "type": "modelChange", "toProvider": "zai", "toModel": "glm-4.6", "toThought": "high" }),
+        json!({ "type": "goalSet", "objective": "完成目标", "previousObjective": "旧目标" }),
+        json!({ "type": "goalVerify", "iteration": 1, "outcome": "pass" }),
+        json!({ "type": "retryNotice", "attempt": 2, "reasonCode": "rate_limit" }),
+        json!({ "type": "checkpointRestored", "checkpointId": "cp-1" }),
+    ];
+    for marker in cases {
+        let payload: TimelineMarkerPayload =
+            serde_json::from_value(marker.clone()).unwrap_or_else(|error| {
+                panic!("解不开 marker {marker}: {error}")
+            });
+        assert_eq!(serde_json::to_value(&payload).unwrap(), marker);
+    }
+
+    let row: TimelineMarkerRow = round_trip(&json!({
+        "rowId": 10,
+        "turnId": "turn-1",
+        "createdAt": 1700000000000u64,
+        "createdAtSeq": 12,
+        "kind": "timelineMarker",
+        "sourceCommandId": "cmd-1",
+        "lane": "lightBoundary",
+        "marker": { "type": "modelChange", "toProvider": "zai", "toModel": "glm-4.6", "toThought": "high" }
+    }));
+    assert!(row.lane.is_some());
+}
+
+#[test]
+fn conversation_row_union_parses_each_kind() {
+    use agent_protocol::v4_rows::ConversationRow;
+
+    let base = |row_id: u64, kind: &str| {
+        json!({
+            "rowId": row_id,
+            "turnId": "turn-1",
+            "createdAt": 1700000000000u64,
+            "createdAtSeq": row_id,
+            "kind": kind
+        })
+    };
+    let rows = [
+        json!({ "rowId": 1, "turnId": "turn-1", "createdAt": 1, "createdAtSeq": 1, "kind": "turnHeader", "origin": "userInput", "state": "running", "startedAt": 1 }),
+        json!({ "rowId": 2, "turnId": "turn-1", "createdAt": 1, "createdAtSeq": 2, "kind": "userInput", "text": "hi", "origin": "realUser" }),
+        json!({ "rowId": 3, "turnId": "turn-1", "createdAt": 1, "createdAtSeq": 3, "kind": "assistantText", "text": "yo", "state": "complete" }),
+        json!({ "rowId": 4, "turnId": "turn-1", "createdAt": 1, "createdAtSeq": 4, "kind": "reasoning", "text": "think", "state": "complete" }),
+        json!({ "rowId": 5, "turnId": "turn-1", "createdAt": 1, "createdAtSeq": 5, "kind": "toolCall", "toolCallId": "c", "toolName": "Bash", "status": "running", "inputText": "" }),
+        json!({ "rowId": 6, "turnId": "turn-1", "createdAt": 1, "createdAtSeq": 6, "kind": "artifact", "artifactVersionId": "v", "logicalArtifactKey": "k", "displayName": "n", "artifactType": "pdf", "mimeType": "application/pdf", "sizeBytes": 1, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "ref": "r", "state": "current" }),
+        json!({ "rowId": 7, "turnId": "turn-1", "createdAt": 1, "createdAtSeq": 7, "kind": "subagent", "subagentType": "explore", "status": "running", "summaryText": "" }),
+        json!({ "rowId": 8, "turnId": "turn-1", "createdAt": 1, "createdAtSeq": 8, "kind": "hookInvocation", "hookInvocationId": "h", "hookEventName": "Stop", "hookCount": 1, "state": "running", "startedAt": 1, "lane": "assistantWork", "executions": [] }),
+        { let mut row = base(9, "timelineMarker"); row["marker"] = json!({ "type": "checkpointRestored", "checkpointId": "cp" }); row },
+    ];
+
+    let mut kinds = Vec::new();
+    for row in rows {
+        let parsed: ConversationRow = serde_json::from_value(row.clone())
+            .unwrap_or_else(|error| panic!("解不开行 {row}: {error}"));
+        let label = match &parsed {
+            ConversationRow::TurnHeader(_) => "turnHeader",
+            ConversationRow::UserInput(_) => "userInput",
+            ConversationRow::AssistantText(_) => "assistantText",
+            ConversationRow::Reasoning(_) => "reasoning",
+            ConversationRow::ToolCall(_) => "toolCall",
+            ConversationRow::Artifact(_) => "artifact",
+            ConversationRow::Subagent(_) => "subagent",
+            ConversationRow::HookInvocation(_) => "hookInvocation",
+            ConversationRow::TimelineMarker(_) => "timelineMarker",
+        };
+        assert_eq!(label, row["kind"]);
+        kinds.push(label);
+    }
+    kinds.sort_unstable();
+    kinds.dedup();
+    assert_eq!(kinds.len(), 9);
+}

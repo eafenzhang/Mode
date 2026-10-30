@@ -235,10 +235,16 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
   这里保持原始 JSON。
 - `artifact`：版本/逻辑键/展示名/类型（8 值）/mime/字节数/sha256/ref/state。
 - `subagent`：父 toolCall、类型、状态四值、summary、childSessionId、后台归属。
+- `hookInvocation`：hook 事件名（7 值）、lane（assistantWork/toolBefore/toolAfter）、
+  执行投影（hookRunId/hookIndex/didExecute/state/outcome/blockReason/起止与耗时/sourceKind）。
+- `timelineMarker`：9 种 payload——compact（origin/status/tokens/summaryRef）、
+  forkNotice/forkCreated、modelChange（有来源 / 显式 ∅→X 两种形态）、goalSet、goalVerify、
+  retryNotice、checkpointRestored。
+- `ConversationRow`：上述 9 种行的 untagged 判别联合（各分支自带 `kind` 字面量）。
 - 行动作 `canFork/canEdit/canRetry/canRewindFiles` 用 `LiteralTrue` 保持「只发 true」的形状。
 
-**未做**：`hookInvocation` / `timelineMarker` 与行联合 `ConversationRow`、
-`conversationSnapshot` / `conversationDelta`。
+**未做**：`conversationSnapshot` / `conversationDelta` 与工具 display 的强类型
+（`toolCall.display` 仍按原始 JSON）。
 
 ## 3. 验收
 
@@ -271,3 +277,5 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
 14. v4 行（第一批）：四种行 JSON round-trip；未知键按 zod 的 strip 语义被忽略。
 15. v4 行（第二批）：toolCall（output/progress/outputPreview）、artifact、subagent 各自
     round-trip。
+16. v4 行（第三批）：hookInvocation 与 execution 投影、timelineMarker 的 9 种 payload、
+    `ConversationRow` 联合对 9 种 kind 的解析。

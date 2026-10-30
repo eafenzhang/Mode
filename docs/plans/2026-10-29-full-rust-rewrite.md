@@ -290,6 +290,8 @@ turnHeader/userInput/assistantText/reasoning，未知键按 zod strip 语义忽�
 `workflowNotification`/`display`/`amend` 暂按原始 JSON（4 条 round-trip 测试）。
 **v4 会话行第二批已落**：`toolCall`（output/progress/outputPreview/cuaApp）、`artifact`、
 `subagent`（2 条 round-trip 测试）。
+**v4 会话行第三批已落**：`hookInvocation`（执行投影）、`timelineMarker`（9 种 payload）
+与 `ConversationRow` 联合（3 条 round-trip/联合测试）。
 **存储启动门已落**：
 state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`prepareStorage` 等待、
 `getStorageStartupState` existing-only 快照与订阅、进程代次递增；9 条测试。

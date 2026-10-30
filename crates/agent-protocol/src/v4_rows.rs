@@ -571,3 +571,355 @@ pub struct SubagentRow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ended_at: Option<Number>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HookProjectionSourceKind {
+    #[serde(rename = "user")]
+    User,
+    #[serde(rename = "plugin")]
+    Plugin,
+    #[serde(rename = "project")]
+    Project,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HookExecutionState {
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "failed")]
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HookExecutionOutcome {
+    #[serde(rename = "success")]
+    Success,
+    #[serde(rename = "blocked")]
+    Blocked,
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    #[serde(rename = "timed_out")]
+    TimedOut,
+}
+
+/// `hookExecutionProjectionSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookExecutionProjection {
+    pub hook_run_id: String,
+    pub hook_index: u64,
+    pub did_execute: bool,
+    pub state: HookExecutionState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<HookExecutionOutcome>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_reason: Option<String>,
+    pub started_at: Number,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended_at: Option<Number>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<Number>,
+    pub display_name: String,
+    pub source_kind: HookProjectionSourceKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HookEventName {
+    #[serde(rename = "SessionStart")]
+    SessionStart,
+    #[serde(rename = "UserPromptSubmit")]
+    UserPromptSubmit,
+    #[serde(rename = "PreToolUse")]
+    PreToolUse,
+    #[serde(rename = "PermissionRequest")]
+    PermissionRequest,
+    #[serde(rename = "PostToolUse")]
+    PostToolUse,
+    #[serde(rename = "PostToolUseFailure")]
+    PostToolUseFailure,
+    #[serde(rename = "Stop")]
+    Stop,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HookLane {
+    #[serde(rename = "assistantWork")]
+    AssistantWork,
+    #[serde(rename = "toolBefore")]
+    ToolBefore,
+    #[serde(rename = "toolAfter")]
+    ToolAfter,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HookInvocationRowKind {
+    #[serde(rename = "hookInvocation")]
+    HookInvocation,
+}
+
+/// `hookInvocationRowSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookInvocationRow {
+    #[serde(flatten)]
+    pub base: RowBase,
+    pub kind: HookInvocationRowKind,
+    pub hook_invocation_id: String,
+    pub hook_event_name: HookEventName,
+    pub hook_count: u64,
+    pub state: HookExecutionState,
+    pub started_at: Number,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended_at: Option<Number>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<Number>,
+    pub lane: HookLane,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor_tool_call_id: Option<String>,
+    pub executions: Vec<HookExecutionProjection>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TimelineMarkerLane {
+    #[serde(rename = "assistantWork")]
+    AssistantWork,
+    #[serde(rename = "turnTailBoundary")]
+    TurnTailBoundary,
+    #[serde(rename = "lightBoundary")]
+    LightBoundary,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CompactOrigin {
+    #[serde(rename = "manual")]
+    Manual,
+    #[serde(rename = "auto")]
+    Auto,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CompactStatus {
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "success")]
+    Success,
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "noop")]
+    Noop,
+    #[serde(rename = "cancelled")]
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CompactType {
+    #[serde(rename = "compact")]
+    Compact,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompactMarker {
+    #[serde(rename = "type")]
+    pub marker_type: CompactType,
+    pub origin: CompactOrigin,
+    pub status: CompactStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tokens_before: Option<Number>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tokens_after: Option<Number>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ForkNoticeType {
+    #[serde(rename = "forkNotice")]
+    ForkNotice,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForkNoticeMarker {
+    #[serde(rename = "type")]
+    pub marker_type: ForkNoticeType,
+    pub parent_session_id: String,
+    pub parent_row_id: Number,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ForkCreatedType {
+    #[serde(rename = "forkCreated")]
+    ForkCreated,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForkCreatedMarker {
+    #[serde(rename = "type")]
+    pub marker_type: ForkCreatedType,
+    pub child_session_id: String,
+    pub at_row_id: Number,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelChangeType {
+    #[serde(rename = "modelChange")]
+    ModelChange,
+}
+
+/// `modelChange` 的「有来源」形态。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelChangeWithFromMarker {
+    #[serde(rename = "type")]
+    pub marker_type: ModelChangeType,
+    pub from_provider: String,
+    pub from_model: String,
+    pub to_provider: String,
+    pub to_model: String,
+    pub to_thought: String,
+}
+
+/// `modelChange` 的「显式 ∅→X」形态（无 from 字段）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelChangeToOnlyMarker {
+    #[serde(rename = "type")]
+    pub marker_type: ModelChangeType,
+    pub to_provider: String,
+    pub to_model: String,
+    pub to_thought: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GoalSetType {
+    #[serde(rename = "goalSet")]
+    GoalSet,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoalSetMarker {
+    #[serde(rename = "type")]
+    pub marker_type: GoalSetType,
+    pub objective: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_objective: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GoalVerifyOutcome {
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "pass")]
+    Pass,
+    #[serde(rename = "notSatisfied")]
+    NotSatisfied,
+    #[serde(rename = "failed")]
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GoalVerifyType {
+    #[serde(rename = "goalVerify")]
+    GoalVerify,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoalVerifyMarker {
+    #[serde(rename = "type")]
+    pub marker_type: GoalVerifyType,
+    pub iteration: Number,
+    pub outcome: GoalVerifyOutcome,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RetryNoticeType {
+    #[serde(rename = "retryNotice")]
+    RetryNotice,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RetryNoticeMarker {
+    #[serde(rename = "type")]
+    pub marker_type: RetryNoticeType,
+    pub attempt: Number,
+    pub reason_code: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CheckpointRestoredType {
+    #[serde(rename = "checkpointRestored")]
+    CheckpointRestored,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckpointRestoredMarker {
+    #[serde(rename = "type")]
+    pub marker_type: CheckpointRestoredType,
+    pub checkpoint_id: String,
+}
+
+/// `timelineMarkerPayloadSchema`（按 `type` 的判别联合）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TimelineMarkerPayload {
+    Compact(CompactMarker),
+    ForkNotice(ForkNoticeMarker),
+    ForkCreated(ForkCreatedMarker),
+    ModelChangeWithFrom(ModelChangeWithFromMarker),
+    ModelChangeToOnly(ModelChangeToOnlyMarker),
+    GoalSet(GoalSetMarker),
+    GoalVerify(GoalVerifyMarker),
+    RetryNotice(RetryNoticeMarker),
+    CheckpointRestored(CheckpointRestoredMarker),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TimelineMarkerRowKind {
+    #[serde(rename = "timelineMarker")]
+    TimelineMarker,
+}
+
+/// `timelineMarkerRowSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimelineMarkerRow {
+    #[serde(flatten)]
+    pub base: RowBase,
+    pub kind: TimelineMarkerRowKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_command_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lane: Option<TimelineMarkerLane>,
+    pub marker: TimelineMarkerPayload,
+}
+
+/// `conversationRowSchema`：按 `kind` 的判别联合。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ConversationRow {
+    TurnHeader(TurnHeaderRow),
+    UserInput(UserInputRow),
+    AssistantText(AssistantTextRow),
+    Reasoning(ReasoningRow),
+    ToolCall(ToolCallRow),
+    Artifact(ArtifactRow),
+    Subagent(SubagentRow),
+    HookInvocation(HookInvocationRow),
+    TimelineMarker(TimelineMarkerRow),
+}
