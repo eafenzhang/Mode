@@ -23,6 +23,7 @@ members = [
   "crates/platform",
   "crates/project-memory",
   "crates/commands-service",
+  "crates/mode-protocol-client",
   "crates/protocol",
   "crates/rpc-wire",
   "crates/rpc-host",
