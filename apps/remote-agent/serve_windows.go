@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -26,7 +26,7 @@ func cmdServe(args []string) int {
 	uiFlag := fs.Bool("ui", false, "start the tray panel (default from config)")
 	noUI := fs.Bool("no-ui", false, "disable the tray panel")
 	openPanel := fs.Bool("open-panel", false, "open the panel window on start")
-	pairOnStart := fs.Bool("pair-on-start", false, "show the desktop pairing prompt after startup")
+	pairOnStart := fs.Bool("pair-on-start", false, "run the GitHub login prompt after startup")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -95,12 +95,14 @@ func cmdServe(args []string) int {
 		IdleTimeout:       120 * time.Second,
 	}
 	if *pairOnStart {
-		// 等 HTTP 监听就绪后再弹配对页：桌面端登记时会探测 /health。
+		// 等 HTTP 监听就绪后再弹登录页：首次运行引导 GitHub 登录。
 		go func() {
 			time.Sleep(700 * time.Millisecond)
 			promptPortablePairing(cfg)
 		}()
 	}
+	// 已登录云账号时周期 refresh + re-enroll（保持目录中的地址与在线状态新鲜）。
+	go maintainCloudEnrollment(cfg)
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 	go func() {
@@ -126,12 +128,14 @@ func promptPortablePairing(cfg *Config) {
 	if cfg == nil || cfg.configPath == "" {
 		return
 	}
-	dir := filepath.Dir(cfg.configPath)
-	paths := installPaths{
-		Dir:    dir,
-		Exe:    filepath.Join(dir, "mode-agent.exe"),
-		Config: cfg.configPath,
-		Info:   filepath.Join(dir, "install-info.txt"),
+	// v2：免安装形态首次运行直接进入 GitHub 登录（无需桌面端配对码）。
+	if strings.TrimSpace(cfg.CloudSessionToken) != "" {
+		return
 	}
-	promptAndEnroll(paths, cfg)
+	go func() {
+		result := runCloudLogin(cfg, cfg.configPath, false)
+		if !result.OK {
+			showErrorDialog("Mode Go 登录失败", result.Error)
+		}
+	}()
 }

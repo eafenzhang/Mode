@@ -28,10 +28,8 @@ func main() {
 		os.Exit(cmdSetup(os.Args[2:]))
 	case "uninstall":
 		os.Exit(cmdUninstall(os.Args[2:]))
-	case "pair":
-		os.Exit(cmdPair(os.Args[2:]))
-	case "enroll":
-		os.Exit(cmdEnroll(os.Args[2:]))
+	case "login":
+		os.Exit(cmdCloudLogin(os.Args[2:]))
 	case "serve":
 		os.Exit(cmdServe(os.Args[2:]))
 	case "token":
@@ -64,8 +62,7 @@ Usage:
   mode-agent install [--dir PATH] [--port N] [--no-firewall] [--no-autostart] [--no-tray] [--no-start] [--quiet]
   mode-agent setup [--yes] [--dir PATH]
   mode-agent uninstall [--dir PATH] [--purge] [--yes]
-  mode-agent enroll [--config PATH] [--uri URI | --desktop HOST:PORT --code CODE] [--no-dialog]
-  mode-agent pair [--config PATH] [--no-dialog]
+  mode-agent login [--config PATH] [--no-dialog] [--json]
   mode-agent init [--config PATH] [--lan] [--tls] [--port N] [--force]
   mode-agent serve [--config PATH] [--bind ADDR] [--port N] [--ui] [--no-ui] [--open-panel]
   mode-agent token [--config PATH]

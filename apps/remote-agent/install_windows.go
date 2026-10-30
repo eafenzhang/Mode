@@ -55,18 +55,14 @@ type installInfo struct {
 	Host        string
 	Port        int
 	Addresses   string
-	PairCode    string
-	PairExpires string
-	PairURI     string
 	MCPURL      string
 	Autostart   string
 	Panel       string
 	Tray        string
 	Firewall    string
 	Agent       string
-	PairError   string
-	Enrollment  string
-	EnrollError string
+	Login       string
+	LoginError  string
 }
 
 func defaultInstallDir() string {
@@ -162,7 +158,7 @@ func cmdSetup(args []string) int {
 					return 1
 				}
 			}
-			return promptAndEnroll(paths, cfg)
+			return promptAndLogin(paths, cfg)
 		}
 		if opts.Yes {
 			return runInstall(opts)
@@ -294,13 +290,13 @@ func runInstall(opts installOptions) int {
 	if !opts.NoStart {
 		agent, startErr = startInstalledAgent(paths.Exe, paths.Config, cfg, false)
 	}
-	info := buildInstallInfo(paths, cfg, agent, autostart, firewall, nil, nil)
-	info.Enrollment = "pending"
+	info := buildInstallInfo(paths, cfg, agent, autostart, firewall)
+	info.Login = "pending"
 	if opts.NoStart {
-		info.Enrollment = "agent_not_started"
+		info.Login = "agent_not_started"
 	}
 	if startErr != nil {
-		info.Enrollment = "agent_failed"
+		info.Login = "agent_failed"
 	}
 	if writeErr := writeInstallInfo(paths.Info, info); writeErr != nil {
 		fmt.Fprintf(os.Stderr, "write install info: %v\n", writeErr)
@@ -321,28 +317,21 @@ func runInstall(opts installOptions) int {
 		showInfoDialog("Mode Go 已安装", "已落盘但未启动。\n启动 agent 后运行 mode-agent.exe enroll 完成配对。")
 		return 0
 	}
-	return promptAndEnroll(paths, cfg)
+	return promptAndLogin(paths, cfg)
 }
 
-func promptAndEnroll(paths installPaths, cfg *Config) int {
-	raw, ok := promptForText(
-		"Mode Go 配对",
-		"请输入 Mode 桌面端生成的 6 位配对码。\n（无需输入链接或地址）",
-		"",
+func promptAndLogin(paths installPaths, cfg *Config) int {
+	showInfoDialog(
+		"Mode Go 登录",
+		"即将打开浏览器完成 GitHub 授权。\n授权后本设备自动加入你的 Mode Cloud 账号，\n桌面端登录同一账号即可连接这台设备。",
 	)
-	if !ok || strings.TrimSpace(raw) == "" {
-		appendInstallInfo(paths.Info, "enrollment=canceled")
-		showInfoDialog("Mode Go 已启动", "稍后可运行 mode-agent.exe enroll，或右键托盘「设置与配对」完成配对。")
-		return 0
-	}
-	serverName, err := enrollWithCode(cfg, raw, "")
-	if err != nil {
-		appendInstallInfo(paths.Info, "enrollment=failed", "enrollError="+err.Error())
-		showErrorDialog("Mode Go 配对失败", err.Error())
+	result := runCloudLogin(cfg, paths.Config, false)
+	if !result.OK {
+		appendInstallInfo(paths.Info, "login=failed", "loginError="+result.Error)
+		showErrorDialog("Mode Go 登录失败", result.Error+"\n\n稍后可运行 mode-agent.exe login 重试。")
 		return 1
 	}
-	appendInstallInfo(paths.Info, "enrollment=success", "mcpServer="+serverName)
-	showInfoDialog("Mode Go 配对成功", "已登记到 Mode 桌面端。\n请回到远程控制页点击「刷新列表」。")
+	appendInstallInfo(paths.Info, "login=success")
 	return 0
 }
 
@@ -617,7 +606,7 @@ func runNetsh(args ...string) (string, error) {
 	return string(output), err
 }
 
-func buildInstallInfo(paths installPaths, cfg *Config, agent, autostart, firewall string, code *PairCodeResult, codeErr error) installInfo {
+func buildInstallInfo(paths installPaths, cfg *Config, agent, autostart, firewall string) installInfo {
 	host := primaryPairAddress()
 	info := installInfo{
 		InstalledAt: time.Now().Format(time.RFC3339),
@@ -637,14 +626,6 @@ func buildInstallInfo(paths installPaths, cfg *Config, agent, autostart, firewal
 		Firewall:    firewall,
 		Agent:       agent,
 	}
-	if code != nil {
-		info.PairCode = code.Code
-		info.PairExpires = time.Unix(0, code.ExpiresAt*int64(time.Millisecond)).Format(time.RFC3339)
-		info.PairURI = buildPairURI(host, code.Port, code.Code)
-	}
-	if codeErr != nil {
-		info.PairError = codeErr.Error()
-	}
 	return info
 }
 
@@ -659,16 +640,12 @@ func writeInstallInfo(path string, info installInfo) error {
 		"host=" + info.Host,
 		"port=" + strconv.Itoa(info.Port),
 		"addresses=" + info.Addresses,
-		"pairCode=" + info.PairCode,
-		"pairCodeExpiresAt=" + info.PairExpires,
-		"pairUri=" + info.PairURI,
 		"mcpUrl=" + info.MCPURL,
 		"autostart=" + info.Autostart,
 		"panel=" + info.Panel,
 		"tray=" + info.Tray,
 		"firewall=" + info.Firewall,
 		"agent=" + info.Agent,
-		"pairError=" + info.PairError,
 	}
 	return ioutil.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0600)
 }
@@ -682,9 +659,6 @@ func printInstallInfo(info installInfo) {
 		"agentId=" + info.AgentID,
 		"host=" + info.Host,
 		"port=" + strconv.Itoa(info.Port),
-		"pairCode=" + info.PairCode,
-		"pairCodeExpiresAt=" + info.PairExpires,
-		"pairUri=" + info.PairURI,
 		"mcpUrl=" + info.MCPURL,
 		"autostart=" + info.Autostart,
 		"panel=" + info.Panel,
@@ -692,30 +666,27 @@ func printInstallInfo(info installInfo) {
 		"firewall=" + info.Firewall,
 		"agent=" + info.Agent,
 		"info=" + info.InfoPath,
-		"pairError=" + info.PairError,
-		"enrollment=" + info.Enrollment,
-		"enrollError=" + info.EnrollError,
+		"login=" + info.Login,
+		"loginError=" + info.LoginError,
 	} {
 		fmt.Println(line)
 	}
 }
 
 func showInstallResult(info installInfo) {
-	if info.PairCode == "" {
-		messageBox("Mode Go 安装完成",
-			"Mode Go 已安装，但未能生成配对码：\n"+info.PairError+"\n\n详细信息："+info.InfoPath,
-			mbOK|mbIconWarning)
+	if info.Login == "success" {
+		messageBox(
+			"Mode Go 安装完成",
+			"Mode Go 已安装并加入你的 Mode Cloud 账号。\n在桌面端登录同一账号即可在「远程控制」看到这台设备。\n\n自启动："+info.Autostart+"\n防火墙："+info.Firewall+"\n\n详细信息："+info.InfoPath,
+			mbOK|mbIconInformation,
+		)
 		return
 	}
-	text := fmt.Sprintf(
-		"Mode Go 已安装并启动。\n\n"+
-			"在 Mode 桌面端打开「远程控制」→「添加被控端」：\n"+
-			"地址：%s\n端口：%d\n配对码：%s\n\n"+
-			"也可以直接粘贴：\n%s\n\n"+
-			"配对码 10 分钟内有效。\n自启动：%s\n防火墙：%s\n\n详细信息：%s",
-		info.Addresses, info.Port, info.PairCode, info.PairURI, info.Autostart, info.Firewall, info.InfoPath,
+	messageBox(
+		"Mode Go 安装完成",
+		"Mode Go 已安装，但还没有登录 GitHub。\n运行 mode-agent.exe login 完成登录后，\n设备会自动出现在你账号的设备目录里。",
+		mbOK|mbIconInformation,
 	)
-	messageBox("Mode Go 安装完成", text, mbOK|mbIconInformation)
 }
 
 func samePath(left, right string) bool {

@@ -5,23 +5,14 @@ package main
 
 import (
 	"runtime"
-	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
 )
 
-const idPairEdit = 1301
-
 var settingsState struct {
 	mu sync.Mutex
 	ui *agentUIHandle
-}
-
-var pairState struct {
-	mu       sync.Mutex
-	code     string
-	accepted bool
 }
 
 // showSettings 只负责本地 UI 开关；配对是独立入口。
@@ -123,125 +114,26 @@ func settingsDialogProc(hwnd, message, wParam, lParam uintptr) uintptr {
 	return 0
 }
 
-// showPairing 是独立的配对入口：只输入 6 位配对码，桌面地址由 LAN/Tailscale 发现。
+// showPairing（菜单「登录 GitHub...」）：GitHub Device Flow 登录入口——显示 user code
+// 并自动打开授权页，授权后自动 enroll 到个人账号目录（docs/specs/cloud-personal-accounts.md）。
 func (ui *agentUIHandle) showPairing() {
 	if ui == nil || ui.cfg == nil {
 		return
 	}
-	ui.mu.Lock()
-	owner := ui.hwnd
-	ui.mu.Unlock()
-	code, ok := promptPairCode(owner)
-	if !ok {
-		return
-	}
-	if _, err := enrollWithCode(ui.cfg, code, ""); err != nil {
-		showErrorDialog("Mode Go 配对失败", err.Error())
-		return
-	}
-	showInfoDialog("Mode Go 配对成功", "已登记到 Mode 桌面端。\n请回到远程控制页点击「刷新列表」。")
-}
-
-func promptPairCode(owner uintptr) (string, bool) {
-	template := buildPairTemplate()
-	callback := syscall.NewCallback(pairDialogProc)
-	instance, _, _ := procGetModuleHandleW.Call(0)
-	result, _, _ := procDialogBoxIndirectParamW.Call(
-		instance,
-		uintptr(unsafe.Pointer(&template[0])),
-		owner,
-		callback,
-		0,
-	)
-	runtime.KeepAlive(template)
-	runtime.KeepAlive(callback)
-	if int32(result) == -1 {
-		return "", false
-	}
-	pairState.mu.Lock()
-	defer pairState.mu.Unlock()
-	return pairState.code, pairState.accepted
-}
-
-func buildPairTemplate() []byte {
-	var buffer []byte
-	// DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
-	putDWord(&buffer, 0x80C808C0)
-	putDWord(&buffer, wsExTopmost)
-	putWord(&buffer, 5)
-	putWord(&buffer, 0)
-	putWord(&buffer, 0)
-	putWord(&buffer, 280)
-	putWord(&buffer, 118)
-	putWord(&buffer, 0) // no menu
-	putWord(&buffer, 0) // default dialog class
-	putUTF16(&buffer, "Mode Go 配对")
-	putDialogFont(&buffer, 9, "Microsoft YaHei UI")
-	addDialogItem(&buffer, 0x50000000, 12, 8, 256, 20, idInstallMessage, 0x0082,
-		"输入桌面端显示的 6 位配对码：")
-	addDialogItem(&buffer, 0x50810080, 14, 32, 252, 16, idPairEdit, 0x0081, "")
-	addDialogItem(&buffer, 0x50000000, 14, 54, 252, 14, idInstallHint, 0x0082,
-		"配对码 5 分钟内有效，仅可使用一次。")
-	addDialogItem(&buffer, 0x50010001, 158, 86, 50, 16, 1, 0x0080, "配对")
-	addDialogItem(&buffer, 0x50010000, 214, 86, 50, 16, 2, 0x0080, "取消")
-	return buffer
-}
-
-func pairDialogProc(hwnd, message, wParam, lParam uintptr) uintptr {
-	if brush, handled := handleDialogColor(message, wParam, lParam); handled {
-		return brush
-	}
-	switch message {
-	case 0x0110: // WM_INITDIALOG
-		setDialogIcon(hwnd)
-		makeDialogTopmost(hwnd)
-		setDialogHeaderFont(hwnd, idInstallMessage)
-		pairState.mu.Lock()
-		pairState.code = ""
-		pairState.accepted = false
-		pairState.mu.Unlock()
-		if edit, _, _ := procGetDlgItem.Call(hwnd, idPairEdit); edit != 0 {
-			procSetFocus.Call(edit)
+	go func() {
+		result := runCloudLogin(ui.cfg, configPathOf(ui.cfg), false)
+		if !result.OK {
+			showErrorDialog("Mode Go 登录失败", result.Error)
+			return
 		}
-		return 1
-	case 0x0111: // WM_COMMAND
-		switch uint16(wParam & 0xFFFF) {
-		case 1: // IDOK
-			buffer := make([]uint16, 64)
-			length, _, _ := procGetDlgItemTextW.Call(
-				hwnd,
-				idPairEdit,
-				uintptr(unsafe.Pointer(&buffer[0])),
-				uintptr(len(buffer)),
-			)
-			code := strings.TrimSpace(syscall.UTF16ToString(buffer[:int(length)]))
-			if code == "" {
-				showInfoDialog("Mode Go 配对", "请输入 6 位配对码。")
-				return 1
-			}
-			pairState.mu.Lock()
-			pairState.code = code
-			pairState.accepted = true
-			pairState.mu.Unlock()
-			procEndDialog.Call(hwnd, 1)
-			return 1
-		case 2: // IDCANCEL
-			pairState.mu.Lock()
-			pairState.accepted = false
-			pairState.mu.Unlock()
-			procEndDialog.Call(hwnd, 0)
-			return 1
-		}
-	case 0x0010: // WM_CLOSE
-		pairState.mu.Lock()
-		pairState.accepted = false
-		pairState.mu.Unlock()
-		procEndDialog.Call(hwnd, 0)
-		return 1
-	}
-	return 0
+		showInfoDialog(
+			"Mode Go 登录成功",
+			"设备已加入你的 Mode Cloud 账号。\n在桌面端登录同一账号即可看到并连接这台设备。",
+		)
+	}()
 }
 
+// applySettings 保存设置页的开关（面板固定启用；配对已由 GitHub 登录替代）。
 func (ui *agentUIHandle) applySettings(autostart, tray bool) {
 	if ui.cfg == nil {
 		return
@@ -257,7 +149,7 @@ func (ui *agentUIHandle) applySettings(autostart, tray bool) {
 		}
 	}
 	if err := syncAutostartForPanel(ui.cfg, wasAutostart && !autostart); err != nil {
-		showErrorDialog("Mode Go", "更新开机自启失败：\n"+err.Error())
+		showErrorDialog("Mode Go", "更新开机自启失败："+err.Error())
 	}
 	ui.setTrayEnabled(tray)
 }

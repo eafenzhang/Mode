@@ -1497,7 +1497,7 @@ func installSystemMenu(hwnd uintptr) {
 	}
 	procAppendMenuW.Call(menu, mfSeparator, 0, 0)
 	appendSystemMenuItem(menu, sysMenuSettings, "设置...")
-	appendSystemMenuItem(menu, sysMenuPair, "配对...")
+	appendSystemMenuItem(menu, sysMenuPair, "登录 GitHub...")
 	appendSystemMenuItem(menu, sysMenuExit, "退出 Mode Go")
 }
 

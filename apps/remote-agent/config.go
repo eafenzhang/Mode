@@ -56,6 +56,14 @@ type Config struct {
 	DSNs                map[string]string `json:"dsns,omitempty"`
 	Panel               PanelConfig       `json:"panel"`
 
+	// Mode Cloud 账号（docs/specs/cloud-personal-accounts.md，v2）：GitHub 登录后
+	// enroll 本机；会话/设备令牌与设备私钥只落本配置文件（0600 语义同 token）。
+	CloudBaseURL       string `json:"cloudBaseUrl,omitempty"`
+	CloudSessionToken  string `json:"cloudSessionToken,omitempty"`
+	CloudDeviceToken   string `json:"cloudDeviceToken,omitempty"`
+	CloudDeviceKey     string `json:"cloudDeviceKey,omitempty"`
+	CloudRelayTunnelID string `json:"cloudRelayTunnelId,omitempty"`
+
 	configPath      string
 	panelConfigured bool
 }

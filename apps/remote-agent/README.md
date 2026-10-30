@@ -51,32 +51,31 @@ MODE_GO_XP=/d/tools/go1.10.8/bin/go.exe MODE_GO_MODERN=go ./apps/remote-agent/bu
 2. 首次运行对话框选择是否**开机自启**、**显示托盘图标**；本地面板固定为 300×400。
    确认后在 exe 同目录生成 `mode-agent.json`。目录不可写时回退到
    `%APPDATA%\ModeAgent\mode-agent.json`。
-3. 启动后出现固定的 300×400 面板（默认 Matrix 代码雨）和托盘图标，并自动弹出**配对页**。在 Mode 桌面端
-   「远程控制」→「生成配对码」，只复制 6 位配对码，粘贴到配对页；被控端会自动查找同一
-   局域网/Tailscale 内的桌面端。配对成功后，被控端会向桌面 `POST /api/remote-agent/enroll`
-   登记；回到桌面端点「刷新列表」即可看到设备。
-4. 之后点击面板标题栏左侧的 Mode 图标，打开 Windows 原生系统菜单（还原/移动/关闭 等），
-   菜单末尾追加了「设置...」「配对...」「退出 Mode Go」；双击托盘图标只负责打开面板，不再提供菜单。
+3. 启动后出现固定的 300×400 面板（默认 Matrix 代码雨）和托盘图标，并自动弹出 **GitHub 登录**：
+   浏览器打开 `github.com/login/device`，输入面板上的 user code 完成授权；授权后设备自动
+   加入你的 Mode Cloud 账号设备目录（无需桌面端配对码）。
+4. 在桌面端登录**同一账号**，「远程控制」页即可看到这台设备，点「连接」直连。
+5. 之后点击面板标题栏左侧的 Mode 图标，打开 Windows 原生系统菜单（还原/移动/关闭 等），
+   菜单末尾是「设置...」「登录 GitHub...」「退出 Mode Go」；双击托盘图标只负责打开面板。
 
 面板无内容时默认显示 Matrix 风格快速代码雨；Mode 桌面端通过 MCP 工具
 `remote_panel_show` / `remote_panel_clear` / `remote_panel_status`（或直接调用 `/v1/panel`）
 控制内容。推送内容后切换为内容视图，清空后动画恢复。支持纯文本与 PNG/JPEG，不渲染 HTML。
 
-### 设置 / 配对（免安装 exe 内置）
+### 设置 / 登录（免安装 exe 内置）
 
-免安装 exe 自带独立的设置页和配对页，不需要再运行 `ModeGo-Setup.exe`：
+免安装 exe 自带独立的设置页和 GitHub 登录入口，不需要再运行 `ModeGo-Setup.exe`：
 
 - 入口：点击面板标题栏左侧的 Mode 图标（或 Alt+Space）打开原生系统菜单，末尾是
-  「设置...」「配对...」「退出 Mode Go」。
+  「设置...」「登录 GitHub...」「退出 Mode Go」。
 - **设置页**只包含两个开关：**登录 Windows 时自动启动**、**显示系统托盘图标**。
   保存后立即生效，不需要重启；本地面板固定 300×400、始终启用，不出现在设置里。
   - 关闭窗口只隐藏面板；双击托盘图标或重新运行 exe 可再次打开。
   - 关闭托盘会移除通知区图标；面板仍可通过运行 exe 打开。
   - 自启开关同步写入/删除 `HKCU\...\Run\ModeAgent`。
-- **配对页**只输入 6 位配对码，点「配对」；被控端会自动查找同一局域网/Tailscale 内的桌面端
-  （UDP 45879 发现 + Tailscale 单播）。配对码 5 分钟有效、一次性。
-  - 如果桌面端不在同一局域网/Tailscale，使用 CLI 指定完整配对串：
-    `mode-agent.exe enroll --uri "mode-agent://enroll?..."`。
+- **登录入口**触发 `mode-agent.exe login`：GitHub Device Flow（显示 user code、自动打开
+  授权页），授权后自动 enroll 到个人账号目录。设备换机/重装后重新 login 即可。
+  - 云端地址可用 env `MODE_CLOUD_BASE_URL` 覆盖（私有化部署）。
 
 ### 配置文件与运行文件
 
@@ -122,7 +121,7 @@ mode-agent.exe stop  --config C:\path\to\mode-agent.json
 
 `ModeGo-Setup.exe` 是 32 位引导器内嵌 x86/x64 两套 agent，按系统位数解包。双击默认进入
 `setup`，复制到 `%LOCALAPPDATA%\ModeAgent`、生成 token、可选自启/托盘（面板固定 300×400）、尝试放行
-TCP 47821、启动 supervisor，并弹窗要求输入桌面端 6 位配对码。
+TCP 47821、启动 supervisor，并打开浏览器引导 GitHub 登录（授权后自动加入账号目录）。
 
 静默部署（GUI 子系统；安装会启动常驻 supervisor，`-Wait` 可能一直等到守护进程退出，
 所以用健康检查轮询判断完成）：
@@ -130,9 +129,7 @@ TCP 47821、启动 supervisor，并弹窗要求输入桌面端 6 位配对码。
 ```powershell
 Start-Process ".\ModeGo-Setup.exe" -ArgumentList "install","--quiet","--no-firewall","--no-autostart"
 while (-not (Test-NetConnection 127.0.0.1 -Port 47821 -InformationLevel Quiet)) { Start-Sleep 1 }
-mode-agent.exe enroll --code <6位配对码>
-# 不在同一 LAN/Tailscale 时，可改用完整配对串：
-# mode-agent.exe enroll --uri "mode-agent://enroll?host=<桌面地址>&port=<桌面端口>&code=<配对码>"
+mode-agent.exe login
 # 或者显式指定安装目录
 Start-Process ".\ModeGo-Setup.exe" -ArgumentList "install","--dir","D:\ModeAgent","--port","47821","--quiet"
 ```
