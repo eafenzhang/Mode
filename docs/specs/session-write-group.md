@@ -262,8 +262,22 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
 - `workspaceHookReview` payload 只镜像形状；zod `superRefine`（kind 与 payload 一致、
   deadline、hookCount 等）暂未在 Rust 侧强制，留待消费方校验。
 
-**未做**：`workflowRuns` 暂按原始 JSON 透传（`workflow-runs.ts` 独立切片）；
-`state.updated` 补丁与 `conversationDelta`。
+## 2m. v4 工作流运行态（`workflowRuns`）
+
+`agent-protocol::v4_workflow_runs` 镜像 `workflow-runs.ts`：
+
+- `WorkflowRunState`：状态五值、stopReason、lineage（resumedFrom/supersededBy）、usage
+  （含 `nodesUnlisted*`）、可恢复位、结果/错误预览、actors/nodes、reports、
+  pendingQuestions、concurrency（cap/ceiling/limit/cooldown）、concurrencyCeiling、
+  subagentModel、artifacts（产物摘要）、phases/currentPhase/phaseNames/phaseAlongside、
+  unlistedByPhase、truncated 与 lastEventSequence。
+- `WorkflowRunActor`/`WorkflowRunNode`：站点身份（siteId/ordinal）、三态/七相位、
+  instructionsHead、turn/toolCalls/lastTool、出生阶段 phaseName。
+- 「零条即缺席」的集合（reports/pendingQuestions/artifacts/phases/phaseNames/
+  phaseAlongside/unlistedByPhase）用 `Option` 保持键缺席而非空数组。
+- `ConversationSnapshot.workflow_runs` 已从原始 JSON 收紧为 `WorkflowRunsState`。
+
+**未做**：`state.updated` 补丁与 `conversationDelta`。
 
 ## 3. 验收
 
@@ -300,3 +314,5 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
     `ConversationRow` 联合对 9 种 kind 的解析。
 17. v4 快照：完整 A 区 + rows 窗口 JSON round-trip；`goal.summaryTitle: null` 的三态与
     `workspaceHookAdmission` 的显式 null 保留。
+18. v4 工作流运行态：完整 run（actors/nodes/reports/pendingQuestions/concurrency/phases/
+    artifacts）与空状态各自 round-trip。

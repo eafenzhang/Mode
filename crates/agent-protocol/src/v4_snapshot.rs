@@ -1144,9 +1144,9 @@ pub struct ConversationSnapshot {
     pub background_works: Vec<BackgroundWorkSummary>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subagents: Option<SubagentProjectionState>,
-    /// `workflowRunsStateSchema` 暂按原始 JSON 透传。
+    /// `workflowRunsStateSchema`。
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub workflow_runs: Option<Value>,
+    pub workflow_runs: Option<crate::v4_workflow_runs::WorkflowRunsState>,
     pub goal: Option<GoalState>,
     pub plan: Option<PlanState>,
     #[serde(default, deserialize_with = "deserialize_nullable", skip_serializing_if = "Option::is_none")]

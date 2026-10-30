@@ -295,6 +295,8 @@ turnHeader/userInput/assistantText/reasoning，未知键按 zod strip 语义忽�
 **v4 会话快照已落**：A 区（control/availability/config/usage/queue/pendingInteractions/
 backgroundWorks/subagents/goal/plan/workspaceHookAdmission）+ rows 窗口严格镜像；
 `workflowRuns` 暂按原始 JSON（2 条 round-trip 测试）。
+**v4 工作流运行态已落**：run/actor/node/report/pendingQuestion/concurrency/phases/artifacts
+严格镜像，「零条即缺席」语义保留，快照里的 `workflowRuns` 已收紧为强类型（2 条测试）。
 **存储启动门已落**：
 state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`prepareStorage` 等待、
 `getStorageStartupState` existing-only 快照与订阅、进程代次递增；9 条测试。
