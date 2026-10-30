@@ -82,6 +82,7 @@ function createFakeServerHandle(initial?: Partial<LanAccessState>): {
   const handle: LanAccessServerHandle = {
     getState: () => state,
     startRelayTunnel: () => undefined,
+    ensureCloudPeerToken: async () => "cloud-peer-token",
     createPairCode: () => {
       state = { ...state, pairCode: { code: "ABCDEF", expiresAt: Date.now() + 60_000 } };
       return state;

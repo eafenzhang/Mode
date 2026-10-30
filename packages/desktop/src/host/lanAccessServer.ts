@@ -74,6 +74,11 @@ export interface LanAccessServerHandle {
    * tunnelId；登录成功后再调用本方法。
    */
   startRelayTunnel(token: string): void;
+  /**
+   * 云账号同信任主控的固定客户端令牌（docs/specs/cloud-personal-accounts.md，v2）：
+   * enroll 时把该令牌上报给目录，同账号主控凭它直连本机，等价于一次已完成的配对。
+   */
+  ensureCloudPeerToken(): Promise<string>;
   createPairCode(): LanAccessState;
   removeClient(clientId: string): Promise<LanAccessState>;
   resetTokens(): Promise<LanAccessState>;
@@ -150,6 +155,9 @@ function createPairCode(): LanAccessPairCode {
     expiresAt: Date.now() + LAN_ACCESS_PAIR_CODE_TTL_MS,
   };
 }
+
+/** 云账号同信任主控的固定客户端 id（docs/specs/cloud-personal-accounts.md，v2）。 */
+const CLOUD_ACCOUNT_PEER_CLIENT_ID = "cloud-account-peer";
 
 export async function startLanAccessServer(
   params: StartLanAccessServerParams,
@@ -295,6 +303,38 @@ export async function startLanAccessServer(
     consumePairCode,
   });
 
+  const ensureCloudPeerToken = async (): Promise<string> => {
+    const existing = clients.find((client) => client.id === CLOUD_ACCOUNT_PEER_CLIENT_ID);
+    if (existing) {
+      const cached = clientTokens.get(existing.id);
+      if (cached) {
+        return cached;
+      }
+      const stored = await credentials.load(
+        buildLanAccessClientTokenKey(CLOUD_ACCOUNT_PEER_CLIENT_ID),
+      );
+      if (stored) {
+        clientTokens.set(CLOUD_ACCOUNT_PEER_CLIENT_ID, stored);
+        return stored;
+      }
+    }
+    const record: LanAccessClientRecord = {
+      id: CLOUD_ACCOUNT_PEER_CLIENT_ID,
+      label: "Mode Cloud（同账号主控）",
+      createdAt: Date.now(),
+      lastUsedAt: null,
+    };
+    const token = randomBytes(32).toString("base64url");
+    clients = existing
+      ? clients.map((client) => (client.id === record.id ? record : client))
+      : [...clients, record];
+    clientTokens.set(record.id, token);
+    await credentials.save(buildLanAccessClientTokenKey(record.id), token);
+    await persistClients();
+    log("ensured cloud account peer client");
+    return token;
+  };
+
   const requestedPort = params.port ?? LAN_ACCESS_DEFAULT_PORT;
   // 打包形态的 webRoot 来自统一构建（web.html）；开发态回退到独立 web 构建（index.html）。
   const webIndexFile =
@@ -437,6 +477,7 @@ export async function startLanAccessServer(
   return {
     getState,
     startRelayTunnel,
+    ensureCloudPeerToken,
     createPairCode(): LanAccessState {
       pairCode = createPairCode();
       return getState();

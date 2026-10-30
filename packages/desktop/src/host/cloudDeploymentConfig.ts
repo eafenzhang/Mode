@@ -18,7 +18,6 @@ import { getAppConfigDir } from "@mode/services/node";
 
 export interface CloudDeploymentConfig {
   cloudBaseUrl?: string;
-  enrollToken?: string;
   relayToken?: string;
   /** GitHub OAuth App 的 public client_id（需启用 Device Flow）；
    *  docs/specs/cloud-personal-accounts.md。 */
@@ -47,7 +46,6 @@ function parseConfig(value: unknown): CloudDeploymentConfig | null {
   const record = value as Record<string, unknown>;
   const config: CloudDeploymentConfig = {
     ...(pickString(record, "cloudBaseUrl") ? { cloudBaseUrl: pickString(record, "cloudBaseUrl") } : {}),
-    ...(pickString(record, "enrollToken") ? { enrollToken: pickString(record, "enrollToken") } : {}),
     ...(pickString(record, "relayToken") ? { relayToken: pickString(record, "relayToken") } : {}),
     ...(pickString(record, "githubClientId") ? { githubClientId: pickString(record, "githubClientId") } : {}),
   };

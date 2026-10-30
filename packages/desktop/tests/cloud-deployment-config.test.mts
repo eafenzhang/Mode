@@ -20,7 +20,7 @@ test("从 MODE_CLOUD_CONFIG_FILE 读取部署配置", () => {
       file,
       JSON.stringify({
         cloudBaseUrl: "https://cloud.example.test",
-        enrollToken: "enroll-token",
+        githubClientId: "client-1",
         relayToken: "relay-token",
       }),
     );
@@ -31,7 +31,7 @@ test("从 MODE_CLOUD_CONFIG_FILE 读取部署配置", () => {
     );
     assert.deepEqual(config, {
       cloudBaseUrl: "https://cloud.example.test",
-      enrollToken: "enroll-token",
+      githubClientId: "client-1",
       relayToken: "relay-token",
     });
   } finally {
@@ -45,15 +45,15 @@ test("已命中文件内容变化后按 mtime/size 失效并重读", () => {
   try {
     const file = join(dir, "cloud-deployment.json");
     const env = { MODE_CLOUD_CONFIG_FILE: file } as NodeJS.ProcessEnv;
-    writeFileSync(file, JSON.stringify({ enrollToken: "token-a" }));
+    writeFileSync(file, JSON.stringify({ githubClientId: "client-a" }));
     resetCloudDeploymentConfigCacheForTests();
-    assert.deepEqual(loadCloudDeploymentConfig(env, dir), { enrollToken: "token-a" });
+    assert.deepEqual(loadCloudDeploymentConfig(env, dir), { githubClientId: "client-a" });
 
     // 等长改写：只有 mtime 变化，确保缓存不是靠 size 偶然命中。
-    writeFileSync(file, JSON.stringify({ enrollToken: "token-b" }));
+    writeFileSync(file, JSON.stringify({ githubClientId: "client-b" }));
     const next = new Date(Date.now() + 2_000);
     utimesSync(file, next, next);
-    assert.deepEqual(loadCloudDeploymentConfig(env, dir), { enrollToken: "token-b" });
+    assert.deepEqual(loadCloudDeploymentConfig(env, dir), { githubClientId: "client-b" });
   } finally {
     rmSync(dir, { recursive: true, force: true });
     resetCloudDeploymentConfigCacheForTests();
@@ -66,7 +66,7 @@ test("忽略非法字段，只返回有效字符串", () => {
     const file = join(dir, "cloud-deployment.json");
     writeFileSync(
       file,
-      JSON.stringify({ cloudBaseUrl: "https://cloud.example.test", enrollToken: 42 }),
+      JSON.stringify({ cloudBaseUrl: "https://cloud.example.test", githubClientId: 42 }),
     );
     resetCloudDeploymentConfigCacheForTests();
     const config = loadCloudDeploymentConfig(

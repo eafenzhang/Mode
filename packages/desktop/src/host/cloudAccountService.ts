@@ -1,9 +1,9 @@
 /**
- * Mode Cloud 个人账号与设备目录 Host 实现（docs/specs/cloud-personal-accounts.md）。
+ * Mode Cloud 个人账号与设备目录 Host 实现（docs/specs/cloud-personal-accounts.md，v2）。
  *
- * 身份方式：GitHub Device Flow + 用户名密码；登录成功后用会话 enroll 本机设备
- * （Ed25519 断言），并保存每设备中继令牌启动隧道。配对仍复用 `pairLanPeer`
- * （6 位码 + 现有 /api/lan/pair），云端不接触 LAN 令牌。
+ * 身份方式：仅 GitHub Device Flow。发起登录即自动打开授权页并由 Host 自动轮询，
+ * 授权成功后自动 enroll 本机（Ed25519 断言 + 上报本机访问令牌/地址）并启动隧道。
+ * 连接 = connectDevice 从目录读令牌写 lan:peer:*，同账号即信任，无 6 位配对码。
  */
 import { Emitter } from "@mode/rpc";
 import {
@@ -14,23 +14,32 @@ import {
   CLOUD_SESSION_TOKEN_CREDENTIAL_KEY,
   DEFAULT_CLOUD_CONTROL_BASE_URL,
   cloudDeviceSummarySchema,
-  isLanAccessPairCodeFormat,
+  buildLanPeerMetaKey,
+  buildLanPeerTokenKey,
+  dedupeLanPeerEndpoints,
+  parseLanPeerMeta,
+  sortLanPeerEndpoints,
   type CloudAccountState,
   type CloudDeviceSummary,
-  type LanAccessPairResult,
+  type LanPeerEndpoint,
 } from "@mode/shared";
 import { ICredentialService, ICloudAccountService, type ServiceCollection } from "@mode/services";
 
 import { createCloudGithubLogin } from "./cloudGithubLogin.js";
-import { createCloudPasswordAuth } from "./cloudPasswordLogin.js";
 import {
   loadCloudDeploymentConfig,
   type CloudDeploymentConfig,
 } from "./cloudDeploymentConfig.js";
 import { fetchWithTimeout } from "./lanPeerTransport.js";
-import { pairLanPeer } from "./lanRemoteAttach.js";
 
 const DIRECTORY_TIMEOUT_MS = 10_000;
+
+export interface CloudAccessServerHandle {
+  getState(): { port: number | null; addresses?: string[] };
+  startRelayTunnel(token: string): void;
+  /** 云账号同信任主控的固定令牌：enroll 时上报给目录（docs/specs/cloud-personal-accounts.md）。 */
+  ensureCloudPeerToken(): Promise<string>;
+}
 
 export interface CreateCloudAccountHostServiceOptions {
   services: ServiceCollection;
@@ -39,10 +48,11 @@ export interface CreateCloudAccountHostServiceOptions {
   /** 部署配置（安装时写入）；缺省从部署文件/env 读取。 */
   deploymentConfig?: CloudDeploymentConfig;
   /** 登录成功后启动中继隧道；缺省 = 无法启动（设备在目录里显示离线）。 */
-  getLanAccessServer?: () => {
-    getState(): { port: number | null };
-    startRelayTunnel(token: string): void;
-  } | null;
+  getLanAccessServer?: () => CloudAccessServerHandle | null;
+  /** 打开系统浏览器（GitHub 授权页）；缺省按平台用系统默认方式。 */
+  openExternal?: (url: string) => void;
+  /** 登录自动轮询的基础间隔（毫秒）；测试可注入更短间隔。 */
+  loginPollIntervalMs?: number;
 }
 
 export interface CloudAccountHostService extends ICloudAccountService {
@@ -69,6 +79,40 @@ function requireCredentials(services: ServiceCollection): ICredentialService {
   return credentials;
 }
 
+/** 系统默认浏览器打开 URL（Host 无 Electron 依赖时的兜底实现）。 */
+function openExternalDefault(url: string): void {
+  void import("node:child_process").then(({ spawn }) => {
+    const platform = process.platform;
+    try {
+      if (platform === "win32") {
+        spawn("cmd.exe", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
+      } else if (platform === "darwin") {
+        spawn("open", [url], { detached: true, stdio: "ignore" }).unref();
+      } else {
+        spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
+      }
+    } catch {
+      // 打不开浏览器不是登录失败：面板仍显示 user code 可手动输入。
+    }
+  });
+}
+
+/** "host:port"（IPv4 / [IPv6]:port）→ LAN 端点；无法解析返回 null。 */
+function parseLanAddressEndpoint(address: string): LanPeerEndpoint | null {
+  const trimmed = address.trim();
+  const bracket = trimmed.match(/^\[(.+)\]:(\d{1,5})$/u);
+  const plain = trimmed.match(/^([^:]+):(\d{1,5})$/u);
+  const match = bracket ?? plain;
+  if (!match) {
+    return null;
+  }
+  const port = Number.parseInt(match[2]!, 10);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    return null;
+  }
+  return { scheme: "http", host: match[1]!, port, kind: "lan" };
+}
+
 export async function createCloudAccountHostService(
   options: CreateCloudAccountHostServiceOptions,
 ): Promise<CloudAccountHostService> {
@@ -92,6 +136,7 @@ export async function createCloudAccountHostService(
     deployment.githubClientId ||
     ""
   ).trim();
+  const openExternal = options.openExternal ?? openExternalDefault;
 
   const onDidChangeEmitter = new Emitter<CloudAccountState>();
 
@@ -110,7 +155,7 @@ export async function createCloudAccountHostService(
   const readDirectory = async (
     token: string,
   ): Promise<{
-    account: { id: string; username?: string; displayName?: string };
+    account: { id: string; displayName?: string };
     devices: CloudDeviceSummary[];
   }> => {
     const response = await fetchWithTimeout(
@@ -145,10 +190,6 @@ export async function createCloudAccountHostService(
         }
       }
     }
-    const username =
-      typeof accountRaw.username === "string" && accountRaw.username.trim()
-        ? accountRaw.username.trim()
-        : undefined;
     const displayName =
       typeof accountRaw.displayName === "string" && accountRaw.displayName.trim()
         ? accountRaw.displayName.trim()
@@ -156,7 +197,6 @@ export async function createCloudAccountHostService(
     return {
       account: {
         id: accountId,
-        ...(username ? { username } : {}),
         ...(displayName ? { displayName } : {}),
       },
       devices,
@@ -188,15 +228,80 @@ export async function createCloudAccountHostService(
     readState,
     onState: (state) => onDidChangeEmitter.fire(state),
     log,
+    ...(options.loginPollIntervalMs ? { loginPollIntervalMs: options.loginPollIntervalMs } : {}),
   });
-  const passwordAuth = createCloudPasswordAuth({
-    credentials,
-    baseUrl,
-    ensureRelayTunnel,
-    readState,
-    onState: (state) => onDidChangeEmitter.fire(state),
-    log,
-  });
+
+  /** Host 驱动的登录轮询：发起即开浏览器，授权后自动回到 bound（v2 交互）。 */
+  let loginLoop: { stop(): void } | null = null;
+  /** 最近一次自动轮询的失败原因；重新发起登录或成功后清除。 */
+  let lastLoginError: string | undefined;
+
+  const startLoginLoop = (getDeviceIdentity: () => Promise<{
+    accessToken: string;
+    addresses?: string[];
+  }>): void => {
+    loginLoop?.stop();
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tick = async (): Promise<void> => {
+      if (!active) {
+        return;
+      }
+      try {
+        const state = await githubLogin.poll(getDeviceIdentity);
+        if (!active) {
+          return;
+        }
+        if (state.status === "bound") {
+          active = false;
+          loginLoop = null;
+          return;
+        }
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        // 硬错误（过期/拒绝/网络终止）：停止自动轮询，把原因带回 UI。
+        active = false;
+        loginLoop = null;
+        lastLoginError = describeError(error);
+        onDidChangeEmitter.fire({
+          ...(await readState()),
+          loginError: lastLoginError,
+        });
+        return;
+      }
+      if (active) {
+        timer = setTimeout(() => void tick(), githubLogin.currentIntervalMs());
+      }
+    };
+    timer = setTimeout(() => void tick(), githubLogin.currentIntervalMs());
+    loginLoop = {
+      stop() {
+        active = false;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        githubLogin.cancel();
+      },
+    };
+  };
+
+  const selfDeviceIdentity = async (): Promise<{
+    accessToken: string;
+    addresses?: string[];
+  }> => {
+    const server = options.getLanAccessServer?.() ?? null;
+    if (!server) {
+      throw new Error("局域网访问服务未启动，无法上报本机访问令牌");
+    }
+    const accessToken = await server.ensureCloudPeerToken();
+    return {
+      accessToken,
+      addresses: server.getState().addresses ?? [],
+    };
+  };
 
   const listDevices = async (): Promise<CloudDeviceSummary[]> => {
     const token = (await credentials.load(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY))?.trim();
@@ -207,18 +312,17 @@ export async function createCloudAccountHostService(
     return devices;
   };
 
-  const pairDevice = async (params: {
-    deviceId: string;
-    code: string;
-  }): Promise<LanAccessPairResult> => {
-    const code = params.code.trim().toUpperCase();
-    if (!isLanAccessPairCodeFormat(code)) {
-      throw new Error("请输入被控端显示的 6 位配对码");
-    }
+  /** 目录直连（docs/specs/cloud-personal-accounts.md，v2）：无配对码，同账号即信任。 */
+  const connectDevice = async (
+    deviceId: string,
+  ): Promise<{ serverId: string; name: string }> => {
     const devices = await listDevices();
-    const device = devices.find((item) => item.id === params.deviceId);
+    const device = devices.find((item) => item.id === deviceId);
     if (!device) {
       throw new Error("云目录中找不到该设备，请刷新后重试");
+    }
+    if (!device.accessToken) {
+      throw new Error("该设备还没有可用的访问令牌：请在对端重新登录 GitHub");
     }
     const url = new URL(device.relayUrl);
     if (url.protocol !== "https:") {
@@ -226,28 +330,65 @@ export async function createCloudAccountHostService(
     }
     const path = url.pathname.replace(/\/+$/u, "");
     const port = url.port ? Number.parseInt(url.port, 10) : 443;
-    return pairLanPeer({
-      credentials,
-      host: url.hostname,
-      port,
-      code,
-      scheme: "https",
-      ...(path ? { path } : {}),
-    });
+    const endpoints: LanPeerEndpoint[] = [
+      { scheme: "https", host: url.hostname, port, kind: "public", ...(path ? { path } : {}) },
+      ...(device.addresses ?? [])
+        .map((address) => parseLanAddressEndpoint(address))
+        .filter((endpoint): endpoint is LanPeerEndpoint => endpoint !== null),
+    ];
+    await credentials.save(buildLanPeerTokenKey(device.id), device.accessToken);
+    // 重复连接同一设备时合并端点：本次端点优先，既有 LAN 端点保留在后。
+    const existing = parseLanPeerMeta(await credentials.load(buildLanPeerMetaKey(device.id)));
+    const existingLan = (existing?.endpoints ?? []).filter(
+      (endpoint) => endpoint.kind === "lan",
+    );
+    const merged = sortLanPeerEndpoints(
+      dedupeLanPeerEndpoints([...endpoints, ...existingLan]),
+    );
+    await credentials.save(
+      buildLanPeerMetaKey(device.id),
+      JSON.stringify({ endpoints: merged, name: device.name, pairedAt: Date.now() }),
+    );
+    log(`cloud_device_connect device=${device.id.slice(0, 8)}…`);
+    return { serverId: device.id, name: device.name };
   };
 
   const service: CloudAccountHostService = {
-    getState: readState,
-    beginGithubLogin: () => githubLogin.begin(),
-    pollGithubLogin: () => githubLogin.poll(),
-    cancelGithubLogin: () => githubLogin.cancel(),
-    registerWithPassword: (params) => passwordAuth.register(params),
-    loginWithPassword: (params) => passwordAuth.login(params),
-    setAccountCredentials: (params) => passwordAuth.setCredentials(params),
+    getState: async () => {
+      const state = await readState();
+      return lastLoginError && state.status === "unbound"
+        ? { ...state, loginError: lastLoginError }
+        : state;
+    },
+    beginGithubLogin: async () => {
+      loginLoop?.stop();
+      loginLoop = null;
+      lastLoginError = undefined;
+      const challenge = await githubLogin.begin();
+      // v2 交互：发起登录即打开授权页，Host 自动轮询，授权后自动回到已登录。
+      try {
+        openExternal(challenge.verificationUri);
+      } catch {
+        // 打不开浏览器不是失败：面板仍显示 user code 可手动输入。
+      }
+      startLoginLoop(selfDeviceIdentity);
+      return challenge;
+    },
+    pollGithubLogin: async () => {
+      // 兼容入口：自动轮询由 Host 驱动；这里做一次手动步进。
+      return await githubLogin.poll(selfDeviceIdentity);
+    },
+    cancelGithubLogin: () => {
+      loginLoop?.stop();
+      loginLoop = null;
+      lastLoginError = undefined;
+    },
     async unbind() {
+      loginLoop?.stop();
+      loginLoop = null;
       // 先撤销云端会话（best-effort），再清本地凭据；设备撤销走目录里的显式操作。
       try {
-        await passwordAuth.logout();
+        await githubLogin.logout();
       } catch {
         // 云端不可达时也要完成本地清理；服务端会话按 TTL 过期兜底。
       }
@@ -260,9 +401,11 @@ export async function createCloudAccountHostService(
       return state;
     },
     listDevices,
-    pairDevice,
+    connectDevice,
     onDidChange: onDidChangeEmitter.event,
     async dispose() {
+      loginLoop?.stop();
+      loginLoop = null;
       onDidChangeEmitter.dispose();
     },
   };

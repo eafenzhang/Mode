@@ -24,14 +24,14 @@ test("未登录时显示 Mode，不把品牌名当作用户名", () => {
   assert.equal(profile.displayName, "Mode");
 });
 
-test("云账号没有展示名时不得回落 GitHub login 等不透明用户名", () => {
-  // GitHub login / 账号 id 是不透明标识（与旧微信 openid 同类）；footer 不能把它
+test("云账号只有 id 时保持 Mode，等待昵称或 GitHub 显示名", () => {
+  // 账号 id 是不透明标识（与旧微信 openid 同类）；footer 不能把它
   // 当成显示名，应保持 Mode 等待昵称或云端 displayName。
   const profile = resolveSidebarProfile({
     user: null,
     cloudAccount: cloudState({
       status: "bound",
-      account: { id: "acct-1", username: "octocat-8f3a2b" },
+      account: { id: "acct-1" },
     }),
   });
   assert.equal(profile.hasAccount, true);

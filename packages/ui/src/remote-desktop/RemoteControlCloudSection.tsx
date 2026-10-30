@@ -1,25 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
-import { Cloud, Fingerprint, KeyRound, LoaderIcon, RefreshCw } from "lucide-react";
-import type { CloudAccountState, CloudDeviceSummary } from "@mode/shared";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Cloud, ExternalLink, Fingerprint, LoaderIcon, RefreshCw } from "lucide-react";
+import type { CloudAccountState, CloudDeviceSummary, CloudGithubLoginChallenge } from "@mode/shared";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { RemoteControlCloudGithubPanel } from "@/remote-desktop/RemoteControlCloudGithubPanel.js";
-import {
-  RemoteControlCloudPasswordPanel,
-  type CloudPasswordPanelMode,
-} from "@/remote-desktop/RemoteControlCloudPasswordPanel.js";
 
 // 目录请求本身有 10s 预算；前端等待必须覆盖它，否则慢网会被误判为“频道不存在”而隐藏卡片。
 const STATE_TIMEOUT_MS = 12_000;
 
 /**
- * Mode Cloud 个人账号与设备目录（docs/specs/cloud-personal-accounts.md）。
+ * Mode Cloud 个人账号与设备目录（docs/specs/cloud-personal-accounts.md，v2）。
  *
- * 登录方式：GitHub Device Flow 或用户名密码；目录只提供被控端公网地址，
- * 6 位码仍由被控端显示/裁决。配对成功后复用既有 LAN 配对列表。
+ * 登录：仅 GitHub Device Flow——发起即由 Host 自动打开授权页并自动轮询，授权后
+ * 状态自动回到 bound；目录直连（同账号即信任），设备行「连接」无 6 位配对码。
  */
 export function RemoteControlCloudSection({
   active,
@@ -36,13 +30,11 @@ export function RemoteControlCloudSection({
   const { intl } = useModeIntl();
   const [state, setState] = useState<CloudAccountState | null>(null);
   const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState<"refresh" | "pair" | null>(null);
+  const [busy, setBusy] = useState<"refresh" | "connect" | null>(null);
   const [error, setError] = useState("");
-  const [pairTarget, setPairTarget] = useState<CloudDeviceSummary | null>(null);
-  const [code, setCode] = useState("");
+  const [connected, setConnected] = useState<string>("");
+  const [challenge, setChallenge] = useState<CloudGithubLoginChallenge | null>(null);
   const [channelAvailable, setChannelAvailable] = useState(true);
-  const [showGithubLogin, setShowGithubLogin] = useState(false);
-  const [showPasswordPanel, setShowPasswordPanel] = useState<CloudPasswordPanelMode | null>(null);
 
   const load = useCallback(async () => {
     if (!service) {
@@ -85,24 +77,51 @@ export function RemoteControlCloudSection({
     if (!service) {
       return;
     }
-    const subscription = service.onDidChange((next) => setState(next));
+    const subscription = service.onDidChange((next) => {
+      setState(next);
+      if (next.status === "bound") {
+        setChallenge(null);
+      }
+      if (next.loginError) {
+        setError(next.loginError);
+        setChallenge(null);
+      }
+    });
     return () => subscription.dispose();
   }, [service]);
+
+  const message = (id: string, values?: Record<string, string>): string =>
+    intl.formatMessage({ id }, values);
+
+  // 未登录且尚未发起授权时自动开始 Device Flow（Host 会打开浏览器并自动轮询）。
+  const autoBeginRef = useRef(false);
+  useEffect(() => {
+    if (!service || !active || challenge || autoBeginRef.current) {
+      return;
+    }
+    if (state?.status !== "unbound") {
+      return;
+    }
+    autoBeginRef.current = true;
+    void service
+      .beginGithubLogin()
+      .then((next) => setChallenge(next))
+      .catch((caught: unknown) => {
+        setError(caught instanceof Error ? caught.message : String(caught));
+      });
+  }, [service, active, state?.status, challenge]);
 
   if (!service || !channelAvailable) {
     return null;
   }
 
-  const pair = async (): Promise<void> => {
-    if (!pairTarget) {
-      return;
-    }
-    setBusy("pair");
+  const connect = async (device: CloudDeviceSummary): Promise<void> => {
+    setBusy("connect");
     setError("");
+    setConnected("");
     try {
-      await service.pairDevice({ deviceId: pairTarget.id, code });
-      setPairTarget(null);
-      setCode("");
+      const result = await service.connectDevice(device.id);
+      setConnected(result.name);
       await onPaired();
       await load();
     } catch (caught) {
@@ -112,33 +131,74 @@ export function RemoteControlCloudSection({
     }
   };
 
-  const message = (id: string, values?: Record<string, string>): string =>
-    intl.formatMessage({ id }, values);
+  const beginLogin = async (): Promise<void> => {
+    setError("");
+    setChallenge(null);
+    try {
+      setChallenge(await service.beginGithubLogin());
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+    }
+  };
 
-  const loginButtons = (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        data-testid="remote-control-cloud-github-login"
-        disabled={showGithubLogin || showPasswordPanel !== null}
-        onClick={() => setShowGithubLogin(true)}
-      >
-        <Fingerprint className="size-4" />
-        {message("remoteDesktop.cloud.githubLogin")}
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        data-testid="remote-control-cloud-password-login"
-        disabled={showGithubLogin || showPasswordPanel !== null}
-        onClick={() => setShowPasswordPanel("login")}
-      >
-        <KeyRound className="size-4" />
-        {message("remoteDesktop.cloud.passwordLogin")}
-      </Button>
+  const loginPanel = (
+    <div className="mt-3 space-y-2" data-testid="remote-control-cloud-login">
+      {challenge ? (
+        <div className="rounded-lg border border-border bg-background px-3 py-3">
+          <div className="flex items-center gap-2 text-ui-base text-foreground">
+            <Fingerprint className="size-4 text-foreground-subtle" aria-hidden="true" />
+            {message("remoteDesktop.cloud.githubLogin")}
+          </div>
+          <p className="mt-2 text-ui-base text-foreground-subtle">
+            {message("remoteDesktop.cloud.githubCodeTitle")}
+          </p>
+          <div
+            className="mt-2 text-2xl font-semibold tracking-[0.3em] text-foreground"
+            data-testid="remote-control-cloud-github-code"
+          >
+            {challenge.userCode}
+          </div>
+          {challenge.verificationUri.startsWith("https://github.com/") ? (
+            <a
+              className="mt-2 inline-flex items-center gap-1 text-ui-base text-sky-600 hover:underline dark:text-sky-400"
+              href={challenge.verificationUri}
+              target="_blank"
+              rel="noreferrer"
+              data-testid="remote-control-cloud-github-verify-link"
+            >
+              <ExternalLink className="size-3.5" aria-hidden="true" />
+              {message("remoteDesktop.cloud.githubOpenUri")}
+            </a>
+          ) : null}
+          <p className="mt-2 flex items-center gap-2 text-ui-xs text-foreground-subtlest">
+            <LoaderIcon className="size-3 animate-spin" />
+            {message("remoteDesktop.cloud.githubWaiting")}
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="mt-2"
+            onClick={() => {
+              service.cancelGithubLogin();
+              setChallenge(null);
+            }}
+          >
+            {message("remoteDesktop.cloud.githubCancel")}
+          </Button>
+        </div>
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="remote-control-cloud-github-login"
+          onClick={() => void beginLogin()}
+        >
+          <Fingerprint className="size-4" />
+          {message("remoteDesktop.cloud.githubLogin")}
+        </Button>
+      )}
     </div>
   );
 
@@ -193,77 +253,32 @@ export function RemoteControlCloudSection({
         </div>
       ) : null}
 
-      {state?.status === "unbound" ? (
-        <div className="mt-3 space-y-2">
-          {loginButtons}
-          {showGithubLogin ? (
-            <RemoteControlCloudGithubPanel
-              service={service}
-              onBound={(next) => {
-                setState(next);
-                setShowGithubLogin(false);
-              }}
-              onClose={() => setShowGithubLogin(false)}
-            />
-          ) : null}
-          {showPasswordPanel ? (
-            <RemoteControlCloudPasswordPanel
-              service={service}
-              mode={showPasswordPanel}
-              onDone={(next) => {
-                setState(next);
-                setShowPasswordPanel(null);
-              }}
-              onClose={() => setShowPasswordPanel(null)}
-            />
-          ) : null}
-        </div>
-      ) : null}
+      {state?.status === "unbound" ? loginPanel : null}
 
       {state?.status === "error" ? (
         <div className="mt-3 space-y-2">
           <p className="text-ui-base text-destructive" data-testid="remote-control-cloud-error">
             {error || state.error || message("remoteDesktop.cloud.error")}
           </p>
-          {loginButtons}
+          {loginPanel}
         </div>
       ) : null}
 
       {state?.status === "bound" ? (
         <div className="mt-3 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-ui-base text-foreground-subtle">
-              {message("remoteDesktop.cloud.account", {
-                name:
-                  state.account?.displayName ||
-                  state.account?.username ||
-                  state.account?.id ||
-                  "",
-              })}
+          <p className="text-ui-base text-foreground-subtle">
+            {message("remoteDesktop.cloud.account", {
+              name:
+                state.account?.displayName || state.account?.id || "",
+            })}
+          </p>
+          {connected ? (
+            <p
+              className="text-ui-base text-foreground"
+              data-testid="remote-control-cloud-connected"
+            >
+              {message("remoteDesktop.cloud.connected", { name: connected })}
             </p>
-            {!state.account?.username ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                data-testid="remote-control-cloud-set-credentials"
-                disabled={showPasswordPanel !== null}
-                onClick={() => setShowPasswordPanel("credentials")}
-              >
-                {message("remoteDesktop.cloud.setCredentials")}
-              </Button>
-            ) : null}
-          </div>
-          {showPasswordPanel ? (
-            <RemoteControlCloudPasswordPanel
-              service={service}
-              mode={showPasswordPanel}
-              onDone={(next) => {
-                setState(next);
-                setShowPasswordPanel(null);
-              }}
-              onClose={() => setShowPasswordPanel(null)}
-            />
           ) : null}
           {state.devices && state.devices.length > 0 ? (
             <ul className="space-y-2" data-testid="remote-control-cloud-devices">
@@ -280,20 +295,21 @@ export function RemoteControlCloudSection({
                       {device.online
                         ? message("remoteDesktop.cloud.online")
                         : message("remoteDesktop.cloud.offline")}
+                      {!device.accessToken
+                        ? ` · ${message("remoteDesktop.cloud.needsRelogin")}`
+                        : ""}
                     </div>
                   </div>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={!device.online || busy !== null}
-                    onClick={() => {
-                      setPairTarget(device);
-                      setCode("");
-                      setError("");
-                    }}
+                    data-testid="remote-control-cloud-connect"
+                    disabled={!device.accessToken || !device.online || busy !== null}
+                    onClick={() => void connect(device)}
                   >
-                    {message("remoteDesktop.cloud.pair")}
+                    {busy === "connect" ? <LoaderIcon className="size-4 animate-spin" /> : null}
+                    {message("remoteDesktop.cloud.connect")}
                   </Button>
                 </li>
               ))}
@@ -303,55 +319,6 @@ export function RemoteControlCloudSection({
               {message("remoteDesktop.cloud.noDevices")}
             </p>
           )}
-
-          {pairTarget ? (
-            <div className="mt-2 rounded-lg border border-border bg-background px-3 py-3">
-              <p className="text-ui-base text-foreground">
-                {message("remoteDesktop.cloud.pairTitle", { name: pairTarget.name })}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Input
-                  value={code}
-                  maxLength={8}
-                  className="w-32 tracking-[0.3em] uppercase"
-                  placeholder={message("remoteDesktop.cloud.codePlaceholder")}
-                  onChange={(event) => {
-                    setCode(event.target.value);
-                    setError("");
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={busy !== null || !code.trim()}
-                  onClick={() => void pair()}
-                >
-                  {busy === "pair" ? <LoaderIcon className="size-4 animate-spin" /> : null}
-                  {message(
-                    busy === "pair"
-                      ? "remoteDesktop.cloud.pairing"
-                      : "remoteDesktop.cloud.pairSubmit",
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy === "pair"}
-                  onClick={() => {
-                    setPairTarget(null);
-                    setCode("");
-                  }}
-                >
-                  {message("remoteDesktop.cloud.cancel")}
-                </Button>
-              </div>
-              <p className="mt-1 text-ui-xs text-foreground-subtlest">
-                {message("remoteDesktop.cloud.pairHint")}
-              </p>
-            </div>
-          ) : null}
 
           {error ? <p className="text-ui-base text-destructive">{error}</p> : null}
         </div>

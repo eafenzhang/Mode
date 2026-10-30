@@ -34,20 +34,22 @@ test("ModeAccountDialog 提供昵称编辑并写入 userNickname", () => {
   );
 });
 
-// 云账号登录不依赖部署密钥：GitHub Device Flow 与用户名密码都是零配置路径，
-// 未绑定/错误状态下都必须保留入口（docs/specs/cloud-personal-accounts.md）。
-test("云分区始终提供 GitHub 与用户名密码登录入口", () => {
+// v2 账号体系（docs/specs/cloud-personal-accounts.md）：登录只有 GitHub Device Flow，
+// 未登录时自动发起（Host 打开浏览器 + 自动轮询）；目录直连不再有配对码输入。
+test("云分区只提供 GitHub 登录，目录设备用连接按钮直连", () => {
   const section = read("../src/remote-desktop/RemoteControlCloudSection.tsx");
   assert.match(
     section,
     /remote-control-cloud-github-login/,
-    "远控云分区始终提供 GitHub 登录按钮",
+    "远控云分区提供 GitHub 登录按钮",
   );
-  assert.match(
+  assert.doesNotMatch(
     section,
     /remote-control-cloud-password-login/,
-    "远控云分区始终提供用户名密码登录按钮",
+    "密码登录入口已删除（v2 仅 GitHub）",
   );
+  assert.doesNotMatch(section, /pairDevice\(/, "6 位码配对已由目录直连替代");
+  assert.match(section, /remote-control-cloud-connect/, "目录设备行提供连接按钮");
   const dialog = read("../src/ModeAccountDialog.tsx");
   assert.match(
     dialog,
