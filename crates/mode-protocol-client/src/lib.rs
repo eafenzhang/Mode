@@ -98,10 +98,11 @@ pub type RequestHandler = Arc<dyn Fn(&Value) -> Option<Value> + Send + Sync>;
 type Pending = Mutex<HashMap<RequestId, oneshot::Sender<Result<Value, ClientError>>>>;
 
 struct Shared {
-    out: mpsc::UnboundedSender<Value>,
+    out: mpsc::UnboundedSender<Option<Value>>,
     pending: Pending,
     next_id: AtomicI64,
     closed: AtomicBool,
+    write_closed: AtomicBool,
     notifications: broadcast::Sender<Value>,
     request_handler: Mutex<Option<RequestHandler>>,
     tasks: Mutex<Vec<AbortHandle>>,
@@ -134,11 +135,11 @@ impl Shared {
     }
 
     fn send_frame(&self, value: Value) -> Result<(), ClientError> {
-        if self.is_closed() {
+        if self.is_closed() || self.write_closed.load(Ordering::SeqCst) {
             return Err(ClientError::Closed);
         }
         self.out
-            .send(value)
+            .send(Some(value))
             .map_err(|_| ClientError::Closed)
     }
 }
@@ -155,13 +156,14 @@ impl ProtocolClient {
         R: AsyncRead + Unpin + Send + 'static,
         W: AsyncWrite + Unpin + Send + 'static,
     {
-        let (out_tx, out_rx) = mpsc::unbounded_channel::<Value>();
+        let (out_tx, out_rx) = mpsc::unbounded_channel::<Option<Value>>();
         let (notification_tx, _) = broadcast::channel(NOTIFICATION_CHANNEL_CAPACITY);
         let shared = Arc::new(Shared {
             out: out_tx,
             pending: Mutex::new(HashMap::new()),
             next_id: AtomicI64::new(0),
             closed: AtomicBool::new(false),
+            write_closed: AtomicBool::new(false),
             notifications: notification_tx,
             request_handler: Mutex::new(None),
             tasks: Mutex::new(Vec::new()),
@@ -200,6 +202,15 @@ impl ProtocolClient {
 
     pub fn is_closed(&self) -> bool {
         self.shared.is_closed()
+    }
+
+    /// 只关闭写端（向对端发 EOF），读端继续接收响应/通知。
+    /// 用于优雅停止 stdio 子进程：先 EOF，等它自行退出，再决定是否强杀。
+    pub fn close_write(&self) {
+        if self.shared.write_closed.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let _ = self.shared.out.send(None);
     }
 
     pub fn pending_count(&self) -> usize {
@@ -278,10 +289,15 @@ impl ProtocolClient {
 
 async fn writer_loop<W: AsyncWrite + Unpin>(
     mut writer: W,
-    mut out: mpsc::UnboundedReceiver<Value>,
+    mut out: mpsc::UnboundedReceiver<Option<Value>>,
     shared: Arc<Shared>,
 ) {
-    while let Some(value) = out.recv().await {
+    while let Some(message) = out.recv().await {
+        let Some(value) = message else {
+            // 优雅关闭：先 flush 已排队的帧，再 drop writer（stdio 子进程收到 EOF）。
+            let _ = writer.flush().await;
+            return;
+        };
         let mut bytes = match serde_json::to_vec(&value) {
             Ok(bytes) => bytes,
             Err(error) => {
@@ -626,6 +642,34 @@ mod tests {
             assert_eq!(response["error"]["code"], -32601);
         });
         server.await.unwrap();
+        client.dispose();
+    }
+
+    #[tokio::test]
+    async fn close_write_rejects_new_requests_but_keeps_reading() {
+        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+        let (client_read, client_write) = tokio::io::split(client_io);
+        let (server_read, mut server_write) = tokio::io::split(server_io);
+        let client = ProtocolClient::connect(client_read, client_write, ClientOptions::default());
+        let mut notifications = client.subscribe_notifications();
+
+        client.close_write();
+        assert_eq!(
+            client.request("after-close", None).await.unwrap_err(),
+            ClientError::Closed
+        );
+
+        // 写端关闭不影响读端：对端仍可推送通知。
+        tokio::spawn(async move {
+            let _ = server_read;
+            server_write
+                .write_all(b"{\"method\":\"late\",\"params\":1}\n")
+                .await
+                .unwrap();
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        });
+        let notification = notifications.recv().await.unwrap();
+        assert_eq!(notification["method"], "late");
         client.dispose();
     }
 }

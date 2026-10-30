@@ -231,9 +231,13 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 **2026-10-29 前置开工**：`crates/mode-protocol-client` 已完成协议内核——任意双向流上的
 LF 分帧（只认 `\n`，U+2028/U+2029 不切帧）、请求 id 多路复用、单请求超时（默认 180s）、
 通知广播、入站请求默认 `-32601`、EOF/dispose 统一失败 pending；7 条单元测试，见
-`docs/specs/mode-protocol-client.md`。**未做**：进程拉起/进程树清理/stderr 收集、
-存储启动门、观测续期语义。这些决定「谁拥有 Agent 进程」（壳 vs Node Host），是 W4 的
-核心架构选择；`hooks` 的 `grantWorkspaceHookTrust` 与任务/会话频道都等这一层落地。
+`docs/specs/mode-protocol-client.md`。**进程层已落**：`crates/agent-process` 负责无控制台
+拉起、stdio 接入、stderr 广播、stdin EOF 优雅关闭与整树强杀（Windows `taskkill /T /F` /
+Unix 进程组 SIGKILL），5 条真实子进程测试；见 `docs/specs/agent-process.md`。
+**未做**：workspace → 进程注册表、空闲回收、provider 配置同步、TS 的 stderr 排空窗口/
+进程树快照，以及最关键的**所有权切换**——把 `mode-agent` 频道与 Agent 进程从 Node Host
+迁到壳，并确保同一 workspace 只有一个 Agent 进程。这是 W4 下一片，`hooks` 的
+`grantWorkspaceHookTrust` 与任务/会话频道都等它。
 
 ### W5 生态面替换
 
