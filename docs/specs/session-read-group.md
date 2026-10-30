@@ -55,6 +55,24 @@ Goal 的 `summaryTitle` 在 schema 里是 `.default(null)`：**省略**与显式
 且镜像要能原样写回（省略就写省略、null 就写 null）。`activeInputId` / `activeRun*` 同理
 （`nullable().optional()`）。
 
+## 3b. `session/events`
+
+请求：`{ sessionId, afterSeq?, limit? }`，缺省的可选键省略。
+
+应答：`{ events: SessionEvent[] }`。事件信封（`modeEventEnvelopeSchema`）严格：
+
+| 字段 | 形状 |
+| --- | --- |
+| `eventId` / `sessionId` | 非空字符串 |
+| `turnId` / `traceId` / `deliveryKind` | 可选 |
+| `seq` / `timestamp` | 非负整数 |
+| `type` | 协议事件类型字面量（26 种，未登记取值直接拒绝） |
+| `payload` | 可选，按 `type` 解释 |
+
+**与 TS 的差异**：TS 用 `modeSessionEventSchema`（按 `type` 的判别联合）逐个校验载荷；Rust
+镜像只对 M2 用到的载荷做了强类型（`session_event::payload_as`），其余载荷保持原始 JSON。
+消费方需要某个载荷时按 `type` 解码，解不开即报错，不会静默接受错类型。
+
 ## 4. 运行时策略
 
 `getReadOnlyClient(params, runtimePolicy)` 的两种语义：
@@ -70,12 +88,14 @@ Goal 的 `summaryTitle` 在 schema 里是 `.default(null)`：**省略**与显式
   返回值自行保存。
 - 交互偏好同步、Off-Peak 工具面同步、provider registry 预热属于 mode-agent 服务层编排，
   不在本组；接频道时由服务层在取 client 后补齐。
-- `session/list` 之外的方法按需补类型与录制夹具。
+- `session/list`、`session/events` 之外的方法按需补类型与录制夹具。
 
 ## 6. 验收
 
-1. 共享夹具 `request-session-list.json` / `response-session-list.json` 同时被 TS zod 与 Rust
+1. 共享夹具 `request-session-list.json` / `response-session-list.json` /
+   `request-session-events.json` / `response-session-events.json` 同时被 TS zod 与 Rust
    严格镜像接受；Rust 侧序列化回到线上字节。
-2. `sessionIds` / `limit` 缺省时不出现键；`includeArchived=false` 恒出现。
+2. `sessionIds` / `limit` / `afterSeq` 缺省时不出现键；`includeArchived=false` 恒出现。
 3. `existing-only` 在没有活进程时返回 runtime-unavailable 错误且 spawn 次数为 0。
-4. 正常路径返回的 `sessions` 字段逐项可读；同 workspace 复用同一进程。
+4. 正常路径返回的 `sessions` / `events` 字段逐项可读；同一 workspace 复用同一进程。
+5. 事件信封多一个键时整条结果被拒绝，消息前缀 `invalid session/events result`。

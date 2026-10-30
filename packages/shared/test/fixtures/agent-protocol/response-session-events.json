@@ -1,0 +1,34 @@
+{
+  "case": "response-session-events",
+  "direction": "runtime->host",
+  "respondsTo": "session/events",
+  "note": "运行时返回会话事件列表：信封严格、payload 开放（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 42,
+    "result": {
+      "events": [
+        {
+          "eventId": "evt-1",
+          "sessionId": "sess-1",
+          "seq": 11,
+          "timestamp": 1700000000010,
+          "deliveryKind": "desktop-continuous",
+          "type": "session.updated",
+          "payload": {}
+        },
+        {
+          "eventId": "evt-2",
+          "sessionId": "sess-1",
+          "turnId": "turn-1",
+          "seq": 12,
+          "traceId": "trace-1",
+          "timestamp": 1700000000011,
+          "type": "session.updated",
+          "payload": {
+            "status": "running"
+          }
+        }
+      ]
+    }
+  }
+}

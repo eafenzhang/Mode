@@ -1,15 +1,22 @@
-//! `session/list` 的严格线格式镜像（会话只读组第一片）。
+//! 会话只读组的严格线格式镜像（`session/list`、`session/events`）。
 //!
 //! 真源：`packages/shared/src/mode-protocol-legacy-types.ts` 的 `modeSessionInfoSchema` /
 //! `modeWorkspaceRefSchema` / `modeSessionGoalSchema`，以及
 //! `packages/shared/src/mode-protocol/index.ts` 的 `modeSessionListParamsSchema` /
-//! `modeSessionListResultSchema`。规范见 `docs/specs/session-read-group.md`。
+//! `modeSessionListResultSchema` / `modeSessionEventsParamsSchema` /
+//! `modeSessionEventsResultSchema`。规范见 `docs/specs/session-read-group.md`。
 //!
 //! 这些 schema 都是 `.strict()`，所以这里全部 `deny_unknown_fields`：多一个键就拒绝。
 //! `summaryTitle` / `activeInputId` / `activeRun*` 是 `nullable().optional()`，镜像用
 //! `Option<Option<T>>` 保留「省略」与「显式 null」的区别，round-trip 才能逐字节回到线上。
+//!
+//! `session/events` 复用 `session_event::SessionEvent` 信封镜像：信封严格、载荷保持
+//! `Value`。载荷按类型逐个 strict 是 TS zod 的行为，但镜像只对 M2 用到的类型做了强类型，
+//! 其余载荷原样交给消费方（见 `docs/specs/session-read-group.md` 的差异一节）。
 
 use serde::{Deserialize, Deserializer, Serialize};
+
+use crate::session_event::SessionEvent;
 
 /// `nullable().optional()` 的三态解码：键缺失走 `default`，显式 `null` 得到 `Some(None)`。
 ///
@@ -24,6 +31,7 @@ where
 }
 
 pub const SESSION_LIST_METHOD: &str = "session/list";
+pub const SESSION_EVENTS_METHOD: &str = "session/events";
 
 /// 结果里的 workspace ref（`modeWorkspaceRefSchema`，严格四键）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -185,7 +193,11 @@ pub struct SessionInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<SessionModel>,
     /// `nullable().optional()`。
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub target: Option<Option<SessionGoal>>,
     pub created_at: u64,
     pub updated_at: u64,
@@ -215,3 +227,22 @@ pub struct SessionListParams {
 pub struct SessionListResult {
     pub sessions: Vec<SessionInfo>,
 }
+
+/// `session/events` 的 params（`modeSessionEventsParamsSchema`）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionEventsParams {
+    pub session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_seq: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+}
+
+/// `modeSessionEventsResultSchema`：信封严格，载荷按事件类型解释。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionEventsResult {
+    pub events: Vec<SessionEvent>,
+}
+

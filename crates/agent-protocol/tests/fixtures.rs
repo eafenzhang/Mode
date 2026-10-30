@@ -26,7 +26,9 @@ use agent_protocol::session_event::{
     SessionTitleUpdatedPayload, TitleSource, ToolUpdatedPayload, TurnCompletedPayload,
     TurnStartedPayload,
 };
-use agent_protocol::session_read::{SessionKind, SessionListParams, SessionListResult};
+use agent_protocol::session_read::{
+    SessionEventsParams, SessionEventsResult, SessionKind, SessionListParams, SessionListResult,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -319,6 +321,13 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert!(params.session_ids.is_none(), "{case}：夹具不带 sessionIds");
                         exercised.insert("session/list".to_string());
                     }
+                    "session/events" => {
+                        let params: SessionEventsParams = decode(case, &params);
+                        assert_eq!(params.session_id, "sess-1");
+                        assert_eq!(params.after_seq, Some(10));
+                        assert_eq!(params.limit, Some(20));
+                        exercised.insert("session/events".to_string());
+                    }
                     "session/requestRuntimePreferences" => {
                         let params: RuntimePreferencesRequestParams = decode(case, &params);
                         assert_eq!(params.scope, RuntimePreferencesScope::RuntimeMaterialization);
@@ -373,6 +382,18 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("session/list".to_string());
                     }
+                    "session/events" => {
+                        let result: SessionEventsResult = decode(case, &response.result);
+                        assert_eq!(result.events.len(), 2);
+                        assert_eq!(result.events[0].seq, 11);
+                        assert!(result.events[1].turn_id.is_some());
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("session/events".to_string());
+                    }
                     other => panic!("{case}：应答 {other} 没有镜像"),
                 }
             }
@@ -383,6 +404,7 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
         exercised,
         [
             "session/create",
+            "session/events",
             "session/list",
             "session/requestRuntimePreferences",
             "session/send"

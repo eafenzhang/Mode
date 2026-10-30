@@ -24,6 +24,8 @@ import {
   modeProtocolMessageSchema,
   modeSessionCreateParamsSchema,
   modeSessionEventSchema,
+  modeSessionEventsParamsSchema,
+  modeSessionEventsResultSchema,
   modeSessionListParamsSchema,
   modeSessionListResultSchema,
   modeSessionRequestRuntimePreferencesParamsSchema,
@@ -212,11 +214,13 @@ test("会话事件的载荷能被 v1 session event schema 接受，或只差已�
 test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
   const paramsSchemas: Record<string, Parseable> = {
     "session/create": modeSessionCreateParamsSchema,
+    "session/events": modeSessionEventsParamsSchema,
     "session/list": modeSessionListParamsSchema,
     "session/send": modeSessionSendParamsSchema,
     "session/requestRuntimePreferences": modeSessionRequestRuntimePreferencesParamsSchema,
   };
   const resultSchemas: Record<string, Parseable> = {
+    "session/events": modeSessionEventsResultSchema,
     "session/list": modeSessionListResultSchema,
     "session/send": modeSessionSendResultSchema,
     "session/requestRuntimePreferences": modeSessionRuntimePreferencesResultSchema,

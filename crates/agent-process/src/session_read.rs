@@ -6,8 +6,10 @@
 //! TS 还会把返回的 `traceId` 记入进程内缓存；facade 没有该缓存，调用方按返回值自行保存。
 //! 交互偏好 / Off-Peak 工具面 / provider registry 预热属于服务层编排，不在这一层。
 
+use agent_protocol::session_event::SessionEvent;
 use agent_protocol::session_read::{
-    SessionInfo, SessionListParams, SessionListResult, SessionWorkspaceRef, SESSION_LIST_METHOD,
+    SessionEventsParams, SessionEventsResult, SessionInfo, SessionListParams, SessionListResult,
+    SessionWorkspaceRef, SESSION_EVENTS_METHOD, SESSION_LIST_METHOD,
 };
 use serde_json::Value;
 
@@ -44,6 +46,31 @@ impl AgentControlClient {
             .await?;
         parse_session_list(&response)
     }
+
+    /// `session/events`：按 `afterSeq` / `limit` 读取会话事件。
+    ///
+    /// 信封严格解析，载荷保持协议原始 JSON（强类型载荷由消费方按 `type` 解释）。
+    pub async fn read_session_events(
+        &self,
+        target: &AgentWorkspaceTarget,
+        session_id: &str,
+        after_seq: Option<u64>,
+        limit: Option<u64>,
+    ) -> Result<Vec<SessionEvent>, ControlError> {
+        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let params = SessionEventsParams {
+            session_id: session_id.to_string(),
+            after_seq,
+            limit,
+        };
+        let params =
+            serde_json::to_value(&params).expect("session/events params 序列化不会失败");
+        let response = process
+            .client()
+            .request(SESSION_EVENTS_METHOD, Some(params))
+            .await?;
+        parse_session_events(&response)
+    }
 }
 
 /// `buildWorkspaceRef` 的结果形状：identity 保留原值（含空白），`workspaceKey` 已 trim。
@@ -61,4 +88,11 @@ fn parse_session_list(value: &Value) -> Result<Vec<SessionInfo>, ControlError> {
         ControlError::InvalidResult(format!("invalid session/list result: {error}"))
     })?;
     Ok(result.sessions)
+}
+
+fn parse_session_events(value: &Value) -> Result<Vec<SessionEvent>, ControlError> {
+    let result: SessionEventsResult = serde_json::from_value(value.clone()).map_err(|error| {
+        ControlError::InvalidResult(format!("invalid session/events result: {error}"))
+    })?;
+    Ok(result.events)
 }

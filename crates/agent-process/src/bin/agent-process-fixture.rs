@@ -136,6 +136,19 @@ fn main() {
                 session["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": { "sessions": [session] } })
+        } else if method == "session/events" {
+            let mut event = json!({
+                "eventId": "evt-1",
+                "sessionId": "sess-1",
+                "seq": 11,
+                "timestamp": 1,
+                "type": "session.updated",
+                "payload": {}
+            });
+            if mode == "bad-session-events" {
+                event["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": { "events": [event] } })
         } else {
             json!({ "id": id, "result": { "method": method } })
         };

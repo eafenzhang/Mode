@@ -1,0 +1,14 @@
+{
+  "case": "request-session-events",
+  "direction": "host->runtime",
+  "note": "host 按 afterSeq/limit 读取会话事件（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 42,
+    "method": "session/events",
+    "params": {
+      "sessionId": "sess-1",
+      "afterSeq": 10,
+      "limit": 20
+    }
+  }
+}
