@@ -1,0 +1,14 @@
+{
+  "case": "response-v4-command-resolve-interaction",
+  "direction": "runtime->host",
+  "respondsTo": "v4/command",
+  "note": "resolveInteraction 的 accepted ACK（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 60,
+    "result": {
+      "commandId": "cmd-1",
+      "status": "accepted",
+      "revisionAtDecision": 5
+    }
+  }
+}

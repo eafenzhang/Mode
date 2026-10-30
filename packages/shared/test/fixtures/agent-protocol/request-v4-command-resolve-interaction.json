@@ -1,0 +1,20 @@
+{
+  "case": "request-v4-command-resolve-interaction",
+  "direction": "host->runtime",
+  "note": "v4 交互回执：resolveInteraction 信封（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 60,
+    "method": "v4/command",
+    "params": {
+      "commandId": "cmd-1",
+      "clientId": "host-1",
+      "sessionId": "sess-1",
+      "type": "resolveInteraction",
+      "payload": {
+        "interactionId": "perm-1",
+        "answer": { "optionId": "allow_once" }
+      },
+      "issuedAt": 1700000000000
+    }
+  }
+}

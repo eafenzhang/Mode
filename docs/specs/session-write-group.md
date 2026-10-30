@@ -142,6 +142,24 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 **与 TS 的差异**：全局档（`scope: global`）的载体运行时由 TS 自行挑选（可能回落到 plugin
 管理面进程）；本 facade 直接使用调用方给的 workspace target 作为载体。
 
+## 2g. v4 命令最小闭环：`resolveInteraction`
+
+`resolve_interaction_v4(target, sessionId, interactionId, answer)` → `v4/command`：
+
+```json
+{ "commandId": "…", "clientId": "…", "sessionId": "…", "type": "resolveInteraction",
+  "payload": { "interactionId": "…", "answer": { "optionId"?, "freeText"?, "action"?, "content"? } },
+  "issuedAt": 1700000000000 }
+```
+
+- ACK 六态：`accepted` / `duplicate` / `noop` 视为幂等成功；`rejected` / `stale` / `failed`
+  返回 `CommandRejected`，消息形如
+  `v4 command resolveInteraction rejected (reasonCode): message`（与 TS `assertV4CommandAckOk` 对齐）。
+- ACK 的 `result` 是按命令类型的判别联合；本镜像只发送 `resolveInteraction`（该命令不产生
+  result），所以 `result` 保持原始 JSON。
+- **与 TS 的差异**：`commandId` / `clientId` 只保证非空且按提交端稳定，不是 UUID v7；
+  `helloConversationV4` / 信任连接与订阅尚未迁移（`resolveInteraction` 不依赖它们）。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、
@@ -162,3 +180,5 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
    `invalid mcp/list result`。
 9. 工作流只读：list 的 args 声明与 `default:null` 原样保留；get 的成功/失败分支都能解析；
    runs 的 `limit` 越界不拉起 Agent，非法结果有独立前缀。
+10. v4 回执：信封的 type/payload/sessionId 与稳定 clientId 可断言；`accepted` 返回 ACK，
+    `rejected` 映射为 `CommandRejected` 并携带状态与 reasonCode。

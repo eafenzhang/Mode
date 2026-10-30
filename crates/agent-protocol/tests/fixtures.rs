@@ -41,6 +41,9 @@ use agent_protocol::session_write::{
     SessionSetModelParams, SessionSetThoughtLevelParams,
 };
 use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
+use agent_protocol::v4::{
+    CommandAck, CommandAckStatus, ResolveInteractionEnvelope, ResolveInteractionType,
+};
 use agent_protocol::workflow::{
     SavedWorkflowScope, WorkflowRunStatus, WorkflowsGetParams, WorkflowsGetResult,
     WorkflowsListParams, WorkflowsListResult, WorkflowsRunsParams, WorkflowsRunsResult,
@@ -463,6 +466,18 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert_eq!(params.scope, Some(SavedWorkflowScope::Global));
                         exercised.insert("workflows/runs".to_string());
                     }
+                    "v4/command" => {
+                        let envelope: ResolveInteractionEnvelope = decode(case, &params);
+                        assert_eq!(envelope.command_type, ResolveInteractionType::ResolveInteraction);
+                        assert_eq!(envelope.session_id, "sess-1");
+                        assert_eq!(envelope.payload.interaction_id, "perm-1");
+                        assert_eq!(
+                            serde_json::to_value(&envelope).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/command".to_string());
+                    }
                     "session/requestRuntimePreferences" => {
                         let params: RuntimePreferencesRequestParams = decode(case, &params);
                         assert_eq!(params.scope, RuntimePreferencesScope::RuntimeMaterialization);
@@ -721,6 +736,17 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("workflows/runs".to_string());
                     }
+                    "v4/command" => {
+                        let ack: CommandAck = decode(case, &response.result);
+                        assert_eq!(ack.status, CommandAckStatus::Accepted);
+                        assert_eq!(ack.command_id, "cmd-1");
+                        assert_eq!(
+                            serde_json::to_value(&ack).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/command".to_string());
+                    }
                     other => panic!("{case}：应答 {other} 没有镜像"),
                 }
             }
@@ -749,7 +775,8 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "mcp/list",
             "workflows/list",
             "workflows/get",
-            "workflows/runs"
+            "workflows/runs",
+            "v4/command"
         ]
         .into_iter()
         .map(str::to_string)

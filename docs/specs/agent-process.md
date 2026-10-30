@@ -193,6 +193,9 @@ workspace 只读面：`read_workspace_presentation`（closed-transport 重试一
 工作流只读：`list_saved_workflows` / `get_saved_workflow`（Ok/Failure 联合）/
 `list_saved_workflow_runs`（limit 1..=50 前置校验）。
 
+v4 命令最小闭环：`resolve_interaction_v4`（`v4/command` 的 `resolveInteraction`）；
+ACK 的 accepted/duplicate/noop 视为成功，其余映射为 `ControlError::CommandRejected`。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -285,6 +288,8 @@ close 的 persistence 与默认 true、非法写结果被拒绝。
 
 `crates/agent-process/tests/workflows.rs`（4 条）：list 的 scope 与清单、get 的成功/失败联合、
 runs 的 artifacts 与 limit 前置校验、三类非法结果。
+
+`crates/agent-process/tests/v4.rs`（2 条）：resolveInteraction 信封与 ACK、rejected 映射。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

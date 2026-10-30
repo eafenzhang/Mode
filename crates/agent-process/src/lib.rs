@@ -28,6 +28,7 @@ mod runtime_preferences;
 mod session_events;
 mod session_read;
 mod session_write;
+mod v4;
 mod workflows;
 mod workspace;
 

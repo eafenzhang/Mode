@@ -286,6 +286,32 @@ fn main() {
                 message["info"]["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": { "messages": [message] } })
+        } else if method == "v4/command" {
+            let command_id = request
+                .get("params")
+                .and_then(|params| params.get("commandId"))
+                .and_then(Value::as_str)
+                .unwrap_or("cmd-1")
+                .to_string();
+            let rejected = mode == "v4-command-rejected";
+            json!({
+                "id": id,
+                "result": if rejected {
+                    json!({
+                        "commandId": command_id,
+                        "status": "rejected",
+                        "reasonCode": "fault.command.rejected",
+                        "message": "denied",
+                        "revisionAtDecision": 5
+                    })
+                } else {
+                    json!({
+                        "commandId": command_id,
+                        "status": "accepted",
+                        "revisionAtDecision": 5
+                    })
+                }
+            })
         } else if method == "workflows/list" {
             let mut result = json!({
                 "workflows": [{

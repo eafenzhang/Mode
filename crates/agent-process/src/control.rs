@@ -94,6 +94,8 @@ pub enum ControlError {
     InvalidResult(String),
     /// 调用方构造的协议参数不满足 schema 的组合约束（发出前拒绝）。
     InvalidParams(String),
+    /// v4 命令被服务端否决（rejected/stale/failed），消息携带原始 ACK 摘要。
+    CommandRejected(String),
     ProviderSync(String),
     /// existing-only 策略下没有活进程（对应 TS `MODE_AGENT_RUNTIME_UNAVAILABLE`）。
     RuntimeUnavailable { workspace_key: String },
@@ -112,6 +114,7 @@ impl std::fmt::Display for ControlError {
             ),
             Self::InvalidResult(message) => formatter.write_str(message),
             Self::InvalidParams(message) => formatter.write_str(message),
+            Self::CommandRejected(message) => formatter.write_str(message),
             Self::ProviderSync(message) => formatter.write_str(message),
             // 消息与 TS `createRuntimeUnavailableError` 一致。
             Self::RuntimeUnavailable { .. } => formatter.write_str("Mode Agent runtime is not running."),
@@ -136,14 +139,25 @@ impl From<ClientError> for ControlError {
 pub struct AgentControlClient {
     registry: Arc<AgentRuntimeRegistry>,
     provider_sync: crate::ProviderConfigSync,
+    /// v4 命令的稳定提交端标识（对应 TS host services 的进程稳定 clientId）。
+    v4_client_id: String,
 }
 
 impl AgentControlClient {
     pub fn new(registry: Arc<AgentRuntimeRegistry>) -> Self {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
         Self {
             registry,
             provider_sync: crate::ProviderConfigSync::new(),
+            v4_client_id: format!("host-rust-{}-{now}", std::process::id()),
         }
+    }
+
+    pub(crate) fn v4_client_id(&self) -> &str {
+        &self.v4_client_id
     }
 
     /// `getReadOnlyClient(params, runtimePolicy)` 的 Rust 形态。

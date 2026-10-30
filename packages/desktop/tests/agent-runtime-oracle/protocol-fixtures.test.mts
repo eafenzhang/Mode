@@ -61,6 +61,10 @@ import {
   sessionDebugParamsSchema,
   sessionDebugSnapshotSchema,
 } from "../../../shared/src/session-debug.js";
+import {
+  commandAckSchema,
+  commandEnvelopeSchema,
+} from "../../../shared/src/mode-protocol-v4/command.js";
 
 /** 夹具外壳：`frame` 是线上整帧，其余是录制元数据（不属于线上形状）。 */
 type ProtocolFixture = {
@@ -256,6 +260,7 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "session/subagents": modeSessionSubagentsParamsSchema,
     "session/subscribe": modeSessionSubscribeParamsSchema,
     "session/requestRuntimePreferences": modeSessionRequestRuntimePreferencesParamsSchema,
+    "v4/command": commandEnvelopeSchema,
     "workspace/readPresentation": modeWorkspaceReadPresentationParamsSchema,
     "workflows/get": modeWorkflowsGetParamsSchema,
     "workflows/list": modeWorkflowsListParamsSchema,
@@ -280,6 +285,7 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "session/subagents": modeSessionSubagentsResultSchema,
     "session/subscribe": modeSessionSubscribeResultSchema,
     "session/requestRuntimePreferences": modeSessionRuntimePreferencesResultSchema,
+    "v4/command": commandAckSchema,
     "workspace/readPresentation": modeWorkspacePresentationSchema,
   };
   const exercisedCommands = new Set<string>();
