@@ -1,0 +1,14 @@
+{
+  "case": "request-session-messages",
+  "direction": "host->runtime",
+  "note": "host 按 afterMessageId/limit 读取消息（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 44,
+    "method": "session/messages",
+    "params": {
+      "sessionId": "sess-1",
+      "afterMessageId": "msg-1",
+      "limit": 50
+    }
+  }
+}

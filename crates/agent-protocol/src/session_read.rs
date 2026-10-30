@@ -16,13 +16,14 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::message::MessageWithParts;
 use crate::session_event::SessionEvent;
 
 /// `nullable().optional()` 的三态解码：键缺失走 `default`，显式 `null` 得到 `Some(None)`。
 ///
 /// 直接写 `Option<Option<T>>` 不够：serde 解 `null` 时外层 `Option` 直接得到 `None`，
 /// 「省略」与「显式 null」会被合并，round-trip 就写不回原样。
-fn deserialize_nullable<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
+pub(crate) fn deserialize_nullable<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     T: Deserialize<'de>,
     D: Deserializer<'de>,
@@ -33,6 +34,7 @@ where
 pub const SESSION_LIST_METHOD: &str = "session/list";
 pub const SESSION_EVENTS_METHOD: &str = "session/events";
 pub const SESSION_SUBAGENTS_METHOD: &str = "session/subagents";
+pub const SESSION_MESSAGES_METHOD: &str = "session/messages";
 
 /// 结果里的 workspace ref（`modeWorkspaceRefSchema`，严格四键）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -339,3 +341,21 @@ pub struct SessionSubagentsResult {
 }
 
 
+
+/// `session/messages` 的 params（`modeSessionMessagesParamsSchema`）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionMessagesParams {
+    pub session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_message_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+}
+
+/// `modeSessionMessagesResultSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionMessagesResult {
+    pub messages: Vec<MessageWithParts>,
+}

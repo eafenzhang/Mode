@@ -26,10 +26,11 @@ use agent_protocol::session_event::{
     SessionTitleUpdatedPayload, TitleSource, ToolUpdatedPayload, TurnCompletedPayload,
     TurnStartedPayload,
 };
+use agent_protocol::message::{MessageInfo, MessagePart, ToolState};
 use agent_protocol::session_read::{
     EndedSubagentStatus, RunningSubagentStatus, SessionEventsParams, SessionEventsResult,
-    SessionKind, SessionListParams, SessionListResult, SessionSubagentsParams,
-    SessionSubagentsResult,
+    SessionKind, SessionListParams, SessionListResult, SessionMessagesParams,
+    SessionMessagesResult, SessionSubagentsParams, SessionSubagentsResult,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -337,6 +338,13 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert_eq!(params.ended_limit, 20);
                         exercised.insert("session/subagents".to_string());
                     }
+                    "session/messages" => {
+                        let params: SessionMessagesParams = decode(case, &params);
+                        assert_eq!(params.session_id, "sess-1");
+                        assert_eq!(params.after_message_id.as_deref(), Some("msg-1"));
+                        assert_eq!(params.limit, Some(50));
+                        exercised.insert("session/messages".to_string());
+                    }
                     "session/requestRuntimePreferences" => {
                         let params: RuntimePreferencesRequestParams = decode(case, &params);
                         assert_eq!(params.scope, RuntimePreferencesScope::RuntimeMaterialization);
@@ -418,6 +426,30 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("session/subagents".to_string());
                     }
+                    "session/messages" => {
+                        let result: SessionMessagesResult = decode(case, &response.result);
+                        assert_eq!(result.messages.len(), 2);
+                        assert!(matches!(result.messages[0].info, MessageInfo::User(_)));
+                        assert!(matches!(result.messages[1].info, MessageInfo::Assistant(_)));
+                        assert!(matches!(
+                            result.messages[1].parts[0],
+                            MessagePart::Text(_)
+                        ));
+                        let MessagePart::Tool(tool) = &result.messages[1].parts[1] else {
+                            panic!("{case}：第二个部件应当是 tool");
+                        };
+                        assert!(matches!(tool.state, ToolState::Completed(_)));
+                        assert!(matches!(
+                            result.messages[1].parts[2],
+                            MessagePart::StepFinish(_)
+                        ));
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("session/messages".to_string());
+                    }
                     other => panic!("{case}：应答 {other} 没有镜像"),
                 }
             }
@@ -430,6 +462,7 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "session/create",
             "session/events",
             "session/list",
+            "session/messages",
             "session/requestRuntimePreferences",
             "session/send",
             "session/subagents"

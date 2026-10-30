@@ -154,6 +154,10 @@ cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd�
 第三片是 `list_session_subagents(target, sessionId, endedCursor?, endedLimit?)`
 （`session/subagents`）：`endedLimit` 缺省 20 且恒发；running/ended 严格解析。
 
+第四片是 `read_session_messages(target, sessionId, afterMessageId?, limit?)`
+（`session/messages`）：消息/部件按 `role` 与 `type` 判别联合严格解析，`cost` 保留 JSON
+数字原样。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -218,6 +222,9 @@ existing-only 不 spawn 且报 runtime-unavailable、未知结果字段被拒绝
 
 `crates/agent-process/tests/session_subagents.rs`（3 条）：缺省 endedLimit=20、显式游标/分页、
 未知结果字段被拒绝。
+
+`crates/agent-process/tests/session_messages.rs`（3 条）：游标与部件解析、缺省不序列化、
+未知消息字段被拒绝。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

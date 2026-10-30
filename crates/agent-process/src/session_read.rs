@@ -6,11 +6,13 @@
 //! TS 还会把返回的 `traceId` 记入进程内缓存；facade 没有该缓存，调用方按返回值自行保存。
 //! 交互偏好 / Off-Peak 工具面 / provider registry 预热属于服务层编排，不在这一层。
 
+use agent_protocol::message::MessageWithParts;
 use agent_protocol::session_event::SessionEvent;
 use agent_protocol::session_read::{
     SessionEventsParams, SessionEventsResult, SessionInfo, SessionListParams, SessionListResult,
-    SessionSubagentsParams, SessionSubagentsResult, SessionWorkspaceRef, SESSION_EVENTS_METHOD,
-    SESSION_LIST_METHOD, SESSION_SUBAGENTS_METHOD,
+    SessionMessagesParams, SessionMessagesResult, SessionSubagentsParams, SessionSubagentsResult,
+    SessionWorkspaceRef, SESSION_EVENTS_METHOD, SESSION_LIST_METHOD, SESSION_MESSAGES_METHOD,
+    SESSION_SUBAGENTS_METHOD,
 };
 use serde_json::Value;
 
@@ -95,6 +97,29 @@ impl AgentControlClient {
             .await?;
         parse_session_subagents(&response)
     }
+
+    /// `session/messages`：按 `afterMessageId` / `limit` 读取消息与部件。
+    pub async fn read_session_messages(
+        &self,
+        target: &AgentWorkspaceTarget,
+        session_id: &str,
+        after_message_id: Option<&str>,
+        limit: Option<u64>,
+    ) -> Result<Vec<MessageWithParts>, ControlError> {
+        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let params = SessionMessagesParams {
+            session_id: session_id.to_string(),
+            after_message_id: after_message_id.map(str::to_string),
+            limit,
+        };
+        let params =
+            serde_json::to_value(&params).expect("session/messages params 序列化不会失败");
+        let response = process
+            .client()
+            .request(SESSION_MESSAGES_METHOD, Some(params))
+            .await?;
+        parse_session_messages(&response)
+    }
 }
 
 /// `buildWorkspaceRef` 的结果形状：identity 保留原值（含空白），`workspaceKey` 已 trim。
@@ -125,4 +150,11 @@ fn parse_session_subagents(value: &Value) -> Result<SessionSubagentsResult, Cont
     serde_json::from_value(value.clone()).map_err(|error| {
         ControlError::InvalidResult(format!("invalid session/subagents result: {error}"))
     })
+}
+
+fn parse_session_messages(value: &Value) -> Result<Vec<MessageWithParts>, ControlError> {
+    let result: SessionMessagesResult = serde_json::from_value(value.clone()).map_err(|error| {
+        ControlError::InvalidResult(format!("invalid session/messages result: {error}"))
+    })?;
+    Ok(result.messages)
 }

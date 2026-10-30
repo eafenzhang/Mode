@@ -165,6 +165,27 @@ fn main() {
                 result["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": result })
+        } else if method == "session/messages" {
+            let mut message = json!({
+                "info": {
+                    "messageId": "msg-1",
+                    "sessionId": "sess-1",
+                    "role": "user",
+                    "time": { "created": 1 },
+                    "agent": "mode"
+                },
+                "parts": [{
+                    "partId": "part-1",
+                    "sessionId": "sess-1",
+                    "messageId": "msg-1",
+                    "type": "text",
+                    "text": "hi"
+                }]
+            });
+            if mode == "bad-session-messages" {
+                message["info"]["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": { "messages": [message] } })
         } else {
             json!({ "id": id, "result": { "method": method } })
         };

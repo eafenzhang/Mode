@@ -83,6 +83,23 @@ Goal 的 `summaryTitle` 在 schema 里是 `.default(null)`：**省略**与显式
 `success` / `failed` / `cancelled` / `lost`。两条 schema 都是 base 字段 + `status` 的
 `.strict()` 扩展（`childSessionId`、`subagentType`、`title` 必填，其余可选）。
 
+## 3d. `session/messages`
+
+请求：`{ sessionId, afterMessageId?, limit? }`，缺省的可选键省略。
+
+应答：`{ messages: [{ info, parts }] }`：
+
+- `info` 按 `role` 判别：`user`（`messageId/sessionId/role/time/agent` 必填，
+  `model/system/tools/synthetic/source/visibility/semantics/metadata` 可选）与 `assistant`
+  （另有 `parentMessageId/path/cost/tokens` 必填，`finish/error/semantics/structured` 可选）。
+- `parts` 按 `type` 判别，共 13 种：`text`、`reasoning`、`file`、`tool`、`step-start`、
+  `step-finish`、`snapshot`、`patch`、`compaction`、`timeline`、`subagent`、`agent`、`retry`。
+  `tool.state` 再按 `status` 分 `pending/running/completed/error`。
+- `cost` 保留 `serde_json::Number`：线上既有整数也有小数，转 `f64` 会把 `0` 写成 `0.0`。
+- 判别联合在 Rust 侧用 `#[serde(untagged)]` + 各分支 `deny_unknown_fields`（serde 不支持
+  「内部标记 + deny_unknown_fields」），未知键仍被拒绝。
+- `assistant.structured`（`z.unknown().optional()`）用三态保留省略与显式 null。
+
 ## 4. 运行时策略
 
 `getReadOnlyClient(params, runtimePolicy)` 的两种语义：
@@ -104,12 +121,14 @@ Goal 的 `summaryTitle` 在 schema 里是 `.default(null)`：**省略**与显式
 
 1. 共享夹具 `request-session-list.json` / `response-session-list.json` /
    `request-session-events.json` / `response-session-events.json` /
-   `request-session-subagents.json` / `response-session-subagents.json` 同时被 TS zod 与 Rust
+   `request-session-subagents.json` / `response-session-subagents.json` /
+   `request-session-messages.json` / `response-session-messages.json` 同时被 TS zod 与 Rust
    严格镜像接受；Rust 侧序列化回到线上字节。
-2. `sessionIds` / `limit` / `afterSeq` / `endedCursor` 缺省时不出现键；
+2. `sessionIds` / `limit` / `afterSeq` / `endedCursor` / `afterMessageId` 缺省时不出现键；
    `includeArchived=false` 与 `endedLimit=20` 恒出现。
 3. `existing-only` 在没有活进程时返回 runtime-unavailable 错误且 spawn 次数为 0。
-4. 正常路径返回的 `sessions` / `events` / `subagents` 字段逐项可读；同一 workspace 复用
-   同一进程。
-5. 事件信封或子代理结果多一个键时整条结果被拒绝，消息前缀分别为
-   `invalid session/events result` 与 `invalid session/subagents result`。
+4. 正常路径返回的 `sessions` / `events` / `subagents` / `messages` 逐项可读；同一 workspace
+   复用同一进程。
+5. 事件信封、子代理结果或消息多一个键时整条结果被拒绝，消息前缀分别为
+   `invalid session/events result`、`invalid session/subagents result`、
+   `invalid session/messages result`。

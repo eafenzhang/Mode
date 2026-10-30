@@ -1,0 +1,93 @@
+{
+  "case": "response-session-messages",
+  "direction": "runtime->host",
+  "respondsTo": "session/messages",
+  "note": "运行时返回消息与部件：user 文本 + assistant 文本/工具完成/step-finish（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 44,
+    "result": {
+      "messages": [
+        {
+          "info": {
+            "messageId": "msg-1",
+            "sessionId": "sess-1",
+            "role": "user",
+            "time": { "created": 1700000000000 },
+            "agent": "mode",
+            "model": { "providerId": "zai", "modelId": "glm-4.6" }
+          },
+          "parts": [
+            {
+              "partId": "part-1",
+              "sessionId": "sess-1",
+              "messageId": "msg-1",
+              "type": "text",
+              "text": "你好"
+            }
+          ]
+        },
+        {
+          "info": {
+            "messageId": "msg-2",
+            "sessionId": "sess-1",
+            "role": "assistant",
+            "time": { "created": 1700000000001, "completed": 1700000000002 },
+            "parentMessageId": "msg-1",
+            "agent": "mode",
+            "model": { "providerId": "zai", "modelId": "glm-4.6" },
+            "path": { "cwd": "/ws/demo", "root": "/ws/demo" },
+            "cost": 0,
+            "tokens": {
+              "input": 10,
+              "output": 5,
+              "reasoning": 0,
+              "cache": { "read": 0, "write": 0 }
+            },
+            "finish": "stop"
+          },
+          "parts": [
+            {
+              "partId": "part-2",
+              "sessionId": "sess-1",
+              "messageId": "msg-2",
+              "type": "text",
+              "text": "你好！"
+            },
+            {
+              "partId": "part-3",
+              "sessionId": "sess-1",
+              "messageId": "msg-2",
+              "type": "tool",
+              "callId": "call-1",
+              "tool": "bash",
+              "state": {
+                "status": "completed",
+                "input": { "command": "ls" },
+                "output": "a.txt",
+                "title": "列目录",
+                "metadata": {},
+                "startedAt": 1700000000003,
+                "completedAt": 1700000000004
+              }
+            },
+            {
+              "partId": "part-4",
+              "sessionId": "sess-1",
+              "messageId": "msg-2",
+              "type": "step-finish",
+              "reason": "stop",
+              "cost": 0.001,
+              "tokens": {
+                "total": 15,
+                "input": 10,
+                "output": 5,
+                "reasoning": 0,
+                "cache": { "read": 0, "write": 0 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
