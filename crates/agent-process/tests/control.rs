@@ -197,3 +197,31 @@ async fn registry_reuses_the_same_agent_between_grants() {
         "同一 workspace 的 grant 必须复用 Agent"
     );
 }
+
+#[tokio::test]
+async fn facade_prepares_storage_and_exposes_snapshot() {
+    let log = FrameLog::new("storage");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let mode = "storage-ready";
+    let factory: SpecFactory = {
+        let log_path = log.0.to_string_lossy().into_owned();
+        Arc::new(move |_target| {
+            spawns.fetch_add(1, Ordering::SeqCst);
+            let mut spec = AgentProcessSpec::new(FIXTURE);
+            spec.args.push(mode.to_string());
+            spec.supports_storage_startup = true;
+            spec.env
+                .push(("AGENT_FIXTURE_FRAME_LOG".to_string(), log_path.clone()));
+            Ok(spec)
+        })
+    };
+    let control = AgentControlClient::new(Arc::new(AgentRuntimeRegistry::new(factory)));
+    let target = agent_process::AgentWorkspaceTarget::new("D:/ws/storage");
+    control.prepare_storage(&target).await.expect("ready 必须放行");
+    let snapshot = control.storage_startup_state(&target).expect("必须有快照");
+    assert_eq!(
+        snapshot.state.expect("必须收到状态").phase,
+        agent_process::StorageStartupPhase::Ready
+    );
+    assert!(control.subscribe_storage_startup(&target).is_some());
+}

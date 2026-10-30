@@ -174,6 +174,13 @@ fn finish(
             cwd: resolve_spawn_cwd(&requested_cwd, &context.workspace_path),
             env: Vec::new(),
             request_timeout: context.request_timeout,
+            // env 显式命令不承诺上报 storage 状态；dev dist/源码与打包入口都会上报。
+            supports_storage_startup: matches!(
+                source,
+                AgentCommandSource::DevDist
+                    | AgentCommandSource::DevSource
+                    | AgentCommandSource::Packaged
+            ),
         },
         storage_preparation_entry,
         source,

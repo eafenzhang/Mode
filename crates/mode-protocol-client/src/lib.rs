@@ -156,6 +156,20 @@ impl ProtocolClient {
         R: AsyncRead + Unpin + Send + 'static,
         W: AsyncWrite + Unpin + Send + 'static,
     {
+        Self::connect_with_receiver(reader, writer, options).0
+    }
+
+    /// 与 [`Self::connect`] 相同，但返回的 receiver 在读取任务启动前就已订阅，
+    /// 因此不会漏掉连接建立后立刻到达的通知（例如 `startup/storageState`）。
+    pub fn connect_with_receiver<R, W>(
+        reader: R,
+        writer: W,
+        options: ClientOptions,
+    ) -> (Self, broadcast::Receiver<Value>)
+    where
+        R: AsyncRead + Unpin + Send + 'static,
+        W: AsyncWrite + Unpin + Send + 'static,
+    {
         let (out_tx, out_rx) = mpsc::unbounded_channel::<Option<Value>>();
         let (notification_tx, _) = broadcast::channel(NOTIFICATION_CHANNEL_CAPACITY);
         let shared = Arc::new(Shared {
@@ -169,6 +183,8 @@ impl ProtocolClient {
             tasks: Mutex::new(Vec::new()),
             request_timeout: options.request_timeout,
         });
+        // 先订阅再启动读取任务：连接建立后立即到达的通知不会丢。
+        let initial_notifications = shared.notifications.subscribe();
 
         let writer_shared = Arc::clone(&shared);
         let writer_task = tokio::spawn(async move {
@@ -184,7 +200,10 @@ impl ProtocolClient {
         tasks.push(reader_task.abort_handle());
         drop(tasks);
 
-        Self { shared }
+        (
+            Self { shared },
+            initial_notifications,
+        )
     }
 
     /// 注册入站请求处理器（Agent → 客户端方向的请求）。

@@ -7,11 +7,13 @@
 //! 事件。当前提供显式 `reap_idle` 与 `shutdown_all` 供宿主生命周期调用。
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use tokio::sync::Mutex as AsyncMutex;
 
+use crate::storage::StorageStartupState;
 use crate::{spawn, AgentProcess, AgentProcessError, AgentProcessSpec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,11 +50,19 @@ pub type SpecFactory = Arc<
 
 struct Entry {
     process: Arc<AgentProcess>,
+    generation: u64,
     last_used: Instant,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StorageStartupSnapshot {
+    pub generation: u64,
+    pub state: Option<StorageStartupState>,
 }
 
 pub struct AgentRuntimeRegistry {
     factory: SpecFactory,
+    next_generation: AtomicU64,
     entries: Mutex<HashMap<String, Entry>>,
     /// 同一 key 的并发 `get_or_spawn` 只允许一个真正 spawn；不同 key 互不阻塞。
     spawn_locks: Mutex<HashMap<String, Arc<AsyncMutex<()>>>>,
@@ -62,6 +72,7 @@ impl AgentRuntimeRegistry {
     pub fn new(factory: SpecFactory) -> Self {
         Self {
             factory,
+            next_generation: AtomicU64::new(0),
             entries: Mutex::new(HashMap::new()),
             spawn_locks: Mutex::new(HashMap::new()),
         }
@@ -73,6 +84,44 @@ impl AgentRuntimeRegistry {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// 现有进程的存储启动快照（不 spawn）。没有活进程时返回 `None`。
+    pub fn storage_startup_state(
+        &self,
+        target: &WorkspaceTarget,
+    ) -> Option<StorageStartupSnapshot> {
+        let key = target.key();
+        let entries = self.entries.lock().expect("registry poisoned");
+        let entry = entries
+            .get(&key)
+            .filter(|entry| !entry.process.client().is_closed())?;
+        Some(StorageStartupSnapshot {
+            generation: entry.generation,
+            state: entry.process.storage_gate().snapshot(),
+        })
+    }
+
+    /// 拉起（如需）并等待存储 ready；非 storage 入口立即返回。
+    pub async fn prepare_storage(&self, target: &WorkspaceTarget) -> Result<(), String> {
+        let process = self
+            .get_or_spawn(target)
+            .await
+            .map_err(|error| error.to_string())?;
+        process.storage_gate().wait_ready().await
+    }
+
+    /// 订阅现有进程的存储状态变化（不 spawn）。
+    pub fn subscribe_storage_startup(
+        &self,
+        target: &WorkspaceTarget,
+    ) -> Option<tokio::sync::watch::Receiver<Option<StorageStartupState>>> {
+        let key = target.key();
+        let entries = self.entries.lock().expect("registry poisoned");
+        let entry = entries
+            .get(&key)
+            .filter(|entry| !entry.process.client().is_closed())?;
+        Some(entry.process.storage_gate().subscribe())
     }
 
     /// 取（必要时拉起）该 workspace 的唯一 Agent。
@@ -111,11 +160,13 @@ impl AgentRuntimeRegistry {
         let spec = (self.factory)(target)?;
         let spawned = spawn(spec).await?;
         let process = Arc::new(spawned.process);
+        let generation = self.next_generation.fetch_add(1, Ordering::SeqCst) + 1;
         let mut entries = self.entries.lock().expect("registry poisoned");
         entries.insert(
             key,
             Entry {
                 process: Arc::clone(&process),
+                generation,
                 last_used: Instant::now(),
             },
         );

@@ -9,6 +9,7 @@
 //! 先以「taskkill /T」或 Unix 进程组信号覆盖孤儿风险。
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use mode_protocol_client::{ClientOptions, ProtocolClient};
@@ -19,6 +20,7 @@ use tokio::task::JoinHandle;
 
 mod registry;
 mod control;
+mod storage;
 mod resolve;
 
 pub use control::{
@@ -26,7 +28,11 @@ pub use control::{
     ControlError, GrantTrustReasonCode, GrantTrustResult,
     WORKSPACE_HOOK_TRUST_GRANT_METHOD,
 };
-pub use registry::{AgentRuntimeRegistry, SpecFactory, WorkspaceTarget};
+pub use registry::{AgentRuntimeRegistry, SpecFactory, StorageStartupSnapshot, WorkspaceTarget};
+pub use storage::{
+    StorageDatabaseKind, StorageStartupGate, StorageStartupPhase, StorageStartupState,
+    DEFAULT_FIRST_STATUS_TIMEOUT, STORAGE_STATE_NOTIFICATION,
+};
 pub use resolve::{
     resolve_agent_command, AgentCommandSource, AgentResolveContext, AgentResolveError,
     ResolvedAgentCommand,
@@ -42,6 +48,8 @@ pub struct AgentProcessSpec {
     pub cwd: Option<PathBuf>,
     pub env: Vec<(String, String)>,
     pub request_timeout: Duration,
+    /// 该入口是否上报 `startup/storageState`；为 true 时 `prepare_storage` 会等待 ready。
+    pub supports_storage_startup: bool,
 }
 
 impl AgentProcessSpec {
@@ -52,6 +60,7 @@ impl AgentProcessSpec {
             cwd: None,
             env: Vec::new(),
             request_timeout: mode_protocol_client::DEFAULT_REQUEST_TIMEOUT,
+            supports_storage_startup: false,
         }
     }
 }
@@ -78,6 +87,8 @@ pub struct AgentProcess {
     child: Mutex<Option<Child>>,
     pid: u32,
     stderr_task: JoinHandle<()>,
+    storage_task: JoinHandle<()>,
+    storage_gate: Arc<StorageStartupGate>,
 }
 
 impl AgentProcess {
@@ -87,6 +98,10 @@ impl AgentProcess {
 
     pub fn pid(&self) -> u32 {
         self.pid
+    }
+
+    pub fn storage_gate(&self) -> &Arc<StorageStartupGate> {
+        &self.storage_gate
     }
 
     /// 优雅关闭：关闭写端（对端收到 stdin EOF），最多等 `grace`；超时则整树强杀。
@@ -103,12 +118,14 @@ impl AgentProcess {
             self.kill_tree().await;
         }
         self.stderr_task.abort();
+        self.storage_task.abort();
     }
 
     /// 立即整树强杀并回收根进程。
     pub async fn kill(&self) {
         self.kill_tree().await;
         self.stderr_task.abort();
+        self.storage_task.abort();
     }
 
     async fn kill_tree(&self) {
@@ -153,13 +170,37 @@ pub async fn spawn(spec: AgentProcessSpec) -> Result<SpawnedAgent, AgentProcessE
     let stdout = child.stdout.take().expect("stdout piped");
     let stderr = child.stderr.take().expect("stderr piped");
 
-    let client = ProtocolClient::connect(
+    let (client, mut notifications) = ProtocolClient::connect_with_receiver(
         stdout,
         stdin,
         ClientOptions {
             request_timeout: spec.request_timeout,
         },
     );
+    let storage_gate = Arc::new(StorageStartupGate::new(
+        spec.supports_storage_startup,
+        DEFAULT_FIRST_STATUS_TIMEOUT,
+    ));
+    let storage_task = {
+        let gate = Arc::clone(&storage_gate);
+        tokio::spawn(async move {
+            loop {
+                match notifications.recv().await {
+                    Ok(message) => {
+                        if message.get("method").and_then(|value| value.as_str())
+                            == Some(STORAGE_STATE_NOTIFICATION)
+                        {
+                            if let Some(params) = message.get("params") {
+                                gate.accept(params);
+                            }
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        })
+    };
 
     let (stderr_tx, stderr_rx) = broadcast::channel(STDERR_CHANNEL_CAPACITY);
     let stderr_task = tokio::spawn(async move {
@@ -175,6 +216,8 @@ pub async fn spawn(spec: AgentProcessSpec) -> Result<SpawnedAgent, AgentProcessE
             child: Mutex::new(Some(child)),
             pid,
             stderr_task,
+            storage_task,
+            storage_gate,
         },
         stderr: stderr_rx,
     })

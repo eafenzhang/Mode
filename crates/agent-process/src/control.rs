@@ -124,6 +124,31 @@ impl AgentControlClient {
         Self { registry }
     }
 
+    /// 存储启动：拉起（如需）并等待 `startup/storageState` 到 `ready`。
+    pub async fn prepare_storage(&self, target: &AgentWorkspaceTarget) -> Result<(), String> {
+        self.registry
+            .prepare_storage(&target.registry_target())
+            .await
+    }
+
+    /// 现有进程的存储启动快照（不 spawn）。
+    pub fn storage_startup_state(
+        &self,
+        target: &AgentWorkspaceTarget,
+    ) -> Option<crate::StorageStartupSnapshot> {
+        self.registry
+            .storage_startup_state(&target.registry_target())
+    }
+
+    /// 订阅现有进程的存储状态；没有活进程时返回 `None`。
+    pub fn subscribe_storage_startup(
+        &self,
+        target: &AgentWorkspaceTarget,
+    ) -> Option<tokio::sync::watch::Receiver<Option<crate::StorageStartupState>>> {
+        self.registry
+            .subscribe_storage_startup(&target.registry_target())
+    }
+
     /// `grantWorkspaceHookTrust`：没有 task/session 的 workspace 级预信任。
     /// 真正授权由 Agent 重新发现 canonical snapshot 后完成。
     pub async fn grant_workspace_hook_trust(

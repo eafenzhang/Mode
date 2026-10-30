@@ -240,9 +240,11 @@ Unix 进程组 SIGKILL），5 条真实子进程测试；见 `docs/specs/agent-p
 dev 源码 tsx → 打包 `<resources>/agent/glm/mode.cjs`，含 `--surface desktop` 改写与
 cwd 回落（6 条测试）。**mode-agent 控制面第一批已落**：`AgentControlClient` 实现
 `workspace/hooks/trustGrant`（workspace ref、摘要校验、严格结果解析、Agent message 原样
-上抛），用 fixture 对拍请求帧并验证同 workspace 复用；6 条测试。
-**未做**：native binary 兜底、storage startup gate、provider/account 配置同步、自动空闲
-看门狗，频道注册与所有权切换，以及其余 81 个成员（session/插件/automation/workflow 等）。
+上抛），用 fixture 对拍请求帧并验证同 workspace 复用；6 条测试。**存储启动门已落**：
+state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`prepareStorage` 等待、
+`getStorageStartupState` existing-only 快照与订阅、进程代次递增；9 条测试。
+**未做**：native binary 兜底、provider/account 配置同步、自动空闲看门狗，频道注册与
+所有权切换，以及其余 81 个成员（session/插件/automation/workflow 等）。
 所有权切换仍是 W4 下一片，`hooks` 的 grant 与任务/会话频道都等它。
 
 ### W5 生态面替换

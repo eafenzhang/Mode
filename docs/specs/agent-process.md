@@ -18,8 +18,8 @@
 
 **不在范围**（后续切片）：
 
-- workspace → 进程注册表、空闲回收、健康判定、重启监听；
-- provider/account 配置同步、`mode-agent` 频道迁移；
+- 自动空闲看门狗、健康探测、重启监听（注册表已提供显式 `reap_idle`/`shutdown_all`）；
+- provider/account 配置同步、`mode-agent` 频道迁移与所有权切换；
 - TS 的 stderr drain 窗口、进程树快照（`captureProcessTreeSnapshot`）、stdio tap 开发代理；
 - 进程组 id 探测与 Windows `taskkill` 失败后的二次兜底（当前失败只依赖根进程
   `start_kill`）。
@@ -61,6 +61,25 @@ cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd�
 **当前未做**：自动空闲看门狗（由宿主定时调用 `reap_idle`）、健康探测、provider/account
 配置同步、进程换代事件。实时切换所有权前必须先接上这些调用点，并确保 Host 不再拉起
 同一 workspace 的 Agent。
+
+## 存储启动门
+
+每个 Agent 进程持有自己的 gate，订阅 `startup/storageState` 通知：
+
+- 状态严格必填 `schemaVersion=1`、`attemptId`、`sequence>0`、`databaseId`、
+  `databaseKind`（session/tasks-index）、`phase`（checking/waiting_for_lock/migrating/
+  committing/ready/failed）、`elapsedMs>=0`；`failed` 必须带 `errorCode`。
+- 接受规则：`attemptId`/`databaseId` 不可变、`sequence` 严格递增、`ready`/`failed`
+  之后不再接受；非法帧静默忽略（不影响连接）。
+- `supports_storage_startup` 只对 env 显式命令为 false；dev dist/源码与打包入口为 true。
+  false 时 `prepare_storage` 立即返回（与 TS 的 `requireStorageStartup` 一致）。
+- `prepare_storage`：拉起（如需）后等待 `ready`；`failed` →
+  `SQLite startup failed: <errorCode>`；首个状态 30s 未到 → `startup_status_timeout`
+  并合成一条 failed 快照。
+- `getStorageStartupState` 语义：existing-only，返回 `{generation, state?}`；没有活进程
+  返回 `None`（不 spawn）。`subscribe_storage_startup` 同样只对活进程可用。
+- 与 TS 的差异：状态解析忽略未知字段（不启用 `deny_unknown_fields`）；合成的失败快照
+  attemptId/databaseId 用时间戳生成，不追求 UUID 形态。
 
 ## 控制面 facade（第一批：hooks 预信任）
 
@@ -118,9 +137,16 @@ spawn 失败不缓存、`shutdown_all` 关闭全部。
 dev dist 向上查找与 Node 选择、打包资源分支、全部缺失时 `NotConfigured`、
 `--surface desktop` 改写（含移除已有值、非 desktop 不修改）。
 
-`crates/agent-process/tests/control.rs`（6 条）：grant 请求的 workspace ref/摘要逐字段断言、
+`crates/agent-process/tests/control.rs`（7 条）：grant 请求的 workspace ref/摘要逐字段断言、
 非法摘要不 spawn、Agent 错误 message 原样上抛、非法结果拒绝、workspace ref 省略可选字段且
-workspaceKey trim、同一 workspace 两次 grant 复用同一 Agent。
+workspaceKey trim、同一 workspace 两次 grant 复用同一 Agent、facade 的 prepareStorage
+等待 ready 并暴露快照。
+
+`crates/agent-process` 存储门单元测试（5 条）：单调状态与身份不变、failed 必须带 errorCode、
+非法 schemaVersion/sequence 拒绝、ready 放行且非 required 立即返回、首帧超时。
+
+`crates/agent-process/tests/storage.rs`（4 条）：prepare 等待 ready 与快照/订阅、failed 传播
+TS 文案、非 storage 入口不等待、失效重建后 generation 递增。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

@@ -11,6 +11,12 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
+fn write_notification(stdout: &mut std::io::Stdout, params: Value) {
+    let message = json!({ "method": "startup/storageState", "params": params });
+    let _ = writeln!(stdout, "{message}");
+    let _ = stdout.flush();
+}
+
 fn main() {
     let mode = std::env::args().nth(1).unwrap_or_default();
     if mode == "exit-immediately" {
@@ -19,6 +25,34 @@ fn main() {
 
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
+    if mode == "storage-ready" {
+        write_notification(
+            &mut stdout,
+            json!({
+                "schemaVersion": 1, "attemptId": "attempt-1", "sequence": 1,
+                "databaseId": "db-1", "databaseKind": "session",
+                "phase": "checking", "elapsedMs": 1.0
+            }),
+        );
+        write_notification(
+            &mut stdout,
+            json!({
+                "schemaVersion": 1, "attemptId": "attempt-1", "sequence": 2,
+                "databaseId": "db-1", "databaseKind": "session",
+                "phase": "ready", "elapsedMs": 2.0
+            }),
+        );
+    }
+    if mode == "storage-failed" {
+        write_notification(
+            &mut stdout,
+            json!({
+                "schemaVersion": 1, "attemptId": "attempt-1", "sequence": 1,
+                "databaseId": "db-1", "databaseKind": "session",
+                "phase": "failed", "elapsedMs": 1.0, "errorCode": "sql_failed"
+            }),
+        );
+    }
     for line in stdin.lock().lines() {
         let Ok(line) = line else {
             break;
