@@ -50,12 +50,13 @@ use agent_protocol::v4::{
     CommandAck, CommandAckStatus, ResolveInteractionEnvelope, ResolveInteractionType,
 };
 use agent_protocol::v4_queries::{
-    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunArtifactDataParams,
-    WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult,
-    WorkflowRunArtifactsParams, WorkflowRunArtifactsResult, WorkflowRunEventsParams,
-    WorkflowRunEventsResult, WorkflowRunNodeResult, WorkflowRunNodeResultParams,
-    WorkflowRunWorkspaceParams, WorkflowRunWorkspaceResult, WorkflowRunsQueryParams,
-    WorkflowRunsQueryResult,
+    BackgroundBashOutputParams, BackgroundBashOutputResult, FileChangesParams, FileChangesResult,
+    FileRewindPreviewParams, FileRewindPreviewResult, PlansParams, PlansResult, RowsRangeParams,
+    RowsRangeResult, WorkflowRunArtifactDataParams, WorkflowRunArtifactDataResult,
+    WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult, WorkflowRunArtifactsParams,
+    WorkflowRunArtifactsResult, WorkflowRunEventsParams, WorkflowRunEventsResult,
+    WorkflowRunNodeResult, WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams,
+    WorkflowRunWorkspaceResult, WorkflowRunsQueryParams, WorkflowRunsQueryResult,
 };
 use agent_protocol::v4_transport::{
     ConversationSubscribeParams, ConversationSubscribeResult, SubscribeMode, SubscribeVisibility,
@@ -626,6 +627,39 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/workflowRunNodeResult".to_string());
                     }
+                    "v4/conversation/fileChanges" => {
+                        let changes: FileChangesParams = decode(case, &params);
+                        assert_eq!(changes.target.row_id, 3);
+                        assert_eq!(changes.target.entity_id, "entity-1");
+                        assert_eq!(changes.base_revision, 2);
+                        assert_eq!(
+                            serde_json::to_value(&changes).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/fileChanges".to_string());
+                    }
+                    "v4/conversation/fileRewindPreview" => {
+                        let preview: FileRewindPreviewParams = decode(case, &params);
+                        assert_eq!(preview.target.row_id, 3);
+                        assert_eq!(preview.base_log_epoch, "epoch-1");
+                        assert_eq!(
+                            serde_json::to_value(&preview).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/fileRewindPreview".to_string());
+                    }
+                    "v4/conversation/backgroundBashOutput" => {
+                        let output: BackgroundBashOutputParams = decode(case, &params);
+                        assert_eq!(output.work_id, "work-1");
+                        assert_eq!(
+                            serde_json::to_value(&output).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/backgroundBashOutput".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let subscribe: ConversationSubscribeParams = decode(case, &params);
                         assert_eq!(subscribe.topic, "conversation/sess-1");
@@ -1136,6 +1170,46 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/workflowRunNodeResult".to_string());
                     }
+                    "v4/conversation/fileChanges" => {
+                        let result: FileChangesResult = decode(case, &response.result);
+                        assert_eq!(result.files, 1);
+                        assert_eq!(result.items[0].patches[0].lines, ["-a", "+b", "+c"]);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/fileChanges".to_string());
+                    }
+                    "v4/conversation/fileRewindPreview" => {
+                        let result: FileRewindPreviewResult = decode(case, &response.result);
+                        assert!(!result.can_apply);
+                        assert_eq!(result.ignored_files.len(), 1);
+                        assert_eq!(result.safe_files.len(), 1);
+                        assert_eq!(result.unsafe_files.len(), 1);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/fileRewindPreview".to_string());
+                    }
+                    "v4/conversation/backgroundBashOutput" => {
+                        let result: BackgroundBashOutputResult = decode(case, &response.result);
+                        match &result {
+                            BackgroundBashOutputResult::Output(output) => {
+                                assert_eq!(output.work_id, "work-1");
+                                assert_eq!(output.output, "hello\n");
+                            }
+                            other => panic!("{case}：应当是输出快照，实际 {other:?}"),
+                        }
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/backgroundBashOutput".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let result: ConversationSubscribeResult = decode(case, &response.result);
                         assert_eq!(result.ack.subscription_id, "sub-1");
@@ -1193,7 +1267,10 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "v4/conversation/workflowRunArtifactData",
             "v4/conversation/workflowRunArtifactRead",
             "v4/conversation/workflowRunWorkspace",
-            "v4/conversation/workflowRunNodeResult"
+            "v4/conversation/workflowRunNodeResult",
+            "v4/conversation/fileChanges",
+            "v4/conversation/fileRewindPreview",
+            "v4/conversation/backgroundBashOutput"
         ]
         .into_iter()
         .map(str::to_string)

@@ -1,0 +1,15 @@
+{
+  "case": "request-v4-conversation-file-rewind-preview",
+  "direction": "host->runtime",
+  "note": "rewind 预览：行目标 + 基线 revision/epoch（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 80,
+    "method": "v4/conversation/fileRewindPreview",
+    "params": {
+      "sessionId": "sess-1",
+      "target": { "rowId": 3, "entityId": "entity-1" },
+      "baseRevision": 2,
+      "baseLogEpoch": "epoch-1"
+    }
+  }
+}

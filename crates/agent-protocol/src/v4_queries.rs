@@ -391,3 +391,218 @@ pub struct WorkflowRunNodeResult {
     pub truncated: bool,
     pub total_bytes: u64,
 }
+
+// ── 文件变更 / rewind 预览 ──
+
+pub const V4_CONVERSATION_FILE_CHANGES_METHOD: &str = "v4/conversation/fileChanges";
+pub const V4_CONVERSATION_FILE_REWIND_PREVIEW_METHOD: &str =
+    "v4/conversation/fileRewindPreview";
+
+/// `conversationRowTargetSchema`：行身份。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConversationRowTarget {
+    pub row_id: u64,
+    pub entity_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FileChangesParams {
+    pub session_id: String,
+    pub target: ConversationRowTarget,
+    pub base_revision: u64,
+    pub base_log_epoch: String,
+}
+
+/// `readonlyDiffHunkSchema`：位置与行数按 `z.number()` 保留原样。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FileDiffHunk {
+    pub old_start: Number,
+    pub old_lines: Number,
+    pub new_start: Number,
+    pub new_lines: Number,
+    pub lines: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FileChangeItem {
+    pub path: String,
+    pub additions: u64,
+    pub deletions: u64,
+    pub write_count: u64,
+    pub tool_names: Vec<String>,
+    pub patches: Vec<FileDiffHunk>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileChangesState {
+    #[serde(rename = "active")]
+    Active,
+    #[serde(rename = "reverted")]
+    Reverted,
+}
+
+/// `v4ConversationFileChangesResultSchema`：严格；`state` 可选。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FileChangesResult {
+    pub files: u64,
+    pub additions: u64,
+    pub deletions: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<FileChangesState>,
+    pub items: Vec<FileChangeItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FileRewindPreviewParams {
+    pub session_id: String,
+    pub target: ConversationRowTarget,
+    pub base_revision: u64,
+    pub base_log_epoch: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RewindAction {
+    #[serde(rename = "restore")]
+    Restore,
+    #[serde(rename = "delete")]
+    Delete,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RewindUnsafeReason {
+    #[serde(rename = "checkpoint_missing")]
+    CheckpointMissing,
+    #[serde(rename = "checkpoint_unreadable")]
+    CheckpointUnreadable,
+    #[serde(rename = "external_modified")]
+    ExternalModified,
+    #[serde(rename = "file_read_failed")]
+    FileReadFailed,
+    #[serde(rename = "unsupported_checkpoint")]
+    UnsupportedCheckpoint,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RewindIgnoredReason {
+    #[serde(rename = "bash_ignored")]
+    BashIgnored,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RewindSafeFile {
+    pub action: RewindAction,
+    pub operation_count: u64,
+    pub path: String,
+    pub tool_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RewindUnsafeFile {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    pub operation_count: u64,
+    pub path: String,
+    pub reason: RewindUnsafeReason,
+    pub tool_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RewindIgnoredFile {
+    pub operation_count: u64,
+    pub path: String,
+    pub reason: RewindIgnoredReason,
+    pub tool_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FileRewindPreviewResult {
+    pub can_apply: bool,
+    pub ignored_files: Vec<RewindIgnoredFile>,
+    pub safe_files: Vec<RewindSafeFile>,
+    pub unsafe_files: Vec<RewindUnsafeFile>,
+}
+
+// ── 后台 bash 输出（按任务授权的有界查询）──
+
+pub const V4_BACKGROUND_BASH_OUTPUT_METHOD: &str = "v4/conversation/backgroundBashOutput";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BackgroundBashOutputParams {
+    pub session_id: String,
+    pub work_id: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BackgroundBashStatus {
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "timed_out")]
+    TimedOut,
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    #[serde(rename = "spawn_error")]
+    SpawnError,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BackgroundBashOutput {
+    pub kind: BackgroundBashOutputKind,
+    pub work_id: String,
+    pub status: BackgroundBashStatus,
+    pub output: String,
+    pub truncated: bool,
+    pub output_path: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BackgroundBashOutputKind {
+    #[serde(rename = "output")]
+    Output,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BackgroundBashUnavailableKind {
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    #[serde(rename = "unsupported")]
+    Unsupported,
+    #[serde(rename = "read_failed")]
+    ReadFailed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BackgroundBashUnavailable {
+    pub kind: BackgroundBashUnavailableKind,
+    pub work_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+}
+
+/// `backgroundBashOutputResultSchema`：输出快照或不可用三态二选一。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BackgroundBashOutputResult {
+    Output(BackgroundBashOutput),
+    Unavailable(BackgroundBashUnavailable),
+}

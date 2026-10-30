@@ -78,6 +78,11 @@ import {
   commandEnvelopeSchema,
 } from "../../../shared/src/mode-protocol-v4/command.js";
 import {
+  v4BackgroundBashOutputParamsSchema,
+  v4ConversationFileChangesParamsSchema,
+  v4ConversationFileChangesResultSchema,
+  v4ConversationFileRewindPreviewParamsSchema,
+  v4ConversationFileRewindPreviewResultSchema,
   v4ConversationPlansParamsSchema,
   v4ConversationPlansResultSchema,
   v4ConversationRowsRangeParamsSchema,
@@ -103,6 +108,7 @@ import {
   v4ConversationWorkflowRunWorkspaceParamsSchema,
   v4ConversationWorkflowRunWorkspaceResultSchema,
 } from "../../../shared/src/mode-protocol-v4/workflow-workspace.js";
+import { backgroundBashOutputResultSchema } from "../../../shared/src/background-bash-output.js";
 
 /** 夹具外壳：`frame` 是线上整帧，其余是录制元数据（不属于线上形状）。 */
 type ProtocolFixture = {
@@ -312,6 +318,9 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "v4/conversation/workflowRunArtifactRead": v4ConversationWorkflowRunArtifactReadParamsSchema,
     "v4/conversation/workflowRunWorkspace": v4ConversationWorkflowRunWorkspaceParamsSchema,
     "v4/conversation/workflowRunNodeResult": v4ConversationWorkflowRunNodeResultParamsSchema,
+    "v4/conversation/fileChanges": v4ConversationFileChangesParamsSchema,
+    "v4/conversation/fileRewindPreview": v4ConversationFileRewindPreviewParamsSchema,
+    "v4/conversation/backgroundBashOutput": v4BackgroundBashOutputParamsSchema,
     "workspace/readPresentation": modeWorkspaceReadPresentationParamsSchema,
     "workflows/get": modeWorkflowsGetParamsSchema,
     "workflows/list": modeWorkflowsListParamsSchema,
@@ -356,6 +365,9 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "v4/conversation/workflowRunArtifactRead": v4ConversationWorkflowRunArtifactReadResultSchema,
     "v4/conversation/workflowRunWorkspace": v4ConversationWorkflowRunWorkspaceResultSchema,
     "v4/conversation/workflowRunNodeResult": v4ConversationWorkflowRunNodeResultResultSchema,
+    "v4/conversation/fileChanges": v4ConversationFileChangesResultSchema,
+    "v4/conversation/fileRewindPreview": v4ConversationFileRewindPreviewResultSchema,
+    "v4/conversation/backgroundBashOutput": backgroundBashOutputResultSchema,
     "workspace/readPresentation": modeWorkspacePresentationSchema,
   };
   const exercisedCommands = new Set<string>();

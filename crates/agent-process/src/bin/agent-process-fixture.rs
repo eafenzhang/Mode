@@ -605,6 +605,79 @@ fn main() {
                 result["truncated"] = json!("no");
             }
             json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/fileChanges" {
+            let mut result = json!({
+                "files": 1,
+                "additions": 2,
+                "deletions": 1,
+                "state": "active",
+                "items": [{
+                    "path": "a.txt",
+                    "additions": 2,
+                    "deletions": 1,
+                    "writeCount": 1,
+                    "toolNames": ["Edit"],
+                    "patches": [{
+                        "oldStart": 1,
+                        "oldLines": 1,
+                        "newStart": 1,
+                        "newLines": 2,
+                        "lines": ["-a", "+b", "+c"]
+                    }]
+                }]
+            });
+            if mode == "bad-v4-file-changes" {
+                result["files"] = json!(-1);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/fileRewindPreview" {
+            let mut result = json!({
+                "canApply": false,
+                "ignoredFiles": [{
+                    "operationCount": 1,
+                    "path": "b.txt",
+                    "reason": "bash_ignored",
+                    "toolNames": ["Bash"]
+                }],
+                "safeFiles": [{
+                    "action": "restore",
+                    "operationCount": 1,
+                    "path": "a.txt",
+                    "toolNames": ["Edit"]
+                }],
+                "unsafeFiles": [{
+                    "operationCount": 1,
+                    "path": "c.txt",
+                    "reason": "external_modified",
+                    "toolNames": ["Edit"]
+                }]
+            });
+            if mode == "bad-v4-rewind-preview" {
+                result["canApply"] = json!("no");
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/backgroundBashOutput" {
+            match mode.as_str() {
+                "v4-bash-output-unsupported" => json!({
+                    "id": id,
+                    "error": { "code": -32601, "message": "Method not found" }
+                }),
+                "bad-v4-bash-output" => json!({
+                    "id": id,
+                    "result": { "kind": "unavailable", "workId": "work-1", "code": 7 }
+                }),
+                _ => json!({
+                    "id": id,
+                    "result": {
+                        "kind": "output",
+                        "workId": "work-1",
+                        "status": "completed",
+                        "output": "hello\n",
+                        "truncated": false,
+                        "outputPath": "/tmp/work-1.log"
+                    }
+                }),
+            }
         } else if method == "plugins/overview" {
             let mut result = json!({
                 "marketplaces": [{

@@ -1,0 +1,13 @@
+{
+  "case": "request-v4-background-bash-output",
+  "direction": "host->runtime",
+  "note": "后台 bash 输出查询：按任务授权，只有 sessionId + workId（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 81,
+    "method": "v4/conversation/backgroundBashOutput",
+    "params": {
+      "sessionId": "sess-1",
+      "workId": "work-1"
+    }
+  }
+}

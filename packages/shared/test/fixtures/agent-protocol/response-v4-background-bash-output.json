@@ -1,0 +1,17 @@
+{
+  "case": "response-v4-background-bash-output",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/backgroundBashOutput",
+  "note": "输出快照：状态六值 + 有界 output + truncated + outputPath（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 81,
+    "result": {
+      "kind": "output",
+      "workId": "work-1",
+      "status": "completed",
+      "output": "hello\n",
+      "truncated": false,
+      "outputPath": "/tmp/work-1.log"
+    }
+  }
+}

@@ -21,18 +21,23 @@ use agent_protocol::v4_transport::{
     HostCapabilities, V4ClientMode, V4_WIRE_PROTOCOL_VERSION,
 };
 use agent_protocol::v4_queries::{
-    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunArtifactDataParams,
-    WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult,
-    WorkflowRunArtifactsParams, WorkflowRunArtifactsResult, WorkflowRunEventsParams,
-    WorkflowRunEventsResult, WorkflowRunNodeResult, WorkflowRunNodeResultParams,
-    WorkflowRunWorkspaceParams, WorkflowRunWorkspaceResult, WorkflowRunsQueryParams,
-    WorkflowRunsQueryResult, V4_CONVERSATION_PLANS_METHOD, V4_CONVERSATION_ROWS_RANGE_METHOD,
+    BackgroundBashOutputParams, BackgroundBashOutputResult, BackgroundBashUnavailable,
+    BackgroundBashUnavailableKind, FileChangesParams, FileChangesResult, FileRewindPreviewParams,
+    FileRewindPreviewResult, PlansParams, PlansResult, RowsRangeParams, RowsRangeResult,
+    WorkflowRunArtifactDataParams, WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams,
+    WorkflowRunArtifactReadResult, WorkflowRunArtifactsParams, WorkflowRunArtifactsResult,
+    WorkflowRunEventsParams, WorkflowRunEventsResult, WorkflowRunNodeResult,
+    WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams, WorkflowRunWorkspaceResult,
+    WorkflowRunsQueryParams, WorkflowRunsQueryResult, V4_BACKGROUND_BASH_OUTPUT_METHOD,
+    V4_CONVERSATION_FILE_CHANGES_METHOD, V4_CONVERSATION_FILE_REWIND_PREVIEW_METHOD,
+    V4_CONVERSATION_PLANS_METHOD, V4_CONVERSATION_ROWS_RANGE_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_DATA_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_READ_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACTS_METHOD, V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_NODE_RESULT_METHOD, V4_CONVERSATION_WORKFLOW_RUN_WORKSPACE_METHOD,
     V4_CONVERSATION_WORKFLOW_RUNS_METHOD,
 };
+use mode_protocol_client::ClientError;
 use serde_json::Value;
 
 use crate::control::{AgentControlClient, AgentWorkspaceTarget, ControlError, RuntimePolicy};
@@ -306,6 +311,93 @@ impl AgentControlClient {
         serde_json::from_value(response).map_err(|error| {
             ControlError::InvalidResult(format!(
                 "invalid v4/conversation/workflowRunNodeResult result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/conversation/fileChanges`：某个行目标的文件变更聚合。
+    pub async fn conversation_file_changes_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: FileChangesParams,
+        policy: RuntimePolicy,
+    ) -> Result<FileChangesResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("fileChanges params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_FILE_CHANGES_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/conversation/fileChanges result: {error}"))
+        })
+    }
+
+    /// `v4/conversation/fileRewindPreview`：rewind 前的安全/不安全/忽略清单。
+    pub async fn conversation_file_rewind_preview_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: FileRewindPreviewParams,
+        policy: RuntimePolicy,
+    ) -> Result<FileRewindPreviewResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value =
+            serde_json::to_value(&params).expect("fileRewindPreview params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_FILE_REWIND_PREVIEW_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/fileRewindPreview result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/conversation/backgroundBashOutput`：按任务授权的有界输出查询。
+    ///
+    /// 与 TS 一致：existing-only（观察者绝不拉起进程）；方法不存在映射为 `unsupported`，
+    /// 运行时不可用映射为 `unavailable`，其余错误上抛。
+    pub async fn background_bash_output_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: BackgroundBashOutputParams,
+    ) -> Result<BackgroundBashOutputResult, ControlError> {
+        let work_id = params.work_id.clone();
+        let process = match self.client_for(target, RuntimePolicy::ExistingOnly).await {
+            Ok(process) => process,
+            Err(ControlError::RuntimeUnavailable { .. }) => {
+                return Ok(BackgroundBashOutputResult::Unavailable(
+                    BackgroundBashUnavailable {
+                        kind: BackgroundBashUnavailableKind::Unavailable,
+                        work_id,
+                        code: None,
+                    },
+                ));
+            }
+            Err(error) => return Err(error),
+        };
+        let value = serde_json::to_value(&params).expect("backgroundBashOutput params 序列化不会失败");
+        let response = match process
+            .client()
+            .request(V4_BACKGROUND_BASH_OUTPUT_METHOD, Some(value))
+            .await
+        {
+            Ok(response) => response,
+            Err(ClientError::Server { code: -32601, .. }) => {
+                return Ok(BackgroundBashOutputResult::Unavailable(
+                    BackgroundBashUnavailable {
+                        kind: BackgroundBashUnavailableKind::Unsupported,
+                        work_id,
+                        code: None,
+                    },
+                ));
+            }
+            Err(error) => return Err(ControlError::Client(error)),
+        };
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/backgroundBashOutput result: {error}"
             ))
         })
     }

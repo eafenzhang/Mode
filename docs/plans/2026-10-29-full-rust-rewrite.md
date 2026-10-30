@@ -324,8 +324,11 @@ journal（cursor 永不失效），刻意不带 `atSeq`/`atLogEpoch`；`workflow
 `nextOffset`）；协议 `superRefine` 暂未镜像（同 `workspaceHookReview` 口径）。3 条新增
 测试 + 6 条双端夹具。**工作区 transcript 两条读面已落**：`workflowRunWorkspace`
 （轻行清单，op/args/状态/摘要/时刻，超界截尾）与 `workflowRunNodeResult`（正文按
-32 KiB 保形有界化）；2 条新增测试 + 4 条双端夹具。`fileChanges` / `rewindPreview` /
-`backgroundBashOutput` 等其余只读查询待迁移。
+32 KiB 保形有界化）；2 条新增测试 + 4 条双端夹具。**文件与后台输出查询已落**：
+`fileChanges` / `fileRewindPreview`（行目标 + 基线 revision/epoch）与
+`backgroundBashOutput`（existing-only；`-32601` → `unsupported`、运行时不可用 →
+`unavailable`）；3 条新增测试 + 6 条双端夹具。会话级只读查询至此补齐，剩余只读面是
+附件（8 条）与 sessions-index / workspace-config 订阅。
 **未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
 所有权切换，以及其余 80 个成员（session 其余读/写、插件/automation/workflow 等；
 `IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 +

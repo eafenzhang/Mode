@@ -1,0 +1,33 @@
+{
+  "case": "response-v4-conversation-file-changes",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/fileChanges",
+  "note": "变更聚合：文件/增删计数 + 可选 state + 逐文件 hunk（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 79,
+    "result": {
+      "files": 1,
+      "additions": 2,
+      "deletions": 1,
+      "state": "active",
+      "items": [
+        {
+          "path": "a.txt",
+          "additions": 2,
+          "deletions": 1,
+          "writeCount": 1,
+          "toolNames": ["Edit"],
+          "patches": [
+            {
+              "oldStart": 1,
+              "oldLines": 1,
+              "newStart": 1,
+              "newLines": 2,
+              "lines": ["-a", "+b", "+c"]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

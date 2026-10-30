@@ -10,6 +10,7 @@ use agent_process::{
     RuntimePolicy, SpecFactory,
 };
 use agent_protocol::v4_queries::{
+    BackgroundBashOutputParams, BackgroundBashOutputResult, BackgroundBashUnavailableKind,
     PlansParams, RowsRangeParams, WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams,
     WorkflowRunArtifactsParams, WorkflowRunEventsParams, WorkflowRunNodeResultParams,
     WorkflowRunWorkspaceParams, WorkflowRunsQueryParams,
@@ -566,6 +567,189 @@ async fn invalid_workspace_queries_carry_distinct_prefixes() {
             "{message}"
         ),
         other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn file_changes_and_rewind_preview_parse() {
+    let log = FrameLog::new("file-changes");
+    let client = control("", &log, Arc::new(AtomicUsize::new(0)));
+    let row_target = agent_protocol::v4_queries::ConversationRowTarget {
+        row_id: 3,
+        entity_id: "entity-1".to_string(),
+    };
+
+    let changes = client
+        .conversation_file_changes_v4(
+            &target(),
+            agent_protocol::v4_queries::FileChangesParams {
+                session_id: "sess-1".to_string(),
+                target: row_target.clone(),
+                base_revision: 2,
+                base_log_epoch: "epoch-1".to_string(),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(changes.files, 1);
+    assert_eq!(changes.state, Some(agent_protocol::v4_queries::FileChangesState::Active));
+    assert_eq!(changes.items[0].patches[0].lines, ["-a", "+b", "+c"]);
+
+    let preview = client
+        .conversation_file_rewind_preview_v4(
+            &target(),
+            agent_protocol::v4_queries::FileRewindPreviewParams {
+                session_id: "sess-1".to_string(),
+                target: row_target,
+                base_revision: 2,
+                base_log_epoch: "epoch-1".to_string(),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert!(!preview.can_apply);
+    assert_eq!(preview.ignored_files[0].reason, agent_protocol::v4_queries::RewindIgnoredReason::BashIgnored);
+    assert_eq!(preview.safe_files[0].action, agent_protocol::v4_queries::RewindAction::Restore);
+    assert_eq!(preview.unsafe_files[0].reason, agent_protocol::v4_queries::RewindUnsafeReason::ExternalModified);
+
+    let frames = log.frame_params("v4/conversation/fileChanges");
+    assert_eq!(frames[0]["target"], json!({ "rowId": 3, "entityId": "entity-1" }));
+    assert_eq!(frames[0]["baseRevision"], 2);
+}
+
+#[tokio::test]
+async fn background_bash_output_is_existing_only_and_maps_unsupported() {
+    let log = FrameLog::new("bash-output");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+    let params = || BackgroundBashOutputParams {
+        session_id: "sess-1".to_string(),
+        work_id: "work-1".to_string(),
+    };
+
+    // 没有活进程：观察者路径绝不拉起，直接回 unavailable。
+    let result = client
+        .background_bash_output_v4(&target(), params())
+        .await
+        .unwrap();
+    match result {
+        BackgroundBashOutputResult::Unavailable(kind) => {
+            assert_eq!(kind.kind, BackgroundBashUnavailableKind::Unavailable);
+            assert_eq!(kind.work_id, "work-1");
+        }
+        other => panic!("unexpected result: {other:?}"),
+    }
+    assert_eq!(spawns.load(Ordering::SeqCst), 0);
+
+    // 有进程后读到输出快照。
+    client
+        .conversation_rows_range_v4(&target(), rows_params(None), RuntimePolicy::StartIfNeeded)
+        .await
+        .unwrap();
+    let result = client
+        .background_bash_output_v4(&target(), params())
+        .await
+        .unwrap();
+    match result {
+        BackgroundBashOutputResult::Output(output) => {
+            assert_eq!(output.status, agent_protocol::v4_queries::BackgroundBashStatus::Completed);
+            assert_eq!(output.output, "hello\n");
+            assert_eq!(output.output_path, "/tmp/work-1.log");
+        }
+        other => panic!("unexpected result: {other:?}"),
+    }
+
+    // -32601 映射为 unsupported。
+    let unsupported_log = FrameLog::new("bash-unsupported");
+    let client = control(
+        "v4-bash-output-unsupported",
+        &unsupported_log,
+        Arc::new(AtomicUsize::new(0)),
+    );
+    client
+        .conversation_rows_range_v4(&target(), rows_params(None), RuntimePolicy::StartIfNeeded)
+        .await
+        .unwrap();
+    let result = client
+        .background_bash_output_v4(&target(), params())
+        .await
+        .unwrap();
+    match result {
+        BackgroundBashOutputResult::Unavailable(kind) => {
+            assert_eq!(kind.kind, BackgroundBashUnavailableKind::Unsupported);
+        }
+        other => panic!("unexpected result: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn invalid_file_queries_carry_distinct_prefixes() {
+    let cases: [(&str, &str); 3] = [
+        ("bad-v4-file-changes", "invalid v4/conversation/fileChanges result"),
+        (
+            "bad-v4-rewind-preview",
+            "invalid v4/conversation/fileRewindPreview result",
+        ),
+        ("bad-v4-bash-output", "invalid v4/conversation/backgroundBashOutput result"),
+    ];
+    for (mode, prefix) in cases {
+        let log = FrameLog::new(mode);
+        let client = control(mode, &log, Arc::new(AtomicUsize::new(0)));
+        // 三条都要求活进程（backgroundBashOutput 是 existing-only）。
+        client
+            .conversation_rows_range_v4(&target(), rows_params(None), RuntimePolicy::StartIfNeeded)
+            .await
+            .unwrap();
+        let row_target = agent_protocol::v4_queries::ConversationRowTarget {
+            row_id: 3,
+            entity_id: "entity-1".to_string(),
+        };
+        let error = match mode {
+            "bad-v4-file-changes" => client
+                .conversation_file_changes_v4(
+                    &target(),
+                    agent_protocol::v4_queries::FileChangesParams {
+                        session_id: "sess-1".to_string(),
+                        target: row_target,
+                        base_revision: 2,
+                        base_log_epoch: "epoch-1".to_string(),
+                    },
+                    RuntimePolicy::StartIfNeeded,
+                )
+                .await
+                .unwrap_err(),
+            "bad-v4-rewind-preview" => client
+                .conversation_file_rewind_preview_v4(
+                    &target(),
+                    agent_protocol::v4_queries::FileRewindPreviewParams {
+                        session_id: "sess-1".to_string(),
+                        target: row_target,
+                        base_revision: 2,
+                        base_log_epoch: "epoch-1".to_string(),
+                    },
+                    RuntimePolicy::StartIfNeeded,
+                )
+                .await
+                .unwrap_err(),
+            _ => client
+                .background_bash_output_v4(
+                    &target(),
+                    BackgroundBashOutputParams {
+                        session_id: "sess-1".to_string(),
+                        work_id: "work-1".to_string(),
+                    },
+                )
+                .await
+                .unwrap_err(),
+        };
+        match error {
+            ControlError::InvalidResult(message) => {
+                assert!(message.starts_with(prefix), "{mode}: {message}")
+            }
+            other => panic!("{mode}: unexpected error: {other:?}"),
+        }
     }
 }
 

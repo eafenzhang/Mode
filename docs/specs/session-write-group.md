@@ -346,6 +346,14 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
   - `workflowRunNodeResult`：一个节点的正文，`result` 是可选开放对象（running/failed
     缺席），带 `truncated` 与截断前 `totalBytes`；`maxBytes` 缺省与上限都是 32 KiB，
     在网关侧钳制。
+- 文件变更与 rewind 预览：`fileChanges` 以行目标（`rowId`+`entityId`）与
+  `baseRevision`/`baseLogEpoch` 查询，结果是文件/增删计数、可选 `state`
+  （`active`/`reverted`）与逐文件 hunk；`fileRewindPreview` 返回 `canApply` 与
+  三张清单（`safeFiles`/`unsafeFiles`/`ignoredFiles`，忽略原因只有 `bash_ignored`）。
+- `backgroundBashOutput`：按任务授权的有界输出查询，**existing-only**（观察者绝不拉起
+  进程）；结果是「输出快照」（状态六值、有界 `output`、`truncated`、`outputPath`）或
+  「不可用三态」（`unavailable`/`unsupported`/`read_failed`，可选 `code`）。方法不存在
+  （`-32601`）映射为 `unsupported`，运行时不可用映射为 `unavailable`，其余错误上抛。
 
 ## 3. 验收
 
@@ -401,3 +409,6 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
 23. 工作区 transcript：清单解析出 `kind`/`op`/`args`/状态/摘要/时刻与 `truncated`；
     节点正文解析出 `result`/`truncated`/`totalBytes`，`maxBytes` 缺省时不出键；
     两条都有独立的非法结果前缀。
+24. 文件与后台输出：`fileChanges` 解析出行目标与 hunk，`fileRewindPreview` 解析出三张
+    清单；`backgroundBashOutput` 在无活进程时回 `unavailable` 且不拉起进程，`-32601`
+    映射为 `unsupported`；三条都有独立的非法结果前缀。

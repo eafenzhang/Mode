@@ -1,0 +1,36 @@
+{
+  "case": "response-v4-conversation-file-rewind-preview",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/fileRewindPreview",
+  "note": "可应用性 + 安全/不安全/忽略三张文件清单（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 80,
+    "result": {
+      "canApply": false,
+      "ignoredFiles": [
+        {
+          "operationCount": 1,
+          "path": "b.txt",
+          "reason": "bash_ignored",
+          "toolNames": ["Bash"]
+        }
+      ],
+      "safeFiles": [
+        {
+          "action": "restore",
+          "operationCount": 1,
+          "path": "a.txt",
+          "toolNames": ["Edit"]
+        }
+      ],
+      "unsafeFiles": [
+        {
+          "operationCount": 1,
+          "path": "c.txt",
+          "reason": "external_modified",
+          "toolNames": ["Edit"]
+        }
+      ]
+    }
+  }
+}
