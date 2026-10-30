@@ -21,18 +21,26 @@ use agent_protocol::v4_transport::{
     HostCapabilities, V4ClientMode, V4_WIRE_PROTOCOL_VERSION,
 };
 use agent_protocol::v4_queries::{
-    BackgroundBashOutputParams, BackgroundBashOutputResult, BackgroundBashUnavailable,
-    BackgroundBashUnavailableKind, ConversationUsageParams, ConversationUsageResult,
-    FileChangesParams, FileChangesResult, FileRewindPreviewParams,
-    FileRewindPreviewResult, PlansParams, PlansResult, RowsRangeParams, RowsRangeResult,
-    WorkflowRunArtifactDataParams, WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams,
-    WorkflowRunArtifactReadResult, WorkflowRunArtifactsParams, WorkflowRunArtifactsResult,
-    WorkflowRunEventsParams, WorkflowRunEventsResult, WorkflowRunNodeResult,
-    WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams, WorkflowRunWorkspaceResult,
-    WorkflowRunsQueryParams, WorkflowRunsQueryResult, V4_BACKGROUND_BASH_OUTPUT_METHOD,
-    V4_CONVERSATION_FILE_CHANGES_METHOD, V4_CONVERSATION_FILE_REWIND_PREVIEW_METHOD,
-    V4_CONVERSATION_PLANS_METHOD, V4_CONVERSATION_ROWS_RANGE_METHOD,
-    V4_CONVERSATION_USAGE_METHOD,
+    AttachmentAbortResult, AttachmentBeginParams, AttachmentBeginResult, AttachmentChunkParams,
+    AttachmentChunkResult, AttachmentCommitResult, AttachmentPreviewSourceParams,
+    AttachmentPreviewSourceResult, AttachmentReadParams, AttachmentReadResult,
+    AttachmentTerminalParams, BackgroundBashOutputParams, BackgroundBashOutputResult,
+    BackgroundBashUnavailable, BackgroundBashUnavailableKind,
+    ConversationAttachmentReadParams, ConversationAttachmentStatParams,
+    ConversationAttachmentStatResult, ConversationUsageParams, ConversationUsageResult,
+    FileChangesParams, FileChangesResult, FileRewindPreviewParams, FileRewindPreviewResult,
+    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunArtifactDataParams,
+    WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult,
+    WorkflowRunArtifactsParams, WorkflowRunArtifactsResult, WorkflowRunEventsParams,
+    WorkflowRunEventsResult, WorkflowRunNodeResult, WorkflowRunNodeResultParams,
+    WorkflowRunWorkspaceParams, WorkflowRunWorkspaceResult, WorkflowRunsQueryParams,
+    WorkflowRunsQueryResult, V4_ATTACHMENT_ABORT_METHOD, V4_ATTACHMENT_BEGIN_METHOD,
+    V4_ATTACHMENT_CHUNK_METHOD, V4_ATTACHMENT_COMMIT_METHOD,
+    V4_ATTACHMENT_PREVIEW_SOURCE_METHOD, V4_ATTACHMENT_READ_METHOD,
+    V4_BACKGROUND_BASH_OUTPUT_METHOD, V4_CONVERSATION_ATTACHMENT_READ_METHOD,
+    V4_CONVERSATION_ATTACHMENT_STAT_METHOD, V4_CONVERSATION_FILE_CHANGES_METHOD,
+    V4_CONVERSATION_FILE_REWIND_PREVIEW_METHOD, V4_CONVERSATION_PLANS_METHOD,
+    V4_CONVERSATION_ROWS_RANGE_METHOD, V4_CONVERSATION_USAGE_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_DATA_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_READ_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACTS_METHOD, V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD,
@@ -420,6 +428,162 @@ impl AgentControlClient {
         serde_json::from_value(response).map_err(|error| {
             ControlError::InvalidResult(format!(
                 "invalid v4/conversation/usage result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/attachment/begin`：开启（或幂等重现）一次附件上传事务。
+    pub async fn attachment_begin_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: AttachmentBeginParams,
+        policy: RuntimePolicy,
+    ) -> Result<AttachmentBeginResult, ControlError> {
+        params.validate().map_err(ControlError::InvalidParams)?;
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("attachment/begin params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_ATTACHMENT_BEGIN_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/attachment/begin result: {error}"))
+        })
+    }
+
+    /// `v4/attachment/chunk`：追加一块上传数据。
+    pub async fn attachment_chunk_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: AttachmentChunkParams,
+        policy: RuntimePolicy,
+    ) -> Result<AttachmentChunkResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("attachment/chunk params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_ATTACHMENT_CHUNK_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/attachment/chunk result: {error}"))
+        })
+    }
+
+    /// `v4/attachment/commit`：提交上传，返回可用的附件 `ref`。
+    pub async fn attachment_commit_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: AttachmentTerminalParams,
+        policy: RuntimePolicy,
+    ) -> Result<AttachmentCommitResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("attachment/commit params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_ATTACHMENT_COMMIT_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/attachment/commit result: {error}"))
+        })
+    }
+
+    /// `v4/attachment/abort`：放弃上传事务。
+    pub async fn attachment_abort_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: AttachmentTerminalParams,
+        policy: RuntimePolicy,
+    ) -> Result<AttachmentAbortResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("attachment/abort params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_ATTACHMENT_ABORT_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/attachment/abort result: {error}"))
+        })
+    }
+
+    /// `v4/attachment/read`：已发送附件的分段读（任意 MIME）。
+    pub async fn attachment_read_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: AttachmentReadParams,
+        policy: RuntimePolicy,
+    ) -> Result<AttachmentReadResult, ControlError> {
+        params.validate().map_err(ControlError::InvalidParams)?;
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("attachment/read params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_ATTACHMENT_READ_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/attachment/read result: {error}"))
+        })
+    }
+
+    /// `v4/attachment/previewSource`：Desktop local 已发送视频的本地播放源；远端回 chunked。
+    pub async fn attachment_preview_source_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: AttachmentPreviewSourceParams,
+        policy: RuntimePolicy,
+    ) -> Result<AttachmentPreviewSourceResult, ControlError> {
+        params.validate().map_err(ControlError::InvalidParams)?;
+        let process = self.client_for(target, policy).await?;
+        let value =
+            serde_json::to_value(&params).expect("attachment/previewSource params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_ATTACHMENT_PREVIEW_SOURCE_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/attachment/previewSource result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/conversation/attachmentRead`：userInput 附件的分段读（Share 选择阶段）。
+    pub async fn conversation_attachment_read_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: ConversationAttachmentReadParams,
+        policy: RuntimePolicy,
+    ) -> Result<AttachmentReadResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params)
+            .expect("conversation/attachmentRead params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_ATTACHMENT_READ_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/attachmentRead result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/conversation/attachmentStat`：metadata-only 探测（允许超过传输上限）。
+    pub async fn conversation_attachment_stat_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: ConversationAttachmentStatParams,
+        policy: RuntimePolicy,
+    ) -> Result<ConversationAttachmentStatResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params)
+            .expect("conversation/attachmentStat params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_ATTACHMENT_STAT_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/attachmentStat result: {error}"
             ))
         })
     }

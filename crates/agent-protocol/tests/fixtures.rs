@@ -50,14 +50,19 @@ use agent_protocol::v4::{
     CommandAck, CommandAckStatus, ResolveInteractionEnvelope, ResolveInteractionType,
 };
 use agent_protocol::v4_queries::{
-    BackgroundBashOutputParams, BackgroundBashOutputResult, ConversationUsageParams,
-    ConversationUsageResult, FileChangesParams, FileChangesResult, FileRewindPreviewParams,
-    FileRewindPreviewResult, PlansParams, PlansResult, RowsRangeParams, RowsRangeResult,
-    WorkflowRunArtifactDataParams, WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams,
-    WorkflowRunArtifactReadResult, WorkflowRunArtifactsParams, WorkflowRunArtifactsResult,
-    WorkflowRunEventsParams, WorkflowRunEventsResult, WorkflowRunNodeResult,
-    WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams, WorkflowRunWorkspaceResult,
-    WorkflowRunsQueryParams, WorkflowRunsQueryResult,
+    AttachmentAbortResult, AttachmentBeginParams, AttachmentBeginResult, AttachmentChunkParams,
+    AttachmentChunkResult, AttachmentCommitResult, AttachmentPreviewSourceParams,
+    AttachmentPreviewSourceResult, AttachmentReadParams, AttachmentReadResult,
+    AttachmentTerminalParams, BackgroundBashOutputParams, BackgroundBashOutputResult,
+    ConversationAttachmentReadParams, ConversationAttachmentStatParams,
+    ConversationAttachmentStatResult, ConversationUsageParams, ConversationUsageResult,
+    FileChangesParams, FileChangesResult, FileRewindPreviewParams, FileRewindPreviewResult,
+    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunArtifactDataParams,
+    WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult,
+    WorkflowRunArtifactsParams, WorkflowRunArtifactsResult, WorkflowRunEventsParams,
+    WorkflowRunEventsResult, WorkflowRunNodeResult, WorkflowRunNodeResultParams,
+    WorkflowRunWorkspaceParams, WorkflowRunWorkspaceResult, WorkflowRunsQueryParams,
+    WorkflowRunsQueryResult,
 };
 use agent_protocol::v4_transport::{
     ConversationSubscribeParams, ConversationSubscribeResult, SubscribeMode, SubscribeVisibility,
@@ -671,6 +676,95 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/usage".to_string());
                     }
+                    "v4/attachment/begin" => {
+                        let begin: AttachmentBeginParams = decode(case, &params);
+                        assert_eq!(begin.upload_id, "up-1");
+                        assert_eq!(begin.total_chunks, 1);
+                        begin
+                            .validate()
+                            .unwrap_or_else(|message| panic!("{case}：begin 参数不合法：{message}"));
+                        assert_eq!(
+                            serde_json::to_value(&begin).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/attachment/begin".to_string());
+                    }
+                    "v4/attachment/chunk" => {
+                        let chunk: AttachmentChunkParams = decode(case, &params);
+                        assert_eq!(chunk.chunk_index, 0);
+                        assert_eq!(chunk.data_base64, "aGVsbG8=");
+                        assert_eq!(
+                            serde_json::to_value(&chunk).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/attachment/chunk".to_string());
+                    }
+                    "v4/attachment/commit" => {
+                        let terminal: AttachmentTerminalParams = decode(case, &params);
+                        assert_eq!(terminal.upload_id, "up-1");
+                        assert_eq!(
+                            serde_json::to_value(&terminal).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/attachment/commit".to_string());
+                    }
+                    "v4/attachment/abort" => {
+                        let terminal: AttachmentTerminalParams = decode(case, &params);
+                        assert_eq!(terminal.upload_id, "up-1");
+                        assert_eq!(
+                            serde_json::to_value(&terminal).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/attachment/abort".to_string());
+                    }
+                    "v4/attachment/read" => {
+                        let read: AttachmentReadParams = decode(case, &params);
+                        assert_eq!(read.limit, 65536);
+                        assert_eq!(read.target.as_ref().map(|t| t.row_id), Some(3));
+                        assert_eq!(read.attachment_index, Some(0));
+                        read.validate()
+                            .unwrap_or_else(|message| panic!("{case}：read 参数不合法：{message}"));
+                        assert_eq!(
+                            serde_json::to_value(&read).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/attachment/read".to_string());
+                    }
+                    "v4/attachment/previewSource" => {
+                        let preview: AttachmentPreviewSourceParams = decode(case, &params);
+                        assert_eq!(preview.client_mode, V4ClientMode::DesktopContinuous);
+                        assert_eq!(
+                            serde_json::to_value(&preview).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/attachment/previewSource".to_string());
+                    }
+                    "v4/conversation/attachmentRead" => {
+                        let read: ConversationAttachmentReadParams = decode(case, &params);
+                        assert_eq!(read.attachment_index, 0);
+                        assert_eq!(
+                            serde_json::to_value(&read).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/attachmentRead".to_string());
+                    }
+                    "v4/conversation/attachmentStat" => {
+                        let stat: ConversationAttachmentStatParams = decode(case, &params);
+                        assert_eq!(stat.target.entity_id, "entity-1");
+                        assert_eq!(
+                            serde_json::to_value(&stat).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/attachmentStat".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let subscribe: ConversationSubscribeParams = decode(case, &params);
                         assert_eq!(subscribe.topic, "conversation/sess-1");
@@ -1232,6 +1326,87 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/usage".to_string());
                     }
+                    "v4/attachment/begin" => {
+                        let result: AttachmentBeginResult = decode(case, &response.result);
+                        match &result {
+                            AttachmentBeginResult::Staging(staging) => {
+                                assert_eq!(staging.next_chunk_index, 0)
+                            }
+                            other => panic!("{case}：应当是 staging，实际 {other:?}"),
+                        }
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/attachment/begin".to_string());
+                    }
+                    "v4/attachment/chunk" => {
+                        let result: AttachmentChunkResult = decode(case, &response.result);
+                        assert_eq!(result.next_chunk_index, 1);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/attachment/chunk".to_string());
+                    }
+                    "v4/attachment/commit" => {
+                        let result: AttachmentCommitResult = decode(case, &response.result);
+                        assert_eq!(result.attachment_ref, "att-1");
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/attachment/commit".to_string());
+                    }
+                    "v4/attachment/abort" => {
+                        let result: AttachmentAbortResult = decode(case, &response.result);
+                        assert_eq!(result, AttachmentAbortResult {});
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/attachment/abort".to_string());
+                    }
+                    "v4/attachment/read" | "v4/conversation/attachmentRead" => {
+                        let result: AttachmentReadResult = decode(case, &response.result);
+                        assert_eq!(result.total_bytes, 5);
+                        assert_eq!(result.next_offset, None);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert(responds_to.to_string());
+                    }
+                    "v4/attachment/previewSource" => {
+                        let result: AttachmentPreviewSourceResult = decode(case, &response.result);
+                        match &result {
+                            AttachmentPreviewSourceResult::LocalPath(local) => {
+                                assert_eq!(local.media_type, "video/mp4")
+                            }
+                            other => panic!("{case}：应当是 local_path，实际 {other:?}"),
+                        }
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/attachment/previewSource".to_string());
+                    }
+                    "v4/conversation/attachmentStat" => {
+                        let result: ConversationAttachmentStatResult = decode(case, &response.result);
+                        assert_eq!(result.total_bytes, 104857600);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/attachmentStat".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let result: ConversationSubscribeResult = decode(case, &response.result);
                         assert_eq!(result.ack.subscription_id, "sub-1");
@@ -1293,7 +1468,15 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "v4/conversation/fileChanges",
             "v4/conversation/fileRewindPreview",
             "v4/conversation/backgroundBashOutput",
-            "v4/conversation/usage"
+            "v4/conversation/usage",
+            "v4/attachment/abort",
+            "v4/attachment/begin",
+            "v4/attachment/chunk",
+            "v4/attachment/commit",
+            "v4/attachment/previewSource",
+            "v4/attachment/read",
+            "v4/conversation/attachmentRead",
+            "v4/conversation/attachmentStat"
         ]
         .into_iter()
         .map(str::to_string)

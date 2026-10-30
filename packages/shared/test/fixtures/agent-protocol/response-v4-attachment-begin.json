@@ -1,0 +1,14 @@
+{
+  "case": "response-v4-attachment-begin",
+  "direction": "runtime->host",
+  "respondsTo": "v4/attachment/begin",
+  "note": "staging 分支：uploadId + state + 下一块序号（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 83,
+    "result": {
+      "uploadId": "up-1",
+      "state": "staging",
+      "nextChunkIndex": 0
+    }
+  }
+}

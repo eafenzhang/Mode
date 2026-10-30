@@ -1,0 +1,20 @@
+{
+  "case": "request-v4-attachment-read",
+  "direction": "host->runtime",
+  "note": "已发送附件的分段读：ref + 可选行目标/序号 + offset/limit（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 87,
+    "method": "v4/attachment/read",
+    "params": {
+      "sessionId": "sess-1",
+      "ref": "att-1",
+      "target": {
+        "rowId": 3,
+        "entityId": "entity-1"
+      },
+      "attachmentIndex": 0,
+      "offset": 0,
+      "limit": 65536
+    }
+  }
+}

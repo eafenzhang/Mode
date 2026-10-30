@@ -10,10 +10,14 @@ use agent_process::{
     RuntimePolicy, SpecFactory,
 };
 use agent_protocol::v4_queries::{
-    BackgroundBashOutputParams, BackgroundBashOutputResult, BackgroundBashUnavailableKind,
-    ConversationUsageParams, PlansParams, RowsRangeParams, WorkflowRunArtifactDataParams,
-    WorkflowRunArtifactReadParams, WorkflowRunArtifactsParams, WorkflowRunEventsParams,
-    WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams, WorkflowRunsQueryParams,
+    AttachmentBeginParams, AttachmentBeginResult, AttachmentChunkParams,
+    AttachmentPreviewSourceParams, AttachmentPreviewSourceResult, AttachmentReadParams,
+    AttachmentTerminalParams, BackgroundBashOutputParams, BackgroundBashOutputResult,
+    BackgroundBashUnavailableKind, ConversationAttachmentReadParams,
+    ConversationAttachmentStatParams, ConversationRowTarget, ConversationUsageParams, PlansParams,
+    RowsRangeParams, WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams,
+    WorkflowRunArtifactsParams, WorkflowRunEventsParams, WorkflowRunNodeResultParams,
+    WorkflowRunWorkspaceParams, WorkflowRunsQueryParams,
 };
 use agent_protocol::v4_transport::V4ClientMode;
 use serde_json::{json, Value};
@@ -797,6 +801,315 @@ async fn invalid_conversation_usage_carries_prefix() {
             "{message}"
         ),
         other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+fn begin_params() -> AttachmentBeginParams {
+    AttachmentBeginParams {
+        connection_id: "conn-1".to_string(),
+        upload_id: "up-1".to_string(),
+        session_id: "sess-1".to_string(),
+        file_name: "a.txt".to_string(),
+        mime: "text/plain".to_string(),
+        total_bytes: 5,
+        total_chunks: 1,
+        checksum: format!("sha256:{}", "a".repeat(64)),
+    }
+}
+
+#[tokio::test]
+async fn attachment_upload_transaction_round_trips() {
+    let log = FrameLog::new("attachment-upload");
+    let client = control("", &log, Arc::new(AtomicUsize::new(0)));
+
+    let begin = client
+        .attachment_begin_v4(&target(), begin_params(), RuntimePolicy::StartIfNeeded)
+        .await
+        .unwrap();
+    match begin {
+        AttachmentBeginResult::Staging(staging) => {
+            assert_eq!(staging.upload_id, "up-1");
+            assert_eq!(staging.next_chunk_index, 0);
+        }
+        other => panic!("unexpected begin result: {other:?}"),
+    }
+
+    let chunk = client
+        .attachment_chunk_v4(
+            &target(),
+            AttachmentChunkParams {
+                connection_id: "conn-1".to_string(),
+                upload_id: "up-1".to_string(),
+                session_id: "sess-1".to_string(),
+                chunk_index: 0,
+                data_base64: "aGVsbG8=".to_string(),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(chunk.next_chunk_index, 1);
+
+    let terminal = AttachmentTerminalParams {
+        connection_id: "conn-1".to_string(),
+        upload_id: "up-1".to_string(),
+        session_id: "sess-1".to_string(),
+    };
+    let committed = client
+        .attachment_commit_v4(&target(), terminal.clone(), RuntimePolicy::StartIfNeeded)
+        .await
+        .unwrap();
+    assert_eq!(committed.attachment_ref, "att-1");
+    client
+        .attachment_abort_v4(&target(), terminal, RuntimePolicy::StartIfNeeded)
+        .await
+        .unwrap();
+
+    let frames = log.frame_params("v4/attachment/begin");
+    assert_eq!(frames[0]["uploadId"], "up-1");
+    assert_eq!(frames[0]["totalChunks"], 1);
+}
+
+#[tokio::test]
+async fn attachment_begin_reappearance_is_committed() {
+    let log = FrameLog::new("attachment-committed");
+    let client = control("v4-attachment-begin-committed", &log, Arc::new(AtomicUsize::new(0)));
+    let begin = client
+        .attachment_begin_v4(&target(), begin_params(), RuntimePolicy::StartIfNeeded)
+        .await
+        .unwrap();
+    match begin {
+        AttachmentBeginResult::Committed(committed) => {
+            assert_eq!(committed.attachment_ref, "att-1");
+        }
+        other => panic!("unexpected begin result: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn attachment_begin_rejects_zero_bytes_with_chunks() {
+    let log = FrameLog::new("attachment-zero");
+    let client = control("", &log, Arc::new(AtomicUsize::new(0)));
+    let mut params = begin_params();
+    params.total_bytes = 0;
+    let error = client
+        .attachment_begin_v4(&target(), params, RuntimePolicy::StartIfNeeded)
+        .await
+        .unwrap_err();
+    assert!(matches!(error, ControlError::InvalidParams(_)));
+    assert!(log.frame_params("v4/attachment/begin").is_empty(), "不得发出非法参数");
+}
+
+#[tokio::test]
+async fn attachment_read_and_stat_parse() {
+    let log = FrameLog::new("attachment-read");
+    let client = control("", &log, Arc::new(AtomicUsize::new(0)));
+
+    let read = client
+        .attachment_read_v4(
+            &target(),
+            AttachmentReadParams {
+                session_id: "sess-1".to_string(),
+                attachment_ref: "att-1".to_string(),
+                target: None,
+                attachment_index: None,
+                offset: 0,
+                limit: 65536,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(read.media_type, "text/plain");
+    assert_eq!(read.next_offset, None);
+
+    // target 与 attachmentIndex 必须成对出现。
+    let error = client
+        .attachment_read_v4(
+            &target(),
+            AttachmentReadParams {
+                session_id: "sess-1".to_string(),
+                attachment_ref: "att-1".to_string(),
+                target: Some(ConversationRowTarget {
+                    row_id: 3,
+                    entity_id: "entity-1".to_string(),
+                }),
+                attachment_index: None,
+                offset: 0,
+                limit: 1,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(error, ControlError::InvalidParams(_)));
+
+    let preview = client
+        .attachment_preview_source_v4(
+            &target(),
+            AttachmentPreviewSourceParams {
+                session_id: "sess-1".to_string(),
+                attachment_ref: "att-1".to_string(),
+                target: None,
+                attachment_index: None,
+                client_mode: V4ClientMode::DesktopContinuous,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    match preview {
+        AttachmentPreviewSourceResult::LocalPath(local) => {
+            assert_eq!(local.media_type, "video/mp4");
+        }
+        other => panic!("unexpected preview result: {other:?}"),
+    }
+
+    let chunked_log = FrameLog::new("attachment-chunked");
+    let chunked_client = control(
+        "v4-attachment-preview-chunked",
+        &chunked_log,
+        Arc::new(AtomicUsize::new(0)),
+    );
+    let preview = chunked_client
+        .attachment_preview_source_v4(
+            &target(),
+            AttachmentPreviewSourceParams {
+                session_id: "sess-1".to_string(),
+                attachment_ref: "att-1".to_string(),
+                target: None,
+                attachment_index: None,
+                client_mode: V4ClientMode::WebRemoteReplayable,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert!(matches!(preview, AttachmentPreviewSourceResult::Chunked(_)));
+
+    let stat = client
+        .conversation_attachment_stat_v4(
+            &target(),
+            ConversationAttachmentStatParams {
+                session_id: "sess-1".to_string(),
+                attachment_ref: "att-1".to_string(),
+                target: ConversationRowTarget {
+                    row_id: 3,
+                    entity_id: "entity-1".to_string(),
+                },
+                attachment_index: 0,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(stat.total_bytes, 104857600);
+    assert_eq!(stat.mtime_ms, Some(1700000000000u64.into()));
+}
+
+#[tokio::test]
+async fn invalid_attachment_queries_carry_distinct_prefixes() {
+    let cases: [(&str, &str); 6] = [
+        ("bad-v4-attachment-begin", "invalid v4/attachment/begin result"),
+        ("bad-v4-attachment-chunk", "invalid v4/attachment/chunk result"),
+        ("bad-v4-attachment-commit", "invalid v4/attachment/commit result"),
+        ("bad-v4-attachment-read", "invalid v4/attachment/read result"),
+        (
+            "bad-v4-conversation-attachment-read",
+            "invalid v4/conversation/attachmentRead result",
+        ),
+        (
+            "bad-v4-conversation-attachment-stat",
+            "invalid v4/conversation/attachmentStat result",
+        ),
+    ];
+    for (mode, prefix) in &cases {
+        let log = FrameLog::new(mode);
+        let client = control(mode, &log, Arc::new(AtomicUsize::new(0)));
+        let terminal = AttachmentTerminalParams {
+            connection_id: "conn-1".to_string(),
+            upload_id: "up-1".to_string(),
+            session_id: "sess-1".to_string(),
+        };
+        let error = match *mode {
+            "bad-v4-attachment-begin" => client
+                .attachment_begin_v4(&target(), begin_params(), RuntimePolicy::StartIfNeeded)
+                .await
+                .unwrap_err(),
+            "bad-v4-attachment-chunk" => client
+                .attachment_chunk_v4(
+                    &target(),
+                    AttachmentChunkParams {
+                        connection_id: "conn-1".to_string(),
+                        upload_id: "up-1".to_string(),
+                        session_id: "sess-1".to_string(),
+                        chunk_index: 0,
+                        data_base64: String::new(),
+                    },
+                    RuntimePolicy::StartIfNeeded,
+                )
+                .await
+                .unwrap_err(),
+            "bad-v4-attachment-commit" => client
+                .attachment_commit_v4(&target(), terminal, RuntimePolicy::StartIfNeeded)
+                .await
+                .unwrap_err(),
+            "bad-v4-attachment-read" => client
+                .attachment_read_v4(
+                    &target(),
+                    AttachmentReadParams {
+                        session_id: "sess-1".to_string(),
+                        attachment_ref: "att-1".to_string(),
+                        target: None,
+                        attachment_index: None,
+                        offset: 0,
+                        limit: 1,
+                    },
+                    RuntimePolicy::StartIfNeeded,
+                )
+                .await
+                .unwrap_err(),
+            "bad-v4-conversation-attachment-read" => client
+                .conversation_attachment_read_v4(
+                    &target(),
+                    ConversationAttachmentReadParams {
+                        session_id: "sess-1".to_string(),
+                        attachment_ref: "att-1".to_string(),
+                        target: ConversationRowTarget {
+                            row_id: 3,
+                            entity_id: "entity-1".to_string(),
+                        },
+                        attachment_index: 0,
+                        offset: 0,
+                        limit: 1,
+                    },
+                    RuntimePolicy::StartIfNeeded,
+                )
+                .await
+                .unwrap_err(),
+            _ => client
+                .conversation_attachment_stat_v4(
+                    &target(),
+                    ConversationAttachmentStatParams {
+                        session_id: "sess-1".to_string(),
+                        attachment_ref: "att-1".to_string(),
+                        target: ConversationRowTarget {
+                            row_id: 3,
+                            entity_id: "entity-1".to_string(),
+                        },
+                        attachment_index: 0,
+                    },
+                    RuntimePolicy::StartIfNeeded,
+                )
+                .await
+                .unwrap_err(),
+        };
+        match error {
+            ControlError::InvalidResult(message) => {
+                assert!(message.starts_with(prefix), "{mode}: {message}")
+            }
+            other => panic!("{mode}: unexpected error: {other:?}"),
+        }
     }
 }
 

@@ -1,0 +1,18 @@
+{
+  "case": "request-v4-conversation-attachment-stat",
+  "direction": "host->runtime",
+  "note": "Share 选择阶段的 metadata-only 探测（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 90,
+    "method": "v4/conversation/attachmentStat",
+    "params": {
+      "sessionId": "sess-1",
+      "ref": "att-1",
+      "target": {
+        "rowId": 3,
+        "entityId": "entity-1"
+      },
+      "attachmentIndex": 0
+    }
+  }
+}

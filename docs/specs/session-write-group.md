@@ -356,6 +356,19 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
   （`-32601`）映射为 `unsupported`，运行时不可用映射为 `unavailable`，其余错误上抛。
 - `conversation/usage`：会话级 token 用量（旧 `session/usage` 的 v4 落位）。结果严格：
   各类 token 计数、请求/错误计数与按来源的输入基线。
+- 附件面（`agent-protocol::v4_queries` 的 `Attachment*`）：
+  - 上行事务 `attachment/begin|chunk|commit|abort`：所有参数严格；`begin` 的
+    「零字节必须零块」与 `read` 的「`target` 与 `attachmentIndex` 成对」两条
+    `superRefine` 在发出前本地校验（失败返回 `InvalidParams`，不拉起/不发送）。
+    `begin` 的结果按 `state` 分 `staging` / `committed` 两支；`abort` 的成功结果是
+    严格空对象。base64 长度与 `totalChunks`/`checksum` 的格式约束仍由 Agent 侧 schema
+    与 CLI 网关执行。
+  - `attachment/read` 与 `conversation/attachmentRead`：offset/limit 分段读，结果
+    同形（base64 + 任意已授权 MIME + `totalBytes` + nullable `nextOffset`）。
+  - `attachment/previewSource`：Desktop local 已发送视频返回 `local_path`（video/*
+    绝对路径），远端/Web 返回 `chunked`；`clientMode` 必填（可信位）。
+  - `conversation/attachmentStat`：metadata-only 探测，允许超过传输上限的真实大小，
+    `mtimeMs` 可选。
 
 ## 3. 验收
 
@@ -416,3 +429,6 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
     映射为 `unsupported`；三条都有独立的非法结果前缀。
 25. 会话用量：各类 token 计数与按来源的输入基线可读，非法结果前缀
     `invalid v4/conversation/usage result`。
+26. 附件：上行四步各自 round-trip，`begin` 的 committed 分支可解析；「零字节必须零块」
+    与「target/attachmentIndex 成对」在本地拒绝且不发送；分段读、previewSource 的
+    local_path/chunked 两支、attachmentStat 均可解析；六个非法结果有独立前缀。

@@ -1,0 +1,19 @@
+{
+  "case": "request-v4-attachment-preview-source",
+  "direction": "host->runtime",
+  "note": "Desktop local 视频播放源查询：可信 clientMode 必填（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 88,
+    "method": "v4/attachment/previewSource",
+    "params": {
+      "sessionId": "sess-1",
+      "ref": "att-1",
+      "target": {
+        "rowId": 3,
+        "entityId": "entity-1"
+      },
+      "attachmentIndex": 0,
+      "clientMode": "desktop-continuous"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "case": "request-v4-attachment-abort",
+  "direction": "host->runtime",
+  "note": "放弃上传事务（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 86,
+    "method": "v4/attachment/abort",
+    "params": {
+      "connectionId": "conn-1",
+      "uploadId": "up-1",
+      "sessionId": "sess-1"
+    }
+  }
+}

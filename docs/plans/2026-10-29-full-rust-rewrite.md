@@ -329,8 +329,11 @@ journal（cursor 永不失效），刻意不带 `atSeq`/`atLogEpoch`；`workflow
 `backgroundBashOutput`（existing-only；`-32601` → `unsupported`、运行时不可用 →
 `unavailable`）；3 条新增测试 + 6 条双端夹具。**会话用量已落**：
 `v4/conversation/usage`（旧 `session/usage` 落位）的各类 token 计数与按来源输入基线
-（2 条测试 + 双端夹具）。会话级只读查询至此补齐，剩余只读面是附件（8 条）、
-`v4/usage/stats` 与 sessions-index / workspace-config 订阅。
+（2 条测试 + 双端夹具）。**附件面已落**：上行事务 `begin|chunk|commit|abort`、
+分段读 `attachment/read` 与 `conversation/attachmentRead`、`previewSource` 的
+local_path/chunked 两支、metadata-only `attachmentStat`；两条 `superRefine`（零字节
+零块、target/attachmentIndex 成对）在发出前本地拒绝。4 条新增测试 + 16 条双端夹具。
+剩余只读面是 `v4/usage/stats` 与 sessions-index / workspace-config 订阅。
 **未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
 所有权切换，以及其余 80 个成员（session 其余读/写、插件/automation/workflow 等；
 `IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 +

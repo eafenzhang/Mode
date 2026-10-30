@@ -1,0 +1,19 @@
+{
+  "case": "request-v4-attachment-begin",
+  "direction": "host->runtime",
+  "note": "附件上行事务开启：连接/上传/会话身份 + 文件元数据 + 校验和（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 83,
+    "method": "v4/attachment/begin",
+    "params": {
+      "connectionId": "conn-1",
+      "uploadId": "up-1",
+      "sessionId": "sess-1",
+      "fileName": "a.txt",
+      "mime": "text/plain",
+      "totalBytes": 5,
+      "totalChunks": 1,
+      "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "case": "response-v4-attachment-chunk",
+  "direction": "runtime->host",
+  "respondsTo": "v4/attachment/chunk",
+  "note": "下一块序号（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 84,
+    "result": {
+      "uploadId": "up-1",
+      "nextChunkIndex": 1
+    }
+  }
+}

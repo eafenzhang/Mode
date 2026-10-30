@@ -1,0 +1,12 @@
+{
+  "case": "response-v4-attachment-commit",
+  "direction": "runtime->host",
+  "respondsTo": "v4/attachment/commit",
+  "note": "提交结果：可用的附件 ref（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 85,
+    "result": {
+      "ref": "att-1"
+    }
+  }
+}

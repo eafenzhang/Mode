@@ -1,0 +1,14 @@
+{
+  "case": "response-v4-conversation-attachment-stat",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/attachmentStat",
+  "note": "探测结果：允许超过传输上限的真实大小 + 可选 mtime（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 90,
+    "result": {
+      "mediaType": "text/plain",
+      "totalBytes": 104857600,
+      "mtimeMs": 1700000000000
+    }
+  }
+}

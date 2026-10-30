@@ -635,3 +635,232 @@ pub struct ConversationUsageResult {
     pub model_error_count: u64,
     pub input_baseline_by_source: BTreeMap<String, u64>,
 }
+
+// ── 附件：上行事务与分段读 ──
+// 上行是 begin/chunk/commit/abort 四步；读是 offset/limit 分段。字节一律 base64，
+// 授权在 CLI 侧（`ref` 必须对当前 session projection 再授权）。
+
+pub const V4_ATTACHMENT_BEGIN_METHOD: &str = "v4/attachment/begin";
+pub const V4_ATTACHMENT_CHUNK_METHOD: &str = "v4/attachment/chunk";
+pub const V4_ATTACHMENT_COMMIT_METHOD: &str = "v4/attachment/commit";
+pub const V4_ATTACHMENT_ABORT_METHOD: &str = "v4/attachment/abort";
+pub const V4_ATTACHMENT_READ_METHOD: &str = "v4/attachment/read";
+pub const V4_ATTACHMENT_PREVIEW_SOURCE_METHOD: &str = "v4/attachment/previewSource";
+pub const V4_CONVERSATION_ATTACHMENT_READ_METHOD: &str = "v4/conversation/attachmentRead";
+pub const V4_CONVERSATION_ATTACHMENT_STAT_METHOD: &str = "v4/conversation/attachmentStat";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentBeginParams {
+    pub connection_id: String,
+    pub upload_id: String,
+    pub session_id: String,
+    pub file_name: String,
+    pub mime: String,
+    pub total_bytes: u64,
+    pub total_chunks: u64,
+    pub checksum: String,
+}
+
+impl AttachmentBeginParams {
+    /// 协议 `superRefine`：零字节上传必须声明零块。
+    pub fn validate(&self) -> Result<(), String> {
+        if (self.total_bytes == 0) != (self.total_chunks == 0) {
+            return Err("zero-byte upload must declare zero chunks".to_string());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentBeginStateTag {
+    #[serde(rename = "staging")]
+    Staging,
+    #[serde(rename = "committed")]
+    Committed,
+}
+
+/// `attachmentBegin` 的 staging 分支。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentBeginStaging {
+    pub upload_id: String,
+    pub state: AttachmentBeginStateTag,
+    pub next_chunk_index: u64,
+}
+
+/// `attachmentBegin` 的 committed 分支（同一上传幂等重现）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentBeginCommitted {
+    pub upload_id: String,
+    pub state: AttachmentBeginStateTag,
+    pub next_chunk_index: u64,
+    #[serde(rename = "ref")]
+    pub attachment_ref: String,
+}
+
+/// `v4AttachmentBeginResultSchema`：按 `state` 判别的两支。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AttachmentBeginResult {
+    Staging(AttachmentBeginStaging),
+    Committed(AttachmentBeginCommitted),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentChunkParams {
+    pub connection_id: String,
+    pub upload_id: String,
+    pub session_id: String,
+    pub chunk_index: u64,
+    pub data_base64: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentChunkResult {
+    pub upload_id: String,
+    pub next_chunk_index: u64,
+}
+
+/// commit / abort 共用的终止参数。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentTerminalParams {
+    pub connection_id: String,
+    pub upload_id: String,
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentCommitResult {
+    #[serde(rename = "ref")]
+    pub attachment_ref: String,
+}
+
+/// abort 的成功结果是一个空对象（严格：任何键都拒绝）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AttachmentAbortResult {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentReadParams {
+    pub session_id: String,
+    #[serde(rename = "ref")]
+    pub attachment_ref: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<ConversationRowTarget>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachment_index: Option<u64>,
+    pub offset: u64,
+    pub limit: u64,
+}
+
+impl AttachmentReadParams {
+    /// 协议 `superRefine`：`target` 与 `attachmentIndex` 必须成对出现。
+    pub fn validate(&self) -> Result<(), String> {
+        if self.target.is_some() != self.attachment_index.is_some() {
+            return Err("target and attachmentIndex must be provided together".to_string());
+        }
+        Ok(())
+    }
+}
+
+/// 分段读结果（attachment read 与 conversation attachment read 同形）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentReadResult {
+    pub data_base64: String,
+    pub media_type: String,
+    pub total_bytes: u64,
+    pub next_offset: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentPreviewSourceParams {
+    pub session_id: String,
+    #[serde(rename = "ref")]
+    pub attachment_ref: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<ConversationRowTarget>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachment_index: Option<u64>,
+    pub client_mode: V4ClientMode,
+}
+
+impl AttachmentPreviewSourceParams {
+    /// 协议 `superRefine`：`target` 与 `attachmentIndex` 必须成对出现。
+    pub fn validate(&self) -> Result<(), String> {
+        if self.target.is_some() != self.attachment_index.is_some() {
+            return Err("target and attachmentIndex must be provided together".to_string());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentPreviewSourceKind {
+    #[serde(rename = "local_path")]
+    LocalPath,
+    #[serde(rename = "chunked")]
+    Chunked,
+}
+
+/// `v4AttachmentPreviewSourceResultSchema`：本地播放源或分段下载。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AttachmentPreviewSourceResult {
+    LocalPath(AttachmentPreviewLocalPath),
+    Chunked(AttachmentPreviewChunked),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentPreviewLocalPath {
+    pub kind: AttachmentPreviewSourceKind,
+    pub path: String,
+    pub media_type: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentPreviewChunked {
+    pub kind: AttachmentPreviewSourceKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConversationAttachmentReadParams {
+    pub session_id: String,
+    #[serde(rename = "ref")]
+    pub attachment_ref: String,
+    pub target: ConversationRowTarget,
+    pub attachment_index: u64,
+    pub offset: u64,
+    pub limit: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConversationAttachmentStatParams {
+    pub session_id: String,
+    #[serde(rename = "ref")]
+    pub attachment_ref: String,
+    pub target: ConversationRowTarget,
+    pub attachment_index: u64,
+}
+
+/// `v4ConversationAttachmentStatResultSchema`：metadata-only 探测，允许超过传输上限。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConversationAttachmentStatResult {
+    pub media_type: String,
+    pub total_bytes: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mtime_ms: Option<Number>,
+}

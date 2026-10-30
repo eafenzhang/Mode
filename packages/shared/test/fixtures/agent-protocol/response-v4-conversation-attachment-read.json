@@ -1,0 +1,15 @@
+{
+  "case": "response-v4-conversation-attachment-read",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/attachmentRead",
+  "note": "分段读结果：base64 + 任意已授权 MIME + 总字节数 + 下一块 offset（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 89,
+    "result": {
+      "dataBase64": "aGVsbG8=",
+      "mediaType": "text/plain",
+      "totalBytes": 5,
+      "nextOffset": null
+    }
+  }
+}

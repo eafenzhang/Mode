@@ -1,0 +1,10 @@
+{
+  "case": "response-v4-attachment-abort",
+  "direction": "runtime->host",
+  "respondsTo": "v4/attachment/abort",
+  "note": "abort 的成功结果是空对象（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 86,
+    "result": {}
+  }
+}

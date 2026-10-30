@@ -1,0 +1,14 @@
+{
+  "case": "request-v4-attachment-commit",
+  "direction": "host->runtime",
+  "note": "提交上传事务（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 85,
+    "method": "v4/attachment/commit",
+    "params": {
+      "connectionId": "conn-1",
+      "uploadId": "up-1",
+      "sessionId": "sess-1"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "case": "response-v4-attachment-preview-source",
+  "direction": "runtime->host",
+  "respondsTo": "v4/attachment/previewSource",
+  "note": "本地播放源分支：video/* 的绝对路径（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 88,
+    "result": {
+      "kind": "local_path",
+      "path": "/ws/demo/a.mp4",
+      "mediaType": "video/mp4"
+    }
+  }
+}

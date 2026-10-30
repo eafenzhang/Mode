@@ -695,6 +695,70 @@ fn main() {
                 result["totalTokens"] = json!(-1);
             }
             json!({ "id": id, "result": result })
+        } else if method == "v4/attachment/begin" {
+            let mut result = if mode == "v4-attachment-begin-committed" {
+                json!({ "uploadId": "up-1", "state": "committed", "nextChunkIndex": 1, "ref": "att-1" })
+            } else {
+                json!({ "uploadId": "up-1", "state": "staging", "nextChunkIndex": 0 })
+            };
+            if mode == "bad-v4-attachment-begin" {
+                result["state"] = json!("paused");
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "v4/attachment/chunk" {
+            let mut result = json!({ "uploadId": "up-1", "nextChunkIndex": 1 });
+            if mode == "bad-v4-attachment-chunk" {
+                result["nextChunkIndex"] = json!(-1);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "v4/attachment/commit" {
+            let mut result = json!({ "ref": "att-1" });
+            if mode == "bad-v4-attachment-commit" {
+                result = json!({});
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "v4/attachment/abort" {
+            json!({ "id": id, "result": {} })
+        } else if method == "v4/attachment/read" {
+            let mut result = json!({
+                "dataBase64": "aGVsbG8=",
+                "mediaType": "text/plain",
+                "totalBytes": 5,
+                "nextOffset": null
+            });
+            if mode == "bad-v4-attachment-read" {
+                // `.positive()` 的上界/下界校验未在 Rust 侧镜像，类型错误才会被拒绝。
+                result["nextOffset"] = json!("end");
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "v4/attachment/previewSource" {
+            let result = if mode == "v4-attachment-preview-chunked" {
+                json!({ "kind": "chunked" })
+            } else {
+                json!({ "kind": "local_path", "path": "/ws/demo/a.mp4", "mediaType": "video/mp4" })
+            };
+            json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/attachmentRead" {
+            let mut result = json!({
+                "dataBase64": "aGVsbG8=",
+                "mediaType": "text/plain",
+                "totalBytes": 5,
+                "nextOffset": null
+            });
+            if mode == "bad-v4-conversation-attachment-read" {
+                result["mediaType"] = json!(1);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/attachmentStat" {
+            let mut result = json!({
+                "mediaType": "text/plain",
+                "totalBytes": 104857600,
+                "mtimeMs": 1700000000000u64
+            });
+            if mode == "bad-v4-conversation-attachment-stat" {
+                result["totalBytes"] = json!(-5);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "plugins/overview" {
             let mut result = json!({
                 "marketplaces": [{

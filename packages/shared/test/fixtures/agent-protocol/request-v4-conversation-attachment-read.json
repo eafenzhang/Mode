@@ -1,0 +1,20 @@
+{
+  "case": "request-v4-conversation-attachment-read",
+  "direction": "host->runtime",
+  "note": "Share 读取 userInput 附件：行目标 + 序号 + offset/limit（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 89,
+    "method": "v4/conversation/attachmentRead",
+    "params": {
+      "sessionId": "sess-1",
+      "ref": "att-1",
+      "target": {
+        "rowId": 3,
+        "entityId": "entity-1"
+      },
+      "attachmentIndex": 0,
+      "offset": 0,
+      "limit": 65536
+    }
+  }
+}

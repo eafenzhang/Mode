@@ -1,0 +1,16 @@
+{
+  "case": "request-v4-attachment-chunk",
+  "direction": "host->runtime",
+  "note": "追加一块上传数据（base64，解码后 ≤512 KiB）（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 84,
+    "method": "v4/attachment/chunk",
+    "params": {
+      "connectionId": "conn-1",
+      "uploadId": "up-1",
+      "sessionId": "sess-1",
+      "chunkIndex": 0,
+      "dataBase64": "aGVsbG8="
+    }
+  }
+}
