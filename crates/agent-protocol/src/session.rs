@@ -164,14 +164,12 @@ pub enum RuntimePreferencesScope {
     UserExecution,
 }
 
-/// `session/requestRuntimePreferences` 的 params（运行时反向请求）。
+/// `session/requestRuntimePreferences` 的 params（运行时反向请求，`.strict()`）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RuntimePreferencesRequestParams {
     pub session_id: String,
     pub scope: RuntimePreferencesScope,
-    #[serde(flatten)]
-    pub extra: ExtraFields,
 }
 
 /// `modelContextBudgetStrategy` 的取值。
@@ -197,19 +195,18 @@ pub enum ModelContextBudgetStrategy {
 /// 会给出假红（Task 1 复评 Minor 2）。需要协议的默认值时由消费方自己取：
 /// `unwrap_or(false)` / `unwrap_or(true)` / `unwrap_or_default()`
 /// （`ModelContextBudgetStrategy` 的 `Default` 实现就是协议声明的默认值本身）。
+///
+/// schema 本身是 `.strict()`：未知键拒绝（与 `modeSessionRuntimePreferencesResultSchema` 一致）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RuntimePreferencesResult {
     pub native_search_enhancements_enabled: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memory_enabled: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ask_user_question_auto_resolution_enabled: Option<bool>,
-    /// 未建模（M2 捕获里未出现）：原样保留。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub integrated_terminal_shell: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_context_budget_strategy: Option<ModelContextBudgetStrategy>,
-    #[serde(flatten)]
-    pub extra: ExtraFields,
 }

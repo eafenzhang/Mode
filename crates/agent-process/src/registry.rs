@@ -77,6 +77,8 @@ pub struct AgentRuntimeRegistry {
     entries: Mutex<HashMap<String, Entry>>,
     /// 同一 key 的并发 `get_or_spawn` 只允许一个真正 spawn；不同 key 互不阻塞。
     spawn_locks: Mutex<HashMap<String, Arc<AsyncMutex<()>>>>,
+    /// 入站请求处理器：对现有进程立即生效，并应用到之后拉起的进程。
+    request_handler: Mutex<Option<mode_protocol_client::RequestHandler>>,
 }
 
 impl AgentRuntimeRegistry {
@@ -86,6 +88,28 @@ impl AgentRuntimeRegistry {
             next_generation: AtomicU64::new(0),
             entries: Mutex::new(HashMap::new()),
             spawn_locks: Mutex::new(HashMap::new()),
+            request_handler: Mutex::new(None),
+        }
+    }
+
+    /// 设置入站请求处理器：现有进程立即生效，之后拉起的进程自动挂上。
+    pub fn set_request_handler(&self, handler: Option<mode_protocol_client::RequestHandler>) {
+        *self
+            .request_handler
+            .lock()
+            .expect("request handler poisoned") = handler.clone();
+        let processes: Vec<Arc<AgentProcess>> = self
+            .entries
+            .lock()
+            .expect("registry poisoned")
+            .values()
+            .map(|entry| Arc::clone(&entry.process))
+            .collect();
+        for process in processes {
+            match &handler {
+                Some(handler) => process.client().set_request_handler(Arc::clone(handler)),
+                None => process.client().clear_request_handler(),
+            }
         }
     }
 
@@ -191,6 +215,14 @@ impl AgentRuntimeRegistry {
         let spec = (self.factory)(target)?;
         let spawned = spawn(spec).await?;
         let process = Arc::new(spawned.process);
+        if let Some(handler) = self
+            .request_handler
+            .lock()
+            .expect("request handler poisoned")
+            .clone()
+        {
+            process.client().set_request_handler(handler);
+        }
         let generation = self.next_generation.fetch_add(1, Ordering::SeqCst) + 1;
         let mut entries = self.entries.lock().expect("registry poisoned");
         entries.insert(

@@ -23,6 +23,7 @@ mod control;
 mod storage;
 mod provider_sync;
 mod resolve;
+mod runtime_preferences;
 mod session_read;
 mod session_write;
 
@@ -37,6 +38,10 @@ pub use provider_sync::{
 };
 pub use session_read::ListSessionsOptions;
 pub use session_write::CreateSessionOptions;
+pub use runtime_preferences::{
+    default_runtime_preferences, default_runtime_preferences_handler, runtime_preferences_handler,
+    SESSION_REQUEST_RUNTIME_PREFERENCES_METHOD,
+};
 pub use registry::{
     AgentRuntimeRegistry, RuntimeIdentity, SpecFactory, StorageStartupSnapshot, WorkspaceTarget,
 };

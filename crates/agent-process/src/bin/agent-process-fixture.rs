@@ -11,9 +11,32 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
+fn append_log(text: &str) {
+    if let Ok(log_path) = std::env::var("AGENT_FIXTURE_FRAME_LOG") {
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_path)
+        {
+            let _ = writeln!(file, "{text}");
+        }
+    }
+}
+
 fn write_notification(stdout: &mut std::io::Stdout, params: Value) {
     let message = json!({ "method": "startup/storageState", "params": params });
     let _ = writeln!(stdout, "{message}");
+    let _ = stdout.flush();
+}
+
+fn write_reverse_preferences(stdout: &mut std::io::Stdout, invalid_scope: bool) {
+    let scope = if invalid_scope { "bogus" } else { "user-execution" };
+    let request = json!({
+        "id": "server-1",
+        "method": "session/requestRuntimePreferences",
+        "params": { "sessionId": "sess-1", "scope": scope }
+    });
+    let _ = writeln!(stdout, "{request}");
     let _ = stdout.flush();
 }
 
@@ -89,6 +112,9 @@ fn main() {
             }),
         );
     }
+    if mode == "reverse-runtime-preferences" || mode == "reverse-runtime-preferences-invalid" {
+        write_reverse_preferences(&mut stdout, mode.ends_with("invalid"));
+    }
     for line in stdin.lock().lines() {
         let Ok(line) = line else {
             break;
@@ -104,21 +130,24 @@ fn main() {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
+        // 反向请求的应答：记下来给测试断言，然后继续等后续请求。
+        if method.is_empty()
+            && request.get("id").and_then(Value::as_str) == Some("server-1")
+            && (request.get("result").is_some() || request.get("error").is_some())
+        {
+            append_log(&format!("reply\t{request}"));
+            continue;
+        }
+        if mode == "reverse-on-trigger" && method == "test/trigger" {
+            write_reverse_preferences(&mut stdout, false);
+        }
         eprintln!("handled:{method}");
         let frame_line = format!(
             "frame\t{method}\t{}",
             request.get("params").cloned().unwrap_or(Value::Null)
         );
         eprintln!("{frame_line}");
-        if let Ok(log_path) = std::env::var("AGENT_FIXTURE_FRAME_LOG") {
-            if let Ok(mut file) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(log_path)
-            {
-                let _ = writeln!(file, "{frame_line}");
-            }
-        }
+        append_log(&frame_line);
         let id = request.get("id").cloned().unwrap_or(Value::Null);
         let reply = if method == "workspace/hooks/trustGrant" {
             match mode.as_str() {

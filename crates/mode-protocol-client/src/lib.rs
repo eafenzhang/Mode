@@ -92,8 +92,16 @@ impl Default for ClientOptions {
     }
 }
 
-/// 入站请求处理：返回 `Some(result)` 时回成功帧；`None` 回 `Method not found`。
-pub type RequestHandler = Arc<dyn Fn(&Value) -> Option<Value> + Send + Sync>;
+/// 入站请求的应答：成功结果、显式错误（如 `-32602`）或未处理（回 `-32601`）。
+#[derive(Debug, Clone, PartialEq)]
+pub enum RequestReply {
+    Result(Value),
+    Error { code: i64, message: String },
+    NotHandled,
+}
+
+/// 入站请求处理器。
+pub type RequestHandler = Arc<dyn Fn(&Value) -> RequestReply + Send + Sync>;
 
 type Pending = Mutex<HashMap<RequestId, oneshot::Sender<Result<Value, ClientError>>>>;
 
@@ -236,6 +244,15 @@ impl ProtocolClient {
             .request_handler
             .lock()
             .expect("handler poisoned") = Some(handler);
+    }
+
+    /// 清除入站请求处理器（恢复默认 `-32601`）。
+    pub fn clear_request_handler(&self) {
+        *self
+            .shared
+            .request_handler
+            .lock()
+            .expect("handler poisoned") = None;
     }
 
     pub fn subscribe_notifications(&self) -> broadcast::Receiver<Value> {
@@ -462,7 +479,7 @@ fn respond_to_request(shared: &Arc<Shared>, id: &RequestId, method: &str, params
         .lock()
         .expect("handler poisoned")
         .clone();
-    let reply = handler.and_then(|handler| {
+    let reply = handler.map(|handler| {
         let request = json!({
             "id": id.to_value(),
             "method": method,
@@ -471,8 +488,12 @@ fn respond_to_request(shared: &Arc<Shared>, id: &RequestId, method: &str, params
         handler(&request)
     });
     let frame = match reply {
-        Some(result) => json!({ "id": id.to_value(), "result": result }),
-        None => json!({
+        Some(RequestReply::Result(result)) => json!({ "id": id.to_value(), "result": result }),
+        Some(RequestReply::Error { code, message }) => json!({
+            "id": id.to_value(),
+            "error": { "code": code, "message": message }
+        }),
+        Some(RequestReply::NotHandled) | None => json!({
             "id": id.to_value(),
             "error": { "code": -32601, "message": "Method not found" }
         }),
@@ -560,7 +581,7 @@ mod tests {
         let mut notifications = client.subscribe_notifications();
         client.set_request_handler(Arc::new(|request: &Value| {
             assert_eq!(request["method"], "interaction/ask");
-            Some(json!({ "answer": 42 }))
+            RequestReply::Result(json!({ "answer": 42 }))
         }));
 
         tokio::spawn(async move {

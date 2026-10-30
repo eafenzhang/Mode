@@ -21,4 +21,5 @@ libc = "0.2"
 
 [dev-dependencies]
 agent-protocol = { path = "../agent-protocol" }
+mode-protocol-client = { path = "../mode-protocol-client" }
 tokio = { workspace = true, features = ["io-util", "process", "rt-multi-thread", "macros", "sync", "time"] }

@@ -66,6 +66,24 @@ Off-Peak / 动态工作流灰度；本 facade 接收已解析的布尔值，prov
 TS 的 `getClient` 会先读 model-selection readiness，未就绪时抛 `provider_not_ready` 且不拉起
 Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排，接入频道时补齐。
 
+## 2b. 反向请求：`session/requestRuntimePreferences`
+
+运行时向 host 发 `{sessionId, scope}`（`runtime-materialization` / `user-execution`），host
+在 `authority === "local"` 时直接回默认值：
+
+```json
+{ "askUserQuestionAutoResolutionEnabled": true,
+  "nativeSearchEnhancementsEnabled": true,
+  "memoryEnabled": false }
+```
+
+- `agent-process::runtime_preferences_handler(resolve)` 负责解析参数、调用注入的 scoped
+  resolver 并编码结果；`default_runtime_preferences_handler()` 恒用默认值。
+- 参数非法回 `-32602 Invalid session runtime preferences request params`；resolver 报错回
+  `-32603 <message>`；其它方法 `NotHandled`（协议客户端回 `-32601`）。
+- `AgentRuntimeRegistry::set_request_handler` 对现有进程立即生效，并应用到之后拉起的进程；
+  `None` 清除（恢复默认 `-32601`）。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、

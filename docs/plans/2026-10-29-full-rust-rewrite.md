@@ -263,6 +263,9 @@ nullable-optional 三态与浮点 `Number` 保留（3 条）。**`session/debug`
 导入历史三来源），灰度布尔只在 true 时下发，结果复用快照镜像（3 条 + 1 组 MCP/导入夹具）。
 **`session/send` 已落**：完整参数（执行约束/附件/浏览器环境/Off-Peak/Bot 回推），
 协议 `superRefine` 的三条约束在发出前校验，`accepted` 非 true 拒绝（3 条）。
+**运行时偏好反向请求已落**：`session/requestRuntimePreferences` 的 local 权威应答
+（默认值 / `-32602` / `-32603`），`RequestReply` 支持显式错误；registry 的
+`set_request_handler` 对现有与后续进程统一生效（4 条）。
 **存储启动门已落**：
 state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`prepareStorage` 等待、
 `getStorageStartupState` existing-only 快照与订阅、进程代次递增；9 条测试。

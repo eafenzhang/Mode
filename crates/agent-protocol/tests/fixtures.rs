@@ -412,7 +412,7 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                     "session/requestRuntimePreferences" => {
                         let params: RuntimePreferencesRequestParams = decode(case, &params);
                         assert_eq!(params.scope, RuntimePreferencesScope::RuntimeMaterialization);
-                        assert_no_unmodeled_payload_fields(case, &params.extra);
+                        assert!(!params.session_id.is_empty());
                         exercised.insert("session/requestRuntimePreferences".to_string());
                     }
                     other => panic!("{case}：请求方法 {other} 没有镜像"),

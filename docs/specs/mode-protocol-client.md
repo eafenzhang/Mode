@@ -13,7 +13,7 @@
 - 任意 `AsyncRead + AsyncWrite` 双向流上的 LF 分帧；
 - 请求 id（整数或字符串）多路复用、单请求超时、关闭时统一失败；
 - 通知广播；
-- Agent → 客户端方向请求的默认应答（无 handler 时 `-32601 Method not found`）；
+- Agent → 客户端方向请求的应答：`RequestReply::{Result, Error, NotHandled}`；
 - 显式 `dispose` 中止读写任务。
 
 **不在范围**（后续切片）：
@@ -47,7 +47,7 @@
 | --- | --- |
 | `{id, result}` | 完成对应 pending |
 | `{id, error:{code,message,data?}}` | 以 `Server { code, message, data }` 失败对应 pending |
-| `{id, method, params?}` | 交给 handler；无 handler 或返回 `None` → 回 `-32601` |
+| `{id, method, params?}` | 交给 handler：`RequestReply::Result` 回成功、`Error{code,message}` 回显式错误（如 `-32602`）、`NotHandled`/无 handler 回 `-32601` |
 | `{method, params?}` | 广播给通知订阅者 |
 
 未知 id 的响应/错误被忽略（对端可能已超时/被取消）。

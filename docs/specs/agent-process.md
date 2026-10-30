@@ -176,6 +176,10 @@ goalStats/todos/slashCommands）。
   状态快照；缺省的可选参数不序列化。
 - 规范与验收见 `docs/specs/session-write-group.md`。
 
+反向请求：`runtime_preferences_handler` / `default_runtime_preferences_handler` 生成
+`session/requestRuntimePreferences` 的宿主侧应答；`AgentRuntimeRegistry::set_request_handler`
+对现有与后续进程统一生效。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -254,6 +258,9 @@ existing-only 不 spawn 且报 runtime-unavailable、未知结果字段被拒绝
 create 全缺省不出键、create 非法结果、send 完整参数与 ACK、send 组合约束不发请求、
 send 的 accepted=false 被拒绝、setModel 参数与快照、thoughtLevel/mode 缺省省略、
 close 的 persistence 与默认 true、非法写结果被拒绝。
+
+`crates/agent-process/tests/runtime_preferences.rs`（4 条）：默认应答与 `-32602`/NotHandled、
+启动即发的反向请求被应答、非法 scope 回 -32602、已有进程挂新 handler。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。
