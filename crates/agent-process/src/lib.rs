@@ -36,6 +36,7 @@ pub use provider_sync::{
     ProviderSyncOutcome, ProviderSyncStatus, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
 pub use session_read::ListSessionsOptions;
+pub use session_write::CreateSessionOptions;
 pub use registry::{
     AgentRuntimeRegistry, RuntimeIdentity, SpecFactory, StorageStartupSnapshot, WorkspaceTarget,
 };

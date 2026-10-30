@@ -1,9 +1,32 @@
-# 会话写路径组（第一批：close 与三个 setter）
+# 会话写路径组（create / close / setter）
 
-> 范围：`crates/agent-protocol::session_write` 与 `crates/agent-process` 的 facade 方法。
-> 对应 TS `modeAgentService` 的 `closeSession` / `setModel` / `setThoughtLevel` / `setMode`。
+> 范围：`crates/agent-protocol::{session_create,session_write}` 与 `crates/agent-process`
+> 的 facade 方法。对应 TS `modeAgentService` 的 `createSession` / `closeSession` /
+> `setModel` / `setThoughtLevel` / `setMode`。
 
-## 1. 方法
+## 0. `session/create`
+
+请求字段（`modeSessionCreateParamsSchema`，全部 `.strict()`）：
+
+```
+{sessionId?, workspace, parentSessionId?, mode?, model?, persistence?, thoughtLevel?,
+ titleGenerationEnabled?, mcpServers?, toolAllowlist?, toolDenylist?, importedHistory?,
+ offPeakToolEnabled?, dynamicWorkflowEnabled?}
+```
+
+- `workspace` 用严格的 `SessionWorkspaceRef`（四键）；`buildWorkspaceRef` 规则不变。
+- `mcpServers` 是 stdio / http(sse) 的联合：stdio 必填 `command/args/env`；http 必填
+  `type/url/headers`，可选 `oauth`（`client_credentials` 或 `authorization_code`）。
+- `importedHistory` 按 `source` 分 `claudeCode` / `remoteMirror` / `sharedContext`；
+  `sharedContext` 带 `provenance`（三个 sha256、formatterVersion=1、installedArtifacts）。
+- `offPeakToolEnabled` / `dynamicWorkflowEnabled` 只在 **true** 时下发，`false` 与缺省等价
+  （CLI 缺省不注册工具簇）。
+- 结果：完整 `modeSessionStateSnapshotSchema`。
+
+**与 TS 的差异**：TS 在 `getClient` 前先 `ensureAccountProviderConfigSynced` 并解析
+Off-Peak / 动态工作流灰度；本 facade 接收已解析的布尔值，provider 同步留给服务层。
+
+## 1. 其余方法
 
 | 方法 | 协议方法 | params | result |
 | --- | --- | --- | --- |
@@ -24,9 +47,12 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 
 ## 3. 验收
 
-1. 共享夹具覆盖四个请求与四个应答：`request/response-session-close`、
+1. 共享夹具覆盖五个请求与四个应答：`request/response-session-close`、
    `request/response-session-set-model`、`request/response-session-set-thought-level`、
-   `request/response-session-set-mode`；TS zod 与 Rust 镜像同时接受，Rust 序列化回到线上字节。
+   `request/response-session-set-mode`，以及带 MCP/导入历史的
+   `request-session-create-import`；TS zod 与 Rust 镜像同时接受，Rust 序列化回到线上字节。
 2. `expectedRevision` / `persistAsWorkspaceLastUsed` / `thoughtLevel` 缺省时不出键。
-3. `closed` 缺省时返回 `true`。
-4. 非法结果分别报 `invalid session/close result` 与 `invalid session/<setter> result`。
+3. `create` 的全部可选字段缺省时不出键；灰度布尔只在 true 时出现。
+4. `closed` 缺省时返回 `true`。
+5. 非法结果分别报 `invalid session/close result`、`invalid session/create result` 与
+   `invalid session/<setter> result`。

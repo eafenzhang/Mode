@@ -1,0 +1,67 @@
+{
+  "case": "request-session-create-import",
+  "direction": "host->runtime",
+  "note": "建会话完整参数：MCP（stdio + http/oauth）、工具面、sharedContext 导入（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 51,
+    "method": "session/create",
+    "params": {
+      "sessionId": "sess-new",
+      "workspace": {
+        "workspacePath": "/ws/demo",
+        "workspaceKey": "/ws/demo"
+      },
+      "mode": "build",
+      "model": {
+        "providerId": "zai",
+        "modelId": "glm-4.6"
+      },
+      "persistence": "immediate",
+      "thoughtLevel": "high",
+      "titleGenerationEnabled": false,
+      "mcpServers": [
+        {
+          "name": "stdio-1",
+          "command": "node",
+          "args": ["server.js"],
+          "env": [{ "name": "A", "value": "B" }],
+          "isolation": "workspace",
+          "protocolVersion": "auto",
+          "timeoutMs": 1000
+        },
+        {
+          "name": "http-1",
+          "type": "http",
+          "url": "https://example.invalid/mcp",
+          "headers": [],
+          "oauth": {
+            "type": "client_credentials",
+            "clientId": "id",
+            "clientSecret": "secret"
+          }
+        }
+      ],
+      "toolAllowlist": ["Read"],
+      "toolDenylist": ["Bash"],
+      "importedHistory": {
+        "source": "sharedContext",
+        "title": "共享上下文",
+        "markdown": "# hi",
+        "provenance": {
+          "shareId": "share-1",
+          "shareUrl": "https://example.invalid/share/1",
+          "status": "attached",
+          "projectionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "artifactSetSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "formatterVersion": 1,
+          "markdownSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "installedArtifacts": [
+            { "artifactId": "a1", "workspaceRelativePath": "notes/a.md" }
+          ]
+        }
+      },
+      "offPeakToolEnabled": true,
+      "dynamicWorkflowEnabled": true
+    }
+  }
+}

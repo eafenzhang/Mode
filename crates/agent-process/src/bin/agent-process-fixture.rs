@@ -222,6 +222,12 @@ fn main() {
                 message["info"]["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": { "messages": [message] } })
+        } else if method == "session/create" {
+            let mut snapshot = minimal_snapshot();
+            if mode == "bad-session-create" {
+                snapshot["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": snapshot })
         } else if method == "session/read" {
             let mut snapshot = minimal_snapshot();
             if mode == "bad-session-read" {

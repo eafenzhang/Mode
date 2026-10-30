@@ -167,6 +167,8 @@ goalStats/todos/slashCommands）。
 
 ## 会话写路径（第一批）
 
+- `create_session(target, options)`：完整 `session/create` 参数（含 MCP server 与导入历史），
+  返回新会话快照；灰度布尔只在 true 时下发。
 - `close_session(target, sessionId, expectedPersistence?)`：`closed` 缺省按成功处理为 `true`。
 - `set_session_model` / `set_session_thought_level` / `set_session_mode`：返回新的完整
   状态快照；缺省的可选参数不序列化。
@@ -246,7 +248,8 @@ existing-only 不 spawn 且报 runtime-unavailable、未知结果字段被拒绝
 `crates/agent-process/tests/session_debug.rs`（2 条）：existing-only 不 spawn 且已有进程可读、
 未知诊断字段被拒绝。
 
-`crates/agent-process/tests/session_write.rs`（4 条）：setModel 参数与快照、thoughtLevel/mode
+`crates/agent-process/tests/session_write.rs`（7 条）：create 的完整参数与灰度省略、
+create 全缺省不出键、create 非法结果、setModel 参数与快照、thoughtLevel/mode
 缺省省略、close 的 persistence 与默认 true、非法写结果被拒绝。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、

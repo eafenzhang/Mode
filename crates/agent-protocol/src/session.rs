@@ -52,23 +52,41 @@ pub struct ModelSelection {
     pub extra: ExtraFields,
 }
 
-/// `session/create` 的 params。
+/// `session/create` 的 params（`modeSessionCreateParamsSchema`，`.strict()`）。
 ///
-/// 只声明 M2 会用到的字段（workspace / model / thoughtLevel / 标题生成开关）；协议里还有
-/// `mode`、`persistence`、`mcpServers`、`toolAllowlist`… 它们落进 `extra`。
+/// 字段顺序与 TS `buildSessionCreateParams` 的字面量一致；缺省字段省略。
+/// `mcpServers` / `importedHistory` 的嵌套类型在 [`crate::session_create`]。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SessionCreateParams {
-    pub workspace: WorkspaceRef,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model: Option<ModelSelection>,
+    pub session_id: Option<String>,
+    pub workspace: crate::session_read::SessionWorkspaceRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<crate::session_read::SessionMode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<crate::message::MessageModel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub persistence: Option<crate::session_write::SessionPersistence>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thought_level: Option<String>,
     /// 标题生成是一次额外模型调用，到达时刻不确定；对拍一律关掉（spec §1.5）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title_generation_enabled: Option<bool>,
-    #[serde(flatten)]
-    pub extra: ExtraFields,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<Vec<crate::session_create::McpServer>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_allowlist: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_denylist: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub imported_history: Option<crate::session_create::ImportHistory>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub off_peak_tool_enabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dynamic_workflow_enabled: Option<bool>,
 }
 
 /// `session/send` 的 params：提交一次用户输入。

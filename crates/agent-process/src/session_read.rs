@@ -174,7 +174,7 @@ impl AgentControlClient {
 }
 
 /// `buildWorkspaceRef` 的结果形状：identity 保留原值（含空白），`workspaceKey` 已 trim。
-fn session_workspace_ref(target: &AgentWorkspaceTarget) -> SessionWorkspaceRef {
+pub(crate) fn session_workspace_ref(target: &AgentWorkspaceTarget) -> SessionWorkspaceRef {
     SessionWorkspaceRef {
         workspace_path: target.workspace_path.clone(),
         workspace_identity: target.workspace_identity.clone(),

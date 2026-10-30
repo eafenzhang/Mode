@@ -21,6 +21,7 @@ use agent_protocol::session::{
     RuntimePreferencesRequestParams, RuntimePreferencesResult, RuntimePreferencesScope,
     SessionCreateParams, SessionSendParams, SessionSendResult,
 };
+use agent_protocol::session_create::ImportHistory;
 use agent_protocol::session_debug::{NetworkStatusType, SessionDebugParams, SessionDebugSnapshot};
 use agent_protocol::session_event::{
     ModelStreamingKind, ModelStreamingPayload, SessionEvent, SessionEventType,
@@ -306,9 +307,21 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                                 && !params.workspace.workspace_key.is_empty(),
                             "{case}：建会话必须带 workspacePath/workspaceKey"
                         );
-                        let model = params.model.expect("夹具是显式传 model 的（spec §1.5）");
-                        assert!(!model.provider_id.is_empty() && !model.model_id.is_empty());
-                        assert_no_unmodeled_payload_fields(case, &params.extra);
+                        if let Some(model) = &params.model {
+                            assert!(
+                                !model.provider_id.is_empty() && !model.model_id.is_empty(),
+                                "{case}：model 的选择必须完整"
+                            );
+                        }
+                        if let Some(servers) = &params.mcp_servers {
+                            assert!(!servers.is_empty(), "{case}：mcpServers 不该是空数组");
+                        }
+                        if let Some(history) = &params.imported_history {
+                            assert!(
+                                matches!(history, ImportHistory::SharedContext(_)),
+                                "{case}：夹具用的是 sharedContext 导入"
+                            );
+                        }
                         exercised.insert("session/create".to_string());
                     }
                     "session/send" => {

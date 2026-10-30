@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::message::MessageModel;
 use crate::session_read::SessionMode;
 
+pub const SESSION_CREATE_METHOD: &str = "session/create";
 pub const SESSION_CLOSE_METHOD: &str = "session/close";
 pub const SESSION_SET_MODEL_METHOD: &str = "session/setModel";
 pub const SESSION_SET_THOUGHT_LEVEL_METHOD: &str = "session/setThoughtLevel";
