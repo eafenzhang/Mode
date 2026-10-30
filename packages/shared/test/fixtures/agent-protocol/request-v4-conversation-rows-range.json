@@ -1,0 +1,15 @@
+{
+  "case": "request-v4-conversation-rows-range",
+  "direction": "host->runtime",
+  "note": "行分页查询：可信 clientMode + 游标 beforeRowId + limit（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 70,
+    "method": "v4/conversation/rowsRange",
+    "params": {
+      "sessionId": "sess-1",
+      "clientMode": "desktop-continuous",
+      "beforeRowId": 12,
+      "limit": 50
+    }
+  }
+}

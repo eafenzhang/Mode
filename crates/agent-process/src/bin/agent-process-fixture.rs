@@ -451,6 +451,48 @@ fn main() {
                     })
                 }
             })
+        } else if method == "v4/conversation/rowsRange" {
+            let mut result = json!({
+                "rows": [{
+                    "rowId": 1,
+                    "turnId": "turn-1",
+                    "createdAt": 1,
+                    "createdAtSeq": 1,
+                    "kind": "turnHeader",
+                    "origin": "userInput",
+                    "state": "running",
+                    "startedAt": 1
+                }],
+                "atSeq": 3,
+                "atRevision": 2,
+                "atLogEpoch": "epoch-1",
+                "hasMore": true
+            });
+            if mode == "bad-v4-rows-range" {
+                // 结果 schema 非严格：未知键被 strip，只有类型不符才会被拒绝。
+                result["hasMore"] = json!("yes");
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/plans" {
+            let mut result = json!({
+                "plans": [{
+                    "rowId": 6,
+                    "turnId": "turn-1",
+                    "createdAt": 1,
+                    "createdAtSeq": 6,
+                    "kind": "toolCall",
+                    "toolCallId": "call-1",
+                    "toolName": "ExitPlanMode",
+                    "status": "success",
+                    "inputText": "{}"
+                }],
+                "atSeq": 3,
+                "atLogEpoch": "epoch-1"
+            });
+            if mode == "bad-v4-plans" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "plugins/overview" {
             let mut result = json!({
                 "marketplaces": [{

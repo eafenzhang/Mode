@@ -1,0 +1,36 @@
+{
+  "case": "response-v4-conversation-rows-range",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/rowsRange",
+  "note": "行分页结果：rowId 升序窗口 + 水位/纪元 + hasMore（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 70,
+    "result": {
+      "rows": [
+        {
+          "rowId": 1,
+          "turnId": "turn-1",
+          "createdAt": 1700000000000,
+          "createdAtSeq": 1,
+          "kind": "turnHeader",
+          "origin": "userInput",
+          "state": "running",
+          "startedAt": 1700000000000
+        },
+        {
+          "rowId": 2,
+          "turnId": "turn-1",
+          "createdAt": 1700000000000,
+          "createdAtSeq": 2,
+          "kind": "userInput",
+          "text": "hi",
+          "origin": "realUser"
+        }
+      ],
+      "atSeq": 5,
+      "atRevision": 3,
+      "atLogEpoch": "epoch-1",
+      "hasMore": false
+    }
+  }
+}

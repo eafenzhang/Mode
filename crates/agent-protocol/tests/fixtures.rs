@@ -49,6 +49,9 @@ use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
 use agent_protocol::v4::{
     CommandAck, CommandAckStatus, ResolveInteractionEnvelope, ResolveInteractionType,
 };
+use agent_protocol::v4_queries::{
+    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult,
+};
 use agent_protocol::v4_transport::{
     ConversationSubscribeParams, ConversationSubscribeResult, SubscribeMode, SubscribeVisibility,
     V4ClientMode,
@@ -525,6 +528,19 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/command".to_string());
                     }
+                    "v4/conversation/rowsRange" => {
+                        let rows_range: RowsRangeParams = decode(case, &params);
+                        assert_eq!(rows_range.session_id, "sess-1");
+                        assert_eq!(rows_range.client_mode, Some(V4ClientMode::DesktopContinuous));
+                        assert_eq!(rows_range.before_row_id, Some(12.into()));
+                        assert_eq!(rows_range.limit, 50.into());
+                        exercised.insert("v4/conversation/rowsRange".to_string());
+                    }
+                    "v4/conversation/plans" => {
+                        let params: PlansParams = decode(case, &params);
+                        assert_eq!(params.session_id, "sess-1");
+                        exercised.insert("v4/conversation/plans".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let subscribe: ConversationSubscribeParams = decode(case, &params);
                         assert_eq!(subscribe.topic, "conversation/sess-1");
@@ -913,6 +929,27 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/command".to_string());
                     }
+                    "v4/conversation/rowsRange" => {
+                        let result: RowsRangeResult = decode(case, &response.result);
+                        assert_eq!(result.rows.len(), 2);
+                        assert_eq!(result.at_seq, 5.into());
+                        assert_eq!(result.at_revision, 3.into());
+                        assert_eq!(result.at_log_epoch, "epoch-1");
+                        assert!(!result.has_more);
+                        exercised.insert("v4/conversation/rowsRange".to_string());
+                    }
+                    "v4/conversation/plans" => {
+                        let result: PlansResult = decode(case, &response.result);
+                        assert_eq!(result.plans.len(), 1);
+                        assert_eq!(result.plans[0].tool_name, "ExitPlanMode");
+                        assert_eq!(result.at_seq, 5.into());
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/plans".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let result: ConversationSubscribeResult = decode(case, &response.result);
                         assert_eq!(result.ack.subscription_id, "sub-1");
@@ -961,6 +998,8 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "workflows/delete",
             "workflows/move",
             "v4/command",
+            "v4/conversation/plans",
+            "v4/conversation/rowsRange",
             "v4/conversation/subscribe"
         ]
         .into_iter()

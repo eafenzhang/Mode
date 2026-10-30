@@ -303,6 +303,23 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
   `CompleteWireFrame.frame` 由 `Value` 换为该类型；`Snapshot` / `Complete` 是较大的变体，
   用 `Box` 降低枚举尺寸（wire 表达不变）。`ttft` / `ttftRelated` 仍是原始 JSON。
 
+## 2o. v4 只读查询（`rowsRange` / `plans`）
+
+`agent-protocol::v4_queries` 镜像 `transport.ts` 的两条只读查询。两者都刻意不是 v4
+command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用方负责。
+
+- `rowsRange`：参数 `sessionId` / `clientMode`（Host attachment 注入的可信位，renderer
+  调用缺省省略）/ `beforeRowId`（可选游标）/ `limit`（协议上限 200）。参数与结果 schema
+  都未加 `.strict()`，未知键按 zod strip 语义忽略；`limit` 的取值校验由 Agent 侧 schema
+  完成，客户端不改写。结果是 `rowId` 升序窗口 + `atSeq`/`atRevision`/`atLogEpoch` +
+  `hasMore`。
+- `plans`：参数与结果都严格；`plans` 是当前有效分支终态 `ExitPlanMode` 的
+  `ToolCallRow`，`rowId` 降序，另带 `atSeq`/`atLogEpoch`。
+- 两条查询都走 `RuntimePolicy`：默认 `StartIfNeeded`，观察者路径可用 `ExistingOnly`
+  且不拉起进程。
+- 非法结果前缀分别为 `invalid v4/conversation/rowsRange result` 与
+  `invalid v4/conversation/plans result`。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、
@@ -345,3 +362,6 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
     header 补丁、`cleared` 键、actor/node 引用与 `workflowRun.removed` 各自 round-trip。
     订阅帧的 `payload` 按 `snapshot` / `deltas` 解析出强类型，分片帧仍按 subscriptionId
     过滤后到达。
+20. v4 只读查询：`rowsRange` 注入可信 `clientMode`、`beforeRowId` 缺省时不出键，结果解析
+    出 `rowId` 升序窗口与 `hasMore`；`plans` 解析出 `toolCall` 行；两条查询的非法结果有
+    独立前缀，`existing-only` 不拉起进程。

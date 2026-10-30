@@ -1,0 +1,26 @@
+{
+  "case": "response-v4-conversation-plans",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/plans",
+  "note": "计划目录结果：终态 ExitPlanMode 的 toolCall 行，rowId 降序（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 71,
+    "result": {
+      "plans": [
+        {
+          "rowId": 6,
+          "turnId": "turn-1",
+          "createdAt": 1700000000000,
+          "createdAtSeq": 8,
+          "kind": "toolCall",
+          "toolCallId": "call-1",
+          "toolName": "ExitPlanMode",
+          "status": "success",
+          "inputText": "{\"plan\":\"do it\"}"
+        }
+      ],
+      "atSeq": 5,
+      "atLogEpoch": "epoch-1"
+    }
+  }
+}

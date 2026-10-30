@@ -78,6 +78,10 @@ import {
   commandEnvelopeSchema,
 } from "../../../shared/src/mode-protocol-v4/command.js";
 import {
+  v4ConversationPlansParamsSchema,
+  v4ConversationPlansResultSchema,
+  v4ConversationRowsRangeParamsSchema,
+  v4ConversationRowsRangeResultSchema,
   v4ConversationSubscribeParamsSchema,
   v4ConversationSubscribeResultSchema,
 } from "../../../shared/src/mode-protocol-v4/transport.js";
@@ -280,6 +284,8 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "session/subscribe": modeSessionSubscribeParamsSchema,
     "session/requestRuntimePreferences": modeSessionRequestRuntimePreferencesParamsSchema,
     "v4/command": commandEnvelopeSchema,
+    "v4/conversation/plans": v4ConversationPlansParamsSchema,
+    "v4/conversation/rowsRange": v4ConversationRowsRangeParamsSchema,
     "v4/conversation/subscribe": v4ConversationSubscribeParamsSchema,
     "workspace/readPresentation": modeWorkspaceReadPresentationParamsSchema,
     "workflows/get": modeWorkflowsGetParamsSchema,
@@ -315,6 +321,8 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "session/subscribe": modeSessionSubscribeResultSchema,
     "session/requestRuntimePreferences": modeSessionRuntimePreferencesResultSchema,
     "v4/command": commandAckSchema,
+    "v4/conversation/plans": v4ConversationPlansResultSchema,
+    "v4/conversation/rowsRange": v4ConversationRowsRangeResultSchema,
     "v4/conversation/subscribe": v4ConversationSubscribeResultSchema,
     "workspace/readPresentation": modeWorkspacePresentationSchema,
   };

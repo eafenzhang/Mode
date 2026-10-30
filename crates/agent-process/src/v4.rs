@@ -1,4 +1,4 @@
-//! v4 命令最小闭环：`resolveInteraction`。
+//! v4 面：`resolveInteraction` 命令闭环与只读查询（`rowsRange` / `plans`）。
 //!
 //! 行为真源：`packages/services/src/mode-agent/modeV4HostCommand.ts` 的
 //! `createHostCommandEnvelope` / `assertV4CommandAckOk`，以及
@@ -19,6 +19,10 @@ use agent_protocol::v4::{
 use agent_protocol::v4_transport::{
     ClientHello, Compression, DeliveryProfile, HelloAuth, HelloKind, HelloMessage,
     HostCapabilities, V4ClientMode, V4_WIRE_PROTOCOL_VERSION,
+};
+use agent_protocol::v4_queries::{
+    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, V4_CONVERSATION_PLANS_METHOD,
+    V4_CONVERSATION_ROWS_RANGE_METHOD,
 };
 use serde_json::Value;
 
@@ -112,5 +116,43 @@ impl AgentControlClient {
             return Err(ControlError::CommandRejected(message));
         }
         Ok(ack)
+    }
+
+    /// `v4/conversation/rowsRange`：游标制行分页（loadOlder）。只读、无状态，
+    /// 陈旧读防护由调用方按 `atLogEpoch` 判断。
+    pub async fn conversation_rows_range_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: RowsRangeParams,
+        policy: RuntimePolicy,
+    ) -> Result<RowsRangeResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("rowsRange params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_ROWS_RANGE_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/conversation/rowsRange result: {error}"))
+        })
+    }
+
+    /// `v4/conversation/plans`：计划目录来自 CLI 完整 projection，不用 renderer 的有界窗口
+    /// 推导。
+    pub async fn conversation_plans_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: PlansParams,
+        policy: RuntimePolicy,
+    ) -> Result<PlansResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("plans params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_PLANS_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/conversation/plans result: {error}"))
+        })
     }
 }
