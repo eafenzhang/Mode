@@ -43,6 +43,8 @@ import {
   modeSessionStateSnapshotSchema,
   modeSessionSubagentsParamsSchema,
   modeSessionSubagentsResultSchema,
+  modeSessionSubscribeParamsSchema,
+  modeSessionSubscribeResultSchema,
 } from "../../../shared/src/mode-protocol/index.js";
 import {
   sessionDebugParamsSchema,
@@ -240,6 +242,7 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "session/setModel": modeSessionSetModelParamsSchema,
     "session/setThoughtLevel": modeSessionSetThoughtLevelParamsSchema,
     "session/subagents": modeSessionSubagentsParamsSchema,
+    "session/subscribe": modeSessionSubscribeParamsSchema,
     "session/requestRuntimePreferences": modeSessionRequestRuntimePreferencesParamsSchema,
   };
   const resultSchemas: Record<string, Parseable> = {
@@ -254,6 +257,7 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "session/setModel": modeSessionStateSnapshotSchema,
     "session/setThoughtLevel": modeSessionStateSnapshotSchema,
     "session/subagents": modeSessionSubagentsResultSchema,
+    "session/subscribe": modeSessionSubscribeResultSchema,
     "session/requestRuntimePreferences": modeSessionRuntimePreferencesResultSchema,
   };
   const exercisedCommands = new Set<string>();

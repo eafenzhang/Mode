@@ -33,12 +33,13 @@ use agent_protocol::session_read::{
     EndedSubagentStatus, RunningSubagentStatus, SessionEventsParams, SessionEventsResult,
     SessionKind, SessionListParams, SessionListResult, SessionMessagesParams,
     SessionMessagesResult, SessionReadParams, SessionSubagentsParams, SessionSubagentsResult,
+    SessionSubscribeParams, SessionSubscribeResult,
 };
 use agent_protocol::session_write::{
     SessionCloseParams, SessionCloseResult, SessionPersistence, SessionSetModeParams,
     SessionSetModelParams, SessionSetThoughtLevelParams,
 };
-use agent_protocol::snapshot::SessionStateSnapshot;
+use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -409,6 +410,14 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert_eq!(params.expected_revision, Some(3));
                         exercised.insert("session/setMode".to_string());
                     }
+                    "session/subscribe" => {
+                        let params: SessionSubscribeParams = decode(case, &params);
+                        assert_eq!(params.session_id, "sess-1");
+                        assert_eq!(params.delivery_kind, DeliveryKind::WebRemoteReplayable);
+                        assert_eq!(params.after_seq, Some(10));
+                        assert!(!params.include_snapshot);
+                        exercised.insert("session/subscribe".to_string());
+                    }
                     "session/requestRuntimePreferences" => {
                         let params: RuntimePreferencesRequestParams = decode(case, &params);
                         assert_eq!(params.scope, RuntimePreferencesScope::RuntimeMaterialization);
@@ -568,6 +577,18 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert(responds_to.to_string());
                     }
+                    "session/subscribe" => {
+                        let result: SessionSubscribeResult = decode(case, &response.result);
+                        assert_eq!(result.event_seq, 12);
+                        assert_eq!(result.events.len(), 2);
+                        assert!(result.snapshot.is_some());
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("session/subscribe".to_string());
+                    }
                     other => panic!("{case}：应答 {other} 没有镜像"),
                 }
             }
@@ -589,7 +610,8 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "session/setMode",
             "session/setModel",
             "session/setThoughtLevel",
-            "session/subagents"
+            "session/subagents",
+            "session/subscribe"
         ]
         .into_iter()
         .map(str::to_string)

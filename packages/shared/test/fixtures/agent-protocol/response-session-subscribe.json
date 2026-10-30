@@ -1,0 +1,80 @@
+{
+  "case": "response-session-subscribe",
+  "direction": "runtime->host",
+  "respondsTo": "session/subscribe",
+  "note": "订阅应答：replay 事件与可选快照（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 53,
+    "result": {
+      "sessionId": "sess-1",
+      "eventSeq": 12,
+      "events": [
+        {
+          "eventId": "ev-11",
+          "sessionId": "sess-1",
+          "seq": 11,
+          "timestamp": 1700000000021,
+          "type": "session.updated",
+          "payload": {}
+        },
+        {
+          "eventId": "ev-12",
+          "sessionId": "sess-1",
+          "seq": 12,
+          "timestamp": 1700000000022,
+          "type": "session.updated",
+          "payload": {}
+        }
+      ],
+      "snapshot": {
+        "protocol": {
+          "name": "Mode Protocol",
+          "version": 1
+        },
+        "session": {
+          "sessionId": "sess-1",
+          "workspace": {
+            "workspacePath": "/ws/demo",
+            "workspaceKey": "/ws/demo"
+          },
+          "sessionKind": "interactive",
+          "title": "示例",
+          "mode": "build",
+          "status": "idle",
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000001
+        },
+        "settings": {
+          "model": {
+            "available": []
+          },
+          "thoughtLevel": {
+            "enabled": false,
+            "available": []
+          },
+          "mode": {
+            "current": "build"
+          }
+        },
+        "projection": {
+          "sessionId": "sess-1",
+          "status": "idle",
+          "mode": "build",
+          "turnCount": 0,
+          "totalTokenCount": 0,
+          "contextUsed": 0,
+          "contextWindow": 128000,
+          "pendingPermissions": [],
+          "activeToolCalls": [],
+          "backgroundJobs": []
+        },
+        "runtime": {
+          "eventSeq": 12,
+          "stateRevision": 1,
+          "pendingRequestIds": []
+        },
+        "messages": []
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "case": "request-session-subscribe",
+  "direction": "host->runtime",
+  "note": "建立会话订阅：deliveryKind 必填，includeSnapshot 恒发，afterSeq 可选（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 53,
+    "method": "session/subscribe",
+    "params": {
+      "sessionId": "sess-1",
+      "deliveryKind": "web-remote-replayable",
+      "afterSeq": 10,
+      "includeSnapshot": false
+    }
+  }
+}

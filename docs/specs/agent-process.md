@@ -180,6 +180,10 @@ goalStats/todos/slashCommands）。
 `session/requestRuntimePreferences` 的宿主侧应答；`AgentRuntimeRegistry::set_request_handler`
 对现有与后续进程统一生效。
 
+事件订阅：`subscribe_session(target, sessionId, deliveryKind, afterSeq?, includeSnapshot?)`
+返回 `SessionSubscription`（replay + 快照 + 实时 `recv()`）；`seq == 0` 补单调序号、
+`eventId` 去重、按 session 过滤；`Drop` 中止转发任务。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -261,6 +265,9 @@ close 的 persistence 与默认 true、非法写结果被拒绝。
 
 `crates/agent-process/tests/runtime_preferences.rs`（4 条）：默认应答与 `-32602`/NotHandled、
 启动即发的反向请求被应答、非法 scope 回 -32602、已有进程挂新 handler。
+
+`crates/agent-process/tests/session_events_stream.rs`（1 条）：replay 补号/排序、live 去重与
+跨 session 过滤、subscribe 参数形状。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

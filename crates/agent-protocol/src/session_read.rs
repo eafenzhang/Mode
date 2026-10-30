@@ -37,6 +37,7 @@ pub const SESSION_EVENTS_METHOD: &str = "session/events";
 pub const SESSION_SUBAGENTS_METHOD: &str = "session/subagents";
 pub const SESSION_MESSAGES_METHOD: &str = "session/messages";
 pub const SESSION_READ_METHOD: &str = "session/read";
+pub const SESSION_SUBSCRIBE_METHOD: &str = "session/subscribe";
 
 /// 结果里的 workspace ref（`modeWorkspaceRefSchema`，严格四键）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -373,4 +374,26 @@ pub struct SessionReadParams {
     pub message_limit: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub after_seq: Option<u64>,
+}
+
+/// `session/subscribe` 的 params（`modeSessionSubscribeParamsSchema`）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionSubscribeParams {
+    pub session_id: String,
+    pub delivery_kind: DeliveryKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_seq: Option<u64>,
+    pub include_snapshot: bool,
+}
+
+/// `modeSessionSubscribeResultSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionSubscribeResult {
+    pub session_id: String,
+    pub event_seq: u64,
+    pub events: Vec<SessionEvent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snapshot: Option<crate::snapshot::SessionStateSnapshot>,
 }

@@ -84,6 +84,25 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 - `AgentRuntimeRegistry::set_request_handler` 对现有进程立即生效，并应用到之后拉起的进程；
   `None` 清除（恢复默认 `-32601`）。
 
+## 2c. 事件订阅：`session/subscribe` + `session/event`
+
+`subscribe_session(target, sessionId, deliveryKind, afterSeq?, includeSnapshot?)`：
+
+1. 先订阅协议客户端的通知广播，再发 `session/subscribe`（`params` 里 `deliveryKind` 必填、
+   `includeSnapshot` 恒发、`afterSeq` 可选），避免 replay 与首条 live 之间丢帧。
+2. 应答 `{sessionId, eventSeq, events[], snapshot?}` 严格解析；replay 事件先按
+   `seq == 0 → 订阅内单调补号` 归一，再按 `(seq, timestamp)` 排序，并按 `eventId` 去重。
+3. 返回 `SessionSubscription { replay, snapshot, recv() }`；`Drop` 中止转发任务。
+4. live 流只接收 `method == "session/event"` 的通知，严格解析为 `SessionEvent`，只投递
+   `sessionId` 匹配的事件；同样补号 + 按 `eventId` 去重（有界 2000）。
+
+**与 TS 的差异**：
+
+- TS 的补号/去重状态是 workspace/session 级共享（先归一再 fan-out）；Rust 目前是**订阅级**。
+  单订阅者语义一致，多订阅者各自对 `seq == 0` 的旧事件独立补号。
+- TS 对订阅建立失败做指数退避重试；Rust 直接把错误返回给调用方（重试由上层决定）。
+- 通知广播落后（`Lagged`）时跳过被丢弃的通知继续消费；TS 无此路径。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、
@@ -96,3 +115,5 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 4. `closed` 缺省时返回 `true`。
 5. 非法结果分别报 `invalid session/close result`、`invalid session/create result` 与
    `invalid session/<setter> result`。
+6. 订阅：replay 的 `seq == 0` 事件被补成单调序号并排序；重复 `eventId` 与其它 session
+   的 live 事件不投递；`session/subscribe` 参数逐字段符合 schema。

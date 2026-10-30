@@ -148,6 +148,41 @@ fn main() {
         );
         eprintln!("{frame_line}");
         append_log(&frame_line);
+        if mode == "session-events-stream" && method == "session/subscribe" {
+            let id = request.get("id").cloned().unwrap_or(Value::Null);
+            let event = |event_id: &str, session_id: &str| {
+                json!({
+                    "eventId": event_id,
+                    "sessionId": session_id,
+                    "seq": 0,
+                    "timestamp": 1,
+                    "type": "session.updated",
+                    "payload": {}
+                })
+            };
+            let reply = json!({
+                "id": id,
+                "result": {
+                    "sessionId": "sess-1",
+                    "eventSeq": 0,
+                    "events": [event("ev-1", "sess-1"), event("ev-2", "sess-1")]
+                }
+            });
+            let _ = writeln!(stdout, "{reply}");
+            let _ = stdout.flush();
+            std::thread::sleep(Duration::from_millis(50));
+            // 重复 id（应被丢弃）、新事件（应补 seq）、其它会话（应被过滤）。
+            for live in [
+                event("ev-2", "sess-1"),
+                event("ev-3", "sess-1"),
+                event("ev-other", "sess-2"),
+            ] {
+                let notification = json!({ "method": "session/event", "params": live });
+                let _ = writeln!(stdout, "{notification}");
+            }
+            let _ = stdout.flush();
+            continue;
+        }
         let id = request.get("id").cloned().unwrap_or(Value::Null);
         let reply = if method == "workspace/hooks/trustGrant" {
             match mode.as_str() {

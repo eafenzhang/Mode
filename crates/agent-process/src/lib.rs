@@ -24,6 +24,7 @@ mod storage;
 mod provider_sync;
 mod resolve;
 mod runtime_preferences;
+mod session_events;
 mod session_read;
 mod session_write;
 
@@ -37,6 +38,7 @@ pub use provider_sync::{
     ProviderSyncOutcome, ProviderSyncStatus, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
 pub use session_read::ListSessionsOptions;
+pub use session_events::{SessionSubscription, SESSION_EVENT_NOTIFICATION};
 pub use session_write::CreateSessionOptions;
 pub use runtime_preferences::{
     default_runtime_preferences, default_runtime_preferences_handler, runtime_preferences_handler,
