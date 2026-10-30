@@ -3593,6 +3593,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "provider-source-chain"
+version = "0.1.0"
+dependencies = [
+ "account-provider-overlay",
+ "agent-process",
+ "indexmap 2.14.2",
+ "provider-config",
+ "provider-config-source",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "pxfm"
 version = "0.1.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"

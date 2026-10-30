@@ -24,6 +24,7 @@ members = [
   "crates/project-memory",
   "crates/provider-config",
   "crates/provider-config-source",
+  "crates/provider-source-chain",
   "crates/account-provider-overlay",
   "crates/commands-service",
   "crates/mode-protocol-client",

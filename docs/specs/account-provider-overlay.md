@@ -36,7 +36,8 @@
 - `AccountProviderService` 的刷新编排、监听、waiter、并发 generation。
 - registry / resolver 的非账号部分、model listing、频道/所有权。
 - `resolveCurrentAccountAccess`（Active Model 动态访问）与 UI 侧消费。
-- 适配 `agent-process` 的 ProviderSource（下一片）。
+- 适配 `agent-process` 的 ProviderSource（已由 `crates/provider-source-chain` 承接，见
+  `docs/specs/provider-source-chain.md`）。
 
 ## 2. 输入与输出
 
@@ -233,6 +234,7 @@ Rust 侧用相同输入与桩重放，逐字节比较规范 JSON 与错误原文
 ## 9. 下一片
 
 1. 刷新编排：`AccountProviderService` generation / waiter / last-known-good /
-   首次 fail-closed。
+   首次 fail-closed（已被 `crates/provider-source-chain` 的链式简化版覆盖：串行 refresh，
+   首次 fail-closed，之后保留 last-known-good；generation/waiter 仍缺）。
 2. 真实凭据与可用性源：OAuth 身份、Coding Plan API Key、网络查询与缓存。
-3. 适配 `agent-process` 的 ProviderSource，把账号层接到 Config Source 链。
+3. 适配 `agent-process` 的 ProviderSource：已由 `crates/provider-source-chain` 完成。

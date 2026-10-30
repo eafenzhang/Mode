@@ -170,7 +170,9 @@ pub struct AccountProviderResolveResult {
     pub states: AccountProviderStates,
 }
 
-impl<O: crate::connection::AccountProviderOverlayOptions> AccountProviderConfigResolver<O> {
+impl<O: crate::connection::AccountProviderOverlayOptions + Send + Sync>
+    AccountProviderConfigResolver<O>
+{
     pub fn new(options: O) -> Self {
         Self {
             connection_resolver: AccountProviderConnectionResolver::new(options),
@@ -217,7 +219,7 @@ impl<O: crate::connection::AccountProviderOverlayOptions> AccountProviderConfigR
 }
 
 pub fn create_account_provider_config_resolver<
-    O: crate::connection::AccountProviderOverlayOptions,
+    O: crate::connection::AccountProviderOverlayOptions + Send + Sync,
 >(
     options: O,
 ) -> AccountProviderConfigResolver<O> {

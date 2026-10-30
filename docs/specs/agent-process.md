@@ -95,9 +95,10 @@ cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd�
 - 未注入源 → 直接返回 `None`，与 TS 的 `if (!accountProviderConfigSource) return` 一致，
   也不会拉起 Agent。
 
-**未做**：真实的 Account Provider 事实源（`createAccountProviderConfigSource` 依赖
-model-provider / credential / plan availability 域）；当前只提供注入点与协议交付，
-model-provider 域迁完后直接实现 `ProviderSource` 即可。
+**未做**：真实凭据 / OAuth / Family 可用性网络源（`createAccountProviderConfigSource` 的
+注入实现）。事实链本身已在 `crates/provider-source-chain` 落地（见
+`docs/specs/provider-source-chain.md`）：它组合文件层与账号 Overlay 并直接实现
+`ProviderSource`，剩余只是把 `AccountProviderOverlayOptions` 换成生产实现。
 
 ## 控制面 facade（第一批：hooks 预信任）
 

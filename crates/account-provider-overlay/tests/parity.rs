@@ -4,11 +4,10 @@
 //! 输入、确定性桩序列与规范 JSON 原文（connections / providers / states /
 //! revision / 调用日志）。本测试用相同输入与桩重放，逐字节比较。
 
-use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
 use account_provider_overlay::{
@@ -181,22 +180,22 @@ impl ScriptedState {
 
 #[derive(Clone)]
 struct ScriptedOptions {
-    state: Rc<RefCell<ScriptedState>>,
+    state: Arc<Mutex<ScriptedState>>,
 }
 
 impl ScriptedOptions {
     fn new(step: Step) -> Self {
         Self {
-            state: Rc::new(RefCell::new(ScriptedState::new(step))),
+            state: Arc::new(Mutex::new(ScriptedState::new(step))),
         }
     }
 
     fn reset(&self, step: Step) {
-        *self.state.borrow_mut() = ScriptedState::new(step);
+        *self.state.lock().expect("scripted state poisoned") = ScriptedState::new(step);
     }
 
     fn calls_json(&self) -> String {
-        serde_json::to_string(&self.state.borrow().calls).expect("调用日志序列化不会失败")
+        serde_json::to_string(&self.state.lock().expect("scripted state poisoned").calls).expect("调用日志序列化不会失败")
     }
 }
 
@@ -219,7 +218,7 @@ impl AccountProviderOverlayOptions for ScriptedOptions {
         &self,
     ) -> BoxFuture<'_, Result<AccountProviderConnectionSettings, AccountProviderOverlayError>> {
         let value = {
-            let mut state = self.state.borrow_mut();
+            let mut state = self.state.lock().expect("scripted state poisoned");
             state.calls.settings += 1;
             let index = state.settings_index;
             let value = pick(&state.step.settings, index, "settings");
@@ -234,7 +233,7 @@ impl AccountProviderOverlayOptions for ScriptedOptions {
         family: ProviderFamilyDomain,
     ) -> BoxFuture<'_, Result<Option<String>, AccountProviderOverlayError>> {
         let value = {
-            let mut state = self.state.borrow_mut();
+            let mut state = self.state.lock().expect("scripted state poisoned");
             let key = family.as_str().to_owned();
             let index = *state.identity_indices.get(&key).unwrap_or(&0);
             let values = state
@@ -259,7 +258,7 @@ impl AccountProviderOverlayOptions for ScriptedOptions {
         force_refresh: bool,
     ) -> BoxFuture<'a, Result<Option<String>, AccountProviderOverlayError>> {
         let outcome = {
-            let mut state = self.state.borrow_mut();
+            let mut state = self.state.lock().expect("scripted state poisoned");
             state.calls.api_keys.push((
                 provider_id.to_owned(),
                 family.as_str().to_owned(),
@@ -299,7 +298,7 @@ impl AccountProviderOverlayOptions for ScriptedOptions {
         >,
     > {
         let resolved = {
-            let mut state = self.state.borrow_mut();
+            let mut state = self.state.lock().expect("scripted state poisoned");
             let key = input.family.as_str().to_owned();
             state.calls.availability.push(AvailabilityCall {
                 family: key.clone(),

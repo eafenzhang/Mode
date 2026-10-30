@@ -22,7 +22,9 @@ use crate::types::{
     CodingPlanUnavailableReason, PlanKind, ProviderFamilyConnectionSelection, ProviderFamilyDomain,
 };
 
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+/// 注入点的异步返回值。`Send` 是硬约束：这条链会被 Mode agent 交付路径
+/// （`ProviderSource::read`）跨线程驱动，非 Send 的 Future 无法进入。
+pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// 与 TS `AccountProviderConnectionResolverOptions` 对应的注入点。
 pub trait AccountProviderOverlayOptions {
@@ -63,7 +65,7 @@ pub struct AccountProviderConnectionResolver<O> {
     previous_scopes: HashMap<String, String>,
 }
 
-impl<O: AccountProviderOverlayOptions> AccountProviderConnectionResolver<O> {
+impl<O: AccountProviderOverlayOptions + Send + Sync> AccountProviderConnectionResolver<O> {
     pub fn new(options: O) -> Self {
         Self {
             options,
@@ -337,7 +339,7 @@ fn account_access(config: &ProviderConfig) -> Option<&ZhipuAccountAccess> {
     }
 }
 
-async fn load_identity_cached<O: AccountProviderOverlayOptions>(
+async fn load_identity_cached<O: AccountProviderOverlayOptions + Sync>(
     options: &O,
     cache: &mut IndexMap<ProviderFamilyDomain, Result<Option<String>, AccountProviderOverlayError>>,
     family: ProviderFamilyDomain,

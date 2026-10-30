@@ -207,7 +207,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 4 | 凭据 | 277 | `ring`（文件托管密钥） | W1 | `credential` 已接管（`crates/credential-store`） |
 | 5 | 终端旧路径 | 1,354 | 壳已有 PTY | W2 | 未开始 |
 | 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 | 未开始 |
-| 7 | provider / 模型选择 / orcarouter / bigmodel | ≈7.5k | `reqwest` + `rustls` | W1 | **已开始（2026-10-30）**：纯配置模型已 Rust 化（`crates/provider-config`，`docs/specs/provider-config.md`）——Provider/Model/ManualModel、规则容器、access/api、Restricted CEL、严格 schema 与保序序列化，`pnpm provider-config:fixtures` + 75 条解析/8 条 complete 校验对拍；**文件只读源也已迁**（`crates/provider-config-source`，`docs/specs/provider-config-source.md`）——Personal 解码/legacy manual 归一/恢复、Builtin Release 候选选择与 `mode-builtin:<rev>:<sourceKey>`、两层组合 Snapshot 与 revision，`pnpm provider-config-source:fixtures` 对拍；**账号层 Overlay 也已迁**（`crates/account-provider-overlay`，`docs/specs/account-provider-overlay.md`）——family 分组/identity 缓存/unresolvedFamilies（start-plan 例外）、API Key 折叠、off-peak 选择匹配、team scope 与 `resetPrevious`、unavailableReason、states 生成与 `account:${JSON.stringify([...])}` revision，`pnpm account-provider-overlay:fixtures` 对拍；**剩余**：轮询/watch、写路径（update/replace/migrate/importLegacy）、Active 物化缓存、remote Release 同步/LKG、registry/resolver（非账号部分）、model listing、Account 刷新编排/真实凭据与可用性源/agent-process ProviderSource、orcarouter/bigmodel 与频道接管 |
+| 7 | provider / 模型选择 / orcarouter / bigmodel | ≈7.5k | `reqwest` + `rustls` | W1 | **已开始（2026-10-30）**：纯配置模型已 Rust 化（`crates/provider-config`，`docs/specs/provider-config.md`）——Provider/Model/ManualModel、规则容器、access/api、Restricted CEL、严格 schema 与保序序列化，`pnpm provider-config:fixtures` + 75 条解析/8 条 complete 校验对拍；**文件只读源也已迁**（`crates/provider-config-source`，`docs/specs/provider-config-source.md`）——Personal 解码/legacy manual 归一/恢复、Builtin Release 候选选择与 `mode-builtin:<rev>:<sourceKey>`、两层组合 Snapshot 与 revision，`pnpm provider-config-source:fixtures` 对拍；**账号层 Overlay 也已迁**（`crates/account-provider-overlay`，`docs/specs/account-provider-overlay.md`）——family 分组/identity 缓存/unresolvedFamilies（start-plan 例外）、API Key 折叠、off-peak 选择匹配、team scope 与 `resetPrevious`、unavailableReason、states 生成与 `account:${JSON.stringify([...])}` revision，`pnpm account-provider-overlay:fixtures` 对拍；**事实链也已迁**（`crates/provider-source-chain`，`docs/specs/provider-source-chain.md`）——文件层 + 账号 Overlay 组合、首次 fail-closed 与 last-known-good、`providerId -> config` 线格式，适配为 `agent-process::ProviderSource` 并用真实子进程 fixture 验证交付与 revision 去重；**剩余**：轮询/watch、写路径（update/replace/migrate/importLegacy）、Active 物化缓存、remote Release 同步/LKG、registry/resolver（非账号部分）、model listing、真实凭据/OAuth 与 Family 可用性网络源、orcarouter/bigmodel 与频道接管 |
 | 8 | usage-stats / coding-plan | ≈5.4k | 壳内聚合 | W1 | 未开始 |
 | 9 | 远程工作区 / SSH / WSL / Docker | 远程链路 | `russh` + 本地进程 | W2 | 未开始 |
 | 10 | LAN 配对 / 发现 | ≈1.5k | UDP + 壳内 HTTP | W2 | 未开始 |
@@ -245,8 +245,11 @@ state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`p
 `getStorageStartupState` existing-only 快照与订阅、进程代次递增；9 条测试。
 **Provider 交付协议侧已落**：`ProviderSource` 注入点 + 每 workspace 串行/revision 去重 +
 `provider/updateAccountConfig` 与回执校验（不一致不标记、下次重试），无源时不拉起 Agent；
-3 条测试。真实 Account Provider 事实源仍属 model-provider 域。
-**未做**：native binary 兜底、真实 provider/account 事实源、自动空闲看门狗，频道注册与
+3 条测试。**Provider 事实链已落**：`crates/provider-source-chain` 组合文件层与账号 Overlay，
+首次失败发布 fail-closed、之后保留 last-known-good；以 `providerId -> config` 对象交付，
+并用本包 fixture 子进程端到端验证线格式与 revision 去重（4 + 1 条测试）。真实凭据 / OAuth /
+Family 可用性网络源仍需注入实现，属于 model-provider 域。
+**未做**：native binary 兜底、真实 provider/account 网络事实、自动空闲看门狗，频道注册与
 所有权切换，以及其余 81 个成员（session/插件/automation/workflow 等）。
 所有权切换仍是 W4 下一片，`hooks` 的 grant 与任务/会话频道都等它。
 

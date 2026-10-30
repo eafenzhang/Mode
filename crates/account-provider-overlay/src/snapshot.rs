@@ -115,7 +115,7 @@ pub struct AccountProviderConfigSource<O> {
     resolver: AccountProviderConfigResolver<O>,
 }
 
-impl<O: AccountProviderOverlayOptions> AccountProviderConfigSource<O> {
+impl<O: AccountProviderOverlayOptions + Send + Sync> AccountProviderConfigSource<O> {
     pub fn new(options: O) -> Self {
         Self {
             resolver: AccountProviderConfigResolver::new(options),
