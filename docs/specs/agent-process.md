@@ -24,6 +24,28 @@
 - 进程组 id 探测与 Windows `taskkill` 失败后的二次兜底（当前失败只依赖根进程
   `start_kill`）。
 
+## 启动规格解析
+
+`resolve_agent_command` 按 TS `resolveDefaultModeAgentCommand` 的顺序选择命令：
+
+1. `MODE_AGENT_SERVER_COMMAND`（trim 非空）：args 取 `MODE_AGENT_SERVER_ARGS_JSON`
+   （必须是字符串数组，非法直接报错；空/缺省回落 `["app-server","--stdio"]`），
+   cwd 取 `MODE_AGENT_SERVER_CWD`（trim 非空）否则 workspace；
+2. monorepo dev dist：从 `upward_start` 向上找 `apps/mode-cli/packages/cli/dist/mode.cjs`，
+   命令为随包 Node（`node_candidates` 第一个存在的文件）否则 `node`；
+3. monorepo dev 源码：`apps/mode-cli/packages/cli/src/main.ts` + 向上找
+   `node_modules/.bin/tsx`（Windows 优先 `tsx.cmd`）；
+4. 打包资源：`<resources>/agent/glm/mode.cjs` + 随包 Node/`node`；
+5. 都没有 → `AgentResolveError::NotConfigured`。
+
+cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd。
+`presentation_surface == "desktop"` 时移除已有 `--surface`/`--surface=` 并追加
+`--surface desktop`（孤立 `--surface` 不吞后续 option，与 TS 修复一致）。
+
+**未移植**：Electron runtime 分支（Tauri 壳没有 Electron）、已部署 native binary 的候选链
+（`findModeAgentRuntimeBinary` / `GLM_BINARY_PATH` / `~/.mode/server/agents/glm`）、
+`supportsStorageStartup` 标记。native binary 兜底随所有权切换一起补。
+
 ## 运行时注册表（单进程不变量）
 
 `AgentRuntimeRegistry` 保证**一个 workspace key 只允许一个 Agent 子进程**：
@@ -72,6 +94,10 @@
 `crates/agent-process/tests/registry.rs`（7 条）：同 key 复用同一进程、identity 优先于路径、
 并发 `get_or_spawn` 只 spawn 一次、transport 关闭后重建、`invalidate`/`reap_idle` 回收、
 spawn 失败不缓存、`shutdown_all` 关闭全部。
+
+`crates/agent-process` 启动规格单元测试（6 条）：env 覆盖（args/cwd）、非法 args JSON、
+dev dist 向上查找与 Node 选择、打包资源分支、全部缺失时 `NotConfigured`、
+`--surface desktop` 改写（含移除已有值、非 desktop 不修改）。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

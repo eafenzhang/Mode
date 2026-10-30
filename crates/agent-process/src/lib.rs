@@ -18,8 +18,13 @@ use tokio::sync::{broadcast, Mutex};
 use tokio::task::JoinHandle;
 
 mod registry;
+mod resolve;
 
 pub use registry::{AgentRuntimeRegistry, SpecFactory, WorkspaceTarget};
+pub use resolve::{
+    resolve_agent_command, AgentCommandSource, AgentResolveContext, AgentResolveError,
+    ResolvedAgentCommand,
+};
 
 const STDERR_CHANNEL_CAPACITY: usize = 256;
 const KILL_REAP_TIMEOUT: Duration = Duration::from_secs(2);
