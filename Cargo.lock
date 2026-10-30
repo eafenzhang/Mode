@@ -3563,6 +3563,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "provider-config"
+version = "0.1.0"
+dependencies = [
+ "indexmap 2.14.2",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "pxfm"
 version = "0.1.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"

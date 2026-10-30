@@ -22,6 +22,7 @@ members = [
   "crates/browser-import-host",
   "crates/platform",
   "crates/project-memory",
+  "crates/provider-config",
   "crates/commands-service",
   "crates/mode-protocol-client",
   "crates/agent-process",

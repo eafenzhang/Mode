@@ -1,0 +1,1667 @@
+{
+  "version": 1,
+  "generatedBy": "scripts/generate-provider-config-fixtures.ts",
+  "records": [
+    {
+      "name": "provider-config/full",
+      "kind": "provider-config",
+      "input": "{\"group\":\"zai-family\",\"logo\":{\"type\":\"builtin\",\"key\":\"zhipu\"},\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-1\",\"apiKeyManagementUrl\":\"https://keys.example.com\"},\"api\":{\"type\":\"openai-chat-completions\",\"baseUrl\":\"https://api.example.com/v1\",\"headers\":{\"Z\":\"1\",\"A\":\"2\"}},\"builtinModelIds\":[\"glm-4\",\"glm-4-air\"],\"personalModelIds\":[\"mine\"],\"modelOrder\":[\"mine\",\"glm-4\"],\"visibility\":\"visible\"}",
+      "ok": true,
+      "output": "{\"group\":\"zai-family\",\"logo\":{\"type\":\"builtin\",\"key\":\"zhipu\"},\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-1\",\"apiKeyManagementUrl\":\"https://keys.example.com\"},\"api\":{\"type\":\"openai-chat-completions\",\"baseUrl\":\"https://api.example.com/v1\",\"headers\":{\"Z\":\"1\",\"A\":\"2\"}},\"builtinModelIds\":[\"glm-4\",\"glm-4-air\"],\"personalModelIds\":[\"mine\"],\"modelOrder\":[\"mine\",\"glm-4\"],\"visibility\":\"visible\"}",
+      "outputJson": {
+        "group": "zai-family",
+        "logo": {
+          "type": "builtin",
+          "key": "zhipu"
+        },
+        "access": {
+          "type": "api-key",
+          "apiKey": "sk-1",
+          "apiKeyManagementUrl": "https://keys.example.com"
+        },
+        "api": {
+          "type": "openai-chat-completions",
+          "baseUrl": "https://api.example.com/v1",
+          "headers": {
+            "Z": "1",
+            "A": "2"
+          }
+        },
+        "builtinModelIds": [
+          "glm-4",
+          "glm-4-air"
+        ],
+        "personalModelIds": [
+          "mine"
+        ],
+        "modelOrder": [
+          "mine",
+          "glm-4"
+        ],
+        "visibility": "visible"
+      }
+    },
+    {
+      "name": "provider-config/empty",
+      "kind": "provider-config",
+      "input": "{}",
+      "ok": true,
+      "output": "{}",
+      "outputJson": {}
+    },
+    {
+      "name": "provider-config/all-null",
+      "kind": "provider-config",
+      "input": "{\"group\":null,\"logo\":null,\"access\":null,\"api\":null,\"builtinModelIds\":null,\"personalModelIds\":null,\"modelOrder\":null,\"visibility\":null}",
+      "ok": true,
+      "output": "{\"group\":null,\"logo\":null,\"access\":null,\"api\":null,\"builtinModelIds\":null,\"personalModelIds\":null,\"modelOrder\":null,\"visibility\":null}",
+      "outputJson": {
+        "group": null,
+        "logo": null,
+        "access": null,
+        "api": null,
+        "builtinModelIds": null,
+        "personalModelIds": null,
+        "modelOrder": null,
+        "visibility": null
+      }
+    },
+    {
+      "name": "provider-config/zhipu-access-sparse",
+      "kind": "provider-config",
+      "input": "{\"access\":{\"type\":\"zhipu-account\"},\"visibility\":\"hidden\"}",
+      "ok": true,
+      "output": "{\"access\":{\"type\":\"zhipu-account\"},\"visibility\":\"hidden\"}",
+      "outputJson": {
+        "access": {
+          "type": "zhipu-account"
+        },
+        "visibility": "hidden"
+      }
+    },
+    {
+      "name": "provider-config/model-ids-trimmed",
+      "kind": "provider-config",
+      "input": "{\"builtinModelIds\":[\" glm-4 \",\"glm-4-air\"]}",
+      "ok": true,
+      "output": "{\"builtinModelIds\":[\"glm-4\",\"glm-4-air\"]}",
+      "outputJson": {
+        "builtinModelIds": [
+          "glm-4",
+          "glm-4-air"
+        ]
+      }
+    },
+    {
+      "name": "provider-config/whitespace-model-id",
+      "kind": "provider-config",
+      "input": "{\"builtinModelIds\":[\"   \"]}",
+      "ok": false,
+      "issues": [],
+      "error": "Model ID 不能为空"
+    },
+    {
+      "name": "provider-config-map/order-and-empty",
+      "kind": "provider-config-map",
+      "input": "[{\"providerId\":\"z-provider\",\"config\":{\"group\":\"bigmodel-family\"}},{\"providerId\":\"a-provider\",\"providerName\":\"A\",\"enabled\":false,\"config\":{}}]",
+      "ok": true,
+      "output": "[{\"providerId\":\"z-provider\",\"config\":{\"group\":\"bigmodel-family\"}},{\"providerId\":\"a-provider\",\"providerName\":\"A\",\"enabled\":false,\"config\":{}}]",
+      "outputJson": [
+        {
+          "providerId": "z-provider",
+          "config": {
+            "group": "bigmodel-family"
+          }
+        },
+        {
+          "providerId": "a-provider",
+          "providerName": "A",
+          "enabled": false,
+          "config": {}
+        }
+      ]
+    },
+    {
+      "name": "provider-config-map/empty",
+      "kind": "provider-config-map",
+      "input": "[]",
+      "ok": true,
+      "output": "[]",
+      "outputJson": []
+    },
+    {
+      "name": "provider-config-map/null-fields",
+      "kind": "provider-config-map",
+      "input": "[{\"providerId\":\"p\",\"templateId\":null,\"providerName\":null,\"config\":{\"api\":null}}]",
+      "ok": true,
+      "output": "[{\"providerId\":\"p\",\"templateId\":null,\"providerName\":null,\"config\":{\"api\":null}}]",
+      "outputJson": [
+        {
+          "providerId": "p",
+          "templateId": null,
+          "providerName": null,
+          "config": {
+            "api": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "mode-builtin-provider/valid",
+      "kind": "mode-builtin-provider",
+      "input": "{\"templateRules\":[{\"templateId\":\"t1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"access\":{\"type\":\"api-key\",\"apiKeyManagementUrl\":\"https://keys.example.com\"},\"api\":{\"type\":\"anthropic-messages\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"p1\",\"templateId\":\"t1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}}]}",
+      "ok": true,
+      "output": "{\"providers\":[{\"providerId\":\"p1\",\"templateId\":\"t1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}}],\"providerTemplates\":[{\"templateId\":\"t1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"access\":{\"type\":\"api-key\",\"apiKeyManagementUrl\":\"https://keys.example.com\"},\"api\":{\"type\":\"anthropic-messages\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}]}",
+      "outputJson": {
+        "providers": [
+          {
+            "providerId": "p1",
+            "templateId": "t1",
+            "providerName": "P1",
+            "enabled": true,
+            "config": {
+              "group": "zai-family",
+              "builtinModelIds": [
+                "m1"
+              ],
+              "visibility": "visible"
+            }
+          }
+        ],
+        "providerTemplates": [
+          {
+            "templateId": "t1",
+            "templateNameMap": {
+              "zh-CN": "模板 1",
+              "en-US": "Template 1"
+            },
+            "config": {
+              "logo": {
+                "type": "builtin",
+                "key": "k"
+              },
+              "access": {
+                "type": "api-key",
+                "apiKeyManagementUrl": "https://keys.example.com"
+              },
+              "api": {
+                "type": "anthropic-messages",
+                "baseUrl": "https://api.example.com"
+              },
+              "builtinModelIds": [
+                "m1"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "mode-builtin-provider/empty",
+      "kind": "mode-builtin-provider",
+      "input": "{\"templateRules\":[],\"providerRules\":[]}",
+      "ok": true,
+      "output": "{\"providers\":[],\"providerTemplates\":[]}",
+      "outputJson": {
+        "providers": [],
+        "providerTemplates": []
+      }
+    },
+    {
+      "name": "personal-provider/valid",
+      "kind": "personal-provider",
+      "input": "{\"providerRules\":[{\"providerId\":\"p1\",\"providerName\":\"My Provider\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"api\":{\"baseUrl\":\"https://editing.example.com\",\"type\":\"openai-responses\"},\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-personal\"},\"personalModelIds\":[\"m1\"],\"modelOrder\":[\"m1\"],\"visibility\":\"visible\"}}]}",
+      "ok": true,
+      "output": "[{\"providerId\":\"p1\",\"providerName\":\"My Provider\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-personal\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://editing.example.com\"},\"personalModelIds\":[\"m1\"],\"modelOrder\":[\"m1\"],\"visibility\":\"visible\"}}]",
+      "outputJson": [
+        {
+          "providerId": "p1",
+          "providerName": "My Provider",
+          "enabled": true,
+          "config": {
+            "group": "standard-personal",
+            "access": {
+              "type": "api-key",
+              "apiKey": "sk-personal"
+            },
+            "api": {
+              "type": "openai-responses",
+              "baseUrl": "https://editing.example.com"
+            },
+            "personalModelIds": [
+              "m1"
+            ],
+            "modelOrder": [
+              "m1"
+            ],
+            "visibility": "visible"
+          }
+        }
+      ]
+    },
+    {
+      "name": "personal-provider/empty",
+      "kind": "personal-provider",
+      "input": "{\"providerRules\":[]}",
+      "ok": true,
+      "output": "[]",
+      "outputJson": []
+    },
+    {
+      "name": "provider-template-map/order",
+      "kind": "provider-template-map",
+      "input": "[{\"templateId\":\"z\",\"templateNameMap\":{\"zh-CN\":\"Z\"},\"config\":{}},{\"templateId\":\"a\",\"templateNameMap\":{},\"config\":{\"builtinModelIds\":[\"m\"]}}]",
+      "ok": true,
+      "output": "[{\"templateId\":\"z\",\"templateNameMap\":{\"zh-CN\":\"Z\"},\"config\":{}},{\"templateId\":\"a\",\"templateNameMap\":{},\"config\":{\"builtinModelIds\":[\"m\"]}}]",
+      "outputJson": [
+        {
+          "templateId": "z",
+          "templateNameMap": {
+            "zh-CN": "Z"
+          },
+          "config": {}
+        },
+        {
+          "templateId": "a",
+          "templateNameMap": {},
+          "config": {
+            "builtinModelIds": [
+              "m"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "provider-template-map/empty",
+      "kind": "provider-template-map",
+      "input": "[]",
+      "ok": true,
+      "output": "[]",
+      "outputJson": []
+    },
+    {
+      "name": "account-provider/valid",
+      "kind": "account-provider",
+      "input": "{\"account:x\":{\"builtinModelIds\":[\"glm-4\"],\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}},\"account:y\":{}}",
+      "ok": true,
+      "output": "[{\"providerId\":\"account:x\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false},\"builtinModelIds\":[\"glm-4\"]}},{\"providerId\":\"account:y\",\"config\":{}}]",
+      "outputJson": [
+        {
+          "providerId": "account:x",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "entitled": false
+            },
+            "builtinModelIds": [
+              "glm-4"
+            ]
+          }
+        },
+        {
+          "providerId": "account:y",
+          "config": {}
+        }
+      ]
+    },
+    {
+      "name": "account-provider/empty",
+      "kind": "account-provider",
+      "input": "{}",
+      "ok": true,
+      "output": "[]",
+      "outputJson": []
+    },
+    {
+      "name": "model-config/full",
+      "kind": "model-config",
+      "input": "{\"enabled\":true,\"properties\":{\"requiresMfjsToolSchema\":false,\"contextWindow\":128000,\"inputFormat\":{\"supportsText\":true,\"supportsImage\":true,\"supportsVideo\":false,\"supportsAudio\":false,\"supportsPdf\":true},\"outputFormat\":{\"supportsText\":true},\"supportsToolCall\":true,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"medium\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":4096,\"map\":\"{\\\"tokens\\\": maxOutputTokens}\"}}}",
+      "ok": true,
+      "output": "{\"enabled\":true,\"properties\":{\"requiresMfjsToolSchema\":false,\"contextWindow\":128000,\"inputFormat\":{\"supportsText\":true,\"supportsImage\":true,\"supportsVideo\":false,\"supportsAudio\":false,\"supportsPdf\":true},\"outputFormat\":{\"supportsText\":true},\"supportsToolCall\":true,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"medium\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":4096,\"map\":\"{\\\"tokens\\\": maxOutputTokens}\"}}}",
+      "outputJson": {
+        "enabled": true,
+        "properties": {
+          "requiresMfjsToolSchema": false,
+          "contextWindow": 128000,
+          "inputFormat": {
+            "supportsText": true,
+            "supportsImage": true,
+            "supportsVideo": false,
+            "supportsAudio": false,
+            "supportsPdf": true
+          },
+          "outputFormat": {
+            "supportsText": true
+          },
+          "supportsToolCall": true,
+          "supportsJsonSchemaOutput": true,
+          "supportsNativeWebSearch": false,
+          "supportsMidConversationSystem": true
+        },
+        "optionSpecs": {
+          "reasoningLevel": {
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "map": "{\"effort\": reasoningLevel}"
+          },
+          "maxOutputTokens": {
+            "max": 4096,
+            "map": "{\"tokens\": maxOutputTokens}"
+          }
+        }
+      }
+    },
+    {
+      "name": "model-config/empty",
+      "kind": "model-config",
+      "input": "{}",
+      "ok": true,
+      "output": "{}",
+      "outputJson": {}
+    },
+    {
+      "name": "model-config/partial-null",
+      "kind": "model-config",
+      "input": "{\"enabled\":null,\"properties\":{\"contextWindow\":8192,\"inputFormat\":{\"supportsText\":true},\"outputFormat\":null},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\"]},\"maxOutputTokens\":null}}",
+      "ok": true,
+      "output": "{\"enabled\":null,\"properties\":{\"contextWindow\":8192,\"inputFormat\":{\"supportsText\":true},\"outputFormat\":null},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\"]},\"maxOutputTokens\":null}}",
+      "outputJson": {
+        "enabled": null,
+        "properties": {
+          "contextWindow": 8192,
+          "inputFormat": {
+            "supportsText": true
+          },
+          "outputFormat": null
+        },
+        "optionSpecs": {
+          "reasoningLevel": {
+            "values": [
+              "low"
+            ]
+          },
+          "maxOutputTokens": null
+        }
+      }
+    },
+    {
+      "name": "manual-model/full",
+      "kind": "manual-model-config",
+      "input": "{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}",
+      "ok": true,
+      "output": "{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}",
+      "outputJson": {
+        "enabled": true,
+        "properties": {
+          "contextWindow": 64000,
+          "supportsJsonSchemaOutput": true,
+          "supportsNativeWebSearch": false,
+          "supportsMidConversationSystem": true,
+          "inputFormat": {
+            "supportsImage": true,
+            "supportsVideo": false,
+            "supportsPdf": true
+          }
+        },
+        "optionSpecs": {
+          "reasoningLevel": {
+            "values": [
+              "low",
+              "high"
+            ],
+            "map": "{\"effort\": reasoningLevel}"
+          },
+          "maxOutputTokens": {
+            "max": 8192
+          }
+        }
+      }
+    },
+    {
+      "name": "mode-builtin-model-rules/full",
+      "kind": "mode-builtin-model-rules",
+      "input": "{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[{\"modelMatch\":\"gpt-.*\",\"apiTypeMatch\":\"openai-.*\",\"config\":{\"enabled\":false}}],\"providerSiteRules\":[{\"modelMatch\":\"claude-.*\",\"baseUrlMatch\":\"https://api\\\\.anthropic\\\\.com\",\"apiTypeMatch\":\"anthropic-.*\",\"config\":{\"properties\":{\"contextWindow\":200000}}}],\"templateModelRules\":[{\"templateId\":\"t1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true}}],\"builtinProviderModelRules\":[{\"providerId\":\"p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true}}]}",
+      "ok": true,
+      "output": "{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":false},\"apiTypeMatch\":\"openai-.*\"}],\"providerSiteRules\":[{\"modelMatch\":\"claude-.*\",\"config\":{\"properties\":{\"contextWindow\":200000}},\"baseUrlMatch\":\"https://api\\\\.anthropic\\\\.com\",\"apiTypeMatch\":\"anthropic-.*\"}],\"templateModelRules\":[{\"templateId\":\"t1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true}}],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true},\"providerId\":\"p1\"}],\"manualProviderModelRules\":[]}",
+      "outputJson": {
+        "modelRules": [
+          {
+            "modelMatch": "gpt-.*",
+            "config": {
+              "enabled": true
+            }
+          }
+        ],
+        "modelApiRules": [
+          {
+            "modelMatch": "gpt-.*",
+            "config": {
+              "enabled": false
+            },
+            "apiTypeMatch": "openai-.*"
+          }
+        ],
+        "providerSiteRules": [
+          {
+            "modelMatch": "claude-.*",
+            "config": {
+              "properties": {
+                "contextWindow": 200000
+              }
+            },
+            "baseUrlMatch": "https://api\\.anthropic\\.com",
+            "apiTypeMatch": "anthropic-.*"
+          }
+        ],
+        "templateModelRules": [
+          {
+            "templateId": "t1",
+            "modelId": "m1",
+            "config": {
+              "enabled": true
+            }
+          }
+        ],
+        "builtinProviderModelRules": [
+          {
+            "modelId": "m1",
+            "config": {
+              "enabled": true
+            },
+            "providerId": "p1"
+          }
+        ],
+        "manualProviderModelRules": []
+      }
+    },
+    {
+      "name": "mode-builtin-model-rules/empty",
+      "kind": "mode-builtin-model-rules",
+      "input": "{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[]}",
+      "ok": true,
+      "output": "{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]}",
+      "outputJson": {
+        "modelRules": [],
+        "modelApiRules": [],
+        "providerSiteRules": [],
+        "templateModelRules": [],
+        "builtinProviderModelRules": [],
+        "manualProviderModelRules": []
+      }
+    },
+    {
+      "name": "personal-model-rules/full",
+      "kind": "personal-model-rules",
+      "input": "{\"providerModelRules\":[{\"providerId\":\"p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true}}],\"manualProviderModelRules\":[{\"providerId\":\"p1\",\"modelId\":\"m2\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]}",
+      "ok": true,
+      "output": "{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true},\"providerId\":\"p1\"}],\"manualProviderModelRules\":[{\"modelId\":\"m2\",\"providerId\":\"p1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true},\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]}",
+      "outputJson": {
+        "modelRules": [],
+        "modelApiRules": [],
+        "providerSiteRules": [],
+        "templateModelRules": [],
+        "builtinProviderModelRules": [
+          {
+            "modelId": "m1",
+            "config": {
+              "enabled": true
+            },
+            "providerId": "p1"
+          }
+        ],
+        "manualProviderModelRules": [
+          {
+            "modelId": "m2",
+            "providerId": "p1",
+            "config": {
+              "enabled": true,
+              "properties": {
+                "contextWindow": 64000,
+                "inputFormat": {
+                  "supportsImage": true,
+                  "supportsVideo": false,
+                  "supportsPdf": true
+                },
+                "supportsJsonSchemaOutput": true,
+                "supportsNativeWebSearch": false,
+                "supportsMidConversationSystem": true
+              },
+              "optionSpecs": {
+                "reasoningLevel": {
+                  "values": [
+                    "low",
+                    "high"
+                  ],
+                  "map": "{\"effort\": reasoningLevel}"
+                },
+                "maxOutputTokens": {
+                  "max": 8192
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "personal-model-rules/empty",
+      "kind": "personal-model-rules",
+      "input": "{\"providerModelRules\":[],\"manualProviderModelRules\":[]}",
+      "ok": true,
+      "output": "{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]}",
+      "outputJson": {
+        "modelRules": [],
+        "modelApiRules": [],
+        "providerSiteRules": [],
+        "templateModelRules": [],
+        "builtinProviderModelRules": [],
+        "manualProviderModelRules": []
+      }
+    },
+    {
+      "name": "invalid/provider-unknown-key",
+      "kind": "provider-config",
+      "input": "{\"surprise\":1}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [],
+          "message": "Unrecognized key: \"surprise\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"surprise\"\n    ],\n    \"path\": [],\n    \"message\": \"Unrecognized key: \\\"surprise\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-bad-group",
+      "kind": "provider-config",
+      "input": "{\"group\":\"unknown\"}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_value",
+          "path": [
+            "group"
+          ],
+          "message": "Invalid option: expected one of \"standard-personal\"|\"zai-family\"|\"bigmodel-family\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"standard-personal\",\n      \"zai-family\",\n      \"bigmodel-family\"\n    ],\n    \"path\": [\n      \"group\"\n    ],\n    \"message\": \"Invalid option: expected one of \\\"standard-personal\\\"|\\\"zai-family\\\"|\\\"bigmodel-family\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-bad-logo",
+      "kind": "provider-config",
+      "input": "{\"logo\":{\"type\":\"builtin\",\"key\":\"\"}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "too_small",
+          "path": [
+            "logo",
+            "key"
+          ],
+          "message": "Too small: expected string to have >=1 characters"
+        }
+      ],
+      "error": "[\n  {\n    \"origin\": \"string\",\n    \"code\": \"too_small\",\n    \"minimum\": 1,\n    \"inclusive\": true,\n    \"path\": [\n      \"logo\",\n      \"key\"\n    ],\n    \"message\": \"Too small: expected string to have >=1 characters\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-bad-access-type",
+      "kind": "provider-config",
+      "input": "{\"access\":{\"type\":\"oauth\"}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_union",
+          "path": [
+            "access",
+            "type"
+          ],
+          "message": "Invalid discriminator value. Expected 'api-key' | 'zhipu-coding-plan-api-key' | 'zhipu-account'"
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"invalid_union\",\n    \"errors\": [],\n    \"note\": \"No matching discriminator\",\n    \"discriminator\": \"type\",\n    \"options\": [\n      \"api-key\",\n      \"zhipu-coding-plan-api-key\",\n      \"zhipu-account\"\n    ],\n    \"path\": [\n      \"access\",\n      \"type\"\n    ],\n    \"message\": \"Invalid discriminator value. Expected 'api-key' | 'zhipu-coding-plan-api-key' | 'zhipu-account'\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-bad-url",
+      "kind": "provider-config",
+      "input": "{\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"not a url\"}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_format",
+          "path": [
+            "api",
+            "baseUrl"
+          ],
+          "message": "Invalid URL"
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"invalid_format\",\n    \"format\": \"url\",\n    \"path\": [\n      \"api\",\n      \"baseUrl\"\n    ],\n    \"message\": \"Invalid URL\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-unknown-api-key",
+      "kind": "provider-config",
+      "input": "{\"api\":{\"surprise\":true}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [
+            "api"
+          ],
+          "message": "Unrecognized key: \"surprise\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"surprise\"\n    ],\n    \"path\": [\n      \"api\"\n    ],\n    \"message\": \"Unrecognized key: \\\"surprise\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-model-id-type",
+      "kind": "provider-config",
+      "input": "{\"builtinModelIds\":[\"ok\",1]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "builtinModelIds",
+            "1"
+          ],
+          "message": "Invalid input: expected string, received number"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"builtinModelIds\",\n      1\n    ],\n    \"message\": \"Invalid input: expected string, received number\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-logo-type",
+      "kind": "provider-config",
+      "input": "{\"logo\":{\"type\":\"custom\",\"key\":\"k\"}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_value",
+          "path": [
+            "logo",
+            "type"
+          ],
+          "message": "Invalid input: expected \"builtin\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"builtin\"\n    ],\n    \"path\": [\n      \"logo\",\n      \"type\"\n    ],\n    \"message\": \"Invalid input: expected \\\"builtin\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-map-enabled-null",
+      "kind": "provider-config-map",
+      "input": "[{\"providerId\":\"p\",\"enabled\":null,\"config\":{}}]",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "0",
+            "enabled"
+          ],
+          "message": "Invalid input: expected boolean, received null"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"boolean\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"enabled\"\n    ],\n    \"message\": \"Invalid input: expected boolean, received null\"\n  }\n]"
+    },
+    {
+      "name": "invalid/template-name-null",
+      "kind": "provider-template-map",
+      "input": "[{\"templateId\":\"t\",\"templateNameMap\":{\"zh-CN\":null},\"config\":{}}]",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "0",
+            "templateNameMap",
+            "zh-CN"
+          ],
+          "message": "Invalid input: expected string, received null"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"templateNameMap\",\n      \"zh-CN\"\n    ],\n    \"message\": \"Invalid input: expected string, received null\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-site-api-type-null",
+      "kind": "mode-builtin-model-rules",
+      "input": "{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[{\"modelMatch\":\"m\",\"baseUrlMatch\":\"b\",\"apiTypeMatch\":null,\"config\":{}}],\"templateModelRules\":[],\"builtinProviderModelRules\":[]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "providerSiteRules",
+            "0",
+            "apiTypeMatch"
+          ],
+          "message": "Invalid input: expected string, received null"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"providerSiteRules\",\n      0,\n      \"apiTypeMatch\"\n    ],\n    \"message\": \"Invalid input: expected string, received null\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-map-missing-config",
+      "kind": "provider-config-map",
+      "input": "[{\"providerId\":\"p\"}]",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "0",
+            "config"
+          ],
+          "message": "Invalid input: expected object, received undefined"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"config\"\n    ],\n    \"message\": \"Invalid input: expected object, received undefined\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-map-unknown-key",
+      "kind": "provider-config-map",
+      "input": "[{\"providerId\":\"p\",\"config\":{},\"extra\":1}]",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [
+            "0"
+          ],
+          "message": "Unrecognized key: \"extra\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"extra\"\n    ],\n    \"path\": [\n      0\n    ],\n    \"message\": \"Unrecognized key: \\\"extra\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-map-empty-provider-id",
+      "kind": "provider-config-map",
+      "input": "[{\"providerId\":\"\",\"config\":{}}]",
+      "ok": false,
+      "issues": [
+        {
+          "code": "too_small",
+          "path": [
+            "0",
+            "providerId"
+          ],
+          "message": "Too small: expected string to have >=1 characters"
+        }
+      ],
+      "error": "[\n  {\n    \"origin\": \"string\",\n    \"code\": \"too_small\",\n    \"minimum\": 1,\n    \"inclusive\": true,\n    \"path\": [\n      0,\n      \"providerId\"\n    ],\n    \"message\": \"Too small: expected string to have >=1 characters\"\n  }\n]"
+    },
+    {
+      "name": "invalid/provider-map-duplicate",
+      "kind": "provider-config-map",
+      "input": "[{\"providerId\":\"p\",\"config\":{}},{\"providerId\":\"p\",\"config\":{}}]",
+      "ok": false,
+      "issues": [],
+      "error": "重复 Provider key: p"
+    },
+    {
+      "name": "invalid/builtin-template-zhipu-access",
+      "kind": "mode-builtin-provider",
+      "input": "{\"templateRules\":[{\"templateId\":\"t\",\"templateNameMap\":{},\"config\":{\"access\":{\"type\":\"zhipu-account\"}}}],\"providerRules\":[]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_value",
+          "path": [
+            "templateRules",
+            "0",
+            "config",
+            "access",
+            "type"
+          ],
+          "message": "Invalid option: expected one of \"api-key\"|\"zhipu-coding-plan-api-key\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"api-key\",\n      \"zhipu-coding-plan-api-key\"\n    ],\n    \"path\": [\n      \"templateRules\",\n      0,\n      \"config\",\n      \"access\",\n      \"type\"\n    ],\n    \"message\": \"Invalid option: expected one of \\\"api-key\\\"|\\\"zhipu-coding-plan-api-key\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/builtin-template-api-key-field",
+      "kind": "mode-builtin-provider",
+      "input": "{\"templateRules\":[{\"templateId\":\"t\",\"templateNameMap\":{},\"config\":{\"access\":{\"type\":\"api-key\",\"apiKey\":\"x\"}}}],\"providerRules\":[]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [
+            "templateRules",
+            "0",
+            "config",
+            "access"
+          ],
+          "message": "Unrecognized key: \"apiKey\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"apiKey\"\n    ],\n    \"path\": [\n      \"templateRules\",\n      0,\n      \"config\",\n      \"access\"\n    ],\n    \"message\": \"Unrecognized key: \\\"apiKey\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/builtin-provider-standard-group",
+      "kind": "mode-builtin-provider",
+      "input": "{\"templateRules\":[],\"providerRules\":[{\"providerId\":\"p\",\"config\":{\"group\":\"standard-personal\"}}]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_value",
+          "path": [
+            "providerRules",
+            "0",
+            "config",
+            "group"
+          ],
+          "message": "Invalid option: expected one of \"zai-family\"|\"bigmodel-family\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"zai-family\",\n      \"bigmodel-family\"\n    ],\n    \"path\": [\n      \"providerRules\",\n      0,\n      \"config\",\n      \"group\"\n    ],\n    \"message\": \"Invalid option: expected one of \\\"zai-family\\\"|\\\"bigmodel-family\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/builtin-provider-personal-models",
+      "kind": "mode-builtin-provider",
+      "input": "{\"templateRules\":[],\"providerRules\":[{\"providerId\":\"p\",\"config\":{\"group\":\"zai-family\",\"personalModelIds\":[\"m\"]}}]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [
+            "providerRules",
+            "0",
+            "config"
+          ],
+          "message": "Unrecognized key: \"personalModelIds\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"personalModelIds\"\n    ],\n    \"path\": [\n      \"providerRules\",\n      0,\n      \"config\"\n    ],\n    \"message\": \"Unrecognized key: \\\"personalModelIds\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/builtin-duplicate-ids",
+      "kind": "mode-builtin-provider",
+      "input": "{\"templateRules\":[{\"templateId\":\"t\",\"templateNameMap\":{},\"config\":{}},{\"templateId\":\"t\",\"templateNameMap\":{},\"config\":{}}],\"providerRules\":[{\"providerId\":\"p\",\"config\":{\"group\":\"zai-family\"}},{\"providerId\":\"p\",\"config\":{\"group\":\"zai-family\"}}]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "custom",
+          "path": [
+            "templateRules",
+            "1",
+            "templateId"
+          ],
+          "message": "重复 templateId: t"
+        },
+        {
+          "code": "custom",
+          "path": [
+            "providerRules",
+            "1",
+            "providerId"
+          ],
+          "message": "重复 providerId: p"
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"custom\",\n    \"path\": [\n      \"templateRules\",\n      1,\n      \"templateId\"\n    ],\n    \"message\": \"重复 templateId: t\"\n  },\n  {\n    \"code\": \"custom\",\n    \"path\": [\n      \"providerRules\",\n      1,\n      \"providerId\"\n    ],\n    \"message\": \"重复 providerId: p\"\n  }\n]"
+    },
+    {
+      "name": "invalid/builtin-missing-provider-rules",
+      "kind": "mode-builtin-provider",
+      "input": "{\"templateRules\":[]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "providerRules"
+          ],
+          "message": "Invalid input: expected array, received undefined"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"providerRules\"\n    ],\n    \"message\": \"Invalid input: expected array, received undefined\"\n  }\n]"
+    },
+    {
+      "name": "invalid/personal-account-access",
+      "kind": "personal-provider",
+      "input": "{\"providerRules\":[{\"providerId\":\"account:x\",\"config\":{\"access\":{\"type\":\"api-key\"}}}]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "custom",
+          "path": [
+            "providerRules",
+            "0",
+            "config",
+            "access"
+          ],
+          "message": "固定 Account Provider 的 Access 只能由 Mode Built-in Config 声明"
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"custom\",\n    \"path\": [\n      \"providerRules\",\n      0,\n      \"config\",\n      \"access\"\n    ],\n    \"message\": \"固定 Account Provider 的 Access 只能由 Mode Built-in Config 声明\"\n  }\n]"
+    },
+    {
+      "name": "invalid/personal-account-access-null",
+      "kind": "personal-provider",
+      "input": "{\"providerRules\":[{\"providerId\":\"account:x\",\"config\":{\"access\":null}}]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "custom",
+          "path": [
+            "providerRules",
+            "0",
+            "config",
+            "access"
+          ],
+          "message": "固定 Account Provider 的 Access 只能由 Mode Built-in Config 声明"
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"custom\",\n    \"path\": [\n      \"providerRules\",\n      0,\n      \"config\",\n      \"access\"\n    ],\n    \"message\": \"固定 Account Provider 的 Access 只能由 Mode Built-in Config 声明\"\n  }\n]"
+    },
+    {
+      "name": "invalid/personal-builtin-model-ids",
+      "kind": "personal-provider",
+      "input": "{\"providerRules\":[{\"providerId\":\"p\",\"config\":{\"builtinModelIds\":[\"m\"]}}]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [
+            "providerRules",
+            "0",
+            "config"
+          ],
+          "message": "Unrecognized key: \"builtinModelIds\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"builtinModelIds\"\n    ],\n    \"path\": [\n      \"providerRules\",\n      0,\n      \"config\"\n    ],\n    \"message\": \"Unrecognized key: \\\"builtinModelIds\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/personal-group",
+      "kind": "personal-provider",
+      "input": "{\"providerRules\":[{\"providerId\":\"p\",\"config\":{\"group\":\"zai-family\"}}]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_value",
+          "path": [
+            "providerRules",
+            "0",
+            "config",
+            "group"
+          ],
+          "message": "Invalid input: expected \"standard-personal\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"standard-personal\"\n    ],\n    \"path\": [\n      \"providerRules\",\n      0,\n      \"config\",\n      \"group\"\n    ],\n    \"message\": \"Invalid input: expected \\\"standard-personal\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/personal-duplicate",
+      "kind": "personal-provider",
+      "input": "{\"providerRules\":[{\"providerId\":\"p\",\"config\":{}},{\"providerId\":\"p\",\"config\":{}}]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "custom",
+          "path": [
+            "providerRules",
+            "1",
+            "providerId"
+          ],
+          "message": "重复 providerId: p"
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"custom\",\n    \"path\": [\n      \"providerRules\",\n      1,\n      \"providerId\"\n    ],\n    \"message\": \"重复 providerId: p\"\n  }\n]"
+    },
+    {
+      "name": "invalid/template-map-duplicate",
+      "kind": "provider-template-map",
+      "input": "[{\"templateId\":\"t\",\"templateNameMap\":{},\"config\":{}},{\"templateId\":\"t\",\"templateNameMap\":{},\"config\":{}}]",
+      "ok": false,
+      "issues": [],
+      "error": "重复 Provider Template key: t"
+    },
+    {
+      "name": "invalid/template-locale",
+      "kind": "provider-template-map",
+      "input": "[{\"templateId\":\"t\",\"templateNameMap\":{\"ja-JP\":\"x\"},\"config\":{}}]",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [
+            "0",
+            "templateNameMap"
+          ],
+          "message": "Unrecognized key: \"ja-JP\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"ja-JP\"\n    ],\n    \"path\": [\n      0,\n      \"templateNameMap\"\n    ],\n    \"message\": \"Unrecognized key: \\\"ja-JP\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/template-config-key",
+      "kind": "provider-template-map",
+      "input": "[{\"templateId\":\"t\",\"templateNameMap\":{},\"config\":{\"visibility\":\"visible\"}}]",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [
+            "0",
+            "config"
+          ],
+          "message": "Unrecognized key: \"visibility\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"visibility\"\n    ],\n    \"path\": [\n      0,\n      \"config\"\n    ],\n    \"message\": \"Unrecognized key: \\\"visibility\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/account-access-extra",
+      "kind": "account-provider",
+      "input": "{\"account:x\":{\"access\":{\"type\":\"zhipu-account\",\"accountType\":\"zai\"}}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [
+            "account:x",
+            "access"
+          ],
+          "message": "Unrecognized key: \"accountType\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"accountType\"\n    ],\n    \"path\": [\n      \"account:x\",\n      \"access\"\n    ],\n    \"message\": \"Unrecognized key: \\\"accountType\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/account-access-type",
+      "kind": "account-provider",
+      "input": "{\"account:x\":{\"access\":{\"type\":\"api-key\"}}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_value",
+          "path": [
+            "account:x",
+            "access",
+            "type"
+          ],
+          "message": "Invalid input: expected \"zhipu-account\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"zhipu-account\"\n    ],\n    \"path\": [\n      \"account:x\",\n      \"access\",\n      \"type\"\n    ],\n    \"message\": \"Invalid input: expected \\\"zhipu-account\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/account-config-key",
+      "kind": "account-provider",
+      "input": "{\"account:x\":{\"group\":\"zai-family\"}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [
+            "account:x"
+          ],
+          "message": "Unrecognized key: \"group\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"group\"\n    ],\n    \"path\": [\n      \"account:x\"\n    ],\n    \"message\": \"Unrecognized key: \\\"group\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/model-unknown-key",
+      "kind": "model-config",
+      "input": "{\"enabled\":true,\"surprise\":1}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [],
+          "message": "Unrecognized key: \"surprise\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"surprise\"\n    ],\n    \"path\": [],\n    \"message\": \"Unrecognized key: \\\"surprise\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/model-context-window-zero",
+      "kind": "model-config",
+      "input": "{\"properties\":{\"contextWindow\":0}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "too_small",
+          "path": [
+            "properties",
+            "contextWindow"
+          ],
+          "message": "Too small: expected number to be >0"
+        }
+      ],
+      "error": "[\n  {\n    \"origin\": \"number\",\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"inclusive\": false,\n    \"path\": [\n      \"properties\",\n      \"contextWindow\"\n    ],\n    \"message\": \"Too small: expected number to be >0\"\n  }\n]"
+    },
+    {
+      "name": "invalid/model-context-window-fraction",
+      "kind": "model-config",
+      "input": "{\"properties\":{\"contextWindow\":1.5}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "properties",
+            "contextWindow"
+          ],
+          "message": "Invalid input: expected int, received number"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"int\",\n    \"format\": \"safeint\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"properties\",\n      \"contextWindow\"\n    ],\n    \"message\": \"Invalid input: expected int, received number\"\n  }\n]"
+    },
+    {
+      "name": "invalid/model-context-window-unsafe",
+      "kind": "model-config",
+      "input": "{\"properties\":{\"contextWindow\":9007199254740992}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "too_big",
+          "path": [
+            "properties",
+            "contextWindow"
+          ],
+          "message": "Too big: expected int to be <=9007199254740991"
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"too_big\",\n    \"maximum\": 9007199254740991,\n    \"note\": \"Integers must be within the safe integer range.\",\n    \"origin\": \"int\",\n    \"inclusive\": true,\n    \"path\": [\n      \"properties\",\n      \"contextWindow\"\n    ],\n    \"message\": \"Too big: expected int to be <=9007199254740991\"\n  }\n]"
+    },
+    {
+      "name": "invalid/model-empty-values",
+      "kind": "model-config",
+      "input": "{\"optionSpecs\":{\"reasoningLevel\":{\"values\":[],\"map\":\"{\\\"effort\\\": reasoningLevel}\"}}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "too_small",
+          "path": [
+            "optionSpecs",
+            "reasoningLevel",
+            "values"
+          ],
+          "message": "reasoningLevel.values 不能为空"
+        }
+      ],
+      "error": "[\n  {\n    \"origin\": \"array\",\n    \"code\": \"too_small\",\n    \"minimum\": 1,\n    \"inclusive\": true,\n    \"path\": [\n      \"optionSpecs\",\n      \"reasoningLevel\",\n      \"values\"\n    ],\n    \"message\": \"reasoningLevel.values 不能为空\"\n  }\n]"
+    },
+    {
+      "name": "invalid/model-duplicate-values",
+      "kind": "model-config",
+      "input": "{\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"low\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"}}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "custom",
+          "path": [
+            "optionSpecs",
+            "reasoningLevel",
+            "values"
+          ],
+          "message": "reasoningLevel.values 不能重复"
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"custom\",\n    \"path\": [\n      \"optionSpecs\",\n      \"reasoningLevel\",\n      \"values\"\n    ],\n    \"message\": \"reasoningLevel.values 不能重复\"\n  }\n]"
+    },
+    {
+      "name": "invalid/model-cel",
+      "kind": "model-config",
+      "input": "{\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\"],\"map\":\"unknownIdentifier\"}}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "custom",
+          "path": [
+            "optionSpecs",
+            "reasoningLevel",
+            "map"
+          ],
+          "message": "unknown identifier \"unknownIdentifier\" at offset 0"
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"custom\",\n    \"message\": \"unknown identifier \\\"unknownIdentifier\\\" at offset 0\",\n    \"path\": [\n      \"optionSpecs\",\n      \"reasoningLevel\",\n      \"map\"\n    ]\n  }\n]"
+    },
+    {
+      "name": "invalid/model-cel-not-object",
+      "kind": "model-config",
+      "input": "{\"optionSpecs\":{\"maxOutputTokens\":{\"map\":\"1 + 2\"}}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "custom",
+          "path": [
+            "optionSpecs",
+            "maxOutputTokens",
+            "map"
+          ],
+          "message": "model option map must return a JSON object at offset 2"
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"custom\",\n    \"message\": \"model option map must return a JSON object at offset 2\",\n    \"path\": [\n      \"optionSpecs\",\n      \"maxOutputTokens\",\n      \"map\"\n    ]\n  }\n]"
+    },
+    {
+      "name": "invalid/model-input-format-type",
+      "kind": "model-config",
+      "input": "{\"properties\":{\"inputFormat\":{\"supportsText\":\"yes\"}}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "properties",
+            "inputFormat",
+            "supportsText"
+          ],
+          "message": "Invalid input: expected boolean, received string"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"boolean\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"properties\",\n      \"inputFormat\",\n      \"supportsText\"\n    ],\n    \"message\": \"Invalid input: expected boolean, received string\"\n  }\n]"
+    },
+    {
+      "name": "invalid/manual-missing-required",
+      "kind": "manual-model-config",
+      "input": "{\"enabled\":true}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "properties"
+          ],
+          "message": "Invalid input: expected object, received undefined"
+        },
+        {
+          "code": "invalid_type",
+          "path": [
+            "optionSpecs"
+          ],
+          "message": "Invalid input: expected object, received undefined"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"properties\"\n    ],\n    \"message\": \"Invalid input: expected object, received undefined\"\n  },\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"optionSpecs\"\n    ],\n    \"message\": \"Invalid input: expected object, received undefined\"\n  }\n]"
+    },
+    {
+      "name": "invalid/manual-missing-input-format",
+      "kind": "manual-model-config",
+      "input": "{\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "properties",
+            "inputFormat"
+          ],
+          "message": "Invalid input: expected object, received undefined"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"properties\",\n      \"inputFormat\"\n    ],\n    \"message\": \"Invalid input: expected object, received undefined\"\n  }\n]"
+    },
+    {
+      "name": "invalid/manual-extra-property",
+      "kind": "manual-model-config",
+      "input": "{\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true},\"supportsText\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [
+            "properties"
+          ],
+          "message": "Unrecognized key: \"supportsText\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"supportsText\"\n    ],\n    \"path\": [\n      \"properties\"\n    ],\n    \"message\": \"Unrecognized key: \\\"supportsText\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/manual-max-map",
+      "kind": "manual-model-config",
+      "input": "{\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":1,\"map\":\"{\\\"tokens\\\": maxOutputTokens}\"}}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "unrecognized_keys",
+          "path": [
+            "optionSpecs",
+            "maxOutputTokens"
+          ],
+          "message": "Unrecognized key: \"map\""
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"map\"\n    ],\n    \"path\": [\n      \"optionSpecs\",\n      \"maxOutputTokens\"\n    ],\n    \"message\": \"Unrecognized key: \\\"map\\\"\"\n  }\n]"
+    },
+    {
+      "name": "invalid/manual-properties-null",
+      "kind": "manual-model-config",
+      "input": "{\"properties\":null,\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "properties"
+          ],
+          "message": "Invalid input: expected object, received null"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"properties\"\n    ],\n    \"message\": \"Invalid input: expected object, received null\"\n  }\n]"
+    },
+    {
+      "name": "invalid/builtin-model-bad-regex",
+      "kind": "mode-builtin-model-rules",
+      "input": "{\"modelRules\":[{\"modelMatch\":\"(\",\"config\":{}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "custom",
+          "path": [
+            "modelRules",
+            "0",
+            "modelMatch"
+          ],
+          "message": "无效匹配正则"
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"custom\",\n    \"path\": [\n      \"modelRules\",\n      0,\n      \"modelMatch\"\n    ],\n    \"message\": \"无效匹配正则\"\n  }\n]"
+    },
+    {
+      "name": "invalid/builtin-model-missing-group",
+      "kind": "mode-builtin-model-rules",
+      "input": "{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "builtinProviderModelRules"
+          ],
+          "message": "Invalid input: expected array, received undefined"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"builtinProviderModelRules\"\n    ],\n    \"message\": \"Invalid input: expected array, received undefined\"\n  }\n]"
+    },
+    {
+      "name": "invalid/personal-model-duplicate-identity",
+      "kind": "personal-model-rules",
+      "input": "{\"providerModelRules\":[{\"providerId\":\"p\",\"modelId\":\"m\",\"config\":{}}],\"manualProviderModelRules\":[{\"providerId\":\"p\",\"modelId\":\"m\",\"config\":{\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "custom",
+          "path": [
+            "manualProviderModelRules",
+            "0"
+          ],
+          "message": "同一 Provider/Model 不能同时声明智能和手动配置"
+        }
+      ],
+      "error": "[\n  {\n    \"code\": \"custom\",\n    \"path\": [\n      \"manualProviderModelRules\",\n      0\n    ],\n    \"message\": \"同一 Provider/Model 不能同时声明智能和手动配置\"\n  }\n]"
+    },
+    {
+      "name": "invalid/personal-model-invalid-manual-config",
+      "kind": "personal-model-rules",
+      "input": "{\"providerModelRules\":[],\"manualProviderModelRules\":[{\"providerId\":\"p\",\"modelId\":\"m\",\"config\":{}}]}",
+      "ok": false,
+      "issues": [
+        {
+          "code": "invalid_type",
+          "path": [
+            "manualProviderModelRules",
+            "0",
+            "config",
+            "properties"
+          ],
+          "message": "Invalid input: expected object, received undefined"
+        },
+        {
+          "code": "invalid_type",
+          "path": [
+            "manualProviderModelRules",
+            "0",
+            "config",
+            "optionSpecs"
+          ],
+          "message": "Invalid input: expected object, received undefined"
+        }
+      ],
+      "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"manualProviderModelRules\",\n      0,\n      \"config\",\n      \"properties\"\n    ],\n    \"message\": \"Invalid input: expected object, received undefined\"\n  },\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"manualProviderModelRules\",\n      0,\n      \"config\",\n      \"optionSpecs\"\n    ],\n    \"message\": \"Invalid input: expected object, received undefined\"\n  }\n]"
+    }
+  ],
+  "validations": [
+    {
+      "name": "validate/provider-config/complete",
+      "kind": "validate-provider-config",
+      "input": "{\"group\":\"zai-family\",\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-live\"},\"api\":{\"type\":\"openai-chat-completions\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"glm-4\"]}",
+      "issues": []
+    },
+    {
+      "name": "validate/provider-config/missing-required",
+      "kind": "validate-provider-config",
+      "input": "{}",
+      "issues": [
+        {
+          "code": "required-field-missing",
+          "path": [
+            "group"
+          ],
+          "message": "缺少必填配置 group"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "access"
+          ],
+          "message": "缺少必填配置 access"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "api"
+          ],
+          "message": "缺少必填配置 api"
+        }
+      ]
+    },
+    {
+      "name": "validate/provider-config/api-key-missing",
+      "kind": "validate-provider-config",
+      "input": "{\"group\":\"zai-family\",\"access\":{\"type\":\"api-key\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://x\"}}",
+      "issues": [
+        {
+          "code": "required-field-missing",
+          "path": [
+            "access",
+            "apiKey"
+          ],
+          "message": "缺少必填配置 access.apiKey"
+        }
+      ]
+    },
+    {
+      "name": "validate/provider-config/zhipu-missing-fields",
+      "kind": "validate-provider-config",
+      "input": "{\"group\":\"zai-family\",\"access\":{\"type\":\"zhipu-account\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://x\"}}",
+      "issues": [
+        {
+          "code": "required-field-missing",
+          "path": [
+            "access",
+            "accountType"
+          ],
+          "message": "缺少必填配置 access.accountType"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "access",
+            "mode"
+          ],
+          "message": "缺少必填配置 access.mode"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "access",
+            "entitled"
+          ],
+          "message": "缺少必填配置 access.entitled"
+        }
+      ]
+    },
+    {
+      "name": "validate/provider-config-map/partial",
+      "kind": "validate-provider-config-map",
+      "input": "[{\"providerId\":\"p1\",\"config\":{\"group\":\"zai-family\",\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-live\"},\"api\":{\"type\":\"openai-chat-completions\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"glm-4\"]}},{\"providerId\":\"p2\",\"config\":{\"group\":\"zai-family\"}}]",
+      "issues": [
+        {
+          "code": "required-field-missing",
+          "path": [
+            "p2",
+            "access"
+          ],
+          "message": "缺少必填配置 p2.access"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "p2",
+            "api"
+          ],
+          "message": "缺少必填配置 p2.api"
+        }
+      ]
+    },
+    {
+      "name": "validate/model-config/complete",
+      "kind": "validate-model-config",
+      "input": "{\"enabled\":true,\"properties\":{\"requiresMfjsToolSchema\":false,\"contextWindow\":128000,\"inputFormat\":{\"supportsText\":true,\"supportsImage\":true,\"supportsVideo\":false,\"supportsAudio\":false,\"supportsPdf\":true},\"outputFormat\":{\"supportsText\":true},\"supportsToolCall\":true,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":4096,\"map\":\"{\\\"tokens\\\": maxOutputTokens}\"}}}",
+      "issues": []
+    },
+    {
+      "name": "validate/model-config/partial",
+      "kind": "validate-model-config",
+      "input": "{\"properties\":{\"inputFormat\":{\"supportsText\":true}}}",
+      "issues": [
+        {
+          "code": "required-field-missing",
+          "path": [
+            "enabled"
+          ],
+          "message": "缺少必填配置 enabled"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "properties",
+            "requiresMfjsToolSchema"
+          ],
+          "message": "缺少必填配置 properties.requiresMfjsToolSchema"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "properties",
+            "contextWindow"
+          ],
+          "message": "缺少必填配置 properties.contextWindow"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "properties",
+            "inputFormat",
+            "supportsImage"
+          ],
+          "message": "缺少必填配置 properties.inputFormat.supportsImage"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "properties",
+            "inputFormat",
+            "supportsVideo"
+          ],
+          "message": "缺少必填配置 properties.inputFormat.supportsVideo"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "properties",
+            "inputFormat",
+            "supportsAudio"
+          ],
+          "message": "缺少必填配置 properties.inputFormat.supportsAudio"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "properties",
+            "inputFormat",
+            "supportsPdf"
+          ],
+          "message": "缺少必填配置 properties.inputFormat.supportsPdf"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "properties",
+            "outputFormat"
+          ],
+          "message": "缺少必填配置 properties.outputFormat"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "properties",
+            "supportsToolCall"
+          ],
+          "message": "缺少必填配置 properties.supportsToolCall"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "properties",
+            "supportsJsonSchemaOutput"
+          ],
+          "message": "缺少必填配置 properties.supportsJsonSchemaOutput"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "properties",
+            "supportsNativeWebSearch"
+          ],
+          "message": "缺少必填配置 properties.supportsNativeWebSearch"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "properties",
+            "supportsMidConversationSystem"
+          ],
+          "message": "缺少必填配置 properties.supportsMidConversationSystem"
+        },
+        {
+          "code": "required-field-missing",
+          "path": [
+            "optionSpecs"
+          ],
+          "message": "缺少必填配置 optionSpecs"
+        }
+      ]
+    },
+    {
+      "name": "validate/provider-template-map/always-valid",
+      "kind": "validate-provider-template-map",
+      "input": "[{\"templateId\":\"t\",\"templateNameMap\":{},\"config\":{}}]",
+      "issues": []
+    }
+  ]
+}
