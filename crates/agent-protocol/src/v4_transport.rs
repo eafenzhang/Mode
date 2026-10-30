@@ -230,3 +230,120 @@ impl ConversationWireFrame {
 
 /// `workflowRunDeltas` 声明位：与 clientMode 同族的可信位（由连接注入）。
 pub type WorkflowRunDeltas = LiteralTrue;
+
+pub const V4_HOST_HELLO_KIND: &str = "hello";
+pub const V4_CLIENT_HELLO_KIND: &str = "clientHello";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Compression {
+    #[serde(rename = "none")]
+    None,
+    #[serde(rename = "permessage-deflate")]
+    PermessageDeflate,
+}
+
+/// `hostCapabilitiesSchema`。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct HostCapabilities {
+    pub native_dialogs: bool,
+    pub local_terminal: bool,
+    pub binary_frames: bool,
+    pub compression: Compression,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_hook_review: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub independent_plan_state: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workflow_run_deltas: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DeliveryProfile {
+    #[serde(rename = "continuous")]
+    Continuous,
+    #[serde(rename = "replayable")]
+    Replayable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct HelloAuth {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HelloKind {
+    #[serde(rename = "hello")]
+    Hello,
+}
+
+/// `helloMessageSchema`。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct HelloMessage {
+    pub kind: HelloKind,
+    pub protocol_version: u64,
+    pub connection_id: String,
+    pub client_mode: V4ClientMode,
+    pub delivery_profile: DeliveryProfile,
+    pub server_time: Number,
+    pub capabilities: HostCapabilities,
+    pub auth: HelloAuth,
+}
+
+impl HelloMessage {
+    /// `superRefine`：desktop-continuous ↔ continuous，其余 ↔ replayable。
+    pub fn validate(&self) -> Result<(), &'static str> {
+        let expected = match self.client_mode {
+            V4ClientMode::DesktopContinuous => DeliveryProfile::Continuous,
+            V4ClientMode::WebRemoteReplayable => DeliveryProfile::Replayable,
+        };
+        if self.delivery_profile != expected {
+            return Err("trusted clientMode and deliveryProfile must match");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ClientKind {
+    #[serde(rename = "desktop")]
+    Desktop,
+    #[serde(rename = "web")]
+    Web,
+    #[serde(rename = "mobileRemote")]
+    MobileRemote,
+    #[serde(rename = "mobileApp")]
+    MobileApp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClientCapabilities {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_hook_review_ui: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workflow_run_deltas: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ClientHelloKind {
+    #[serde(rename = "clientHello")]
+    ClientHello,
+}
+
+/// `clientHelloSchema`（`.strict()`）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClientHello {
+    pub kind: ClientHelloKind,
+    pub protocol_version: u64,
+    pub client_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_kind: Option<ClientKind>,
+    pub app_version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<ClientCapabilities>,
+}

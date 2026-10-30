@@ -16,10 +16,48 @@ use agent_protocol::v4::{
     CommandAck, ResolveInteractionAnswer, ResolveInteractionEnvelope, ResolveInteractionPayload,
     ResolveInteractionType, V4_COMMAND_METHOD,
 };
+use agent_protocol::v4_transport::{
+    ClientHello, Compression, DeliveryProfile, HelloAuth, HelloKind, HelloMessage,
+    HostCapabilities, V4ClientMode, V4_WIRE_PROTOCOL_VERSION,
+};
+use serde_json::Value;
 
 use crate::control::{AgentControlClient, AgentWorkspaceTarget, ControlError, RuntimePolicy};
 
 static COMMAND_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+/// host 的 hello（与 TS `helloConversationV4` 的能力集一致）。
+pub fn build_host_hello(connection_id: &str) -> HelloMessage {
+    HelloMessage {
+        kind: HelloKind::Hello,
+        protocol_version: V4_WIRE_PROTOCOL_VERSION,
+        connection_id: connection_id.to_string(),
+        client_mode: V4ClientMode::DesktopContinuous,
+        delivery_profile: DeliveryProfile::Continuous,
+        server_time: serde_json::Number::from(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|duration| duration.as_millis() as u64)
+                .unwrap_or(0),
+        ),
+        capabilities: HostCapabilities {
+            native_dialogs: true,
+            local_terminal: true,
+            binary_frames: false,
+            compression: Compression::None,
+            workspace_hook_review: Some(true),
+            independent_plan_state: Some(true),
+            workflow_run_deltas: Some(true),
+        },
+        auth: HelloAuth { user_id: None },
+    }
+}
+
+/// `initializeConversationV4`：严格解析客户端 hello（未知键拒绝）。
+pub fn validate_client_hello(value: &Value) -> Result<ClientHello, ControlError> {
+    serde_json::from_value(value.clone())
+        .map_err(|error| ControlError::InvalidResult(format!("invalid clientHello: {error}")))
+}
 
 fn next_command_id() -> String {
     let now = SystemTime::now()

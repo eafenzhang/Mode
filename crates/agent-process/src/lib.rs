@@ -51,6 +51,7 @@ pub use runtime_preferences::{
     default_runtime_preferences, default_runtime_preferences_handler, runtime_preferences_handler,
     SESSION_REQUEST_RUNTIME_PREFERENCES_METHOD,
 };
+pub use v4::{build_host_hello, validate_client_hello};
 pub use v4_transport::ConversationFrameSubscription;
 pub use registry::{
     AgentRuntimeRegistry, RuntimeIdentity, SpecFactory, StorageStartupSnapshot, WorkspaceTarget,

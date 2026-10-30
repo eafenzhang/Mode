@@ -284,7 +284,8 @@ rejected/stale/failed 映射 `CommandRejected`）；`commandId`/`clientId` 目�
 capability）（5 条 + 双端夹具）。
 **v4 会话订阅已落**：`v4/conversation/subscribe` 参数/ACK 严格镜像，wire frame
 （complete/fragment + crc32）按 subscriptionId 过滤后流入；会话帧内部暂按原始 JSON
-透传（2 条 + 双端夹具）。
+透传（2 条 + 双端夹具）。**v4 握手已落**：host hello（能力位/profile 校验）与
+clientHello 严格解析（2 条）。
 **存储启动门已落**：
 state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`prepareStorage` 等待、
 `getStorageStartupState` existing-only 快照与订阅、进程代次递增；9 条测试。
@@ -295,7 +296,7 @@ state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`p
 并用本包 fixture 子进程端到端验证线格式与 revision 去重（4 + 1 条测试）。真实凭据 / OAuth /
 Family 可用性网络源仍需注入实现，属于 model-provider 域。
 **未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
-所有权切换，以及其余 82 个成员（session 其余读/写、插件/automation/workflow 等；
+所有权切换，以及其余 80 个成员（session 其余读/写、插件/automation/workflow 等；
 `IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 +
 `listSessions` + `readSessionEvents` + `listSessionSubagents` + `readSessionMessages` +
 `readSession` + `readSessionDebug` + `onDynamicSessionEvent` + `createSession` +
@@ -304,7 +305,8 @@ Family 可用性网络源仍需注入实现，属于 model-provider 域。
 `listMcpServerStatuses` + `listSavedWorkflows` + `getSavedWorkflow` +
 `listSavedWorkflowRuns` + `updateSavedWorkflowMeta` + `deleteSavedWorkflow` +
 `moveSavedWorkflow` + `listPlugins` + `describePlugin` + `getPluginsOverview` +
-`subscribeConversationV4` + `sendConversationCommandV4`（仅 resolveInteraction））。
+`helloConversationV4` + `initializeConversationV4` + `subscribeConversationV4` +
+`sendConversationCommandV4`（仅 resolveInteraction））。
 所有权切换仍是 W4 下一片，`hooks` 的 grant 与任务/会话频道都等它。
 
 ### W5 生态面替换

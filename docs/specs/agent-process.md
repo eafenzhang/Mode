@@ -205,6 +205,9 @@ v4 会话订阅：`subscribe_conversation_v4` 返回 `ConversationFrameSubscript
 （ACK + 按 subscriptionId 过滤的 complete/fragment wire frame 流）；会话帧内部按原始
 JSON 透传（待独立切片建模）。
 
+v4 握手：`build_host_hello(connectionId)`（能力位与 TS 一致、profile 校验）与
+`validate_client_hello(value)`（严格解析 clientHello）。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -298,7 +301,8 @@ close 的 persistence 与默认 true、非法写结果被拒绝。
 `crates/agent-process/tests/workflows.rs`（5 条）：list 的 scope 与清单、get 的成功/失败联合、
 runs 的 artifacts 与 limit 前置校验、updateMeta/delete/move 的参数与结果、六类非法结果。
 
-`crates/agent-process/tests/v4.rs`（2 条）：resolveInteraction 信封与 ACK、rejected 映射。
+`crates/agent-process/tests/v4.rs`（4 条）：resolveInteraction 信封与 ACK、rejected 映射、
+host hello 能力位与 round-trip、clientHello 严格解析。
 
 `crates/agent-process/tests/v4_transport.rs`（2 条）：订阅 ACK 与 complete/fragment 帧过滤、
 legacyTaskIds 超限不拉起 Agent。

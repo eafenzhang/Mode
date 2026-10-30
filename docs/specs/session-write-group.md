@@ -203,6 +203,19 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 hint；本 facade 由调用方在 `params` 里给出 `resumeThoughtLevel`。信任连接上下文
 （`connectionId` / `clientMode`）也由调用方提供，不在本层推断。
 
+## 2j. v4 连接握手
+
+- `build_host_hello(connectionId)`：与 TS `helloConversationV4` 同形——
+  `{kind:"hello", protocolVersion:3, connectionId, clientMode:"desktop-continuous",
+  deliveryProfile:"continuous", serverTime, capabilities{nativeDialogs,localTerminal,
+  binaryFrames,compression,workspaceHookReview,independentPlanState,workflowRunDeltas},
+  auth:{}}`；`validate()` 强制 clientMode 与 deliveryProfile 匹配。
+- `validate_client_hello(value)`：严格解析 `clientHello`（未知键拒绝），对应 TS
+  `initializeConversationV4`。
+
+**与 TS 的差异**：TS 用 `host-${randomUUID()}` 生成 connectionId 并维护连接级信任；
+Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、
@@ -230,3 +243,4 @@ hint；本 facade 由调用方在 `params` 里给出 `resumeThoughtLevel`。信�
     overview 的市场/可安装/已安装摘要与 capability 可读；三类非法结果有独立前缀。
 12. v4 会话订阅：ACK 的 subscriptionId/mode/openTiming 可断言；`complete` 与 `fragment`
     帧按 subscriptionId 过滤后到达；`legacyTaskIds` 超限不拉起 Agent。
+13. v4 握手：host hello 的能力位与 TS 一致并 JSON round-trip；clientHello 未知键被拒绝。

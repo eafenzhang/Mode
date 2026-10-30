@@ -119,8 +119,7 @@ async fn resolve_interaction_sends_envelope_and_returns_accepted_ack() {
 }
 
 #[tokio::test]
-async fn rejected_ack_maps_to_command_rejected() {
-    let log = FrameLog::new("rejected");
+async fn rejected_ack_maps_to_command_rejected() {    let log = FrameLog::new("rejected");
     let spawns = Arc::new(AtomicUsize::new(0));
     let client = control("v4-command-rejected", &log, spawns);
 
@@ -138,6 +137,50 @@ async fn rejected_ack_maps_to_command_rejected() {
             assert!(message.contains("resolveInteraction rejected"), "{message}");
             assert!(message.contains("fault.command.rejected"), "{message}");
             assert!(message.contains("denied"), "{message}");
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[test]
+fn host_hello_matches_ts_capabilities_and_round_trips() {
+    use agent_protocol::v4_transport::{DeliveryProfile, HelloMessage};
+
+    let hello = agent_process::build_host_hello("conn-1");
+    hello.validate().unwrap();
+    assert_eq!(hello.protocol_version, 3);
+    assert_eq!(hello.client_mode, agent_protocol::v4_transport::V4ClientMode::DesktopContinuous);
+    assert_eq!(hello.delivery_profile, DeliveryProfile::Continuous);
+    assert_eq!(hello.capabilities.workflow_run_deltas, Some(true));
+    assert!(!hello.capabilities.binary_frames);
+
+    let value = serde_json::to_value(&hello).unwrap();
+    let parsed: HelloMessage = serde_json::from_value(value).unwrap();
+    assert_eq!(parsed, hello);
+}
+
+#[test]
+fn client_hello_is_strict() {
+    let valid = serde_json::json!({
+        "kind": "clientHello",
+        "protocolVersion": 3,
+        "clientId": "c1",
+        "appVersion": "1.0"
+    });
+    let parsed = agent_process::validate_client_hello(&valid).unwrap();
+    assert_eq!(parsed.client_id, "c1");
+
+    let invalid = serde_json::json!({
+        "kind": "clientHello",
+        "protocolVersion": 3,
+        "clientId": "c1",
+        "appVersion": "1.0",
+        "unexpected": true
+    });
+    let error = agent_process::validate_client_hello(&invalid).unwrap_err();
+    match error {
+        ControlError::InvalidResult(message) => {
+            assert!(message.contains("invalid clientHello"), "{message}");
         }
         other => panic!("unexpected error: {other:?}"),
     }
