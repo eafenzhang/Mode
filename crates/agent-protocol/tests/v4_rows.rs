@@ -158,3 +158,91 @@ fn unknown_row_keys_are_ignored_like_zod_strip() {
     let parsed: AssistantTextRow = serde_json::from_value(value).unwrap();
     assert_eq!(parsed.text, "x");
 }
+
+#[test]
+fn tool_call_round_trips_with_output_progress_and_preview() {
+    use agent_protocol::v4_rows::{ToolCallRow, ToolCallStatus};
+
+    let value = json!({
+        "rowId": 6,
+        "turnId": "turn-1",
+        "createdAt": 1700000000000u64,
+        "createdAtSeq": 8,
+        "kind": "toolCall",
+        "assistantResponseId": "resp-1",
+        "toolCallId": "call-1",
+        "toolName": "Bash",
+        "status": "running",
+        "inputText": "{\"command\":\"ls\"}",
+        "input": { "command": "ls" },
+        "cuaApp": { "pid": 42, "name": "Finder", "bundleId": "com.apple.finder" },
+        "output": {
+            "text": "a.txt",
+            "display": { "kind": "anything" },
+            "truncated": { "totalBytes": 10, "ref": "ref-1" }
+        },
+        "display": { "kind": "node_repl_images" },
+        "error": { "code": "E1", "message": "boom" },
+        "progress": { "bytes": 12, "previewLine": "a", "updatedAt": 1700000000001u64 },
+        "outputPreview": {
+            "text": "a",
+            "fullText": "abc",
+            "totalLines": 1,
+            "totalBytes": 3,
+            "linesEstimated": false
+        },
+        "approvalInteractionId": "perm-1",
+        "backgrounded": true,
+        "workId": "work-1",
+        "startedAt": 1700000000002u64,
+        "endedAt": 1700000000003u64
+    });
+    let row: ToolCallRow = round_trip(&value);
+    assert_eq!(row.status, ToolCallStatus::Running);
+    assert_eq!(row.output.as_ref().unwrap().text, "a.txt");
+    assert!(row.output_preview.is_some());
+}
+
+#[test]
+fn artifact_and_subagent_rows_round_trip() {
+    use agent_protocol::v4_rows::{ArtifactRow, ConversationArtifactType, SubagentRow};
+
+    let artifact = json!({
+        "rowId": 7,
+        "turnId": "turn-1",
+        "createdAt": 1700000000000u64,
+        "createdAtSeq": 9,
+        "kind": "artifact",
+        "artifactVersionId": "v1",
+        "logicalArtifactKey": "report",
+        "displayName": "报告",
+        "artifactType": "pdf",
+        "mimeType": "application/pdf",
+        "sizeBytes": 12,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "ref": "artifact-ref",
+        "state": "current"
+    });
+    let row: ArtifactRow = round_trip(&artifact);
+    assert_eq!(row.artifact_type, ConversationArtifactType::Pdf);
+
+    let subagent = json!({
+        "rowId": 8,
+        "turnId": "turn-1",
+        "createdAt": 1700000000000u64,
+        "createdAtSeq": 10,
+        "kind": "subagent",
+        "parentToolCallId": "call-1",
+        "subagentType": "explore",
+        "status": "success",
+        "summaryText": "完成",
+        "childSessionId": "sess-child",
+        "backgrounded": true,
+        "workId": "work-1",
+        "startedAt": 1700000000001u64,
+        "endedAt": 1700000000002u64
+    });
+    let row: SubagentRow = round_trip(&subagent);
+    assert_eq!(row.summary_text, "完成");
+    assert!(row.backgrounded.is_some());
+}

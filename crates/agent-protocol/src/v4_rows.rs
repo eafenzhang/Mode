@@ -364,3 +364,210 @@ pub struct ReasoningRow {
     pub duration_ms: Option<Number>,
 }
 
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolOutputTruncated {
+    pub total_bytes: Number,
+    pub r#ref: String,
+}
+
+/// `toolOutputSchema`；`display` 在 TS 里是 `.catch(undefined)`，这里保持原始 JSON。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolOutput {
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<ToolOutputTruncated>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolProgress {
+    pub bytes: Number,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview_line: Option<String>,
+    pub updated_at: Number,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutionOutputPreview {
+    pub text: String,
+    pub full_text: String,
+    pub total_lines: u64,
+    pub total_bytes: u64,
+    pub lines_estimated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CuaAppIdentity {
+    pub pid: u64,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bundle_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolCallStatus {
+    #[serde(rename = "inputStreaming")]
+    InputStreaming,
+    #[serde(rename = "pendingApproval")]
+    PendingApproval,
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "success")]
+    Success,
+    #[serde(rename = "error")]
+    Error,
+    #[serde(rename = "cancelled")]
+    Cancelled,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolCallError {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolCallKind {
+    #[serde(rename = "toolCall")]
+    ToolCall,
+}
+
+/// `toolCallRowSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolCallRow {
+    #[serde(flatten)]
+    pub base: RowBase,
+    pub kind: ToolCallKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assistant_response_id: Option<String>,
+    pub tool_call_id: String,
+    pub tool_name: String,
+    pub status: ToolCallStatus,
+    pub input_text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cua_app: Option<CuaAppIdentity>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<ToolOutput>,
+    /// TS 的 `toolCallDisplaySchema.optional().catch(undefined)`：解析失败只丢这张卡。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<ToolCallError>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<ToolProgress>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_preview: Option<ExecutionOutputPreview>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval_interaction_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backgrounded: Option<LiteralTrue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<Number>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended_at: Option<Number>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConversationArtifactType {
+    #[serde(rename = "pdf")]
+    Pdf,
+    #[serde(rename = "pptx")]
+    Pptx,
+    #[serde(rename = "docx")]
+    Docx,
+    #[serde(rename = "xlsx")]
+    Xlsx,
+    #[serde(rename = "image")]
+    Image,
+    #[serde(rename = "html")]
+    Html,
+    #[serde(rename = "md")]
+    Md,
+    #[serde(rename = "text")]
+    Text,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ArtifactRowKind {
+    #[serde(rename = "artifact")]
+    Artifact,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ArtifactState {
+    #[serde(rename = "current")]
+    Current,
+}
+
+/// `artifactRowSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactRow {
+    #[serde(flatten)]
+    pub base: RowBase,
+    pub kind: ArtifactRowKind,
+    pub artifact_version_id: String,
+    pub logical_artifact_key: String,
+    pub display_name: String,
+    pub artifact_type: ConversationArtifactType,
+    pub mime_type: String,
+    pub size_bytes: u64,
+    pub sha256: String,
+    pub r#ref: String,
+    pub state: ArtifactState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SubagentStatus {
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "success")]
+    Success,
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "cancelled")]
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SubagentRowKind {
+    #[serde(rename = "subagent")]
+    Subagent,
+}
+
+/// `subagentRowSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubagentRow {
+    #[serde(flatten)]
+    pub base: RowBase,
+    pub kind: SubagentRowKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_tool_call_id: Option<String>,
+    pub subagent_type: String,
+    pub status: SubagentStatus,
+    pub summary_text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child_session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backgrounded: Option<LiteralTrue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<Number>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended_at: Option<Number>,
+}

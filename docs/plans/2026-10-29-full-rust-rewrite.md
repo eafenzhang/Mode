@@ -288,6 +288,8 @@ capability）（5 条 + 双端夹具）。
 clientHello 严格解析（2 条）。**v4 会话行第一批已落**：`RowBase` +
 turnHeader/userInput/assistantText/reasoning，未知键按 zod strip 语义忽略，
 `workflowNotification`/`display`/`amend` 暂按原始 JSON（4 条 round-trip 测试）。
+**v4 会话行第二批已落**：`toolCall`（output/progress/outputPreview/cuaApp）、`artifact`、
+`subagent`（2 条 round-trip 测试）。
 **存储启动门已落**：
 state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`prepareStorage` 等待、
 `getStorageStartupState` existing-only 快照与订阅、进程代次递增；9 条测试。

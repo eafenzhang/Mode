@@ -229,10 +229,16 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
   （`display`/`amend` 暂按原始 JSON）。
 - `userInput`：origin、epilogueStart、guided、command 归因、附件引用。
 - `assistantText` / `reasoning`：`state` 枚举、assistantResponseId、feedback / durationMs。
+- `toolCall`：状态六值、`inputText`/`input`、`cuaApp`、`output{text,display?,truncated?}`、
+  `progress`、`outputPreview`、`error{code,message}`、`approvalInteractionId`、
+  `backgrounded`/`workId` 与起止时间。`display` 在 TS 里是 `.catch(undefined)`，
+  这里保持原始 JSON。
+- `artifact`：版本/逻辑键/展示名/类型（8 值）/mime/字节数/sha256/ref/state。
+- `subagent`：父 toolCall、类型、状态四值、summary、childSessionId、后台归属。
 - 行动作 `canFork/canEdit/canRetry/canRewindFiles` 用 `LiteralTrue` 保持「只发 true」的形状。
 
-**未做**：`toolCall` / `artifact` / `subagent` / `hookInvocation` / `timelineMarker` 与
-行联合 `ConversationRow`、`conversationSnapshot` / `conversationDelta`。
+**未做**：`hookInvocation` / `timelineMarker` 与行联合 `ConversationRow`、
+`conversationSnapshot` / `conversationDelta`。
 
 ## 3. 验收
 
@@ -263,3 +269,5 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
     帧按 subscriptionId 过滤后到达；`legacyTaskIds` 超限不拉起 Agent。
 13. v4 握手：host hello 的能力位与 TS 一致并 JSON round-trip；clientHello 未知键被拒绝。
 14. v4 行（第一批）：四种行 JSON round-trip；未知键按 zod 的 strip 语义被忽略。
+15. v4 行（第二批）：toolCall（output/progress/outputPreview）、artifact、subagent 各自
+    round-trip。
