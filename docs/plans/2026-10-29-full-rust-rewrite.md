@@ -228,6 +228,13 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 工具注册表补全 → `agent_runtime: rust | node` 双跑 → parity matrix 单真源 → 翻转 →
 删除 `mode-cli` 的 TS 运行时。**硬前置不变**：对拍矩阵全绿 + 20 个真实模型端到端任务。
 
+**2026-10-29 前置开工**：`crates/mode-protocol-client` 已完成协议内核——任意双向流上的
+LF 分帧（只认 `\n`，U+2028/U+2029 不切帧）、请求 id 多路复用、单请求超时（默认 180s）、
+通知广播、入站请求默认 `-32601`、EOF/dispose 统一失败 pending；7 条单元测试，见
+`docs/specs/mode-protocol-client.md`。**未做**：进程拉起/进程树清理/stderr 收集、
+存储启动门、观测续期语义。这些决定「谁拥有 Agent 进程」（壳 vs Node Host），是 W4 的
+核心架构选择；`hooks` 的 `grantWorkspaceHookTrust` 与任务/会话频道都等这一层落地。
+
 ### W5 生态面替换
 
 - **IM 四通道 Rust 自实现**（飞书/企微/钉钉/微信，HTTP + WS）：不再复用 SDK，
