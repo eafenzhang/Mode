@@ -3,6 +3,17 @@
 version = 4
 
 [[package]]
+name = "account-provider-overlay"
+version = "0.1.0"
+dependencies = [
+ "indexmap 2.14.2",
+ "provider-config",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

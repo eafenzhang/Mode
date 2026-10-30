@@ -1,0 +1,20 @@
+[package]
+name = "account-provider-overlay"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "账号层 Provider Config Overlay（连接解析/状态投影/revision），对应 @mode/provider 与 model-provider 账号解析"
+
+[lib]
+name = "account_provider_overlay"
+path = "src/lib.rs"
+
+[dependencies]
+provider-config = { path = "../provider-config" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+indexmap = { version = "2", features = ["serde"] }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

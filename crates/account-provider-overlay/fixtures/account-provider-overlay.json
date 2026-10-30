@@ -1,0 +1,1464 @@
+{
+  "version": 1,
+  "generatedBy": "scripts/generate-account-provider-overlay-fixtures.ts",
+  "configRevision": "builtin:fixture-rev",
+  "scenarios": [
+    {
+      "name": "status-matrix-and-family-grouping",
+      "steps": [
+        {
+          "configured": [
+            {
+              "providerId": "zai-start",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "start-plan"
+                }
+              }
+            },
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            },
+            {
+              "providerId": "zai-team",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "team-coding-plan"
+                }
+              }
+            },
+            {
+              "providerId": "zai-offpeak",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "off-peak"
+                }
+              }
+            },
+            {
+              "providerId": "bm-start",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "bigmodel",
+                  "mode": "start-plan"
+                }
+              }
+            },
+            {
+              "providerId": "bm-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "bigmodel",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "previous": [],
+          "settings": [
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "individual-coding-plan"
+                },
+                "bigmodel": {
+                  "kind": "team-coding-plan",
+                  "productId": "product-bm",
+                  "organizationId": "org-bm",
+                  "projectId": "project-bm"
+                }
+              }
+            }
+          ],
+          "identities": {
+            "zai": [
+              "zai-user"
+            ],
+            "bigmodel": [
+              "bm-user"
+            ]
+          },
+          "apiKeys": {
+            "zai-start": [
+              "start-key"
+            ],
+            "zai-individual": [
+              "individual-key"
+            ],
+            "bm-start": [
+              "bm-start-key"
+            ],
+            "bm-individual": [
+              "bm-individual-key"
+            ]
+          },
+          "availability": {
+            "zai": [
+              {
+                "zai-start": {
+                  "result": {
+                    "kind": "available"
+                  }
+                },
+                "zai-individual": {
+                  "result": {
+                    "kind": "available",
+                    "models": [
+                      "glm-4",
+                      "glm-4-air"
+                    ]
+                  }
+                },
+                "zai-team": {
+                  "result": {
+                    "kind": "pending",
+                    "effectiveAt": 123,
+                    "models": [
+                      "t1"
+                    ]
+                  }
+                }
+              }
+            ],
+            "bigmodel": [
+              {
+                "bm-start": {
+                  "result": {
+                    "kind": "unavailable",
+                    "reason": "coding_plan_not_entitled"
+                  }
+                }
+              }
+            ]
+          },
+          "reasons": []
+        }
+      ],
+      "expect": [
+        {
+          "connections": "[{\"providerId\":\"zai-start\",\"status\":\"available\",\"current\":true,\"connectionKey\":\"b6a0d6235750e2301776802c29ef4b9bb4cfbad0f6e33d9d4bc150f73bb37043\"},{\"providerId\":\"zai-individual\",\"status\":\"available\",\"current\":true,\"connectionKey\":\"c68744fb3d012e116d9c57f943a181b0fcca75863ff3648bb1b808115ac1fada\",\"models\":[\"glm-4\",\"glm-4-air\"]},{\"providerId\":\"zai-team\",\"status\":\"pending\",\"current\":false,\"connectionKey\":\"c68744fb3d012e116d9c57f943a181b0fcca75863ff3648bb1b808115ac1fada\",\"models\":[\"t1\"],\"effectiveAt\":123},{\"providerId\":\"zai-offpeak\",\"status\":\"available\"},{\"providerId\":\"bm-start\",\"status\":\"unavailable\",\"unavailableReason\":\"not-entitled\",\"current\":false,\"connectionKey\":\"f3a03d104e4c35f07fabd054bdf369af36b1b8ee53a41d862b906566e29d8e98\"},{\"providerId\":\"bm-individual\",\"status\":\"unknown\",\"current\":false,\"connectionKey\":\"3d9964728839c7f6eabebc3f9c0f71bcc8aabe8c8939af7bc2b375740b0d9a15\"}]",
+          "providers": "[{\"providerId\":\"zai-start\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true},\"builtinModelIds\":[]}},{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}},{\"providerId\":\"zai-team\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}},{\"providerId\":\"zai-offpeak\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}},{\"providerId\":\"bm-start\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}},{\"providerId\":\"bm-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}]",
+          "states": "{\"zai-start\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"b6a0d6235750e2301776802c29ef4b9bb4cfbad0f6e33d9d4bc150f73bb37043\"},\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"c68744fb3d012e116d9c57f943a181b0fcca75863ff3648bb1b808115ac1fada\"},\"zai-team\":{\"availability\":\"pending\",\"entitled\":false,\"current\":false,\"connectionKey\":\"c68744fb3d012e116d9c57f943a181b0fcca75863ff3648bb1b808115ac1fada\",\"effectiveAt\":123},\"zai-offpeak\":{\"availability\":\"available\",\"entitled\":true},\"bm-start\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-entitled\",\"current\":false,\"connectionKey\":\"f3a03d104e4c35f07fabd054bdf369af36b1b8ee53a41d862b906566e29d8e98\"},\"bm-individual\":{\"availability\":\"unknown\",\"entitled\":false,\"current\":false,\"connectionKey\":\"3d9964728839c7f6eabebc3f9c0f71bcc8aabe8c8939af7bc2b375740b0d9a15\"}}",
+          "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-start\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true},\"builtinModelIds\":[]}},{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}},{\"providerId\":\"zai-team\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}},{\"providerId\":\"zai-offpeak\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}},{\"providerId\":\"bm-start\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}},{\"providerId\":\"bm-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}],{\"zai-start\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"b6a0d6235750e2301776802c29ef4b9bb4cfbad0f6e33d9d4bc150f73bb37043\"},\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"c68744fb3d012e116d9c57f943a181b0fcca75863ff3648bb1b808115ac1fada\"},\"zai-team\":{\"availability\":\"pending\",\"entitled\":false,\"current\":false,\"connectionKey\":\"c68744fb3d012e116d9c57f943a181b0fcca75863ff3648bb1b808115ac1fada\",\"effectiveAt\":123},\"zai-offpeak\":{\"availability\":\"available\",\"entitled\":true},\"bm-start\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-entitled\",\"current\":false,\"connectionKey\":\"f3a03d104e4c35f07fabd054bdf369af36b1b8ee53a41d862b906566e29d8e98\"},\"bm-individual\":{\"availability\":\"unknown\",\"entitled\":false,\"current\":false,\"connectionKey\":\"3d9964728839c7f6eabebc3f9c0f71bcc8aabe8c8939af7bc2b375740b0d9a15\"}}]",
+          "calls": "{\"settings\":2,\"identities\":[[\"zai\",\"zai-user\"],[\"bigmodel\",\"bm-user\"],[\"zai\",\"zai-user\"],[\"bigmodel\",\"bm-user\"]],\"apiKeys\":[[\"zai-start\",\"zai\",\"zai-user\",false],[\"zai-individual\",\"zai\",\"zai-user\",false],[\"bm-start\",\"bigmodel\",\"bm-user\",false],[\"bm-individual\",\"bigmodel\",\"bm-user\",false]],\"availability\":[{\"family\":\"zai\",\"providers\":[{\"providerId\":\"zai-start\",\"family\":\"zai\",\"planKind\":\"start-plan\",\"apiKey\":\"start-key\"},{\"providerId\":\"zai-individual\",\"family\":\"zai\",\"planKind\":\"individual-coding-plan\",\"apiKey\":\"individual-key\"},{\"providerId\":\"zai-team\",\"family\":\"zai\",\"planKind\":\"team-coding-plan\",\"apiKey\":null}]},{\"family\":\"bigmodel\",\"providers\":[{\"providerId\":\"bm-start\",\"family\":\"bigmodel\",\"planKind\":\"start-plan\",\"apiKey\":\"bm-start-key\"},{\"providerId\":\"bm-individual\",\"family\":\"bigmodel\",\"planKind\":\"individual-coding-plan\",\"apiKey\":\"bm-individual-key\"}]}]}",
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "off-peak-no-match-and-team-key",
+      "steps": [
+        {
+          "configured": [
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            },
+            {
+              "providerId": "zai-team",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "team-coding-plan"
+                }
+              }
+            },
+            {
+              "providerId": "zai-offpeak",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "off-peak"
+                }
+              }
+            }
+          ],
+          "previous": [],
+          "settings": [
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "team-coding-plan",
+                  "productId": "product-1",
+                  "organizationId": "org-1",
+                  "projectId": "project-1"
+                }
+              }
+            }
+          ],
+          "identities": {
+            "zai": [
+              "zai-user"
+            ]
+          },
+          "apiKeys": {
+            "zai-individual": [
+              "individual-key"
+            ]
+          },
+          "availability": {
+            "zai": [
+              {
+                "zai-individual": {
+                  "result": {
+                    "kind": "available",
+                    "models": [
+                      "glm-4"
+                    ]
+                  }
+                },
+                "zai-team": {
+                  "result": {
+                    "kind": "unavailable",
+                    "reason": "coding_plan_not_connected"
+                  }
+                }
+              }
+            ]
+          },
+          "reasons": [
+            "settings:oauth-login-entitlement"
+          ]
+        },
+        {
+          "configured": [
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            },
+            {
+              "providerId": "zai-team",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "team-coding-plan"
+                }
+              }
+            },
+            {
+              "providerId": "zai-offpeak",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "off-peak"
+                }
+              }
+            }
+          ],
+          "previous": [],
+          "settings": [
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "team-coding-plan",
+                  "productId": "product-1",
+                  "organizationId": "org-1",
+                  "projectId": "project-1"
+                }
+              }
+            }
+          ],
+          "identities": {
+            "zai": [
+              "zai-user"
+            ]
+          },
+          "apiKeys": {
+            "zai-individual": [
+              "individual-key"
+            ]
+          },
+          "availability": {
+            "zai": [
+              {
+                "zai-individual": {
+                  "result": {
+                    "kind": "available",
+                    "models": [
+                      "glm-4"
+                    ]
+                  }
+                },
+                "zai-team": {
+                  "result": {
+                    "kind": "unavailable",
+                    "reason": "coding_plan_not_connected"
+                  }
+                }
+              }
+            ]
+          },
+          "reasons": [
+            "explicit"
+          ]
+        }
+      ],
+      "expect": [
+        {
+          "connections": "[{\"providerId\":\"zai-individual\",\"status\":\"available\",\"current\":false,\"connectionKey\":\"d24bc3f952c878bf045c92bdb9d807cac1559162fa0f07d0728afb1357fc0234\",\"models\":[\"glm-4\"]},{\"providerId\":\"zai-team\",\"status\":\"unavailable\",\"unavailableReason\":\"not-connected\",\"current\":true,\"connectionKey\":\"d24bc3f952c878bf045c92bdb9d807cac1559162fa0f07d0728afb1357fc0234\"},{\"providerId\":\"zai-offpeak\",\"status\":\"unavailable\"}]",
+          "providers": "[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}},{\"providerId\":\"zai-team\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}},{\"providerId\":\"zai-offpeak\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}]",
+          "states": "{\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"current\":false,\"connectionKey\":\"d24bc3f952c878bf045c92bdb9d807cac1559162fa0f07d0728afb1357fc0234\"},\"zai-team\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-connected\",\"current\":true,\"connectionKey\":\"d24bc3f952c878bf045c92bdb9d807cac1559162fa0f07d0728afb1357fc0234\"},\"zai-offpeak\":{\"availability\":\"unavailable\",\"entitled\":false}}",
+          "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}},{\"providerId\":\"zai-team\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}},{\"providerId\":\"zai-offpeak\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}],{\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"current\":false,\"connectionKey\":\"d24bc3f952c878bf045c92bdb9d807cac1559162fa0f07d0728afb1357fc0234\"},\"zai-team\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-connected\",\"current\":true,\"connectionKey\":\"d24bc3f952c878bf045c92bdb9d807cac1559162fa0f07d0728afb1357fc0234\"},\"zai-offpeak\":{\"availability\":\"unavailable\",\"entitled\":false}}]",
+          "calls": "{\"settings\":2,\"identities\":[[\"zai\",\"zai-user\"],[\"zai\",\"zai-user\"]],\"apiKeys\":[[\"zai-individual\",\"zai\",\"zai-user\",true]],\"availability\":[{\"family\":\"zai\",\"providers\":[{\"providerId\":\"zai-individual\",\"family\":\"zai\",\"planKind\":\"individual-coding-plan\",\"apiKey\":\"individual-key\"},{\"providerId\":\"zai-team\",\"family\":\"zai\",\"planKind\":\"team-coding-plan\",\"apiKey\":null}]}]}",
+          "error": null
+        },
+        {
+          "connections": "[{\"providerId\":\"zai-individual\",\"status\":\"available\",\"current\":false,\"connectionKey\":\"d24bc3f952c878bf045c92bdb9d807cac1559162fa0f07d0728afb1357fc0234\",\"models\":[\"glm-4\"]},{\"providerId\":\"zai-team\",\"status\":\"unavailable\",\"unavailableReason\":\"not-connected\",\"current\":true,\"connectionKey\":\"d24bc3f952c878bf045c92bdb9d807cac1559162fa0f07d0728afb1357fc0234\"},{\"providerId\":\"zai-offpeak\",\"status\":\"unavailable\"}]",
+          "providers": "[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}},{\"providerId\":\"zai-team\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}},{\"providerId\":\"zai-offpeak\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}]",
+          "states": "{\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"current\":false,\"connectionKey\":\"d24bc3f952c878bf045c92bdb9d807cac1559162fa0f07d0728afb1357fc0234\"},\"zai-team\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-connected\",\"current\":true,\"connectionKey\":\"d24bc3f952c878bf045c92bdb9d807cac1559162fa0f07d0728afb1357fc0234\"},\"zai-offpeak\":{\"availability\":\"unavailable\",\"entitled\":false}}",
+          "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}},{\"providerId\":\"zai-team\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}},{\"providerId\":\"zai-offpeak\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}],{\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"current\":false,\"connectionKey\":\"d24bc3f952c878bf045c92bdb9d807cac1559162fa0f07d0728afb1357fc0234\"},\"zai-team\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-connected\",\"current\":true,\"connectionKey\":\"d24bc3f952c878bf045c92bdb9d807cac1559162fa0f07d0728afb1357fc0234\"},\"zai-offpeak\":{\"availability\":\"unavailable\",\"entitled\":false}}]",
+          "calls": "{\"settings\":2,\"identities\":[[\"zai\",\"zai-user\"],[\"zai\",\"zai-user\"]],\"apiKeys\":[[\"zai-individual\",\"zai\",\"zai-user\",false]],\"availability\":[{\"family\":\"zai\",\"providers\":[{\"providerId\":\"zai-individual\",\"family\":\"zai\",\"planKind\":\"individual-coding-plan\",\"apiKey\":\"individual-key\"},{\"providerId\":\"zai-team\",\"family\":\"zai\",\"planKind\":\"team-coding-plan\",\"apiKey\":null}]}]}",
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "unresolved-families-and-no-identity",
+      "steps": [
+        {
+          "configured": [
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            },
+            {
+              "providerId": "zai-start",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "start-plan"
+                }
+              }
+            },
+            {
+              "providerId": "bm-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "bigmodel",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "previous": [],
+          "settings": [
+            {
+              "providerFamilyDomain": null,
+              "selections": {},
+              "unresolvedFamilies": [
+                "zai"
+              ]
+            }
+          ],
+          "identities": {
+            "zai": [
+              null
+            ],
+            "bigmodel": [
+              null
+            ]
+          },
+          "availability": {
+            "zai": [
+              {
+                "zai-start": {
+                  "result": {
+                    "kind": "available"
+                  }
+                }
+              }
+            ],
+            "bigmodel": [
+              {
+                "bm-individual": {
+                  "result": {
+                    "kind": "available"
+                  }
+                }
+              }
+            ]
+          },
+          "reasons": []
+        },
+        {
+          "configured": [
+            {
+              "providerId": "bm-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "bigmodel",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "previous": [],
+          "settings": [
+            {
+              "providerFamilyDomain": null,
+              "selections": {}
+            }
+          ],
+          "identities": {
+            "bigmodel": [
+              null
+            ]
+          },
+          "availability": {
+            "bigmodel": [
+              {
+                "bm-individual": {
+                  "result": {
+                    "kind": "available"
+                  }
+                }
+              }
+            ]
+          },
+          "reasons": []
+        }
+      ],
+      "expect": [
+        {
+          "connections": "[{\"providerId\":\"zai-individual\",\"status\":\"unknown\",\"current\":false,\"connectionKey\":\"41717a7a173a5e88981ed3b30d6c754715277dce3b302a8e7b1386cdf57b9b4c\"},{\"providerId\":\"zai-start\",\"status\":\"unavailable\",\"unavailableReason\":\"not-connected\",\"current\":false,\"connectionKey\":\"b20a8f39ea1865b9bdbc4f21e0774500034895a93cdf0c737917b6532ebedcea\"},{\"providerId\":\"bm-individual\",\"status\":\"unavailable\",\"unavailableReason\":\"not-connected\",\"current\":false,\"connectionKey\":\"145736c8450a04bf4ba21aee47794f53d87ea79c5dc4cc5b9f27fbf5b6038d53\"}]",
+          "providers": "[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}},{\"providerId\":\"zai-start\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}},{\"providerId\":\"bm-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}]",
+          "states": "{\"zai-individual\":{\"availability\":\"unknown\",\"entitled\":false,\"current\":false,\"connectionKey\":\"41717a7a173a5e88981ed3b30d6c754715277dce3b302a8e7b1386cdf57b9b4c\"},\"zai-start\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-connected\",\"current\":false,\"connectionKey\":\"b20a8f39ea1865b9bdbc4f21e0774500034895a93cdf0c737917b6532ebedcea\"},\"bm-individual\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-connected\",\"current\":false,\"connectionKey\":\"145736c8450a04bf4ba21aee47794f53d87ea79c5dc4cc5b9f27fbf5b6038d53\"}}",
+          "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}},{\"providerId\":\"zai-start\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}},{\"providerId\":\"bm-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}],{\"zai-individual\":{\"availability\":\"unknown\",\"entitled\":false,\"current\":false,\"connectionKey\":\"41717a7a173a5e88981ed3b30d6c754715277dce3b302a8e7b1386cdf57b9b4c\"},\"zai-start\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-connected\",\"current\":false,\"connectionKey\":\"b20a8f39ea1865b9bdbc4f21e0774500034895a93cdf0c737917b6532ebedcea\"},\"bm-individual\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-connected\",\"current\":false,\"connectionKey\":\"145736c8450a04bf4ba21aee47794f53d87ea79c5dc4cc5b9f27fbf5b6038d53\"}}]",
+          "calls": "{\"settings\":2,\"identities\":[[\"zai\",null],[\"bigmodel\",null],[\"zai\",null],[\"bigmodel\",null]],\"apiKeys\":[],\"availability\":[]}",
+          "error": null
+        },
+        {
+          "connections": "[{\"providerId\":\"bm-individual\",\"status\":\"unavailable\",\"unavailableReason\":\"not-connected\",\"current\":false,\"connectionKey\":\"145736c8450a04bf4ba21aee47794f53d87ea79c5dc4cc5b9f27fbf5b6038d53\"}]",
+          "providers": "[{\"providerId\":\"bm-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}]",
+          "states": "{\"bm-individual\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-connected\",\"current\":false,\"connectionKey\":\"145736c8450a04bf4ba21aee47794f53d87ea79c5dc4cc5b9f27fbf5b6038d53\"}}",
+          "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"bm-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}],{\"bm-individual\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-connected\",\"current\":false,\"connectionKey\":\"145736c8450a04bf4ba21aee47794f53d87ea79c5dc4cc5b9f27fbf5b6038d53\"}}]",
+          "calls": "{\"settings\":2,\"identities\":[[\"bigmodel\",null],[\"bigmodel\",null]],\"apiKeys\":[],\"availability\":[]}",
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "api-key-throw-folds-to-null",
+      "steps": [
+        {
+          "configured": [
+            {
+              "providerId": "zai-start",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "start-plan"
+                }
+              }
+            },
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "previous": [],
+          "settings": [
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "identities": {
+            "zai": [
+              "zai-user"
+            ]
+          },
+          "apiKeys": {
+            "zai-start": [
+              "<throw>"
+            ],
+            "zai-individual": [
+              "individual-key"
+            ]
+          },
+          "availability": {
+            "zai": [
+              {
+                "zai-start": {
+                  "apiKeysAsModels": true
+                },
+                "zai-individual": {
+                  "apiKeysAsModels": true
+                }
+              }
+            ]
+          },
+          "reasons": []
+        }
+      ],
+      "expect": [
+        {
+          "connections": "[{\"providerId\":\"zai-start\",\"status\":\"available\",\"current\":true,\"connectionKey\":\"b6a0d6235750e2301776802c29ef4b9bb4cfbad0f6e33d9d4bc150f73bb37043\",\"models\":[\"null\"]},{\"providerId\":\"zai-individual\",\"status\":\"available\",\"current\":true,\"connectionKey\":\"c68744fb3d012e116d9c57f943a181b0fcca75863ff3648bb1b808115ac1fada\",\"models\":[\"individual-key\"]}]",
+          "providers": "[{\"providerId\":\"zai-start\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true},\"builtinModelIds\":[\"null\"]}},{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}}]",
+          "states": "{\"zai-start\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"b6a0d6235750e2301776802c29ef4b9bb4cfbad0f6e33d9d4bc150f73bb37043\"},\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"c68744fb3d012e116d9c57f943a181b0fcca75863ff3648bb1b808115ac1fada\"}}",
+          "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-start\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true},\"builtinModelIds\":[\"null\"]}},{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}}],{\"zai-start\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"b6a0d6235750e2301776802c29ef4b9bb4cfbad0f6e33d9d4bc150f73bb37043\"},\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"c68744fb3d012e116d9c57f943a181b0fcca75863ff3648bb1b808115ac1fada\"}}]",
+          "calls": "{\"settings\":2,\"identities\":[[\"zai\",\"zai-user\"],[\"zai\",\"zai-user\"]],\"apiKeys\":[[\"zai-start\",\"zai\",\"zai-user\",false],[\"zai-individual\",\"zai\",\"zai-user\",false]],\"availability\":[{\"family\":\"zai\",\"providers\":[{\"providerId\":\"zai-start\",\"family\":\"zai\",\"planKind\":\"start-plan\",\"apiKey\":null},{\"providerId\":\"zai-individual\",\"family\":\"zai\",\"planKind\":\"individual-coding-plan\",\"apiKey\":\"individual-key\"}]}]}",
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "reset-previous-and-last-known-good",
+      "steps": [
+        {
+          "configured": [
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "previous": [],
+          "settings": [
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "identities": {
+            "zai": [
+              "user-a"
+            ]
+          },
+          "apiKeys": {
+            "zai-individual": [
+              "key-a"
+            ]
+          },
+          "availability": {
+            "zai": [
+              {
+                "zai-individual": {
+                  "result": {
+                    "kind": "unavailable",
+                    "reason": "coding_plan_not_entitled"
+                  }
+                }
+              }
+            ]
+          },
+          "reasons": []
+        },
+        {
+          "configured": [
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "previous": [
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "entitled": true
+                },
+                "builtinModelIds": [
+                  "old-model"
+                ]
+              }
+            }
+          ],
+          "settings": [
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "identities": {
+            "zai": [
+              "user-b"
+            ]
+          },
+          "apiKeys": {
+            "zai-individual": [
+              "key-b"
+            ]
+          },
+          "availability": {
+            "zai": [
+              {}
+            ]
+          },
+          "previousStates": {
+            "zai-individual": {
+              "availability": "available",
+              "entitled": true,
+              "unavailableReason": "not-entitled",
+              "current": true,
+              "connectionKey": "old-key",
+              "effectiveAt": 7
+            }
+          },
+          "reasons": []
+        },
+        {
+          "configured": [
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "previous": [
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "entitled": true
+                },
+                "builtinModelIds": [
+                  "old-model"
+                ]
+              }
+            }
+          ],
+          "settings": [
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "identities": {
+            "zai": [
+              "user-b"
+            ]
+          },
+          "apiKeys": {
+            "zai-individual": [
+              "key-b"
+            ]
+          },
+          "availability": {
+            "zai": [
+              {}
+            ]
+          },
+          "previousStates": {
+            "zai-individual": {
+              "availability": "available",
+              "entitled": true,
+              "unavailableReason": "not-entitled",
+              "current": true,
+              "connectionKey": "old-key",
+              "effectiveAt": 9
+            }
+          },
+          "reasons": []
+        },
+        {
+          "configured": [
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "previous": [
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "entitled": true
+                },
+                "builtinModelIds": [
+                  "old-model"
+                ]
+              }
+            }
+          ],
+          "settings": [
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "identities": {
+            "zai": [
+              "user-c"
+            ]
+          },
+          "apiKeys": {
+            "zai-individual": [
+              "key-c"
+            ]
+          },
+          "availability": {
+            "zai": [
+              {
+                "zai-individual": {
+                  "result": {
+                    "kind": "available"
+                  }
+                }
+              }
+            ]
+          },
+          "previousStates": {
+            "zai-individual": {
+              "availability": "available",
+              "entitled": true,
+              "current": true,
+              "connectionKey": "old-key",
+              "effectiveAt": 9
+            }
+          },
+          "reasons": []
+        }
+      ],
+      "expect": [
+        {
+          "connections": "[{\"providerId\":\"zai-individual\",\"status\":\"unavailable\",\"unavailableReason\":\"not-entitled\",\"current\":true,\"connectionKey\":\"be0f0b902bcd5df76f0c8a674d2f84abf3540fe93bdfcaf7e0991f2b7a1c981a\"}]",
+          "providers": "[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}]",
+          "states": "{\"zai-individual\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-entitled\",\"current\":true,\"connectionKey\":\"be0f0b902bcd5df76f0c8a674d2f84abf3540fe93bdfcaf7e0991f2b7a1c981a\"}}",
+          "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}],{\"zai-individual\":{\"availability\":\"unavailable\",\"entitled\":false,\"unavailableReason\":\"not-entitled\",\"current\":true,\"connectionKey\":\"be0f0b902bcd5df76f0c8a674d2f84abf3540fe93bdfcaf7e0991f2b7a1c981a\"}}]",
+          "calls": "{\"settings\":2,\"identities\":[[\"zai\",\"user-a\"],[\"zai\",\"user-a\"]],\"apiKeys\":[[\"zai-individual\",\"zai\",\"user-a\",false]],\"availability\":[{\"family\":\"zai\",\"providers\":[{\"providerId\":\"zai-individual\",\"family\":\"zai\",\"planKind\":\"individual-coding-plan\",\"apiKey\":\"key-a\"}]}]}",
+          "error": null
+        },
+        {
+          "connections": "[{\"providerId\":\"zai-individual\",\"status\":\"unknown\",\"current\":true,\"connectionKey\":\"8e26b76927564b0a36efa16736085ef3880b44919fc0595b3d9f45f3eac4f0c3\",\"resetPrevious\":true}]",
+          "providers": "[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}]",
+          "states": "{\"zai-individual\":{\"availability\":\"unknown\",\"entitled\":false,\"current\":true,\"connectionKey\":\"8e26b76927564b0a36efa16736085ef3880b44919fc0595b3d9f45f3eac4f0c3\"}}",
+          "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}],{\"zai-individual\":{\"availability\":\"unknown\",\"entitled\":false,\"current\":true,\"connectionKey\":\"8e26b76927564b0a36efa16736085ef3880b44919fc0595b3d9f45f3eac4f0c3\"}}]",
+          "calls": "{\"settings\":2,\"identities\":[[\"zai\",\"user-b\"],[\"zai\",\"user-b\"]],\"apiKeys\":[[\"zai-individual\",\"zai\",\"user-b\",false]],\"availability\":[{\"family\":\"zai\",\"providers\":[{\"providerId\":\"zai-individual\",\"family\":\"zai\",\"planKind\":\"individual-coding-plan\",\"apiKey\":\"key-b\"}]}]}",
+          "error": null
+        },
+        {
+          "connections": "[{\"providerId\":\"zai-individual\",\"status\":\"unknown\",\"current\":true,\"connectionKey\":\"8e26b76927564b0a36efa16736085ef3880b44919fc0595b3d9f45f3eac4f0c3\"}]",
+          "providers": "[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true},\"builtinModelIds\":[\"old-model\"]}}]",
+          "states": "{\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"unavailableReason\":\"not-entitled\",\"current\":true,\"connectionKey\":\"8e26b76927564b0a36efa16736085ef3880b44919fc0595b3d9f45f3eac4f0c3\",\"effectiveAt\":9}}",
+          "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true},\"builtinModelIds\":[\"old-model\"]}}],{\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"unavailableReason\":\"not-entitled\",\"current\":true,\"connectionKey\":\"8e26b76927564b0a36efa16736085ef3880b44919fc0595b3d9f45f3eac4f0c3\",\"effectiveAt\":9}}]",
+          "calls": "{\"settings\":2,\"identities\":[[\"zai\",\"user-b\"],[\"zai\",\"user-b\"]],\"apiKeys\":[[\"zai-individual\",\"zai\",\"user-b\",false]],\"availability\":[{\"family\":\"zai\",\"providers\":[{\"providerId\":\"zai-individual\",\"family\":\"zai\",\"planKind\":\"individual-coding-plan\",\"apiKey\":\"key-b\"}]}]}",
+          "error": null
+        },
+        {
+          "connections": "[{\"providerId\":\"zai-individual\",\"status\":\"available\",\"current\":true,\"connectionKey\":\"303dc6e05f0c362d112ac613d4278a8fde84880121b5698c9bca939816671b66\",\"resetPrevious\":true}]",
+          "providers": "[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}}]",
+          "states": "{\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"303dc6e05f0c362d112ac613d4278a8fde84880121b5698c9bca939816671b66\"}}",
+          "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}}],{\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"303dc6e05f0c362d112ac613d4278a8fde84880121b5698c9bca939816671b66\"}}]",
+          "calls": "{\"settings\":2,\"identities\":[[\"zai\",\"user-c\"],[\"zai\",\"user-c\"]],\"apiKeys\":[[\"zai-individual\",\"zai\",\"user-c\",false]],\"availability\":[{\"family\":\"zai\",\"providers\":[{\"providerId\":\"zai-individual\",\"family\":\"zai\",\"planKind\":\"individual-coding-plan\",\"apiKey\":\"key-c\"}]}]}",
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "team-scope-reset",
+      "steps": [
+        {
+          "configured": [
+            {
+              "providerId": "zai-team",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "team-coding-plan"
+                }
+              }
+            }
+          ],
+          "previous": [],
+          "settings": [
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "team-coding-plan",
+                  "productId": "product-1",
+                  "organizationId": "org-1",
+                  "projectId": "project-1"
+                }
+              }
+            }
+          ],
+          "identities": {
+            "zai": [
+              "team-user"
+            ]
+          },
+          "apiKeys": {},
+          "availability": {
+            "zai": [
+              {
+                "zai-team": {
+                  "result": {
+                    "kind": "available"
+                  }
+                }
+              }
+            ]
+          },
+          "reasons": []
+        },
+        {
+          "configured": [
+            {
+              "providerId": "zai-team",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "team-coding-plan"
+                }
+              }
+            }
+          ],
+          "previous": [
+            {
+              "providerId": "zai-team",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "entitled": true
+                }
+              }
+            }
+          ],
+          "settings": [
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "team-coding-plan",
+                  "productId": "product-1",
+                  "organizationId": "org-2",
+                  "projectId": "project-1"
+                }
+              }
+            }
+          ],
+          "identities": {
+            "zai": [
+              "team-user"
+            ]
+          },
+          "apiKeys": {},
+          "availability": {
+            "zai": [
+              {}
+            ]
+          },
+          "previousStates": {
+            "zai-team": {
+              "availability": "available",
+              "entitled": true,
+              "current": true,
+              "connectionKey": "old-team-key"
+            }
+          },
+          "reasons": []
+        }
+      ],
+      "expect": [
+        {
+          "connections": "[{\"providerId\":\"zai-team\",\"status\":\"available\",\"current\":true,\"connectionKey\":\"6cf41e47a61dc0b72d1670b7c2e15db0f21c4355fa203e3cf9672b6d78d39f96\"}]",
+          "providers": "[{\"providerId\":\"zai-team\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}}]",
+          "states": "{\"zai-team\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"6cf41e47a61dc0b72d1670b7c2e15db0f21c4355fa203e3cf9672b6d78d39f96\"}}",
+          "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-team\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}}],{\"zai-team\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"6cf41e47a61dc0b72d1670b7c2e15db0f21c4355fa203e3cf9672b6d78d39f96\"}}]",
+          "calls": "{\"settings\":2,\"identities\":[[\"zai\",\"team-user\"],[\"zai\",\"team-user\"]],\"apiKeys\":[],\"availability\":[{\"family\":\"zai\",\"providers\":[{\"providerId\":\"zai-team\",\"family\":\"zai\",\"planKind\":\"team-coding-plan\",\"apiKey\":null}]}]}",
+          "error": null
+        },
+        {
+          "connections": "[{\"providerId\":\"zai-team\",\"status\":\"unknown\",\"current\":true,\"connectionKey\":\"74704bae71e7ffc37327acf35259320432fbc01bce37102384ef3c63d2b6d695\",\"resetPrevious\":true}]",
+          "providers": "[{\"providerId\":\"zai-team\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}]",
+          "states": "{\"zai-team\":{\"availability\":\"unknown\",\"entitled\":false,\"current\":true,\"connectionKey\":\"74704bae71e7ffc37327acf35259320432fbc01bce37102384ef3c63d2b6d695\"}}",
+          "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-team\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}],{\"zai-team\":{\"availability\":\"unknown\",\"entitled\":false,\"current\":true,\"connectionKey\":\"74704bae71e7ffc37327acf35259320432fbc01bce37102384ef3c63d2b6d695\"}}]",
+          "calls": "{\"settings\":2,\"identities\":[[\"zai\",\"team-user\"],[\"zai\",\"team-user\"]],\"apiKeys\":[],\"availability\":[{\"family\":\"zai\",\"providers\":[{\"providerId\":\"zai-team\",\"family\":\"zai\",\"planKind\":\"team-coding-plan\",\"apiKey\":null}]}]}",
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "stale-identity-fails-closed",
+      "steps": [
+        {
+          "configured": [
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "previous": [],
+          "settings": [
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "identities": {
+            "zai": [
+              "user-a",
+              "user-b"
+            ]
+          },
+          "apiKeys": {
+            "zai-individual": [
+              "key-a"
+            ]
+          },
+          "availability": {
+            "zai": [
+              {
+                "zai-individual": {
+                  "result": {
+                    "kind": "available"
+                  }
+                }
+              }
+            ]
+          },
+          "reasons": []
+        }
+      ],
+      "expect": [
+        {
+          "connections": null,
+          "providers": null,
+          "states": null,
+          "revision": null,
+          "calls": "{\"settings\":1,\"identities\":[[\"zai\",\"user-a\"],[\"zai\",\"user-b\"]],\"apiKeys\":[[\"zai-individual\",\"zai\",\"user-a\",false]],\"availability\":[{\"family\":\"zai\",\"providers\":[{\"providerId\":\"zai-individual\",\"family\":\"zai\",\"planKind\":\"individual-coding-plan\",\"apiKey\":\"key-a\"}]}]}",
+          "error": "账号查询期间连接或身份发生变化，丢弃过期结果"
+        }
+      ]
+    },
+    {
+      "name": "settings-change-fails-closed",
+      "steps": [
+        {
+          "configured": [
+            {
+              "providerId": "zai-individual",
+              "config": {
+                "access": {
+                  "type": "zhipu-account",
+                  "accountType": "zai",
+                  "mode": "individual-coding-plan"
+                }
+              }
+            }
+          ],
+          "previous": [],
+          "settings": [
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "individual-coding-plan"
+                }
+              }
+            },
+            {
+              "providerFamilyDomain": "zai",
+              "selections": {
+                "zai": {
+                  "kind": "team-coding-plan",
+                  "productId": "product-1",
+                  "organizationId": "org-1",
+                  "projectId": "project-1"
+                }
+              }
+            }
+          ],
+          "identities": {
+            "zai": [
+              "user-a"
+            ]
+          },
+          "apiKeys": {
+            "zai-individual": [
+              "key-a"
+            ]
+          },
+          "availability": {
+            "zai": [
+              {
+                "zai-individual": {
+                  "result": {
+                    "kind": "available"
+                  }
+                }
+              }
+            ]
+          },
+          "reasons": []
+        }
+      ],
+      "expect": [
+        {
+          "connections": null,
+          "providers": null,
+          "states": null,
+          "revision": null,
+          "calls": "{\"settings\":2,\"identities\":[[\"zai\",\"user-a\"],[\"zai\",\"user-a\"]],\"apiKeys\":[[\"zai-individual\",\"zai\",\"user-a\",false]],\"availability\":[{\"family\":\"zai\",\"providers\":[{\"providerId\":\"zai-individual\",\"family\":\"zai\",\"planKind\":\"individual-coding-plan\",\"apiKey\":\"key-a\"}]}]}",
+          "error": "账号查询期间连接或身份发生变化，丢弃过期结果"
+        }
+      ]
+    }
+  ],
+  "configCases": [
+    {
+      "name": "start-plan-normalizes-models",
+      "configured": [
+        {
+          "providerId": "zai-start",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "accountType": "zai",
+              "mode": "start-plan"
+            }
+          }
+        }
+      ],
+      "previous": [],
+      "connections": [
+        {
+          "providerId": "zai-start",
+          "status": "available",
+          "models": [
+            " a ",
+            "",
+            "b"
+          ]
+        }
+      ],
+      "expect": {
+        "providers": "[{\"providerId\":\"zai-start\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true},\"builtinModelIds\":[\"a\",\"b\"]}}]",
+        "error": null
+      }
+    },
+    {
+      "name": "start-plan-available-without-models",
+      "configured": [
+        {
+          "providerId": "zai-start",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "accountType": "zai",
+              "mode": "start-plan"
+            }
+          }
+        }
+      ],
+      "previous": [],
+      "connections": [
+        {
+          "providerId": "zai-start",
+          "status": "available"
+        }
+      ],
+      "expect": {
+        "providers": "[{\"providerId\":\"zai-start\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true},\"builtinModelIds\":[]}}]",
+        "error": null
+      }
+    },
+    {
+      "name": "pending-start-plan-models",
+      "configured": [
+        {
+          "providerId": "zai-start",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "accountType": "zai",
+              "mode": "start-plan"
+            }
+          }
+        }
+      ],
+      "previous": [],
+      "connections": [
+        {
+          "providerId": "zai-start",
+          "status": "pending",
+          "models": [
+            "m1"
+          ],
+          "effectiveAt": 5
+        }
+      ],
+      "expect": {
+        "providers": "[{\"providerId\":\"zai-start\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false},\"builtinModelIds\":[\"m1\"]}}]",
+        "error": null
+      }
+    },
+    {
+      "name": "unknown-inherits-previous",
+      "configured": [
+        {
+          "providerId": "zai-individual",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "accountType": "zai",
+              "mode": "individual-coding-plan"
+            }
+          }
+        }
+      ],
+      "previous": [
+        {
+          "providerId": "zai-individual",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "entitled": true
+            },
+            "builtinModelIds": [
+              "old-model"
+            ]
+          }
+        }
+      ],
+      "connections": [
+        {
+          "providerId": "zai-individual",
+          "status": "unknown"
+        }
+      ],
+      "expect": {
+        "providers": "[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true},\"builtinModelIds\":[\"old-model\"]}}]",
+        "error": null
+      }
+    },
+    {
+      "name": "unknown-reset-previous",
+      "configured": [
+        {
+          "providerId": "zai-individual",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "accountType": "zai",
+              "mode": "individual-coding-plan"
+            }
+          }
+        }
+      ],
+      "previous": [
+        {
+          "providerId": "zai-individual",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "entitled": true
+            },
+            "builtinModelIds": [
+              "old-model"
+            ]
+          }
+        }
+      ],
+      "connections": [
+        {
+          "providerId": "zai-individual",
+          "status": "unknown",
+          "resetPrevious": true
+        }
+      ],
+      "expect": {
+        "providers": "[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}]",
+        "error": null
+      }
+    },
+    {
+      "name": "unavailable-without-previous",
+      "configured": [
+        {
+          "providerId": "zai-individual",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "accountType": "zai",
+              "mode": "individual-coding-plan"
+            }
+          }
+        }
+      ],
+      "previous": [
+        {
+          "providerId": "zai-individual",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "entitled": true
+            }
+          }
+        }
+      ],
+      "connections": [
+        {
+          "providerId": "zai-individual",
+          "status": "unavailable",
+          "unavailableReason": "not-entitled"
+        }
+      ],
+      "expect": {
+        "providers": "[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}]",
+        "error": null
+      }
+    },
+    {
+      "name": "duplicate-connection",
+      "configured": [
+        {
+          "providerId": "zai-individual",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "accountType": "zai",
+              "mode": "individual-coding-plan"
+            }
+          }
+        }
+      ],
+      "previous": [],
+      "connections": [
+        {
+          "providerId": "zai-individual",
+          "status": "available"
+        },
+        {
+          "providerId": "zai-individual",
+          "status": "available"
+        }
+      ],
+      "expect": {
+        "providers": null,
+        "error": "重复 Account Provider 连接结果: zai-individual"
+      }
+    },
+    {
+      "name": "unconfigured-provider",
+      "configured": [
+        {
+          "providerId": "zai-individual",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "accountType": "zai",
+              "mode": "individual-coding-plan"
+            }
+          }
+        }
+      ],
+      "previous": [],
+      "connections": [
+        {
+          "providerId": "ghost",
+          "status": "available"
+        }
+      ],
+      "expect": {
+        "providers": null,
+        "error": "Account 连接指向未配置 Provider: ghost"
+      }
+    },
+    {
+      "name": "non-account-provider",
+      "configured": [
+        {
+          "providerId": "api-provider",
+          "config": {
+            "access": {
+              "type": "api-key",
+              "apiKey": "x"
+            }
+          }
+        }
+      ],
+      "previous": [],
+      "connections": [
+        {
+          "providerId": "api-provider",
+          "status": "available"
+        }
+      ],
+      "expect": {
+        "providers": null,
+        "error": "Account 连接指向非 Account Provider: api-provider"
+      }
+    }
+  ],
+  "snapshotCases": [
+    {
+      "name": "states-present",
+      "basedOn": "builtin:fixture-rev",
+      "providers": [
+        {
+          "providerId": "zai-individual",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "entitled": true
+            }
+          }
+        }
+      ],
+      "states": {
+        "zai-individual": {
+          "availability": "available",
+          "entitled": true,
+          "current": true,
+          "connectionKey": "key-1"
+        }
+      },
+      "expect": {
+        "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}}],{\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"key-1\"}}]",
+        "hasStates": true,
+        "json": "{\"revision\":\"account:[\\\"builtin:fixture-rev\\\",[{\\\"providerId\\\":\\\"zai-individual\\\",\\\"config\\\":{\\\"access\\\":{\\\"type\\\":\\\"zhipu-account\\\",\\\"entitled\\\":true}}}],{\\\"zai-individual\\\":{\\\"availability\\\":\\\"available\\\",\\\"entitled\\\":true,\\\"current\\\":true,\\\"connectionKey\\\":\\\"key-1\\\"}}]\",\"basedOnModeBuiltinRevision\":\"builtin:fixture-rev\",\"providers\":[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":true}}}],\"states\":{\"zai-individual\":{\"availability\":\"available\",\"entitled\":true,\"current\":true,\"connectionKey\":\"key-1\"}}}"
+      }
+    },
+    {
+      "name": "states-absent",
+      "basedOn": "builtin:fixture-rev",
+      "providers": [
+        {
+          "providerId": "zai-individual",
+          "config": {
+            "access": {
+              "type": "zhipu-account",
+              "entitled": false
+            }
+          }
+        }
+      ],
+      "expect": {
+        "revision": "account:[\"builtin:fixture-rev\",[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}],null]",
+        "hasStates": false,
+        "json": "{\"revision\":\"account:[\\\"builtin:fixture-rev\\\",[{\\\"providerId\\\":\\\"zai-individual\\\",\\\"config\\\":{\\\"access\\\":{\\\"type\\\":\\\"zhipu-account\\\",\\\"entitled\\\":false}}}],null]\",\"basedOnModeBuiltinRevision\":\"builtin:fixture-rev\",\"providers\":[{\"providerId\":\"zai-individual\",\"config\":{\"access\":{\"type\":\"zhipu-account\",\"entitled\":false}}}]}"
+      }
+    },
+    {
+      "name": "empty-providers-and-empty-states",
+      "basedOn": "builtin:empty",
+      "providers": [],
+      "states": {},
+      "expect": {
+        "revision": "account:[\"builtin:empty\",[],{}]",
+        "hasStates": true,
+        "json": "{\"revision\":\"account:[\\\"builtin:empty\\\",[],{}]\",\"basedOnModeBuiltinRevision\":\"builtin:empty\",\"providers\":[],\"states\":{}}"
+      }
+    },
+    {
+      "name": "empty-providers-no-states",
+      "basedOn": "builtin:empty",
+      "providers": [],
+      "expect": {
+        "revision": "account:[\"builtin:empty\",[],null]",
+        "hasStates": false,
+        "json": "{\"revision\":\"account:[\\\"builtin:empty\\\",[],null]\",\"basedOnModeBuiltinRevision\":\"builtin:empty\",\"providers\":[]}"
+      }
+    }
+  ]
+}
