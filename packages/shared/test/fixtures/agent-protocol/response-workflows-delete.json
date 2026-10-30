@@ -1,0 +1,10 @@
+{
+  "case": "response-workflows-delete",
+  "direction": "runtime->host",
+  "respondsTo": "workflows/delete",
+  "note": "删除成功：返回被删路径（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 62,
+    "result": { "ok": true, "path": "/home/u/.mode/workflows/demo.md" }
+  }
+}

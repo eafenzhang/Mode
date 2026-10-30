@@ -1,0 +1,10 @@
+{
+  "case": "response-workflows-update-meta",
+  "direction": "runtime->host",
+  "respondsTo": "workflows/updateMeta",
+  "note": "更新成功：返回落点路径（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 61,
+    "result": { "ok": true, "path": "/ws/demo/.mode/workflows/demo.md" }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "case": "request-workflows-move",
+  "direction": "host->runtime",
+  "note": "把全局档同名文件搬到项目根；workspace 既是载体也是目标（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 63,
+    "method": "workflows/move",
+    "params": {
+      "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+      "name": "demo"
+    }
+  }
+}

@@ -138,6 +138,12 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 - `list_saved_workflow_runs(target, name?, limit, scope?)` → `workflows/runs`：
   `limit` 必须 1..=50（违规在发出前报 `InvalidParams`，不拉起 Agent）；
   run 含状态/stopReason/时间/`spentTokens`/args/cwd/artifacts（≤8，`version` 为 JSON 数字）。
+- `update_saved_workflow_meta(target, name, meta, scope?)` → `workflows/updateMeta`：
+  `{workspace, name, meta, scope?}`，结果 `ok:true{path}` 或 Failure。
+- `delete_saved_workflow(target, name, scope?)` → `workflows/delete`：同上联合。
+- `move_saved_workflow(target, name)` → `workflows/move`：`{workspace, name}`（workspace 既是
+  载体也是目标项目），成功 `{ok:true,from,to}`；失败 `ok:false` 带
+  `reason(invalid_name|not_found|target_exists|read_error|write_error)` 与可选 `path`/`detail`。
 
 **与 TS 的差异**：全局档（`scope: global`）的载体运行时由 TS 自行挑选（可能回落到 plugin
 管理面进程）；本 facade 直接使用调用方给的 workspace target 作为载体。
@@ -178,7 +184,8 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
    且结果按 schema 解析；两类非法结果有独立错误前缀。
 8. `mcp/list`：`mode` 缺省省略；状态快照按 schema 解析，非法结果前缀
    `invalid mcp/list result`。
-9. 工作流只读：list 的 args 声明与 `default:null` 原样保留；get 的成功/失败分支都能解析；
-   runs 的 `limit` 越界不拉起 Agent，非法结果有独立前缀。
+9. 工作流：list 的 args 声明与 `default:null` 原样保留；get 的成功/失败分支都能解析；
+   runs 的 `limit` 越界不拉起 Agent；updateMeta/delete/move 的参数与联合结果逐项可读，
+   非法结果有独立前缀。
 10. v4 回执：信封的 type/payload/sessionId 与稳定 clientId 可断言；`accepted` 返回 ACK，
     `rejected` 映射为 `CommandRejected` 并携带状态与 reasonCode。

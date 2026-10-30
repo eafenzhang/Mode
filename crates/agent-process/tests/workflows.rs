@@ -10,7 +10,8 @@ use agent_process::{
     SpecFactory,
 };
 use agent_protocol::workflow::{
-    SavedWorkflowFailureReason, SavedWorkflowScope, WorkflowRunStatus, WorkflowsGetResult,
+    SavedWorkflowFailureReason, SavedWorkflowMeta, SavedWorkflowScope, WorkflowRunStatus,
+    WorkflowsDeleteResult, WorkflowsGetResult, WorkflowsMoveResult, WorkflowsUpdateMetaResult,
 };
 use serde_json::Value;
 
@@ -166,11 +167,62 @@ async fn lists_runs_with_artifacts_and_rejects_bad_limit() {
 }
 
 #[tokio::test]
+async fn updates_deletes_and_moves_workflow() {
+    let log = FrameLog::new("write");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, spawns);
+    let target = AgentWorkspaceTarget::new("/ws/demo");
+
+    let meta = SavedWorkflowMeta {
+        description: "新描述".to_string(),
+        when_to_use: None,
+        args: None,
+    };
+    let updated = client
+        .update_saved_workflow_meta(&target, "demo", meta, Some(SavedWorkflowScope::Project))
+        .await
+        .unwrap();
+    match updated {
+        WorkflowsUpdateMetaResult::Ok(ok) => assert_eq!(ok.path, "/ws/demo/.mode/workflows/demo.md"),
+        other => panic!("unexpected result: {other:?}"),
+    }
+    let params = log.frame_params("workflows/updateMeta").expect("必须记录到请求帧");
+    assert_eq!(params["name"], "demo");
+    assert_eq!(params["meta"]["description"], "新描述");
+    assert_eq!(params["scope"], "project");
+
+    let deleted = client
+        .delete_saved_workflow(&target, "demo", None)
+        .await
+        .unwrap();
+    match deleted {
+        WorkflowsDeleteResult::Ok(ok) => assert_eq!(ok.path, "/ws/demo/.mode/workflows/demo.md"),
+        other => panic!("unexpected result: {other:?}"),
+    }
+    let params = log.frame_params("workflows/delete").expect("必须记录到请求帧");
+    assert!(params.get("scope").is_none());
+
+    let moved = client.move_saved_workflow(&target, "demo").await.unwrap();
+    match moved {
+        WorkflowsMoveResult::Ok(ok) => {
+            assert_eq!(ok.from, "/home/u/.mode/workflows/demo.md");
+            assert_eq!(ok.to, "/ws/demo/.mode/workflows/demo.md");
+        }
+        other => panic!("unexpected result: {other:?}"),
+    }
+    let params = log.frame_params("workflows/move").expect("必须记录到请求帧");
+    assert_eq!(params["workspace"]["workspacePath"], "/ws/demo");
+}
+
+#[tokio::test]
 async fn malformed_workflow_results_are_rejected() {
     let cases = [
         ("bad-workflows-list", "invalid workflows/list result"),
         ("bad-workflow-get", "invalid workflows/get result"),
         ("bad-workflow-runs", "invalid workflows/runs result"),
+        ("bad-workflow-update-meta", "invalid workflows/updateMeta result"),
+        ("bad-workflow-delete", "invalid workflows/delete result"),
+        ("bad-workflow-move", "invalid workflows/move result"),
     ];
     for (mode, prefix) in cases {
         let log = FrameLog::new(mode);
@@ -182,12 +234,31 @@ async fn malformed_workflow_results_are_rejected() {
             "bad-workflow-get" => {
                 client.get_saved_workflow(&target, "demo", None).await.unwrap_err()
             }
-            _ => {
+            "bad-workflow-runs" => {
                 client
                     .list_saved_workflow_runs(&target, None, 5, None)
                     .await
                     .unwrap_err()
             }
+            "bad-workflow-update-meta" => {
+                client
+                    .update_saved_workflow_meta(
+                        &target,
+                        "demo",
+                        SavedWorkflowMeta {
+                            description: "d".to_string(),
+                            when_to_use: None,
+                            args: None,
+                        },
+                        None,
+                    )
+                    .await
+                    .unwrap_err()
+            }
+            "bad-workflow-delete" => {
+                client.delete_saved_workflow(&target, "demo", None).await.unwrap_err()
+            }
+            _ => client.move_saved_workflow(&target, "demo").await.unwrap_err(),
         };
         match error {
             ControlError::InvalidResult(message) => {

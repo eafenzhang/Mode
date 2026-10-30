@@ -45,8 +45,10 @@ use agent_protocol::v4::{
     CommandAck, CommandAckStatus, ResolveInteractionEnvelope, ResolveInteractionType,
 };
 use agent_protocol::workflow::{
-    SavedWorkflowScope, WorkflowRunStatus, WorkflowsGetParams, WorkflowsGetResult,
-    WorkflowsListParams, WorkflowsListResult, WorkflowsRunsParams, WorkflowsRunsResult,
+    SavedWorkflowScope, WorkflowRunStatus, WorkflowsDeleteParams, WorkflowsDeleteResult,
+    WorkflowsGetParams, WorkflowsGetResult, WorkflowsListParams, WorkflowsListResult,
+    WorkflowsMoveParams, WorkflowsMoveResult, WorkflowsRunsParams, WorkflowsRunsResult,
+    WorkflowsUpdateMetaParams, WorkflowsUpdateMetaResult,
 };
 use agent_protocol::workspace::{
     ChildProcessesResult, WorkspacePresentation, WorkspacePresentationParams,
@@ -466,6 +468,25 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert_eq!(params.scope, Some(SavedWorkflowScope::Global));
                         exercised.insert("workflows/runs".to_string());
                     }
+                    "workflows/updateMeta" => {
+                        let params: WorkflowsUpdateMetaParams = decode(case, &params);
+                        assert_eq!(params.name, "demo");
+                        assert_eq!(params.meta.description, "新描述");
+                        assert_eq!(params.scope, Some(SavedWorkflowScope::Project));
+                        exercised.insert("workflows/updateMeta".to_string());
+                    }
+                    "workflows/delete" => {
+                        let params: WorkflowsDeleteParams = decode(case, &params);
+                        assert_eq!(params.name, "demo");
+                        assert_eq!(params.scope, Some(SavedWorkflowScope::Global));
+                        exercised.insert("workflows/delete".to_string());
+                    }
+                    "workflows/move" => {
+                        let params: WorkflowsMoveParams = decode(case, &params);
+                        assert_eq!(params.name, "demo");
+                        assert_eq!(params.workspace.workspace_path, "/ws/demo");
+                        exercised.insert("workflows/move".to_string());
+                    }
                     "v4/command" => {
                         let envelope: ResolveInteractionEnvelope = decode(case, &params);
                         assert_eq!(envelope.command_type, ResolveInteractionType::ResolveInteraction);
@@ -736,6 +757,52 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("workflows/runs".to_string());
                     }
+                    "workflows/updateMeta" => {
+                        let result: WorkflowsUpdateMetaResult = decode(case, &response.result);
+                        match &result {
+                            WorkflowsUpdateMetaResult::Ok(ok) => {
+                                assert_eq!(ok.path, "/ws/demo/.mode/workflows/demo.md");
+                            }
+                            other => panic!("{case}：应当是成功结果，实际 {other:?}"),
+                        }
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("workflows/updateMeta".to_string());
+                    }
+                    "workflows/delete" => {
+                        let result: WorkflowsDeleteResult = decode(case, &response.result);
+                        match &result {
+                            WorkflowsDeleteResult::Ok(ok) => {
+                                assert_eq!(ok.path, "/home/u/.mode/workflows/demo.md");
+                            }
+                            other => panic!("{case}：应当是成功结果，实际 {other:?}"),
+                        }
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("workflows/delete".to_string());
+                    }
+                    "workflows/move" => {
+                        let result: WorkflowsMoveResult = decode(case, &response.result);
+                        match &result {
+                            WorkflowsMoveResult::Ok(ok) => {
+                                assert_eq!(ok.from, "/home/u/.mode/workflows/demo.md");
+                                assert_eq!(ok.to, "/ws/demo/.mode/workflows/demo.md");
+                            }
+                            other => panic!("{case}：应当是成功结果，实际 {other:?}"),
+                        }
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("workflows/move".to_string());
+                    }
                     "v4/command" => {
                         let ack: CommandAck = decode(case, &response.result);
                         assert_eq!(ack.status, CommandAckStatus::Accepted);
@@ -776,6 +843,9 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "workflows/list",
             "workflows/get",
             "workflows/runs",
+            "workflows/updateMeta",
+            "workflows/delete",
+            "workflows/move",
             "v4/command"
         ]
         .into_iter()

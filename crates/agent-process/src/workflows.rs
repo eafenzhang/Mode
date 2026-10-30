@@ -7,9 +7,12 @@
 //! 进程）；本 facade 直接使用调用方给的 workspace target 作为载体，不另起管理进程。
 
 use agent_protocol::workflow::{
-    SavedWorkflowScope, WorkflowsGetParams, WorkflowsGetResult, WorkflowsListParams,
-    WorkflowsListResult, WorkflowsRunsParams, WorkflowsRunsResult, WORKFLOWS_GET_METHOD,
-    WORKFLOWS_LIST_METHOD, WORKFLOWS_RUNS_MAX_LIMIT, WORKFLOWS_RUNS_METHOD,
+    SavedWorkflowMeta, SavedWorkflowScope, WorkflowsDeleteParams, WorkflowsDeleteResult,
+    WorkflowsGetParams, WorkflowsGetResult, WorkflowsListParams, WorkflowsListResult,
+    WorkflowsMoveParams, WorkflowsMoveResult, WorkflowsRunsParams, WorkflowsRunsResult,
+    WorkflowsUpdateMetaParams, WorkflowsUpdateMetaResult, WORKFLOWS_DELETE_METHOD,
+    WORKFLOWS_GET_METHOD, WORKFLOWS_LIST_METHOD, WORKFLOWS_MOVE_METHOD, WORKFLOWS_RUNS_MAX_LIMIT,
+    WORKFLOWS_RUNS_METHOD, WORKFLOWS_UPDATE_META_METHOD,
 };
 
 use crate::control::{AgentControlClient, AgentWorkspaceTarget, ControlError, RuntimePolicy};
@@ -89,6 +92,77 @@ impl AgentControlClient {
             .await?;
         serde_json::from_value(response).map_err(|error| {
             ControlError::InvalidResult(format!("invalid workflows/runs result: {error}"))
+        })
+    }
+
+    /// `workflows/updateMeta`：只改 frontmatter 元数据，返回 Ok(path) 或 Failure。
+    pub async fn update_saved_workflow_meta(
+        &self,
+        target: &AgentWorkspaceTarget,
+        name: &str,
+        meta: SavedWorkflowMeta,
+        scope: Option<SavedWorkflowScope>,
+    ) -> Result<WorkflowsUpdateMetaResult, ControlError> {
+        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let params = WorkflowsUpdateMetaParams {
+            workspace: session_workspace_ref(target),
+            name: name.to_string(),
+            meta,
+            scope,
+        };
+        let params =
+            serde_json::to_value(&params).expect("workflows/updateMeta params 序列化不会失败");
+        let response = process
+            .client()
+            .request(WORKFLOWS_UPDATE_META_METHOD, Some(params))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid workflows/updateMeta result: {error}"))
+        })
+    }
+
+    /// `workflows/delete`：删除指定 scope 下的同名工作流。
+    pub async fn delete_saved_workflow(
+        &self,
+        target: &AgentWorkspaceTarget,
+        name: &str,
+        scope: Option<SavedWorkflowScope>,
+    ) -> Result<WorkflowsDeleteResult, ControlError> {
+        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let params = WorkflowsDeleteParams {
+            workspace: session_workspace_ref(target),
+            name: name.to_string(),
+            scope,
+        };
+        let params =
+            serde_json::to_value(&params).expect("workflows/delete params 序列化不会失败");
+        let response = process
+            .client()
+            .request(WORKFLOWS_DELETE_METHOD, Some(params))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid workflows/delete result: {error}"))
+        })
+    }
+
+    /// `workflows/move`：把全局档同名文件搬到 `target` 项目根（只此一向、不覆盖）。
+    pub async fn move_saved_workflow(
+        &self,
+        target: &AgentWorkspaceTarget,
+        name: &str,
+    ) -> Result<WorkflowsMoveResult, ControlError> {
+        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let params = WorkflowsMoveParams {
+            workspace: session_workspace_ref(target),
+            name: name.to_string(),
+        };
+        let params = serde_json::to_value(&params).expect("workflows/move params 序列化不会失败");
+        let response = process
+            .client()
+            .request(WORKFLOWS_MOVE_METHOD, Some(params))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid workflows/move result: {error}"))
         })
     }
 }

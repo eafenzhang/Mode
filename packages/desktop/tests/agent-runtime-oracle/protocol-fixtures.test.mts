@@ -56,6 +56,12 @@ import {
   modeWorkflowsListResultSchema,
   modeWorkflowsRunsParamsSchema,
   modeWorkflowsRunsResultSchema,
+  modeWorkflowsUpdateMetaParamsSchema,
+  modeWorkflowsUpdateMetaResultSchema,
+  modeWorkflowsDeleteParamsSchema,
+  modeWorkflowsDeleteResultSchema,
+  modeWorkflowsMoveParamsSchema,
+  modeWorkflowsMoveResultSchema,
 } from "../../../shared/src/mode-protocol/index.js";
 import {
   sessionDebugParamsSchema,
@@ -265,6 +271,9 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "workflows/get": modeWorkflowsGetParamsSchema,
     "workflows/list": modeWorkflowsListParamsSchema,
     "workflows/runs": modeWorkflowsRunsParamsSchema,
+    "workflows/updateMeta": modeWorkflowsUpdateMetaParamsSchema,
+    "workflows/delete": modeWorkflowsDeleteParamsSchema,
+    "workflows/move": modeWorkflowsMoveParamsSchema,
   };
   const resultSchemas: Record<string, Parseable> = {
     "mcp/list": modeMcpListResultSchema,
@@ -272,6 +281,9 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "workflows/get": modeWorkflowsGetResultSchema,
     "workflows/list": modeWorkflowsListResultSchema,
     "workflows/runs": modeWorkflowsRunsResultSchema,
+    "workflows/updateMeta": modeWorkflowsUpdateMetaResultSchema,
+    "workflows/delete": modeWorkflowsDeleteResultSchema,
+    "workflows/move": modeWorkflowsMoveResultSchema,
     "session/close": modeSessionCloseResultSchema,
     "session/debug": sessionDebugSnapshotSchema,
     "session/events": modeSessionEventsResultSchema,

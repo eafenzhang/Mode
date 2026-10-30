@@ -1,0 +1,14 @@
+{
+  "case": "request-workflows-delete",
+  "direction": "host->runtime",
+  "note": "删除指定 scope 下的工作流（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 62,
+    "method": "workflows/delete",
+    "params": {
+      "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+      "name": "demo",
+      "scope": "global"
+    }
+  }
+}

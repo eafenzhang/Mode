@@ -1,0 +1,14 @@
+{
+  "case": "response-workflows-move",
+  "direction": "runtime->host",
+  "respondsTo": "workflows/move",
+  "note": "搬运成功：源与目标路径（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 63,
+    "result": {
+      "ok": true,
+      "from": "/home/u/.mode/workflows/demo.md",
+      "to": "/ws/demo/.mode/workflows/demo.md"
+    }
+  }
+}

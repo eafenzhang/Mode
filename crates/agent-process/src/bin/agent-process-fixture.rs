@@ -312,6 +312,28 @@ fn main() {
                     })
                 }
             })
+        } else if method == "workflows/updateMeta" {
+            let mut result = json!({ "ok": true, "path": "/ws/demo/.mode/workflows/demo.md" });
+            if mode == "bad-workflow-update-meta" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "workflows/delete" {
+            let mut result = json!({ "ok": true, "path": "/ws/demo/.mode/workflows/demo.md" });
+            if mode == "bad-workflow-delete" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "workflows/move" {
+            let mut result = json!({
+                "ok": true,
+                "from": "/home/u/.mode/workflows/demo.md",
+                "to": "/ws/demo/.mode/workflows/demo.md"
+            });
+            if mode == "bad-workflow-move" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "workflows/list" {
             let mut result = json!({
                 "workflows": [{

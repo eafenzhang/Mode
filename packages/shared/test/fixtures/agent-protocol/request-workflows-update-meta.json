@@ -1,0 +1,15 @@
+{
+  "case": "request-workflows-update-meta",
+  "direction": "host->runtime",
+  "note": "更新工作流 frontmatter 元数据（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 61,
+    "method": "workflows/updateMeta",
+    "params": {
+      "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+      "name": "demo",
+      "meta": { "description": "新描述", "whenToUse": "需要时" },
+      "scope": "project"
+    }
+  }
+}

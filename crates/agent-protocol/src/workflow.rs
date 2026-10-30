@@ -311,3 +311,100 @@ impl fmt::Display for SavedWorkflowFailureReason {
         })
     }
 }
+
+pub const WORKFLOWS_UPDATE_META_METHOD: &str = "workflows/updateMeta";
+pub const WORKFLOWS_DELETE_METHOD: &str = "workflows/delete";
+pub const WORKFLOWS_MOVE_METHOD: &str = "workflows/move";
+
+/// `modeWorkflowsUpdateMetaParamsSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowsUpdateMetaParams {
+    pub workspace: SessionWorkspaceRef,
+    pub name: String,
+    pub meta: SavedWorkflowMeta,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<SavedWorkflowScope>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowOkPath {
+    pub ok: LiteralTrue,
+    pub path: String,
+}
+
+/// `modeWorkflowsUpdateMetaResultSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum WorkflowsUpdateMetaResult {
+    Ok(WorkflowOkPath),
+    Failure(SavedWorkflowFailure),
+}
+
+/// `modeWorkflowsDeleteParamsSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowsDeleteParams {
+    pub workspace: SessionWorkspaceRef,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<SavedWorkflowScope>,
+}
+
+/// `modeWorkflowsDeleteResultSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum WorkflowsDeleteResult {
+    Ok(WorkflowOkPath),
+    Failure(SavedWorkflowFailure),
+}
+
+/// `modeWorkflowsMoveParamsSchema`（`workspace` 既是载体也是目标项目）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowsMoveParams {
+    pub workspace: SessionWorkspaceRef,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkflowsMoveFailureReason {
+    #[serde(rename = "invalid_name")]
+    InvalidName,
+    #[serde(rename = "not_found")]
+    NotFound,
+    #[serde(rename = "target_exists")]
+    TargetExists,
+    #[serde(rename = "read_error")]
+    ReadError,
+    #[serde(rename = "write_error")]
+    WriteError,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowsMoveFailure {
+    pub ok: LiteralFalse,
+    pub reason: WorkflowsMoveFailureReason,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowsMoveOk {
+    pub ok: LiteralTrue,
+    pub from: String,
+    pub to: String,
+}
+
+/// `modeWorkflowsMoveResultSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum WorkflowsMoveResult {
+    Ok(WorkflowsMoveOk),
+    Failure(WorkflowsMoveFailure),
+}

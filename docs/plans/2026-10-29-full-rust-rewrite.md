@@ -274,6 +274,8 @@ nullable-optional 三态与浮点 `Number` 保留（3 条）。**`session/debug`
 mode 缺省省略（3 条 + 双端夹具）。
 **工作流只读面已落**：`workflows/list|get|runs`，get 的 Ok/Failure 联合、runs 的
 limit 1..=50 前置校验、args 声明的三态 default（4 条 + 双端夹具）。
+**工作流写侧已落**：`workflows/updateMeta|delete|move`（Ok/Failure 联合，move 的
+from/to 与五种失败原因）（新增 1 条 + 3 组夹具）。
 **v4 命令最小闭环已落**：`v4/command` 的 `resolveInteraction`（信封严格、ACK 六态、
 rejected/stale/failed 映射 `CommandRejected`）；`commandId`/`clientId` 目前非 UUID v7，
 `helloConversationV4` 与订阅仍待迁移（2 条 + 双端夹具）。
@@ -287,14 +289,15 @@ state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`p
 并用本包 fixture 子进程端到端验证线格式与 revision 去重（4 + 1 条测试）。真实凭据 / OAuth /
 Family 可用性网络源仍需注入实现，属于 model-provider 域。
 **未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
-所有权切换，以及其余 89 个成员（session 其余读/写、插件/automation/workflow 等；
+所有权切换，以及其余 86 个成员（session 其余读/写、插件/automation/workflow 等；
 `IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 +
 `listSessions` + `readSessionEvents` + `listSessionSubagents` + `readSessionMessages` +
 `readSession` + `readSessionDebug` + `onDynamicSessionEvent` + `createSession` +
 `sendPrompt` + `closeSession` + `setModel` + `setThoughtLevel` + `setMode` +
 `readWorkspacePresentation` + `collectLocalRuntimeChildProcesses` +
 `listMcpServerStatuses` + `listSavedWorkflows` + `getSavedWorkflow` +
-`listSavedWorkflowRuns` + `sendConversationCommandV4`（仅 resolveInteraction））。
+`listSavedWorkflowRuns` + `updateSavedWorkflowMeta` + `deleteSavedWorkflow` +
+`moveSavedWorkflow` + `sendConversationCommandV4`（仅 resolveInteraction））。
 所有权切换仍是 W4 下一片，`hooks` 的 grant 与任务/会话频道都等它。
 
 ### W5 生态面替换
