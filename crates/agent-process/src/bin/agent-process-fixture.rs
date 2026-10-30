@@ -286,6 +286,21 @@ fn main() {
                 message["info"]["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": { "messages": [message] } })
+        } else if method == "mcp/list" {
+            let mut result = json!({
+                "statuses": {
+                    "mcp-1": {
+                        "status": "connected",
+                        "transport": "stdio",
+                        "toolCount": 3,
+                        "updatedAt": "t1"
+                    }
+                }
+            });
+            if mode == "bad-mcp-list" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "workspace/readPresentation" {
             let mut result = json!({
                 "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },

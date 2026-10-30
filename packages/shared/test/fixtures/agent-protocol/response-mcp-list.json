@@ -1,0 +1,33 @@
+{
+  "case": "response-mcp-list",
+  "direction": "runtime->host",
+  "respondsTo": "mcp/list",
+  "note": "MCP 状态快照：连接成功与失败（含 failureKind/authorization）各一条（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 56,
+    "result": {
+      "statuses": {
+        "mcp-1": {
+          "status": "connected",
+          "transport": "stdio",
+          "toolCount": 3,
+          "updatedAt": "2026-01-01T00:00:00.000Z"
+        },
+        "mcp-2": {
+          "status": "failed",
+          "transport": "http",
+          "toolCount": 0,
+          "updatedAt": "2026-01-01T00:00:01.000Z",
+          "error": "connection timed out",
+          "failureKind": "connection_timeout",
+          "protocolEra": "modern",
+          "authorization": {
+            "type": "oauth_authorization_code",
+            "authorizationUrl": "https://example.invalid/auth",
+            "startedAt": "2026-01-01T00:00:02.000Z"
+          }
+        }
+      }
+    }
+  }
+}

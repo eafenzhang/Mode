@@ -20,6 +20,7 @@ use tokio::task::JoinHandle;
 
 mod registry;
 mod control;
+mod mcp;
 mod storage;
 mod provider_sync;
 mod resolve;
@@ -38,6 +39,7 @@ pub use provider_sync::{
     AccountProviderConfigSnapshot, ProviderConfigSync, ProviderReadFuture, ProviderSource,
     ProviderSyncOutcome, ProviderSyncStatus, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
+pub use mcp::ListMcpServersOptions;
 pub use session_read::ListSessionsOptions;
 pub use session_events::{SessionSubscription, SESSION_EVENT_NOTIFICATION};
 pub use session_write::CreateSessionOptions;

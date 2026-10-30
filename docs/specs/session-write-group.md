@@ -114,6 +114,18 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
   TS 的 `collectLocalRuntimeChildProcesses` 会遍历本 Host 全部 runtime（含 plugin /
   mcp-status 泳道）；本 facade 只覆盖单个 workspace runtime。
 
+## 2e. `mcp/list`
+
+`list_mcp_server_statuses(target, {mcpServers?, mode?})` → `mcp/list`：
+`{workspace, mcpServers?, mode?}`（`mode` 缺省省略；schema 默认 `connect`）。结果
+`{statuses: {serverName: snapshot}}`，snapshot 含 `status`（6 值）、`transport`（3 值）、
+`toolCount`、`updatedAt`，可选 `error`/`failureKind`（19 值）/`serverRequestId`/
+`protocolEra`/`authorization`。
+
+**与 TS 的差异**：TS 使用独立的 mcp-status 泳道 client，并按旧 Agent 的
+`unrecognized_keys` 对 `mode`/`mcpServers` 做兼容重试；本 facade 复用 workspace runtime，
+不做该重试（错误原样上抛）。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、
@@ -130,3 +142,5 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
    的 live 事件不投递；`session/subscribe` 参数逐字段符合 schema。
 7. workspace 只读面：展示结果的 workspace/mode/slashCommands 可读；子进程请求不带 params
    且结果按 schema 解析；两类非法结果有独立错误前缀。
+8. `mcp/list`：`mode` 缺省省略；状态快照按 schema 解析，非法结果前缀
+   `invalid mcp/list result`。

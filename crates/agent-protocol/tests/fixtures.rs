@@ -21,6 +21,7 @@ use agent_protocol::session::{
     RuntimePreferencesRequestParams, RuntimePreferencesResult, RuntimePreferencesScope,
     SessionCreateParams, SessionSendParams, SessionSendResult,
 };
+use agent_protocol::mcp::{McpListMode, McpListParams, McpListResult, McpServerFailureKind};
 use agent_protocol::session_create::ImportHistory;
 use agent_protocol::session_debug::{NetworkStatusType, SessionDebugParams, SessionDebugSnapshot};
 use agent_protocol::session_event::{
@@ -432,6 +433,13 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert_eq!(params.workspace.workspace_key, "/ws/demo");
                         exercised.insert("workspace/readPresentation".to_string());
                     }
+                    "mcp/list" => {
+                        let params: McpListParams = decode(case, &params);
+                        assert_eq!(params.workspace.workspace_path, "/ws/demo");
+                        assert_eq!(params.mode, Some(McpListMode::Status));
+                        assert!(params.mcp_servers.is_none());
+                        exercised.insert("mcp/list".to_string());
+                    }
                     "session/requestRuntimePreferences" => {
                         let params: RuntimePreferencesRequestParams = decode(case, &params);
                         assert_eq!(params.scope, RuntimePreferencesScope::RuntimeMaterialization);
@@ -628,6 +636,22 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("process/childProcesses".to_string());
                     }
+                    "mcp/list" => {
+                        let result: McpListResult = decode(case, &response.result);
+                        assert_eq!(result.statuses.len(), 2);
+                        let failed = &result.statuses["mcp-2"];
+                        assert_eq!(
+                            failed.failure_kind,
+                            Some(McpServerFailureKind::ConnectionTimeout)
+                        );
+                        assert!(failed.authorization.is_some());
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("mcp/list".to_string());
+                    }
                     other => panic!("{case}：应答 {other} 没有镜像"),
                 }
             }
@@ -652,7 +676,8 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "session/subagents",
             "session/subscribe",
             "workspace/readPresentation",
-            "process/childProcesses"
+            "process/childProcesses",
+            "mcp/list"
         ]
         .into_iter()
         .map(str::to_string)

@@ -187,6 +187,9 @@ goalStats/todos/slashCommands）。
 workspace 只读面：`read_workspace_presentation`（closed-transport 重试一次）与
 `list_child_processes`（无 params）。
 
+`mcp/list`：`list_mcp_server_statuses(target, {mcpServers?, mode?})`，结果按严格快照解析
+（status/failureKind/authorization 等）。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -274,6 +277,8 @@ close 的 persistence 与默认 true、非法写结果被拒绝。
 
 `crates/agent-process/tests/workspace.rs`（3 条）：展示结果的 workspace ref 与 slashCommands、
 子进程无 params 契约、两类非法结果。
+
+`crates/agent-process/tests/mcp.rs`（3 条）：指定 mode 的状态解析、mode 缺省省略、非法结果。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

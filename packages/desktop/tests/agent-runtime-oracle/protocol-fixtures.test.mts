@@ -21,6 +21,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  modeMcpListParamsSchema,
+  modeMcpListResultSchema,
   modeProcessChildProcessesResultSchema,
   modeProtocolMessageSchema,
   modeSessionCloseParamsSchema,
@@ -233,6 +235,7 @@ test("会话事件的载荷能被 v1 session event schema 接受，或只差已�
 
 test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
   const paramsSchemas: Record<string, Parseable> = {
+    "mcp/list": modeMcpListParamsSchema,
     "session/close": modeSessionCloseParamsSchema,
     "session/create": modeSessionCreateParamsSchema,
     "session/debug": sessionDebugParamsSchema,
@@ -250,6 +253,7 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "workspace/readPresentation": modeWorkspaceReadPresentationParamsSchema,
   };
   const resultSchemas: Record<string, Parseable> = {
+    "mcp/list": modeMcpListResultSchema,
     "process/childProcesses": modeProcessChildProcessesResultSchema,
     "session/close": modeSessionCloseResultSchema,
     "session/debug": sessionDebugSnapshotSchema,

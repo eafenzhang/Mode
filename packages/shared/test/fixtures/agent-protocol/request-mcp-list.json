@@ -1,0 +1,16 @@
+{
+  "case": "request-mcp-list",
+  "direction": "host->runtime",
+  "note": "查询 MCP 状态：mode=status 时只读，不触发连接（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 56,
+    "method": "mcp/list",
+    "params": {
+      "workspace": {
+        "workspacePath": "/ws/demo",
+        "workspaceKey": "/ws/demo"
+      },
+      "mode": "status"
+    }
+  }
+}

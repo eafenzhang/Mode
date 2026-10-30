@@ -51,6 +51,7 @@
 //! 所以哪一端单方面改类型而另一端没跟上，那一端就会红。
 
 pub mod frame;
+pub mod mcp;
 pub mod message;
 pub mod permission;
 pub mod session;
