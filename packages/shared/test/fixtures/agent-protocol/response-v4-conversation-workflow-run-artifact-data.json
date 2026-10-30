@@ -1,0 +1,20 @@
+{
+  "case": "response-v4-conversation-workflow-run-artifact-data",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/workflowRunArtifactData",
+  "note": "看板条目页：sequence/siteId/ordinal + 未做预览序列化的原值（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 75,
+    "result": {
+      "items": [
+        {
+          "sequence": 9,
+          "siteId": "report#1",
+          "ordinal": 0,
+          "item": { "timing": { "after": 12 } }
+        }
+      ],
+      "hasMore": false
+    }
+  }
+}

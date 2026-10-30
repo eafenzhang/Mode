@@ -525,6 +525,56 @@ fn main() {
                 result["runs"][0]["status"] = json!("archived");
             }
             json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/workflowRunArtifacts" {
+            let mut result = json!({
+                "artifacts": [{
+                    "id": "report",
+                    "kind": "markdown",
+                    "title": "报告",
+                    "contentType": "text/markdown",
+                    "version": 2,
+                    "versions": [{
+                        "version": 2,
+                        "title": "报告",
+                        "bytes": 12,
+                        "uri": "mode-artifact://run-1/report",
+                        "publishedAt": 1700000000000u64,
+                        "primary": true
+                    }],
+                    "itemCount": 0,
+                    "primary": true
+                }]
+            });
+            if mode == "bad-v4-artifacts" {
+                result["artifacts"][0]["kind"] = json!("spreadsheet");
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/workflowRunArtifactData" {
+            let mut result = json!({
+                "items": [{
+                    "sequence": 9,
+                    "siteId": "report#1",
+                    "ordinal": 0,
+                    "item": { "timing": { "after": 12 } }
+                }],
+                "hasMore": false
+            });
+            if mode == "bad-v4-artifact-data" {
+                result["items"][0]["sequence"] = json!(-1);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/workflowRunArtifactRead" {
+            let mut result = json!({
+                "dataBase64": "aGVsbG8=",
+                "mediaType": "text/markdown",
+                "totalBytes": 5,
+                "nextOffset": null
+            });
+            if mode == "bad-v4-artifact-read" {
+                // superRefine（nextOffset ≤ totalBytes）暂不在 Rust 侧镜像，这里用类型错误。
+                result["nextOffset"] = json!("end");
+            }
+            json!({ "id": id, "result": result })
         } else if method == "plugins/overview" {
             let mut result = json!({
                 "marketplaces": [{

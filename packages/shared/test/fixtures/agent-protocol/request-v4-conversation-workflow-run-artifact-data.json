@@ -1,0 +1,16 @@
+{
+  "case": "request-v4-conversation-workflow-run-artifact-data",
+  "direction": "host->runtime",
+  "note": "看板取数：artifact 标识 + journal 游标 + 页大小（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 75,
+    "method": "v4/conversation/workflowRunArtifactData",
+    "params": {
+      "sessionId": "sess-1",
+      "runId": "run-1",
+      "artifactId": "report",
+      "afterSequence": 8,
+      "limit": 200
+    }
+  }
+}

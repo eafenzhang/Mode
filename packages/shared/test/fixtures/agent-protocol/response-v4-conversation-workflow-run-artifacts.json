@@ -1,0 +1,32 @@
+{
+  "case": "response-v4-conversation-workflow-run-artifacts",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/workflowRunArtifacts",
+  "note": "产物清单：全量版本元数据 + itemCount + primary，字节不在其中（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 74,
+    "result": {
+      "artifacts": [
+        {
+          "id": "report",
+          "kind": "markdown",
+          "title": "报告",
+          "contentType": "text/markdown",
+          "version": 2,
+          "versions": [
+            {
+              "version": 2,
+              "title": "报告",
+              "bytes": 12,
+              "uri": "mode-artifact://run-1/report",
+              "publishedAt": 1700000000000,
+              "primary": true
+            }
+          ],
+          "itemCount": 0,
+          "primary": true
+        }
+      ]
+    }
+  }
+}

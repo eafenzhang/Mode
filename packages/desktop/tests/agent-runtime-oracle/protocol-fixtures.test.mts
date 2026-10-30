@@ -89,6 +89,14 @@ import {
   v4ConversationWorkflowRunsParamsSchema,
   v4ConversationWorkflowRunsResultSchema,
 } from "../../../shared/src/mode-protocol-v4/transport.js";
+import {
+  v4ConversationWorkflowRunArtifactDataParamsSchema,
+  v4ConversationWorkflowRunArtifactDataResultSchema,
+  v4ConversationWorkflowRunArtifactReadParamsSchema,
+  v4ConversationWorkflowRunArtifactReadResultSchema,
+  v4ConversationWorkflowRunArtifactsParamsSchema,
+  v4ConversationWorkflowRunArtifactsResultSchema,
+} from "../../../shared/src/mode-protocol-v4/workflow-artifacts.js";
 
 /** 夹具外壳：`frame` 是线上整帧，其余是录制元数据（不属于线上形状）。 */
 type ProtocolFixture = {
@@ -293,6 +301,9 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "v4/conversation/subscribe": v4ConversationSubscribeParamsSchema,
     "v4/conversation/workflowRunEvents": v4ConversationWorkflowRunEventsParamsSchema,
     "v4/conversation/workflowRuns": v4ConversationWorkflowRunsParamsSchema,
+    "v4/conversation/workflowRunArtifacts": v4ConversationWorkflowRunArtifactsParamsSchema,
+    "v4/conversation/workflowRunArtifactData": v4ConversationWorkflowRunArtifactDataParamsSchema,
+    "v4/conversation/workflowRunArtifactRead": v4ConversationWorkflowRunArtifactReadParamsSchema,
     "workspace/readPresentation": modeWorkspaceReadPresentationParamsSchema,
     "workflows/get": modeWorkflowsGetParamsSchema,
     "workflows/list": modeWorkflowsListParamsSchema,
@@ -332,6 +343,9 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "v4/conversation/subscribe": v4ConversationSubscribeResultSchema,
     "v4/conversation/workflowRunEvents": v4ConversationWorkflowRunEventsResultSchema,
     "v4/conversation/workflowRuns": v4ConversationWorkflowRunsResultSchema,
+    "v4/conversation/workflowRunArtifacts": v4ConversationWorkflowRunArtifactsResultSchema,
+    "v4/conversation/workflowRunArtifactData": v4ConversationWorkflowRunArtifactDataResultSchema,
+    "v4/conversation/workflowRunArtifactRead": v4ConversationWorkflowRunArtifactReadResultSchema,
     "workspace/readPresentation": modeWorkspacePresentationSchema,
   };
   const exercisedCommands = new Set<string>();

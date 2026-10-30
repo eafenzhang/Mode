@@ -327,6 +327,16 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
   发现面）。参数严格、`limit` 的缺省与钳制在 CLI 侧；结果是
   `WorkflowRunSummary`（状态五值、可选 `stopReason`、lineage、failure 编码、`resumable`），
   最近更新在前。同样不带 `atSeq`/`atLogEpoch`。
+- 用户面产物三条读面（`agent-protocol::v4_queries` 的 `PublishedArtifact*`；注意与
+  `workflow.rs` 里引擎内部 `WorkflowRunArtifact` 区分）：
+  - `workflowRunArtifacts`：产物清单，每个产物带全量版本元数据（`publishedAt` 必填）、
+    `itemCount` 与可选 `primary`；字节不在其中。
+  - `workflowRunArtifactData`：预置看板的条目页，cursor 是 journal `sequence`，
+    `item` 保留原值（不做预览序列化）；`limit` 缺省 200、钳 [1, 500] 都在网关侧。
+  - `workflowRunArtifactRead`：内容产物一次一块的 base64，`mediaType` 来自 journal 记录，
+    `nextOffset` 是 nullable（读到尾显式 null）。协议 `superRefine`（base64 合法性与
+    `nextOffset ≤ totalBytes`）暂未在 Rust 侧镜像，与 `workspaceHookReview` 同口径留待
+    消费方校验。
 
 ## 3. 验收
 
@@ -376,3 +386,6 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
 21. v4 工作流查询：`workflowRunEvents` 的游标/上限缺省时不出键，事件 `sequence`/`type`/
     `payload`/`truncated` 可读；`workflowRuns` 的 `limit` 缺省时不出键，摘要的状态、
     `stopReason`、lineage、failure 编码与 `resumable` 可读；两条都有独立的非法结果前缀。
+22. 用户面产物：清单解析出全量版本元数据与 `primary`；看板条目页解析出
+    `sequence`/`siteId`/`ordinal`/原值 `item`；字节块解析出 base64/`mediaType`/
+    `totalBytes` 与显式 null 的 `nextOffset`；三条都有独立的非法结果前缀。

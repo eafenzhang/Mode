@@ -1,0 +1,13 @@
+{
+  "case": "request-v4-conversation-workflow-run-artifacts",
+  "direction": "host->runtime",
+  "note": "用户面产物清单查询：sessionId + runId（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 74,
+    "method": "v4/conversation/workflowRunArtifacts",
+    "params": {
+      "sessionId": "sess-1",
+      "runId": "run-1"
+    }
+  }
+}

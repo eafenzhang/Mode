@@ -50,7 +50,9 @@ use agent_protocol::v4::{
     CommandAck, CommandAckStatus, ResolveInteractionEnvelope, ResolveInteractionType,
 };
 use agent_protocol::v4_queries::{
-    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunEventsParams,
+    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunArtifactDataParams,
+    WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult,
+    WorkflowRunArtifactsParams, WorkflowRunArtifactsResult, WorkflowRunEventsParams,
     WorkflowRunEventsResult, WorkflowRunsQueryParams, WorkflowRunsQueryResult,
 };
 use agent_protocol::v4_transport::{
@@ -566,6 +568,40 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/workflowRuns".to_string());
                     }
+                    "v4/conversation/workflowRunArtifacts" => {
+                        let artifacts: WorkflowRunArtifactsParams = decode(case, &params);
+                        assert_eq!(artifacts.run_id, "run-1");
+                        assert_eq!(
+                            serde_json::to_value(&artifacts).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/workflowRunArtifacts".to_string());
+                    }
+                    "v4/conversation/workflowRunArtifactData" => {
+                        let data: WorkflowRunArtifactDataParams = decode(case, &params);
+                        assert_eq!(data.artifact_id, "report");
+                        assert_eq!(data.after_sequence, Some(8));
+                        assert_eq!(data.limit, Some(200));
+                        assert_eq!(
+                            serde_json::to_value(&data).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/workflowRunArtifactData".to_string());
+                    }
+                    "v4/conversation/workflowRunArtifactRead" => {
+                        let read: WorkflowRunArtifactReadParams = decode(case, &params);
+                        assert_eq!(read.version, 2);
+                        assert_eq!(read.offset, 0);
+                        assert_eq!(read.limit, 65536);
+                        assert_eq!(
+                            serde_json::to_value(&read).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/workflowRunArtifactRead".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let subscribe: ConversationSubscribeParams = decode(case, &params);
                         assert_eq!(subscribe.topic, "conversation/sess-1");
@@ -1010,6 +1046,44 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/workflowRuns".to_string());
                     }
+                    "v4/conversation/workflowRunArtifacts" => {
+                        let result: WorkflowRunArtifactsResult = decode(case, &response.result);
+                        assert_eq!(result.artifacts.len(), 1);
+                        let artifact = &result.artifacts[0];
+                        assert_eq!(artifact.id, "report");
+                        assert_eq!(artifact.version, 2);
+                        assert_eq!(artifact.versions[0].published_at, 1700000000000);
+                        assert!(artifact.primary.is_some());
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/workflowRunArtifacts".to_string());
+                    }
+                    "v4/conversation/workflowRunArtifactData" => {
+                        let result: WorkflowRunArtifactDataResult = decode(case, &response.result);
+                        assert_eq!(result.items.len(), 1);
+                        assert_eq!(result.items[0].site_id, "report#1");
+                        assert!(!result.has_more);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/workflowRunArtifactData".to_string());
+                    }
+                    "v4/conversation/workflowRunArtifactRead" => {
+                        let result: WorkflowRunArtifactReadResult = decode(case, &response.result);
+                        assert_eq!(result.data_base64, "aGVsbG8=");
+                        assert_eq!(result.next_offset, None, "读到尾时 nextOffset 显式为 null");
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/workflowRunArtifactRead".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let result: ConversationSubscribeResult = decode(case, &response.result);
                         assert_eq!(result.ack.subscription_id, "sub-1");
@@ -1062,7 +1136,10 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "v4/conversation/rowsRange",
             "v4/conversation/subscribe",
             "v4/conversation/workflowRunEvents",
-            "v4/conversation/workflowRuns"
+            "v4/conversation/workflowRuns",
+            "v4/conversation/workflowRunArtifacts",
+            "v4/conversation/workflowRunArtifactData",
+            "v4/conversation/workflowRunArtifactRead"
         ]
         .into_iter()
         .map(str::to_string)

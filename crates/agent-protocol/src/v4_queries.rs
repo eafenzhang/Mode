@@ -12,6 +12,7 @@ use serde_json::{Map, Number, Value};
 use crate::v4_rows::{ConversationRow, ToolCallRow};
 use crate::v4_transport::V4ClientMode;
 use crate::v4_workflow_runs::{WorkflowRunStatus, WorkflowRunStopReason};
+use crate::workflow::{LiteralTrue, WorkflowArtifactKind};
 
 pub const V4_CONVERSATION_ROWS_RANGE_METHOD: &str = "v4/conversation/rowsRange";
 pub const V4_CONVERSATION_PLANS_METHOD: &str = "v4/conversation/plans";
@@ -143,4 +144,135 @@ pub struct WorkflowRunSummary {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure_message: Option<String>,
     pub resumable: bool,
+}
+
+// ── 用户面产物（`artifact.*` 发布给用户看的产出）──
+// 术语：这是**脚本发布给用户看的产物**，不是引擎内部对「脚本顶层返回值」的叫法
+// （后者在 `workflow.rs` 的 `WorkflowRunArtifact` / mode v1）。字节永不进清单 schema，
+// 只有 `workflowRunArtifactRead` 一次一块的 base64。
+
+pub const V4_CONVERSATION_WORKFLOW_RUN_ARTIFACTS_METHOD: &str =
+    "v4/conversation/workflowRunArtifacts";
+pub const V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_DATA_METHOD: &str =
+    "v4/conversation/workflowRunArtifactData";
+pub const V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_READ_METHOD: &str =
+    "v4/conversation/workflowRunArtifactRead";
+pub const ARTIFACT_DATA_MAX_ITEMS_PER_PAGE: u64 = 500;
+
+/// `workflowRunArtifactVersionSchema`：严格；`publishedAt` 必填。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PublishedArtifactVersion {
+    pub version: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spec: Option<Value>,
+    pub published_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub primary: Option<LiteralTrue>,
+}
+
+/// `workflowRunArtifactSchema`：严格；顶层字段取最新版的值。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PublishedArtifact {
+    pub id: String,
+    pub kind: WorkflowArtifactKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spec: Option<Value>,
+    pub version: u64,
+    /// 版本升序；失败的发布不在这里。
+    pub versions: Vec<PublishedArtifactVersion>,
+    pub item_count: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub primary: Option<LiteralTrue>,
+}
+
+/// `v4ConversationWorkflowRunArtifactsParamsSchema`：严格。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunArtifactsParams {
+    pub session_id: String,
+    pub run_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunArtifactsResult {
+    /// 按首次出现顺序（journal 里该 id 第一条 artifact 行的 ordinal）。
+    pub artifacts: Vec<PublishedArtifact>,
+}
+
+/// `v4ConversationWorkflowRunArtifactDataParamsSchema`：严格；limit 缺省 200、钳 [1, 500]
+/// 都在网关侧执行。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunArtifactDataParams {
+    pub session_id: String,
+    pub run_id: String,
+    pub artifact_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_sequence: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunArtifactDataResult {
+    pub items: Vec<WorkflowRunArtifactDataItem>,
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunArtifactDataItem {
+    /// journal sequence——回传成 `afterSequence` 就是下一页的游标。
+    pub sequence: u64,
+    pub site_id: String,
+    pub ordinal: u64,
+    /// 条目原值不做预览序列化（看板按字段路径取数）。
+    pub item: Value,
+}
+
+/// `v4ConversationWorkflowRunArtifactReadParamsSchema`：严格；每块 ≤ 512 KiB。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunArtifactReadParams {
+    pub session_id: String,
+    pub run_id: String,
+    pub artifact_id: String,
+    pub version: u64,
+    pub offset: u64,
+    pub limit: u64,
+}
+
+/// `v4ConversationWorkflowRunArtifactReadResultSchema`：严格。`nextOffset` 是 nullable
+/// 而非 optional（读到尾时显式为 null）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunArtifactReadResult {
+    pub data_base64: String,
+    pub media_type: String,
+    pub total_bytes: u64,
+    pub next_offset: Option<u64>,
 }

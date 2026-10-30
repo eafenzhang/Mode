@@ -1,0 +1,17 @@
+{
+  "case": "request-v4-conversation-workflow-run-artifact-read",
+  "direction": "host->runtime",
+  "note": "内容产物字节：按 (artifactId, version) + offset/limit 取一块（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 76,
+    "method": "v4/conversation/workflowRunArtifactRead",
+    "params": {
+      "sessionId": "sess-1",
+      "runId": "run-1",
+      "artifactId": "report",
+      "version": 2,
+      "offset": 0,
+      "limit": 65536
+    }
+  }
+}

@@ -10,7 +10,8 @@ use agent_process::{
     RuntimePolicy, SpecFactory,
 };
 use agent_protocol::v4_queries::{
-    PlansParams, RowsRangeParams, WorkflowRunEventsParams, WorkflowRunsQueryParams,
+    PlansParams, RowsRangeParams, WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams,
+    WorkflowRunArtifactsParams, WorkflowRunEventsParams, WorkflowRunsQueryParams,
 };
 use agent_protocol::v4_transport::V4ClientMode;
 use serde_json::{json, Value};
@@ -308,6 +309,161 @@ async fn invalid_workflow_queries_carry_distinct_prefixes() {
             "{message}"
         ),
         other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn published_artifacts_list_parses_versions_and_primary() {
+    let log = FrameLog::new("artifacts");
+    let client = control("", &log, Arc::new(AtomicUsize::new(0)));
+
+    let result = client
+        .conversation_workflow_run_artifacts_v4(
+            &target(),
+            WorkflowRunArtifactsParams {
+                session_id: "sess-1".to_string(),
+                run_id: "run-1".to_string(),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.artifacts.len(), 1);
+    let artifact = &result.artifacts[0];
+    assert_eq!(artifact.id, "report");
+    assert_eq!(artifact.version, 2);
+    assert_eq!(artifact.versions.len(), 1);
+    assert_eq!(artifact.versions[0].published_at, 1700000000000);
+    assert_eq!(
+        artifact.versions[0].uri.as_deref(),
+        Some("mode-artifact://run-1/report")
+    );
+    assert_eq!(artifact.item_count, 0);
+    assert!(artifact.primary.is_some());
+
+    let frames = log.frame_params("v4/conversation/workflowRunArtifacts");
+    assert_eq!(
+        frames[0],
+        json!({ "sessionId": "sess-1", "runId": "run-1" })
+    );
+}
+
+#[tokio::test]
+async fn artifact_data_page_parses_items_and_reads_chunk() {
+    let log = FrameLog::new("artifact-data");
+    let client = control("", &log, Arc::new(AtomicUsize::new(0)));
+
+    let data = client
+        .conversation_workflow_run_artifact_data_v4(
+            &target(),
+            WorkflowRunArtifactDataParams {
+                session_id: "sess-1".to_string(),
+                run_id: "run-1".to_string(),
+                artifact_id: "report".to_string(),
+                after_sequence: None,
+                limit: Some(200),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(data.items.len(), 1);
+    assert_eq!(data.items[0].site_id, "report#1");
+    assert_eq!(data.items[0].item["timing"]["after"], 12);
+    assert!(!data.has_more);
+
+    let frames = log.frame_params("v4/conversation/workflowRunArtifactData");
+    assert!(
+        frames[0].get("afterSequence").is_none(),
+        "afterSequence 缺省时不得出键"
+    );
+    assert_eq!(frames[0]["limit"], 200);
+
+    let chunk = client
+        .conversation_workflow_run_artifact_read_v4(
+            &target(),
+            WorkflowRunArtifactReadParams {
+                session_id: "sess-1".to_string(),
+                run_id: "run-1".to_string(),
+                artifact_id: "report".to_string(),
+                version: 2,
+                offset: 0,
+                limit: 65536,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(chunk.data_base64, "aGVsbG8=");
+    assert_eq!(chunk.media_type, "text/markdown");
+    assert_eq!(chunk.total_bytes, 5);
+    assert_eq!(chunk.next_offset, None);
+}
+
+#[tokio::test]
+async fn invalid_artifact_queries_carry_distinct_prefixes() {
+    let cases: [(&str, &str); 3] = [
+        ("bad-v4-artifacts", "invalid v4/conversation/workflowRunArtifacts result"),
+        (
+            "bad-v4-artifact-data",
+            "invalid v4/conversation/workflowRunArtifactData result",
+        ),
+        (
+            "bad-v4-artifact-read",
+            "invalid v4/conversation/workflowRunArtifactRead result",
+        ),
+    ];
+    for (mode, prefix) in cases {
+        let log = FrameLog::new(mode);
+        let client = control(mode, &log, Arc::new(AtomicUsize::new(0)));
+        let error = match mode {
+            "bad-v4-artifacts" => client
+                .conversation_workflow_run_artifacts_v4(
+                    &target(),
+                    WorkflowRunArtifactsParams {
+                        session_id: "sess-1".to_string(),
+                        run_id: "run-1".to_string(),
+                    },
+                    RuntimePolicy::StartIfNeeded,
+                )
+                .await
+                .unwrap_err(),
+            "bad-v4-artifact-data" => client
+                .conversation_workflow_run_artifact_data_v4(
+                    &target(),
+                    WorkflowRunArtifactDataParams {
+                        session_id: "sess-1".to_string(),
+                        run_id: "run-1".to_string(),
+                        artifact_id: "report".to_string(),
+                        after_sequence: None,
+                        limit: None,
+                    },
+                    RuntimePolicy::StartIfNeeded,
+                )
+                .await
+                .unwrap_err(),
+            _ => client
+                .conversation_workflow_run_artifact_read_v4(
+                    &target(),
+                    WorkflowRunArtifactReadParams {
+                        session_id: "sess-1".to_string(),
+                        run_id: "run-1".to_string(),
+                        artifact_id: "report".to_string(),
+                        version: 2,
+                        offset: 0,
+                        limit: 1,
+                    },
+                    RuntimePolicy::StartIfNeeded,
+                )
+                .await
+                .unwrap_err(),
+        };
+        match error {
+            ControlError::InvalidResult(message) => {
+                assert!(message.starts_with(prefix), "{mode}: {message}")
+            }
+            other => panic!("{mode}: unexpected error: {other:?}"),
+        }
     }
 }
 

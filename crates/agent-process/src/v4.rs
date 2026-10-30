@@ -21,10 +21,15 @@ use agent_protocol::v4_transport::{
     HostCapabilities, V4ClientMode, V4_WIRE_PROTOCOL_VERSION,
 };
 use agent_protocol::v4_queries::{
-    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunEventsParams,
+    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunArtifactDataParams,
+    WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult,
+    WorkflowRunArtifactsParams, WorkflowRunArtifactsResult, WorkflowRunEventsParams,
     WorkflowRunEventsResult, WorkflowRunsQueryParams, WorkflowRunsQueryResult,
     V4_CONVERSATION_PLANS_METHOD, V4_CONVERSATION_ROWS_RANGE_METHOD,
-    V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD, V4_CONVERSATION_WORKFLOW_RUNS_METHOD,
+    V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_DATA_METHOD,
+    V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_READ_METHOD,
+    V4_CONVERSATION_WORKFLOW_RUN_ARTIFACTS_METHOD, V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD,
+    V4_CONVERSATION_WORKFLOW_RUNS_METHOD,
 };
 use serde_json::Value;
 
@@ -194,6 +199,69 @@ impl AgentControlClient {
         serde_json::from_value(response).map_err(|error| {
             ControlError::InvalidResult(format!(
                 "invalid v4/conversation/workflowRuns result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/conversation/workflowRunArtifacts`：用户面产物清单（全量版本元数据）。
+    pub async fn conversation_workflow_run_artifacts_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: WorkflowRunArtifactsParams,
+        policy: RuntimePolicy,
+    ) -> Result<WorkflowRunArtifactsResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("workflowRunArtifacts params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_WORKFLOW_RUN_ARTIFACTS_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/workflowRunArtifacts result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/conversation/workflowRunArtifactData`：预置看板的条目页（cursor = journal
+    /// sequence）。
+    pub async fn conversation_workflow_run_artifact_data_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: WorkflowRunArtifactDataParams,
+        policy: RuntimePolicy,
+    ) -> Result<WorkflowRunArtifactDataResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value =
+            serde_json::to_value(&params).expect("workflowRunArtifactData params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_DATA_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/workflowRunArtifactData result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/conversation/workflowRunArtifactRead`：内容产物一次一块的字节。
+    pub async fn conversation_workflow_run_artifact_read_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: WorkflowRunArtifactReadParams,
+        policy: RuntimePolicy,
+    ) -> Result<WorkflowRunArtifactReadResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value =
+            serde_json::to_value(&params).expect("workflowRunArtifactRead params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_READ_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/workflowRunArtifactRead result: {error}"
             ))
         })
     }

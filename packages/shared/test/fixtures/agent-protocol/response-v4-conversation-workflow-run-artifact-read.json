@@ -1,0 +1,15 @@
+{
+  "case": "response-v4-conversation-workflow-run-artifact-read",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/workflowRunArtifactRead",
+  "note": "字节块：base64 + contentType 精确匹配 + 总字节数 + 下一块 offset（读到尾为 null；协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 76,
+    "result": {
+      "dataBase64": "aGVsbG8=",
+      "mediaType": "text/markdown",
+      "totalBytes": 5,
+      "nextOffset": null
+    }
+  }
+}
