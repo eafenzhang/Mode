@@ -149,6 +149,22 @@ fn main() {
                 event["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": { "events": [event] } })
+        } else if method == "session/subagents" {
+            let mut result = json!({
+                "revision": 3,
+                "childSessionIds": ["sess-2"],
+                "running": [{
+                    "childSessionId": "sess-2",
+                    "subagentType": "explore",
+                    "title": "运行中",
+                    "status": "running"
+                }],
+                "ended": { "total": 0, "items": [] }
+            });
+            if mode == "bad-session-subagents" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else {
             json!({ "id": id, "result": { "method": method } })
         };

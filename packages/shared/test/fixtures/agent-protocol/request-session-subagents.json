@@ -1,0 +1,14 @@
+{
+  "case": "request-session-subagents",
+  "direction": "host->runtime",
+  "note": "host 读取子代理列表：endedLimit 恒发（服务层缺省 20），endedCursor 可选（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 43,
+    "method": "session/subagents",
+    "params": {
+      "sessionId": "sess-1",
+      "endedCursor": "cursor-1",
+      "endedLimit": 20
+    }
+  }
+}

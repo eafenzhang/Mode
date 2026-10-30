@@ -1,0 +1,38 @@
+{
+  "case": "response-session-subagents",
+  "direction": "runtime->host",
+  "respondsTo": "session/subagents",
+  "note": "运行时返回子代理列表：running 与 ended 分页（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 43,
+    "result": {
+      "revision": 3,
+      "childSessionIds": ["sess-2", "sess-3"],
+      "running": [
+        {
+          "childSessionId": "sess-2",
+          "agentId": "agent-1",
+          "subagentType": "explore",
+          "title": "搜索代码",
+          "startedAt": 1700000000020,
+          "status": "running"
+        }
+      ],
+      "ended": {
+        "total": 1,
+        "items": [
+          {
+            "childSessionId": "sess-3",
+            "subagentType": "explore",
+            "title": "已完成",
+            "summary": "找到了入口",
+            "startedAt": 1700000000021,
+            "endedAt": 1700000000022,
+            "status": "success"
+          }
+        ],
+        "nextCursor": "cursor-2"
+      }
+    }
+  }
+}

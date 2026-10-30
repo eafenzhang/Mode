@@ -73,6 +73,16 @@ Goal 的 `summaryTitle` 在 schema 里是 `.default(null)`：**省略**与显式
 镜像只对 M2 用到的载荷做了强类型（`session_event::payload_as`），其余载荷保持原始 JSON。
 消费方需要某个载荷时按 `type` 解码，解不开即报错，不会静默接受错类型。
 
+## 3c. `session/subagents`
+
+请求：`{ sessionId, endedCursor?, endedLimit }`。`endedLimit` **恒发**：TS 用
+`params.endedLimit ?? 20`，所以缺省是 20 而不是省略；`endedCursor` 缺省时省略。
+
+应答：`{ revision, childSessionIds, running[], ended{ total, items[], nextCursor? } }`。
+`running` 的 `status` 是 `running` / `waiting` / `blocked`；`ended.items` 的 `status` 是
+`success` / `failed` / `cancelled` / `lost`。两条 schema 都是 base 字段 + `status` 的
+`.strict()` 扩展（`childSessionId`、`subagentType`、`title` 必填，其余可选）。
+
 ## 4. 运行时策略
 
 `getReadOnlyClient(params, runtimePolicy)` 的两种语义：
@@ -93,9 +103,13 @@ Goal 的 `summaryTitle` 在 schema 里是 `.default(null)`：**省略**与显式
 ## 6. 验收
 
 1. 共享夹具 `request-session-list.json` / `response-session-list.json` /
-   `request-session-events.json` / `response-session-events.json` 同时被 TS zod 与 Rust
+   `request-session-events.json` / `response-session-events.json` /
+   `request-session-subagents.json` / `response-session-subagents.json` 同时被 TS zod 与 Rust
    严格镜像接受；Rust 侧序列化回到线上字节。
-2. `sessionIds` / `limit` / `afterSeq` 缺省时不出现键；`includeArchived=false` 恒出现。
+2. `sessionIds` / `limit` / `afterSeq` / `endedCursor` 缺省时不出现键；
+   `includeArchived=false` 与 `endedLimit=20` 恒出现。
 3. `existing-only` 在没有活进程时返回 runtime-unavailable 错误且 spawn 次数为 0。
-4. 正常路径返回的 `sessions` / `events` 字段逐项可读；同一 workspace 复用同一进程。
-5. 事件信封多一个键时整条结果被拒绝，消息前缀 `invalid session/events result`。
+4. 正常路径返回的 `sessions` / `events` / `subagents` 字段逐项可读；同一 workspace 复用
+   同一进程。
+5. 事件信封或子代理结果多一个键时整条结果被拒绝，消息前缀分别为
+   `invalid session/events result` 与 `invalid session/subagents result`。

@@ -9,7 +9,8 @@
 use agent_protocol::session_event::SessionEvent;
 use agent_protocol::session_read::{
     SessionEventsParams, SessionEventsResult, SessionInfo, SessionListParams, SessionListResult,
-    SessionWorkspaceRef, SESSION_EVENTS_METHOD, SESSION_LIST_METHOD,
+    SessionSubagentsParams, SessionSubagentsResult, SessionWorkspaceRef, SESSION_EVENTS_METHOD,
+    SESSION_LIST_METHOD, SESSION_SUBAGENTS_METHOD,
 };
 use serde_json::Value;
 
@@ -71,6 +72,29 @@ impl AgentControlClient {
             .await?;
         parse_session_events(&response)
     }
+
+    /// `session/subagents`：运行中与已结束子代理；`endedLimit` 缺省 20（与 TS `?? 20` 一致）。
+    pub async fn list_session_subagents(
+        &self,
+        target: &AgentWorkspaceTarget,
+        session_id: &str,
+        ended_cursor: Option<&str>,
+        ended_limit: Option<u64>,
+    ) -> Result<SessionSubagentsResult, ControlError> {
+        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let params = SessionSubagentsParams {
+            session_id: session_id.to_string(),
+            ended_cursor: ended_cursor.map(str::to_string),
+            ended_limit: ended_limit.unwrap_or(20),
+        };
+        let params =
+            serde_json::to_value(&params).expect("session/subagents params 序列化不会失败");
+        let response = process
+            .client()
+            .request(SESSION_SUBAGENTS_METHOD, Some(params))
+            .await?;
+        parse_session_subagents(&response)
+    }
 }
 
 /// `buildWorkspaceRef` 的结果形状：identity 保留原值（含空白），`workspaceKey` 已 trim。
@@ -95,4 +119,10 @@ fn parse_session_events(value: &Value) -> Result<Vec<SessionEvent>, ControlError
         ControlError::InvalidResult(format!("invalid session/events result: {error}"))
     })?;
     Ok(result.events)
+}
+
+fn parse_session_subagents(value: &Value) -> Result<SessionSubagentsResult, ControlError> {
+    serde_json::from_value(value.clone()).map_err(|error| {
+        ControlError::InvalidResult(format!("invalid session/subagents result: {error}"))
+    })
 }

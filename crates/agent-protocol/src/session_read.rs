@@ -32,6 +32,7 @@ where
 
 pub const SESSION_LIST_METHOD: &str = "session/list";
 pub const SESSION_EVENTS_METHOD: &str = "session/events";
+pub const SESSION_SUBAGENTS_METHOD: &str = "session/subagents";
 
 /// 结果里的 workspace ref（`modeWorkspaceRefSchema`，严格四键）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -245,4 +246,96 @@ pub struct SessionEventsParams {
 pub struct SessionEventsResult {
     pub events: Vec<SessionEvent>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RunningSubagentStatus {
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "waiting")]
+    Waiting,
+    #[serde(rename = "blocked")]
+    Blocked,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EndedSubagentStatus {
+    #[serde(rename = "success")]
+    Success,
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    #[serde(rename = "lost")]
+    Lost,
+}
+
+/// `modeSessionRunningSubagentSchema`（base + `status`，全部 `.strict()`）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RunningSubagent {
+    pub child_session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    pub subagent_type: String,
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended_at: Option<u64>,
+    pub status: RunningSubagentStatus,
+}
+
+/// `modeSessionEndedSubagentSchema`。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct EndedSubagent {
+    pub child_session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    pub subagent_type: String,
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended_at: Option<u64>,
+    pub status: EndedSubagentStatus,
+}
+
+/// `session/subagents` 的 params；`endedLimit` 恒发（服务层缺省 20）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionSubagentsParams {
+    pub session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended_cursor: Option<String>,
+    pub ended_limit: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionSubagentsEnded {
+    pub total: u64,
+    pub items: Vec<EndedSubagent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+}
+
+/// `modeSessionSubagentsResultSchema`。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionSubagentsResult {
+    pub revision: u64,
+    pub child_session_ids: Vec<String>,
+    pub running: Vec<RunningSubagent>,
+    pub ended: SessionSubagentsEnded,
+}
+
 
