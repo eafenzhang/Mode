@@ -11,9 +11,18 @@ use agent_process::{
 const FIXTURE: &str = env!("CARGO_BIN_EXE_agent-process-fixture");
 
 fn registry(counter: Arc<AtomicUsize>) -> AgentRuntimeRegistry {
+    registry_with_mode("", counter)
+}
+
+fn registry_with_mode(mode: &str, counter: Arc<AtomicUsize>) -> AgentRuntimeRegistry {
+    let mode = mode.to_string();
     let factory: SpecFactory = Arc::new(move |_target| {
         counter.fetch_add(1, Ordering::SeqCst);
-        Ok(AgentProcessSpec::new(FIXTURE))
+        let mut spec = AgentProcessSpec::new(FIXTURE);
+        if !mode.is_empty() {
+            spec.args.push(mode.clone());
+        }
+        Ok(spec)
     });
     AgentRuntimeRegistry::new(factory)
 }
@@ -97,6 +106,54 @@ async fn invalidate_and_reap_idle_remove_entries() {
         .await;
     assert_eq!(reaped, 1);
     assert_eq!(registry.len(), 0);
+}
+
+#[tokio::test]
+async fn reap_idle_skips_process_while_request_is_in_flight() {
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let registry = registry_with_mode("slow-reply", Arc::clone(&spawns));
+    let process = registry.get_or_spawn(&target("D:/ws/i")).await.unwrap();
+
+    let client = Arc::clone(&process);
+    let request = tokio::spawn(async move { client.client().request("slow", None).await });
+    for _ in 0..200 {
+        if process.client().pending_count() == 1 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    assert_eq!(process.client().pending_count(), 1, "请求应在飞");
+
+    // 在飞期间即使阈值为 0 也不能回收。
+    assert_eq!(registry.reap_idle(Duration::ZERO, Duration::from_secs(3)).await, 0);
+    assert_eq!(registry.len(), 1);
+
+    request.await.unwrap().unwrap();
+    assert_eq!(process.client().pending_count(), 0);
+    // 请求结束后计时归零；阈值为 0 时下一轮回收。
+    assert_eq!(registry.reap_idle(Duration::ZERO, Duration::from_secs(3)).await, 1);
+    assert_eq!(registry.len(), 0);
+}
+
+#[tokio::test]
+async fn idle_reaper_task_reclaims_unused_process() {
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let registry = Arc::new(registry(Arc::clone(&spawns)));
+    registry.get_or_spawn(&target("D:/ws/j")).await.unwrap();
+
+    let reaper = registry.spawn_idle_reaper(
+        Duration::from_millis(20),
+        Duration::from_millis(10),
+        Duration::from_secs(3),
+    );
+    for _ in 0..200 {
+        if registry.is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    reaper.abort();
+    assert_eq!(registry.len(), 0, "空闲进程应被周期任务回收");
 }
 
 #[tokio::test]

@@ -3,13 +3,13 @@
 //! key 口径与仓库一致：`workspaceIdentity?.trim() || workspacePath`（远程身份优先）。
 //! 这是所有权切换的硬前置——壳与 Host 不能同时为同一 workspace 拉起 Agent。
 //!
-//! 未做（下一片）：空闲看门狗自动回收、健康探测、provider/account 配置同步、进程换代
-//! 事件。当前提供显式 `reap_idle` 与 `shutdown_all` 供宿主生命周期调用。
+//! 未做（下一片）：健康探测、provider/account 配置同步、进程换代事件。空闲回收由
+//! [`AgentRuntimeRegistry::spawn_idle_reaper`] 提供周期任务，壳负责在换代/退出时 abort。
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use tokio::sync::Mutex as AsyncMutex;
 
@@ -51,7 +51,6 @@ pub type SpecFactory = Arc<
 struct Entry {
     process: Arc<AgentProcess>,
     generation: u64,
-    last_used: Instant,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -82,6 +81,7 @@ impl AgentRuntimeRegistry {
         self.entries.lock().expect("registry poisoned").len()
     }
 
+    /// 当前没有任何活进程条目。
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -136,7 +136,6 @@ impl AgentRuntimeRegistry {
         let key = target.key();
 
         if let Some(process) = self.live_entry(&key) {
-            self.touch(&key);
             return Ok(process);
         }
 
@@ -152,7 +151,6 @@ impl AgentRuntimeRegistry {
 
         // 等锁期间可能已有别的调用完成 spawn，或旧进程刚好关闭。
         if let Some(process) = self.live_entry(&key) {
-            self.touch(&key);
             return Ok(process);
         }
         self.remove_stale(&key).await;
@@ -167,7 +165,6 @@ impl AgentRuntimeRegistry {
             Entry {
                 process: Arc::clone(&process),
                 generation,
-                last_used: Instant::now(),
             },
         );
         Ok(process)
@@ -186,13 +183,18 @@ impl AgentRuntimeRegistry {
     }
 
     /// 回收空闲超过 `older_than` 的 Agent。返回回收数量。
+    ///
+    /// 空闲口径与 TS `scheduleIdleReclaim` 一致：**没有在飞请求**且距上次归零已超过阈值。
+    /// 在飞请求未清空时不回收，等它结束、计时重新开始后再判断。
     pub async fn reap_idle(&self, older_than: Duration, grace: Duration) -> usize {
-        let now = Instant::now();
         let stale_keys: Vec<String> = {
             let entries = self.entries.lock().expect("registry poisoned");
             entries
                 .iter()
-                .filter(|(_, entry)| now.duration_since(entry.last_used) >= older_than)
+                .filter(|(_, entry)| {
+                    let client = entry.process.client();
+                    client.pending_count() == 0 && client.idle_duration() >= older_than
+                })
                 .map(|(key, _)| key.clone())
                 .collect()
         };
@@ -209,6 +211,29 @@ impl AgentRuntimeRegistry {
             }
         }
         reaped
+    }
+
+    /// 启动周期性的空闲回收任务，返回任务句柄（调用方在壳换代/退出时 abort）。
+    ///
+    /// 首轮延后一个 `interval`，避免进程刚拉起就被判定空闲；`interval` 决定回收时间
+    /// 粒度，因此应显著小于 `idle_timeout`。
+    pub fn spawn_idle_reaper(
+        self: &Arc<Self>,
+        interval: Duration,
+        idle_timeout: Duration,
+        grace: Duration,
+    ) -> tokio::task::JoinHandle<()> {
+        let registry = Arc::clone(self);
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(interval);
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            // `interval` 的第一次 tick 立即返回；跳过它。
+            ticker.tick().await;
+            loop {
+                ticker.tick().await;
+                registry.reap_idle(idle_timeout, grace).await;
+            }
+        })
     }
 
     /// 壳退出/换代时关闭全部 Agent。
@@ -228,17 +253,6 @@ impl AgentRuntimeRegistry {
             .get(key)
             .filter(|entry| !entry.process.client().is_closed())
             .map(|entry| Arc::clone(&entry.process))
-    }
-
-    fn touch(&self, key: &str) {
-        if let Some(entry) = self
-            .entries
-            .lock()
-            .expect("registry poisoned")
-            .get_mut(key)
-        {
-            entry.last_used = Instant::now();
-        }
     }
 
     async fn remove_stale(&self, key: &str) {

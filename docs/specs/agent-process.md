@@ -18,7 +18,8 @@
 
 **不在范围**（后续切片）：
 
-- 自动空闲看门狗、健康探测、重启监听（注册表已提供显式 `reap_idle`/`shutdown_all`）；
+- 健康探测、重启监听（注册表已提供显式 `reap_idle`/`shutdown_all` 与周期
+  `spawn_idle_reaper`）；
 - provider/account 配置同步、`mode-agent` 频道迁移与所有权切换；
 - TS 的 stderr drain 窗口、进程树快照（`captureProcessTreeSnapshot`）、stdio tap 开发代理；
 - 进程组 id 探测与 Windows `taskkill` 失败后的二次兜底（当前失败只依赖根进程
@@ -51,16 +52,22 @@ cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd�
 `AgentRuntimeRegistry` 保证**一个 workspace key 只允许一个 Agent 子进程**：
 
 - key = `workspaceIdentity?.trim() || workspacePath`（与仓库 Workspace Identity 规则一致）；
-- `get_or_spawn`：已存在且 transport 未关闭 → 复用并刷新 `last_used`；已关闭 → 先回收再重建；
+- `get_or_spawn`：已存在且 transport 未关闭 → 复用；已关闭 → 先回收再重建；
   同一 key 的并发调用只真正 spawn 一次（每 key 一把异步锁），不同 key 互不阻塞；
 - `invalidate(key)`：关闭并移除，下次调用重建；
-- `reap_idle(older_than, grace)`：回收超过空闲阈值的实例，返回数量；
+- `reap_idle(older_than, grace)`：只在**没有在飞请求**（`pending_count() == 0`）且
+  `idle_duration()` 达到阈值时回收，返回数量；在飞请求结束前绝不回收；
+- `spawn_idle_reaper(interval, idle_timeout, grace)`：周期任务，首轮延后一个 `interval`，
+  返回 `JoinHandle`，由壳在换代/退出时 abort；
 - `shutdown_all(grace)`：壳退出/换代时关闭全部；
 - spawn 失败不缓存，下一次调用会重试。
 
-**当前未做**：自动空闲看门狗（由宿主定时调用 `reap_idle`）、健康探测、provider/account
-配置同步、进程换代事件。实时切换所有权前必须先接上这些调用点，并确保 Host 不再拉起
-同一 workspace 的 Agent。
+空闲口径来自协议客户端的待处理请求计数：`idle_duration` 在连接建立与每次 pending 归零时
+重置（见 `docs/specs/mode-protocol-client.md`）。这与 TS `scheduleIdleReclaim` 的
+「在飞请求归零后重新计时」一致。
+
+**当前未做**：健康探测、provider/account 配置同步、进程换代事件。实时切换所有权前必须
+先接上这些调用点，并确保 Host 不再拉起同一 workspace 的 Agent。
 
 ## 存储启动门
 
@@ -148,9 +155,9 @@ automation/workflow 等）按方法组迁移。
 - 启动即退出：请求以 `Closed`/`Transport` 失败；
 - 不存在的命令：`AgentProcessError::Spawn`。
 
-`crates/agent-process/tests/registry.rs`（7 条）：同 key 复用同一进程、identity 优先于路径、
+`crates/agent-process/tests/registry.rs`（9 条）：同 key 复用同一进程、identity 优先于路径、
 并发 `get_or_spawn` 只 spawn 一次、transport 关闭后重建、`invalidate`/`reap_idle` 回收、
-spawn 失败不缓存、`shutdown_all` 关闭全部。
+在飞请求期间不回收、`spawn_idle_reaper` 周期回收、spawn 失败不缓存、`shutdown_all` 关闭全部。
 
 `crates/agent-process` 启动规格单元测试（6 条）：env 覆盖（args/cwd）、非法 args JSON、
 dev dist 向上查找与 Node 选择、打包资源分支、全部缺失时 `NotConfigured`、

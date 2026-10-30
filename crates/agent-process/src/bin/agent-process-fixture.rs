@@ -121,6 +121,10 @@ fn main() {
         } else {
             json!({ "id": id, "result": { "method": method } })
         };
+        if mode == "slow-reply" {
+            // 让请求保持「在飞」，用于空闲回收不得中途回收的用例。
+            std::thread::sleep(std::time::Duration::from_millis(300));
+        }
         if writeln!(stdout, "{reply}").is_err() {
             break;
         }

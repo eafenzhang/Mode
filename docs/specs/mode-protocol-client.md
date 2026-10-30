@@ -20,8 +20,18 @@
 
 - 拉起/终止 `mode app-server --stdio` 进程、进程树清理、stderr 收集、stdio tap；
 - `ModeStorageStartupGate`（请求前置的存储启动门）；
-- `lifecycle: observation` 与空闲续期语义；
+- `lifecycle: observation`；
 - 按方法的 zod/强类型结果校验（调用方用 `serde_json::Value` 自行解析）。
+
+## 空闲计时（对应 `onPendingRequestsDrained`）
+
+- 连接建立时记录 `last_drained = now`。
+- 任一 pending 被移除（成功、服务端错误、超时、写失败）后，若 pending 已空则把
+  `last_drained` 置为 `now`；移除与「是否为空」在同一把锁内判断，避免与新请求插入交错。
+- 连接关闭（EOF/`dispose`）时 pending 全部失败，同样视为归零。
+- `pending_count()` 与 `idle_duration()` 一起构成空闲判定：只有在飞请求为 0 且空闲时长达到
+  阈值才允许回收。注册表的 `reap_idle` / `spawn_idle_reaper` 使用这组语义
+  （见 `docs/specs/agent-process.md`）。
 
 ## 帧
 
@@ -54,13 +64,13 @@
 | --- | --- |
 | 结果校验 | TS 客户端支持按方法传 zod schema；这里只返回 `Value`，由调用方解析 |
 | 存储启动门 | TS 的 `ModeStorageStartupGate` 未移植 |
-| 观测语义 | `lifecycle: observation` 与 pending 计数对 runtime 健康判定的影响未移植 |
+| 观测语义 | `lifecycle: observation` 未移植；pending 计数与空闲时长已提供（`pending_count` / `idle_duration`） |
 | 帧上限 | Rust 增加 64 MiB 上限；正常协议帧远小于此 |
 | 进程生命周期 | 本 crate 不拥有进程；`dispose` 只中止本地读写任务 |
 
 ## 验收
 
-`crates/mode-protocol-client` 单元测试（7 条）：
+`crates/mode-protocol-client` 单元测试（9 条）：
 
 - 请求/响应往返；
 - 服务端错误映射；
@@ -68,4 +78,5 @@
 - 帧跨 chunk 拆分、U+2028/U+2029 不切帧；
 - 单请求超时只失败该请求且 pending 清空；
 - 对端 EOF 将 pending 失败为 `Closed`；
-- 无 handler 的服务端请求回 `-32601`。
+- 无 handler 的服务端请求回 `-32601`；
+- 在飞期间 `idle_duration` 持续增长，pending 归零后重新计时。

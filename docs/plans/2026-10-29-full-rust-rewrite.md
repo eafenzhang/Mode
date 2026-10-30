@@ -236,7 +236,8 @@ LF 分帧（只认 `\n`，U+2028/U+2029 不切帧）、请求 id 多路复用、
 Unix 进程组 SIGKILL），5 条真实子进程测试；见 `docs/specs/agent-process.md`。
 **单进程不变量已落**：`AgentRuntimeRegistry` 按 `workspaceIdentity?.trim() || workspacePath`
 保证一个 workspace 只有一个 Agent，并发去重、失效重建、`reap_idle` 与 `shutdown_all`
-（7 条测试）。**启动规格解析已落**：env 覆盖（command/args JSON/cwd）→ dev dist →
+（7 条测试）；空闲回收已按协议客户端的 pending 归零计时，并提供周期任务
+`spawn_idle_reaper`（在飞请求不回收；新增 2 条测试，共 9 条）。**启动规格解析已落**：env 覆盖（command/args JSON/cwd）→ dev dist →
 dev 源码 tsx → 打包 `<resources>/agent/glm/mode.cjs`，含 `--surface desktop` 改写与
 cwd 回落（6 条测试）。**mode-agent 控制面第一批已落**：`AgentControlClient` 实现
 `workspace/hooks/trustGrant`（workspace ref、摘要校验、严格结果解析、Agent message 原样
@@ -249,7 +250,7 @@ state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`p
 首次失败发布 fail-closed、之后保留 last-known-good；以 `providerId -> config` 对象交付，
 并用本包 fixture 子进程端到端验证线格式与 revision 去重（4 + 1 条测试）。真实凭据 / OAuth /
 Family 可用性网络源仍需注入实现，属于 model-provider 域。
-**未做**：native binary 兜底、真实 provider/account 网络事实、自动空闲看门狗，频道注册与
+**未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
 所有权切换，以及其余 81 个成员（session/插件/automation/workflow 等）。
 所有权切换仍是 W4 下一片，`hooks` 的 grant 与任务/会话频道都等它。
 

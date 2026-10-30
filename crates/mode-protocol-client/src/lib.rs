@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
@@ -107,11 +107,32 @@ struct Shared {
     request_handler: Mutex<Option<RequestHandler>>,
     tasks: Mutex<Vec<AbortHandle>>,
     request_timeout: Duration,
+    /// 最近一次「在飞请求归零」的时刻，对应 TS `onPendingRequestsDrained` 的空闲起点。
+    /// 空闲回收只看它：进程拉起后从未发过请求也从连接时刻开始计时。
+    last_drained: Mutex<Instant>,
 }
 
 impl Shared {
     fn is_closed(&self) -> bool {
         self.closed.load(Ordering::SeqCst)
+    }
+
+    /// 移除一个在飞请求；若因此归零则刷新空闲起点。
+    ///
+    /// 与 `pending` 用同一把锁判断是否归零，避免「移除后另一个请求插入」被误判成空闲。
+    fn take_pending(&self, id: &RequestId) -> Option<oneshot::Sender<Result<Value, ClientError>>> {
+        let mut pending = self.pending.lock().expect("pending map poisoned");
+        let removed = pending.remove(id);
+        let drained = pending.is_empty();
+        drop(pending);
+        if drained {
+            self.mark_drained();
+        }
+        removed
+    }
+
+    fn mark_drained(&self) {
+        *self.last_drained.lock().expect("drain clock poisoned") = Instant::now();
     }
 
     fn fail_pending(&self, error: ClientError) {
@@ -122,6 +143,7 @@ impl Shared {
             .drain()
             .map(|(_, sender)| sender)
             .collect();
+        self.mark_drained();
         for sender in drained {
             let _ = sender.send(Err(error.clone()));
         }
@@ -182,6 +204,7 @@ impl ProtocolClient {
             request_handler: Mutex::new(None),
             tasks: Mutex::new(Vec::new()),
             request_timeout: options.request_timeout,
+            last_drained: Mutex::new(Instant::now()),
         });
         // 先订阅再启动读取任务：连接建立后立即到达的通知不会丢。
         let initial_notifications = shared.notifications.subscribe();
@@ -236,6 +259,18 @@ impl ProtocolClient {
         self.shared.pending.lock().expect("pending map poisoned").len()
     }
 
+    /// 距最近一次「在飞请求归零」的时长；没有任何请求时从连接时刻起算。
+    ///
+    /// 空闲回收用它而不是「最后一次被取用」的时间：长请求结束后进程就重新算空闲，
+    /// 而在飞期间不会被回收（与 TS `onPendingRequestsDrained` 的计时口径一致）。
+    pub fn idle_duration(&self) -> Duration {
+        self.shared
+            .last_drained
+            .lock()
+            .expect("drain clock poisoned")
+            .elapsed()
+    }
+
     pub async fn request(&self, method: &str, params: Option<Value>) -> Result<Value, ClientError> {
         self.request_with_timeout(method, params, self.shared.request_timeout)
             .await
@@ -265,11 +300,7 @@ impl ProtocolClient {
             frame.insert("params".into(), params);
         }
         if let Err(error) = self.shared.send_frame(Value::Object(frame)) {
-            self.shared
-                .pending
-                .lock()
-                .expect("pending map poisoned")
-                .remove(&id);
+            self.shared.take_pending(&id);
             return Err(error);
         }
 
@@ -278,11 +309,7 @@ impl ProtocolClient {
             // sender 被丢弃：连接已关闭且清理路径先失败了这个请求。
             Ok(Err(_)) => Err(ClientError::Closed),
             Err(_) => {
-                self.shared
-                    .pending
-                    .lock()
-                    .expect("pending map poisoned")
-                    .remove(&id);
+                self.shared.take_pending(&id);
                 Err(ClientError::Timeout {
                     method: method.to_string(),
                 })
@@ -388,12 +415,7 @@ fn handle_inbound(shared: &Arc<Shared>, value: Value) {
 
     if let Some(id) = &id {
         if object.contains_key("result") {
-            if let Some(sender) = shared
-                .pending
-                .lock()
-                .expect("pending map poisoned")
-                .remove(id)
-            {
+            if let Some(sender) = shared.take_pending(id) {
                 let _ = sender.send(Ok(object.get("result").cloned().unwrap_or(Value::Null)));
             }
             return;
@@ -406,12 +428,7 @@ fn handle_inbound(shared: &Arc<Shared>, value: Value) {
                 .unwrap_or("unknown error")
                 .to_string();
             let data = error.get("data").cloned();
-            if let Some(sender) = shared
-                .pending
-                .lock()
-                .expect("pending map poisoned")
-                .remove(id)
-            {
+            if let Some(sender) = shared.take_pending(id) {
                 let _ = sender.send(Err(ClientError::Server {
                     code,
                     message,
@@ -614,6 +631,50 @@ mod tests {
             .unwrap_err();
         assert_eq!(error, ClientError::Timeout { method: "slow".into() });
         assert_eq!(client.pending_count(), 0);
+        client.dispose();
+    }
+
+    #[tokio::test]
+    async fn idle_duration_resets_when_pending_drains() {
+        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+        let (client_read, client_write) = tokio::io::split(client_io);
+        let (server_read, mut server_write) = tokio::io::split(server_io);
+        let client = ProtocolClient::connect(client_read, client_write, ClientOptions::default());
+
+        // 服务端延迟回帧，让请求保持在飞状态。
+        tokio::spawn(async move {
+            let mut reader = BufReader::new(server_read);
+            let mut line = Vec::new();
+            reader.read_until(b'\n', &mut line).await.unwrap();
+            let request: Value = serde_json::from_slice(&line[..line.len() - 1]).unwrap();
+            tokio::time::sleep(Duration::from_millis(120)).await;
+            let reply = json!({ "id": request["id"], "result": "ok" });
+            server_write
+                .write_all(format!("{reply}\n").as_bytes())
+                .await
+                .unwrap();
+        });
+
+        let requesting = client.clone();
+        let task = tokio::spawn(async move { requesting.request("slow", None).await });
+        for _ in 0..200 {
+            if client.pending_count() == 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        assert_eq!(client.pending_count(), 1);
+        tokio::time::sleep(Duration::from_millis(60)).await;
+        assert!(
+            client.idle_duration() >= Duration::from_millis(50),
+            "在飞期间空闲计时继续增长"
+        );
+
+        assert_eq!(task.await.unwrap().unwrap(), "ok");
+        assert!(
+            client.idle_duration() < Duration::from_millis(50),
+            "归零后应重新计时"
+        );
         client.dispose();
     }
 
