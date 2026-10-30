@@ -17,6 +17,42 @@ fn write_notification(stdout: &mut std::io::Stdout, params: Value) {
     let _ = stdout.flush();
 }
 
+/// `session/read` 与三个 setter 共用的最小合法快照。
+fn minimal_snapshot() -> Value {
+    json!({
+        "protocol": { "name": "Mode Protocol", "version": 1 },
+        "session": {
+            "sessionId": "sess-1",
+            "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+            "sessionKind": "interactive",
+            "title": "fixture",
+            "mode": "build",
+            "status": "idle",
+            "createdAt": 1,
+            "updatedAt": 2
+        },
+        "settings": {
+            "model": { "available": [] },
+            "thoughtLevel": { "enabled": false, "available": [] },
+            "mode": { "current": "build" }
+        },
+        "projection": {
+            "sessionId": "sess-1",
+            "status": "idle",
+            "mode": "build",
+            "turnCount": 0,
+            "totalTokenCount": 0,
+            "contextUsed": 0,
+            "contextWindow": 128000,
+            "pendingPermissions": [],
+            "activeToolCalls": [],
+            "backgroundJobs": []
+        },
+        "runtime": { "eventSeq": 0, "stateRevision": 0, "pendingRequestIds": [] },
+        "messages": []
+    })
+}
+
 fn main() {
     let mode = std::env::args().nth(1).unwrap_or_default();
     if mode == "exit-immediately" {
@@ -187,42 +223,26 @@ fn main() {
             }
             json!({ "id": id, "result": { "messages": [message] } })
         } else if method == "session/read" {
-            let mut snapshot = json!({
-                "protocol": { "name": "Mode Protocol", "version": 1 },
-                "session": {
-                    "sessionId": "sess-1",
-                    "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
-                    "sessionKind": "interactive",
-                    "title": "fixture",
-                    "mode": "build",
-                    "status": "idle",
-                    "createdAt": 1,
-                    "updatedAt": 2
-                },
-                "settings": {
-                    "model": { "available": [] },
-                    "thoughtLevel": { "enabled": false, "available": [] },
-                    "mode": { "current": "build" }
-                },
-                "projection": {
-                    "sessionId": "sess-1",
-                    "status": "idle",
-                    "mode": "build",
-                    "turnCount": 0,
-                    "totalTokenCount": 0,
-                    "contextUsed": 0,
-                    "contextWindow": 128000,
-                    "pendingPermissions": [],
-                    "activeToolCalls": [],
-                    "backgroundJobs": []
-                },
-                "runtime": { "eventSeq": 0, "stateRevision": 0, "pendingRequestIds": [] },
-                "messages": []
-            });
+            let mut snapshot = minimal_snapshot();
             if mode == "bad-session-read" {
                 snapshot["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": snapshot })
+        } else if method == "session/setModel"
+            || method == "session/setThoughtLevel"
+            || method == "session/setMode"
+        {
+            let mut snapshot = minimal_snapshot();
+            if mode == "bad-session-setter" {
+                snapshot["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": snapshot })
+        } else if method == "session/close" {
+            let mut result = json!({ "closed": true });
+            if mode == "bad-session-close" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "session/debug" {
             let mut snapshot = json!({
                 "sessionId": "sess-1",

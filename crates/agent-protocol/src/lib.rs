@@ -57,6 +57,7 @@ pub mod session;
 pub mod session_debug;
 pub mod session_event;
 pub mod session_read;
+pub mod session_write;
 pub mod snapshot;
 
 pub use frame::{

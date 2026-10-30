@@ -24,6 +24,7 @@ mod storage;
 mod provider_sync;
 mod resolve;
 mod session_read;
+mod session_write;
 
 pub use control::{
     build_grant_params, build_workspace_ref, AgentControlClient, AgentWorkspaceTarget,

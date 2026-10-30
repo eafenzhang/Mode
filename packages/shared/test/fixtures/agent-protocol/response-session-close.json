@@ -1,0 +1,12 @@
+{
+  "case": "response-session-close",
+  "direction": "runtime->host",
+  "respondsTo": "session/close",
+  "note": "关闭成功应答：closed 可选，缺省时按成功处理（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 47,
+    "result": {
+      "closed": true
+    }
+  }
+}

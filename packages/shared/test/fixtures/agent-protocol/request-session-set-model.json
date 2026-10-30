@@ -1,0 +1,18 @@
+{
+  "case": "request-session-set-model",
+  "direction": "host->runtime",
+  "note": "host 切换会话模型：expectedRevision/persistAsWorkspaceLastUsed 可选（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 48,
+    "method": "session/setModel",
+    "params": {
+      "sessionId": "sess-1",
+      "model": {
+        "providerId": "zai",
+        "modelId": "glm-4.6"
+      },
+      "expectedRevision": 3,
+      "persistAsWorkspaceLastUsed": false
+    }
+  }
+}

@@ -22,6 +22,8 @@ import { fileURLToPath } from "node:url";
 
 import {
   modeProtocolMessageSchema,
+  modeSessionCloseParamsSchema,
+  modeSessionCloseResultSchema,
   modeSessionCreateParamsSchema,
   modeSessionEventSchema,
   modeSessionEventsParamsSchema,
@@ -35,6 +37,9 @@ import {
   modeSessionRuntimePreferencesResultSchema,
   modeSessionSendParamsSchema,
   modeSessionSendResultSchema,
+  modeSessionSetModeParamsSchema,
+  modeSessionSetModelParamsSchema,
+  modeSessionSetThoughtLevelParamsSchema,
   modeSessionStateSnapshotSchema,
   modeSessionSubagentsParamsSchema,
   modeSessionSubagentsResultSchema,
@@ -223,6 +228,7 @@ test("会话事件的载荷能被 v1 session event schema 接受，或只差已�
 
 test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
   const paramsSchemas: Record<string, Parseable> = {
+    "session/close": modeSessionCloseParamsSchema,
     "session/create": modeSessionCreateParamsSchema,
     "session/debug": sessionDebugParamsSchema,
     "session/events": modeSessionEventsParamsSchema,
@@ -230,16 +236,23 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "session/messages": modeSessionMessagesParamsSchema,
     "session/read": modeSessionReadParamsSchema,
     "session/send": modeSessionSendParamsSchema,
+    "session/setMode": modeSessionSetModeParamsSchema,
+    "session/setModel": modeSessionSetModelParamsSchema,
+    "session/setThoughtLevel": modeSessionSetThoughtLevelParamsSchema,
     "session/subagents": modeSessionSubagentsParamsSchema,
     "session/requestRuntimePreferences": modeSessionRequestRuntimePreferencesParamsSchema,
   };
   const resultSchemas: Record<string, Parseable> = {
+    "session/close": modeSessionCloseResultSchema,
     "session/debug": sessionDebugSnapshotSchema,
     "session/events": modeSessionEventsResultSchema,
     "session/list": modeSessionListResultSchema,
     "session/messages": modeSessionMessagesResultSchema,
     "session/read": modeSessionStateSnapshotSchema,
     "session/send": modeSessionSendResultSchema,
+    "session/setMode": modeSessionStateSnapshotSchema,
+    "session/setModel": modeSessionStateSnapshotSchema,
+    "session/setThoughtLevel": modeSessionStateSnapshotSchema,
     "session/subagents": modeSessionSubagentsResultSchema,
     "session/requestRuntimePreferences": modeSessionRuntimePreferencesResultSchema,
   };

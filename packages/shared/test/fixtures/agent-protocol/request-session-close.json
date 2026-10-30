@@ -1,0 +1,13 @@
+{
+  "case": "request-session-close",
+  "direction": "host->runtime",
+  "note": "host 关闭会话：expectedPersistence 可选（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 47,
+    "method": "session/close",
+    "params": {
+      "sessionId": "sess-1",
+      "expectedPersistence": "deferred"
+    }
+  }
+}

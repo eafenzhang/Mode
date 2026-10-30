@@ -1,0 +1,14 @@
+{
+  "case": "request-session-set-mode",
+  "direction": "host->runtime",
+  "note": "host 设置会话模式：expectedRevision 可选（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 50,
+    "method": "session/setMode",
+    "params": {
+      "sessionId": "sess-1",
+      "mode": "plan",
+      "expectedRevision": 3
+    }
+  }
+}

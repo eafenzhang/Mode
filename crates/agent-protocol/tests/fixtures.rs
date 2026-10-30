@@ -33,6 +33,10 @@ use agent_protocol::session_read::{
     SessionKind, SessionListParams, SessionListResult, SessionMessagesParams,
     SessionMessagesResult, SessionReadParams, SessionSubagentsParams, SessionSubagentsResult,
 };
+use agent_protocol::session_write::{
+    SessionCloseParams, SessionCloseResult, SessionPersistence, SessionSetModeParams,
+    SessionSetModelParams, SessionSetThoughtLevelParams,
+};
 use agent_protocol::snapshot::SessionStateSnapshot;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -360,6 +364,36 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert_eq!(params.session_id, "sess-1");
                         exercised.insert("session/debug".to_string());
                     }
+                    "session/close" => {
+                        let params: SessionCloseParams = decode(case, &params);
+                        assert_eq!(params.session_id, "sess-1");
+                        assert_eq!(
+                            params.expected_persistence,
+                            Some(SessionPersistence::Deferred)
+                        );
+                        exercised.insert("session/close".to_string());
+                    }
+                    "session/setModel" => {
+                        let params: SessionSetModelParams = decode(case, &params);
+                        assert_eq!(params.session_id, "sess-1");
+                        assert_eq!(params.model.provider_id, "zai");
+                        assert_eq!(params.expected_revision, Some(3));
+                        assert_eq!(params.persist_as_workspace_last_used, Some(false));
+                        exercised.insert("session/setModel".to_string());
+                    }
+                    "session/setThoughtLevel" => {
+                        let params: SessionSetThoughtLevelParams = decode(case, &params);
+                        assert_eq!(params.thought_level.as_deref(), Some("high"));
+                        assert_eq!(params.persist_as_workspace_last_used, Some(true));
+                        exercised.insert("session/setThoughtLevel".to_string());
+                    }
+                    "session/setMode" => {
+                        let params: SessionSetModeParams = decode(case, &params);
+                        assert_eq!(params.session_id, "sess-1");
+                        assert_eq!(params.mode, agent_protocol::session_read::SessionMode::Plan);
+                        assert_eq!(params.expected_revision, Some(3));
+                        exercised.insert("session/setMode".to_string());
+                    }
                     "session/requestRuntimePreferences" => {
                         let params: RuntimePreferencesRequestParams = decode(case, &params);
                         assert_eq!(params.scope, RuntimePreferencesScope::RuntimeMaterialization);
@@ -499,6 +533,26 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("session/debug".to_string());
                     }
+                    "session/close" => {
+                        let result: SessionCloseResult = decode(case, &response.result);
+                        assert_eq!(result.closed, Some(true));
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("session/close".to_string());
+                    }
+                    "session/setModel" | "session/setThoughtLevel" | "session/setMode" => {
+                        let result: SessionStateSnapshot = decode(case, &response.result);
+                        assert_eq!(result.runtime.state_revision, 1);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert(responds_to.to_string());
+                    }
                     other => panic!("{case}：应答 {other} 没有镜像"),
                 }
             }
@@ -508,6 +562,7 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
     assert_eq!(
         exercised,
         [
+            "session/close",
             "session/create",
             "session/debug",
             "session/events",
@@ -516,6 +571,9 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "session/read",
             "session/requestRuntimePreferences",
             "session/send",
+            "session/setMode",
+            "session/setModel",
+            "session/setThoughtLevel",
             "session/subagents"
         ]
         .into_iter()

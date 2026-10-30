@@ -1,0 +1,15 @@
+{
+  "case": "request-session-set-thought-level",
+  "direction": "host->runtime",
+  "note": "host 设置思考档位：thoughtLevel/expectedRevision/persistAsWorkspaceLastUsed 可选（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 49,
+    "method": "session/setThoughtLevel",
+    "params": {
+      "sessionId": "sess-1",
+      "thoughtLevel": "high",
+      "expectedRevision": 3,
+      "persistAsWorkspaceLastUsed": true
+    }
+  }
+}

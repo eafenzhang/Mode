@@ -165,6 +165,13 @@ goalStats/todos/slashCommands）。
 第六片是 `read_session_debug(target, sessionId)`（`session/debug`）：existing-only，
 只在已有进程上读取诊断快照（rounds/networkEntries/cache）。
 
+## 会话写路径（第一批）
+
+- `close_session(target, sessionId, expectedPersistence?)`：`closed` 缺省按成功处理为 `true`。
+- `set_session_model` / `set_session_thought_level` / `set_session_mode`：返回新的完整
+  状态快照；缺省的可选参数不序列化。
+- 规范与验收见 `docs/specs/session-write-group.md`。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -238,6 +245,9 @@ existing-only 不 spawn 且报 runtime-unavailable、未知结果字段被拒绝
 
 `crates/agent-process/tests/session_debug.rs`（2 条）：existing-only 不 spawn 且已有进程可读、
 未知诊断字段被拒绝。
+
+`crates/agent-process/tests/session_write.rs`（4 条）：setModel 参数与快照、thoughtLevel/mode
+缺省省略、close 的 persistence 与默认 true、非法写结果被拒绝。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

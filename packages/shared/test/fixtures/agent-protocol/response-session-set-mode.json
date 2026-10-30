@@ -1,0 +1,62 @@
+{
+  "case": "response-session-set-mode",
+  "direction": "runtime->host",
+  "respondsTo": "session/setMode",
+  "note": "setter 返回完整状态快照（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 50,
+    "result": {
+      "protocol": {
+        "name": "Mode Protocol",
+        "version": 1
+      },
+      "session": {
+        "sessionId": "sess-1",
+        "workspace": {
+          "workspacePath": "/ws/demo",
+          "workspaceKey": "/ws/demo"
+        },
+        "sessionKind": "interactive",
+        "title": "示例",
+        "mode": "build",
+        "status": "idle",
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "settings": {
+        "model": {
+          "current": {
+            "providerId": "zai",
+            "modelId": "glm-4.6"
+          },
+          "available": []
+        },
+        "thoughtLevel": {
+          "enabled": false,
+          "available": []
+        },
+        "mode": {
+          "current": "build"
+        }
+      },
+      "projection": {
+        "sessionId": "sess-1",
+        "status": "idle",
+        "mode": "build",
+        "turnCount": 0,
+        "totalTokenCount": 0,
+        "contextUsed": 0,
+        "contextWindow": 128000,
+        "pendingPermissions": [],
+        "activeToolCalls": [],
+        "backgroundJobs": []
+      },
+      "runtime": {
+        "eventSeq": 0,
+        "stateRevision": 1,
+        "pendingRequestIds": []
+      },
+      "messages": []
+    }
+  }
+}
