@@ -33,7 +33,9 @@ pub use provider_sync::{
     AccountProviderConfigSnapshot, ProviderConfigSync, ProviderReadFuture, ProviderSource,
     ProviderSyncOutcome, ProviderSyncStatus, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
-pub use registry::{AgentRuntimeRegistry, SpecFactory, StorageStartupSnapshot, WorkspaceTarget};
+pub use registry::{
+    AgentRuntimeRegistry, RuntimeIdentity, SpecFactory, StorageStartupSnapshot, WorkspaceTarget,
+};
 pub use storage::{
     StorageDatabaseKind, StorageStartupGate, StorageStartupPhase, StorageStartupState,
     DEFAULT_FIRST_STATUS_TIMEOUT, STORAGE_STATE_NOTIFICATION,

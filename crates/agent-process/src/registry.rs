@@ -59,6 +59,18 @@ pub struct StorageStartupSnapshot {
     pub state: Option<StorageStartupState>,
 }
 
+/// 现有 runtime 的不透明身份；用于区分换代前后的订阅/命令。
+///
+/// `identity` 与 TS `ModeAgentRuntimeIdentity.identity` 同构：
+/// `${workspaceKey}:${generation}:${pid}`（Rust 侧没有 lane 维度）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeIdentity {
+    pub generation: u64,
+    pub identity: String,
+    pub process_id: Option<u32>,
+    pub workspace_key: String,
+}
+
 pub struct AgentRuntimeRegistry {
     factory: SpecFactory,
     next_generation: AtomicU64,
@@ -84,6 +96,22 @@ impl AgentRuntimeRegistry {
     /// 当前没有任何活进程条目。
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// 现有 runtime 的身份（existing-only，不 spawn）；没有活进程时返回 `None`。
+    pub fn existing_identity(&self, target: &WorkspaceTarget) -> Option<RuntimeIdentity> {
+        let key = target.key();
+        let entries = self.entries.lock().expect("registry poisoned");
+        let entry = entries
+            .get(&key)
+            .filter(|entry| !entry.process.client().is_closed())?;
+        let process_id = entry.process.pid();
+        Some(RuntimeIdentity {
+            generation: entry.generation,
+            identity: format!("{key}:{}:{process_id}", entry.generation),
+            process_id: Some(process_id),
+            workspace_key: key,
+        })
     }
 
     /// 现有进程的存储启动快照（不 spawn）。没有活进程时返回 `None`。

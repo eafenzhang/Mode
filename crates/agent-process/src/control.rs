@@ -162,6 +162,26 @@ impl AgentControlClient {
             .storage_startup_state(&target.registry_target())
     }
 
+    /// 现有 runtime 的身份（existing-only，不 spawn）。
+    ///
+    /// 对应 TS `getWorkspaceRuntimeIdentity` 的 existing-only 语义；调用方在 `None` 时
+    /// 自行映射错误（TS 抛 `Mode agent runtime identity is unavailable.`）。
+    pub fn runtime_identity(&self, target: &AgentWorkspaceTarget) -> Option<crate::RuntimeIdentity> {
+        self.registry.existing_identity(&target.registry_target())
+    }
+
+    /// 关闭并移除该 workspace 的 Agent（对应 `disposeWorkspace`）。
+    pub async fn dispose_workspace(&self, target: &AgentWorkspaceTarget, grace: std::time::Duration) {
+        self.registry
+            .invalidate(&target.workspace_key(), grace)
+            .await;
+    }
+
+    /// 关闭全部 Agent（对应 `disposeAll`）。
+    pub async fn dispose_all(&self, grace: std::time::Duration) {
+        self.registry.shutdown_all(grace).await;
+    }
+
     /// 订阅现有进程的存储状态；没有活进程时返回 `None`。
     pub fn subscribe_storage_startup(
         &self,

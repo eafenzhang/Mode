@@ -123,7 +123,20 @@ cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd�
 - 错误映射：Agent 返回的 `message` 原样作为可见错误（与 TS 抛 `Error` 一致）；
   非法摘要/非法结果/传输错误分别区分。
 
-**未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；其余 81 个成员（session/插件/
+## 运行时生命周期 facade（第二组）
+
+与 `IModeAgentService` 的 workspace 生命周期方法一一对应，全部 existing-only 或纯生命周期，
+不会为了查询而拉起 Agent：
+
+- `runtime_identity(target)`：返回 `RuntimeIdentity { generation, identity, processId,
+  workspaceKey }`；`identity = ${workspaceKey}:${generation}:${pid}`（TS 还有 lane 维度，Rust
+  当前没有 lane）。没有活进程返回 `None`，频道层负责映射
+  `Mode agent runtime identity is unavailable.`。
+- `dispose_workspace(target, grace)`：关闭并移除该 workspace 的 Agent（`disposeWorkspace`）。
+- `dispose_all(grace)`：关闭全部（`disposeAll`）。
+- `storage_startup_state` / `subscribe_storage_startup`：existing-only 读取/订阅存储门。
+
+**未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；其余成员（session/插件/
 automation/workflow 等）按方法组迁移。
 
 ## 与 TS 的差异
@@ -163,10 +176,10 @@ automation/workflow 等）按方法组迁移。
 dev dist 向上查找与 Node 选择、打包资源分支、全部缺失时 `NotConfigured`、
 `--surface desktop` 改写（含移除已有值、非 desktop 不修改）。
 
-`crates/agent-process/tests/control.rs`（7 条）：grant 请求的 workspace ref/摘要逐字段断言、
+`crates/agent-process/tests/control.rs`（9 条）：grant 请求的 workspace ref/摘要逐字段断言、
 非法摘要不 spawn、Agent 错误 message 原样上抛、非法结果拒绝、workspace ref 省略可选字段且
 workspaceKey trim、同一 workspace 两次 grant 复用同一 Agent、facade 的 prepareStorage
-等待 ready 并暴露快照。
+等待 ready 并暴露快照、existing-only runtime identity 与换代 generation、dispose_all 清空。
 
 `crates/agent-process` 存储门单元测试（5 条）：单调状态与身份不变、failed 必须带 errorCode、
 非法 schemaVersion/sequence 拒绝、ready 放行且非 required 立即返回、首帧超时。

@@ -199,6 +199,73 @@ async fn registry_reuses_the_same_agent_between_grants() {
 }
 
 #[tokio::test]
+async fn runtime_identity_is_existing_only_and_tracks_generation() {
+    let log = FrameLog::new("identity");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let registry = Arc::new(registry("", &log, Arc::clone(&spawns)));
+    let control = AgentControlClient::new(registry);
+    let target = agent_process::AgentWorkspaceTarget::new("D:/ws/identity");
+    let (bundle, declaration) = digests();
+
+    assert!(
+        control.runtime_identity(&target).is_none(),
+        "查询 identity 不能拉起 Agent"
+    );
+    assert_eq!(spawns.load(Ordering::SeqCst), 0);
+
+    control
+        .grant_workspace_hook_trust(&target, &bundle, &declaration)
+        .await
+        .unwrap();
+    let first = control.runtime_identity(&target).expect("进程应已存在");
+    assert_eq!(first.generation, 1);
+    assert_eq!(first.workspace_key, "D:/ws/identity");
+    assert_eq!(
+        first.identity,
+        format!("D:/ws/identity:1:{}", first.process_id.unwrap())
+    );
+
+    control
+        .dispose_workspace(&target, Duration::from_secs(3))
+        .await;
+    assert!(control.runtime_identity(&target).is_none());
+
+    control
+        .grant_workspace_hook_trust(&target, &bundle, &declaration)
+        .await
+        .unwrap();
+    let second = control.runtime_identity(&target).expect("重建后应有新进程");
+    assert_eq!(second.generation, 2, "换代后 identity 必须变化");
+    assert_eq!(spawns.load(Ordering::SeqCst), 2);
+    control.dispose_all(Duration::from_secs(3)).await;
+    assert!(control.runtime_identity(&target).is_none());
+}
+
+#[tokio::test]
+async fn dispose_all_removes_every_workspace() {
+    let log = FrameLog::new("dispose-all");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let registry = Arc::new(registry("", &log, Arc::clone(&spawns)));
+    let control = AgentControlClient::new(registry);
+    let (bundle, declaration) = digests();
+    let a = agent_process::AgentWorkspaceTarget::new("D:/ws/a");
+    let b = agent_process::AgentWorkspaceTarget::new("D:/ws/b");
+    control
+        .grant_workspace_hook_trust(&a, &bundle, &declaration)
+        .await
+        .unwrap();
+    control
+        .grant_workspace_hook_trust(&b, &bundle, &declaration)
+        .await
+        .unwrap();
+    assert_eq!(spawns.load(Ordering::SeqCst), 2);
+
+    control.dispose_all(Duration::from_secs(3)).await;
+    assert!(control.runtime_identity(&a).is_none());
+    assert!(control.runtime_identity(&b).is_none());
+}
+
+#[tokio::test]
 async fn facade_prepares_storage_and_exposes_snapshot() {
     let log = FrameLog::new("storage");
     let spawns = Arc::new(AtomicUsize::new(0));
