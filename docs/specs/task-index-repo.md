@@ -53,19 +53,49 @@ cron/off-peak 标记）与 TS 一致。
 
 - workspace bootstrap 只执行一次：`task_group_workspace_bootstraps` 出现任意行后
   不再自动建组；`apply_grouped_task_view_order` 会写全局 ONCE_KEY 行永久关闭。
+- bootstrap 触发条件：`workspaceScopes` 归一后非空。空 scope 查询不写 marker；
+  有 scope 但没有任何活跃 task 时会写一行 ONCE_KEY（`group_id = NULL`）并跳过建组。
 - workspace 组 id = `workspace-group-` + `sha256(workspaceKey)` 前 24 位十六进制；
   颜色 = `sha256` 首字节 `% 6` 取 `red/orange/yellow/green/blue/purple`；
   标题取路径最后一段（去尾部分隔符，JS trim 后为空则回落 `Workspace`）。
+- bootstrap 会把命中 scope 的全部活跃 task 重新归属到 workspace 组（先删旧成员），
+  随后删除空分组与悬空分组排序。因此 bootstrap 前由系统分组回填的成员会被
+  workspace 组接管，空掉的 cron/off-peak 组会被删除——与 TS 完全一致。
 - 排序步长 `GROUPED_TASK_ORDER_STEP = 1000`；新顶层节点取 `MIN - 1000`，
   补齐缺失节点取 `MAX + 1000`（按 `createdAt` 倒序、再按节点 key 升序写入）。
 - cron 系统分组不参与成员排序，固定按 `createdAt` 倒序、再按节点 key 倒序。
 - 组可见性：带 bootstrap 记录的组只在其 workspace 可见；无记录的组始终可见。
 - `queryGroupedTaskView` 的 tasks 查询**不读** `off_peak_task_id` 列
   （TS SELECT 清单里没有），因此 off-peak 身份只可能来自 `meta_json`。
+- TS 的 `ModeGroupedTaskViewQuery` 没有 `limit` 字段，`queryGroupedTaskView`
+  因此不分页；Rust 签名保持一致。
 - 顶层 task 节点 key 是 `JSON.stringify([workspaceKey, taskId])`；
   成员表用 `workspaceKey + "\0" + taskId`（NUL 不能进 `node_key`）。
+- `queryGroupedTaskViewStructure` 的 `workspaceIdentity` 沿用 TS 真值判断：
+  `None` 与空字符串都省略字段；`sortOrder` 保留 `null`。
 - 错误文案逐字一致：`Task group 不存在，无法重命名`、
   `Task group 颜色无效`、`Grouped task order 包含不存在的 group` 等。
+
+## 排序口径与 `localeCompare`
+
+分组排序是用户可见顺序，TS 的平局比较器全部使用无 locale 参数的
+`String.prototype.localeCompare`（即宿主默认 locale + ICU collation）。Rust
+侧目前使用码点序，**不是等价替换**（例如 `"a".localeCompare("B") < 0`，但码点序
+`"B" < "a"`；中文与拉丁字母的 zh-CN 排序也与码点序不同）。
+
+受影响的比较器与输入：
+
+| 比较器 | 平局键 | 输入是否只含受控 id |
+| --- | --- | --- |
+| `compare_grouped_nodes` / `normalize_grouped_top_node_orders` | `group:<id>` 或 `task:JSON([workspaceKey, taskId])` | 否，内嵌用户 workspace 路径 / 远端 identity |
+| `compare_group_tasks` / `normalize_group_member_orders` | `workspaceKey + "\0" + taskId` | 否，同上 |
+| `compare_cron_group_tasks` | 同上 | 否，同上 |
+| bootstrap 成员排序平局 | `taskId` | 通常是 `sess_<uuid>`，但允许外部导入 id |
+
+因此无法用“输入只含受控 ASCII id”证明码点序等价，也没有引入与 Node 同版本、
+同 locale 的 ICU collation。该差异保留为已知风险；fixture 的路径与 task id
+均为小写 ASCII，且显式设计为不触发大小写/重音差异，所以黄金对拍不能覆盖这一差异。
+若后续要求逐字节复刻，需要引入可配置 locale 的 collation 依赖并固定宿主 locale。
 
 ## 初始化回填只跑一次
 
@@ -144,7 +174,7 @@ cron/off-peak 标记）与 TS 一致。
 
 | 差异 | 影响 |
 | --- | --- |
-| `normalizeWorkspaceKeys` / 节点排序用码点序，不是 `localeCompare` | 大小写/重音混合时顺序可能不同；fixture 使用小写 ASCII key 并在归一后显式定序 |
+| `normalizeWorkspaceKeys` / 分组节点与成员排序用码点序，不是 `localeCompare` | 大小写/重音/中文混合时用户可见顺序可能不同；分析与风险见“排序口径与 `localeCompare`”。fixture 使用小写 ASCII key，不覆盖该差异 |
 | 搜索小写用 Unicode 默认映射，不是宿主 locale 的 `toLocaleLowerCase` | 非 ASCII 大小写折叠可能不同；fixture 搜索词为 ASCII |
 | UTF-16 切断增补平面字符 | Rust 产生 U+FFFD，JS 产生孤立代理项；仅影响极端正文 |
 | `update_task_state` 的 `unreadAt: undefined`（present-undefined 清空）用 `Some(None)` 表达 | TS 的 `"unreadAt" in patch` 语义保留；API 不接受 JSON null 充当 undefined |
@@ -162,7 +192,10 @@ cron/off-peak 标记）与 TS 一致。
 ## 验收
 
 - `crates/task-index-repo` 单元/集成测试：`ensure_ready` 幂等、写串行化、CRUD、
-  列表/搜索、归档清理、错误路径。
+  列表/搜索、归档清理、分组 CRUD、bootstrap 幂等、视图组装、排序归一与错误路径。
 - `tests/parity.rs`（`pnpm task-index:fixtures` 生成）：按步骤重建同一 DB，
-  返回 JSON 深度比较 + `tasks` 关键列原值 + 分组表（时间列归一）快照。
+  返回 JSON 深度比较 + `tasks` 关键列原值 + 分组表（`task_groups` /
+  `task_group_members` / `task_group_view_node_orders` /
+  `task_group_workspace_bootstraps`，时间列归一）快照。
+  主场景 109 步；另有独立空库场景 8 步验证 bootstrap marker 与空结果。
 - `cargo test -p task-index-repo`、`cargo clippy -p task-index-repo --all-targets -- -D warnings`。

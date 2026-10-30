@@ -376,11 +376,34 @@ fn snapshot(db_path: &Path) -> Value {
         rows
     };
 
+    let task_group_workspace_bootstraps = {
+        let mut statement = connection
+            .prepare(
+                "SELECT workspace_key, group_id, created_at, updated_at
+                 FROM task_group_workspace_bootstraps
+                 ORDER BY workspace_key, group_id",
+            )
+            .expect("prepare bootstrap snapshot");
+        statement
+            .query_map([], |row| {
+                Ok(json!({
+                    "workspace_key": row.get::<_, String>(0)?,
+                    "group_id": row.get::<_, Option<String>>(1)?,
+                    "created_at": 0,
+                    "updated_at": 0,
+                }))
+            })
+            .expect("query bootstrap snapshot")
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .expect("collect bootstrap snapshot")
+    };
+
     json!({
         "tasks": tasks,
         "taskGroups": task_groups,
         "taskGroupMembers": task_group_members,
         "taskGroupViewNodeOrders": task_group_view_node_orders,
+        "taskGroupWorkspaceBootstraps": task_group_workspace_bootstraps,
     })
 }
 
@@ -463,6 +486,25 @@ fn normalize_structure_output(value: Value) -> Value {
             })
             .collect();
         object.insert("members".to_owned(), Value::Array(members));
+    }
+    // 顶层排序里的用户分组 id 是随机 UUID；与 generator 一样归一，才能跨进程比较。
+    if let Some(Value::Array(orders)) = object.get("topLevelOrders").cloned() {
+        let orders = orders
+            .into_iter()
+            .map(|order| {
+                let mut order = match order {
+                    Value::Object(order) => order,
+                    other => return other,
+                };
+                if order.get("type").and_then(Value::as_str) == Some("group") {
+                    if let Some(group_id) = order.get("groupId").and_then(Value::as_str) {
+                        order.insert("groupId".to_owned(), normalize_group_id_json(group_id));
+                    }
+                }
+                Value::Object(order)
+            })
+            .collect();
+        object.insert("topLevelOrders".to_owned(), Value::Array(orders));
     }
     Value::Object(object)
 }
@@ -805,27 +847,12 @@ fn dispatch(
     })
 }
 
-#[test]
-fn ts_fixture_steps_match() {
-    let fixture = fixture();
-    let temp = temp_dir();
-    let db_path = temp.0.join("tasks-index.sqlite");
-
-    {
-        let connection = Connection::open(&db_path).expect("打开 seed 库");
-        tasks_db::run_migrations(&connection, RunOptions::default()).expect("迁移");
-        seed_database(&connection, &fixture["seeds"]);
-    }
-
-    let clock = fixture["clockMs"].as_i64().expect("clockMs");
-    let repo = TaskIndexRepo::with_clock(&db_path, move || clock);
-
-    let steps = fixture["steps"].as_array().expect("steps");
+fn run_steps(repo: &TaskIndexRepo, db_path: &Path, steps: &[Value]) {
     assert!(!steps.is_empty(), "fixture 不能为空");
     for step in steps {
         let id = step["id"].as_str().expect("step id");
         let op = step["op"].as_str().expect("step op");
-        let result = dispatch(&repo, op, &step["input"]);
+        let result = dispatch(repo, op, &step["input"]);
         match &step["error"] {
             Value::String(expected) => {
                 let error = match result {
@@ -847,12 +874,53 @@ fn ts_fixture_steps_match() {
                 );
             }
         }
-        let actual = snapshot(&db_path);
+        let actual = snapshot(db_path);
         if actual != step["snapshot"] {
             let detail = first_difference(&step["snapshot"], &actual, "")
                 .unwrap_or_else(|| "（无差异定位）".to_owned());
             panic!("{id}: DB 快照必须与 TS 一致\n{detail}");
         }
     }
+}
+
+#[test]
+fn ts_fixture_steps_match() {
+    let fixture = fixture();
+    let temp = temp_dir();
+    let db_path = temp.0.join("tasks-index.sqlite");
+
+    {
+        let connection = Connection::open(&db_path).expect("打开 seed 库");
+        tasks_db::run_migrations(&connection, RunOptions::default()).expect("迁移");
+        seed_database(&connection, &fixture["seeds"]);
+    }
+
+    let clock = fixture["clockMs"].as_i64().expect("clockMs");
+    let repo = TaskIndexRepo::with_clock(&db_path, move || clock);
+
+    run_steps(
+        &repo,
+        &db_path,
+        fixture["steps"].as_array().expect("steps"),
+    );
+    repo.close();
+}
+
+#[test]
+fn empty_library_fixture_steps_match() {
+    let fixture = fixture();
+    let section = &fixture["emptyLibrary"];
+    let temp = temp_dir();
+    let db_path = temp.0.join("tasks-index-empty.sqlite");
+
+    {
+        let connection = Connection::open(&db_path).expect("打开空库");
+        tasks_db::run_migrations(&connection, RunOptions::default()).expect("迁移");
+    }
+
+    let clock = section["clockMs"].as_i64().expect("clockMs");
+    let repo = TaskIndexRepo::with_clock(&db_path, move || clock);
+
+    run_steps(&repo, &db_path, section["steps"].as_array().expect("steps"));
     repo.close();
 }

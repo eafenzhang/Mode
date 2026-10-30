@@ -6,10 +6,12 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::json;
 use task_index_repo::{
-    parse_mode_task_meta, ListTaskMetasParams, ModeTaskMeta, SyncTaskMetaParams, TaskIndexRepo,
+    parse_mode_task_meta, GroupedTaskGroupRefs, GroupedTaskRef, GroupedTaskViewNode,
+    GroupedTaskViewOrderInput, GroupedTaskViewQuery, GroupedTaskViewTopLevelNodeRef,
+    ListTaskMetasParams, ModeTaskMeta, SyncTaskMetaParams, TaskGroup, TaskIndexRepo,
     TaskIndexStatePatch, TaskListKind, TaskListQuery, TaskListSortBy, TaskListWorkspaceScope,
     TaskRef,
 };
@@ -753,4 +755,580 @@ fn sessions_by_automation_filters_deleted_and_orders_by_created() {
             .collect::<Vec<_>>(),
         vec!["newer", "older"]
     );
+}
+
+// ── 分组视图与分组管理 ──────────────────────────────────────────────────────
+
+fn create_group(repo: &TaskIndexRepo, title: &str, color: &str) -> TaskGroup {
+    repo.create_task_group(Some(title), Some(color)).unwrap()
+}
+
+fn top_order(connection: &Connection, node_type: &str, node_key: &str) -> Option<i64> {
+    connection
+        .query_row(
+            "SELECT sort_order FROM task_group_view_node_orders
+             WHERE node_type = ? AND node_key = ?",
+            params![node_type, node_key],
+            |row| row.get(0),
+        )
+        .optional()
+        .unwrap()
+}
+
+fn member_order(connection: &Connection, workspace_key: &str, task_id: &str) -> Option<i64> {
+    connection
+        .query_row(
+            "SELECT sort_order FROM task_group_members
+             WHERE workspace_key = ? AND task_id = ?",
+            params![workspace_key, task_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .unwrap()
+}
+
+#[test]
+fn grouped_crud_validates_titles_colors_and_cleans_orders() {
+    let temp = temp_dir();
+    let path = temp.0.join("tasks.sqlite");
+    drop(migrated_db(&path));
+    let repo = TaskIndexRepo::with_clock(&path, || 5_000);
+
+    assert!(!repo.has_grouped_workspace_bootstrap_run().unwrap());
+
+    // 标题 trim 后为空回落 New Group；颜色缺省 gray；新组插到当前顶部（MIN - 1000）。
+    let default_group = repo.create_task_group(None, None).unwrap();
+    assert_eq!(default_group.title, "New Group");
+    assert_eq!(default_group.color, "gray");
+    let first_group = create_group(&repo, "  Work  ", "green");
+    assert_eq!(first_group.title, "Work");
+    assert_eq!(first_group.color, "green");
+
+    let connection = Connection::open(&path).unwrap();
+    assert_eq!(top_order(&connection, "group", &default_group.id), Some(1000));
+    assert_eq!(top_order(&connection, "group", &first_group.id), Some(0));
+
+    // createTaskGroup 本身不校验颜色（与 TS 一致）；读取投影时才回落 gray。
+    let invalid = create_group(&repo, "Invalid", "chartreuse");
+    assert_eq!(invalid.color, "chartreuse");
+    let structure = repo
+        .query_grouped_task_view_structure(&[scope("D:/ws")])
+        .unwrap();
+    let invalid_row = structure
+        .groups
+        .iter()
+        .find(|group| group.id == invalid.id)
+        .expect("分组存在");
+    assert_eq!(invalid_row.color, "gray", "非法颜色读取时回落 gray");
+
+    let rename_missing = repo.rename_task_group("nope", "x").unwrap_err();
+    assert_eq!(rename_missing.to_string(), "Task group 不存在，无法重命名");
+    let renamed = repo.rename_task_group(&first_group.id, "   ").unwrap();
+    assert_eq!(renamed.title, "New Group");
+
+    let color_invalid = repo.update_task_group_color(&first_group.id, "chartreuse").unwrap_err();
+    assert_eq!(color_invalid.to_string(), "Task group 颜色无效");
+    let color_missing = repo.update_task_group_color("nope", "blue").unwrap_err();
+    assert_eq!(
+        color_missing.to_string(),
+        "Task group 不存在，无法更新颜色"
+    );
+    let recolored = repo.update_task_group_color(&first_group.id, "purple").unwrap();
+    assert_eq!(recolored.color, "purple");
+
+    let delete_missing = repo.delete_task_group("nope").unwrap_err();
+    assert_eq!(delete_missing.to_string(), "Task group 不存在，无法删除");
+    repo.delete_task_group(&first_group.id).unwrap();
+    assert_eq!(top_order(&connection, "group", &first_group.id), None);
+    let groups: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM task_groups WHERE group_id = ?",
+            params![first_group.id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(groups, 0);
+}
+
+#[test]
+fn empty_library_bootstrap_only_marks_run_for_non_empty_scopes() {
+    let temp = temp_dir();
+    let path = temp.0.join("tasks.sqlite");
+    drop(migrated_db(&path));
+    let repo = TaskIndexRepo::with_clock(&path, || 7_000);
+
+    assert!(!repo.has_grouped_workspace_bootstrap_run().unwrap());
+    let empty = repo
+        .query_grouped_task_view(&GroupedTaskViewQuery::default())
+        .unwrap();
+    assert!(empty.nodes.is_empty());
+    assert!(
+        !repo.has_grouped_workspace_bootstrap_run().unwrap(),
+        "空 scope 不触发 bootstrap"
+    );
+
+    let with_scope = repo
+        .query_grouped_task_view(&GroupedTaskViewQuery {
+            workspace_scopes: vec![scope("D:/empty")],
+            include_all_workspaces: false,
+            provider: None,
+        })
+        .unwrap();
+    assert!(with_scope.nodes.is_empty());
+    assert!(repo.has_grouped_workspace_bootstrap_run().unwrap());
+
+    let connection = Connection::open(&path).unwrap();
+    let bootstrap: (String, Option<String>) = connection
+        .query_row(
+            "SELECT workspace_key, group_id FROM task_group_workspace_bootstraps",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        bootstrap,
+        (
+            "__mode_internal_grouped_workspace_bootstrap_once__".to_owned(),
+            None
+        ),
+        "空库必须写全局 marker，且不生成 workspace 分组"
+    );
+    let groups: i64 = connection
+        .query_row("SELECT COUNT(*) FROM task_groups", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(groups, 0);
+
+    let structure = repo
+        .query_grouped_task_view_structure(&[scope("D:/empty")])
+        .unwrap();
+    assert!(structure.groups.is_empty());
+    assert!(structure.members.is_empty());
+    assert!(structure.top_level_orders.is_empty());
+}
+
+fn sync_task(repo: &TaskIndexRepo, task_id: &str, updated_at: i64, status: &str) -> ModeTaskMeta {
+    repo.sync_task_meta(SyncTaskMetaParams {
+        meta: {
+            let mut value = meta(task_id, "D:/ws", task_id, updated_at);
+            value.status = Some(status.to_owned());
+            value
+        },
+        pinned: None,
+        archived: None,
+        deleted: None,
+        title_overridden: None,
+        searchable_text: None,
+    })
+    .unwrap()
+}
+
+#[test]
+fn grouped_view_bootstraps_workspace_group_and_filters_invisible_tasks() {
+    let temp = temp_dir();
+    let path = temp.0.join("tasks.sqlite");
+    drop(migrated_db(&path));
+    let repo = TaskIndexRepo::with_clock(&path, || 9_000);
+
+    // 活跃任务：updated_at 决定 bootstrap 内的成员顺序。
+    sync_task(&repo, "newest", 400, "running");
+    sync_task(&repo, "middle", 300, "running");
+    sync_task(&repo, "oldest", 100, "running");
+    // 置顶 / 归档 / 删除任务不进入分组视图。
+    let mut pinned = meta("pinned", "D:/ws", "pinned", 500);
+    pinned.status = Some("running".to_owned());
+    repo.sync_task_meta(SyncTaskMetaParams {
+        meta: pinned,
+        pinned: Some(true),
+        archived: None,
+        deleted: None,
+        title_overridden: None,
+        searchable_text: None,
+    })
+    .unwrap();
+    let mut archived = meta("archived", "D:/ws", "archived", 600);
+    archived.status = Some("completed".to_owned());
+    repo.sync_task_meta(SyncTaskMetaParams {
+        meta: archived,
+        pinned: None,
+        archived: Some(true),
+        deleted: None,
+        title_overridden: None,
+        searchable_text: None,
+    })
+    .unwrap();
+    let mut deleted = meta("deleted", "D:/ws", "deleted", 700);
+    deleted.status = Some("completed".to_owned());
+    repo.sync_task_meta(SyncTaskMetaParams {
+        meta: deleted,
+        pinned: None,
+        archived: None,
+        deleted: Some(true),
+        title_overridden: None,
+        searchable_text: None,
+    })
+    .unwrap();
+
+    let view = repo
+        .query_grouped_task_view(&GroupedTaskViewQuery {
+            workspace_scopes: vec![scope("D:/ws")],
+            include_all_workspaces: false,
+            provider: None,
+        })
+        .unwrap();
+    assert_eq!(view.nodes.len(), 1);
+    let GroupedTaskViewNode::Group {
+        group,
+        tasks,
+        sort_order,
+    } = &view.nodes[0]
+    else {
+        panic!("bootstrap 后应只有 workspace 分组");
+    };
+    assert!(group.id.starts_with("workspace-group-"));
+    assert_eq!(group.title, "ws");
+    assert!(sort_order.is_some(), "补齐的顶层节点必须写回 sort_order");
+    assert_eq!(
+        tasks
+            .iter()
+            .map(|task| task.meta.task_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["newest", "middle", "oldest"],
+        "bootstrap 按 updated_at 倒序建成员顺序"
+    );
+    assert!(tasks
+        .iter()
+        .all(|task| !matches!(task.meta.task_id.as_str(), "pinned" | "archived" | "deleted")));
+
+    // 第二次查询不得重建分组或重复成员。
+    let again = repo
+        .query_grouped_task_view(&GroupedTaskViewQuery {
+            workspace_scopes: vec![scope("D:/ws")],
+            include_all_workspaces: false,
+            provider: None,
+        })
+        .unwrap();
+    assert_eq!(again, view);
+
+    let connection = Connection::open(&path).unwrap();
+    let members: i64 = connection
+        .query_row("SELECT COUNT(*) FROM task_group_members", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(members, 3);
+}
+
+#[test]
+fn grouped_apply_order_normalizes_orders_and_is_idempotent() {
+    let temp = temp_dir();
+    let path = temp.0.join("tasks.sqlite");
+    drop(migrated_db(&path));
+    let repo = TaskIndexRepo::with_clock(&path, || 11_000);
+
+    sync_task(&repo, "top-task", 200, "running");
+    sync_task(&repo, "member-b", 100, "running");
+    let group = create_group(&repo, "Bucket", "blue");
+
+    let input = GroupedTaskViewOrderInput {
+        workspace_scopes: vec![scope("D:/ws")],
+        top_level_nodes: vec![
+            GroupedTaskViewTopLevelNodeRef::Task {
+                task: GroupedTaskRef {
+                    workspace_path: "D:/ws".to_owned(),
+                    workspace_identity: None,
+                    task_id: "top-task".to_owned(),
+                },
+            },
+            GroupedTaskViewTopLevelNodeRef::Group {
+                group_id: group.id.clone(),
+            },
+        ],
+        groups: vec![GroupedTaskGroupRefs {
+            group_id: group.id.clone(),
+            task_refs: vec![GroupedTaskRef {
+                workspace_path: "D:/ws".to_owned(),
+                workspace_identity: None,
+                task_id: "member-b".to_owned(),
+            }],
+        }],
+        provider: None,
+    };
+
+    let first = repo.apply_grouped_task_view_order(&input).unwrap();
+    assert_eq!(first.nodes.len(), 2, "顶层 task + 分组");
+    let connection = Connection::open(&path).unwrap();
+    assert_eq!(
+        top_order(
+            &connection,
+            "task",
+            &json!(["D:/ws", "top-task"]).to_string()
+        ),
+        Some(1000)
+    );
+    assert_eq!(top_order(&connection, "group", &group.id), Some(2000));
+    assert_eq!(member_order(&connection, "D:/ws", "member-b"), Some(1000));
+
+    // 同一输入重放必须得到完全相同的视图与排序（幂等）。
+    let second = repo.apply_grouped_task_view_order(&input).unwrap();
+    assert_eq!(second, first);
+    assert_eq!(
+        top_order(&connection, "group", &group.id),
+        Some(2000),
+        "重放不得累积新顺序"
+    );
+
+    // 局部更新：只清理当前 scope 的 task 排序，其他 workspace 的顶层顺序必须保留。
+    let remote = "/srv/ws";
+    let remote_identity = "remote:ssh:box:22:me:/srv/ws";
+    let remote_ref = GroupedTaskRef {
+        workspace_path: remote.to_owned(),
+        workspace_identity: Some(remote_identity.to_owned()),
+        task_id: "remote-task".to_owned(),
+    };
+    repo.sync_task_meta(SyncTaskMetaParams {
+        meta: {
+            let mut value = meta("remote-task", remote, "remote", 300);
+            value.workspace_identity = Some(remote_identity.to_owned());
+            value
+        },
+        pinned: None,
+        archived: None,
+        deleted: None,
+        title_overridden: None,
+        searchable_text: None,
+    })
+    .unwrap();
+    let remote_scope = TaskListWorkspaceScope {
+        workspace_path: remote.to_owned(),
+        workspace_identity: Some(remote_identity.to_owned()),
+        workspace_purpose: None,
+    };
+    repo.apply_grouped_task_view_order(&GroupedTaskViewOrderInput {
+        workspace_scopes: vec![scope("D:/ws"), remote_scope.clone()],
+        top_level_nodes: vec![
+            GroupedTaskViewTopLevelNodeRef::Task {
+                task: remote_ref,
+            },
+            GroupedTaskViewTopLevelNodeRef::Group {
+                group_id: group.id.clone(),
+            },
+        ],
+        groups: vec![],
+        provider: None,
+    })
+    .unwrap();
+    let remote_key = json!([remote_identity, "remote-task"]).to_string();
+    assert_eq!(top_order(&connection, "task", &remote_key), Some(1000));
+
+    // 只保存 D:/ws 时，远端 task 的顶层顺序不能因为 scoped DELETE 被误删。
+    repo.apply_grouped_task_view_order(&GroupedTaskViewOrderInput {
+        workspace_scopes: vec![scope("D:/ws")],
+        top_level_nodes: vec![GroupedTaskViewTopLevelNodeRef::Group {
+            group_id: group.id.clone(),
+        }],
+        groups: vec![],
+        provider: None,
+    })
+    .unwrap();
+    assert_eq!(
+        top_order(&connection, "task", &remote_key),
+        Some(1000),
+        "scope 外的 task 排序必须保留"
+    );
+
+    // 校验失败路径与 TS 文案一致。
+    let unknown_group = repo
+        .apply_grouped_task_view_order(&GroupedTaskViewOrderInput {
+            workspace_scopes: vec![scope("D:/ws")],
+            top_level_nodes: vec![GroupedTaskViewTopLevelNodeRef::Group {
+                group_id: "nope".to_owned(),
+            }],
+            groups: vec![],
+            provider: None,
+        })
+        .unwrap_err();
+    assert_eq!(
+        unknown_group.to_string(),
+        "Grouped task order 包含不存在的 group"
+    );
+
+    let out_of_scope = repo
+        .apply_grouped_task_view_order(&GroupedTaskViewOrderInput {
+            workspace_scopes: vec![scope("D:/other")],
+            top_level_nodes: vec![GroupedTaskViewTopLevelNodeRef::Task {
+                task: GroupedTaskRef {
+                    workspace_path: "D:/ws".to_owned(),
+                    workspace_identity: None,
+                    task_id: "top-task".to_owned(),
+                },
+            }],
+            groups: vec![],
+            provider: None,
+        })
+        .unwrap_err();
+    assert_eq!(
+        out_of_scope.to_string(),
+        "Grouped task order 包含当前 scope 外的 task"
+    );
+
+    let invisible = repo
+        .apply_grouped_task_view_order(&GroupedTaskViewOrderInput {
+            workspace_scopes: vec![scope("D:/ws")],
+            top_level_nodes: vec![GroupedTaskViewTopLevelNodeRef::Task {
+                task: GroupedTaskRef {
+                    workspace_path: "D:/ws".to_owned(),
+                    workspace_identity: None,
+                    task_id: "deleted".to_owned(),
+                },
+            }],
+            groups: vec![],
+            provider: None,
+        })
+        .unwrap_err();
+    assert_eq!(
+        invisible.to_string(),
+        "Grouped task order 包含不可见 task"
+    );
+
+    let second_group = create_group(&repo, "Other", "gray");
+    let duplicate = repo
+        .apply_grouped_task_view_order(&GroupedTaskViewOrderInput {
+            workspace_scopes: vec![scope("D:/ws")],
+            top_level_nodes: vec![],
+            groups: vec![
+                GroupedTaskGroupRefs {
+                    group_id: group.id.clone(),
+                    task_refs: vec![GroupedTaskRef {
+                        workspace_path: "D:/ws".to_owned(),
+                        workspace_identity: None,
+                        task_id: "member-b".to_owned(),
+                    }],
+                },
+                GroupedTaskGroupRefs {
+                    group_id: second_group.id.clone(),
+                    task_refs: vec![GroupedTaskRef {
+                        workspace_path: "D:/ws".to_owned(),
+                        workspace_identity: None,
+                        task_id: "member-b".to_owned(),
+                    }],
+                },
+            ],
+            provider: None,
+        })
+        .unwrap_err();
+    assert_eq!(
+        duplicate.to_string(),
+        "Grouped task order 不能让同一个 task 进入多个 group"
+    );
+}
+
+#[test]
+fn sync_task_meta_at_grouped_top_initializes_once_and_respects_visibility() {
+    let temp = temp_dir();
+    let path = temp.0.join("tasks.sqlite");
+    drop(migrated_db(&path));
+    let repo = TaskIndexRepo::with_clock(&path, || 13_000);
+
+    let params = |task_id: &str, pinned: Option<bool>, archived: Option<bool>, deleted: Option<bool>| {
+        SyncTaskMetaParams {
+            meta: meta(task_id, "D:/ws", task_id, 100),
+            pinned,
+            archived,
+            deleted,
+            title_overridden: None,
+            searchable_text: None,
+        }
+    };
+
+    let first = repo
+        .sync_task_meta_at_grouped_top(params("fresh", None, None, None))
+        .unwrap();
+    assert!(first.initialized_grouped_order);
+    let again = repo
+        .sync_task_meta_at_grouped_top(params("fresh", None, None, None))
+        .unwrap();
+    assert!(!again.initialized_grouped_order, "已存在顶层顺序时不得重复分配");
+
+    assert!(!repo
+        .sync_task_meta_at_grouped_top(params("pinned", Some(true), None, None))
+        .unwrap()
+        .initialized_grouped_order);
+    assert!(!repo
+        .sync_task_meta_at_grouped_top(params("archived", None, Some(true), None))
+        .unwrap()
+        .initialized_grouped_order);
+    assert!(!repo
+        .sync_task_meta_at_grouped_top(params("deleted", None, None, Some(true)))
+        .unwrap()
+        .initialized_grouped_order);
+
+    // 普通 syncTaskMeta 不会初始化顶层顺序。
+    sync_task(&repo, "plain", 50, "running");
+    let connection = Connection::open(&path).unwrap();
+    assert!(top_order(
+        &connection,
+        "task",
+        &json!(["D:/ws", "fresh"]).to_string()
+    )
+    .is_some());
+    assert_eq!(
+        top_order(
+            &connection,
+            "task",
+            &json!(["D:/ws", "plain"]).to_string()
+        ),
+        None
+    );
+}
+
+#[test]
+fn grouped_structure_omits_empty_workspace_identity() {
+    let temp = temp_dir();
+    let path = temp.0.join("tasks.sqlite");
+    {
+        let connection = migrated_db(&path);
+        connection
+            .execute(
+                "INSERT INTO task_groups (group_id, title, color, created_at, updated_at)
+                 VALUES ('g1', 'Group', 'blue', 1, 1)",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO task_group_members (
+                   group_id, workspace_key, workspace_path, workspace_identity, task_id,
+                   sort_order, added_at, created_at, updated_at
+                 ) VALUES ('g1', 'D:/ws', 'D:/ws', '', 'empty-identity', NULL, 1, 1, 1)",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO task_group_members (
+                   group_id, workspace_key, workspace_path, workspace_identity, task_id,
+                   sort_order, added_at, created_at, updated_at
+                 ) VALUES ('g1', 'D:/ws', 'D:/ws', NULL, 'null-identity', 1000, 1, 1, 1)",
+                [],
+            )
+            .unwrap();
+    }
+    let repo = TaskIndexRepo::new(&path);
+    let structure = repo
+        .query_grouped_task_view_structure(&[scope("D:/ws")])
+        .unwrap();
+    let value = serde_json::to_value(&structure).unwrap();
+    for member in value["members"].as_array().unwrap() {
+        assert!(
+            member.get("workspaceIdentity").is_none(),
+            "空字符串/None identity 都必须省略"
+        );
+    }
+    let empty = value["members"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|member| member["taskId"] == "empty-identity")
+        .unwrap();
+    assert!(empty["sortOrder"].is_null());
 }

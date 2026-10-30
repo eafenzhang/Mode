@@ -6,8 +6,19 @@
 //! `queryGroupedTaskView` / `queryGroupedTaskViewStructure` / `applyGroupedTaskViewOrder` /
 //! `syncTaskMetaAtGroupedTop`。规范见 `docs/specs/task-index-repo.md`。
 //!
-//! 与 TS 的排序口径一致：所有 `localeCompare` 在 Rust 侧退化为码点序
-//!（涉及值均为 ASCII，实际结果相同）。
+//! 排序口径（重要）：TS 的所有平局比较器都用 `String.prototype.localeCompare`，
+//! 而后者依赖运行环境的默认 locale + ICU collation。Rust 侧目前使用码点序，
+//! 这不是等价替换：`"a".localeCompare("B") < 0` 而码点序 `"B" < "a"`。
+//!
+//! 各比较器的输入并不全是受控 id/时间戳：
+//! - `compare_group_tasks` / `compare_cron_group_tasks` / 组内补齐用
+//!   `taskNodeKey = workspaceKey + "\0" + taskId`，workspaceKey 是用户路径或远端 identity；
+//! - 顶层节点补齐/排序用 `mapKey`，其中的 task key 同样内嵌 workspaceKey；
+//! - bootstrap 平局只比较 task_id，通常来自 `sess_<uuid>`，但仍允许外部导入 id。
+//!
+//! 因此无法用“输入只含受控 ASCII id”来证明码点序等价；精确复刻 ICU 需要
+//! 引入与 Node 同版本 + 同 locale 的 collation 数据。当前保留码点序作为确定性
+//! 近似，并把它记录为已知差异（见 `docs/specs/task-index-repo.md`）。
 
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
@@ -1184,7 +1195,9 @@ impl TaskIndexRepo {
                     group_id: row.group_id,
                     workspace_key: row.workspace_key,
                     workspace_path: row.workspace_path,
-                    workspace_identity: row.workspace_identity,
+                    // TS 是 `...(row.workspace_identity ? { workspaceIdentity } : {})`：
+                    // 空字符串同样视为 falsy，必须省略，不能序列化成 ""。
+                    workspace_identity: row.workspace_identity.filter(|value| !value.is_empty()),
                     task_id: row.task_id,
                     sort_order: row.sort_order,
                     added_at: row.added_at,

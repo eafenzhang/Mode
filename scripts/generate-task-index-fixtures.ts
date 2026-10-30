@@ -18,6 +18,7 @@
  * - `tasks.meta_json` 在快照里按“解析后的 JSON”记录（属性顺序不是语义）；
  *   无法解析的原始文本保留在 `{ unparsable: string }`。
  */
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -607,6 +608,7 @@ interface Snapshot {
   taskGroups: Array<Record<string, unknown>>;
   taskGroupMembers: Array<Record<string, unknown>>;
   taskGroupViewNodeOrders: Array<Record<string, unknown>>;
+  taskGroupWorkspaceBootstraps: Array<Record<string, unknown>>;
 }
 
 function readMetaJson(raw: string): unknown {
@@ -648,6 +650,13 @@ function normalizeStructureOutput(value: unknown): unknown {
     groups: structure.groups.map(normalizeGroupValue),
     // addedAt 来自 `Date.now()`（系统分组回填），跨进程不可比，归一为 0。
     members: structure.members.map((member) => ({ ...member, addedAt: 0 })),
+    // 顶层排序里的用户分组 id 同样是随机 UUID；不归一会让 fixture 不可复现。
+    topLevelOrders: structure.topLevelOrders.map((order) => {
+      const value = order as Record<string, unknown>;
+      return value.type === "group"
+        ? { ...value, groupId: normalizeGroupId(value.groupId) }
+        : value;
+    }),
   };
 }
 
@@ -701,7 +710,25 @@ function snapshot(dbPath: string): Snapshot {
           String(left.node_key).localeCompare(String(right.node_key)) ||
           Number(left.sort_order) - Number(right.sort_order),
       );
-    return { tasks, taskGroups, taskGroupMembers, taskGroupViewNodeOrders };
+    // bootstrap 表的 group_id 只在 workspace 自动建组时非空；ONCE_KEY 行 group_id 为 NULL。
+    // created_at/updated_at 来自 Date.now()，跨进程不可比，归一为 0；workspace_key/group_id
+    // 都是确定性值，直接按 SQLite 的二进制序排序即可与 Rust 快照对齐。
+    const taskGroupWorkspaceBootstraps = (
+      db
+        .prepare(
+          `SELECT workspace_key, group_id, created_at, updated_at
+           FROM task_group_workspace_bootstraps
+           ORDER BY workspace_key, group_id`,
+        )
+        .all() as unknown as Array<Record<string, unknown>>
+    ).map((row) => ({ ...row, created_at: 0, updated_at: 0 }));
+    return {
+      tasks,
+      taskGroups,
+      taskGroupMembers,
+      taskGroupViewNodeOrders,
+      taskGroupWorkspaceBootstraps,
+    };
   } finally {
     db.close();
   }
@@ -729,11 +756,12 @@ async function record(
   input: unknown,
   run: () => Promise<unknown> | unknown,
   normalizeOutput?: (output: unknown) => unknown,
+  target: StepRecord[] = steps,
 ): Promise<void> {
   try {
     const raw = await run();
     const output = raw === undefined ? null : raw;
-    steps.push({
+    target.push({
       id,
       op,
       input,
@@ -741,7 +769,7 @@ async function record(
       snapshot: snapshot(dbPath),
     });
   } catch (error) {
-    steps.push({
+    target.push({
       id,
       op,
       input,
@@ -753,6 +781,105 @@ async function record(
 
 function taskDetail(meta: MetaSeed): Record<string, unknown> {
   return buildMeta(meta);
+}
+
+/**
+ * 空库场景独立建库：验证 bootstrap 只在有 scope 时写全局 ONCE_KEY，
+ * 以及没有任何 task/group 时视图与结构查询的空结果。
+ */
+async function collectEmptyLibrarySteps(): Promise<StepRecord[]> {
+  const workDir = mkdtempSync(path.join(tmpdir(), "task-index-empty-"));
+  const dbPath = path.join(workDir, "tasks-index.sqlite");
+  try {
+    const seeding = new DatabaseSync(dbPath);
+    try {
+      runTasksDatabaseMigrations(seeding);
+    } finally {
+      seeding.close();
+    }
+    const repo = new TaskIndexRepo(dbPath);
+    const target: StepRecord[] = [];
+    const scope = { workspacePath: "D:/empty-ws" };
+    await record(
+      dbPath,
+      "empty-has-run-before",
+      "hasGroupedWorkspaceBootstrapRun",
+      {},
+      () => repo.hasGroupedWorkspaceBootstrapRun(),
+      undefined,
+      target,
+    );
+    await record(
+      dbPath,
+      "empty-view-no-scopes",
+      "queryGroupedTaskView",
+      { workspaceScopes: [] },
+      () => repo.queryGroupedTaskView({ workspaceScopes: [] }),
+      normalizeViewOutput,
+      target,
+    );
+    await record(
+      dbPath,
+      "empty-has-run-after-no-scopes",
+      "hasGroupedWorkspaceBootstrapRun",
+      {},
+      () => repo.hasGroupedWorkspaceBootstrapRun(),
+      undefined,
+      target,
+    );
+    await record(
+      dbPath,
+      "empty-view-scope",
+      "queryGroupedTaskView",
+      { workspaceScopes: [scope] },
+      () => repo.queryGroupedTaskView({ workspaceScopes: [scope] }),
+      normalizeViewOutput,
+      target,
+    );
+    await record(
+      dbPath,
+      "empty-has-run-after-scope",
+      "hasGroupedWorkspaceBootstrapRun",
+      {},
+      () => repo.hasGroupedWorkspaceBootstrapRun(),
+      undefined,
+      target,
+    );
+    await record(
+      dbPath,
+      "empty-view-again",
+      "queryGroupedTaskView",
+      { workspaceScopes: [scope] },
+      () => repo.queryGroupedTaskView({ workspaceScopes: [scope] }),
+      normalizeViewOutput,
+      target,
+    );
+    await record(
+      dbPath,
+      "empty-structure",
+      "queryGroupedTaskViewStructure",
+      { workspaceScopes: [scope] },
+      () => repo.queryGroupedTaskViewStructure({ workspaceScopes: [scope] }),
+      normalizeStructureOutput,
+      target,
+    );
+    await record(
+      dbPath,
+      "empty-close",
+      "close",
+      {},
+      () => {
+        repo.close();
+        return null;
+      },
+      undefined,
+      target,
+    );
+    // clockMs 与主场景保持一致；空库 bootstrap 的 created_at 在快照里归一为 0。
+    return target;
+  } finally {
+    rmSync(workDir, { recursive: true, force: true });
+  }
 }
 
 async function main(): Promise<void> {
@@ -1855,6 +1982,188 @@ async function main(): Promise<void> {
         }),
     );
 
+    // ── 分组视图补充场景：多 workspace / 远端 identity / 系统分组 / 幂等重放 ──
+    const remoteScope = { workspacePath: "/srv/ws", workspaceIdentity: WS_B };
+    // workspace 自动分组的 id 是确定性 sha256 派生值，可安全写进输入。
+    const workspaceGroupA = `workspace-group-${createHash("sha256")
+      .update(WS_A)
+      .digest("hex")
+      .slice(0, 24)}`;
+
+    // 空 scope：不触发 bootstrap，只返回当前可见分组（含无成员的用户分组）。
+    await record(
+      dbPath,
+      "grouped-view-empty-scopes",
+      "queryGroupedTaskView",
+      { workspaceScopes: [] },
+      () => repo.queryGroupedTaskView({ workspaceScopes: [] }),
+      normalizeViewOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-init-top-remote",
+      "initializeGroupedTaskAtTop",
+      { workspacePath: "/srv/ws", workspaceIdentity: WS_B, taskId: "task-remote" },
+      () =>
+        repo.initializeGroupedTaskAtTop({
+          workspacePath: "/srv/ws",
+          workspaceIdentity: WS_B,
+          taskId: "task-remote",
+        }),
+    );
+    await record(
+      dbPath,
+      "grouped-init-top-remote-again",
+      "initializeGroupedTaskAtTop",
+      { workspacePath: "/srv/ws", workspaceIdentity: WS_B, taskId: "task-remote" },
+      () =>
+        repo.initializeGroupedTaskAtTop({
+          workspacePath: "/srv/ws",
+          workspaceIdentity: WS_B,
+          taskId: "task-remote",
+        }),
+    );
+    await record(
+      dbPath,
+      "grouped-init-top-archived",
+      "initializeGroupedTaskAtTop",
+      { workspacePath: WS_A, taskId: "task-stale" },
+      () => repo.initializeGroupedTaskAtTop({ workspacePath: WS_A, taskId: "task-stale" }),
+    );
+    await record(
+      dbPath,
+      "grouped-init-top-deleted",
+      "initializeGroupedTaskAtTop",
+      { workspacePath: WS_C, taskId: "task-archived-2" },
+      () => repo.initializeGroupedTaskAtTop({ workspacePath: WS_C, taskId: "task-archived-2" }),
+    );
+
+    const pinnedTopMeta = taskDetail({
+      taskId: "task-top-pinned",
+      title: "pinned top sync",
+      workspacePath: WS_A,
+      createdAt: 3200,
+      updatedAt: 3200,
+      mode: "build",
+      provider: "glm",
+      status: "running",
+    });
+    const archivedTopMeta = taskDetail({
+      taskId: "task-top-archived",
+      title: "archived top sync",
+      workspacePath: WS_A,
+      createdAt: 3201,
+      updatedAt: 3201,
+      mode: "build",
+      provider: "glm",
+      status: "completed",
+    });
+    const deletedTopMeta = taskDetail({
+      taskId: "task-top-deleted",
+      title: "deleted top sync",
+      workspacePath: WS_A,
+      createdAt: 3202,
+      updatedAt: 3202,
+      mode: "build",
+      provider: "glm",
+      status: "completed",
+    });
+    const existingTopMeta = taskDetail({
+      taskId: "task-active",
+      title: "agent title",
+      workspacePath: WS_A,
+      createdAt: 900,
+      updatedAt: 2005,
+      mode: "build",
+      provider: "glm",
+      status: "running",
+    });
+    await record(
+      dbPath,
+      "sync-at-top-pinned",
+      "syncTaskMetaAtGroupedTop",
+      { meta: pinnedTopMeta, pinned: true },
+      () => repo.syncTaskMetaAtGroupedTop({ meta: pinnedTopMeta as never, pinned: true }),
+    );
+    await record(
+      dbPath,
+      "sync-at-top-archived",
+      "syncTaskMetaAtGroupedTop",
+      { meta: archivedTopMeta, archived: true },
+      () => repo.syncTaskMetaAtGroupedTop({ meta: archivedTopMeta as never, archived: true }),
+    );
+    await record(
+      dbPath,
+      "sync-at-top-deleted",
+      "syncTaskMetaAtGroupedTop",
+      { meta: deletedTopMeta, deleted: true },
+      () => repo.syncTaskMetaAtGroupedTop({ meta: deletedTopMeta as never, deleted: true }),
+    );
+    await record(
+      dbPath,
+      "sync-at-top-existing-member",
+      "syncTaskMetaAtGroupedTop",
+      { meta: existingTopMeta },
+      () => repo.syncTaskMetaAtGroupedTop({ meta: existingTopMeta as never }),
+    );
+    await record(
+      dbPath,
+      "grouped-view-ab-after-top-sync",
+      "queryGroupedTaskView",
+      { workspaceScopes: [aScope, remoteScope] },
+      () => repo.queryGroupedTaskView({ workspaceScopes: [aScope, remoteScope] }),
+      normalizeViewOutput,
+    );
+
+    const idempotentOrderInput = {
+      workspaceScopes: [aScope, remoteScope],
+      topLevelNodes: [
+        { type: "task", task: { workspacePath: "/srv/ws", workspaceIdentity: WS_B, taskId: "task-remote" } },
+        { type: "group", groupId: workspaceGroupA },
+      ],
+      groups: [
+        {
+          groupId: workspaceGroupA,
+          taskRefs: [
+            { workspacePath: WS_A, taskId: "task-active" },
+            { workspacePath: WS_A, taskId: "task-extra-meta" },
+          ],
+        },
+      ],
+    };
+    await record(
+      dbPath,
+      "grouped-apply-order-idempotent-1",
+      "applyGroupedTaskViewOrder",
+      idempotentOrderInput,
+      () => repo.applyGroupedTaskViewOrder(idempotentOrderInput as never),
+      normalizeViewOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-apply-order-idempotent-2",
+      "applyGroupedTaskViewOrder",
+      idempotentOrderInput,
+      () => repo.applyGroupedTaskViewOrder(idempotentOrderInput as never),
+      normalizeViewOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-structure-final",
+      "queryGroupedTaskViewStructure",
+      { workspaceScopes: [aScope, remoteScope] },
+      () => repo.queryGroupedTaskViewStructure({ workspaceScopes: [aScope, remoteScope] }),
+      normalizeStructureOutput,
+    );
+    await record(
+      dbPath,
+      "grouped-view-final",
+      "queryGroupedTaskView",
+      { workspaceScopes: [aScope, remoteScope] },
+      () => repo.queryGroupedTaskView({ workspaceScopes: [aScope, remoteScope] }),
+      normalizeViewOutput,
+    );
+
     await record(dbPath, "close", "close", {}, () => {
       repo.close();
       return null;
@@ -1863,6 +2172,8 @@ async function main(): Promise<void> {
       repo.listTaskMetas({ workspacePath: WS_A }),
     );
     repo.close();
+
+    const emptyLibrarySteps = await collectEmptyLibrarySteps();
 
     const fixture = {
       generatedBy: "scripts/generate-task-index-fixtures.ts",
@@ -1875,6 +2186,10 @@ async function main(): Promise<void> {
         taskGroupViewNodeOrders: taskGroupOrderSeeds,
       },
       steps,
+      emptyLibrary: {
+        clockMs,
+        steps: emptyLibrarySteps,
+      },
     };
     mkdirSync(path.dirname(OUTPUT), { recursive: true });
     writeFileSync(OUTPUT, `${JSON.stringify(fixture, null, 2)}\n`);

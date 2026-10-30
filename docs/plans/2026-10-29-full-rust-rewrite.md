@@ -311,7 +311,8 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
    快照函数；见 `docs/specs/tasks-db.md`）。**任务索引 Repo 已整体迁完**
    （`crates/task-index-repo`：`ensure_ready/close`、meta CRUD、状态写入、列表/搜索、
    归档清理、分组视图与分组管理、`syncTaskMetaAtGroupedTop`；与真实 TS
-   `TaskIndexRepo` 95 步逐步对拍；见 `docs/specs/task-index-repo.md`）。
+   `TaskIndexRepo` 逐步骤对拍（主场景 109 步 + 独立空库 8 步，含 bootstrap 表快照）；
+   见 `docs/specs/task-index-repo.md`）。
    闲时任务 Repo 也已迁（`crates/off-peak-repo`：状态机守卫、认领回收、核销 outbox，
    50 步对拍；见 `docs/specs/off-peak-repo.md`）。**定时任务 Repo 已整体迁完**
    （`crates/automation-repo`：37 个公开方法、创建上限、截止结算、认领回收、
