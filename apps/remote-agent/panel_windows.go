@@ -489,7 +489,7 @@ func (ui *agentUIHandle) run() {
 	ui.outerHeight = winH
 	ui.mu.Unlock()
 	x, y := centeredWindowPosition(winW, winH)
-	titlePtr, _ := syscall.UTF16PtrFromString("Mode Agent")
+	titlePtr, _ := syscall.UTF16PtrFromString("Mode Go")
 	hwnd, _, callErr := procCreateWindowExW.Call(
 		uintptr(exStyle),
 		uintptr(unsafe.Pointer(classNamePtr)),
@@ -1458,7 +1458,7 @@ func (ui *agentUIHandle) addTrayIcon() {
 	}
 	data := ui.notifyData(hwnd)
 	data.UFlags = nifMsg | nifIcon | nifTip
-	copy(data.SzTip[:], utf16.Encode([]rune("Mode Agent 正在运行")))
+	copy(data.SzTip[:], utf16.Encode([]rune("Mode Go 正在运行")))
 	ok, _, _ := procShellNotify.Call(nimAdd, uintptr(unsafe.Pointer(&data)))
 	if ok != 0 {
 		ui.tray = true
@@ -1498,7 +1498,7 @@ func installSystemMenu(hwnd uintptr) {
 	procAppendMenuW.Call(menu, mfSeparator, 0, 0)
 	appendSystemMenuItem(menu, sysMenuSettings, "设置...")
 	appendSystemMenuItem(menu, sysMenuPair, "配对...")
-	appendSystemMenuItem(menu, sysMenuExit, "退出 Mode Agent")
+	appendSystemMenuItem(menu, sysMenuExit, "退出 Mode Go")
 }
 
 func appendSystemMenuItem(menu, id uintptr, text string) {

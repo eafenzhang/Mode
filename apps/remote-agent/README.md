@@ -22,7 +22,7 @@ Mode 通过标准 **MCP Streamable HTTP** 或本地 CLI 发送指令，执行：
 | `mode-agent-win-x64.exe` | 当前 Go | x64 Windows（推荐；可看到 64 位 ODBC 驱动） |
 | `mode-agent-win-x86.exe` | 当前 Go | 32 位 Windows 7–11 |
 | `mode-remote-*` | 当前 Go | Mode 主机上的跨平台 CLI 客户端 |
-| `ModeAgent-Setup.exe` | Go 1.10 引导器 + 当前 Go 载荷 | 可选的安装/卸载形态 |
+| `ModeGo-Setup.exe` | Go 1.10 引导器 + 当前 Go 载荷 | 可选的安装/卸载形态 |
 
 Windows 产物均为 **GUI 子系统、单文件、无运行时依赖、带 Mode 图标**；双击不会出现控制台窗口。
 
@@ -56,7 +56,7 @@ MODE_GO_XP=/d/tools/go1.10.8/bin/go.exe MODE_GO_MODERN=go ./apps/remote-agent/bu
    局域网/Tailscale 内的桌面端。配对成功后，被控端会向桌面 `POST /api/remote-agent/enroll`
    登记；回到桌面端点「刷新列表」即可看到设备。
 4. 之后点击面板标题栏左侧的 Mode 图标，打开 Windows 原生系统菜单（还原/移动/关闭 等），
-   菜单末尾追加了「设置...」「配对...」「退出 Mode Agent」；双击托盘图标只负责打开面板，不再提供菜单。
+   菜单末尾追加了「设置...」「配对...」「退出 Mode Go」；双击托盘图标只负责打开面板，不再提供菜单。
 
 面板无内容时默认显示 Matrix 风格快速代码雨；Mode 桌面端通过 MCP 工具
 `remote_panel_show` / `remote_panel_clear` / `remote_panel_status`（或直接调用 `/v1/panel`）
@@ -64,10 +64,10 @@ MODE_GO_XP=/d/tools/go1.10.8/bin/go.exe MODE_GO_MODERN=go ./apps/remote-agent/bu
 
 ### 设置 / 配对（免安装 exe 内置）
 
-免安装 exe 自带独立的设置页和配对页，不需要再运行 `ModeAgent-Setup.exe`：
+免安装 exe 自带独立的设置页和配对页，不需要再运行 `ModeGo-Setup.exe`：
 
 - 入口：点击面板标题栏左侧的 Mode 图标（或 Alt+Space）打开原生系统菜单，末尾是
-  「设置...」「配对...」「退出 Mode Agent」。
+  「设置...」「配对...」「退出 Mode Go」。
 - **设置页**只包含两个开关：**登录 Windows 时自动启动**、**显示系统托盘图标**。
   保存后立即生效，不需要重启；本地面板固定 300×400、始终启用，不出现在设置里。
   - 关闭窗口只隐藏面板；双击托盘图标或重新运行 exe 可再次打开。
@@ -113,14 +113,14 @@ mode-agent.exe start --config C:\path\to\mode-agent.json --open-panel
 mode-agent.exe stop  --config C:\path\to\mode-agent.json
 ```
 
-- 托盘「退出 Mode Agent」、`/v1/shutdown`、`stop` 会先写 `mode-agent.stop`，supervisor 看到后
+- 托盘「退出 Mode Go」、`/v1/shutdown`、`stop` 会先写 `mode-agent.stop`，supervisor 看到后
   不再重启并退出。
 - supervisor 自己被杀时，agent 会继续服务；再次运行 exe 会重新接管（命名互斥体保证单实例）。
 - supervisor 与 agent 同时被杀时，下一次登录（开机自启）或手动运行 exe 恢复。
 
 ## 可选安装形态
 
-`ModeAgent-Setup.exe` 是 32 位引导器内嵌 x86/x64 两套 agent，按系统位数解包。双击默认进入
+`ModeGo-Setup.exe` 是 32 位引导器内嵌 x86/x64 两套 agent，按系统位数解包。双击默认进入
 `setup`，复制到 `%LOCALAPPDATA%\ModeAgent`、生成 token、可选自启/托盘（面板固定 300×400）、尝试放行
 TCP 47821、启动 supervisor，并弹窗要求输入桌面端 6 位配对码。
 
@@ -128,19 +128,19 @@ TCP 47821、启动 supervisor，并弹窗要求输入桌面端 6 位配对码。
 所以用健康检查轮询判断完成）：
 
 ```powershell
-Start-Process ".\ModeAgent-Setup.exe" -ArgumentList "install","--quiet","--no-firewall","--no-autostart"
+Start-Process ".\ModeGo-Setup.exe" -ArgumentList "install","--quiet","--no-firewall","--no-autostart"
 while (-not (Test-NetConnection 127.0.0.1 -Port 47821 -InformationLevel Quiet)) { Start-Sleep 1 }
 mode-agent.exe enroll --code <6位配对码>
 # 不在同一 LAN/Tailscale 时，可改用完整配对串：
 # mode-agent.exe enroll --uri "mode-agent://enroll?host=<桌面地址>&port=<桌面端口>&code=<配对码>"
 # 或者显式指定安装目录
-Start-Process ".\ModeAgent-Setup.exe" -ArgumentList "install","--dir","D:\ModeAgent","--port","47821","--quiet"
+Start-Process ".\ModeGo-Setup.exe" -ArgumentList "install","--dir","D:\ModeAgent","--port","47821","--quiet"
 ```
 
 卸载：
 
 ```powershell
-Start-Process -Wait ".\ModeAgent-Setup.exe" -ArgumentList "uninstall","--purge","--yes"
+Start-Process -Wait ".\ModeGo-Setup.exe" -ArgumentList "uninstall","--purge","--yes"
 ```
 
 交互安装对话框可取消「开机自启」「显示托盘图标」；CLI 对应 `--no-autostart`、
@@ -257,4 +257,4 @@ pnpm exec tsx --test apps/remote-agent/test/mcp-client.test.mts
 ```
 
 构建脚本会给所有 Windows 产物写入 GUI 子系统与 Mode 图标；`setup/pack` 只负责把引导器与
-x86/x64 载荷拼成单个 `ModeAgent-Setup.exe`。
+x86/x64 载荷拼成单个 `ModeGo-Setup.exe`。

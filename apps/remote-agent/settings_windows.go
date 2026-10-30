@@ -70,7 +70,7 @@ func buildSettingsTemplate() []byte {
 	putWord(&buffer, 105)
 	putWord(&buffer, 0) // no menu
 	putWord(&buffer, 0) // default dialog class
-	putUTF16(&buffer, "Mode Agent 设置")
+	putUTF16(&buffer, "Mode Go 设置")
 	putDialogFont(&buffer, 9, "Microsoft YaHei UI")
 	addDialogItem(&buffer, 0x50000000, 12, 8, 256, 22, idInstallMessage, 0x0082,
 		"开机自启与托盘设置。")
@@ -136,10 +136,10 @@ func (ui *agentUIHandle) showPairing() {
 		return
 	}
 	if _, err := enrollWithCode(ui.cfg, code, ""); err != nil {
-		showErrorDialog("Mode Agent 配对失败", err.Error())
+		showErrorDialog("Mode Go 配对失败", err.Error())
 		return
 	}
-	showInfoDialog("Mode Agent 配对成功", "已登记到 Mode 桌面端。\n请回到远程控制页点击「刷新列表」。")
+	showInfoDialog("Mode Go 配对成功", "已登记到 Mode 桌面端。\n请回到远程控制页点击「刷新列表」。")
 }
 
 func promptPairCode(owner uintptr) (string, bool) {
@@ -175,7 +175,7 @@ func buildPairTemplate() []byte {
 	putWord(&buffer, 118)
 	putWord(&buffer, 0) // no menu
 	putWord(&buffer, 0) // default dialog class
-	putUTF16(&buffer, "Mode Agent 配对")
+	putUTF16(&buffer, "Mode Go 配对")
 	putDialogFont(&buffer, 9, "Microsoft YaHei UI")
 	addDialogItem(&buffer, 0x50000000, 12, 8, 256, 20, idInstallMessage, 0x0082,
 		"输入桌面端显示的 6 位配对码：")
@@ -216,7 +216,7 @@ func pairDialogProc(hwnd, message, wParam, lParam uintptr) uintptr {
 			)
 			code := strings.TrimSpace(syscall.UTF16ToString(buffer[:int(length)]))
 			if code == "" {
-				showInfoDialog("Mode Agent 配对", "请输入 6 位配对码。")
+				showInfoDialog("Mode Go 配对", "请输入 6 位配对码。")
 				return 1
 			}
 			pairState.mu.Lock()
@@ -253,11 +253,11 @@ func (ui *agentUIHandle) applySettings(autostart, tray bool) {
 	ui.cfg.Panel.Enabled = true
 	if ui.cfg.configPath != "" {
 		if err := saveConfig(ui.cfg, ui.cfg.configPath); err != nil {
-			showErrorDialog("Mode Agent", "保存设置失败：\n"+err.Error())
+			showErrorDialog("Mode Go", "保存设置失败：\n"+err.Error())
 		}
 	}
 	if err := syncAutostartForPanel(ui.cfg, wasAutostart && !autostart); err != nil {
-		showErrorDialog("Mode Agent", "更新开机自启失败：\n"+err.Error())
+		showErrorDialog("Mode Go", "更新开机自启失败：\n"+err.Error())
 	}
 	ui.setTrayEnabled(tray)
 }

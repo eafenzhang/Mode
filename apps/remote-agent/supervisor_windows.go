@@ -100,8 +100,8 @@ func runSupervisor(cfg *Config, openPanel, pairOnStart bool) int {
 			if !notifiedForeign {
 				supervisorLog(cfg, "port %d is served by another mode-agent (token mismatch)", cfg.Port)
 				messageBox(
-					"Mode Agent",
-					fmt.Sprintf("端口 %d 已被另一个 Mode Agent 占用。\n请先退出旧实例，或修改本实例的端口。", cfg.Port),
+					"Mode Go",
+					fmt.Sprintf("端口 %d 已被另一个 Mode Go 占用。\n请先退出旧实例，或修改本实例的端口。", cfg.Port),
 					mbOK|mbIconWarning,
 				)
 				notifiedForeign = true

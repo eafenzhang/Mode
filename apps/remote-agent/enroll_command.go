@@ -73,7 +73,7 @@ func cmdEnroll(args []string) int {
 			return 2
 		}
 		raw, _ = promptForText(
-			"Mode Agent 配对",
+			"Mode Go 配对",
 			"请输入 Mode 桌面端生成的 6 位配对码。\n（无需输入链接或地址）",
 			"",
 		)
@@ -91,7 +91,7 @@ func cmdEnroll(args []string) int {
 			fmt.Fprintf(os.Stderr, "配对失败：%v\n", err)
 		}
 		if !*noDialog {
-			showErrorDialog("Mode Agent 配对失败", err.Error())
+			showErrorDialog("Mode Go 配对失败", err.Error())
 		}
 		return 1
 	}
@@ -102,7 +102,7 @@ func cmdEnroll(args []string) int {
 		fmt.Printf("enrolled=true\nmcpServer=%s\n", serverName)
 	}
 	if !*noDialog {
-		showInfoDialog("Mode Agent 配对成功", "已登记到 Mode 桌面端。\n请回到远程控制页点击「刷新列表」。")
+		showInfoDialog("Mode Go 配对成功", "已登记到 Mode 桌面端。\n请回到远程控制页点击「刷新列表」。")
 	}
 	return 0
 }
@@ -204,7 +204,7 @@ func enrollWithTarget(cfg *Config, target enrollTarget, agentHost string) (strin
 	if strings.TrimSpace(agentHost) == "" {
 		agentHost = primaryPairAddress()
 	}
-	name := hostnameOr("Mode Agent")
+	name := hostnameOr("Mode Go")
 	payload := enrollmentPayload{
 		Code:      target.Code,
 		AgentID:   cfg.AgentID,

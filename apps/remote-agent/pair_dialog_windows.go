@@ -3,5 +3,5 @@
 package main
 
 func showPairCodeDialog(cfg *Config, code *PairCodeResult) {
-	messageBox("Mode Agent 配对", formatPairMessage(cfg, code), mbOK|mbIconInformation)
+	messageBox("Mode Go 配对", formatPairMessage(cfg, code), mbOK|mbIconInformation)
 }

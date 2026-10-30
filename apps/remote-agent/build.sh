@@ -48,15 +48,15 @@ echo "XP toolchain: $xp_go"
   exit 1
 }
 build "$xp_go" windows 386 mode-agent-xp-x86.exe off
-set_icon "$out_dir/mode-agent-xp-x86.exe" "Mode Agent remote runtime"
+set_icon "$out_dir/mode-agent-xp-x86.exe" "Mode Go remote runtime"
 echo "WARNING: mode-agent-xp-x86.exe embeds Go 1.10 (EOL). Use it only on a trusted LAN or VPN."
 
 echo "Modern toolchain: $modern_go"
 if "$modern_go" version >/dev/null 2>&1; then
   build "$modern_go" windows amd64 mode-agent-win-x64.exe on
   build "$modern_go" windows 386 mode-agent-win-x86.exe on
-  set_icon "$out_dir/mode-agent-win-x64.exe" "Mode Agent remote runtime"
-  set_icon "$out_dir/mode-agent-win-x86.exe" "Mode Agent remote runtime"
+  set_icon "$out_dir/mode-agent-win-x64.exe" "Mode Go remote runtime"
+  set_icon "$out_dir/mode-agent-win-x86.exe" "Mode Go remote runtime"
   build "$modern_go" linux amd64 mode-remote-linux-amd64 on
   build "$modern_go" linux arm64 mode-remote-linux-arm64 on
   build "$modern_go" darwin amd64 mode-remote-darwin-amd64 on
@@ -75,11 +75,11 @@ fi
 bootstrap="$out_dir/mode-agent-setup-bootstrap.exe"
 GO111MODULE=off GOOS=windows GOARCH=386 CGO_ENABLED=0 \
   "$xp_go" build -ldflags "-s -w -H windowsgui" -o "$bootstrap" ./setup
-set_icon "$bootstrap" "Mode Agent installer"
+set_icon "$bootstrap" "Mode Go installer"
 "$modern_go" run ./setup/pack/main.go \
   -bootstrap "$bootstrap" \
   -x86 "$out_dir/mode-agent-xp-x86.exe" \
   -x64 "$out_dir/mode-agent-win-x64.exe" \
-  -out "$out_dir/ModeAgent-Setup.exe"
-rm -f "$bootstrap" "$out_dir/ModeAgent-Setup-x86.exe" "$out_dir/ModeAgent-Setup-x64.exe"
+  -out "$out_dir/ModeGo-Setup.exe"
+rm -f "$bootstrap" "$out_dir/ModeGo-Setup-x86.exe" "$out_dir/ModeGo-Setup-x64.exe"
 ls -lh "$out_dir"

@@ -149,7 +149,7 @@ func cmdSetup(args []string) int {
 	if _, err := os.Stat(paths.Config); err == nil {
 		cfg, loadErr := loadConfig(paths.Config)
 		if loadErr != nil {
-			messageBox("Mode Agent", "已安装，但配置无法读取：\n"+loadErr.Error(), mbOK|mbIconWarning)
+			messageBox("Mode Go", "已安装，但配置无法读取：\n"+loadErr.Error(), mbOK|mbIconWarning)
 			return 1
 		}
 		exe, _ := os.Executable()
@@ -158,7 +158,7 @@ func cmdSetup(args []string) int {
 		if runningInstalled && !opts.Yes {
 			if !agentHealthy(cfg) {
 				if _, startErr := startInstalledAgent(paths.Exe, paths.Config, cfg, false); startErr != nil {
-					showErrorDialog("Mode Agent 启动失败", startErr.Error())
+					showErrorDialog("Mode Go 启动失败", startErr.Error())
 					return 1
 				}
 			}
@@ -175,7 +175,7 @@ func cmdSetup(args []string) int {
 			trayDefault = true
 		}
 		autostart, tray, ok := promptInstallOptions(
-			"更新 Mode Agent",
+			"更新 Mode Go",
 			"检测到已安装。使用当前安装包更新并保留现有配对令牌。",
 			"安装",
 			autostartDefault,
@@ -192,7 +192,7 @@ func cmdSetup(args []string) int {
 		return runInstall(opts)
 	}
 	autostart, tray, ok := promptInstallOptions(
-		"安装 Mode Agent",
+		"安装 Mode Go",
 		"安装后，Mode 可以远程执行命令、读取文件并控制此电脑桌面。\n\n"+
 			"安装器会复制程序到当前用户目录，并尝试放行 TCP 端口。",
 		"安装",
@@ -220,7 +220,7 @@ func cmdUninstall(args []string) int {
 	}
 	paths := resolveInstallPaths(opts.Dir)
 	if !opts.Yes {
-		if messageBox("卸载 Mode Agent", "停止被控端、移除登录自启动和防火墙规则？", mbYesNo|mbIconQuestion) != mbYes {
+		if messageBox("卸载 Mode Go", "停止被控端、移除登录自启动和防火墙规则？", mbYesNo|mbIconQuestion) != mbYes {
 			return 0
 		}
 	}
@@ -314,11 +314,11 @@ func runInstall(opts installOptions) int {
 		return 0
 	}
 	if startErr != nil {
-		showErrorDialog("Mode Agent 启动失败", startErr.Error())
+		showErrorDialog("Mode Go 启动失败", startErr.Error())
 		return 1
 	}
 	if opts.NoStart {
-		showInfoDialog("Mode Agent 已安装", "已落盘但未启动。\n启动 agent 后运行 mode-agent.exe enroll 完成配对。")
+		showInfoDialog("Mode Go 已安装", "已落盘但未启动。\n启动 agent 后运行 mode-agent.exe enroll 完成配对。")
 		return 0
 	}
 	return promptAndEnroll(paths, cfg)
@@ -326,23 +326,23 @@ func runInstall(opts installOptions) int {
 
 func promptAndEnroll(paths installPaths, cfg *Config) int {
 	raw, ok := promptForText(
-		"Mode Agent 配对",
+		"Mode Go 配对",
 		"请输入 Mode 桌面端生成的 6 位配对码。\n（无需输入链接或地址）",
 		"",
 	)
 	if !ok || strings.TrimSpace(raw) == "" {
 		appendInstallInfo(paths.Info, "enrollment=canceled")
-		showInfoDialog("Mode Agent 已启动", "稍后可运行 mode-agent.exe enroll，或右键托盘「设置与配对」完成配对。")
+		showInfoDialog("Mode Go 已启动", "稍后可运行 mode-agent.exe enroll，或右键托盘「设置与配对」完成配对。")
 		return 0
 	}
 	serverName, err := enrollWithCode(cfg, raw, "")
 	if err != nil {
 		appendInstallInfo(paths.Info, "enrollment=failed", "enrollError="+err.Error())
-		showErrorDialog("Mode Agent 配对失败", err.Error())
+		showErrorDialog("Mode Go 配对失败", err.Error())
 		return 1
 	}
 	appendInstallInfo(paths.Info, "enrollment=success", "mcpServer="+serverName)
-	showInfoDialog("Mode Agent 配对成功", "已登记到 Mode 桌面端。\n请回到远程控制页点击「刷新列表」。")
+	showInfoDialog("Mode Go 配对成功", "已登记到 Mode 桌面端。\n请回到远程控制页点击「刷新列表」。")
 	return 0
 }
 
@@ -626,7 +626,7 @@ func buildInstallInfo(paths installPaths, cfg *Config, agent, autostart, firewal
 		InfoPath:    paths.Info,
 		Token:       cfg.Token,
 		AgentID:     cfg.AgentID,
-		Name:        hostnameOr("Mode Agent"),
+		Name:        hostnameOr("Mode Go"),
 		Host:        host,
 		Port:        cfg.Port,
 		Addresses:   strings.Join(localIPv4Addresses(), ","),
@@ -702,20 +702,20 @@ func printInstallInfo(info installInfo) {
 
 func showInstallResult(info installInfo) {
 	if info.PairCode == "" {
-		messageBox("Mode Agent 安装完成",
-			"Mode Agent 已安装，但未能生成配对码：\n"+info.PairError+"\n\n详细信息："+info.InfoPath,
+		messageBox("Mode Go 安装完成",
+			"Mode Go 已安装，但未能生成配对码：\n"+info.PairError+"\n\n详细信息："+info.InfoPath,
 			mbOK|mbIconWarning)
 		return
 	}
 	text := fmt.Sprintf(
-		"Mode Agent 已安装并启动。\n\n"+
+		"Mode Go 已安装并启动。\n\n"+
 			"在 Mode 桌面端打开「远程控制」→「添加被控端」：\n"+
 			"地址：%s\n端口：%d\n配对码：%s\n\n"+
 			"也可以直接粘贴：\n%s\n\n"+
 			"配对码 10 分钟内有效。\n自启动：%s\n防火墙：%s\n\n详细信息：%s",
 		info.Addresses, info.Port, info.PairCode, info.PairURI, info.Autostart, info.Firewall, info.InfoPath,
 	)
-	messageBox("Mode Agent 安装完成", text, mbOK|mbIconInformation)
+	messageBox("Mode Go 安装完成", text, mbOK|mbIconInformation)
 }
 
 func samePath(left, right string) bool {

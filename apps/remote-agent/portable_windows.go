@@ -18,11 +18,11 @@ func cmdLaunch() int {
 	pairOnStart := false
 	if _, statErr := os.Stat(configPath); statErr != nil {
 		if !os.IsNotExist(statErr) {
-			showErrorDialog("Mode Agent", "无法读取配置：\n"+statErr.Error())
+			showErrorDialog("Mode Go", "无法读取配置：\n"+statErr.Error())
 			return 1
 		}
 		autostart, tray, ok := promptInstallOptions(
-			"首次运行 Mode Agent",
+			"首次运行 Mode Go",
 			"将以免安装方式在下面位置保存配置：\n"+configPath+
 				"\n\n启动后会弹出配对页，可输入 Mode 桌面端生成的 6 位配对码。",
 			"开始使用",
@@ -34,7 +34,7 @@ func cmdLaunch() int {
 		}
 		created, err := createPortableConfig(configPath, autostart, tray)
 		if err != nil {
-			showErrorDialog("Mode Agent", "创建配置失败：\n"+err.Error())
+			showErrorDialog("Mode Go", "创建配置失败：\n"+err.Error())
 			return 1
 		}
 		cfg = created
@@ -47,7 +47,7 @@ func cmdLaunch() int {
 	} else {
 		loaded, err := loadConfig(configPath)
 		if err != nil {
-			showErrorDialog("Mode Agent", "配置无法读取：\n"+err.Error())
+			showErrorDialog("Mode Go", "配置无法读取：\n"+err.Error())
 			return 1
 		}
 		if !loaded.panelConfigured {
@@ -59,7 +59,7 @@ func cmdLaunch() int {
 			}
 			loaded.panelConfigured = true
 			if err := saveConfig(loaded, configPath); err != nil {
-				showErrorDialog("Mode Agent", "保存配置失败：\n"+err.Error())
+				showErrorDialog("Mode Go", "保存配置失败：\n"+err.Error())
 				return 1
 			}
 			// 旧自启动命令直接跑 serve；迁移到带 supervisor 的 start。
@@ -72,7 +72,7 @@ func cmdLaunch() int {
 		if !loaded.Panel.Enabled {
 			loaded.Panel.Enabled = true
 			if err := saveConfig(loaded, configPath); err != nil {
-				showErrorDialog("Mode Agent", "保存配置失败：\n"+err.Error())
+				showErrorDialog("Mode Go", "保存配置失败：\n"+err.Error())
 				return 1
 			}
 		}

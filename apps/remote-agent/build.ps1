@@ -84,7 +84,7 @@ try {
   }
   Remove-Item Env:GO111MODULE -ErrorAction SilentlyContinue
 
-  Set-AppIcon (Join-Path $OutDir "mode-agent-xp-x86.exe") "Mode Agent remote runtime"
+  Set-AppIcon (Join-Path $OutDir "mode-agent-xp-x86.exe") "Mode Go remote runtime"
 
   Write-Host "Modern toolchain: $ModernGo"
   & $ModernGo version
@@ -95,8 +95,8 @@ try {
     Invoke-Go $ModernGo "linux" "arm64" "mode-remote-linux-arm64" @()
     Invoke-Go $ModernGo "darwin" "amd64" "mode-remote-darwin-amd64" @()
     Invoke-Go $ModernGo "darwin" "arm64" "mode-remote-darwin-arm64" @()
-    Set-AppIcon (Join-Path $OutDir "mode-agent-win-x64.exe") "Mode Agent remote runtime"
-    Set-AppIcon (Join-Path $OutDir "mode-agent-win-x86.exe") "Mode Agent remote runtime"
+    Set-AppIcon (Join-Path $OutDir "mode-agent-win-x64.exe") "Mode Go remote runtime"
+    Set-AppIcon (Join-Path $OutDir "mode-agent-win-x86.exe") "Mode Go remote runtime"
     if (-not $SkipTests) {
       Restore-GoEnv
       & $ModernGo test .
@@ -117,8 +117,8 @@ try {
   } finally {
     Restore-GoEnv
   }
-  Set-AppIcon $bootstrap "Mode Agent installer"
-  $installer = Join-Path $OutDir "ModeAgent-Setup.exe"
+  Set-AppIcon $bootstrap "Mode Go installer"
+  $installer = Join-Path $OutDir "ModeGo-Setup.exe"
   & $ModernGo run ./setup/pack/main.go `
     -bootstrap $bootstrap `
     -x86 (Join-Path $OutDir "mode-agent-xp-x86.exe") `
@@ -126,8 +126,8 @@ try {
     -out $installer
   if ($LASTEXITCODE -ne 0) { throw "single installer packaging failed" }
   Remove-Item $bootstrap -Force
-  Remove-Item (Join-Path $OutDir "ModeAgent-Setup-x86.exe") -ErrorAction SilentlyContinue
-  Remove-Item (Join-Path $OutDir "ModeAgent-Setup-x64.exe") -ErrorAction SilentlyContinue
+  Remove-Item (Join-Path $OutDir "ModeGo-Setup-x86.exe") -ErrorAction SilentlyContinue
+  Remove-Item (Join-Path $OutDir "ModeGo-Setup-x64.exe") -ErrorAction SilentlyContinue
   Get-ChildItem $OutDir | Sort-Object Name | Format-Table Name, Length
 } finally {
   Pop-Location

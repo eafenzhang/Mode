@@ -61,7 +61,7 @@ func stdoutHandleUsable() bool {
 }
 
 func showError(message string) {
-	titlePtr, _ := syscall.UTF16PtrFromString("Mode Agent 安装器")
+	titlePtr, _ := syscall.UTF16PtrFromString("Mode Go 安装器")
 	textPtr, _ := syscall.UTF16PtrFromString(message)
 	procMessageBoxW.Call(
 		0,

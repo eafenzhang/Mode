@@ -108,7 +108,7 @@ func buildPairURI(host string, port int, code string) string {
 func formatPairMessage(cfg *Config, code *PairCodeResult) string {
 	host := primaryPairAddress()
 	return fmt.Sprintf(
-		"Mode Agent 已安装并启动。\n\n"+
+		"Mode Go 已安装并启动。\n\n"+
 			"在 Mode 桌面端打开「远程控制」→「添加被控端」：\n"+
 			"地址：%s\n端口：%d\n配对码：%s\n\n"+
 			"也可以直接粘贴：\n%s\n\n"+
