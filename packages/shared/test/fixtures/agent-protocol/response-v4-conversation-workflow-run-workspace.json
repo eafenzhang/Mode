@@ -1,0 +1,30 @@
+{
+  "case": "response-v4-conversation-workflow-run-workspace",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/workflowRunWorkspace",
+  "note": "轻行清单：op/args/状态/摘要/时刻，不带正文；超界截尾（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 77,
+    "result": {
+      "nodes": [
+        {
+          "siteId": "files.write#1",
+          "ordinal": 0,
+          "kind": "world-run",
+          "op": "files.write",
+          "args": ["a.txt", "hi"],
+          "status": "completed",
+          "summary": {
+            "resultBytes": 12,
+            "exitCode": 0,
+            "stdoutBytes": 4,
+            "stderrBytes": 0
+          },
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000001
+        }
+      ],
+      "truncated": true
+    }
+  }
+}

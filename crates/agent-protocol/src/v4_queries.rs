@@ -276,3 +276,118 @@ pub struct WorkflowRunArtifactReadResult {
     pub total_bytes: u64,
     pub next_offset: Option<u64>,
 }
+
+// ── 工作区 transcript（`files.*` / `git.*` / `world.run` 的卡片回放）──
+// 权威在 journal 的 `dwf_node` 行；清单不带正文，正文单独取并按 maxBytes 保形有界化。
+
+pub const V4_CONVERSATION_WORKFLOW_RUN_WORKSPACE_METHOD: &str =
+    "v4/conversation/workflowRunWorkspace";
+pub const V4_CONVERSATION_WORKFLOW_RUN_NODE_RESULT_METHOD: &str =
+    "v4/conversation/workflowRunNodeResult";
+pub const WORKFLOW_WORKSPACE_MAX_NODES: u64 = 2000;
+pub const WORKFLOW_NODE_RESULT_MAX_BYTES: u64 = 32 * 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkspaceNodeKind {
+    #[serde(rename = "world-read")]
+    WorldRead,
+    #[serde(rename = "world-run")]
+    WorldRun,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkspaceNodeStatus {
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "failed")]
+    Failed,
+}
+
+/// journal `error_json` 的线上镜像（只有 code + message 出协议）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceNodeError {
+    pub code: String,
+    pub message: String,
+}
+
+/// 清单上一行的摘要：不解正文就能报的几个数，哪个在场取决于 op。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceNodeSummary {
+    pub result_bytes: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result_count: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stdout_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stderr_bytes: Option<u64>,
+}
+
+/// `workflowRunWorkspaceNodeSchema`：严格。升级前的历史行 `op`/`args` 缺席。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceNode {
+    pub site_id: String,
+    pub ordinal: u64,
+    pub kind: WorkspaceNodeKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub op: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub args: Option<Vec<Value>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_truncated: Option<LiteralTrue>,
+    pub status: WorkspaceNodeStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<WorkspaceNodeError>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<WorkspaceNodeSummary>,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunWorkspaceParams {
+    pub session_id: String,
+    pub run_id: String,
+}
+
+/// 清单按落库先后（journal 行 id 升序 = 引擎准入顺序）；超界截尾并置 `truncated`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunWorkspaceResult {
+    pub nodes: Vec<WorkspaceNode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunNodeResultParams {
+    pub session_id: String,
+    pub run_id: String,
+    pub site_id: String,
+    pub ordinal: u64,
+    /// 缺省与上限都是 32 KiB；网关钳制。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_bytes: Option<u64>,
+}
+
+/// `v4ConversationWorkflowRunNodeResultResultSchema`：严格。`result` 是可选开放对象
+/// （running / failed 行缺席）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunNodeResult {
+    pub status: WorkspaceNodeStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<WorkspaceNodeError>,
+    pub truncated: bool,
+    pub total_bytes: u64,
+}

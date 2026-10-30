@@ -1,0 +1,13 @@
+{
+  "case": "request-v4-conversation-workflow-run-workspace",
+  "direction": "host->runtime",
+  "note": "工作区 transcript 清单查询：sessionId + runId（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 77,
+    "method": "v4/conversation/workflowRunWorkspace",
+    "params": {
+      "sessionId": "sess-1",
+      "runId": "run-1"
+    }
+  }
+}

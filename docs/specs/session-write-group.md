@@ -337,6 +337,15 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
     `nextOffset` 是 nullable（读到尾显式 null）。协议 `superRefine`（base64 合法性与
     `nextOffset ≤ totalBytes`）暂未在 Rust 侧镜像，与 `workspaceHookReview` 同口径留待
     消费方校验。
+- 工作区 transcript 两条读面：
+  - `workflowRunWorkspace`：`files.*` / `git.*` / `world.run` 的轻行清单，每行带
+    `siteId`/`ordinal`/`kind`（`world-read`/`world-run`）/可选 `op`+`args`
+    （历史行缺席）/`inputTruncated`/状态/可选结构化 `error`/可选 `summary`
+    （`resultBytes`，按 op 另有 `resultCount` 或 `exitCode`+两路输出字节数）/时刻；
+    超 2000 行截尾并置 `truncated`。
+  - `workflowRunNodeResult`：一个节点的正文，`result` 是可选开放对象（running/failed
+    缺席），带 `truncated` 与截断前 `totalBytes`；`maxBytes` 缺省与上限都是 32 KiB，
+    在网关侧钳制。
 
 ## 3. 验收
 
@@ -389,3 +398,6 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
 22. 用户面产物：清单解析出全量版本元数据与 `primary`；看板条目页解析出
     `sequence`/`siteId`/`ordinal`/原值 `item`；字节块解析出 base64/`mediaType`/
     `totalBytes` 与显式 null 的 `nextOffset`；三条都有独立的非法结果前缀。
+23. 工作区 transcript：清单解析出 `kind`/`op`/`args`/状态/摘要/时刻与 `truncated`；
+    节点正文解析出 `result`/`truncated`/`totalBytes`，`maxBytes` 缺省时不出键；
+    两条都有独立的非法结果前缀。

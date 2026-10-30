@@ -575,6 +575,36 @@ fn main() {
                 result["nextOffset"] = json!("end");
             }
             json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/workflowRunWorkspace" {
+            let mut result = json!({
+                "nodes": [{
+                    "siteId": "files.write#1",
+                    "ordinal": 0,
+                    "kind": "world-run",
+                    "op": "files.write",
+                    "args": ["a.txt", "hi"],
+                    "status": "completed",
+                    "summary": { "resultBytes": 12, "exitCode": 0, "stdoutBytes": 4, "stderrBytes": 0 },
+                    "createdAt": 1700000000000u64,
+                    "updatedAt": 1700000000001u64
+                }],
+                "truncated": true
+            });
+            if mode == "bad-v4-run-workspace" {
+                result["nodes"][0]["kind"] = json!("world-skip");
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/workflowRunNodeResult" {
+            let mut result = json!({
+                "status": "completed",
+                "result": { "lines": ["a", "b"] },
+                "truncated": false,
+                "totalBytes": 24
+            });
+            if mode == "bad-v4-node-result" {
+                result["truncated"] = json!("no");
+            }
+            json!({ "id": id, "result": result })
         } else if method == "plugins/overview" {
             let mut result = json!({
                 "marketplaces": [{

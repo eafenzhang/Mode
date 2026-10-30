@@ -1,0 +1,15 @@
+{
+  "case": "response-v4-conversation-workflow-run-node-result",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/workflowRunNodeResult",
+  "note": "节点正文：保形有界化后的 result + truncated + 截断前字节数（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 78,
+    "result": {
+      "status": "completed",
+      "result": { "lines": ["a", "b"] },
+      "truncated": false,
+      "totalBytes": 24
+    }
+  }
+}

@@ -11,7 +11,8 @@ use agent_process::{
 };
 use agent_protocol::v4_queries::{
     PlansParams, RowsRangeParams, WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams,
-    WorkflowRunArtifactsParams, WorkflowRunEventsParams, WorkflowRunsQueryParams,
+    WorkflowRunArtifactsParams, WorkflowRunEventsParams, WorkflowRunNodeResultParams,
+    WorkflowRunWorkspaceParams, WorkflowRunsQueryParams,
 };
 use agent_protocol::v4_transport::V4ClientMode;
 use serde_json::{json, Value};
@@ -464,6 +465,107 @@ async fn invalid_artifact_queries_carry_distinct_prefixes() {
             }
             other => panic!("{mode}: unexpected error: {other:?}"),
         }
+    }
+}
+
+#[tokio::test]
+async fn workspace_transcript_and_node_result_parse() {
+    let log = FrameLog::new("workspace");
+    let client = control("", &log, Arc::new(AtomicUsize::new(0)));
+
+    let nodes = client
+        .conversation_workflow_run_workspace_v4(
+            &target(),
+            WorkflowRunWorkspaceParams {
+                session_id: "sess-1".to_string(),
+                run_id: "run-1".to_string(),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(nodes.nodes.len(), 1);
+    let node = &nodes.nodes[0];
+    assert_eq!(node.kind, agent_protocol::v4_queries::WorkspaceNodeKind::WorldRun);
+    assert_eq!(node.op.as_deref(), Some("files.write"));
+    assert_eq!(node.args.as_ref().map(Vec::len), Some(2));
+    assert_eq!(node.summary.as_ref().map(|s| s.exit_code), Some(Some(0)));
+    assert_eq!(nodes.truncated, Some(true));
+
+    let result = client
+        .conversation_workflow_run_node_result_v4(
+            &target(),
+            WorkflowRunNodeResultParams {
+                session_id: "sess-1".to_string(),
+                run_id: "run-1".to_string(),
+                site_id: "files.write#1".to_string(),
+                ordinal: 0,
+                max_bytes: None,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        result.status,
+        agent_protocol::v4_queries::WorkspaceNodeStatus::Completed
+    );
+    assert_eq!(result.result.as_ref().unwrap()["lines"][0], "a");
+    assert!(!result.truncated);
+    assert_eq!(result.total_bytes, 24);
+
+    let frames = log.frame_params("v4/conversation/workflowRunNodeResult");
+    assert!(
+        frames[0].get("maxBytes").is_none(),
+        "maxBytes 缺省时不得出键"
+    );
+}
+
+#[tokio::test]
+async fn invalid_workspace_queries_carry_distinct_prefixes() {
+    let ws_log = FrameLog::new("bad-workspace");
+    let client = control("bad-v4-run-workspace", &ws_log, Arc::new(AtomicUsize::new(0)));
+    let error = client
+        .conversation_workflow_run_workspace_v4(
+            &target(),
+            WorkflowRunWorkspaceParams {
+                session_id: "sess-1".to_string(),
+                run_id: "run-1".to_string(),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap_err();
+    match error {
+        ControlError::InvalidResult(message) => assert!(
+            message.starts_with("invalid v4/conversation/workflowRunWorkspace result"),
+            "{message}"
+        ),
+        other => panic!("unexpected error: {other:?}"),
+    }
+
+    let node_log = FrameLog::new("bad-node");
+    let client = control("bad-v4-node-result", &node_log, Arc::new(AtomicUsize::new(0)));
+    let error = client
+        .conversation_workflow_run_node_result_v4(
+            &target(),
+            WorkflowRunNodeResultParams {
+                session_id: "sess-1".to_string(),
+                run_id: "run-1".to_string(),
+                site_id: "files.write#1".to_string(),
+                ordinal: 0,
+                max_bytes: Some(1024),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap_err();
+    match error {
+        ControlError::InvalidResult(message) => assert!(
+            message.starts_with("invalid v4/conversation/workflowRunNodeResult result"),
+            "{message}"
+        ),
+        other => panic!("unexpected error: {other:?}"),
     }
 }
 

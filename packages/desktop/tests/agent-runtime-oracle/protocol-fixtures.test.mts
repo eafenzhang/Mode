@@ -97,6 +97,12 @@ import {
   v4ConversationWorkflowRunArtifactsParamsSchema,
   v4ConversationWorkflowRunArtifactsResultSchema,
 } from "../../../shared/src/mode-protocol-v4/workflow-artifacts.js";
+import {
+  v4ConversationWorkflowRunNodeResultParamsSchema,
+  v4ConversationWorkflowRunNodeResultResultSchema,
+  v4ConversationWorkflowRunWorkspaceParamsSchema,
+  v4ConversationWorkflowRunWorkspaceResultSchema,
+} from "../../../shared/src/mode-protocol-v4/workflow-workspace.js";
 
 /** 夹具外壳：`frame` 是线上整帧，其余是录制元数据（不属于线上形状）。 */
 type ProtocolFixture = {
@@ -304,6 +310,8 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "v4/conversation/workflowRunArtifacts": v4ConversationWorkflowRunArtifactsParamsSchema,
     "v4/conversation/workflowRunArtifactData": v4ConversationWorkflowRunArtifactDataParamsSchema,
     "v4/conversation/workflowRunArtifactRead": v4ConversationWorkflowRunArtifactReadParamsSchema,
+    "v4/conversation/workflowRunWorkspace": v4ConversationWorkflowRunWorkspaceParamsSchema,
+    "v4/conversation/workflowRunNodeResult": v4ConversationWorkflowRunNodeResultParamsSchema,
     "workspace/readPresentation": modeWorkspaceReadPresentationParamsSchema,
     "workflows/get": modeWorkflowsGetParamsSchema,
     "workflows/list": modeWorkflowsListParamsSchema,
@@ -346,6 +354,8 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "v4/conversation/workflowRunArtifacts": v4ConversationWorkflowRunArtifactsResultSchema,
     "v4/conversation/workflowRunArtifactData": v4ConversationWorkflowRunArtifactDataResultSchema,
     "v4/conversation/workflowRunArtifactRead": v4ConversationWorkflowRunArtifactReadResultSchema,
+    "v4/conversation/workflowRunWorkspace": v4ConversationWorkflowRunWorkspaceResultSchema,
+    "v4/conversation/workflowRunNodeResult": v4ConversationWorkflowRunNodeResultResultSchema,
     "workspace/readPresentation": modeWorkspacePresentationSchema,
   };
   const exercisedCommands = new Set<string>();

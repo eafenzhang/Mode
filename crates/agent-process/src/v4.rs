@@ -24,11 +24,13 @@ use agent_protocol::v4_queries::{
     PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunArtifactDataParams,
     WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult,
     WorkflowRunArtifactsParams, WorkflowRunArtifactsResult, WorkflowRunEventsParams,
-    WorkflowRunEventsResult, WorkflowRunsQueryParams, WorkflowRunsQueryResult,
-    V4_CONVERSATION_PLANS_METHOD, V4_CONVERSATION_ROWS_RANGE_METHOD,
+    WorkflowRunEventsResult, WorkflowRunNodeResult, WorkflowRunNodeResultParams,
+    WorkflowRunWorkspaceParams, WorkflowRunWorkspaceResult, WorkflowRunsQueryParams,
+    WorkflowRunsQueryResult, V4_CONVERSATION_PLANS_METHOD, V4_CONVERSATION_ROWS_RANGE_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_DATA_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_READ_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACTS_METHOD, V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD,
+    V4_CONVERSATION_WORKFLOW_RUN_NODE_RESULT_METHOD, V4_CONVERSATION_WORKFLOW_RUN_WORKSPACE_METHOD,
     V4_CONVERSATION_WORKFLOW_RUNS_METHOD,
 };
 use serde_json::Value;
@@ -262,6 +264,48 @@ impl AgentControlClient {
         serde_json::from_value(response).map_err(|error| {
             ControlError::InvalidResult(format!(
                 "invalid v4/conversation/workflowRunArtifactRead result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/conversation/workflowRunWorkspace`：工作区 transcript 的轻行清单（不带正文）。
+    pub async fn conversation_workflow_run_workspace_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: WorkflowRunWorkspaceParams,
+        policy: RuntimePolicy,
+    ) -> Result<WorkflowRunWorkspaceResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value =
+            serde_json::to_value(&params).expect("workflowRunWorkspace params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_WORKFLOW_RUN_WORKSPACE_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/workflowRunWorkspace result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/conversation/workflowRunNodeResult`：一个节点的正文（按 `maxBytes` 保形有界化）。
+    pub async fn conversation_workflow_run_node_result_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: WorkflowRunNodeResultParams,
+        policy: RuntimePolicy,
+    ) -> Result<WorkflowRunNodeResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value =
+            serde_json::to_value(&params).expect("workflowRunNodeResult params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_WORKFLOW_RUN_NODE_RESULT_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/workflowRunNodeResult result: {error}"
             ))
         })
     }
