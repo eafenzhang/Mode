@@ -306,6 +306,13 @@ state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`p
 首次失败发布 fail-closed、之后保留 last-known-good；以 `providerId -> config` 对象交付，
 并用本包 fixture 子进程端到端验证线格式与 revision 去重（4 + 1 条测试）。真实凭据 / OAuth /
 Family 可用性网络源仍需注入实现，属于 model-provider 域。
+**v4 会话增量已落**：`conversationDelta` 七个 op 强类型化（`row.appended` /
+`row.upserted` / `row.removed` / `row.delta` / `state.updated` / `workflowRun.updated` /
+`workflowRun.removed`），`StatePatch` 对 `modelTransition` / `goal` / `plan` /
+`workspaceHookAdmission` 保留显式 null，workflow run 补丁分 header 替换 / `cleared` 键 /
+`(siteId, ordinal)` 条目引用三层；订阅帧的 `payload` 与 `CompleteWireFrame.frame` 由原始
+JSON 收紧为该类型，较大变体用 `Box` 控制枚举尺寸（wire 不变）。3 条夹具测试 + 订阅帧
+断言（快照 / 增量 / 分片过滤）。
 **未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
 所有权切换，以及其余 80 个成员（session 其余读/写、插件/automation/workflow 等；
 `IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 +

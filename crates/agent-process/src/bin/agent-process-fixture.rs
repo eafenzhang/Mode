@@ -11,6 +11,65 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
+/// v4 `conversationSnapshot` 的最小合法形状。
+fn minimal_v4_snapshot() -> Value {
+    json!({
+        "protocolVersion": 1,
+        "sessionId": "sess-1",
+        "logEpoch": "epoch-1",
+        "seq": 1,
+        "revision": 0,
+        "control": {
+            "phase": "draft",
+            "sessionEnded": false,
+            "canStop": false,
+            "stopState": "idle",
+            "stopTargetKind": "unknown",
+            "activeWorks": [],
+            "lastError": null,
+            "apiRetry": null
+        },
+        "availability": {
+            "fork": { "allowed": true },
+            "compact": { "allowed": true },
+            "switchModelConfig": { "allowed": true },
+            "setFollowupMode": { "allowed": true },
+            "queueEdit": { "allowed": true },
+            "sendQueuedNow": { "allowed": true },
+            "pauseGoal": { "allowed": true },
+            "resumeGoal": { "allowed": true }
+        },
+        "inputRouting": { "mode": "startNow" },
+        "meta": { "title": "", "titleSource": "default" },
+        "config": {
+            "provider": "zai",
+            "model": "glm-4.6",
+            "thought": "low",
+            "thoughtLevels": [],
+            "followupMode": "queue",
+            "mode": "build"
+        },
+        "modelTransition": null,
+        "usage": {
+            "contextWindow": null,
+            "cumulative": {
+                "inputTokens": 0,
+                "outputTokens": 0,
+                "cacheReadTokens": 0,
+                "cacheWriteTokens": 0
+            }
+        },
+        "queue": { "items": [], "autoDrain": true },
+        "pendingInteractions": [],
+        "pendingCommands": [],
+        "backgroundWorks": [],
+        "goal": null,
+        "plan": null,
+        "workspaceHookAdmission": null,
+        "rows": { "window": [], "totalCount": 0, "firstRowId": null }
+    })
+}
+
 fn append_log(text: &str) {
     if let Ok(log_path) = std::env::var("AGENT_FIXTURE_FRAME_LOG") {
         if let Ok(mut file) = std::fs::OpenOptions::new()
@@ -317,10 +376,30 @@ fn main() {
                         "fromSeq": 0,
                         "toSeq": 1,
                         "sentAt": 1,
-                        "payload": { "kind": "snapshot", "snapshot": {} }
+                        "payload": { "kind": "snapshot", "snapshot": minimal_v4_snapshot() }
                     }
                 })
             };
+            let deltas = json!({
+                "wireVersion": 3,
+                "kind": "complete",
+                "deliveryKind": "online",
+                "logicalFrameId": "f3",
+                "logicalFrameOrdinal": 3,
+                "topic": "conversation/sess-1",
+                "subscriptionId": "sub-1",
+                "frame": {
+                    "topic": "conversation/sess-1",
+                    "subscriptionId": "sub-1",
+                    "fromSeq": 1,
+                    "toSeq": 2,
+                    "sentAt": 2,
+                    "payload": {
+                        "kind": "deltas",
+                        "deltas": [{ "op": "row.delta", "rowId": 1, "path": "text", "append": "x" }]
+                    }
+                }
+            });
             let fragment = json!({
                 "wireVersion": 3,
                 "kind": "fragment",
@@ -335,7 +414,12 @@ fn main() {
                 "checksum": { "algorithm": "crc32", "value": "00000000" },
                 "dataBase64": "e30="
             });
-            for params in [complete("sub-1", "f1"), complete("sub-other", "f9"), fragment] {
+            for params in [
+                complete("sub-1", "f1"),
+                complete("sub-other", "f9"),
+                deltas,
+                fragment,
+            ] {
                 let notification = json!({ "method": "v4/conversation/frame", "params": params });
                 let _ = writeln!(stdout, "{notification}");
             }

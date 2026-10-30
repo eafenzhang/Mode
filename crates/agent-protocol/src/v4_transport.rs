@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value};
 
 use crate::session_read::SessionWorkspaceRef;
+use crate::v4_delta::ConversationDelta;
+use crate::v4_snapshot::ConversationSnapshot;
 use crate::workflow::LiteralTrue;
 
 pub const V4_CONVERSATION_SUBSCRIBE_METHOD: &str = "v4/conversation/subscribe";
@@ -180,7 +182,56 @@ pub enum WireFrameKindFragment {
     Fragment,
 }
 
-/// 完整 wire frame：`frame` 是会话快照/增量原文（见模块注释）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FramePayloadKindSnapshot {
+    #[serde(rename = "snapshot")]
+    Snapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SnapshotFramePayload {
+    pub kind: FramePayloadKindSnapshot,
+    pub snapshot: ConversationSnapshot,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FramePayloadKindDeltas {
+    #[serde(rename = "deltas")]
+    Deltas,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DeltasFramePayload {
+    pub kind: FramePayloadKindDeltas,
+    pub deltas: Vec<ConversationDelta>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ConversationFramePayload {
+    Snapshot(Box<SnapshotFramePayload>),
+    Deltas(DeltasFramePayload),
+}
+
+/// `conversationTopicFrameSchema`；`ttft` / `ttftRelated` 暂按原始 JSON。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConversationTopicFrame {
+    pub topic: String,
+    pub subscription_id: String,
+    pub from_seq: Number,
+    pub to_seq: Number,
+    pub sent_at: Number,
+    pub payload: ConversationFramePayload,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttft: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttft_related: Option<Vec<Value>>,
+}
+
+/// 完整 wire frame：`frame` 是强类型的会话快照/增量。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CompleteWireFrame {
@@ -191,7 +242,7 @@ pub struct CompleteWireFrame {
     pub logical_frame_ordinal: u64,
     pub topic: String,
     pub subscription_id: String,
-    pub frame: Value,
+    pub frame: ConversationTopicFrame,
 }
 
 /// 分片 wire frame（host 侧只做路由与集合，重组属于消费方）。
@@ -215,7 +266,7 @@ pub struct FragmentWireFrame {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ConversationWireFrame {
-    Complete(CompleteWireFrame),
+    Complete(Box<CompleteWireFrame>),
     Fragment(FragmentWireFrame),
 }
 

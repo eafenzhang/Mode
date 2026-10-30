@@ -9,8 +9,10 @@ use agent_process::{
     AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, AgentWorkspaceTarget, ControlError,
     SpecFactory,
 };
+use agent_protocol::v4_delta::ConversationDelta;
 use agent_protocol::v4_transport::{
-    ConversationSubscribeParams, ConversationWireFrame, SubscribeMode, V4ClientMode,
+    ConversationFramePayload, ConversationSubscribeParams, ConversationWireFrame, SubscribeMode,
+    V4ClientMode,
 };
 use serde_json::Value;
 
@@ -97,7 +99,7 @@ async fn subscribes_and_filters_frames_by_subscription() {
     assert_eq!(subscription.ack.log_epoch, "epoch-1");
     assert!(subscription.ack.open_timing.is_some());
 
-    // 第一条：本订阅的 complete 帧。
+    // 第一条：本订阅的 snapshot 帧。
     let first = tokio::time::timeout(Duration::from_secs(2), subscription.recv())
         .await
         .expect("必须收到首帧")
@@ -106,17 +108,47 @@ async fn subscribes_and_filters_frames_by_subscription() {
         ConversationWireFrame::Complete(frame) => {
             assert_eq!(frame.logical_frame_id, "f1");
             assert_eq!(frame.subscription_id, "sub-1");
-            assert_eq!(frame.frame["payload"]["kind"], "snapshot");
+            match &frame.frame.payload {
+                ConversationFramePayload::Snapshot(payload) => {
+                    assert_eq!(payload.snapshot.session_id, "sess-1");
+                }
+                other => panic!("unexpected payload: {other:?}"),
+            }
         }
         other => panic!("unexpected frame: {other:?}"),
     }
 
-    // 第二条：其它订阅的帧被过滤后，只应是本订阅的 fragment。
+    // 第二条：deltas 帧（其它订阅的帧被过滤）。
     let second = tokio::time::timeout(Duration::from_secs(2), subscription.recv())
+        .await
+        .expect("必须收到增量帧")
+        .expect("流仍在");
+    match second {
+        ConversationWireFrame::Complete(frame) => {
+            assert_eq!(frame.logical_frame_id, "f3");
+            match &frame.frame.payload {
+                ConversationFramePayload::Deltas(payload) => {
+                    assert_eq!(payload.deltas.len(), 1);
+                    match &payload.deltas[0] {
+                        ConversationDelta::RowDelta(delta) => {
+                            assert_eq!(delta.append, "x");
+                            assert_eq!(delta.path, agent_protocol::v4_delta::StreamablePath::Text);
+                        }
+                        other => panic!("unexpected delta: {other:?}"),
+                    }
+                }
+                other => panic!("unexpected payload: {other:?}"),
+            }
+        }
+        other => panic!("unexpected frame: {other:?}"),
+    }
+
+    // 第三条：本订阅的 fragment。
+    let third = tokio::time::timeout(Duration::from_secs(2), subscription.recv())
         .await
         .expect("必须收到分片帧")
         .expect("流仍在");
-    match second {
+    match third {
         ConversationWireFrame::Fragment(frame) => {
             assert_eq!(frame.logical_frame_id, "f2");
             assert_eq!(frame.subscription_id, "sub-1");

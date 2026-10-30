@@ -277,7 +277,31 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
   phaseAlongside/unlistedByPhase）用 `Option` 保持键缺席而非空数组。
 - `ConversationSnapshot.workflow_runs` 已从原始 JSON 收紧为 `WorkflowRunsState`。
 
-**未做**：`state.updated` 补丁与 `conversationDelta`。
+## 2n. v4 会话增量（`conversationDelta`）
+
+`agent-protocol::v4_delta` 镜像 `delta.ts` 的七个封闭 op，并让 `2i` 的帧载荷从原始 JSON
+收紧为强类型：
+
+- `ConversationDelta` 用 `untagged` + 每分支字面量 `op` 建模内部标签联合；七个分支为
+  `row.appended` / `row.upserted` / `row.removed` / `row.delta` / `state.updated` /
+  `workflowRun.updated` / `workflowRun.removed`。
+- `row.appended` / `row.upserted` 直接携带 `ConversationRow`；`row.removed` 的
+  `fromRowId`、`row.delta` 的 `rowId` 用 `Number` 保留整数/浮点的原始文本。
+- `row.delta` 的 `path` 是四个可流式位置的封闭枚举：`text` / `inputText` /
+  `output.text` / `summaryText`；`append` 是纯增量字符串（消费方负责拼接）。
+- `StatePatch` 是键级整体替换（对应 TS 的 `Object.assign`），键集合与快照 A 区一致：
+  `revision`、`control`、`sharedContextImport`、`availability`、`inputRouting`、`meta`、
+  `config`、`usage`、`queue`、`pendingInteractions`、`pendingCommands`、
+  `backgroundWorks`、`subagents`、`workflowRuns` 为可选单层；`modelTransition`、`goal`、
+  `plan`、`workspaceHookAdmission` 在协议里可显式置空，用三态 `Option<Option<T>>` 区分
+  「键缺席（保持不动）」与「显式 null（清空）」。
+- `workflowRun.updated` 分三层：`run` 是 `WorkflowRunHeaderPatch`（在场键整键替换，缺省键
+  不动）；`cleared` 用 `WorkflowRunHeaderKey`（23 个 header 键）表达「变为缺席」；
+  `removedActors` / `removedNodes` 用 `(siteId, ordinal)` 引用删除，`actors` / `nodes`
+  按同一身份整条 upsert。`workflowRun.removed` 只带 `runId` 与 `revision`。
+- 帧收紧：`ConversationTopicFrame` 的 `payload` 是 `snapshot` / `deltas` 判别联合，
+  `CompleteWireFrame.frame` 由 `Value` 换为该类型；`Snapshot` / `Complete` 是较大的变体，
+  用 `Box` 降低枚举尺寸（wire 表达不变）。`ttft` / `ttftRelated` 仍是原始 JSON。
 
 ## 3. 验收
 
@@ -316,3 +340,8 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
     `workspaceHookAdmission` 的显式 null 保留。
 18. v4 工作流运行态：完整 run（actors/nodes/reports/pendingQuestions/concurrency/phases/
     artifacts）与空状态各自 round-trip。
+19. v4 会话增量：三种 row op 与 `row.delta` 各自 round-trip；`state.updated` 的
+    `modelTransition` / `goal` 显式 null 与键缺席可区分；`workflowRun.updated` 的
+    header 补丁、`cleared` 键、actor/node 引用与 `workflowRun.removed` 各自 round-trip。
+    订阅帧的 `payload` 按 `snapshot` / `deltas` 解析出强类型，分片帧仍按 subscriptionId
+    过滤后到达。
