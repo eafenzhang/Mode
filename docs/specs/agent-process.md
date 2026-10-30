@@ -62,6 +62,25 @@ cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd�
 配置同步、进程换代事件。实时切换所有权前必须先接上这些调用点，并确保 Host 不再拉起
 同一 workspace 的 Agent。
 
+## 控制面 facade（第一批：hooks 预信任）
+
+`AgentControlClient` 是 `mode-agent` 频道的第一组方法迁移，先覆盖
+`workspace/hooks/trustGrant`：
+
+- `grant_workspace_hook_trust(target, bundleDigest, hookDeclarationDigest)`：
+  1. 校验两个摘要均为 64 位小写 hex（与 `modeWorkspaceHookTrustGrantParamsSchema` 一致）；
+  2. 通过 `AgentRuntimeRegistry` 取/拉起 Agent（同一 workspace 复用）；
+  3. 发送 `workspace/hooks/trustGrant`，参数 `{workspace, bundleDigest, hookDeclarationDigest}`；
+  4. 严格解析 `{accepted, reasonCode?}`（`deny_unknown_fields`，未知 reasonCode 报错）。
+- `workspace` ref 与 TS `buildWorkspaceRef` 同形：`workspacePath`、可选
+  `workspaceIdentity`/`remoteSessionId`、`workspaceKey = identity.trim() || path`；
+  `undefined` 字段省略，空字符串保留。
+- 错误映射：Agent 返回的 `message` 原样作为可见错误（与 TS 抛 `Error` 一致）；
+  非法摘要/非法结果/传输错误分别区分。
+
+**未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；其余 81 个成员（session/插件/
+automation/workflow 等）按方法组迁移。
+
 ## 与 TS 的差异
 
 | 差异 | 说明 |
@@ -98,6 +117,10 @@ spawn 失败不缓存、`shutdown_all` 关闭全部。
 `crates/agent-process` 启动规格单元测试（6 条）：env 覆盖（args/cwd）、非法 args JSON、
 dev dist 向上查找与 Node 选择、打包资源分支、全部缺失时 `NotConfigured`、
 `--surface desktop` 改写（含移除已有值、非 desktop 不修改）。
+
+`crates/agent-process/tests/control.rs`（6 条）：grant 请求的 workspace ref/摘要逐字段断言、
+非法摘要不 spawn、Agent 错误 message 原样上抛、非法结果拒绝、workspace ref 省略可选字段且
+workspaceKey trim、同一 workspace 两次 grant 复用同一 Agent。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

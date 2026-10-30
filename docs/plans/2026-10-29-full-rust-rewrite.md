@@ -238,11 +238,12 @@ Unix 进程组 SIGKILL），5 条真实子进程测试；见 `docs/specs/agent-p
 保证一个 workspace 只有一个 Agent，并发去重、失效重建、`reap_idle` 与 `shutdown_all`
 （7 条测试）。**启动规格解析已落**：env 覆盖（command/args JSON/cwd）→ dev dist →
 dev 源码 tsx → 打包 `<resources>/agent/glm/mode.cjs`，含 `--surface desktop` 改写与
-cwd 回落（6 条测试）。
+cwd 回落（6 条测试）。**mode-agent 控制面第一批已落**：`AgentControlClient` 实现
+`workspace/hooks/trustGrant`（workspace ref、摘要校验、严格结果解析、Agent message 原样
+上抛），用 fixture 对拍请求帧并验证同 workspace 复用；6 条测试。
 **未做**：native binary 兜底、storage startup gate、provider/account 配置同步、自动空闲
-看门狗，以及最关键的**所有权切换**——把 `mode-agent` 频道与 Agent 进程从 Node Host 迁到壳，
-并确保同一 workspace 只有一个 Agent 进程。这是 W4 下一片，`hooks` 的
-`grantWorkspaceHookTrust` 与任务/会话频道都等它。
+看门狗，频道注册与所有权切换，以及其余 81 个成员（session/插件/automation/workflow 等）。
+所有权切换仍是 W4 下一片，`hooks` 的 grant 与任务/会话频道都等它。
 
 ### W5 生态面替换
 

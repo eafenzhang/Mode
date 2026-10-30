@@ -18,8 +18,14 @@ use tokio::sync::{broadcast, Mutex};
 use tokio::task::JoinHandle;
 
 mod registry;
+mod control;
 mod resolve;
 
+pub use control::{
+    build_grant_params, build_workspace_ref, AgentControlClient, AgentWorkspaceTarget,
+    ControlError, GrantTrustReasonCode, GrantTrustResult,
+    WORKSPACE_HOOK_TRUST_GRANT_METHOD,
+};
 pub use registry::{AgentRuntimeRegistry, SpecFactory, WorkspaceTarget};
 pub use resolve::{
     resolve_agent_command, AgentCommandSource, AgentResolveContext, AgentResolveError,

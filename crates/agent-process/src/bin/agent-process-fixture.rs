@@ -35,10 +35,33 @@ fn main() {
             .unwrap_or("")
             .to_string();
         eprintln!("handled:{method}");
-        let reply = json!({
-            "id": request.get("id").cloned().unwrap_or(Value::Null),
-            "result": { "method": method }
-        });
+        let frame_line = format!(
+            "frame\t{method}\t{}",
+            request.get("params").cloned().unwrap_or(Value::Null)
+        );
+        eprintln!("{frame_line}");
+        if let Ok(log_path) = std::env::var("AGENT_FIXTURE_FRAME_LOG") {
+            if let Ok(mut file) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(log_path)
+            {
+                let _ = writeln!(file, "{frame_line}");
+            }
+        }
+        let id = request.get("id").cloned().unwrap_or(Value::Null);
+        let reply = if method == "workspace/hooks/trustGrant" {
+            match mode.as_str() {
+                "error-grant" => json!({
+                    "id": id,
+                    "error": { "code": -32000, "message": "boom" }
+                }),
+                "bad-grant" => json!({ "id": id, "result": { "accepted": "yes" } }),
+                _ => json!({ "id": id, "result": { "accepted": true } }),
+            }
+        } else {
+            json!({ "id": id, "result": { "method": method } })
+        };
         if writeln!(stdout, "{reply}").is_err() {
             break;
         }
