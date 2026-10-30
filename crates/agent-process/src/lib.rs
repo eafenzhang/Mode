@@ -17,6 +17,10 @@ use tokio::process::{Child, Command};
 use tokio::sync::{broadcast, Mutex};
 use tokio::task::JoinHandle;
 
+mod registry;
+
+pub use registry::{AgentRuntimeRegistry, SpecFactory, WorkspaceTarget};
+
 const STDERR_CHANNEL_CAPACITY: usize = 256;
 const KILL_REAP_TIMEOUT: Duration = Duration::from_secs(2);
 
