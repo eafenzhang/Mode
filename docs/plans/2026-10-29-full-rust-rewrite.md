@@ -234,9 +234,12 @@ LF 分帧（只认 `\n`，U+2028/U+2029 不切帧）、请求 id 多路复用、
 `docs/specs/mode-protocol-client.md`。**进程层已落**：`crates/agent-process` 负责无控制台
 拉起、stdio 接入、stderr 广播、stdin EOF 优雅关闭与整树强杀（Windows `taskkill /T /F` /
 Unix 进程组 SIGKILL），5 条真实子进程测试；见 `docs/specs/agent-process.md`。
-**未做**：workspace → 进程注册表、空闲回收、provider 配置同步、TS 的 stderr 排空窗口/
-进程树快照，以及最关键的**所有权切换**——把 `mode-agent` 频道与 Agent 进程从 Node Host
-迁到壳，并确保同一 workspace 只有一个 Agent 进程。这是 W4 下一片，`hooks` 的
+**单进程不变量已落**：`AgentRuntimeRegistry` 按 `workspaceIdentity?.trim() || workspacePath`
+保证一个 workspace 只有一个 Agent，并发去重、失效重建、`reap_idle` 与 `shutdown_all`
+（7 条测试）。
+**未做**：启动规格解析（node/entrypoint/args/env、storage startup gate）、provider/account
+配置同步、自动空闲看门狗，以及最关键的**所有权切换**——把 `mode-agent` 频道与 Agent 进程
+从 Node Host 迁到壳，并确保同一 workspace 只有一个 Agent 进程。这是 W4 下一片，`hooks` 的
 `grantWorkspaceHookTrust` 与任务/会话频道都等它。
 
 ### W5 生态面替换

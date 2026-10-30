@@ -24,6 +24,22 @@
 - 进程组 id 探测与 Windows `taskkill` 失败后的二次兜底（当前失败只依赖根进程
   `start_kill`）。
 
+## 运行时注册表（单进程不变量）
+
+`AgentRuntimeRegistry` 保证**一个 workspace key 只允许一个 Agent 子进程**：
+
+- key = `workspaceIdentity?.trim() || workspacePath`（与仓库 Workspace Identity 规则一致）；
+- `get_or_spawn`：已存在且 transport 未关闭 → 复用并刷新 `last_used`；已关闭 → 先回收再重建；
+  同一 key 的并发调用只真正 spawn 一次（每 key 一把异步锁），不同 key 互不阻塞；
+- `invalidate(key)`：关闭并移除，下次调用重建；
+- `reap_idle(older_than, grace)`：回收超过空闲阈值的实例，返回数量；
+- `shutdown_all(grace)`：壳退出/换代时关闭全部；
+- spawn 失败不缓存，下一次调用会重试。
+
+**当前未做**：自动空闲看门狗（由宿主定时调用 `reap_idle`）、健康探测、provider/account
+配置同步、进程换代事件。实时切换所有权前必须先接上这些调用点，并确保 Host 不再拉起
+同一 workspace 的 Agent。
+
 ## 与 TS 的差异
 
 | 差异 | 说明 |
@@ -52,6 +68,10 @@
 - `stubborn` 子进程：grace 超时后被强杀，`pid_is_alive` 最终为 false；
 - 启动即退出：请求以 `Closed`/`Transport` 失败；
 - 不存在的命令：`AgentProcessError::Spawn`。
+
+`crates/agent-process/tests/registry.rs`（7 条）：同 key 复用同一进程、identity 优先于路径、
+并发 `get_or_spawn` 只 spawn 一次、transport 关闭后重建、`invalidate`/`reap_idle` 回收、
+spawn 失败不缓存、`shutdown_all` 关闭全部。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。
