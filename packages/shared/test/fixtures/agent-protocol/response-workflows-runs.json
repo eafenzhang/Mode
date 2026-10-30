@@ -1,0 +1,36 @@
+{
+  "case": "response-workflows-runs",
+  "direction": "runtime->host",
+  "respondsTo": "workflows/runs",
+  "note": "运行历史：含 stopped/stopReason、args、cwd、artifacts 与 truncated（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 59,
+    "result": {
+      "runs": [
+        {
+          "runId": "run-1",
+          "name": "demo",
+          "status": "stopped",
+          "stopReason": "user",
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000001,
+          "spentTokens": 10,
+          "parentSessionId": "sess-1",
+          "toolCallId": "call-1",
+          "args": { "topic": "demo" },
+          "cwd": "/ws/demo",
+          "artifacts": [
+            {
+              "id": "art-1",
+              "kind": "markdown",
+              "title": "报告",
+              "version": 1,
+              "contentType": "text/markdown"
+            }
+          ]
+        }
+      ],
+      "truncated": true
+    }
+  }
+}

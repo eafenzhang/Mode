@@ -28,6 +28,7 @@ mod runtime_preferences;
 mod session_events;
 mod session_read;
 mod session_write;
+mod workflows;
 mod workspace;
 
 pub use control::{

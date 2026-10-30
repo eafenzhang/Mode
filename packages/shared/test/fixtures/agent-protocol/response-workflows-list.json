@@ -1,0 +1,30 @@
+{
+  "case": "response-workflows-list",
+  "direction": "runtime->host",
+  "respondsTo": "workflows/list",
+  "note": "工作流清单：含 args 声明与 default:null、dir 与 invalid 项（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 57,
+    "result": {
+      "workflows": [
+        {
+          "name": "demo",
+          "description": "演示工作流",
+          "whenToUse": "需要演示时",
+          "args": {
+            "topic": {
+              "type": "string",
+              "description": "主题",
+              "required": true,
+              "default": null
+            }
+          },
+          "scope": "project",
+          "path": "/ws/demo/.mode/workflows/demo.md"
+        }
+      ],
+      "invalid": [{ "path": "/ws/demo/.mode/workflows/broken.md", "reason": "parse_error" }],
+      "dir": "/ws/demo/.mode/workflows"
+    }
+  }
+}

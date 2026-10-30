@@ -62,6 +62,7 @@ pub mod session_read;
 pub mod session_send;
 pub mod session_write;
 pub mod snapshot;
+pub mod workflow;
 pub mod workspace;
 
 pub use frame::{

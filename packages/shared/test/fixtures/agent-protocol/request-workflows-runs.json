@@ -1,0 +1,15 @@
+{
+  "case": "request-workflows-runs",
+  "direction": "host->runtime",
+  "note": "查询运行历史：limit 必填且 1..=50（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 59,
+    "method": "workflows/runs",
+    "params": {
+      "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+      "name": "demo",
+      "limit": 10,
+      "scope": "global"
+    }
+  }
+}

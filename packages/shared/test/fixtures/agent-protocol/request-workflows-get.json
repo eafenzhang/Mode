@@ -1,0 +1,14 @@
+{
+  "case": "request-workflows-get",
+  "direction": "host->runtime",
+  "note": "读取单个已保存工作流（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 58,
+    "method": "workflows/get",
+    "params": {
+      "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+      "name": "demo",
+      "scope": "project"
+    }
+  }
+}

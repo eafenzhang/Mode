@@ -190,6 +190,9 @@ workspace 只读面：`read_workspace_presentation`（closed-transport 重试一
 `mcp/list`：`list_mcp_server_statuses(target, {mcpServers?, mode?})`，结果按严格快照解析
 （status/failureKind/authorization 等）。
 
+工作流只读：`list_saved_workflows` / `get_saved_workflow`（Ok/Failure 联合）/
+`list_saved_workflow_runs`（limit 1..=50 前置校验）。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -279,6 +282,9 @@ close 的 persistence 与默认 true、非法写结果被拒绝。
 子进程无 params 契约、两类非法结果。
 
 `crates/agent-process/tests/mcp.rs`（3 条）：指定 mode 的状态解析、mode 缺省省略、非法结果。
+
+`crates/agent-process/tests/workflows.rs`（4 条）：list 的 scope 与清单、get 的成功/失败联合、
+runs 的 artifacts 与 limit 前置校验、三类非法结果。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

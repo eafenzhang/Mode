@@ -286,6 +286,62 @@ fn main() {
                 message["info"]["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": { "messages": [message] } })
+        } else if method == "workflows/list" {
+            let mut result = json!({
+                "workflows": [{
+                    "name": "demo",
+                    "description": "演示工作流",
+                    "scope": "project",
+                    "path": "/ws/demo/.mode/workflows/demo.md"
+                }],
+                "invalid": [],
+                "dir": "/ws/demo/.mode/workflows"
+            });
+            if mode == "bad-workflows-list" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "workflows/get" {
+            let mut result = if mode == "workflow-get-failure" {
+                json!({ "ok": false, "reason": "not_found" })
+            } else {
+                json!({
+                    "ok": true,
+                    "name": "demo",
+                    "path": "/ws/demo/.mode/workflows/demo.md",
+                    "scope": "project",
+                    "meta": { "description": "演示工作流" },
+                    "script": "print(1)"
+                })
+            };
+            if mode == "bad-workflow-get" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "workflows/runs" {
+            let mut result = json!({
+                "runs": [{
+                    "runId": "run-1",
+                    "name": "demo",
+                    "status": "completed",
+                    "createdAt": 1,
+                    "updatedAt": 2,
+                    "spentTokens": 10,
+                    "cwd": "/ws/demo",
+                    "artifacts": [{
+                        "id": "art-1",
+                        "kind": "markdown",
+                        "title": "报告",
+                        "version": 1,
+                        "contentType": "text/markdown"
+                    }]
+                }],
+                "truncated": true
+            });
+            if mode == "bad-workflow-runs" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "mcp/list" {
             let mut result = json!({
                 "statuses": {

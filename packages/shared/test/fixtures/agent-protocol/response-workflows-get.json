@@ -1,0 +1,23 @@
+{
+  "case": "response-workflows-get",
+  "direction": "runtime->host",
+  "respondsTo": "workflows/get",
+  "note": "读取成功：meta + 脚本本体（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 58,
+    "result": {
+      "ok": true,
+      "name": "demo",
+      "path": "/ws/demo/.mode/workflows/demo.md",
+      "scope": "project",
+      "meta": {
+        "description": "演示工作流",
+        "whenToUse": "需要演示时",
+        "args": {
+          "topic": { "type": "string", "required": true }
+        }
+      },
+      "script": "print(1)"
+    }
+  }
+}

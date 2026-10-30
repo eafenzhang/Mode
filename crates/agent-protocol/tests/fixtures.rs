@@ -41,6 +41,10 @@ use agent_protocol::session_write::{
     SessionSetModelParams, SessionSetThoughtLevelParams,
 };
 use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
+use agent_protocol::workflow::{
+    SavedWorkflowScope, WorkflowRunStatus, WorkflowsGetParams, WorkflowsGetResult,
+    WorkflowsListParams, WorkflowsListResult, WorkflowsRunsParams, WorkflowsRunsResult,
+};
 use agent_protocol::workspace::{
     ChildProcessesResult, WorkspacePresentation, WorkspacePresentationParams,
 };
@@ -440,6 +444,25 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert!(params.mcp_servers.is_none());
                         exercised.insert("mcp/list".to_string());
                     }
+                    "workflows/list" => {
+                        let params: WorkflowsListParams = decode(case, &params);
+                        assert_eq!(params.workspace.workspace_path, "/ws/demo");
+                        assert_eq!(params.scope, Some(SavedWorkflowScope::Global));
+                        exercised.insert("workflows/list".to_string());
+                    }
+                    "workflows/get" => {
+                        let params: WorkflowsGetParams = decode(case, &params);
+                        assert_eq!(params.name, "demo");
+                        assert_eq!(params.scope, Some(SavedWorkflowScope::Project));
+                        exercised.insert("workflows/get".to_string());
+                    }
+                    "workflows/runs" => {
+                        let params: WorkflowsRunsParams = decode(case, &params);
+                        assert_eq!(params.name.as_deref(), Some("demo"));
+                        assert_eq!(params.limit, 10);
+                        assert_eq!(params.scope, Some(SavedWorkflowScope::Global));
+                        exercised.insert("workflows/runs".to_string());
+                    }
                     "session/requestRuntimePreferences" => {
                         let params: RuntimePreferencesRequestParams = decode(case, &params);
                         assert_eq!(params.scope, RuntimePreferencesScope::RuntimeMaterialization);
@@ -652,6 +675,52 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("mcp/list".to_string());
                     }
+                    "workflows/list" => {
+                        let result: WorkflowsListResult = decode(case, &response.result);
+                        assert_eq!(result.workflows.len(), 1);
+                        let args = result.workflows[0].args.as_ref().expect("带 args 声明");
+                        assert_eq!(args["topic"].default, Some(None));
+                        assert_eq!(result.invalid.len(), 1);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("workflows/list".to_string());
+                    }
+                    "workflows/get" => {
+                        let result: WorkflowsGetResult = decode(case, &response.result);
+                        match &result {
+                            WorkflowsGetResult::Ok(ok) => {
+                                assert_eq!(ok.script, "print(1)");
+                                assert_eq!(ok.meta.description, "演示工作流");
+                            }
+                            other => panic!("{case}：应当是成功结果，实际 {other:?}"),
+                        }
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("workflows/get".to_string());
+                    }
+                    "workflows/runs" => {
+                        let result: WorkflowsRunsResult = decode(case, &response.result);
+                        assert_eq!(result.runs.len(), 1);
+                        assert_eq!(result.runs[0].status, WorkflowRunStatus::Stopped);
+                        assert_eq!(
+                            result.runs[0].stop_reason,
+                            Some(agent_protocol::workflow::WorkflowRunStopReason::User)
+                        );
+                        assert_eq!(result.runs[0].artifacts.as_ref().unwrap().len(), 1);
+                        assert!(result.truncated.is_some());
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("workflows/runs".to_string());
+                    }
                     other => panic!("{case}：应答 {other} 没有镜像"),
                 }
             }
@@ -677,7 +746,10 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "session/subscribe",
             "workspace/readPresentation",
             "process/childProcesses",
-            "mcp/list"
+            "mcp/list",
+            "workflows/list",
+            "workflows/get",
+            "workflows/runs"
         ]
         .into_iter()
         .map(str::to_string)

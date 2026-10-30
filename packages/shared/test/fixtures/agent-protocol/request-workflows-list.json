@@ -1,0 +1,13 @@
+{
+  "case": "request-workflows-list",
+  "direction": "host->runtime",
+  "note": "列出已保存工作流；scope 缺省为 project（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 57,
+    "method": "workflows/list",
+    "params": {
+      "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+      "scope": "global"
+    }
+  }
+}

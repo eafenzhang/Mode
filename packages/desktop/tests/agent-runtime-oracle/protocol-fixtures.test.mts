@@ -50,6 +50,12 @@ import {
   modeSessionSubscribeResultSchema,
   modeWorkspacePresentationSchema,
   modeWorkspaceReadPresentationParamsSchema,
+  modeWorkflowsGetParamsSchema,
+  modeWorkflowsGetResultSchema,
+  modeWorkflowsListParamsSchema,
+  modeWorkflowsListResultSchema,
+  modeWorkflowsRunsParamsSchema,
+  modeWorkflowsRunsResultSchema,
 } from "../../../shared/src/mode-protocol/index.js";
 import {
   sessionDebugParamsSchema,
@@ -251,10 +257,16 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "session/subscribe": modeSessionSubscribeParamsSchema,
     "session/requestRuntimePreferences": modeSessionRequestRuntimePreferencesParamsSchema,
     "workspace/readPresentation": modeWorkspaceReadPresentationParamsSchema,
+    "workflows/get": modeWorkflowsGetParamsSchema,
+    "workflows/list": modeWorkflowsListParamsSchema,
+    "workflows/runs": modeWorkflowsRunsParamsSchema,
   };
   const resultSchemas: Record<string, Parseable> = {
     "mcp/list": modeMcpListResultSchema,
     "process/childProcesses": modeProcessChildProcessesResultSchema,
+    "workflows/get": modeWorkflowsGetResultSchema,
+    "workflows/list": modeWorkflowsListResultSchema,
+    "workflows/runs": modeWorkflowsRunsResultSchema,
     "session/close": modeSessionCloseResultSchema,
     "session/debug": sessionDebugSnapshotSchema,
     "session/events": modeSessionEventsResultSchema,
