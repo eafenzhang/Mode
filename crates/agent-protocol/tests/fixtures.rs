@@ -40,6 +40,9 @@ use agent_protocol::session_write::{
     SessionSetModelParams, SessionSetThoughtLevelParams,
 };
 use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
+use agent_protocol::workspace::{
+    ChildProcessesResult, WorkspacePresentation, WorkspacePresentationParams,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -297,6 +300,11 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
     for (case, fixture) in &load_fixtures() {
         match parse_frame(case, fixture).unwrap() {
             Frame::Request(request) => {
+                if request.method == "process/childProcesses" {
+                    assert!(request.params.is_none(), "{case}：该请求不带 params");
+                    exercised.insert("process/childProcesses".to_string());
+                    continue;
+                }
                 let params = request
                     .params
                     .unwrap_or_else(|| panic!("{case}：请求必须带 params"));
@@ -417,6 +425,12 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert_eq!(params.after_seq, Some(10));
                         assert!(!params.include_snapshot);
                         exercised.insert("session/subscribe".to_string());
+                    }
+                    "workspace/readPresentation" => {
+                        let params: WorkspacePresentationParams = decode(case, &params);
+                        assert_eq!(params.workspace.workspace_path, "/ws/demo");
+                        assert_eq!(params.workspace.workspace_key, "/ws/demo");
+                        exercised.insert("workspace/readPresentation".to_string());
                     }
                     "session/requestRuntimePreferences" => {
                         let params: RuntimePreferencesRequestParams = decode(case, &params);
@@ -589,6 +603,31 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("session/subscribe".to_string());
                     }
+                    "workspace/readPresentation" => {
+                        let result: WorkspacePresentation = decode(case, &response.result);
+                        assert_eq!(result.mode, agent_protocol::session_read::SessionMode::Build);
+                        assert_eq!(result.slash_commands.len(), 1);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("workspace/readPresentation".to_string());
+                    }
+                    "process/childProcesses" => {
+                        let result: ChildProcessesResult = decode(case, &response.result);
+                        assert_eq!(result.processes.len(), 2);
+                        assert_eq!(
+                            result.processes[1].plugin_name.as_deref(),
+                            Some("demo-plugin")
+                        );
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("process/childProcesses".to_string());
+                    }
                     other => panic!("{case}：应答 {other} 没有镜像"),
                 }
             }
@@ -611,7 +650,9 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "session/setModel",
             "session/setThoughtLevel",
             "session/subagents",
-            "session/subscribe"
+            "session/subscribe",
+            "workspace/readPresentation",
+            "process/childProcesses"
         ]
         .into_iter()
         .map(str::to_string)

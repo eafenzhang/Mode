@@ -286,6 +286,28 @@ fn main() {
                 message["info"]["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": { "messages": [message] } })
+        } else if method == "workspace/readPresentation" {
+            let mut result = json!({
+                "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+                "mode": "build",
+                "slashCommands": [{ "name": "/help", "description": "帮助", "source": "builtin" }]
+            });
+            if mode == "bad-workspace-presentation" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "process/childProcesses" {
+            let mut result = json!({
+                "processes": [{
+                    "pid": 1234,
+                    "serverName": "mcp-1",
+                    "mcpSource": "custom"
+                }]
+            });
+            if mode == "bad-child-processes" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "session/send" {
             let accepted = mode != "rejected-session-send";
             json!({

@@ -184,6 +184,9 @@ goalStats/todos/slashCommands）。
 返回 `SessionSubscription`（replay + 快照 + 实时 `recv()`）；`seq == 0` 补单调序号、
 `eventId` 去重、按 session 过滤；`Drop` 中止转发任务。
 
+workspace 只读面：`read_workspace_presentation`（closed-transport 重试一次）与
+`list_child_processes`（无 params）。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -268,6 +271,9 @@ close 的 persistence 与默认 true、非法写结果被拒绝。
 
 `crates/agent-process/tests/session_events_stream.rs`（1 条）：replay 补号/排序、live 去重与
 跨 session 过滤、subscribe 参数形状。
+
+`crates/agent-process/tests/workspace.rs`（3 条）：展示结果的 workspace ref 与 slashCommands、
+子进程无 params 契约、两类非法结果。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

@@ -1,0 +1,9 @@
+{
+  "case": "request-process-child-processes",
+  "direction": "host->runtime",
+  "note": "查询当前 runtime 的 MCP 子进程；请求不带 params（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 55,
+    "method": "process/childProcesses"
+  }
+}

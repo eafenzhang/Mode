@@ -103,6 +103,17 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 - TS 对订阅建立失败做指数退避重试；Rust 直接把错误返回给调用方（重试由上层决定）。
 - 通知广播落后（`Lagged`）时跳过被丢弃的通知继续消费；TS 无此路径。
 
+## 2d. workspace 只读面
+
+- `read_workspace_presentation(target)` → `workspace/readPresentation`：
+  `{workspace}` 请求，结果 `{workspace, mode, slashCommands[]}` 严格解析。
+  旧 client 在发请求前被换代关闭（`ClientError::Closed` / `Transport`）时重新取 client
+  重试**一次**，与 TS 的 closed-transport 重试一致。
+- `list_child_processes(target)` → `process/childProcesses`：请求**不带 params**，
+  结果 `{processes:[{pid, serverName, mcpSource(builtin|plugin|custom), pluginName?}]}`。
+  TS 的 `collectLocalRuntimeChildProcesses` 会遍历本 Host 全部 runtime（含 plugin /
+  mcp-status 泳道）；本 facade 只覆盖单个 workspace runtime。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、
@@ -117,3 +128,5 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
    `invalid session/<setter> result`。
 6. 订阅：replay 的 `seq == 0` 事件被补成单调序号并排序；重复 `eventId` 与其它 session
    的 live 事件不投递；`session/subscribe` 参数逐字段符合 schema。
+7. workspace 只读面：展示结果的 workspace/mode/slashCommands 可读；子进程请求不带 params
+   且结果按 schema 解析；两类非法结果有独立错误前缀。

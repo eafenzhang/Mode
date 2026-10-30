@@ -27,6 +27,7 @@ mod runtime_preferences;
 mod session_events;
 mod session_read;
 mod session_write;
+mod workspace;
 
 pub use control::{
     build_grant_params, build_workspace_ref, AgentControlClient, AgentWorkspaceTarget,

@@ -1,0 +1,19 @@
+{
+  "case": "response-workspace-read-presentation",
+  "direction": "runtime->host",
+  "respondsTo": "workspace/readPresentation",
+  "note": "workspace 展示：模式 + slash commands（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 54,
+    "result": {
+      "workspace": {
+        "workspacePath": "/ws/demo",
+        "workspaceKey": "/ws/demo"
+      },
+      "mode": "build",
+      "slashCommands": [
+        { "name": "/help", "description": "帮助", "source": "builtin" }
+      ]
+    }
+  }
+}

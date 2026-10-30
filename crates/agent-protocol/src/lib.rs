@@ -61,6 +61,7 @@ pub mod session_read;
 pub mod session_send;
 pub mod session_write;
 pub mod snapshot;
+pub mod workspace;
 
 pub use frame::{
     ErrorObject, ErrorResponseFrame, ExtraFields, Frame, NotificationFrame, RequestFrame,

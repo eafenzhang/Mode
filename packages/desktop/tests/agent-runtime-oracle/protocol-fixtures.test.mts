@@ -21,6 +21,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  modeProcessChildProcessesResultSchema,
   modeProtocolMessageSchema,
   modeSessionCloseParamsSchema,
   modeSessionCloseResultSchema,
@@ -45,6 +46,8 @@ import {
   modeSessionSubagentsResultSchema,
   modeSessionSubscribeParamsSchema,
   modeSessionSubscribeResultSchema,
+  modeWorkspacePresentationSchema,
+  modeWorkspaceReadPresentationParamsSchema,
 } from "../../../shared/src/mode-protocol/index.js";
 import {
   sessionDebugParamsSchema,
@@ -244,8 +247,10 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "session/subagents": modeSessionSubagentsParamsSchema,
     "session/subscribe": modeSessionSubscribeParamsSchema,
     "session/requestRuntimePreferences": modeSessionRequestRuntimePreferencesParamsSchema,
+    "workspace/readPresentation": modeWorkspaceReadPresentationParamsSchema,
   };
   const resultSchemas: Record<string, Parseable> = {
+    "process/childProcesses": modeProcessChildProcessesResultSchema,
     "session/close": modeSessionCloseResultSchema,
     "session/debug": sessionDebugSnapshotSchema,
     "session/events": modeSessionEventsResultSchema,
@@ -259,6 +264,7 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "session/subagents": modeSessionSubagentsResultSchema,
     "session/subscribe": modeSessionSubscribeResultSchema,
     "session/requestRuntimePreferences": modeSessionRuntimePreferencesResultSchema,
+    "workspace/readPresentation": modeWorkspacePresentationSchema,
   };
   const exercisedCommands = new Set<string>();
   for (const fixture of fixtures) {

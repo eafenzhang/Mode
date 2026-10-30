@@ -1,0 +1,24 @@
+{
+  "case": "response-process-child-processes",
+  "direction": "runtime->host",
+  "respondsTo": "process/childProcesses",
+  "note": "MCP 子进程清单（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 55,
+    "result": {
+      "processes": [
+        {
+          "pid": 1234,
+          "serverName": "mcp-1",
+          "mcpSource": "custom"
+        },
+        {
+          "pid": 1235,
+          "serverName": "plugin-mcp",
+          "mcpSource": "plugin",
+          "pluginName": "demo-plugin"
+        }
+      ]
+    }
+  }
+}

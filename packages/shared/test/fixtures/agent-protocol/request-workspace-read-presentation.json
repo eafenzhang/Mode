@@ -1,0 +1,15 @@
+{
+  "case": "request-workspace-read-presentation",
+  "direction": "host->runtime",
+  "note": "读取 workspace 首屏展示（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 54,
+    "method": "workspace/readPresentation",
+    "params": {
+      "workspace": {
+        "workspacePath": "/ws/demo",
+        "workspaceKey": "/ws/demo"
+      }
+    }
+  }
+}
