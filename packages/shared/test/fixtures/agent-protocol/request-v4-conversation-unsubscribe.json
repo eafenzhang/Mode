@@ -1,0 +1,14 @@
+{
+  "case": "request-v4-conversation-unsubscribe",
+  "direction": "host->runtime",
+  "note": "释放订阅：topic + subscriptionId + connectionId（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 93,
+    "method": "v4/conversation/unsubscribe",
+    "params": {
+      "topic": "conversation/sess-1",
+      "subscriptionId": "sub-1",
+      "connectionId": "conn-1"
+    }
+  }
+}

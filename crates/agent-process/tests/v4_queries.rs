@@ -13,9 +13,10 @@ use agent_protocol::v4_queries::{
     AttachmentBeginParams, AttachmentBeginResult, AttachmentChunkParams,
     AttachmentPreviewSourceParams, AttachmentPreviewSourceResult, AttachmentReadParams,
     AttachmentTerminalParams, BackgroundBashOutputParams, BackgroundBashOutputResult,
-    BackgroundBashUnavailableKind, ConversationAttachmentReadParams,
-    ConversationAttachmentStatParams, ConversationRowTarget, ConversationUsageParams, PlansParams,
-    RowsRangeParams, WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams,
+    BackgroundBashUnavailableKind, ConnectionFlowParams, ConnectionFlowState,
+    ConversationAttachmentReadParams, ConversationAttachmentStatParams,
+    ConversationResyncParams, ConversationRowTarget, ConversationUnsubscribeParams,
+    ConversationUsageParams, PlansParams, ResyncBase, RowsRangeParams, WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams,
     WorkflowRunArtifactsParams, WorkflowRunEventsParams, WorkflowRunNodeResultParams,
     WorkflowRunWorkspaceParams, WorkflowRunsQueryParams,
 };
@@ -1098,6 +1099,125 @@ async fn invalid_attachment_queries_carry_distinct_prefixes() {
                             entity_id: "entity-1".to_string(),
                         },
                         attachment_index: 0,
+                    },
+                    RuntimePolicy::StartIfNeeded,
+                )
+                .await
+                .unwrap_err(),
+        };
+        match error {
+            ControlError::InvalidResult(message) => {
+                assert!(message.starts_with(prefix), "{mode}: {message}")
+            }
+            other => panic!("{mode}: unexpected error: {other:?}"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn connection_flow_resync_and_unsubscribe_round_trip() {
+    let log = FrameLog::new("connection");
+    let client = control("", &log, Arc::new(AtomicUsize::new(0)));
+
+    client
+        .set_connection_flow_state_v4(
+            &target(),
+            ConnectionFlowParams {
+                connection_id: "conn-1".to_string(),
+                state: ConnectionFlowState::Saturated,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+
+    let resync = client
+        .resync_conversation_v4(
+            &target(),
+            ConversationResyncParams {
+                topic: "conversation/sess-1".to_string(),
+                connection_id: "conn-1".to_string(),
+                subscription_id: "sub-1".to_string(),
+                base: Some(ResyncBase {
+                    log_epoch: "epoch-1".to_string(),
+                    seq: 7,
+                }),
+                force_snapshot: None,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(resync.ack.subscription_id, "sub-1");
+
+    client
+        .unsubscribe_conversation_v4(
+            &target(),
+            ConversationUnsubscribeParams {
+                topic: "conversation/sess-1".to_string(),
+                subscription_id: "sub-1".to_string(),
+                connection_id: "conn-1".to_string(),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+
+    let flow_frames = log.frame_params("v4/connection/flow");
+    assert_eq!(flow_frames[0], json!({ "connectionId": "conn-1", "state": "saturated" }));
+    let resync_frames = log.frame_params("v4/conversation/resync");
+    assert_eq!(resync_frames[0]["base"], json!({ "logEpoch": "epoch-1", "seq": 7 }));
+    assert!(
+        resync_frames[0].get("forceSnapshot").is_none(),
+        "forceSnapshot 缺省时不得出键"
+    );
+    let unsubscribe_frames = log.frame_params("v4/conversation/unsubscribe");
+    assert_eq!(unsubscribe_frames[0]["subscriptionId"], "sub-1");
+}
+
+#[tokio::test]
+async fn invalid_maintenance_calls_carry_distinct_prefixes() {
+    let cases: [(&str, &str); 3] = [
+        ("bad-v4-connection-flow", "invalid v4/connection/flow result"),
+        ("bad-v4-resync", "invalid v4/conversation/resync result"),
+        ("bad-v4-unsubscribe", "invalid v4/conversation/unsubscribe result"),
+    ];
+    for (mode, prefix) in cases {
+        let log = FrameLog::new(mode);
+        let client = control(mode, &log, Arc::new(AtomicUsize::new(0)));
+        let error = match mode {
+            "bad-v4-connection-flow" => client
+                .set_connection_flow_state_v4(
+                    &target(),
+                    ConnectionFlowParams {
+                        connection_id: "conn-1".to_string(),
+                        state: ConnectionFlowState::Drained,
+                    },
+                    RuntimePolicy::StartIfNeeded,
+                )
+                .await
+                .unwrap_err(),
+            "bad-v4-resync" => client
+                .resync_conversation_v4(
+                    &target(),
+                    ConversationResyncParams {
+                        topic: "conversation/sess-1".to_string(),
+                        connection_id: "conn-1".to_string(),
+                        subscription_id: "sub-1".to_string(),
+                        base: None,
+                        force_snapshot: Some(true),
+                    },
+                    RuntimePolicy::StartIfNeeded,
+                )
+                .await
+                .unwrap_err(),
+            _ => client
+                .unsubscribe_conversation_v4(
+                    &target(),
+                    ConversationUnsubscribeParams {
+                        topic: "conversation/sess-1".to_string(),
+                        subscription_id: "sub-1".to_string(),
+                        connection_id: "conn-1".to_string(),
                     },
                     RuntimePolicy::StartIfNeeded,
                 )

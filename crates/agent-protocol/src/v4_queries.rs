@@ -864,3 +864,62 @@ pub struct ConversationAttachmentStatResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mtime_ms: Option<Number>,
 }
+
+// ── 连接流控 / 订阅维护 ──
+
+pub const V4_CONNECTION_FLOW_METHOD: &str = "v4/connection/flow";
+pub const V4_CONVERSATION_RESYNC_METHOD: &str = "v4/conversation/resync";
+pub const V4_CONVERSATION_UNSUBSCRIBE_METHOD: &str = "v4/conversation/unsubscribe";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConnectionFlowState {
+    #[serde(rename = "saturated")]
+    Saturated,
+    #[serde(rename = "drained")]
+    Drained,
+    #[serde(rename = "closed")]
+    Closed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConnectionFlowParams {
+    pub connection_id: String,
+    pub state: ConnectionFlowState,
+}
+
+/// `v4ConnectionFlowResultSchema`：严格空对象。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConnectionFlowResult {}
+
+/// 重同步的基线：`null` 表示从头重建。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ResyncBase {
+    pub log_epoch: String,
+    pub seq: u64,
+}
+
+/// `v4ConversationResyncParamsSchema`：`base` 必填但可为 null，`forceSnapshot` 可选。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConversationResyncParams {
+    pub topic: String,
+    pub connection_id: String,
+    pub subscription_id: String,
+    pub base: Option<ResyncBase>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub force_snapshot: Option<bool>,
+}
+
+/// `v4ConversationResyncResultSchema`：与订阅 ACK 同形。
+pub type ConversationResyncResult = crate::v4_transport::ConversationSubscribeResult;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConversationUnsubscribeParams {
+    pub topic: String,
+    pub subscription_id: String,
+    pub connection_id: String,
+}

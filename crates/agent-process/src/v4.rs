@@ -25,9 +25,10 @@ use agent_protocol::v4_queries::{
     AttachmentChunkResult, AttachmentCommitResult, AttachmentPreviewSourceParams,
     AttachmentPreviewSourceResult, AttachmentReadParams, AttachmentReadResult,
     AttachmentTerminalParams, BackgroundBashOutputParams, BackgroundBashOutputResult,
-    BackgroundBashUnavailable, BackgroundBashUnavailableKind,
-    ConversationAttachmentReadParams, ConversationAttachmentStatParams,
-    ConversationAttachmentStatResult, ConversationUsageParams, ConversationUsageResult,
+    BackgroundBashUnavailable, BackgroundBashUnavailableKind, ConnectionFlowParams,
+    ConnectionFlowResult, ConversationAttachmentReadParams, ConversationAttachmentStatParams,
+    ConversationAttachmentStatResult, ConversationResyncParams, ConversationResyncResult,
+    ConversationUnsubscribeParams, ConversationUsageParams, ConversationUsageResult,
     FileChangesParams, FileChangesResult, FileRewindPreviewParams, FileRewindPreviewResult,
     PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunArtifactDataParams,
     WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult,
@@ -37,10 +38,12 @@ use agent_protocol::v4_queries::{
     WorkflowRunsQueryResult, V4_ATTACHMENT_ABORT_METHOD, V4_ATTACHMENT_BEGIN_METHOD,
     V4_ATTACHMENT_CHUNK_METHOD, V4_ATTACHMENT_COMMIT_METHOD,
     V4_ATTACHMENT_PREVIEW_SOURCE_METHOD, V4_ATTACHMENT_READ_METHOD,
-    V4_BACKGROUND_BASH_OUTPUT_METHOD, V4_CONVERSATION_ATTACHMENT_READ_METHOD,
+    V4_BACKGROUND_BASH_OUTPUT_METHOD, V4_CONNECTION_FLOW_METHOD,
+    V4_CONVERSATION_ATTACHMENT_READ_METHOD,
     V4_CONVERSATION_ATTACHMENT_STAT_METHOD, V4_CONVERSATION_FILE_CHANGES_METHOD,
     V4_CONVERSATION_FILE_REWIND_PREVIEW_METHOD, V4_CONVERSATION_PLANS_METHOD,
-    V4_CONVERSATION_ROWS_RANGE_METHOD, V4_CONVERSATION_USAGE_METHOD,
+    V4_CONVERSATION_RESYNC_METHOD, V4_CONVERSATION_ROWS_RANGE_METHOD,
+    V4_CONVERSATION_UNSUBSCRIBE_METHOD, V4_CONVERSATION_USAGE_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_DATA_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_READ_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACTS_METHOD, V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD,
@@ -586,5 +589,66 @@ impl AgentControlClient {
                 "invalid v4/conversation/attachmentStat result: {error}"
             ))
         })
+    }
+
+    /// `v4/connection/flow`：连接级流控状态（saturated / drained / closed）。
+    pub async fn set_connection_flow_state_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: ConnectionFlowParams,
+        policy: RuntimePolicy,
+    ) -> Result<(), ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("connection/flow params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONNECTION_FLOW_METHOD, Some(value))
+            .await?;
+        serde_json::from_value::<ConnectionFlowResult>(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/connection/flow result: {error}"))
+        })?;
+        Ok(())
+    }
+
+    /// `v4/conversation/resync`：按基线重同步一个订阅，返回新的 ACK。
+    pub async fn resync_conversation_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: ConversationResyncParams,
+        policy: RuntimePolicy,
+    ) -> Result<ConversationResyncResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("conversation/resync params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_RESYNC_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/resync result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/conversation/unsubscribe`：释放一个订阅。
+    pub async fn unsubscribe_conversation_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: ConversationUnsubscribeParams,
+        policy: RuntimePolicy,
+    ) -> Result<(), ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value =
+            serde_json::to_value(&params).expect("conversation/unsubscribe params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_UNSUBSCRIBE_METHOD, Some(value))
+            .await?;
+        serde_json::from_value::<ConnectionFlowResult>(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/unsubscribe result: {error}"
+            ))
+        })?;
+        Ok(())
     }
 }

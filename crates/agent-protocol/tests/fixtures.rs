@@ -55,7 +55,9 @@ use agent_protocol::v4_queries::{
     AttachmentPreviewSourceResult, AttachmentReadParams, AttachmentReadResult,
     AttachmentTerminalParams, BackgroundBashOutputParams, BackgroundBashOutputResult,
     ConversationAttachmentReadParams, ConversationAttachmentStatParams,
-    ConversationAttachmentStatResult, ConversationUsageParams, ConversationUsageResult,
+    ConversationAttachmentStatResult, ConversationResyncParams, ConversationResyncResult,
+    ConversationUnsubscribeParams, ConversationUsageParams, ConversationUsageResult,
+    ConnectionFlowParams, ConnectionFlowResult,
     FileChangesParams, FileChangesResult, FileRewindPreviewParams, FileRewindPreviewResult,
     PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunArtifactDataParams,
     WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult,
@@ -765,6 +767,41 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/attachmentStat".to_string());
                     }
+                    "v4/connection/flow" => {
+                        let flow: ConnectionFlowParams = decode(case, &params);
+                        assert_eq!(
+                            flow.state,
+                            agent_protocol::v4_queries::ConnectionFlowState::Saturated
+                        );
+                        assert_eq!(
+                            serde_json::to_value(&flow).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/connection/flow".to_string());
+                    }
+                    "v4/conversation/resync" => {
+                        let resync: ConversationResyncParams = decode(case, &params);
+                        assert_eq!(resync.subscription_id, "sub-1");
+                        assert_eq!(resync.force_snapshot, Some(true));
+                        assert_eq!(resync.base.as_ref().map(|base| base.seq), Some(7));
+                        assert_eq!(
+                            serde_json::to_value(&resync).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/resync".to_string());
+                    }
+                    "v4/conversation/unsubscribe" => {
+                        let unsubscribe: ConversationUnsubscribeParams = decode(case, &params);
+                        assert_eq!(unsubscribe.subscription_id, "sub-1");
+                        assert_eq!(
+                            serde_json::to_value(&unsubscribe).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/unsubscribe".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let subscribe: ConversationSubscribeParams = decode(case, &params);
                         assert_eq!(subscribe.topic, "conversation/sess-1");
@@ -1407,6 +1444,36 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/attachmentStat".to_string());
                     }
+                    "v4/connection/flow" => {
+                        let result: ConnectionFlowResult = decode(case, &response.result);
+                        assert_eq!(result, ConnectionFlowResult {});
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/connection/flow".to_string());
+                    }
+                    "v4/conversation/resync" => {
+                        let result: ConversationResyncResult = decode(case, &response.result);
+                        assert_eq!(result.ack.subscription_id, "sub-1");
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/resync".to_string());
+                    }
+                    "v4/conversation/unsubscribe" => {
+                        let result: ConnectionFlowResult = decode(case, &response.result);
+                        assert_eq!(result, ConnectionFlowResult {});
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/unsubscribe".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let result: ConversationSubscribeResult = decode(case, &response.result);
                         assert_eq!(result.ack.subscription_id, "sub-1");
@@ -1476,7 +1543,10 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "v4/attachment/previewSource",
             "v4/attachment/read",
             "v4/conversation/attachmentRead",
-            "v4/conversation/attachmentStat"
+            "v4/conversation/attachmentStat",
+            "v4/connection/flow",
+            "v4/conversation/resync",
+            "v4/conversation/unsubscribe"
         ]
         .into_iter()
         .map(str::to_string)

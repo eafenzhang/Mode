@@ -1,0 +1,16 @@
+{
+  "case": "response-v4-conversation-resync",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/resync",
+  "note": "重同步 ACK 与订阅 ACK 同形（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 92,
+    "result": {
+      "ack": {
+        "subscriptionId": "sub-1",
+        "mode": "resume",
+        "logEpoch": "epoch-1"
+      }
+    }
+  }
+}

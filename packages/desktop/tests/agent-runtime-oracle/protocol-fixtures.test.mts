@@ -68,6 +68,7 @@ import {
   modeWorkflowsDeleteResultSchema,
   modeWorkflowsMoveParamsSchema,
   modeWorkflowsMoveResultSchema,
+  modeProtocolEmptyResultSchema,
 } from "../../../shared/src/mode-protocol/index.js";
 import {
   sessionDebugParamsSchema,
@@ -91,6 +92,8 @@ import {
   v4AttachmentReadParamsSchema,
   v4AttachmentReadResultSchema,
   v4BackgroundBashOutputParamsSchema,
+  v4ConnectionFlowParamsSchema,
+  v4ConnectionFlowResultSchema,
   v4ConversationFileChangesParamsSchema,
   v4ConversationFileChangesResultSchema,
   v4ConversationFileRewindPreviewParamsSchema,
@@ -101,6 +104,9 @@ import {
   v4ConversationAttachmentStatResultSchema,
   v4ConversationPlansParamsSchema,
   v4ConversationPlansResultSchema,
+  v4ConversationResyncParamsSchema,
+  v4ConversationResyncResultSchema,
+  v4ConversationUnsubscribeParamsSchema,
   v4ConversationRowsRangeParamsSchema,
   v4ConversationRowsRangeResultSchema,
   v4ConversationSubscribeParamsSchema,
@@ -348,6 +354,9 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "v4/attachment/previewSource": v4AttachmentPreviewSourceParamsSchema,
     "v4/conversation/attachmentRead": v4ConversationAttachmentReadParamsSchema,
     "v4/conversation/attachmentStat": v4ConversationAttachmentStatParamsSchema,
+    "v4/connection/flow": v4ConnectionFlowParamsSchema,
+    "v4/conversation/resync": v4ConversationResyncParamsSchema,
+    "v4/conversation/unsubscribe": v4ConversationUnsubscribeParamsSchema,
     "workspace/readPresentation": modeWorkspaceReadPresentationParamsSchema,
     "workflows/get": modeWorkflowsGetParamsSchema,
     "workflows/list": modeWorkflowsListParamsSchema,
@@ -404,6 +413,9 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "v4/attachment/previewSource": v4AttachmentPreviewSourceResultSchema,
     "v4/conversation/attachmentRead": v4ConversationAttachmentReadResultSchema,
     "v4/conversation/attachmentStat": v4ConversationAttachmentStatResultSchema,
+    "v4/connection/flow": v4ConnectionFlowResultSchema,
+    "v4/conversation/resync": v4ConversationResyncResultSchema,
+    "v4/conversation/unsubscribe": modeProtocolEmptyResultSchema,
     "workspace/readPresentation": modeWorkspacePresentationSchema,
   };
   const exercisedCommands = new Set<string>();

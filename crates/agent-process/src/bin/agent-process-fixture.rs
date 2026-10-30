@@ -759,6 +759,33 @@ fn main() {
                 result["totalBytes"] = json!(-5);
             }
             json!({ "id": id, "result": result })
+        } else if method == "v4/connection/flow" {
+            if mode == "bad-v4-connection-flow" {
+                json!({ "id": id, "result": { "unexpected": true } })
+            } else {
+                json!({ "id": id, "result": {} })
+            }
+        } else if method == "v4/conversation/resync" {
+            if mode == "bad-v4-resync" {
+                json!({ "id": id, "result": { "ack": {} } })
+            } else {
+                json!({
+                    "id": id,
+                    "result": {
+                        "ack": {
+                            "subscriptionId": "sub-1",
+                            "mode": "resume",
+                            "logEpoch": "epoch-1"
+                        }
+                    }
+                })
+            }
+        } else if method == "v4/conversation/unsubscribe" {
+            if mode == "bad-v4-unsubscribe" {
+                json!({ "id": id, "result": { "pending": 1 } })
+            } else {
+                json!({ "id": id, "result": {} })
+            }
         } else if method == "plugins/overview" {
             let mut result = json!({
                 "marketplaces": [{

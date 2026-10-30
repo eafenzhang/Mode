@@ -1,0 +1,10 @@
+{
+  "case": "response-v4-conversation-unsubscribe",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/unsubscribe",
+  "note": "释放订阅无结果体（严格空对象）（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 93,
+    "result": {}
+  }
+}

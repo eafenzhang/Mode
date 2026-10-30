@@ -1,0 +1,13 @@
+{
+  "case": "request-v4-connection-flow",
+  "direction": "host->runtime",
+  "note": "连接级流控状态（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 91,
+    "method": "v4/connection/flow",
+    "params": {
+      "connectionId": "conn-1",
+      "state": "saturated"
+    }
+  }
+}

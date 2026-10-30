@@ -1,0 +1,19 @@
+{
+  "case": "request-v4-conversation-resync",
+  "direction": "host->runtime",
+  "note": "按基线重同步订阅：base 必填但可为 null，forceSnapshot 可选（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 92,
+    "method": "v4/conversation/resync",
+    "params": {
+      "topic": "conversation/sess-1",
+      "connectionId": "conn-1",
+      "subscriptionId": "sub-1",
+      "base": {
+        "logEpoch": "epoch-1",
+        "seq": 7
+      },
+      "forceSnapshot": true
+    }
+  }
+}

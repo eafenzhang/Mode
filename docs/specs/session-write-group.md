@@ -369,6 +369,9 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
     绝对路径），远端/Web 返回 `chunked`；`clientMode` 必填（可信位）。
   - `conversation/attachmentStat`：metadata-only 探测，允许超过传输上限的真实大小，
     `mtimeMs` 可选。
+- 连接与订阅维护：`connection/flow`（`saturated`/`drained`/`closed`，结果严格空对象）、
+  `conversation/resync`（`base` 必填但可为 null，`forceSnapshot` 可选，返回与订阅同形的
+  ACK）、`conversation/unsubscribe`（严格空对象）。
 
 ## 3. 验收
 
@@ -432,3 +435,6 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
 26. 附件：上行四步各自 round-trip，`begin` 的 committed 分支可解析；「零字节必须零块」
     与「target/attachmentIndex 成对」在本地拒绝且不发送；分段读、previewSource 的
     local_path/chunked 两支、attachmentStat 均可解析；六个非法结果有独立前缀。
+27. 连接与订阅维护：`connection/flow` 的状态值可断言且空结果严格；`resync` 的
+    `base.seq`/`forceSnapshot` 可读、缺省键不出；`unsubscribe` 空结果严格；三者非法结果
+    有独立前缀。

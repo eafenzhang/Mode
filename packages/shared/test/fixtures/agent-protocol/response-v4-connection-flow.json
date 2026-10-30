@@ -1,0 +1,10 @@
+{
+  "case": "response-v4-connection-flow",
+  "direction": "runtime->host",
+  "respondsTo": "v4/connection/flow",
+  "note": "流控无结果体（严格空对象）（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 91,
+    "result": {}
+  }
+}
