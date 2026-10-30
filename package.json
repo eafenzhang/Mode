@@ -27,6 +27,7 @@
     "tasks-db:fixtures": "tsx scripts/generate-tasks-db-fixtures.ts",
     "task-index:fixtures": "tsx scripts/generate-task-index-fixtures.ts",
     "provider-config:fixtures": "tsx scripts/generate-provider-config-fixtures.ts",
+    "provider-config-source:fixtures": "tsx scripts/generate-provider-config-source-fixtures.ts",
     "off-peak:fixtures": "tsx scripts/generate-off-peak-fixtures.ts",
     "automation:fixtures": "tsx scripts/generate-automation-fixtures.ts",
     "automation-schedule:fixtures": "tsx scripts/generate-automation-schedule-fixtures.ts",

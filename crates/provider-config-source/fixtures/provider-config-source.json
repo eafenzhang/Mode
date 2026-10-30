@@ -1,0 +1,505 @@
+{
+  "version": 1,
+  "generatedBy": "scripts/generate-provider-config-source-fixtures.ts",
+  "platform": "win32",
+  "rootPlaceholder": "<ROOT>",
+  "sourceKeyPlaceholder": "<SOURCE_KEY>",
+  "resolveCases": [
+    {
+      "name": "absolute-forward",
+      "cwd": "C:/work/base",
+      "input": "C:/work/base/provider/active.json",
+      "expectedResolved": "C:\\work\\base\\provider\\active.json",
+      "expectedSourceKey": "332f8ee73d6502e1010cc4be3f59394732cfaf37d6d14d1d1b12cf4cb66dbf58"
+    },
+    {
+      "name": "dot-segment",
+      "cwd": "C:/work/base",
+      "input": "C:\\work\\base\\provider\\.\\active.json",
+      "expectedResolved": "C:\\work\\base\\provider\\active.json",
+      "expectedSourceKey": "332f8ee73d6502e1010cc4be3f59394732cfaf37d6d14d1d1b12cf4cb66dbf58"
+    },
+    {
+      "name": "parent-segment",
+      "cwd": "C:/work/base",
+      "input": "C:/work/base/provider/sub/../active.json",
+      "expectedResolved": "C:\\work\\base\\provider\\active.json",
+      "expectedSourceKey": "332f8ee73d6502e1010cc4be3f59394732cfaf37d6d14d1d1b12cf4cb66dbf58"
+    },
+    {
+      "name": "lowercase-drive",
+      "cwd": "C:/work/base",
+      "input": "c:/work/base/active.json",
+      "expectedResolved": "c:\\work\\base\\active.json",
+      "expectedSourceKey": "2bcaaa8a59235411af53bf12fb95f8d69f92ea9b87f0087154846e8b446a910a"
+    },
+    {
+      "name": "duplicate-separators",
+      "cwd": "C:/work/base",
+      "input": "C:/work//base///active.json",
+      "expectedResolved": "C:\\work\\base\\active.json",
+      "expectedSourceKey": "cb447f472197931085a8d6dccac4d9262dc6b318b02697446d925949036eb88a"
+    },
+    {
+      "name": "trailing-separator",
+      "cwd": "C:/work/base",
+      "input": "C:/work/base/provider/",
+      "expectedResolved": "C:\\work\\base\\provider",
+      "expectedSourceKey": "42d3adde6ff1f5a9f4cc514c3a5e222715a811ed6d5834e5110d7ccd14a50388"
+    },
+    {
+      "name": "relative",
+      "cwd": "C:/work/base",
+      "input": "provider/active.json",
+      "expectedResolved": "C:\\work\\base\\provider\\active.json",
+      "expectedSourceKey": "332f8ee73d6502e1010cc4be3f59394732cfaf37d6d14d1d1b12cf4cb66dbf58"
+    },
+    {
+      "name": "relative-parent",
+      "cwd": "C:/work/base/sub",
+      "input": "../active.json",
+      "expectedResolved": "C:\\work\\base\\active.json",
+      "expectedSourceKey": "cb447f472197931085a8d6dccac4d9262dc6b318b02697446d925949036eb88a"
+    },
+    {
+      "name": "parent-above-root",
+      "cwd": "C:/work/base",
+      "input": "C:/../x.json",
+      "expectedResolved": "C:\\x.json",
+      "expectedSourceKey": "335826bd299b245267c08d4e2b2d8c6d047a744fa7e569d3196381b5778f8d50"
+    }
+  ],
+  "personal": [
+    {
+      "name": "valid-full",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"schemaVersion\":1,\"config\":{\"providerOrder\":[\"z-personal\",\"a-personal\"],\"providerConfigRules\":{\"providerRules\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}]},\"modelConfigRules\":{\"providerModelRules\":[{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}}}],\"manualProviderModelRules\":[{\"providerId\":\"a-personal\",\"modelId\":\"m-manual\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\"defaultModelSelection\":{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"options\":{\"reasoningLevel\":\"high\"}}}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"6bcbb8f9990d8157e9141113fb91ac1e5b37862873ee63ae80af383e41a951ef\",\"providers\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}},\"providerId\":\"z-personal\"}],\"manualProviderModelRules\":[{\"modelId\":\"m-manual\",\"providerId\":\"a-personal\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true},\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\"providerOrder\":[\"z-personal\",\"a-personal\"],\"defaultModelSelection\":{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"options\":{\"reasoningLevel\":\"high\"}}}"
+    },
+    {
+      "name": "missing",
+      "filePath": "provider_config.json",
+      "files": [],
+      "expectedJson": "{\"revision\":\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\",\"providers\":[],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]},\"providerOrder\":[]}"
+    },
+    {
+      "name": "corrupt-json",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{not json"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\",\"providers\":[],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]},\"providerOrder\":[]}"
+    },
+    {
+      "name": "schema-too-high",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"schemaVersion\":2,\"config\":{\"providerConfigRules\":{\"providerRules\":[]},\"modelConfigRules\":{\"providerModelRules\":[],\"manualProviderModelRules\":[]}}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\",\"providers\":[],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]},\"providerOrder\":[]}"
+    },
+    {
+      "name": "schema-too-low",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"schemaVersion\":0,\"config\":{\"providerConfigRules\":{\"providerRules\":[]},\"modelConfigRules\":{\"providerModelRules\":[],\"manualProviderModelRules\":[]}}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\",\"providers\":[],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]},\"providerOrder\":[]}"
+    },
+    {
+      "name": "schema-missing",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"config\":{\"providerConfigRules\":{\"providerRules\":[]},\"modelConfigRules\":{\"providerModelRules\":[],\"manualProviderModelRules\":[]}}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\",\"providers\":[],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]},\"providerOrder\":[]}"
+    },
+    {
+      "name": "legacy-complete-manual",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"schemaVersion\":1,\"config\":{\"providerConfigRules\":{\"providerRules\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}]},\"modelConfigRules\":{\"providerModelRules\":[{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}}}],\"manualProviderModelRules\":[{\"providerId\":\"a-personal\",\"modelId\":\"m-manual\",\"config\":{\"enabled\":true,\"properties\":{\"requiresMfjsToolSchema\":false,\"contextWindow\":128000,\"inputFormat\":{\"supportsText\":true,\"supportsImage\":true,\"supportsVideo\":false,\"supportsAudio\":false,\"supportsPdf\":true},\"outputFormat\":{\"supportsText\":true},\"supportsToolCall\":true,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":4096,\"map\":\"{\\\"tokens\\\": maxOutputTokens}\"}}}}]}}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"8b21d4090283640cf8da42ff40a12267ab2b0a5ce221dc38dcbf768adee8c748\",\"providers\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}},\"providerId\":\"z-personal\"}],\"manualProviderModelRules\":[{\"modelId\":\"m-manual\",\"providerId\":\"a-personal\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true},\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":4096}}}}]}}"
+    },
+    {
+      "name": "legacy-editable-manual",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"schemaVersion\":1,\"config\":{\"providerConfigRules\":{\"providerRules\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}]},\"modelConfigRules\":{\"providerModelRules\":[{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}}}],\"manualProviderModelRules\":[{\"providerId\":\"a-personal\",\"modelId\":\"m-manual\",\"config\":{\"enabled\":true,\"properties\":{\"requiresMfjsToolSchema\":false,\"contextWindow\":96000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"medium\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":2048}}}}]}}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"fdf087e18da2c87b0c5c218fff7e369923ba45ae4472474ee85fda5df2ac03f1\",\"providers\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}},\"providerId\":\"z-personal\"}],\"manualProviderModelRules\":[{\"modelId\":\"m-manual\",\"providerId\":\"a-personal\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":96000,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true},\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"medium\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":2048}}}}]}}"
+    },
+    {
+      "name": "order-and-selection",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"schemaVersion\":1,\"config\":{\"providerOrder\":[\"a-personal\",\"z-personal\"],\"providerConfigRules\":{\"providerRules\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}]},\"modelConfigRules\":{\"providerModelRules\":[{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}}}],\"manualProviderModelRules\":[{\"providerId\":\"a-personal\",\"modelId\":\"m-manual\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\"defaultModelSelection\":{\"providerId\":\"a-personal\",\"modelId\":\"m-manual\"}}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"d1e9d746eceb1dae7b5456ef2559493c1bb3520888b75b936e6e933a043aea7f\",\"providers\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}},\"providerId\":\"z-personal\"}],\"manualProviderModelRules\":[{\"modelId\":\"m-manual\",\"providerId\":\"a-personal\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true},\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\"providerOrder\":[\"a-personal\",\"z-personal\"],\"defaultModelSelection\":{\"providerId\":\"a-personal\",\"modelId\":\"m-manual\"}}"
+    },
+    {
+      "name": "selection-trimmed",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"schemaVersion\":1,\"config\":{\"providerOrder\":[\"z-personal\",\"a-personal\"],\"providerConfigRules\":{\"providerRules\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}]},\"modelConfigRules\":{\"providerModelRules\":[{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}}}],\"manualProviderModelRules\":[{\"providerId\":\"a-personal\",\"modelId\":\"m-manual\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\"defaultModelSelection\":{\"providerId\":\" z-personal \",\"modelId\":\" m-z \",\"options\":{\"reasoningLevel\":\" high \"}}}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"6bcbb8f9990d8157e9141113fb91ac1e5b37862873ee63ae80af383e41a951ef\",\"providers\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}},\"providerId\":\"z-personal\"}],\"manualProviderModelRules\":[{\"modelId\":\"m-manual\",\"providerId\":\"a-personal\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true},\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\"providerOrder\":[\"z-personal\",\"a-personal\"],\"defaultModelSelection\":{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"options\":{\"reasoningLevel\":\"high\"}}}"
+    },
+    {
+      "name": "selection-empty-options",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"schemaVersion\":1,\"config\":{\"providerOrder\":[\"z-personal\",\"a-personal\"],\"providerConfigRules\":{\"providerRules\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}]},\"modelConfigRules\":{\"providerModelRules\":[{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}}}],\"manualProviderModelRules\":[{\"providerId\":\"a-personal\",\"modelId\":\"m-manual\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\"defaultModelSelection\":{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"options\":{}}}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"b03073e57d222adaba33e2b2eaa72a9690a96ad3615ecbc2ba7722429637b4de\",\"providers\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}},\"providerId\":\"z-personal\"}],\"manualProviderModelRules\":[{\"modelId\":\"m-manual\",\"providerId\":\"a-personal\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true},\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\"providerOrder\":[\"z-personal\",\"a-personal\"],\"defaultModelSelection\":{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"options\":{}}}"
+    },
+    {
+      "name": "non-canonical-key-order",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\n  \"config\": {\n    \"modelConfigRules\": {\"providerModelRules\":[{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}}}],\"manualProviderModelRules\":[{\"providerId\":\"a-personal\",\"modelId\":\"m-manual\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\n    \"providerConfigRules\": {\"providerRules\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}]},\n    \"providerOrder\": [\"z-personal\", \"a-personal\"]\n  },\n  \"schemaVersion\": 1\n}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"9b64868c32507db66c675aa678c5247effaacb3a6d4366acca471c9657689aeb\",\"providers\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}},\"providerId\":\"z-personal\"}],\"manualProviderModelRules\":[{\"modelId\":\"m-manual\",\"providerId\":\"a-personal\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true},\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\"providerOrder\":[\"z-personal\",\"a-personal\"]}"
+    },
+    {
+      "name": "invalid-provider-rule",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"schemaVersion\":1,\"config\":{\"providerConfigRules\":{\"providerRules\":[{\"providerId\":\"p\",\"config\":{\"group\":\"zai-family\"}}]},\"modelConfigRules\":{\"providerModelRules\":[],\"manualProviderModelRules\":[]}}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\",\"providers\":[],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]},\"providerOrder\":[]}"
+    },
+    {
+      "name": "null-provider-order",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"schemaVersion\":1,\"config\":{\"providerOrder\":null,\"providerConfigRules\":{\"providerRules\":[]},\"modelConfigRules\":{\"providerModelRules\":[],\"manualProviderModelRules\":[]}}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\",\"providers\":[],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]},\"providerOrder\":[]}"
+    },
+    {
+      "name": "unknown-config-key",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"schemaVersion\":1,\"config\":{\"providerConfigRules\":{\"providerRules\":[]},\"modelConfigRules\":{\"providerModelRules\":[],\"manualProviderModelRules\":[]},\"surprise\":true}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\",\"providers\":[],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]},\"providerOrder\":[]}"
+    },
+    {
+      "name": "invalid-manual-preserved",
+      "filePath": "provider_config.json",
+      "files": [
+        {
+          "path": "provider_config.json",
+          "content": "{\"schemaVersion\":1,\"config\":{\"providerConfigRules\":{\"providerRules\":[]},\"modelConfigRules\":{\"providerModelRules\":[],\"manualProviderModelRules\":[{\"providerId\":\"p\",\"modelId\":\"m\",\"config\":{}}]}}}"
+        }
+      ],
+      "expectedJson": "{\"revision\":\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\",\"providers\":[],\"models\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]},\"providerOrder\":[]}"
+    }
+  ],
+  "builtin": [
+    {
+      "name": "bundled-valid-active-missing",
+      "bundled": "<ROOT>/bundled.json",
+      "active": "<ROOT>/missing/active.json",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":5,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"mode-builtin:5:<SOURCE_KEY>\",\"providers\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"providerTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"models\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]}}",
+      "expectError": false
+    },
+    {
+      "name": "active-valid-newer",
+      "bundled": "<ROOT>/bundled.json",
+      "active": "<ROOT>/active/active.json",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":5,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        },
+        {
+          "path": "active/active.json",
+          "content": "{\"schemaVersion\":1,\"revision\":7,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"mode-builtin:7:<SOURCE_KEY>\",\"providers\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"providerTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"models\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]}}",
+      "expectError": false
+    },
+    {
+      "name": "active-valid-older",
+      "bundled": "<ROOT>/bundled.json",
+      "active": "<ROOT>/active/active.json",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":9,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        },
+        {
+          "path": "active/active.json",
+          "content": "{\"schemaVersion\":1,\"revision\":3,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"mode-builtin:9:<SOURCE_KEY>\",\"providers\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"providerTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"models\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]}}",
+      "expectError": false
+    },
+    {
+      "name": "active-corrupt",
+      "bundled": "<ROOT>/bundled.json",
+      "active": "<ROOT>/active/active.json",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":5,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        },
+        {
+          "path": "active/active.json",
+          "content": "{broken"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"mode-builtin:5:<SOURCE_KEY>\",\"providers\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"providerTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"models\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]}}",
+      "expectError": false
+    },
+    {
+      "name": "bundled-corrupt-active-valid",
+      "bundled": "<ROOT>/bundled.json",
+      "active": "<ROOT>/active/active.json",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{broken"
+        },
+        {
+          "path": "active/active.json",
+          "content": "{\"schemaVersion\":1,\"revision\":4,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"mode-builtin:4:<SOURCE_KEY>\",\"providers\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"providerTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"models\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]}}",
+      "expectError": false
+    },
+    {
+      "name": "both-invalid",
+      "bundled": "<ROOT>/bundled.json",
+      "active": "<ROOT>/active/active.json",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{}"
+        },
+        {
+          "path": "active/active.json",
+          "content": "{}"
+        }
+      ],
+      "expectedTemplate": null,
+      "expectError": true
+    },
+    {
+      "name": "same-revision-conflict",
+      "bundled": "<ROOT>/bundled.json",
+      "active": "<ROOT>/active/active.json",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":5,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        },
+        {
+          "path": "active/active.json",
+          "content": "{\"schemaVersion\":1,\"revision\":5,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[{\"modelMatch\":\"claude-.*\",\"baseUrlMatch\":\"https://api\\\\\\\\.anthropic\\\\\\\\.com\",\"config\":{\"enabled\":true}}],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"mode-builtin:5:<SOURCE_KEY>\",\"providers\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"providerTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"models\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]}}",
+      "expectError": false
+    },
+    {
+      "name": "no-active-option",
+      "bundled": "<ROOT>/bundled.json",
+      "active": null,
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":6,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"mode-builtin:6:<SOURCE_KEY>\",\"providers\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"providerTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"models\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]}}",
+      "expectError": false
+    },
+    {
+      "name": "empty-active",
+      "bundled": "<ROOT>/bundled.json",
+      "active": "   ",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":6,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"mode-builtin:6:<SOURCE_KEY>\",\"providers\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"providerTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"models\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]}}",
+      "expectError": false
+    },
+    {
+      "name": "padded-paths",
+      "bundled": "  <ROOT>/bundled.json  ",
+      "active": "  <ROOT>/active/active.json  ",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":5,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        },
+        {
+          "path": "active/active.json",
+          "content": "{\"schemaVersion\":1,\"revision\":8,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"mode-builtin:8:<SOURCE_KEY>\",\"providers\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"providerTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"models\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]}}",
+      "expectError": false
+    },
+    {
+      "name": "active-path-normalized",
+      "bundled": "<ROOT>/bundled.json",
+      "active": "<ROOT>/sub/../sub/./active.json",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":5,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        },
+        {
+          "path": "sub/active.json",
+          "content": "{\"schemaVersion\":1,\"revision\":8,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"mode-builtin:8:<SOURCE_KEY>\",\"providers\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"providerTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"models\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]}}",
+      "expectError": false
+    },
+    {
+      "name": "retired-zapi",
+      "bundled": "<ROOT>/bundled.json",
+      "active": null,
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":1,\"config\":{\"providerConfigRules\":{\"templateRules\":[],\"providerRules\":[{\"providerId\":\"builtin:zapi\",\"config\":{\"group\":\"zai-family\"}}]},\"modelConfigRules\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[]}}}"
+        }
+      ],
+      "expectedTemplate": null,
+      "expectError": true
+    }
+  ],
+  "snapshot": [
+    {
+      "name": "valid-both",
+      "bundled": "<ROOT>/bundled.json",
+      "active": "<ROOT>/active/active.json",
+      "personalPath": "personal/provider_config.json",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":5,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        },
+        {
+          "path": "personal/provider_config.json",
+          "content": "{\"schemaVersion\":1,\"config\":{\"providerOrder\":[\"z-personal\",\"a-personal\"],\"providerConfigRules\":{\"providerRules\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}]},\"modelConfigRules\":{\"providerModelRules\":[{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}}}],\"manualProviderModelRules\":[{\"providerId\":\"a-personal\",\"modelId\":\"m-manual\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\"defaultModelSelection\":{\"providerId\":\"z-personal\",\"modelId\":\"m-z\"}}}"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"[\\\"mode-builtin:5:<SOURCE_KEY>\\\",\\\"e9edf99823c79fa668c5131b96a33d180c117e65b855b894ededb47a48997609\\\"]\",\"modeBuiltinRevision\":\"mode-builtin:5:<SOURCE_KEY>\",\"personalRevision\":\"e9edf99823c79fa668c5131b96a33d180c117e65b855b894ededb47a48997609\",\"modeBuiltinProviders\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"modeBuiltinProviderTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"personalProviders\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}],\"modeBuiltinModelRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]},\"personalModels\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}},\"providerId\":\"z-personal\"}],\"manualProviderModelRules\":[{\"modelId\":\"m-manual\",\"providerId\":\"a-personal\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true},\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\"personalProviderOrder\":[\"z-personal\",\"a-personal\"]}"
+    },
+    {
+      "name": "personal-missing",
+      "bundled": "<ROOT>/bundled.json",
+      "active": null,
+      "personalPath": "personal/provider_config.json",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":5,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"[\\\"mode-builtin:5:<SOURCE_KEY>\\\",\\\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\\\"]\",\"modeBuiltinRevision\":\"mode-builtin:5:<SOURCE_KEY>\",\"personalRevision\":\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\",\"modeBuiltinProviders\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"modeBuiltinProviderTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"personalProviders\":[],\"modeBuiltinModelRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]},\"personalModels\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]},\"personalProviderOrder\":[]}"
+    },
+    {
+      "name": "personal-corrupt",
+      "bundled": "<ROOT>/bundled.json",
+      "active": null,
+      "personalPath": "personal/provider_config.json",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":5,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        },
+        {
+          "path": "personal/provider_config.json",
+          "content": "{broken"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"[\\\"mode-builtin:5:<SOURCE_KEY>\\\",\\\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\\\"]\",\"modeBuiltinRevision\":\"mode-builtin:5:<SOURCE_KEY>\",\"personalRevision\":\"5bc65dc77f66a74f6bac0df7929af0b78c79685322a9f637f00d979c4d5d14e2\",\"modeBuiltinProviders\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"modeBuiltinProviderTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"personalProviders\":[],\"modeBuiltinModelRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]},\"personalModels\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[],\"manualProviderModelRules\":[]},\"personalProviderOrder\":[]}"
+    },
+    {
+      "name": "active-newer",
+      "bundled": "<ROOT>/bundled.json",
+      "active": "<ROOT>/active/active.json",
+      "personalPath": "personal/provider_config.json",
+      "files": [
+        {
+          "path": "bundled.json",
+          "content": "{\"schemaVersion\":1,\"revision\":5,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        },
+        {
+          "path": "active/active.json",
+          "content": "{\"schemaVersion\":1,\"revision\":8,\"config\":{\"providerConfigRules\":{\"templateRules\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"en-US\":\"Template 1\",\"zh-CN\":\"模板 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"providerRules\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}]},\"modelConfigRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"providerId\":\"builtin:p1\",\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}}}]}}}"
+        },
+        {
+          "path": "personal/provider_config.json",
+          "content": "{\"schemaVersion\":1,\"config\":{\"providerOrder\":[\"z-personal\",\"a-personal\"],\"providerConfigRules\":{\"providerRules\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}]},\"modelConfigRules\":{\"providerModelRules\":[{\"providerId\":\"z-personal\",\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}}}],\"manualProviderModelRules\":[{\"providerId\":\"a-personal\",\"modelId\":\"m-manual\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true}},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]}}}"
+        }
+      ],
+      "expectedTemplate": "{\"revision\":\"[\\\"mode-builtin:8:<SOURCE_KEY>\\\",\\\"9b64868c32507db66c675aa678c5247effaacb3a6d4366acca471c9657689aeb\\\"]\",\"modeBuiltinRevision\":\"mode-builtin:8:<SOURCE_KEY>\",\"personalRevision\":\"9b64868c32507db66c675aa678c5247effaacb3a6d4366acca471c9657689aeb\",\"modeBuiltinProviders\":[{\"providerId\":\"builtin:p1\",\"providerName\":\"P1\",\"enabled\":true,\"config\":{\"group\":\"zai-family\",\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"],\"visibility\":\"visible\"}},{\"providerId\":\"builtin:p2\",\"config\":{\"group\":\"bigmodel-family\"}}],\"modeBuiltinProviderTemplates\":[{\"templateId\":\"tpl-1\",\"templateNameMap\":{\"zh-CN\":\"模板 1\",\"en-US\":\"Template 1\"},\"config\":{\"logo\":{\"type\":\"builtin\",\"key\":\"k\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://api.example.com\"},\"builtinModelIds\":[\"m1\"]}}],\"personalProviders\":[{\"providerId\":\"z-personal\",\"providerName\":\"Z Personal\",\"enabled\":true,\"config\":{\"group\":\"standard-personal\",\"access\":{\"type\":\"api-key\",\"apiKey\":\"sk-z\"},\"api\":{\"type\":\"openai-responses\",\"baseUrl\":\"https://z.example.com\"},\"personalModelIds\":[\"m-z\"],\"modelOrder\":[\"m-z\"],\"visibility\":\"visible\"}},{\"providerId\":\"a-personal\",\"config\":{\"group\":\"standard-personal\"}}],\"modeBuiltinModelRules\":{\"modelRules\":[{\"modelMatch\":\"gpt-.*\",\"config\":{\"enabled\":true}}],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m1\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":128000}},\"providerId\":\"builtin:p1\"}],\"manualProviderModelRules\":[]},\"personalModels\":{\"modelRules\":[],\"modelApiRules\":[],\"providerSiteRules\":[],\"templateModelRules\":[],\"builtinProviderModelRules\":[{\"modelId\":\"m-z\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":200000}},\"providerId\":\"z-personal\"}],\"manualProviderModelRules\":[{\"modelId\":\"m-manual\",\"providerId\":\"a-personal\",\"config\":{\"enabled\":true,\"properties\":{\"contextWindow\":64000,\"inputFormat\":{\"supportsImage\":true,\"supportsVideo\":false,\"supportsPdf\":true},\"supportsJsonSchemaOutput\":true,\"supportsNativeWebSearch\":false,\"supportsMidConversationSystem\":true},\"optionSpecs\":{\"reasoningLevel\":{\"values\":[\"low\",\"high\"],\"map\":\"{\\\"effort\\\": reasoningLevel}\"},\"maxOutputTokens\":{\"max\":8192}}}}]},\"personalProviderOrder\":[\"z-personal\",\"a-personal\"]}"
+    }
+  ]
+}

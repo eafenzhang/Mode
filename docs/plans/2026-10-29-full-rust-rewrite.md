@@ -207,7 +207,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 4 | 凭据 | 277 | `ring`（文件托管密钥） | W1 | `credential` 已接管（`crates/credential-store`） |
 | 5 | 终端旧路径 | 1,354 | 壳已有 PTY | W2 | 未开始 |
 | 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 | 未开始 |
-| 7 | provider / 模型选择 / orcarouter / bigmodel | ≈7.5k | `reqwest` + `rustls` | W1 | **已开始（2026-10-30）**：纯配置模型已 Rust 化（`crates/provider-config`，`docs/specs/provider-config.md`）——Provider/Model/ManualModel、规则容器、access/api、Restricted CEL、严格 schema 与保序序列化，`pnpm provider-config:fixtures` + 75 条解析/8 条 complete 校验对拍；**剩余**：config-service（文件轮询/revision）、registry/resolver、model listing、remote catalog、Account overlay/Provider 事实源、orcarouter/bigmodel 与频道接管 |
+| 7 | provider / 模型选择 / orcarouter / bigmodel | ≈7.5k | `reqwest` + `rustls` | W1 | **已开始（2026-10-30）**：纯配置模型已 Rust 化（`crates/provider-config`，`docs/specs/provider-config.md`）——Provider/Model/ManualModel、规则容器、access/api、Restricted CEL、严格 schema 与保序序列化，`pnpm provider-config:fixtures` + 75 条解析/8 条 complete 校验对拍；**文件只读源也已迁**（`crates/provider-config-source`，`docs/specs/provider-config-source.md`）——Personal 解码/legacy manual 归一/恢复、Builtin Release 候选选择与 `mode-builtin:<rev>:<sourceKey>`、两层组合 Snapshot 与 revision，`pnpm provider-config-source:fixtures` 对拍；**剩余**：轮询/watch、写路径（update/replace/migrate/importLegacy）、Active 物化缓存、remote Release 同步/LKG、registry/resolver、model listing、Account overlay/Provider 事实源、orcarouter/bigmodel 与频道接管 |
 | 8 | usage-stats / coding-plan | ≈5.4k | 壳内聚合 | W1 | 未开始 |
 | 9 | 远程工作区 / SSH / WSL / Docker | 远程链路 | `russh` + 本地进程 | W2 | 未开始 |
 | 10 | LAN 配对 / 发现 | ≈1.5k | UDP + 壳内 HTTP | W2 | 未开始 |

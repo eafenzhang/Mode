@@ -23,6 +23,7 @@ members = [
   "crates/platform",
   "crates/project-memory",
   "crates/provider-config",
+  "crates/provider-config-source",
   "crates/commands-service",
   "crates/mode-protocol-client",
   "crates/agent-process",

@@ -1,0 +1,18 @@
+[package]
+name = "provider-config-source"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Provider 配置只读文件源（Personal/Builtin 层与组合 Snapshot），对应 @mode/provider-node 的只读路径"
+
+[lib]
+name = "provider_config_source"
+path = "src/lib.rs"
+
+[dependencies]
+provider-config = { path = "../provider-config" }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+serde = { workspace = true }
