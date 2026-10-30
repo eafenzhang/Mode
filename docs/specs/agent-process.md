@@ -81,6 +81,24 @@ cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd�
 - 与 TS 的差异：状态解析忽略未知字段（不启用 `deny_unknown_fields`）；合成的失败快照
   attemptId/databaseId 用时间戳生成，不追求 UUID 形态。
 
+## Account Provider Config 交付
+
+协议侧对齐 TS `syncAccountProviderConfigToClient`，真实事实源通过 `ProviderSource` 注入：
+
+- 快照：`revision`、`basedOnModeBuiltinRevision`、`providers`（providerId → 已序列化配置）、
+  `states`（缺省空表）。
+- `sync_account_provider_config(target, source)`：同一 workspace key 串行；已交付 revision
+  相同则跳过（返回 `Unchanged`，不发请求）；否则发送 `provider/updateAccountConfig`，
+  严格解析 `{receivedRevision, providerCount, status}`。
+- 回执 revision 不一致 → `Account Config 接收回执版本与交付版本不一致`，**不**标记已交付，
+  下次仍会重试。
+- 未注入源 → 直接返回 `None`，与 TS 的 `if (!accountProviderConfigSource) return` 一致，
+  也不会拉起 Agent。
+
+**未做**：真实的 Account Provider 事实源（`createAccountProviderConfigSource` 依赖
+model-provider / credential / plan availability 域）；当前只提供注入点与协议交付，
+model-provider 域迁完后直接实现 `ProviderSource` 即可。
+
 ## 控制面 facade（第一批：hooks 预信任）
 
 `AgentControlClient` 是 `mode-agent` 频道的第一组方法迁移，先覆盖
@@ -147,6 +165,9 @@ workspaceKey trim、同一 workspace 两次 grant 复用同一 Agent、facade �
 
 `crates/agent-process/tests/storage.rs`（4 条）：prepare 等待 ready 与快照/订阅、failed 传播
 TS 文案、非 storage 入口不等待、失效重建后 generation 递增。
+
+`crates/agent-process/tests/provider_sync.rs`（3 条）：payload 逐字段与 revision 去重、
+无源不拉起、回执版本不一致报错且不标记已交付。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

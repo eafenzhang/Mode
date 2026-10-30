@@ -81,6 +81,7 @@ pub enum ControlError {
     Spawn(AgentProcessError),
     Client(ClientError),
     InvalidResult(String),
+    ProviderSync(String),
 }
 
 impl std::fmt::Display for ControlError {
@@ -97,6 +98,7 @@ impl std::fmt::Display for ControlError {
             Self::InvalidResult(message) => {
                 write!(formatter, "invalid workspaceHookTrustGrant result: {message}")
             }
+            Self::ProviderSync(message) => formatter.write_str(message),
         }
     }
 }
@@ -117,11 +119,31 @@ impl From<ClientError> for ControlError {
 
 pub struct AgentControlClient {
     registry: Arc<AgentRuntimeRegistry>,
+    provider_sync: crate::ProviderConfigSync,
 }
 
 impl AgentControlClient {
     pub fn new(registry: Arc<AgentRuntimeRegistry>) -> Self {
-        Self { registry }
+        Self {
+            registry,
+            provider_sync: crate::ProviderConfigSync::new(),
+        }
+    }
+
+    /// Account Provider Config 交付；未注入源时与 TS 的「无源」分支一致，直接返回。
+    pub async fn sync_account_provider_config(
+        &self,
+        target: &AgentWorkspaceTarget,
+        source: Option<&dyn crate::ProviderSource>,
+    ) -> Result<Option<crate::ProviderSyncOutcome>, ControlError> {
+        let Some(source) = source else {
+            return Ok(None);
+        };
+        let process = self.registry.get_or_spawn(&target.registry_target()).await?;
+        self.provider_sync
+            .sync(&target.workspace_key(), process.client(), source)
+            .await
+            .map(Some)
     }
 
     /// 存储启动：拉起（如需）并等待 `startup/storageState` 到 `ready`。

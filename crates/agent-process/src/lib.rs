@@ -21,12 +21,17 @@ use tokio::task::JoinHandle;
 mod registry;
 mod control;
 mod storage;
+mod provider_sync;
 mod resolve;
 
 pub use control::{
     build_grant_params, build_workspace_ref, AgentControlClient, AgentWorkspaceTarget,
     ControlError, GrantTrustReasonCode, GrantTrustResult,
     WORKSPACE_HOOK_TRUST_GRANT_METHOD,
+};
+pub use provider_sync::{
+    AccountProviderConfigSnapshot, ProviderConfigSync, ProviderReadFuture, ProviderSource,
+    ProviderSyncOutcome, ProviderSyncStatus, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
 pub use registry::{AgentRuntimeRegistry, SpecFactory, StorageStartupSnapshot, WorkspaceTarget};
 pub use storage::{

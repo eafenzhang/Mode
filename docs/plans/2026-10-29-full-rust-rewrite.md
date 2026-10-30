@@ -243,7 +243,10 @@ cwd 回落（6 条测试）。**mode-agent 控制面第一批已落**：`AgentCo
 上抛），用 fixture 对拍请求帧并验证同 workspace 复用；6 条测试。**存储启动门已落**：
 state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`prepareStorage` 等待、
 `getStorageStartupState` existing-only 快照与订阅、进程代次递增；9 条测试。
-**未做**：native binary 兜底、provider/account 配置同步、自动空闲看门狗，频道注册与
+**Provider 交付协议侧已落**：`ProviderSource` 注入点 + 每 workspace 串行/revision 去重 +
+`provider/updateAccountConfig` 与回执校验（不一致不标记、下次重试），无源时不拉起 Agent；
+3 条测试。真实 Account Provider 事实源仍属 model-provider 域。
+**未做**：native binary 兜底、真实 provider/account 事实源、自动空闲看门狗，频道注册与
 所有权切换，以及其余 81 个成员（session/插件/automation/workflow 等）。
 所有权切换仍是 W4 下一片，`hooks` 的 grant 与任务/会话频道都等它。
 

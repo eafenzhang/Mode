@@ -93,6 +93,31 @@ fn main() {
                 "bad-grant" => json!({ "id": id, "result": { "accepted": "yes" } }),
                 _ => json!({ "id": id, "result": { "accepted": true } }),
             }
+        } else if method == "provider/updateAccountConfig" {
+            let params = request.get("params").cloned().unwrap_or(Value::Null);
+            let revision = params
+                .get("revision")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            let provider_count = params
+                .get("providers")
+                .and_then(Value::as_object)
+                .map(|providers| providers.len())
+                .unwrap_or(0);
+            let received = if mode == "bad-provider-revision" {
+                "different-revision".to_string()
+            } else {
+                revision
+            };
+            json!({
+                "id": id,
+                "result": {
+                    "receivedRevision": received,
+                    "providerCount": provider_count,
+                    "status": "received"
+                }
+            })
         } else {
             json!({ "id": id, "result": { "method": method } })
         };
