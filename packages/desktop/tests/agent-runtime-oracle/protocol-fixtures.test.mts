@@ -39,6 +39,10 @@ import {
   modeSessionSubagentsParamsSchema,
   modeSessionSubagentsResultSchema,
 } from "../../../shared/src/mode-protocol/index.js";
+import {
+  sessionDebugParamsSchema,
+  sessionDebugSnapshotSchema,
+} from "../../../shared/src/session-debug.js";
 
 /** 夹具外壳：`frame` 是线上整帧，其余是录制元数据（不属于线上形状）。 */
 type ProtocolFixture = {
@@ -220,6 +224,7 @@ test("会话事件的载荷能被 v1 session event schema 接受，或只差已�
 test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
   const paramsSchemas: Record<string, Parseable> = {
     "session/create": modeSessionCreateParamsSchema,
+    "session/debug": sessionDebugParamsSchema,
     "session/events": modeSessionEventsParamsSchema,
     "session/list": modeSessionListParamsSchema,
     "session/messages": modeSessionMessagesParamsSchema,
@@ -229,6 +234,7 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "session/requestRuntimePreferences": modeSessionRequestRuntimePreferencesParamsSchema,
   };
   const resultSchemas: Record<string, Parseable> = {
+    "session/debug": sessionDebugSnapshotSchema,
     "session/events": modeSessionEventsResultSchema,
     "session/list": modeSessionListResultSchema,
     "session/messages": modeSessionMessagesResultSchema,

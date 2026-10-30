@@ -162,6 +162,9 @@ cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd�
 （`session/read`）：完整状态快照严格解析（settings/projection/runtime/messages + 可选
 goalStats/todos/slashCommands）。
 
+第六片是 `read_session_debug(target, sessionId)`（`session/debug`）：existing-only，
+只在已有进程上读取诊断快照（rounds/networkEntries/cache）。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -232,6 +235,9 @@ existing-only 不 spawn 且报 runtime-unavailable、未知结果字段被拒绝
 
 `crates/agent-process/tests/session_read.rs`（3 条）：快照解析与可选参数、缺省不序列化、
 未知快照字段被拒绝。
+
+`crates/agent-process/tests/session_debug.rs`（2 条）：existing-only 不 spawn 且已有进程可读、
+未知诊断字段被拒绝。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

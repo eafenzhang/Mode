@@ -7,6 +7,9 @@
 //! 交互偏好 / Off-Peak 工具面 / provider registry 预热属于服务层编排，不在这一层。
 
 use agent_protocol::message::MessageWithParts;
+use agent_protocol::session_debug::{
+    SessionDebugParams, SessionDebugSnapshot, SESSION_DEBUG_METHOD,
+};
 use agent_protocol::session_event::SessionEvent;
 use agent_protocol::session_read::{
     SessionEventsParams, SessionEventsResult, SessionInfo, SessionListParams, SessionListResult,
@@ -149,6 +152,25 @@ impl AgentControlClient {
             .await?;
         parse_session_snapshot(&response)
     }
+
+    /// `session/debug`：诊断快照。existing-only——观察路径不得拉起 Agent。
+    pub async fn read_session_debug(
+        &self,
+        target: &AgentWorkspaceTarget,
+        session_id: &str,
+    ) -> Result<SessionDebugSnapshot, ControlError> {
+        let process = self.client_for(target, RuntimePolicy::ExistingOnly).await?;
+        let params = SessionDebugParams {
+            session_id: session_id.to_string(),
+        };
+        let params =
+            serde_json::to_value(&params).expect("session/debug params 序列化不会失败");
+        let response = process
+            .client()
+            .request(SESSION_DEBUG_METHOD, Some(params))
+            .await?;
+        parse_session_debug(&response)
+    }
 }
 
 /// `buildWorkspaceRef` 的结果形状：identity 保留原值（含空白），`workspaceKey` 已 trim。
@@ -191,5 +213,11 @@ fn parse_session_messages(value: &Value) -> Result<Vec<MessageWithParts>, Contro
 fn parse_session_snapshot(value: &Value) -> Result<SessionStateSnapshot, ControlError> {
     serde_json::from_value(value.clone()).map_err(|error| {
         ControlError::InvalidResult(format!("invalid session/read result: {error}"))
+    })
+}
+
+fn parse_session_debug(value: &Value) -> Result<SessionDebugSnapshot, ControlError> {
+    serde_json::from_value(value.clone()).map_err(|error| {
+        ControlError::InvalidResult(format!("invalid session/debug result: {error}"))
     })
 }

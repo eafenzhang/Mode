@@ -1,0 +1,45 @@
+{
+  "case": "response-session-debug",
+  "direction": "runtime->host",
+  "respondsTo": "session/debug",
+  "note": "诊断快照：rounds + networkEntries + cache(null)（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 46,
+    "result": {
+      "sessionId": "sess-1",
+      "rounds": [
+        {
+          "eventKey": "round-1",
+          "requestId": "req-1",
+          "requestIndex": 0,
+          "recordedAt": 1700000000000,
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "totalTokens": 15
+          },
+          "hitRate": null,
+          "generationDurationMs": null,
+          "tokensPerSecond": null,
+          "prefillDurationMs": null
+        }
+      ],
+      "networkEntries": [
+        {
+          "eventKey": "net-1",
+          "traceId": "trace-1",
+          "recordedAt": 1700000000001,
+          "statusType": "model_request_started",
+          "providerId": "zai",
+          "modelId": "glm-4.6",
+          "baseURL": "https://example.invalid",
+          "requestHeaders": {},
+          "responseHeaders": {},
+          "requestHeaderCount": 0,
+          "responseHeaderCount": 0
+        }
+      ],
+      "cache": null
+    }
+  }
+}

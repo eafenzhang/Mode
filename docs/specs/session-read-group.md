@@ -130,6 +130,23 @@ Goal 的 `summaryTitle` 在 schema 里是 `.default(null)`：**省略**与显式
 - `protocol.version: 1` 在镜像里是 `u64`，没有做「必须等于 1」的运行时校验；健康快照由
   夹具断言盯住。
 
+## 3f. `session/debug`
+
+请求：`{ sessionId }`。**existing-only**：诊断读取只观察现有进程，不拉起 Agent；
+没有活进程时报 `Mode Agent runtime is not running.`。
+
+应答：
+
+| 字段 | 形状 |
+| --- | --- |
+| `rounds[]` | `{eventKey, requestId, requestIndex, recordedAt, usage{...可选 token 数}, hitRate(null), generationDurationMs(null), tokensPerSecond(null), prefill*?}` |
+| `networkEntries[]` | `{eventKey, traceId, recordedAt, statusType(5 值), …可选诊断字段, requestHeaders, responseHeaders, requestHeaderCount, responseHeaderCount}` |
+| `cache` | `{hitRateRequestCount, totalInputTokens, totalCacheReadTokens, hitRate(null)}` 或 `null`（键必在） |
+
+`count = z.number().finite().nonnegative()` 允许小数，所以所有数值用 `serde_json::Number`
+保留原样。`prefillDurationMs` / `prefillTokensPerSecond` 是 `nullable().optional()`，用
+三态解码；`hitRate` / `generationDurationMs` 等是 `nullable()`，键必在。
+
 ## 4. 运行时策略
 
 `getReadOnlyClient(params, runtimePolicy)` 的两种语义：
@@ -145,8 +162,8 @@ Goal 的 `summaryTitle` 在 schema 里是 `.default(null)`：**省略**与显式
   返回值自行保存。
 - 交互偏好同步、Off-Peak 工具面同步、provider registry 预热属于 mode-agent 服务层编排，
   不在本组；接频道时由服务层在取 client 后补齐。
-- `session/list`、`session/events`、`session/subagents`、`session/messages`、`session/read`
-  之外的方法按需补类型与录制夹具。
+- `session/list`、`session/events`、`session/subagents`、`session/messages`、`session/read`、
+  `session/debug` 之外的方法按需补类型与录制夹具。
 
 ## 6. 验收
 
@@ -154,7 +171,8 @@ Goal 的 `summaryTitle` 在 schema 里是 `.default(null)`：**省略**与显式
    `request-session-events.json` / `response-session-events.json` /
    `request-session-subagents.json` / `response-session-subagents.json` /
    `request-session-messages.json` / `response-session-messages.json` /
-   `request-session-read.json` / `response-session-read.json` 同时被 TS zod 与 Rust
+   `request-session-read.json` / `response-session-read.json` /
+   `request-session-debug.json` / `response-session-debug.json` 同时被 TS zod 与 Rust
    严格镜像接受；Rust 侧序列化回到线上字节。
 2. `sessionIds` / `limit` / `afterSeq` / `endedCursor` / `afterMessageId` /
    `deliveryKind` / `messageLimit` 缺省时不出现键；`includeArchived=false` 与

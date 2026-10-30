@@ -223,6 +223,17 @@ fn main() {
                 snapshot["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": snapshot })
+        } else if method == "session/debug" {
+            let mut snapshot = json!({
+                "sessionId": "sess-1",
+                "rounds": [],
+                "networkEntries": [],
+                "cache": null
+            });
+            if mode == "bad-session-debug" {
+                snapshot["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": snapshot })
         } else {
             json!({ "id": id, "result": { "method": method } })
         };

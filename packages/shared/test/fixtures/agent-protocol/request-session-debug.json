@@ -1,0 +1,12 @@
+{
+  "case": "request-session-debug",
+  "direction": "host->runtime",
+  "note": "host 读取会话诊断快照（existing-only）；参数只有 sessionId（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 46,
+    "method": "session/debug",
+    "params": {
+      "sessionId": "sess-1"
+    }
+  }
+}
