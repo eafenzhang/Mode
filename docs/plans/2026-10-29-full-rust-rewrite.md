@@ -283,8 +283,8 @@ rejected/stale/failed 映射 `CommandRejected`）；`commandId`/`clientId` 目�
 `plugins/describe`（组件清单 + metadata）与 `plugins/overview`（市场/可安装/已安装摘要 +
 capability）（5 条 + 双端夹具）。
 **v4 会话订阅已落**：`v4/conversation/subscribe` 参数/ACK 严格镜像，wire frame
-（complete/fragment + crc32）按 subscriptionId 过滤后流入；会话帧内部暂按原始 JSON
-透传（2 条 + 双端夹具）。**v4 握手已落**：host hello（能力位/profile 校验）与
+（complete/fragment + crc32）按 subscriptionId 过滤后流入；会话帧内部先按原始 JSON
+透传，随后由 `conversationDelta` 收紧（2 条 + 双端夹具）。**v4 握手已落**：host hello（能力位/profile 校验）与
 clientHello 严格解析（2 条）。**v4 会话行第一批已落**：`RowBase` +
 turnHeader/userInput/assistantText/reasoning，未知键按 zod strip 语义忽略，
 `workflowNotification`/`display`/`amend` 暂按原始 JSON（4 条 round-trip 测试）。
