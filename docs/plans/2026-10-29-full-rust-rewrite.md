@@ -285,7 +285,9 @@ capability）（5 条 + 双端夹具）。
 **v4 会话订阅已落**：`v4/conversation/subscribe` 参数/ACK 严格镜像，wire frame
 （complete/fragment + crc32）按 subscriptionId 过滤后流入；会话帧内部暂按原始 JSON
 透传（2 条 + 双端夹具）。**v4 握手已落**：host hello（能力位/profile 校验）与
-clientHello 严格解析（2 条）。
+clientHello 严格解析（2 条）。**v4 会话行第一批已落**：`RowBase` +
+turnHeader/userInput/assistantText/reasoning，未知键按 zod strip 语义忽略，
+`workflowNotification`/`display`/`amend` 暂按原始 JSON（4 条 round-trip 测试）。
 **存储启动门已落**：
 state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`prepareStorage` 等待、
 `getStorageStartupState` existing-only 快照与订阅、进程代次递增；9 条测试。

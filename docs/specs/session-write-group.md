@@ -216,6 +216,24 @@ hint；本 facade 由调用方在 `params` 里给出 `resumeThoughtLevel`。信�
 **与 TS 的差异**：TS 用 `host-${randomUUID()}` 生成 connectionId 并维护连接级信任；
 Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
 
+## 2k. v4 会话行（第一批）
+
+`agent-protocol::v4_rows` 镜像 `rows.ts` 的前四种行：
+
+- `RowBase`（`rowId/turnId/entityId?/productTurnId?/visibility?/createdAt/createdAtSeq/actions?`）
+  通过 `#[serde(flatten)]` 复用到各行。**注意**：这些 row schema 在 zod 里是普通
+  `z.object()`（不带 `.strict()`），未知键会被剥离；Rust 侧同样忽略未知键，不用
+  `deny_unknown_fields`。
+- `turnHeader`：origin/executionKind/state、工时与 `workSegments`、`fileChanges`、
+  `originMeta`（后台结果归属，`workflowNotification` 暂按原始 JSON）与 `workflowLaunch`
+  （`display`/`amend` 暂按原始 JSON）。
+- `userInput`：origin、epilogueStart、guided、command 归因、附件引用。
+- `assistantText` / `reasoning`：`state` 枚举、assistantResponseId、feedback / durationMs。
+- 行动作 `canFork/canEdit/canRetry/canRewindFiles` 用 `LiteralTrue` 保持「只发 true」的形状。
+
+**未做**：`toolCall` / `artifact` / `subagent` / `hookInvocation` / `timelineMarker` 与
+行联合 `ConversationRow`、`conversationSnapshot` / `conversationDelta`。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、
@@ -244,3 +262,4 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
 12. v4 会话订阅：ACK 的 subscriptionId/mode/openTiming 可断言；`complete` 与 `fragment`
     帧按 subscriptionId 过滤后到达；`legacyTaskIds` 超限不拉起 Agent。
 13. v4 握手：host hello 的能力位与 TS 一致并 JSON round-trip；clientHello 未知键被拒绝。
+14. v4 行（第一批）：四种行 JSON round-trip；未知键按 zod 的 strip 语义被忽略。

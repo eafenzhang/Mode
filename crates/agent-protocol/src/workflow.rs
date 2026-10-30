@@ -131,7 +131,7 @@ pub struct WorkflowsGetParams {
 }
 
 /// `z.literal(true)` / `z.literal(false)` 的 serde 表达。
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LiteralTrue;
 
 impl Serialize for LiteralTrue {
@@ -150,7 +150,7 @@ impl<'de> Deserialize<'de> for LiteralTrue {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LiteralFalse;
 
 impl Serialize for LiteralFalse {
