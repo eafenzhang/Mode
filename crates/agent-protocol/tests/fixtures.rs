@@ -17,6 +17,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use agent_protocol::frame::{Frame, RequestId};
+use agent_protocol::plugin::{
+    PluginComponentKind, PluginScope, PluginsDescribeParams, PluginsDescribeResult,
+    PluginsListParams, PluginsListResult,
+};
 use agent_protocol::session::{
     RuntimePreferencesRequestParams, RuntimePreferencesResult, RuntimePreferencesScope,
     SessionCreateParams, SessionSendParams, SessionSendResult,
@@ -449,6 +453,18 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert!(params.mcp_servers.is_none());
                         exercised.insert("mcp/list".to_string());
                     }
+                    "plugins/list" => {
+                        let params: PluginsListParams = decode(case, &params);
+                        assert_eq!(params.workspace.workspace_path, "/ws/demo");
+                        assert_eq!(params.config_scope, Some(PluginScope::Workspace));
+                        exercised.insert("plugins/list".to_string());
+                    }
+                    "plugins/describe" => {
+                        let params: PluginsDescribeParams = decode(case, &params);
+                        assert_eq!(params.marketplace, "official");
+                        assert_eq!(params.plugin_name, "demo");
+                        exercised.insert("plugins/describe".to_string());
+                    }
                     "workflows/list" => {
                         let params: WorkflowsListParams = decode(case, &params);
                         assert_eq!(params.workspace.workspace_path, "/ws/demo");
@@ -711,6 +727,40 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("mcp/list".to_string());
                     }
+                    "plugins/list" => {
+                        let result: PluginsListResult = decode(case, &response.result);
+                        assert_eq!(result.plugins.len(), 1);
+                        let plugin = &result.plugins[0];
+                        assert_eq!(plugin.id, "demo-plugin");
+                        assert_eq!(
+                            plugin.components.as_ref().unwrap()[0].kind,
+                            PluginComponentKind::Skill
+                        );
+                        assert!(plugin.hook_details.as_ref().unwrap()[0].shell.is_some());
+                        assert!(plugin.user_config.is_some());
+                        assert_eq!(result.diagnostics.len(), 1);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("plugins/list".to_string());
+                    }
+                    "plugins/describe" => {
+                        let result: PluginsDescribeResult = decode(case, &response.result);
+                        assert_eq!(result.components.len(), 2);
+                        assert_eq!(result.components[1].kind, PluginComponentKind::Mcp);
+                        assert_eq!(
+                            result.metadata.as_ref().unwrap().version.as_deref(),
+                            Some("1.0.0")
+                        );
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("plugins/describe".to_string());
+                    }
                     "workflows/list" => {
                         let result: WorkflowsListResult = decode(case, &response.result);
                         assert_eq!(result.workflows.len(), 1);
@@ -840,6 +890,8 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "workspace/readPresentation",
             "process/childProcesses",
             "mcp/list",
+            "plugins/list",
+            "plugins/describe",
             "workflows/list",
             "workflows/get",
             "workflows/runs",

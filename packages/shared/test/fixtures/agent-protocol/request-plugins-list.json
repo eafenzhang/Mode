@@ -1,0 +1,13 @@
+{
+  "case": "request-plugins-list",
+  "direction": "host->runtime",
+  "note": "读取插件列表；configScope 可选（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 64,
+    "method": "plugins/list",
+    "params": {
+      "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+      "configScope": "workspace"
+    }
+  }
+}

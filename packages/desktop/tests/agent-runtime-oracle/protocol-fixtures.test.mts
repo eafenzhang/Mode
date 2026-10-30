@@ -24,6 +24,10 @@ import {
   modeMcpListParamsSchema,
   modeMcpListResultSchema,
   modeProcessChildProcessesResultSchema,
+  modePluginsDescribeParamsSchema,
+  modePluginsDescribeResultSchema,
+  modePluginsListParamsSchema,
+  modePluginsListResultSchema,
   modeProtocolMessageSchema,
   modeSessionCloseParamsSchema,
   modeSessionCloseResultSchema,
@@ -252,6 +256,8 @@ test("会话事件的载荷能被 v1 session event schema 接受，或只差已�
 test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
   const paramsSchemas: Record<string, Parseable> = {
     "mcp/list": modeMcpListParamsSchema,
+    "plugins/list": modePluginsListParamsSchema,
+    "plugins/describe": modePluginsDescribeParamsSchema,
     "session/close": modeSessionCloseParamsSchema,
     "session/create": modeSessionCreateParamsSchema,
     "session/debug": sessionDebugParamsSchema,
@@ -277,6 +283,8 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
   };
   const resultSchemas: Record<string, Parseable> = {
     "mcp/list": modeMcpListResultSchema,
+    "plugins/list": modePluginsListResultSchema,
+    "plugins/describe": modePluginsDescribeResultSchema,
     "process/childProcesses": modeProcessChildProcessesResultSchema,
     "workflows/get": modeWorkflowsGetResultSchema,
     "workflows/list": modeWorkflowsListResultSchema,

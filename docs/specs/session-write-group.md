@@ -166,6 +166,19 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 - **与 TS 的差异**：`commandId` / `clientId` 只保证非空且按提交端稳定，不是 UUID v7；
   `helloConversationV4` / 信任连接与订阅尚未迁移（`resolveInteraction` 不依赖它们）。
 
+## 2h. 插件只读面
+
+- `list_plugins(target, configScope?)` → `plugins/list`：`{workspace, configScope?}`，
+  结果 `{plugins[], diagnostics[]}`。插件条目含 `id/name/enabled/source/marketplace/
+  skillRootCount/commandRootCount/mcpServerNames/rootPath` 等必填项，以及
+  `components[]`（agent/command/skill/hook/mcp 分组）、`hookDetails[]`（含
+  `shell: true|string`、`timeout` 数字）、`userConfig`/`configuredOptions`/`*Source` 等可选面。
+- `describe_plugin(target, marketplace, pluginName)` → `plugins/describe`：
+  结果 `{components[], diagnostics?, metadata?}`。
+
+**与 TS 的差异**：TS 使用独立的 plugin 管理进程（合成 workspace）与更长超时；本 facade
+复用 workspace runtime、使用协议默认超时。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、
@@ -189,3 +202,5 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
    非法结果有独立前缀。
 10. v4 回执：信封的 type/payload/sessionId 与稳定 clientId 可断言；`accepted` 返回 ACK，
     `rejected` 映射为 `CommandRejected` 并携带状态与 reasonCode。
+11. 插件只读：list 的组件分组/hook 详情/诊断可读；describe 的组件与 metadata 可读；
+    两类非法结果有独立前缀。

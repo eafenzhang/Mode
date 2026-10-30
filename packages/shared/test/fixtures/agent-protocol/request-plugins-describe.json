@@ -1,0 +1,14 @@
+{
+  "case": "request-plugins-describe",
+  "direction": "host->runtime",
+  "note": "读取插件组件详情（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 65,
+    "method": "plugins/describe",
+    "params": {
+      "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+      "marketplace": "official",
+      "pluginName": "demo"
+    }
+  }
+}

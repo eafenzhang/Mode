@@ -312,6 +312,46 @@ fn main() {
                     })
                 }
             })
+        } else if method == "plugins/list" {
+            let mut result = json!({
+                "plugins": [{
+                    "id": "demo-plugin",
+                    "name": "demo",
+                    "enabled": true,
+                    "source": "marketplace",
+                    "marketplace": "official",
+                    "skillRootCount": 1,
+                    "commandRootCount": 0,
+                    "mcpServerNames": [],
+                    "rootPath": "/home/u/.mode/plugins/demo",
+                    "components": [{ "kind": "skill", "items": [{ "name": "run" }] }],
+                    "hookDetails": [{
+                        "event": "PreToolUse",
+                        "type": "command",
+                        "command": "node",
+                        "shell": true,
+                        "sourcePath": "/home/u/.mode/plugins/demo/hooks.json",
+                        "runnable": true
+                    }]
+                }],
+                "diagnostics": [{ "code": "warn", "message": "演示诊断", "severity": "warning" }]
+            });
+            if mode == "bad-plugins-list" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "plugins/describe" {
+            let mut result = json!({
+                "components": [{
+                    "kind": "skill",
+                    "items": [{ "name": "run", "description": "运行" }]
+                }],
+                "metadata": { "author": "demo", "version": "1.0.0" }
+            });
+            if mode == "bad-plugins-describe" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "workflows/updateMeta" {
             let mut result = json!({ "ok": true, "path": "/ws/demo/.mode/workflows/demo.md" });
             if mode == "bad-workflow-update-meta" {

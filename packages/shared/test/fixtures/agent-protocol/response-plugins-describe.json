@@ -1,0 +1,23 @@
+{
+  "case": "response-plugins-describe",
+  "direction": "runtime->host",
+  "respondsTo": "plugins/describe",
+  "note": "插件组件清单 + 元数据（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 65,
+    "result": {
+      "components": [
+        {
+          "kind": "skill",
+          "items": [{ "name": "run", "description": "运行" }]
+        },
+        {
+          "kind": "mcp",
+          "items": [{ "name": "demo-mcp" }]
+        }
+      ],
+      "diagnostics": [],
+      "metadata": { "author": "demo", "version": "1.0.0", "homepage": "https://example.invalid" }
+    }
+  }
+}

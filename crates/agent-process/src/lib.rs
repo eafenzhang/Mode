@@ -21,6 +21,7 @@ use tokio::task::JoinHandle;
 mod registry;
 mod control;
 mod mcp;
+mod plugins;
 mod storage;
 mod provider_sync;
 mod resolve;

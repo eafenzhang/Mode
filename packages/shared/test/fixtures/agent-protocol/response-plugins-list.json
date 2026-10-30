@@ -1,0 +1,43 @@
+{
+  "case": "response-plugins-list",
+  "direction": "runtime->host",
+  "respondsTo": "plugins/list",
+  "note": "插件元数据：组件分组、hook 详情与诊断（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 64,
+    "result": {
+      "plugins": [
+        {
+          "id": "demo-plugin",
+          "name": "demo",
+          "enabled": true,
+          "source": "marketplace",
+          "marketplace": "official",
+          "skillRootCount": 1,
+          "commandRootCount": 0,
+          "mcpServerNames": [],
+          "rootPath": "/home/u/.mode/plugins/demo",
+          "components": [
+            { "kind": "skill", "items": [{ "name": "run", "description": "运行" }] }
+          ],
+          "hookDetails": [
+            {
+              "event": "PreToolUse",
+              "type": "command",
+              "command": "node",
+              "shell": true,
+              "sourcePath": "/home/u/.mode/plugins/demo/hooks.json",
+              "runnable": true
+            }
+          ],
+          "userConfig": {
+            "token": { "type": "string", "required": true, "sensitive": true }
+          },
+          "configuredOptions": { "mode": "fast" },
+          "rootSource": "workspace"
+        }
+      ],
+      "diagnostics": [{ "code": "warn", "message": "演示诊断", "severity": "warning" }]
+    }
+  }
+}

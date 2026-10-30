@@ -198,6 +198,8 @@ Ok/Failure 联合）。
 v4 命令最小闭环：`resolve_interaction_v4`（`v4/command` 的 `resolveInteraction`）；
 ACK 的 accepted/duplicate/noop 视为成功，其余映射为 `ControlError::CommandRejected`。
 
+插件只读：`list_plugins`（组件分组/hook 详情/诊断）与 `describe_plugin`（组件清单）。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -292,6 +294,9 @@ close 的 persistence 与默认 true、非法写结果被拒绝。
 runs 的 artifacts 与 limit 前置校验、updateMeta/delete/move 的参数与结果、六类非法结果。
 
 `crates/agent-process/tests/v4.rs`（2 条）：resolveInteraction 信封与 ACK、rejected 映射。
+
+`crates/agent-process/tests/plugins.rs`（3 条）：list 的 scope 与组件、describe 的组件分组、
+两类非法结果。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

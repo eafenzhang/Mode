@@ -54,6 +54,7 @@ pub mod frame;
 pub mod mcp;
 pub mod message;
 pub mod permission;
+pub mod plugin;
 pub mod session;
 pub mod session_create;
 pub mod session_debug;
