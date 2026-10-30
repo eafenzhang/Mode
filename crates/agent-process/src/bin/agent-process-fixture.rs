@@ -312,6 +312,41 @@ fn main() {
                     })
                 }
             })
+        } else if method == "plugins/overview" {
+            let mut result = json!({
+                "marketplaces": [{
+                    "id": "official",
+                    "name": "官方",
+                    "source": {},
+                    "pluginCount": 1,
+                    "isOfficial": true,
+                    "featured": ["demo"]
+                }],
+                "availablePlugins": [{
+                    "id": "demo-plugin",
+                    "name": "demo",
+                    "marketplace": "official",
+                    "installed": false,
+                    "componentTypes": ["skill"],
+                    "listing": { "displayName": "Demo", "requiresPaidPlan": false }
+                }],
+                "installedPlugins": [{
+                    "id": "demo-plugin",
+                    "name": "demo",
+                    "marketplace": "official",
+                    "enabled": true,
+                    "scope": "workspace",
+                    "updateStatus": "none"
+                }],
+                "restorableBuiltins": [],
+                "diagnostics": [],
+                "officialMarketplaceEnabled": true,
+                "capability": { "supported": true }
+            });
+            if mode == "bad-plugins-overview" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "plugins/list" {
             let mut result = json!({
                 "plugins": [{

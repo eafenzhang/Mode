@@ -175,6 +175,10 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
   `shell: true|string`、`timeout` 数字）、`userConfig`/`configuredOptions`/`*Source` 等可选面。
 - `describe_plugin(target, marketplace, pluginName)` → `plugins/describe`：
   结果 `{components[], diagnostics?, metadata?}`。
+- `get_plugins_overview(target, configScope?)` → `plugins/overview`：市场摘要
+  （`source` 开放对象、`featured`、可选 `refreshFailure`）、可安装/已安装/可恢复内置摘要
+  （`listing` 全部可选面、`updateStatus` 三值）、诊断、可选 `officialMarketplaceEnabled` 与
+  必填 `capability{supported,reason?}`。
 
 **与 TS 的差异**：TS 使用独立的 plugin 管理进程（合成 workspace）与更长超时；本 facade
 复用 workspace runtime、使用协议默认超时。
@@ -203,4 +207,4 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 10. v4 回执：信封的 type/payload/sessionId 与稳定 clientId 可断言；`accepted` 返回 ACK，
     `rejected` 映射为 `CommandRejected` 并携带状态与 reasonCode。
 11. 插件只读：list 的组件分组/hook 详情/诊断可读；describe 的组件与 metadata 可读；
-    两类非法结果有独立前缀。
+    overview 的市场/可安装/已安装摘要与 capability 可读；三类非法结果有独立前缀。

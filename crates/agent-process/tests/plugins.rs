@@ -111,6 +111,32 @@ async fn describes_plugin_with_component_groups() {
 }
 
 #[tokio::test]
+async fn reads_plugins_overview() {
+    let log = FrameLog::new("overview");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, spawns);
+
+    let result = client
+        .get_plugins_overview(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            Some(PluginScope::User),
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.marketplaces.len(), 1);
+    assert_eq!(result.marketplaces[0].plugin_count, 1);
+    assert_eq!(result.available_plugins[0].id, "demo-plugin");
+    assert!(result.available_plugins[0].listing.is_some());
+    assert_eq!(result.installed_plugins[0].scope, PluginScope::Workspace);
+    assert!(result.capability.supported);
+    assert_eq!(result.official_marketplace_enabled, Some(true));
+
+    let params = log.frame_params("plugins/overview").expect("必须记录到请求帧");
+    assert_eq!(params["workspace"]["workspacePath"], "/ws/demo");
+    assert_eq!(params["configScope"], "user");
+}
+
+#[tokio::test]
 async fn malformed_plugin_results_are_rejected() {
     let log = FrameLog::new("bad-list");
     let spawns = Arc::new(AtomicUsize::new(0));
@@ -137,6 +163,23 @@ async fn malformed_plugin_results_are_rejected() {
         ControlError::InvalidResult(message) => {
             assert!(
                 message.contains("invalid plugins/describe result"),
+                "{message}"
+            );
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+
+    let log = FrameLog::new("bad-overview");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("bad-plugins-overview", &log, spawns);
+    let error = client
+        .get_plugins_overview(&AgentWorkspaceTarget::new("/ws/demo"), None)
+        .await
+        .unwrap_err();
+    match error {
+        ControlError::InvalidResult(message) => {
+            assert!(
+                message.contains("invalid plugins/overview result"),
                 "{message}"
             );
         }

@@ -8,7 +8,8 @@
 
 use agent_protocol::plugin::{
     PluginScope, PluginsDescribeParams, PluginsDescribeResult, PluginsListParams, PluginsListResult,
-    PLUGINS_DESCRIBE_METHOD, PLUGINS_LIST_METHOD,
+    PluginsOverviewParams, PluginsOverviewResult, PLUGINS_DESCRIBE_METHOD, PLUGINS_LIST_METHOD,
+    PLUGINS_OVERVIEW_METHOD,
 };
 
 use crate::control::{AgentControlClient, AgentWorkspaceTarget, ControlError, RuntimePolicy};
@@ -57,6 +58,28 @@ impl AgentControlClient {
             .await?;
         serde_json::from_value(response).map_err(|error| {
             ControlError::InvalidResult(format!("invalid plugins/describe result: {error}"))
+        })
+    }
+
+    /// `plugins/overview`：市场 / 可安装 / 已安装 / 可恢复内置 + capability。
+    pub async fn get_plugins_overview(
+        &self,
+        target: &AgentWorkspaceTarget,
+        config_scope: Option<PluginScope>,
+    ) -> Result<PluginsOverviewResult, ControlError> {
+        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let params = PluginsOverviewParams {
+            workspace: session_workspace_ref(target),
+            config_scope,
+        };
+        let params =
+            serde_json::to_value(&params).expect("plugins/overview params 序列化不会失败");
+        let response = process
+            .client()
+            .request(PLUGINS_OVERVIEW_METHOD, Some(params))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid plugins/overview result: {error}"))
         })
     }
 }

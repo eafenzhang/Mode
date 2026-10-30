@@ -1,0 +1,59 @@
+{
+  "case": "response-plugins-overview",
+  "direction": "runtime->host",
+  "respondsTo": "plugins/overview",
+  "note": "插件总览：市场/可安装/已安装/可恢复内置 + capability（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 66,
+    "result": {
+      "marketplaces": [
+        {
+          "id": "official",
+          "name": "官方",
+          "source": { "kind": "official" },
+          "pluginCount": 1,
+          "isOfficial": true,
+          "featured": ["demo"],
+          "refreshFailure": {
+            "code": "network",
+            "failedAt": "2026-01-01T00:00:00.000Z",
+            "message": "网络不可用"
+          }
+        }
+      ],
+      "availablePlugins": [
+        {
+          "id": "demo-plugin",
+          "name": "demo",
+          "marketplace": "official",
+          "installed": false,
+          "componentTypes": ["skill"],
+          "listing": {
+            "displayName": "Demo",
+            "displayNameI18n": { "zh-CN": "演示" },
+            "icon": "icon.png",
+            "examplePrompts": ["试试"],
+            "requiresPaidPlan": false
+          },
+          "bundledUnavailable": false
+        }
+      ],
+      "installedPlugins": [
+        {
+          "id": "demo-plugin",
+          "name": "demo",
+          "marketplace": "official",
+          "enabled": true,
+          "scope": "workspace",
+          "componentTypes": ["skill"],
+          "updateStatus": "update-available",
+          "latestVersion": "1.1.0"
+        }
+      ],
+      "restorableBuiltins": [],
+      "diagnostics": [],
+      "officialMarketplaceEnabled": true,
+      "capability": { "supported": true }
+    }
+  }
+}

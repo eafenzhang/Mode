@@ -18,8 +18,9 @@ use std::path::{Path, PathBuf};
 
 use agent_protocol::frame::{Frame, RequestId};
 use agent_protocol::plugin::{
-    PluginComponentKind, PluginScope, PluginsDescribeParams, PluginsDescribeResult,
-    PluginsListParams, PluginsListResult,
+    PluginComponentKind, PluginScope, PluginUpdateStatus, PluginsDescribeParams,
+    PluginsDescribeResult, PluginsListParams, PluginsListResult, PluginsOverviewParams,
+    PluginsOverviewResult,
 };
 use agent_protocol::session::{
     RuntimePreferencesRequestParams, RuntimePreferencesResult, RuntimePreferencesScope,
@@ -465,6 +466,11 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert_eq!(params.plugin_name, "demo");
                         exercised.insert("plugins/describe".to_string());
                     }
+                    "plugins/overview" => {
+                        let params: PluginsOverviewParams = decode(case, &params);
+                        assert_eq!(params.config_scope, Some(PluginScope::User));
+                        exercised.insert("plugins/overview".to_string());
+                    }
                     "workflows/list" => {
                         let params: WorkflowsListParams = decode(case, &params);
                         assert_eq!(params.workspace.workspace_path, "/ws/demo");
@@ -761,6 +767,24 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("plugins/describe".to_string());
                     }
+                    "plugins/overview" => {
+                        let result: PluginsOverviewResult = decode(case, &response.result);
+                        assert_eq!(result.marketplaces.len(), 1);
+                        assert!(result.marketplaces[0].refresh_failure.is_some());
+                        let available = &result.available_plugins[0];
+                        assert!(available.listing.is_some());
+                        assert_eq!(
+                            result.installed_plugins[0].update_status,
+                            Some(PluginUpdateStatus::UpdateAvailable)
+                        );
+                        assert!(result.capability.supported);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("plugins/overview".to_string());
+                    }
                     "workflows/list" => {
                         let result: WorkflowsListResult = decode(case, &response.result);
                         assert_eq!(result.workflows.len(), 1);
@@ -892,6 +916,7 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "mcp/list",
             "plugins/list",
             "plugins/describe",
+            "plugins/overview",
             "workflows/list",
             "workflows/get",
             "workflows/runs",

@@ -259,3 +259,159 @@ pub struct PluginsDescribeResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<PluginDescribeMetadata>,
 }
+
+pub const PLUGINS_OVERVIEW_METHOD: &str = "plugins/overview";
+
+/// `modePluginStoreListingSchema`（全部可选）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginStoreListing {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name_i18n: Option<BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description_i18n: Option<BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub homepage: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub privacy_policy: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terms_of_service: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hero_image: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub example_prompts: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub example_prompts_i18n: Option<BTreeMap<String, Vec<String>>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires_paid_plan: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MarketplaceRefreshFailure {
+    pub code: String,
+    pub failed_at: String,
+    pub message: String,
+}
+
+/// `modePluginMarketplaceSummarySchema`；`source` 是开放 JSON 对象。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginMarketplaceSummary {
+    pub id: String,
+    pub name: String,
+    pub source: serde_json::Map<String, serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_updated: Option<String>,
+    pub plugin_count: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_official: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub featured: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refresh_failure: Option<MarketplaceRefreshFailure>,
+}
+
+/// `modeAvailablePluginSummarySchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AvailablePluginSummary {
+    pub id: String,
+    pub name: String,
+    pub marketplace: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    pub installed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component_types: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub listing: Option<PluginStoreListing>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bundled_unavailable: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_unavailable: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PluginUpdateStatus {
+    #[serde(rename = "none")]
+    None,
+    #[serde(rename = "update-available")]
+    UpdateAvailable,
+    #[serde(rename = "version-changed")]
+    VersionChanged,
+}
+
+/// `modeInstalledPluginSummarySchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InstalledPluginSummary {
+    pub id: String,
+    pub name: String,
+    pub marketplace: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    pub enabled: bool,
+    pub scope: PluginScope,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub install_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub installed_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component_types: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hook_details: Option<Vec<PluginHookDetail>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub update_status: Option<PluginUpdateStatus>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latest_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub listing: Option<PluginStoreListing>,
+}
+
+/// `modePluginsOverviewParamsSchema`。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsOverviewParams {
+    pub workspace: SessionWorkspaceRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_scope: Option<PluginScope>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginOverviewCapability {
+    pub supported: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+/// `modePluginsOverviewResultSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsOverviewResult {
+    pub marketplaces: Vec<PluginMarketplaceSummary>,
+    pub available_plugins: Vec<AvailablePluginSummary>,
+    pub installed_plugins: Vec<InstalledPluginSummary>,
+    pub restorable_builtins: Vec<AvailablePluginSummary>,
+    pub diagnostics: Vec<PluginDiagnostic>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub official_marketplace_enabled: Option<bool>,
+    pub capability: PluginOverviewCapability,
+}
