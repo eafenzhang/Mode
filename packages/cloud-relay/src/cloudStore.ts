@@ -7,6 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 
+import { CloudAuthStore } from "./cloudAuthStore.js";
 import { migrateCloudDatabase } from "./cloudSchema.js";
 
 export interface CloudAccountRow {
@@ -35,17 +36,8 @@ export interface CloudDeviceWithAccount {
   account: CloudAccountRow;
 }
 
-export interface CloudLoginCodeRow {
-  codeHash: string;
-  createdAt: number;
-  expiresAt: number;
-  status: string;
-  providerUserHash: string | null;
-  approvedAt: number | null;
-}
-
 export type CloudEnrollResult =
-  | { ok: true; accountId: string; deviceId: string }
+  | { ok: true; accountId: string; deviceId: string; tookOver: boolean }
   | { ok: false; error: "account_disabled" | "device_conflict" | "tunnel_conflict" };
 
 export interface CloudEnrollInput {
@@ -61,6 +53,8 @@ export interface CloudEnrollInput {
     relayTunnelId: string;
   };
   tokenHash: string;
+  /** 每设备中继令牌哈希（docs/specs/cloud-personal-accounts.md）； enroll 时轮换。 */
+  relayTokenHash: string;
   now: number;
 }
 
@@ -99,12 +93,15 @@ function mapAccount(row: Record<string, unknown>): CloudAccountRow {
 
 export class CloudStore {
   private readonly db: DatabaseSync;
+  /** 个人账号凭据（密码哈希 + 人类会话）；与设备目录同一个 SQLite，唯一真相不变。 */
+  readonly auth: CloudAuthStore;
 
   constructor(path: string) {
     this.db = new DatabaseSync(path);
     this.db.exec("PRAGMA journal_mode=WAL;");
     this.db.exec("PRAGMA foreign_keys=ON;");
     migrateCloudDatabase(this.db);
+    this.auth = new CloudAuthStore(this.db);
   }
 
   close(): void {
@@ -152,8 +149,22 @@ export class CloudStore {
       const existingDevice = this.db
         .prepare("SELECT * FROM cloud_devices WHERE id = ?")
         .get(input.device.id) as Record<string, unknown> | undefined;
+      let tookOver = false;
       if (existingDevice && columnText(existingDevice.account_id) !== accountRow.id) {
-        return { ok: false, error: "device_conflict" } as const;
+        // 换号接管（docs/specs/cloud-personal-accounts.md）：原属账号已无任何可用登录
+        // 方式（微信锚点且未补设密码——微信登录已移除）时，允许转移到当前登录账号；
+        // 仍可登录的账号维持 device_conflict，避免误把他人设备划走。
+        const owner = this.db
+          .prepare("SELECT provider, password_hash FROM cloud_accounts WHERE id = ?")
+          .get(columnText(existingDevice.account_id)) as Record<string, unknown> | undefined;
+        const ownerCanLogin =
+          Boolean(owner) &&
+          (columnText(owner?.provider) !== "weixin" ||
+            (typeof owner?.password_hash === "string" && owner.password_hash !== ""));
+        if (ownerCanLogin) {
+          return { ok: false, error: "device_conflict" } as const;
+        }
+        tookOver = true;
       }
       const tunnelOwner = this.db
         .prepare("SELECT id FROM cloud_devices WHERE relay_tunnel_id = ? AND id <> ?")
@@ -165,7 +176,7 @@ export class CloudStore {
       if (existingDevice) {
         this.db
           .prepare(
-            "UPDATE cloud_devices SET account_id = ?, name = ?, platform = ?, version = ?, public_key = ?, relay_tunnel_id = ?, last_seen_at = ?, revoked_at = NULL WHERE id = ?",
+            "UPDATE cloud_devices SET account_id = ?, name = ?, platform = ?, version = ?, public_key = ?, relay_tunnel_id = ?, relay_token_hash = ?, last_seen_at = ?, revoked_at = NULL WHERE id = ?",
           )
           .run(
             accountRow.id,
@@ -174,13 +185,14 @@ export class CloudStore {
             input.device.version ?? null,
             input.device.publicKey,
             input.device.relayTunnelId,
+            input.relayTokenHash,
             input.now,
             input.device.id,
           );
       } else {
         this.db
           .prepare(
-            "INSERT INTO cloud_devices (id, account_id, name, platform, version, public_key, relay_tunnel_id, created_at, last_seen_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+            "INSERT INTO cloud_devices (id, account_id, name, platform, version, public_key, relay_tunnel_id, relay_token_hash, created_at, last_seen_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
           )
           .run(
             input.device.id,
@@ -190,6 +202,7 @@ export class CloudStore {
             input.device.version ?? null,
             input.device.publicKey,
             input.device.relayTunnelId,
+            input.relayTokenHash,
             input.now,
             input.now,
           );
@@ -200,7 +213,7 @@ export class CloudStore {
         )
         .run(input.device.id, input.tokenHash, input.now, input.now);
 
-      return { ok: true, accountId: accountRow.id, deviceId: input.device.id } as const;
+      return { ok: true, accountId: accountRow.id, deviceId: input.device.id, tookOver } as const;
     });
   }
 
@@ -235,6 +248,28 @@ export class CloudStore {
     };
   }
 
+  /** 隧道鉴权（docs/specs/cloud-personal-accounts.md）：按 tunnelId 取设备的中继令牌哈希。 */
+  findDeviceByTunnelId(tunnelId: string): {
+    id: string;
+    relayTokenHash: string | null;
+    revoked: boolean;
+  } | null {
+    const row = this.db
+      .prepare("SELECT id, relay_token_hash, revoked_at FROM cloud_devices WHERE relay_tunnel_id = ?")
+      .get(tunnelId) as Record<string, unknown> | undefined;
+    if (!row) {
+      return null;
+    }
+    return {
+      id: columnText(row.id),
+      relayTokenHash:
+        typeof row.relay_token_hash === "string" && row.relay_token_hash
+          ? row.relay_token_hash
+          : null,
+      revoked: row.revoked_at !== null && row.revoked_at !== undefined,
+    };
+  }
+
   listDevices(accountId: string): CloudDeviceRow[] {
     const rows = this.db
       .prepare(
@@ -248,7 +283,7 @@ export class CloudStore {
     return this.transaction(() => {
       const result = this.db
         .prepare(
-          "UPDATE cloud_devices SET revoked_at = ? WHERE id = ? AND account_id = ? AND revoked_at IS NULL",
+          "UPDATE cloud_devices SET revoked_at = ?, relay_token_hash = NULL WHERE id = ? AND account_id = ? AND revoked_at IS NULL",
         )
         .run(Date.now(), deviceId, accountId);
       if (Number(result.changes ?? 0) === 0) {
@@ -257,123 +292,6 @@ export class CloudStore {
       this.db.prepare("DELETE FROM cloud_device_tokens WHERE device_id = ?").run(deviceId);
       return true;
     });
-  }
-
-  createLoginCode(input: {
-    codeHash: string;
-    createdAt: number;
-    expiresAt: number;
-  }): void {
-    this.db
-      .prepare(
-        "INSERT OR REPLACE INTO cloud_login_codes (code_hash, created_at, expires_at, status, provider_user_hash, approved_at) VALUES (?, ?, ?, 'pending', NULL, NULL)",
-      )
-      .run(input.codeHash, input.createdAt, input.expiresAt);
-    // 只清理一小时前的过期码，避免频繁写入；登录码本身 5 分钟有效。
-    this.db
-      .prepare("DELETE FROM cloud_login_codes WHERE expires_at < ?")
-      .run(input.createdAt - 3_600_000);
-  }
-
-  getLoginCode(codeHash: string): CloudLoginCodeRow | null {
-    const row = this.db
-      .prepare("SELECT * FROM cloud_login_codes WHERE code_hash = ?")
-      .get(codeHash) as Record<string, unknown> | undefined;
-    if (!row) {
-      return null;
-    }
-    return {
-      codeHash: columnText(row.code_hash),
-      createdAt: columnNumber(row.created_at) ?? 0,
-      expiresAt: columnNumber(row.expires_at) ?? 0,
-      status: columnText(row.status),
-      providerUserHash:
-        typeof row.provider_user_hash === "string" ? row.provider_user_hash : null,
-      approvedAt: columnNumber(row.approved_at),
-    };
-  }
-
-  approveLoginCode(input: {
-    codeHash: string;
-    providerUserHash: string;
-    now: number;
-  }): boolean {
-    const result = this.db
-      .prepare(
-        "UPDATE cloud_login_codes SET status = 'approved', provider_user_hash = ?, approved_at = ? WHERE code_hash = ? AND status = 'pending' AND expires_at > ?",
-      )
-      .run(input.providerUserHash, input.now, input.codeHash, input.now);
-    return Number(result.changes ?? 0) > 0;
-  }
-
-  /** 已批准且未过期的码只能消费一次；返回账号锚点哈希。 */
-  consumeLoginCode(codeHash: string, now: number): string | null {
-    return this.transaction(() => {
-      const row = this.getLoginCode(codeHash);
-      if (!row || row.status !== "approved" || row.expiresAt <= now || !row.providerUserHash) {
-        return null;
-      }
-      this.db
-        .prepare("UPDATE cloud_login_codes SET status = 'consumed' WHERE code_hash = ?")
-        .run(codeHash);
-      return row.providerUserHash;
-    });
-  }
-
-  getBotBinding(): string | null {
-    const row = this.db
-      .prepare("SELECT provider_user_hash FROM cloud_bot_binding WHERE id = 1")
-      .get() as Record<string, unknown> | undefined;
-    return typeof row?.provider_user_hash === "string" ? row.provider_user_hash : null;
-  }
-
-  bindBotUser(providerUserHash: string, now: number): void {
-    this.db
-      .prepare(
-        "INSERT INTO cloud_bot_binding (id, provider, provider_user_hash, bound_at) VALUES (1, 'weixin', ?, ?) ON CONFLICT(id) DO UPDATE SET provider_user_hash = excluded.provider_user_hash, bound_at = excluded.bound_at",
-      )
-      .run(providerUserHash, now);
-  }
-
-  saveBotConfig(input: {
-    tokenCiphertext: string;
-    tokenIv: string;
-    tokenTag: string;
-    allowedUserHash: string | null;
-    now: number;
-  }): void {
-    this.db
-      .prepare(
-        "INSERT INTO cloud_bot_config (id, token_ciphertext, token_iv, token_tag, allowed_user_hash, updated_at) VALUES (1, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET token_ciphertext = excluded.token_ciphertext, token_iv = excluded.token_iv, token_tag = excluded.token_tag, allowed_user_hash = excluded.allowed_user_hash, updated_at = excluded.updated_at",
-      )
-      .run(
-        input.tokenCiphertext,
-        input.tokenIv,
-        input.tokenTag,
-        input.allowedUserHash,
-        input.now,
-      );
-  }
-
-  loadBotConfig(): {
-    tokenCiphertext: string;
-    tokenIv: string;
-    tokenTag: string;
-    allowedUserHash: string | null;
-  } | null {
-    const row = this.db
-      .prepare("SELECT * FROM cloud_bot_config WHERE id = 1")
-      .get() as Record<string, unknown> | undefined;
-    if (!row) {
-      return null;
-    }
-    return {
-      tokenCiphertext: columnText(row.token_ciphertext),
-      tokenIv: columnText(row.token_iv),
-      tokenTag: columnText(row.token_tag),
-      allowedUserHash:
-        typeof row.allowed_user_hash === "string" ? row.allowed_user_hash : null,
-    };
   }
 
   stats(): { accounts: number; devices: number } {

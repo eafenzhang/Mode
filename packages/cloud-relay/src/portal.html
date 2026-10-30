@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Mode Cloud</title>
+    <style>
+      :root {
+        --bg: #f8f8f8;
+        --fg: #161616;
+        --muted: #666;
+        --card: #ffffff;
+        --border: #e4e4e4;
+        --accent: #0ea5e9;
+        --danger: #dc2626;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #161616;
+          --fg: #e8e8e8;
+          --muted: #9a9a9a;
+          --card: #1f1f1f;
+          --border: #333;
+          --accent: #38bdf8;
+          --danger: #f87171;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 15px/1.6 system-ui, -apple-system, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      }
+      main { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+      h1 { font-size: 22px; margin: 0; letter-spacing: 0.01em; }
+      h1 small { color: var(--muted); font-size: 13px; font-weight: 400; margin-left: 8px; }
+      button {
+        font: inherit;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--fg);
+        border-radius: 8px;
+        padding: 7px 14px;
+        cursor: pointer;
+      }
+      button:hover { border-color: var(--accent); }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      button:disabled { opacity: 0.55; cursor: default; }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 18px;
+      }
+      .muted { color: var(--muted); font-size: 13px; }
+      .divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; margin: 18px 0; }
+      .divider::before, .divider::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
+      .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+      .tabs button.active { border-color: var(--accent); color: var(--accent); }
+      form { display: grid; gap: 12px; }
+      label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+      input {
+        font: inherit;
+        color: var(--fg);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 9px 12px;
+      }
+      input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+      .code {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 26px;
+        letter-spacing: 0.22em;
+        padding: 10px 0;
+      }
+      .error { color: var(--danger); font-size: 13px; margin: 10px 0 0; }
+      ul { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+      li.device {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 14px;
+        background: var(--card);
+      }
+      .device-name { font-weight: 500; }
+      .device-meta { color: var(--muted); font-size: 13px; }
+      .device.online .dot { color: #22c55e; }
+      .device .dot { color: var(--muted); }
+      .device a {
+        color: var(--accent);
+        text-decoration: none;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 12px;
+        white-space: nowrap;
+      }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Mode Cloud <small>个人账号与设备</small></h1>
+        <div id="account" class="row" hidden>
+          <span id="account-name" class="muted"></span>
+          <button id="logout" type="button">退出</button>
+        </div>
+      </header>
+
+      <section id="auth-view" class="card">
+        <div class="row">
+          <button id="github-login" type="button" class="primary">使用 GitHub 登录</button>
+        </div>
+        <div id="github-panel" hidden>
+          <p class="muted">
+            在
+            <a id="github-link" href="https://github.com/login/device" target="_blank" rel="noreferrer"
+              >github.com/login/device</a
+            >
+            输入下面的代码完成授权：
+          </p>
+          <div id="github-code" class="code"></div>
+          <p id="github-status" class="muted">等待 GitHub 授权…</p>
+        </div>
+
+        <div class="divider">或使用用户名密码</div>
+        <div class="tabs">
+          <button id="tab-login" type="button" class="active">登录</button>
+          <button id="tab-register" type="button">注册</button>
+        </div>
+        <form id="auth-form">
+          <label>
+            用户名
+            <input id="username" autocomplete="username" required minlength="3" maxlength="32" />
+          </label>
+          <label>
+            密码
+            <input id="password" type="password" required minlength="8" autocomplete="current-password" />
+          </label>
+          <label id="invite-row" hidden>
+            邀请码（部署配置了邀请码时必填）
+            <input id="invite" autocomplete="off" />
+          </label>
+          <button id="submit" type="submit" class="primary">登录</button>
+        </form>
+        <p id="error" class="error" hidden></p>
+      </section>
+
+      <section id="devices-view" hidden>
+        <p class="muted">
+          点击设备进入远程控制。首次进入某台设备需要在被控端「远程控制」页获取 6 位配对码，
+          配对成功后同一浏览器免码。
+        </p>
+        <ul id="devices"></ul>
+        <p id="empty" class="muted" hidden>
+          账号下还没有设备：先在桌面端登录同一账号，并开启「局域网访问」与「远程桌面」。
+        </p>
+        <p id="devices-error" class="error" hidden></p>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        "use strict";
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        var authMode = "login";
+        var githubTimer = null;
+
+        function showError(message) {
+          $("error").textContent = message;
+          $("error").hidden = !message;
+        }
+
+        function showDevicesError(message) {
+          $("devices-error").textContent = message;
+          $("devices-error").hidden = !message;
+        }
+
+        function setAuthMode(mode) {
+          authMode = mode;
+          $("tab-login").classList.toggle("active", mode === "login");
+          $("tab-register").classList.toggle("active", mode === "register");
+          $("submit").textContent = mode === "login" ? "登录" : "注册并登录";
+          $("invite-row").hidden = mode !== "register";
+          $("password").autocomplete = mode === "login" ? "current-password" : "new-password";
+          showError("");
+        }
+
+        async function api(path, options) {
+          var init = options || {};
+          var headers = Object.assign({ "content-type": "application/json" }, init.headers || {});
+          var response = await fetch(path, {
+            method: init.method || "GET",
+            headers: headers,
+            body: init.body ? JSON.stringify(init.body) : undefined,
+            credentials: "same-origin",
+          });
+          var body = null;
+          try {
+            body = await response.json();
+          } catch (ignored) {
+            body = null;
+          }
+          return { status: response.status, body: body };
+        }
+
+        function showAuth() {
+          $("account").hidden = true;
+          $("devices-view").hidden = true;
+          $("auth-view").hidden = false;
+          $("devices").textContent = "";
+        }
+
+        function renderDevices(payload) {
+          var account = (payload && payload.account) || {};
+          var name = account.displayName || account.username || account.id || "";
+          $("account-name").textContent = name;
+          $("account").hidden = false;
+          $("auth-view").hidden = true;
+          $("devices-view").hidden = false;
+          showDevicesError("");
+
+          var devices = (payload && payload.devices) || [];
+          var list = $("devices");
+          list.textContent = "";
+          $("empty").hidden = devices.length > 0;
+          devices.forEach(function (device) {
+            var item = document.createElement("li");
+            item.className = "device" + (device.online ? " online" : "");
+
+            var info = document.createElement("div");
+            var title = document.createElement("div");
+            title.className = "device-name";
+            title.textContent = device.name;
+            var meta = document.createElement("div");
+            meta.className = "device-meta";
+            meta.textContent =
+              (device.platform || "") + " · " + (device.online ? "在线" : "离线");
+            info.appendChild(title);
+            info.appendChild(meta);
+
+            var link = document.createElement("a");
+            link.href = device.relayUrl;
+            link.textContent = "进入";
+            if (!device.online) {
+              link.setAttribute("aria-disabled", "true");
+              link.style.opacity = "0.5";
+              link.style.pointerEvents = "none";
+            }
+
+            item.appendChild(info);
+            item.appendChild(link);
+            list.appendChild(item);
+          });
+        }
+
+        async function loadDevices() {
+          var result = await api("/v1/devices");
+          if (result.status === 200) {
+            renderDevices(result.body);
+            return true;
+          }
+          if (result.status === 401) {
+            showAuth();
+            return false;
+          }
+          showAuth();
+          showError("加载设备失败（HTTP " + result.status + "）");
+          return false;
+        }
+
+        function stopGithubPolling() {
+          if (githubTimer) {
+            clearInterval(githubTimer);
+            githubTimer = null;
+          }
+        }
+
+        function startGithubPolling(loginId) {
+          stopGithubPolling();
+          githubTimer = setInterval(async function () {
+            var result = await api("/v1/auth/github/device/poll", {
+              method: "POST",
+              body: { loginId: loginId },
+            });
+            if (result.status === 202) {
+              return;
+            }
+            stopGithubPolling();
+            if (result.status === 200) {
+              $("github-panel").hidden = true;
+              await loadDevices();
+              return;
+            }
+            $("github-status").textContent = "GitHub 登录失败，请重新发起。";
+            if (result.body && result.body.error === "expired_token") {
+              $("github-status").textContent = "授权码已过期，请重新发起。";
+            }
+          }, 5000);
+        }
+
+        $("github-login").addEventListener("click", async function () {
+          showError("");
+          $("github-panel").hidden = false;
+          $("github-code").textContent = "…";
+          $("github-status").textContent = "正在获取 GitHub 设备码…";
+          var result = await api("/v1/auth/github/device/start", { method: "POST", body: {} });
+          if (result.status !== 200 || !result.body || !result.body.loginId) {
+            $("github-panel").hidden = true;
+            showError(
+              result.status === 503
+                ? "服务端未配置 GitHub 登录（MODE_CLOUD_GITHUB_CLIENT_ID）。"
+                : "无法连接 GitHub，请稍后重试。"
+            );
+            return;
+          }
+          $("github-code").textContent = result.body.userCode;
+          $("github-link").href = result.body.verificationUri;
+          $("github-status").textContent = "等待 GitHub 授权…";
+          startGithubPolling(result.body.loginId);
+        });
+
+        $("tab-login").addEventListener("click", function () {
+          setAuthMode("login");
+        });
+        $("tab-register").addEventListener("click", function () {
+          setAuthMode("register");
+        });
+
+        $("auth-form").addEventListener("submit", async function (event) {
+          event.preventDefault();
+          showError("");
+          var username = $("username").value.trim().toLowerCase();
+          var password = $("password").value;
+          var inviteCode = $("invite").value.trim();
+          var path = authMode === "login" ? "/v1/auth/login" : "/v1/auth/register";
+          var payload = { username: username, password: password };
+          if (authMode === "register" && inviteCode) {
+            payload.inviteCode = inviteCode;
+          }
+          $("submit").disabled = true;
+          try {
+            var result = await api(path, { method: "POST", body: payload });
+            if (result.status !== 200) {
+              var code = result.body && result.body.error;
+              showError(
+                code === "invalid_credentials"
+                  ? "用户名或密码错误。"
+                  : code === "username_taken"
+                    ? "用户名已被占用。"
+                    : code === "invite_required"
+                      ? "需要邀请码。"
+                      : code === "rate_limited"
+                        ? "尝试过于频繁，请稍后再试。"
+                        : "请求失败（HTTP " + result.status + "）。"
+              );
+              return;
+            }
+            await loadDevices();
+          } finally {
+            $("submit").disabled = false;
+          }
+        });
+
+        $("logout").addEventListener("click", async function () {
+          stopGithubPolling();
+          await api("/v1/auth/logout", { method: "POST", body: {} }).catch(function () {
+            return null;
+          });
+          $("github-panel").hidden = true;
+          showAuth();
+        });
+
+        loadDevices().catch(function () {
+          showAuth();
+          showError("无法连接服务端。");
+        });
+      })();
+    </script>
+  </body>
+</html>

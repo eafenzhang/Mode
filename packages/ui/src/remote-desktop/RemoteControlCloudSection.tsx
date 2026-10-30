@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
-import { Cloud, LoaderIcon, MessageCircle, RefreshCw } from "lucide-react";
+import { Cloud, Fingerprint, KeyRound, LoaderIcon, RefreshCw } from "lucide-react";
 import type { CloudAccountState, CloudDeviceSummary } from "@mode/shared";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { RemoteControlCloudBotSetupPanel } from "@/remote-desktop/RemoteControlCloudBotSetupPanel.js";
-import { RemoteControlCloudLoginPanel } from "@/remote-desktop/RemoteControlCloudLoginPanel.js";
+import { RemoteControlCloudGithubPanel } from "@/remote-desktop/RemoteControlCloudGithubPanel.js";
+import {
+  RemoteControlCloudPasswordPanel,
+  type CloudPasswordPanelMode,
+} from "@/remote-desktop/RemoteControlCloudPasswordPanel.js";
 
 // 目录请求本身有 10s 预算；前端等待必须覆盖它，否则慢网会被误判为“频道不存在”而隐藏卡片。
 const STATE_TIMEOUT_MS = 12_000;
 
 /**
- * Mode Cloud 账号与设备目录（docs/specs/mode-cloud-account-directory.md）。
+ * Mode Cloud 个人账号与设备目录（docs/specs/cloud-personal-accounts.md）。
  *
- * 目录只提供被控端公网地址；6 位码仍由被控端显示/裁决。配对成功后复用既有
- * LAN 配对列表，不新增第二套设备状态。
+ * 登录方式：GitHub Device Flow 或用户名密码；目录只提供被控端公网地址，
+ * 6 位码仍由被控端显示/裁决。配对成功后复用既有 LAN 配对列表。
  */
 export function RemoteControlCloudSection({
   active,
@@ -33,13 +36,13 @@ export function RemoteControlCloudSection({
   const { intl } = useModeIntl();
   const [state, setState] = useState<CloudAccountState | null>(null);
   const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState<"bind" | "refresh" | "pair" | null>(null);
+  const [busy, setBusy] = useState<"refresh" | "pair" | null>(null);
   const [error, setError] = useState("");
   const [pairTarget, setPairTarget] = useState<CloudDeviceSummary | null>(null);
   const [code, setCode] = useState("");
   const [channelAvailable, setChannelAvailable] = useState(true);
-  const [showWechatLogin, setShowWechatLogin] = useState(false);
-  const [showBotSetup, setShowBotSetup] = useState(false);
+  const [showGithubLogin, setShowGithubLogin] = useState(false);
+  const [showPasswordPanel, setShowPasswordPanel] = useState<CloudPasswordPanelMode | null>(null);
 
   const load = useCallback(async () => {
     if (!service) {
@@ -90,18 +93,6 @@ export function RemoteControlCloudSection({
     return null;
   }
 
-  const bind = async (): Promise<void> => {
-    setBusy("bind");
-    setError("");
-    try {
-      setState(await service.bind());
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const pair = async (): Promise<void> => {
     if (!pairTarget) {
       return;
@@ -123,6 +114,33 @@ export function RemoteControlCloudSection({
 
   const message = (id: string, values?: Record<string, string>): string =>
     intl.formatMessage({ id }, values);
+
+  const loginButtons = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        data-testid="remote-control-cloud-github-login"
+        disabled={showGithubLogin || showPasswordPanel !== null}
+        onClick={() => setShowGithubLogin(true)}
+      >
+        <Fingerprint className="size-4" />
+        {message("remoteDesktop.cloud.githubLogin")}
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        data-testid="remote-control-cloud-password-login"
+        disabled={showGithubLogin || showPasswordPanel !== null}
+        onClick={() => setShowPasswordPanel("login")}
+      >
+        <KeyRound className="size-4" />
+        {message("remoteDesktop.cloud.passwordLogin")}
+      </Button>
+    </div>
+  );
 
   return (
     <section
@@ -177,69 +195,27 @@ export function RemoteControlCloudSection({
 
       {state?.status === "unbound" ? (
         <div className="mt-3 space-y-2">
-          <p className="text-ui-base text-foreground-subtle">
-            {state.boundWeixinName
-              ? message("remoteDesktop.cloud.boundWeixin", { name: state.boundWeixinName })
-              : message("remoteDesktop.cloud.noWeixin")}
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-testid="remote-control-cloud-wechat-login"
-              disabled={busy !== null || showWechatLogin}
-              onClick={() => setShowWechatLogin(true)}
-            >
-              <MessageCircle className="size-4" />
-              {message("remoteDesktop.cloud.wechatLogin")}
-            </Button>
-            {state.enrollmentConfigured ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                data-testid="remote-control-cloud-bot-setup"
-                disabled={busy !== null || showBotSetup}
-                onClick={() => setShowBotSetup(true)}
-              >
-                <RefreshCw className="size-4" />
-                {message("remoteDesktop.cloud.setupBot")}
-              </Button>
-            ) : null}
-            {state.enrollmentConfigured ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                data-testid="remote-control-cloud-bind"
-                disabled={busy !== null}
-                onClick={() => void bind()}
-              >
-                {busy === "bind" ? (
-                  <LoaderIcon className="size-4 animate-spin" />
-                ) : (
-                  <Cloud className="size-4" />
-                )}
-                {message(
-                  busy === "bind"
-                    ? "remoteDesktop.cloud.binding"
-                    : "remoteDesktop.cloud.bindLegacy",
-                )}
-              </Button>
-            ) : null}
-          </div>
-          {showBotSetup ? (
-            <RemoteControlCloudBotSetupPanel
+          {loginButtons}
+          {showGithubLogin ? (
+            <RemoteControlCloudGithubPanel
               service={service}
-              onSynced={() => undefined}
-              onClose={() => setShowBotSetup(false)}
+              onBound={(next) => {
+                setState(next);
+                setShowGithubLogin(false);
+              }}
+              onClose={() => setShowGithubLogin(false)}
             />
           ) : null}
-          {!state.enrollmentConfigured && !showWechatLogin ? (
-            <p className="text-ui-xs text-foreground-subtlest">
-              {message("remoteDesktop.cloud.notConfigured")}
-            </p>
+          {showPasswordPanel ? (
+            <RemoteControlCloudPasswordPanel
+              service={service}
+              mode={showPasswordPanel}
+              onDone={(next) => {
+                setState(next);
+                setShowPasswordPanel(null);
+              }}
+              onClose={() => setShowPasswordPanel(null)}
+            />
           ) : null}
         </div>
       ) : null}
@@ -249,49 +225,46 @@ export function RemoteControlCloudSection({
           <p className="text-ui-base text-destructive" data-testid="remote-control-cloud-error">
             {error || state.error || message("remoteDesktop.cloud.error")}
           </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={busy !== null}
-              onClick={() => void bind()}
-            >
-              {message("remoteDesktop.cloud.rebind")}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              data-testid="remote-control-cloud-wechat-login"
-              disabled={busy !== null || showWechatLogin}
-              onClick={() => setShowWechatLogin(true)}
-            >
-              <MessageCircle className="size-4" />
-              {message("remoteDesktop.cloud.wechatLogin")}
-            </Button>
-          </div>
+          {loginButtons}
         </div>
-      ) : null}
-
-      {showWechatLogin ? (
-        <RemoteControlCloudLoginPanel
-          service={service}
-          onBound={(next) => {
-            setState(next);
-            setShowWechatLogin(false);
-          }}
-          onClose={() => setShowWechatLogin(false)}
-        />
       ) : null}
 
       {state?.status === "bound" ? (
         <div className="mt-3 space-y-2">
-          <p className="text-ui-base text-foreground-subtle">
-            {message("remoteDesktop.cloud.account", {
-              name: state.account?.displayName || state.account?.id || "",
-            })}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-ui-base text-foreground-subtle">
+              {message("remoteDesktop.cloud.account", {
+                name:
+                  state.account?.displayName ||
+                  state.account?.username ||
+                  state.account?.id ||
+                  "",
+              })}
+            </p>
+            {!state.account?.username ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                data-testid="remote-control-cloud-set-credentials"
+                disabled={showPasswordPanel !== null}
+                onClick={() => setShowPasswordPanel("credentials")}
+              >
+                {message("remoteDesktop.cloud.setCredentials")}
+              </Button>
+            ) : null}
+          </div>
+          {showPasswordPanel ? (
+            <RemoteControlCloudPasswordPanel
+              service={service}
+              mode={showPasswordPanel}
+              onDone={(next) => {
+                setState(next);
+                setShowPasswordPanel(null);
+              }}
+              onClose={() => setShowPasswordPanel(null)}
+            />
+          ) : null}
           {state.devices && state.devices.length > 0 ? (
             <ul className="space-y-2" data-testid="remote-control-cloud-devices">
               {state.devices.map((device) => (

@@ -1,9 +1,8 @@
 import type { Event } from "@mode/rpc";
 import type {
   CloudAccountState,
-  CloudBotCandidate,
   CloudDeviceSummary,
-  CloudLoginChallenge,
+  CloudGithubLoginChallenge,
   LanAccessPairResult,
 } from "@mode/shared";
 import { ServiceChannels } from "@mode/shared";
@@ -11,10 +10,10 @@ import { ServiceChannels } from "@mode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
 /**
- * Mode Cloud 账号与设备目录管理面（local-only）。
+ * Mode Cloud 个人账号与设备目录管理面（local-only）。
  *
- * 状态所有者是 Host：凭据服务保存账号 ID / 设备令牌 / 设备私钥；云目录只读缓存
- * 在内存。renderer 只读快照并下发绑定/配对命令。
+ * 状态所有者是 Host：凭据服务保存账号 ID / 会话 / 设备令牌 / 设备私钥；云目录只读
+ * 缓存在内存。renderer 只读快照并下发登录/绑定/配对命令。
  *
  * **local-only**：该频道只注册给窗口 renderer，不得进入 LAN HTTP 服务集合
  * （设备令牌等于云账号凭据）。
@@ -22,25 +21,27 @@ import { createServiceDescriptor } from "../descriptors.js";
 export interface ICloudAccountService {
   /** 当前绑定状态 + 目录（不可用/未绑定/已绑定/错误）。 */
   getState(): Promise<CloudAccountState>;
-  /** 旧路径：用本机已绑定的微信 Bot + 部署 enrollment secret 注册。 */
-  bind(): Promise<CloudAccountState>;
-  /** 新路径：向云端 Bot 发起微信登录，返回桌面显示的 6 位码。 */
-  beginWechatLogin(): Promise<CloudLoginChallenge>;
+  /** GitHub Device Flow 登录：返回 user code 与 verificationUri，用户在浏览器授权。 */
+  beginGithubLogin(): Promise<CloudGithubLoginChallenge>;
   /**
-   * 轮询云端登录结果：pending = 等用户在微信里发码；bound = 成功并保存账号/令牌。
-   * 成功后会启动中继隧道；云端不可达/码过期时抛出可读错误。
+   * 轮询 GitHub Device Flow：pending 时返回未绑定状态；授权成功后换取云会话、
+   * 注册本机设备并启动中继隧道，返回 bound 状态。
    */
-  pollWechatLogin(): Promise<CloudAccountState>;
-  /** 取消本机等待中的登录码（不通知云端）。 */
-  cancelWechatLogin(): void;
-  /** 本机可同步为云端登录 Bot 的微信 Bot（不含 token）。 */
-  listCloudBotCandidates(): Promise<CloudBotCandidate[]>;
-  /**
-   * 把一个已绑定微信的 Bot 的 iLink token 上传到云端，并把本地副本停用，
-   * 避免桌面 Bot 与云端 Bot 同时轮询同一条 token。
-   */
-  syncCloudLoginBot(params: { botId: string }): Promise<CloudAccountState>;
-  /** 只清除本机云凭据；不撤销云端设备（撤销走目录/后续 UI）。 */
+  pollGithubLogin(): Promise<CloudAccountState>;
+  /** 取消本机等待中的 GitHub 登录。 */
+  cancelGithubLogin(): void;
+  /** 用户名密码注册（注册即登录并注册本机设备）。 */
+  registerWithPassword(params: {
+    username: string;
+    password: string;
+    displayName?: string;
+    inviteCode?: string;
+  }): Promise<CloudAccountState>;
+  /** 用户名密码登录（登录后注册本机设备）。 */
+  loginWithPassword(params: { username: string; password: string }): Promise<CloudAccountState>;
+  /** 给当前账号补设用户名密码（GitHub/迁移账号的备用登录方式）。 */
+  setAccountCredentials(params: { username: string; password: string }): Promise<CloudAccountState>;
+  /** 撤销云端会话并清除本机云凭据；不撤销云端设备（撤销走目录）。 */
   unbind(): Promise<CloudAccountState>;
   /** 强制刷新目录。 */
   listDevices(): Promise<CloudDeviceSummary[]>;

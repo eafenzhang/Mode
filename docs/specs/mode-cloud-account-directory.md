@@ -1,6 +1,9 @@
 # Mode Cloud 账号 + 设备目录（去链接配对）
 
-状态：2026-10-21 MVP 已实现并部署（fnOS `/v1` 控制面 + SQLite）。关联：
+状态：2026-10-21 MVP 已实现并部署（fnOS `/v1` 控制面 + SQLite）。
+**2026-10-30 起账号层被 [cloud-personal-accounts.md](./cloud-personal-accounts.md) 取代**：
+微信登录（云端 Bot、`/v1/auth/start|poll`、自动登录与 Bot 同步）已移除，身份方式改为
+GitHub OAuth + 用户名密码；本文的设备目录、配对与部署模型仍然有效。关联：
 [wss-relay-mvp.md](./wss-relay-mvp.md)（中继传输）、
 [lan-remote-public-endpoints.md](./lan-remote-public-endpoints.md)（公网端点与配对）、
 [lan-paired-devices.md](./lan-paired-devices.md)（配对记录）。

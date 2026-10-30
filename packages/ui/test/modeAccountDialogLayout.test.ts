@@ -34,19 +34,24 @@ test("ModeAccountDialog 提供昵称编辑并写入 userNickname", () => {
   );
 });
 
-// 没有部署密钥不等于云账号不可用：微信 6 位码登录不依赖 enrollment secret，
-// 未配置时也必须保留入口（docs/specs/mode-cloud-account-directory.md）。
-test("未配置部署密钥时仍保留微信登录入口", () => {
+// 云账号登录不依赖部署密钥：GitHub Device Flow 与用户名密码都是零配置路径，
+// 未绑定/错误状态下都必须保留入口（docs/specs/cloud-personal-accounts.md）。
+test("云分区始终提供 GitHub 与用户名密码登录入口", () => {
   const section = read("../src/remote-desktop/RemoteControlCloudSection.tsx");
   assert.match(
     section,
-    /remote-control-cloud-wechat-login/,
-    "远控云分区始终提供微信登录按钮",
+    /remote-control-cloud-github-login/,
+    "远控云分区始终提供 GitHub 登录按钮",
+  );
+  assert.match(
+    section,
+    /remote-control-cloud-password-login/,
+    "远控云分区始终提供用户名密码登录按钮",
   );
   const dialog = read("../src/ModeAccountDialog.tsx");
   assert.match(
     dialog,
-    /modeAccount\.description\.wechatOnly/,
-    "未配置部署密钥时文案需指向微信登录，而不是笼统提示未启用",
+    /modeAccount\.description\.unavailable/,
+    "未连接控制面时文案需指向部署缺失，而不是笼统提示",
   );
 });

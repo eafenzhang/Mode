@@ -1,61 +1,36 @@
 /**
- * Mode Cloud 账号与设备目录 Host 实现（docs/specs/mode-cloud-account-directory.md）。
+ * Mode Cloud 个人账号与设备目录 Host 实现（docs/specs/cloud-personal-accounts.md）。
  *
- * 账号锚点来自本机已绑定的微信 Bot；设备密钥与云凭据存加密凭据服务。
- * 配对仍复用 `pairLanPeer`（6 位码 + 现有 /api/lan/pair），云端不接触 LAN 令牌。
+ * 身份方式：GitHub Device Flow + 用户名密码；登录成功后用会话 enroll 本机设备
+ * （Ed25519 断言），并保存每设备中继令牌启动隧道。配对仍复用 `pairLanPeer`
+ * （6 位码 + 现有 /api/lan/pair），云端不接触 LAN 令牌。
  */
-import { hostname } from "node:os";
-
 import { Emitter } from "@mode/rpc";
 import {
   CLOUD_ACCOUNT_ID_CREDENTIAL_KEY,
   CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY,
   CLOUD_DEVICES_PATH,
-  CLOUD_ENROLL_PATH,
   CLOUD_RELAY_TOKEN_CREDENTIAL_KEY,
+  CLOUD_SESSION_TOKEN_CREDENTIAL_KEY,
   DEFAULT_CLOUD_CONTROL_BASE_URL,
-  MODE_VERSION,
   cloudDeviceSummarySchema,
   isLanAccessPairCodeFormat,
-  type BotConfig,
   type CloudAccountState,
   type CloudDeviceSummary,
   type LanAccessPairResult,
 } from "@mode/shared";
-import {
-  IBotsService,
-  ICloudAccountService,
-  ICredentialService,
-  type ServiceCollection,
-} from "@mode/services";
+import { ICredentialService, ICloudAccountService, type ServiceCollection } from "@mode/services";
 
-import {
-  canonicalJson,
-  createEnrollmentNonce,
-  loadOrCreateCloudDeviceIdentity,
-  signCloudEnrollment,
-} from "./cloudDeviceIdentity.js";
+import { createCloudGithubLogin } from "./cloudGithubLogin.js";
+import { createCloudPasswordAuth } from "./cloudPasswordLogin.js";
 import {
   loadCloudDeploymentConfig,
   type CloudDeploymentConfig,
 } from "./cloudDeploymentConfig.js";
-import { startCloudAutoProvision } from "./cloudAutoProvision.js";
-import { createCloudBotSync } from "./cloudBotSync.js";
-import { createCloudWechatLogin } from "./cloudWechatLogin.js";
 import { fetchWithTimeout } from "./lanPeerTransport.js";
 import { pairLanPeer } from "./lanRemoteAttach.js";
 
-const ENROLL_TIMEOUT_MS = 15_000;
 const DIRECTORY_TIMEOUT_MS = 10_000;
-
-class CloudApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-  }
-}
 
 export interface CreateCloudAccountHostServiceOptions {
   services: ServiceCollection;
@@ -101,12 +76,6 @@ export async function createCloudAccountHostService(
   const env = options.env ?? process.env;
   const credentials = requireCredentials(services);
   const deployment = options.deploymentConfig ?? loadCloudDeploymentConfig(env);
-  // 显式 env 优先，便于测试/临时覆盖；未设置时才用部署文件（零配置路径）。
-  const enrollmentToken = (
-    env.MODE_CLOUD_ENROLL_TOKEN ||
-    deployment.enrollToken ||
-    ""
-  ).trim();
   let baseUrl = DEFAULT_CLOUD_CONTROL_BASE_URL;
   try {
     baseUrl = normalizeBaseUrl(
@@ -117,6 +86,12 @@ export async function createCloudAccountHostService(
   } catch (error) {
     log(`cloud_base_url_invalid ${describeError(error)}`);
   }
+  // GitHub OAuth App 的 public client_id：显式 env 优先，其次部署配置。
+  const githubClientId = (
+    env.MODE_CLOUD_GITHUB_CLIENT_ID ||
+    deployment.githubClientId ||
+    ""
+  ).trim();
 
   const onDidChangeEmitter = new Emitter<CloudAccountState>();
 
@@ -132,27 +107,10 @@ export async function createCloudAccountHostService(
     server.startRelayTunnel(relayToken);
   };
 
-  const readBoundBot = async (): Promise<BotConfig | null> => {
-    const bots = services.getOptional(IBotsService);
-    if (!bots) {
-      return null;
-    }
-    try {
-      const list = await bots.listBots();
-      return (
-        list.find(
-          (bot) => bot.enabled && bot.provider === "weixin" && Boolean(bot.providerUserId?.trim()),
-        ) ?? null
-      );
-    } catch {
-      return null;
-    }
-  };
-
   const readDirectory = async (
     token: string,
   ): Promise<{
-    account: { id: string; displayName?: string };
+    account: { id: string; username?: string; displayName?: string };
     devices: CloudDeviceSummary[];
   }> => {
     const response = await fetchWithTimeout(
@@ -161,13 +119,13 @@ export async function createCloudAccountHostService(
       DIRECTORY_TIMEOUT_MS,
     );
     if (!response.ok) {
-      throw new CloudApiError(`云目录请求失败（HTTP ${response.status}）`, response.status);
+      throw new Error(`云目录请求失败（HTTP ${response.status}）`);
     }
     let payload: unknown;
     try {
       payload = await response.json();
     } catch {
-      throw new CloudApiError("云目录返回的不是合法 JSON", 0);
+      throw new Error("云目录返回的不是合法 JSON");
     }
     const record = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
     const accountRaw =
@@ -176,7 +134,7 @@ export async function createCloudAccountHostService(
         : {};
     const accountId = typeof accountRaw.id === "string" ? accountRaw.id.trim() : "";
     if (!accountId) {
-      throw new CloudApiError("云目录缺少账号信息", 0);
+      throw new Error("云目录缺少账号信息");
     }
     const devices: CloudDeviceSummary[] = [];
     if (Array.isArray(record.devices)) {
@@ -187,160 +145,63 @@ export async function createCloudAccountHostService(
         }
       }
     }
+    const username =
+      typeof accountRaw.username === "string" && accountRaw.username.trim()
+        ? accountRaw.username.trim()
+        : undefined;
     const displayName =
       typeof accountRaw.displayName === "string" && accountRaw.displayName.trim()
         ? accountRaw.displayName.trim()
         : undefined;
-    return { account: { id: accountId, ...(displayName ? { displayName } : {}) }, devices };
+    return {
+      account: {
+        id: accountId,
+        ...(username ? { username } : {}),
+        ...(displayName ? { displayName } : {}),
+      },
+      devices,
+    };
   };
 
   const readState = async (): Promise<CloudAccountState> => {
-    const bot = await readBoundBot();
-    const boundWeixinName =
-      bot?.displayName?.trim() || bot?.providerUserId?.trim() || undefined;
     const token = (await credentials.load(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY))?.trim();
-    const enrollmentConfigured = Boolean(enrollmentToken);
-    const base = {
-      enrollmentConfigured,
-      ...(boundWeixinName ? { boundWeixinName } : {}),
-    };
     if (!token) {
-      // 未配置 enrollment secret 不等于云账号不可用：微信 6 位码登录不依赖它，
-      // 仍是可用的零配置路径。`unavailable` 只留给没有 cloud-account 服务的 Host。
-      return { ...base, status: "unbound" };
+      return { status: "unbound" };
     }
     try {
       const { account, devices } = await readDirectory(token);
       await ensureRelayTunnel().catch(() => undefined);
-      return { ...base, status: "bound", account, devices };
+      return { status: "bound", account, devices };
     } catch (error) {
-      const unauthorized = error instanceof CloudApiError && error.status === 401;
       return {
-        ...base,
         status: "error",
-        error: unauthorized ? "云凭据已失效，请重新绑定" : describeError(error),
+        error: describeError(error),
       };
     }
   };
 
-  const wechatLogin = createCloudWechatLogin({
+  const githubLogin = createCloudGithubLogin({
     credentials,
     baseUrl,
-    enrollmentConfigured: Boolean(enrollmentToken),
-    readBoundBot,
+    githubClientId,
     ensureRelayTunnel,
     readState,
     onState: (state) => onDidChangeEmitter.fire(state),
     log,
   });
-  const cloudBotSync = createCloudBotSync({
-    services,
+  const passwordAuth = createCloudPasswordAuth({
     credentials,
     baseUrl,
-    enrollmentToken,
+    ensureRelayTunnel,
     readState,
     onState: (state) => onDidChangeEmitter.fire(state),
-    log,
-  });
-
-  const bind = async (): Promise<CloudAccountState> => {
-    if (!enrollmentToken) {
-      throw new Error("未配置 MODE_CLOUD_ENROLL_TOKEN，无法绑定 Mode Cloud");
-    }
-    const bot = await readBoundBot();
-    const providerUserId = bot?.providerUserId?.trim();
-    if (!bot || !providerUserId) {
-      throw new Error("请先在 Bot 设置里绑定微信账号");
-    }
-    const identity = await loadOrCreateCloudDeviceIdentity(credentials);
-    const issuedAt = Date.now();
-    const nonce = createEnrollmentNonce();
-    const payload = canonicalJson({
-      account: { provider: "weixin", providerUserId },
-      device: { id: identity.deviceId, relayTunnelId: identity.relayTunnelId },
-      nonce,
-      issuedAt,
-    });
-    const displayName = bot.displayName?.trim();
-    const response = await fetchWithTimeout(
-      `${baseUrl}${CLOUD_ENROLL_PATH}`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-mode-enroll-token": enrollmentToken,
-        },
-        body: JSON.stringify({
-          account: {
-            provider: "weixin",
-            providerUserId,
-            ...(displayName ? { displayName } : {}),
-          },
-          device: {
-            id: identity.deviceId,
-            name: hostname() || "Mode",
-            platform: process.platform,
-            version: MODE_VERSION,
-            publicKey: identity.publicKeyPem,
-            relayTunnelId: identity.relayTunnelId,
-          },
-          assertion: {
-            payload,
-            signature: signCloudEnrollment(identity.privateKeyPem, payload),
-          },
-          nonce,
-          issuedAt,
-        }),
-      },
-      ENROLL_TIMEOUT_MS,
-    );
-    if (!response.ok) {
-      let message = `绑定失败（HTTP ${response.status}）`;
-      try {
-        const body = (await response.json()) as { error?: unknown };
-        if (typeof body.error === "string" && body.error) {
-          message = `绑定失败：${body.error}`;
-        }
-      } catch {
-        // 保留 HTTP 状态错误。
-      }
-      throw new CloudApiError(message, response.status);
-    }
-    const body = (await response.json()) as {
-      accountId?: unknown;
-      deviceId?: unknown;
-      deviceToken?: unknown;
-    };
-    if (
-      typeof body.accountId !== "string" ||
-      !body.accountId ||
-      typeof body.deviceToken !== "string" ||
-      !body.deviceToken
-    ) {
-      throw new Error("绑定响应缺少账号或设备令牌");
-    }
-    await credentials.save(CLOUD_ACCOUNT_ID_CREDENTIAL_KEY, body.accountId);
-    await credentials.save(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY, body.deviceToken);
-    log(`cloud_account_bound account=${body.accountId.slice(0, 8)}…`);
-    const state = await readState();
-    onDidChangeEmitter.fire(state);
-    return state;
-  };
-
-  const autoProvision = startCloudAutoProvision({
-    services,
-    credentials,
-    enrollmentToken,
-    readBoundBot,
-    bind,
-    syncBot: (botId) => cloudBotSync.sync(botId),
     log,
   });
 
   const listDevices = async (): Promise<CloudDeviceSummary[]> => {
     const token = (await credentials.load(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY))?.trim();
     if (!token) {
-      throw new Error("尚未绑定 Mode Cloud");
+      throw new Error("尚未登录 Mode Cloud");
     }
     const { devices } = await readDirectory(token);
     return devices;
@@ -377,16 +238,23 @@ export async function createCloudAccountHostService(
 
   const service: CloudAccountHostService = {
     getState: readState,
-    bind,
-    beginWechatLogin: () => wechatLogin.begin(),
-    pollWechatLogin: () => wechatLogin.poll(),
-    cancelWechatLogin: () => wechatLogin.cancel(),
-    listCloudBotCandidates: () => cloudBotSync.list(),
-    syncCloudLoginBot: (params) => cloudBotSync.sync(params.botId),
+    beginGithubLogin: () => githubLogin.begin(),
+    pollGithubLogin: () => githubLogin.poll(),
+    cancelGithubLogin: () => githubLogin.cancel(),
+    registerWithPassword: (params) => passwordAuth.register(params),
+    loginWithPassword: (params) => passwordAuth.login(params),
+    setAccountCredentials: (params) => passwordAuth.setCredentials(params),
     async unbind() {
+      // 先撤销云端会话（best-effort），再清本地凭据；设备撤销走目录里的显式操作。
+      try {
+        await passwordAuth.logout();
+      } catch {
+        // 云端不可达时也要完成本地清理；服务端会话按 TTL 过期兜底。
+      }
       await credentials.delete(CLOUD_ACCOUNT_ID_CREDENTIAL_KEY);
       await credentials.delete(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY);
       await credentials.delete(CLOUD_RELAY_TOKEN_CREDENTIAL_KEY);
+      await credentials.delete(CLOUD_SESSION_TOKEN_CREDENTIAL_KEY);
       const state = await readState();
       onDidChangeEmitter.fire(state);
       return state;
@@ -395,7 +263,6 @@ export async function createCloudAccountHostService(
     pairDevice,
     onDidChange: onDidChangeEmitter.event,
     async dispose() {
-      autoProvision.dispose();
       onDidChangeEmitter.dispose();
     },
   };

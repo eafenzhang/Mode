@@ -1,5 +1,7 @@
 services:
   relay:
+    # 显式容器名，避免 compose 派生出 mode-cloud-relay-relay-1；与 agent-go-relay 同风格。
+    container_name: mode-cloud-relay
     build:
       context: .
       args:
@@ -17,9 +19,13 @@ services:
       MODE_CLOUD_DB_PATH: "${MODE_CLOUD_DB_PATH:-/data/cloud.sqlite}"
       MODE_CLOUD_ENROLL_TOKEN: "${MODE_CLOUD_ENROLL_TOKEN:-}"
       MODE_CLOUD_ACCOUNT_PEPPER: "${MODE_CLOUD_ACCOUNT_PEPPER:-}"
-      # 云端微信 Bot（独立 iLink token）；设置后启用 /v1/auth/* 登录。
-      MODE_CLOUD_WECHAT_TOKEN: "${MODE_CLOUD_WECHAT_TOKEN:-}"
-      MODE_CLOUD_WECHAT_ALLOWED_USER: "${MODE_CLOUD_WECHAT_ALLOWED_USER:-}"
-      MODE_CLOUD_WECHAT_BASE_URL: "${MODE_CLOUD_WECHAT_BASE_URL:-}"
+      # 个人账号面（docs/specs/cloud-personal-accounts.md）：
+      # GitHub 登录无需服务端 secret；邀请码只约束密码注册，留空 = 开放注册。
+      MODE_CLOUD_INVITE_CODE: "${MODE_CLOUD_INVITE_CODE:-}"
+      MODE_CLOUD_SESSION_TTL_MS: "${MODE_CLOUD_SESSION_TTL_MS:-}"
+      MODE_CLOUD_GITHUB_API_BASE_URL: "${MODE_CLOUD_GITHUB_API_BASE_URL:-}"
+      # 门户 GitHub 登录（public client_id，需在 GitHub OAuth App 开启 Device Flow）
+      MODE_CLOUD_GITHUB_CLIENT_ID: "${MODE_CLOUD_GITHUB_CLIENT_ID:-}"
+      MODE_CLOUD_GITHUB_BASE_URL: "${MODE_CLOUD_GITHUB_BASE_URL:-}"
     volumes:
       - "${MODE_CLOUD_DATA_DIR:-./data}:/data"

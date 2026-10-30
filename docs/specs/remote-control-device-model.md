@@ -6,12 +6,13 @@
 [in-app-remote-desktop.md](./in-app-remote-desktop.md)、
 [remote-workspace-identity.md](./remote-workspace-identity.md)、
 [mode-cloud-account-directory.md](./mode-cloud-account-directory.md)、
+[product-line-naming.md](./product-line-naming.md)（产品名与内部标识约定）、
 [legacy-windows-remote-agent.md](./legacy-windows-remote-agent.md)。
 
 ## 背景
 
 远程控制能力由五条链路组成：远程工作区（`/ws/host` RPC）、远程桌面（信令 +
-媒体 WS）、Mode Agent（MCP HTTP）、云账号设备目录（配对入口）、Web/手机远控
+媒体 WS）、Mode Go（原名 Mode Agent，MCP HTTP；内部标识 `mode-agent` 不变）、云账号设备目录（配对入口）、Web/手机远控
 （`web-remote-replayable`）。此前“设备”“配对码”“端点”在每个链路各有一套投影，
 导致同名不同义、入口分散、端点能力不对称。本 spec 固定一层**产品模型**，所有 UI
 与连接代码都按该模型取设备、端点和通道；底层协议、票据与会话所有者不变。
@@ -49,7 +50,7 @@ interface RemoteDevice {
 - **Device** 是产品面唯一“设备”概念；`RemoteControlHome` 只消费 `RemoteDevice[]`。
 - **Endpoint** 是唯一地址事实源；`host`/`port` 只是主端点的兼容投影。
 - **Channel** 是设备上可用的能力，不是设备类型；一台 LAN 设备可同时具备
-  `workspace` 与 `desktop`，一台 Mode Agent 只有 `conversation`。
+  `workspace` 与 `desktop`，一台 Mode Go 只有 `conversation`（内部 origin 仍为 `mode-agent`）。
 - **Session** 仍由既有所有者持有：远程工作区归 `windowRemoteConnectionRegistry`，
   远程桌面归 `RemoteDesktopHostServer` / 主控 controller。本模型只做投影，不新增
   第二份会话状态。
@@ -96,7 +97,7 @@ interface RemoteDevice {
 | --- | --- | --- |
 | 设备列表投影 | `RemoteDesktopHome`（页级瞬态） | 每次进入/刷新重读四类来源并合并；不持久化 |
 | 配对记录 / 令牌 / 端点元数据 | Host 凭据服务 | `lan:access:clients`、`lan:peer:<serverId>:token/meta` |
-| Mode Agent 设备 | MCP 配置 `mode-agent-*` | 既有事实源 |
+| Mode Go 设备（原名 Mode Agent） | MCP 配置 `mode-agent-*`（内部标识不变） | 既有事实源 |
 | 云设备目录 | Mode Cloud SQLite + UI 页级快照 | 既有事实源；配对后落回 LAN peer |
 | 远程工作区会话 | `windowRemoteConnectionRegistry` | 既有 owner |
 | 远程桌面会话 | `RemoteDesktopHostServer` / 主控 controller | 既有 owner |

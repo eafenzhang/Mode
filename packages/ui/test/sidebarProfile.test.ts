@@ -14,7 +14,6 @@ const OAUTH_USER: UserInfo = {
 function cloudState(overrides: Partial<CloudAccountState>): CloudAccountState {
   return {
     status: "unbound",
-    enrollmentConfigured: true,
     ...overrides,
   };
 }
@@ -25,17 +24,17 @@ test("未登录时显示 Mode，不把品牌名当作用户名", () => {
   assert.equal(profile.displayName, "Mode");
 });
 
-test("只绑定微信 Bot 时不得回落 providerUserId（o9cg...）", () => {
-  // boundWeixinName 可能是 bot 的 providerUserId；footer 之前把它当成显示名，
-  // 导致设置页出现「o9cg805lbPlUBF…」而首页显示 Mode。
+test("云账号没有展示名时不得回落 GitHub login 等不透明用户名", () => {
+  // GitHub login / 账号 id 是不透明标识（与旧微信 openid 同类）；footer 不能把它
+  // 当成显示名，应保持 Mode 等待昵称或云端 displayName。
   const profile = resolveSidebarProfile({
     user: null,
     cloudAccount: cloudState({
-      status: "unbound",
-      boundWeixinName: "o9cg805lbPlUBFxxxxxxxx",
+      status: "bound",
+      account: { id: "acct-1", username: "octocat-8f3a2b" },
     }),
   });
-  assert.equal(profile.hasAccount, false);
+  assert.equal(profile.hasAccount, true);
   assert.equal(profile.displayName, "Mode");
 });
 
@@ -45,7 +44,6 @@ test("Mode Cloud 已绑定时使用云端账号展示名", () => {
     cloudAccount: cloudState({
       status: "bound",
       account: { id: "acct-1", displayName: "Alice Cloud" },
-      boundWeixinName: "o9cg805lbPlUBFxxxxxxxx",
     }),
   });
   assert.equal(profile.hasAccount, true);

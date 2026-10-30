@@ -3,7 +3,7 @@
  *
  * - 设备侧：`GET /_tunnel?tunnelId=…&token=…` 出站 WSS，注册 tunnelId。
  * - 主控侧：`ANY /d/<tunnelId>/...` 与对应 WS 升级，透明转发到设备隧道。
- * - 只持有连接期内存映射，不保存任务/会话/令牌。
+ * - 只持有连接期内存映射（TunnelRegistry），不保存任务/会话/令牌。
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
@@ -18,25 +18,21 @@ import {
   safeEqual,
   toBuffer,
   writeUpgradeError,
-  type TunnelConnection,
 } from "./internal.js";
+import { isPortalPath, servePortal } from "./portal.js";
 import {
-  decodeTunnelDataFrame,
   encodeTunnelDataFrame,
   parsePublicPath,
-  parseTunnelControl,
-  RELAY_HEARTBEAT_MS,
   RELAY_HTTP_TIMEOUT_MS,
   RELAY_MAX_HTTP_BODY_BYTES,
   RELAY_MAX_WS_FRAME_BYTES,
-  RELAY_PROTOCOL_VERSION,
   RELAY_TUNNEL_ID_PATTERN,
   RELAY_TUNNEL_PATH,
   RELAY_WS_OPEN_TIMEOUT_MS,
-  type RelayTunnelControl,
   type RelayWsErrorControl,
   type RelayWsReadyControl,
 } from "./protocol.js";
+import { TunnelRegistry } from "./tunnelRegistry.js";
 
 export interface RelayServerOptions {
   host?: string;
@@ -50,7 +46,7 @@ export interface RelayServerOptions {
   log?: (line: string) => void;
   /**
    * Mode Cloud 控制面：提供 enrollToken 时启用 `/v1/*` 与 SQLite 设备目录
-   * （docs/specs/mode-cloud-account-directory.md）。
+   * （docs/specs/cloud-personal-accounts.md）。
    */
   cloud?: RelayCloudOptions;
 }
@@ -71,159 +67,23 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
   const maxBody = options.maxHttpBodyBytes ?? RELAY_MAX_HTTP_BODY_BYTES;
   const httpTimeout = options.httpTimeoutMs ?? RELAY_HTTP_TIMEOUT_MS;
   const wsOpenTimeout = options.wsOpenTimeoutMs ?? RELAY_WS_OPEN_TIMEOUT_MS;
-  const heartbeatMs = options.heartbeatMs ?? RELAY_HEARTBEAT_MS;
-  const tunnels = new Map<string, TunnelConnection>();
+  const registry = new TunnelRegistry(log, options.heartbeatMs);
   const wss = new WebSocketServer({ noServer: true });
+
   const cloudRuntime = options.cloud
     ? startCloudRuntime({
         cloud: options.cloud,
         relayToken: token,
         publicBaseUrl: options.publicBaseUrl,
-        getTunnelIds: () => [...tunnels.keys()],
+        getTunnelIds: () => registry.ids(),
+        closeTunnel: (tunnelId) => {
+          // revoke 设备：主动断开在线隧道；令牌已删，重连会被 401 拒绝。
+          registry.close(tunnelId, 1000, "revoked");
+        },
         log,
       })
     : null;
   const control = cloudRuntime?.control ?? null;
-
-  const cleanupTunnel = (tunnel: TunnelConnection): void => {
-    if (tunnels.get(tunnel.tunnelId) !== tunnel) {
-      return;
-    }
-    tunnels.delete(tunnel.tunnelId);
-    if (tunnel.heartbeat) {
-      clearInterval(tunnel.heartbeat);
-    }
-    if (tunnel.helloTimeout) {
-      clearTimeout(tunnel.helloTimeout);
-    }
-    for (const [streamId, pending] of tunnel.pendingHttp) {
-      clearTimeout(pending.timer);
-      pending.resolve({ type: "http-error", streamId, message: "relay tunnel closed" });
-    }
-    tunnel.pendingHttp.clear();
-    for (const [streamId, pending] of tunnel.pendingWs) {
-      clearTimeout(pending.timer);
-      pending.resolve({ type: "ws-error", streamId, message: "relay tunnel closed" });
-    }
-    tunnel.pendingWs.clear();
-    for (const controllerWs of tunnel.activeWs.values()) {
-      controllerWs.close(1011, "relay tunnel closed");
-    }
-    tunnel.activeWs.clear();
-    log(`[relay] tunnel offline ${tunnel.tunnelId.slice(0, 8)}…`);
-  };
-
-  const handleTunnelControl = (tunnel: TunnelConnection, control: RelayTunnelControl): void => {
-    switch (control.type) {
-      case "hello": {
-        if (control.version !== RELAY_PROTOCOL_VERSION || control.tunnelId !== tunnel.tunnelId) {
-          tunnel.ws.close(1008, "unsupported protocol");
-          return;
-        }
-        if (tunnel.helloTimeout) {
-          clearTimeout(tunnel.helloTimeout);
-          tunnel.helloTimeout = null;
-        }
-        tunnel.ws.send(
-          JSON.stringify({
-            type: "ready",
-            version: RELAY_PROTOCOL_VERSION,
-            publicPath: `/d/${tunnel.tunnelId}`,
-          }),
-        );
-        log(`[relay] tunnel online ${tunnel.tunnelId.slice(0, 8)}…`);
-        return;
-      }
-      case "http-response":
-      case "http-error": {
-        const pending = tunnel.pendingHttp.get(control.streamId);
-        if (pending) {
-          clearTimeout(pending.timer);
-          tunnel.pendingHttp.delete(control.streamId);
-          pending.resolve(control);
-        }
-        return;
-      }
-      case "ws-ready":
-      case "ws-error": {
-        const pending = tunnel.pendingWs.get(control.streamId);
-        if (pending) {
-          clearTimeout(pending.timer);
-          tunnel.pendingWs.delete(control.streamId);
-          pending.resolve(control);
-        }
-        return;
-      }
-      case "ws-close": {
-        const controllerWs = tunnel.activeWs.get(control.streamId);
-        tunnel.activeWs.delete(control.streamId);
-        controllerWs?.close(control.code ?? 1000, control.reason ?? "");
-        return;
-      }
-      case "ping":
-        tunnel.ws.send(JSON.stringify({ type: "pong", ts: control.ts }));
-        return;
-      default:
-        return;
-    }
-  };
-
-  const registerTunnel = (ws: WebSocket, tunnelId: string): void => {
-    const previous = tunnels.get(tunnelId);
-    if (previous) {
-      previous.ws.close(1000, "replaced");
-      cleanupTunnel(previous);
-    }
-    const tunnel: TunnelConnection = {
-      tunnelId,
-      ws,
-      nextStreamId: 1,
-      pendingHttp: new Map(),
-      pendingWs: new Map(),
-      activeWs: new Map(),
-      heartbeat: null,
-      helloTimeout: setTimeout(() => ws.close(1008, "hello timeout"), 10_000),
-    };
-    tunnels.set(tunnelId, tunnel);
-    tunnel.helloTimeout?.unref?.();
-    tunnel.heartbeat = setInterval(() => {
-      if (ws.readyState !== WebSocket.OPEN) {
-        return;
-      }
-      try {
-        ws.ping();
-        ws.send(JSON.stringify({ type: "ping", ts: Date.now() }));
-      } catch {
-        ws.terminate();
-      }
-    }, heartbeatMs);
-    tunnel.heartbeat.unref?.();
-    ws.on("message", (data, isBinary) => {
-      if (isBinary) {
-        const frame = decodeTunnelDataFrame(toBuffer(data));
-        if (!frame || frame.payload.length > RELAY_MAX_WS_FRAME_BYTES) {
-          return;
-        }
-        const controllerWs = tunnel.activeWs.get(frame.streamId);
-        if (!controllerWs || controllerWs.readyState !== WebSocket.OPEN) {
-          return;
-        }
-        if (controllerWs.bufferedAmount > RELAY_MAX_WS_FRAME_BYTES * 2) {
-          controllerWs.close(1013, "relay backpressure");
-          tunnel.activeWs.delete(frame.streamId);
-          return;
-        }
-        controllerWs.send(frame.payload, { binary: frame.isBinary });
-        return;
-      }
-      const control = parseTunnelControl(data.toString());
-      if (control) {
-        handleTunnelControl(tunnel, control);
-      }
-    });
-    ws.on("close", () => cleanupTunnel(tunnel));
-    ws.on("error", () => cleanupTunnel(tunnel));
-  };
 
   const handleTunnelUpgrade = (
     req: IncomingMessage,
@@ -233,11 +93,18 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
   ): void => {
     const tunnelId = url.searchParams.get("tunnelId")?.trim() ?? "";
     const presented = url.searchParams.get("token")?.trim() ?? "";
-    if (!RELAY_TUNNEL_ID_PATTERN.test(tunnelId) || !safeEqual(token, presented)) {
+    if (!RELAY_TUNNEL_ID_PATTERN.test(tunnelId)) {
       writeUpgradeError(socket, 401, "Unauthorized");
       return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => registerTunnel(ws, tunnelId));
+    // 每设备令牌优先（docs/specs/cloud-personal-accounts.md）；共享 secret 回退
+    // （纯中继部署 / 运维过渡路径）。
+    const perDeviceOk = control ? control.verifyTunnelToken(tunnelId, presented) : false;
+    if (!perDeviceOk && !safeEqual(token, presented)) {
+      writeUpgradeError(socket, 401, "Unauthorized");
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => registry.register(ws, tunnelId));
   };
 
   const handleHttp = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -245,6 +112,16 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
     if (url.pathname === "/_health") {
       res.writeHead(200, { "content-type": "text/plain" });
       res.end("ok");
+      return;
+    }
+    if (isPortalPath(url.pathname)) {
+      // 门户只在启用控制面时提供；没有账号服务时保持 404，不误导访问者。
+      if (!control) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      servePortal(res);
       return;
     }
     if (url.pathname.startsWith("/v1/")) {
@@ -262,7 +139,7 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
       res.end();
       return;
     }
-    const tunnel = tunnels.get(match.tunnelId);
+    const tunnel = registry.get(match.tunnelId);
     if (!tunnel) {
       res.writeHead(503);
       res.end("relay tunnel offline");
@@ -285,7 +162,7 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
     url: URL,
     match: { tunnelId: string; rest: string },
   ): Promise<void> => {
-    const tunnel = tunnels.get(match.tunnelId);
+    const tunnel = registry.get(match.tunnelId);
     if (!tunnel || tunnel.ws.readyState !== WebSocket.OPEN) {
       writeUpgradeError(socket, 503, "Service Unavailable");
       return;
@@ -393,13 +270,10 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
   return {
     port,
     publicBaseUrl: options.publicBaseUrl,
-    getTunnelIds: () => [...tunnels.keys()],
+    getTunnelIds: () => registry.ids(),
     async close() {
       cloudRuntime?.close();
-      for (const tunnel of tunnels.values()) {
-        tunnel.ws.close(1001, "relay shutting down");
-        cleanupTunnel(tunnel);
-      }
+      registry.closeAll(1001, "relay shutting down");
       await new Promise<void>((resolve) => {
         wss.close(() => resolve());
         server.close(() => resolve());

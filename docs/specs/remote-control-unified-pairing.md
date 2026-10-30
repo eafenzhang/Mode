@@ -9,8 +9,8 @@
 
 ## 背景
 
-远程控制页曾有三块并列入口：Mode Agent 被控端卡片、添加设备卡片、LAN 设备网格。
-配对码也出现在两处（Mode Agent 卡片与设置页），Mode Agent 还保留了被控端自生成的
+远程控制页曾有三块并列入口：Mode Go 被控端（原名 Mode Agent）卡片、添加设备卡片、LAN 设备网格。
+配对码也出现在两处（Mode Go 卡片与设置页），Mode Go 还保留了被控端自生成的
 8 位码「手动配对」方向。用户要求：
 
 1. 远程桌面、远程工作区与 Mode Agent 使用同一套配对码；
@@ -45,15 +45,15 @@
 
 1. **LAN 已配对设备**：`getLanPairedPeers()`；同一行同时代表远程工作区与远程桌面
    能力，能力位按需实时探测。地址来自 `endpoints`（公网优先、LAN 回退）。
-2. **Mode Agent 已配对设备**：MCP 配置中的 `mode-agent-*` HTTP server；MCP 配置是
-   唯一事实源，不另建设备表。
+2. **Mode Go 已配对设备（原名 Mode Agent）**：MCP 配置中的 `mode-agent-*` HTTP server；
+   MCP 配置是唯一事实源，不另建设备表（内部标识不变）。
 3. **发现的未配对 LAN 设备**：`discoverLanPeers()` 结果，过滤已配对 serverId 与
    用户已忽略项；行内提供对端配对码输入。
 4. **云目录设备**：在 Mode 账号弹窗里选设备并输入被控端配对码；配对成功后写入
    `lan:peer:*`，回到本页设备列表，不再维护第二份云设备列表。
 
 页面顶部区域只保留：本机配对码面板（生成/复制配对串）、添加设备（触发扫描）、刷新。
-不再有独立的「Mode Agent 被控端」卡片、「添加设备」卡片或 LAN 设备网格分区。
+不再有独立的「Mode Go 被控端」（原名 Mode Agent）卡片、「添加设备」卡片或 LAN 设备网格分区。
 
 新建连接向导（「添加工作区 → 选择连接方式」）是远程工作区的**唯一入口**，提供「局域网」方式，
 但**只能选择已配对设备**：列表唯一来自 `getLanPairedPeers()`，不提供设备发现、手动地址/端口
@@ -117,7 +117,7 @@ server 同存一份配置，属于跨 UI 与 runtime 的配置契约：CLI/runti
 | --- | --- |
 | 一次性配对码 | `lanAccessServer.pairCode` |
 | LAN 配对记录 / 令牌 | 凭据服务（既有） |
-| Mode Agent 设备 | MCP 配置 `mode-agent-*`（既有） |
+| Mode Go 设备（原名 Mode Agent） | MCP 配置 `mode-agent-*`（既有，内部标识不变） |
 | 发现的未配对设备 | `RemoteDesktopHome` 页级瞬态 |
 | 设备列表 / 能力位探测 | `RemoteDesktopHome` |
 | 统一 `RemoteDevice[]` 投影 | `RemoteDesktopHome`（纯投影，不持久化） |

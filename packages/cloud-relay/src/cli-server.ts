@@ -30,12 +30,16 @@ const enrollToken =
   argValue("--enroll-token") ?? process.env.MODE_CLOUD_ENROLL_TOKEN ?? "";
 const accountPepper =
   argValue("--account-pepper") ?? process.env.MODE_CLOUD_ACCOUNT_PEPPER ?? "";
-const wechatToken =
-  argValue("--wechat-token") ?? process.env.MODE_CLOUD_WECHAT_TOKEN ?? "";
-const wechatAllowedUser =
-  argValue("--wechat-allowed-user") ?? process.env.MODE_CLOUD_WECHAT_ALLOWED_USER ?? "";
-const wechatBaseUrl =
-  argValue("--wechat-base-url") ?? process.env.MODE_CLOUD_WECHAT_BASE_URL ?? "";
+const inviteCode =
+  argValue("--invite-code") ?? process.env.MODE_CLOUD_INVITE_CODE ?? "";
+const sessionTtlRaw =
+  argValue("--session-ttl-ms") ?? process.env.MODE_CLOUD_SESSION_TTL_MS ?? "";
+const githubApiBaseUrl =
+  argValue("--github-api-base-url") ?? process.env.MODE_CLOUD_GITHUB_API_BASE_URL ?? "";
+const githubClientId =
+  argValue("--github-client-id") ?? process.env.MODE_CLOUD_GITHUB_CLIENT_ID ?? "";
+const githubBaseUrl =
+  argValue("--github-base-url") ?? process.env.MODE_CLOUD_GITHUB_BASE_URL ?? "";
 if (enrollToken.trim() && cloudDbPath !== ":memory:") {
   mkdirSync(dirname(cloudDbPath), { recursive: true });
 }
@@ -59,9 +63,13 @@ const server = await startRelayServer({
     dbPath: cloudDbPath,
     enrollToken,
     accountPepper,
-    wechatToken,
-    wechatAllowedUser,
-    wechatBaseUrl,
+    ...(inviteCode.trim() ? { inviteCode } : {}),
+    ...(sessionTtlRaw.trim() && Number.isFinite(Number(sessionTtlRaw))
+      ? { sessionTtlMs: Number(sessionTtlRaw) }
+      : {}),
+    ...(githubApiBaseUrl.trim() ? { githubApiBaseUrl } : {}),
+    ...(githubClientId.trim() ? { githubClientId } : {}),
+    ...(githubBaseUrl.trim() ? { githubBaseUrl } : {}),
   },
 });
 
@@ -74,9 +82,14 @@ console.log(
     : "[relay] cloud control: disabled (MODE_CLOUD_ENROLL_TOKEN is empty)",
 );
 console.log(
-  wechatToken.trim()
-    ? "[relay] cloud wechat login: enabled"
-    : "[relay] cloud wechat login: disabled (MODE_CLOUD_WECHAT_TOKEN is empty)",
+  inviteCode.trim()
+    ? "[relay] password registration: invite code required"
+    : "[relay] password registration: open",
+);
+console.log(
+  githubClientId.trim()
+    ? `[relay] web portal: http://${host}:${server.port}/ (GitHub login enabled)`
+    : `[relay] web portal: http://${host}:${server.port}/ (password login only)`,
 );
 
 const shutdown = async (): Promise<void> => {

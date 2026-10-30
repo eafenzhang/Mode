@@ -24,9 +24,11 @@ NPM_REGISTRY="${MODE_RELAY_NPM_REGISTRY:-}"
 CLOUD_ENROLL_TOKEN="${MODE_CLOUD_ENROLL_TOKEN:-}"
 CLOUD_ACCOUNT_PEPPER="${MODE_CLOUD_ACCOUNT_PEPPER:-}"
 CLOUD_DATA_DIR="${MODE_CLOUD_DATA_DIR:-}"
-CLOUD_WECHAT_TOKEN="${MODE_CLOUD_WECHAT_TOKEN:-}"
-CLOUD_WECHAT_ALLOWED_USER="${MODE_CLOUD_WECHAT_ALLOWED_USER:-}"
-CLOUD_WECHAT_BASE_URL="${MODE_CLOUD_WECHAT_BASE_URL:-}"
+CLOUD_INVITE_CODE="${MODE_CLOUD_INVITE_CODE:-}"
+CLOUD_SESSION_TTL_MS="${MODE_CLOUD_SESSION_TTL_MS:-}"
+CLOUD_GITHUB_API_BASE_URL="${MODE_CLOUD_GITHUB_API_BASE_URL:-}"
+CLOUD_GITHUB_CLIENT_ID="${MODE_CLOUD_GITHUB_CLIENT_ID:-}"
+CLOUD_GITHUB_BASE_URL="${MODE_CLOUD_GITHUB_BASE_URL:-}"
 BUILD_FLAG="--build"
 
 usage() {
@@ -96,14 +98,20 @@ if [[ -f "$INSTALL_DIR/.env" ]]; then
   if [[ -z "$CLOUD_DATA_DIR" ]]; then
     CLOUD_DATA_DIR="$(grep -E '^MODE_CLOUD_DATA_DIR=' "$INSTALL_DIR/.env" | head -1 | cut -d= -f2- || true)"
   fi
-  if [[ -z "$CLOUD_WECHAT_TOKEN" ]]; then
-    CLOUD_WECHAT_TOKEN="$(grep -E '^MODE_CLOUD_WECHAT_TOKEN=' "$INSTALL_DIR/.env" | head -1 | cut -d= -f2- || true)"
+  if [[ -z "$CLOUD_INVITE_CODE" ]]; then
+    CLOUD_INVITE_CODE="$(grep -E '^MODE_CLOUD_INVITE_CODE=' "$INSTALL_DIR/.env" | head -1 | cut -d= -f2- || true)"
   fi
-  if [[ -z "$CLOUD_WECHAT_ALLOWED_USER" ]]; then
-    CLOUD_WECHAT_ALLOWED_USER="$(grep -E '^MODE_CLOUD_WECHAT_ALLOWED_USER=' "$INSTALL_DIR/.env" | head -1 | cut -d= -f2- || true)"
+  if [[ -z "$CLOUD_SESSION_TTL_MS" ]]; then
+    CLOUD_SESSION_TTL_MS="$(grep -E '^MODE_CLOUD_SESSION_TTL_MS=' "$INSTALL_DIR/.env" | head -1 | cut -d= -f2- || true)"
   fi
-  if [[ -z "$CLOUD_WECHAT_BASE_URL" ]]; then
-    CLOUD_WECHAT_BASE_URL="$(grep -E '^MODE_CLOUD_WECHAT_BASE_URL=' "$INSTALL_DIR/.env" | head -1 | cut -d= -f2- || true)"
+  if [[ -z "$CLOUD_GITHUB_API_BASE_URL" ]]; then
+    CLOUD_GITHUB_API_BASE_URL="$(grep -E '^MODE_CLOUD_GITHUB_API_BASE_URL=' "$INSTALL_DIR/.env" | head -1 | cut -d= -f2- || true)"
+  fi
+  if [[ -z "$CLOUD_GITHUB_CLIENT_ID" ]]; then
+    CLOUD_GITHUB_CLIENT_ID="$(grep -E '^MODE_CLOUD_GITHUB_CLIENT_ID=' "$INSTALL_DIR/.env" | head -1 | cut -d= -f2- || true)"
+  fi
+  if [[ -z "$CLOUD_GITHUB_BASE_URL" ]]; then
+    CLOUD_GITHUB_BASE_URL="$(grep -E '^MODE_CLOUD_GITHUB_BASE_URL=' "$INSTALL_DIR/.env" | head -1 | cut -d= -f2- || true)"
   fi
 fi
 if [[ -z "$TOKEN" ]]; then
@@ -135,14 +143,20 @@ umask 077
   if [[ -n "$CLOUD_DATA_DIR" ]]; then
     echo "MODE_CLOUD_DATA_DIR=${CLOUD_DATA_DIR}"
   fi
-  if [[ -n "$CLOUD_WECHAT_TOKEN" ]]; then
-    echo "MODE_CLOUD_WECHAT_TOKEN=${CLOUD_WECHAT_TOKEN}"
+  if [[ -n "$CLOUD_INVITE_CODE" ]]; then
+    echo "MODE_CLOUD_INVITE_CODE=${CLOUD_INVITE_CODE}"
   fi
-  if [[ -n "$CLOUD_WECHAT_ALLOWED_USER" ]]; then
-    echo "MODE_CLOUD_WECHAT_ALLOWED_USER=${CLOUD_WECHAT_ALLOWED_USER}"
+  if [[ -n "$CLOUD_SESSION_TTL_MS" ]]; then
+    echo "MODE_CLOUD_SESSION_TTL_MS=${CLOUD_SESSION_TTL_MS}"
   fi
-  if [[ -n "$CLOUD_WECHAT_BASE_URL" ]]; then
-    echo "MODE_CLOUD_WECHAT_BASE_URL=${CLOUD_WECHAT_BASE_URL}"
+  if [[ -n "$CLOUD_GITHUB_API_BASE_URL" ]]; then
+    echo "MODE_CLOUD_GITHUB_API_BASE_URL=${CLOUD_GITHUB_API_BASE_URL}"
+  fi
+  if [[ -n "$CLOUD_GITHUB_CLIENT_ID" ]]; then
+    echo "MODE_CLOUD_GITHUB_CLIENT_ID=${CLOUD_GITHUB_CLIENT_ID}"
+  fi
+  if [[ -n "$CLOUD_GITHUB_BASE_URL" ]]; then
+    echo "MODE_CLOUD_GITHUB_BASE_URL=${CLOUD_GITHUB_BASE_URL}"
   fi
 } > "$INSTALL_DIR/.env"
 chmod 600 "$INSTALL_DIR/.env"

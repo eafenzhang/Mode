@@ -48,8 +48,8 @@ MODE_RELAY_NPM_REGISTRY='https://registry.npmmirror.com' \
 
 ### Mode Cloud 控制面（可选）
 
-同一容器内启用账号/设备目录
-（[docs/specs/mode-cloud-account-directory.md](../../docs/specs/mode-cloud-account-directory.md)）：
+同一容器内启用个人账号/设备目录
+（[docs/specs/cloud-personal-accounts.md](../../docs/specs/cloud-personal-accounts.md)）：
 
 ```bash
 MODE_CLOUD_ENROLL_TOKEN='<部署级 secret>' \
@@ -58,27 +58,22 @@ MODE_CLOUD_DATA_DIR='./data' \
 ./scripts/deploy-fnos.sh --public-base-url 'https://relay.example.com'
 ```
 
-- 端点：`/v1/devices/enroll`、`/v1/devices`、`/v1/devices/:id/revoke`、
-  `/v1/auth/start`、`/v1/auth/poll`、`/v1/health`；
+- 端点：`/v1/auth/register|login|github|refresh|logout|sessions|credentials`、
+  `/v1/devices/enroll`、`/v1/devices`、`/v1/devices/:id/revoke`、`/v1/health`；
+- 登录方式：GitHub OAuth Device Flow + 用户名密码；GitHub 无需服务端 secret，
+  只需 Desktop 侧配置 OAuth App 的 `client_id`（GitHub 上启用 Device Flow）；
+- `MODE_CLOUD_INVITE_CODE` 配置后密码注册必须携带邀请码（GitHub 建号不受限）；
+  留空 = 开放注册；公网部署建议配置；
+- `MODE_CLOUD_SESSION_TTL_MS` 会话时长（默认 30 天滑动过期）；
+- `MODE_CLOUD_GITHUB_API_BASE_URL` 可把 GitHub API 验证指向代理；
+- `MODE_CLOUD_GITHUB_CLIENT_ID` 门户 GitHub 登录用的 public client_id（GitHub OAuth App
+  需开启 Device Flow）；未配置时门户只提供用户名密码登录；
+- `MODE_CLOUD_GITHUB_BASE_URL` GitHub device/token 端点基址（默认 `https://github.com`）；
+- **网页门户**：启用控制面后 `https://<relay>/`（或 `/portal`）直接提供登录 + 设备列表；
+  登录成功下发 `mode_cloud_session` HttpOnly Cookie，点设备进入 `/d/<id>/` 现有远控页；
 - SQLite 落在 `./data/cloud.sqlite`，需要备份；
-- `MODE_CLOUD_ENROLL_TOKEN` 留空 = 关闭控制面，只保留中继；
-- 同一个 secret 也要配置到各 Desktop 的 `MODE_CLOUD_ENROLL_TOKEN`。
-
-### 云端微信 Bot 登录（换机零配置）
-
-给云端配置一个**独立**的 iLink bot token（不要与桌面 Bot 共用，否则会互相抢
-`getupdates` 消息）：
-
-```bash
-MODE_CLOUD_WECHAT_TOKEN='<独立 iLink bot token>' \
-MODE_CLOUD_WECHAT_ALLOWED_USER='<你的微信 ID，可选>' \
-./scripts/deploy-fnos.sh --public-base-url 'https://relay.mymode.cloud'
-```
-
-- `MODE_CLOUD_WECHAT_ALLOWED_USER` 留空 = TOFU：第一个用有效登录码的微信用户成为账号锚点。
-- 新电脑安装后直接「使用微信登录」：显示 6 位码 → 发给云端 Bot → 自动获取
-  device token / relay token；不需要部署 secret 或 `cloud-deployment.json`。
-- 未配置 token 时 `/v1/auth/*` 返回 503，旧 enrollment secret 路径仍可用。
+- `MODE_CLOUD_ENROLL_TOKEN` 留空 = 关闭控制面，只保留中继（纯中继部署下隧道
+  鉴权回退共享 `MODE_RELAY_TOKEN`）。
 
 - 反代示例（Caddy 自动处理 WebSocket upgrade）：
 
@@ -96,8 +91,8 @@ Mode Desktop 已内置自动隧道：开启「局域网访问」且注入 `MODE_
 Host 会自动生成并持久化 `tunnelId`、启动隧道，并在配对响应/`server-info` 中下发
 `publicRelay`；主控据此自动写入 `https://<base>/d/<tunnelId>`，不需要手填。
 `MODE_PUBLIC_RELAY_BASE_URL` 默认 `https://relay.mymode.cloud`，可用 env 覆盖。
-Desktop 也支持 `cloud-deployment.json` 一次写入 `cloudBaseUrl` / `enrollToken` /
-`relayToken`（权限 0600、勿提交），之后不再逐机设置环境变量。
+Desktop 也支持 `cloud-deployment.json` 一次写入 `cloudBaseUrl` / `githubClientId` /
+`enrollToken` / `relayToken`（权限 0600、勿提交），之后不再逐机设置环境变量。
 未配置令牌时保持 LAN-only。不要与使用同一 `tunnelId` 的 CLI 同时运行（中继以最后
 一次注册为准）。
 

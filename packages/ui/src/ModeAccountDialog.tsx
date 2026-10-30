@@ -77,22 +77,15 @@ export function ModeAccountDialog({
     };
   }, [open, service]);
   const effectiveCloudAccount = liveCloudAccount ?? cloudAccount ?? null;
-  // 未部署 Mode Cloud（或当前 Host 没有该频道）时，绑定 Bot 不会触发自动登录，
-  // 不能继续显示“绑定后自动登录”的承诺（spec: mode-cloud-account-directory.md）。
+  // 未部署 Mode Cloud（或当前 Host 没有该频道）时只提示部署缺失；
+  // 云账号登录（GitHub/用户名密码）入口在远程控制页的 Mode Cloud 分区。
   const cloudUnavailable = !service || effectiveCloudAccount?.status === "unavailable";
-  // 没有部署密钥时云账号仍可用（微信 6 位码登录），只是不能自动登录/同步 Bot；
-  // 文案必须指向微信登录，不能笼统说“未启用 Mode Cloud”。
-  const enrollmentMissing = Boolean(service) && effectiveCloudAccount?.enrollmentConfigured === false;
   const descriptionKey = cloudUnavailable
     ? "modeAccount.description.unavailable"
-    : enrollmentMissing
-      ? "modeAccount.description.wechatOnly"
-      : "modeAccount.description";
+    : "modeAccount.description";
   const bindHintKey = cloudUnavailable
     ? "modeAccount.bindHint.unavailable"
-    : enrollmentMissing
-      ? "modeAccount.bindHint.wechatOnly"
-      : "modeAccount.bindHint";
+    : "modeAccount.bindHint";
   const profile = resolveSidebarProfile({
     user,
     cloudAccount: effectiveCloudAccount,

@@ -7,7 +7,10 @@
 import { randomBytes, verify } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import { handleAuthPoll, handleAuthStart, handleSetWechatBot } from "./controlAuth.js";
+import {
+  handlePasswordAuthRequest,
+} from "./controlAuthPassword.js";
+import { issueRelayToken, resolveControlActor } from "./controlActor.js";
 import {
   RELAY_TUNNEL_ID_PATTERN,
   allowEnrollAttempt,
@@ -27,7 +30,8 @@ export type { ControlApiOptions } from "./controlHttp.js";
 const ASSERTION_CLOCK_SKEW_MS = 5 * 60_000;
 
 interface EnrollRequestBody {
-  account: { provider: string; providerUserId: string; displayName?: string };
+  /** 会话路径（docs/specs/cloud-personal-accounts.md）不带账号锚点，账号从会话解析。 */
+  account?: { provider: string; providerUserId: string; displayName?: string };
   device: {
     id: string;
     name: string;
@@ -49,11 +53,19 @@ function parseEnrollBody(value: unknown): EnrollRequestBody | null {
   const account = body.account as Record<string, unknown> | undefined;
   const device = body.device as Record<string, unknown> | undefined;
   const assertion = body.assertion as Record<string, unknown> | undefined;
-  if (!account || !device || !assertion) {
+  if (!device || !assertion) {
     return null;
   }
-  const provider = asTrimmedString(account.provider, 32);
-  const providerUserId = asTrimmedString(account.providerUserId, 256);
+  let parsedAccount: EnrollRequestBody["account"];
+  if (account) {
+    const provider = asTrimmedString(account.provider, 32);
+    const providerUserId = asTrimmedString(account.providerUserId, 256);
+    if (provider !== "weixin" || !providerUserId) {
+      return null;
+    }
+    const displayName = asTrimmedString(account.displayName, 64);
+    parsedAccount = { provider, providerUserId, ...(displayName ? { displayName } : {}) };
+  }
   const deviceId = asTrimmedString(device.id, 128);
   const name = asTrimmedString(device.name, 64);
   const platform = asTrimmedString(device.platform, 32);
@@ -63,8 +75,6 @@ function parseEnrollBody(value: unknown): EnrollRequestBody | null {
   const signature = asTrimmedString(assertion.signature, 4096);
   const nonce = asTrimmedString(body.nonce, 128);
   if (
-    provider !== "weixin" ||
-    !providerUserId ||
     !deviceId ||
     !name ||
     !platform ||
@@ -80,10 +90,9 @@ function parseEnrollBody(value: unknown): EnrollRequestBody | null {
   ) {
     return null;
   }
-  const displayName = asTrimmedString(account.displayName, 64);
   const version = asTrimmedString(device.version, 64);
   return {
-    account: { provider, providerUserId, ...(displayName ? { displayName } : {}) },
+    ...(parsedAccount ? { account: parsedAccount } : {}),
     device: {
       id: deviceId,
       name,
@@ -113,9 +122,12 @@ function verifyAssertion(
   }
   const account = parsed.account as Record<string, unknown> | undefined;
   const device = parsed.device as Record<string, unknown> | undefined;
+  const signatureMismatch = body.account
+    ? account?.provider !== body.account.provider ||
+      account?.providerUserId !== body.account.providerUserId
+    : Boolean(account);
   if (
-    account?.provider !== body.account.provider ||
-    account?.providerUserId !== body.account.providerUserId ||
+    signatureMismatch ||
     device?.id !== body.device.id ||
     device?.relayTunnelId !== body.device.relayTunnelId ||
     parsed.nonce !== body.nonce ||
@@ -151,14 +163,38 @@ async function handleEnroll(
     sendJson(res, 429, { error: "rate_limited" });
     return;
   }
-  const presented = req.headers["x-mode-enroll-token"];
-  if (typeof presented !== "string" || !safeEqual(options.enrollToken, presented.trim())) {
-    sendJson(res, 401, { error: "unauthorized" });
-    return;
+  // 新路径：Bearer 会话令牌，账号从会话解析；旧 X-Mode-Enroll-Token 路径保留过渡
+  // （docs/specs/cloud-personal-accounts.md）。
+  const bearer = readBearer(req);
+  const sessionAccountId = bearer
+    ? (options.store.auth.findSessionByTokenHash(hashDeviceToken(bearer), now)?.accountId ?? null)
+    : null;
+  const sessionAccount = sessionAccountId
+    ? options.store.auth.findAccountById(sessionAccountId)
+    : null;
+  if (!sessionAccount) {
+    const presented = req.headers["x-mode-enroll-token"];
+    if (typeof presented !== "string" || !safeEqual(options.enrollToken, presented.trim())) {
+      sendJson(res, 401, { error: "unauthorized" });
+      return;
+    }
   }
   const body = parseEnrollBody(await readJsonBody(req));
   if (!body) {
     sendJson(res, 400, { error: "invalid_request" });
+    return;
+  }
+  if (!sessionAccount && !body.account) {
+    sendJson(res, 400, { error: "invalid_request" });
+    return;
+  }
+  if (sessionAccount && body.account) {
+    // 会话路径禁止自带账号锚点：绑定的账号只能是会话所属账号。
+    sendJson(res, 400, { error: "invalid_request" });
+    return;
+  }
+  if (sessionAccount && sessionAccount.status !== "active") {
+    sendJson(res, 403, { error: "account_disabled" });
     return;
   }
   const assertion = verifyAssertion(body, now);
@@ -167,27 +203,31 @@ async function handleEnroll(
     return;
   }
   const deviceToken = randomBytes(32).toString("base64url");
+  const relayToken = issueRelayToken();
+  const account = body.account;
   const result = options.store.enroll({
-    provider: body.account.provider,
-    providerUserHash: hashProviderUser(
-      options.accountPepper,
-      body.account.provider,
-      body.account.providerUserId,
-    ),
-    ...(body.account.displayName ? { displayName: body.account.displayName } : {}),
+    provider: sessionAccount ? sessionAccount.provider : account!.provider,
+    providerUserHash: sessionAccount
+      ? sessionAccount.providerUserHash
+      : hashProviderUser(options.accountPepper, account!.provider, account!.providerUserId),
+    ...(!sessionAccount && account!.displayName ? { displayName: account!.displayName } : {}),
     device: body.device,
     tokenHash: hashDeviceToken(deviceToken),
+    relayTokenHash: hashDeviceToken(relayToken),
     now,
   });
   if (!result.ok) {
     sendJson(res, result.error === "tunnel_conflict" ? 409 : 403, { error: result.error });
     return;
   }
-  options.log(`cloud_enroll device=${result.deviceId.slice(0, 8)}… account=${result.accountId.slice(0, 8)}…`);
+  options.log(
+    `cloud_enroll device=${result.deviceId.slice(0, 8)}… account=${result.accountId.slice(0, 8)}…${result.tookOver ? " tookOver" : ""}`,
+  );
   sendJson(res, 200, {
     accountId: result.accountId,
     deviceId: result.deviceId,
     deviceToken,
+    relayToken,
   });
 }
 
@@ -196,18 +236,17 @@ function handleListDevices(
   res: ServerResponse,
   options: ControlApiOptions,
 ): void {
-  const token = readBearer(req);
-  const found = token ? options.store.findDeviceByTokenHash(hashDeviceToken(token)) : null;
-  if (!found) {
+  const actor = resolveControlActor(options, req);
+  if (!actor) {
     sendJson(res, 401, { error: "unauthorized" });
     return;
   }
-  if (found.account.status !== "active") {
+  if (actor.status !== "active") {
     sendJson(res, 403, { error: "account_disabled" });
     return;
   }
   const onlineTunnels = new Set(options.getTunnelIds());
-  const devices = options.store.listDevices(found.account.id).map((device) => ({
+  const devices = options.store.listDevices(actor.accountId).map((device) => ({
     id: device.id,
     name: device.name,
     platform: device.platform,
@@ -218,8 +257,9 @@ function handleListDevices(
   }));
   sendJson(res, 200, {
     account: {
-      id: found.account.id,
-      ...(found.account.displayName ? { displayName: found.account.displayName } : {}),
+      id: actor.accountId,
+      ...(actor.username ? { username: actor.username } : {}),
+      ...(actor.displayName ? { displayName: actor.displayName } : {}),
     },
     devices,
   });
@@ -231,21 +271,22 @@ function handleRevoke(
   deviceId: string,
   options: ControlApiOptions,
 ): void {
-  const token = readBearer(req);
-  const found = token ? options.store.findDeviceByTokenHash(hashDeviceToken(token)) : null;
-  if (!found) {
+  const actor = resolveControlActor(options, req);
+  if (!actor) {
     sendJson(res, 401, { error: "unauthorized" });
     return;
   }
   const target = options.store
-    .listDevices(found.account.id)
+    .listDevices(actor.accountId)
     .find((device) => device.id === deviceId);
   if (!target) {
     // 不区分“不存在”和“别的账号”，避免枚举设备。
     sendJson(res, 403, { error: "forbidden" });
     return;
   }
-  options.store.revokeDevice(found.account.id, deviceId);
+  options.store.revokeDevice(actor.accountId, deviceId);
+  // 撤销即断隧道：中继令牌已删，重连会被 401 拒绝（docs/specs/cloud-personal-accounts.md）。
+  options.closeTunnel(target.relayTunnelId);
   options.log(`cloud_revoke device=${deviceId.slice(0, 8)}…`);
   sendJson(res, 200, { ok: true });
 }
@@ -268,34 +309,14 @@ export async function handleControlRequest(
     sendJson(res, 200, {
       ok: true,
       control: true,
-      wechatLogin: options.isWechatLoginEnabled(),
       ...options.store.stats(),
     });
     return true;
   }
-  if (url.pathname === "/v1/admin/wechat-bot") {
-    if (req.method !== "POST") {
-      sendJson(res, 405, { error: "method_not_allowed" });
-      return true;
-    }
-    await handleSetWechatBot(req, res, options);
-    return true;
-  }
-  if (url.pathname === "/v1/auth/start") {
-    if (req.method !== "POST") {
-      sendJson(res, 405, { error: "method_not_allowed" });
-      return true;
-    }
-    handleAuthStart(req, res, options);
-    return true;
-  }
-  if (url.pathname === "/v1/auth/poll") {
-    if (req.method !== "POST") {
-      sendJson(res, 405, { error: "method_not_allowed" });
-      return true;
-    }
-    await handleAuthPoll(req, res, options);
-    return true;
+  if (url.pathname.startsWith("/v1/auth/")) {
+    // 个人账号路由：register/login/github/refresh/logout/sessions/credentials
+    // （docs/specs/cloud-personal-accounts.md）。
+    return handlePasswordAuthRequest(req, res, url, options);
   }
   if (url.pathname === "/v1/devices/enroll") {
     if (req.method !== "POST") {

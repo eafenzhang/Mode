@@ -5,7 +5,7 @@ import type { CloudAccountState, UserInfo } from "@mode/shared";
  *
  * 首页与设置页共用同一解析结果：
  * - 身份只认 OAuth 用户或已绑定的 Mode Cloud 账号；
- * - 本地微信 Bot 的 boundWeixinName / providerUserId 是 bot 绑定信息，不是用户资料；
+ * - 本地微信 Bot 绑定（providerUserId 等）是 bot 通道信息，不是用户资料；
  * - 昵称只做本机展示覆盖，不写回任何账号。
  */
 export interface SidebarProfile {

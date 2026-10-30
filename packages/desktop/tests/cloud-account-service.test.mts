@@ -1,29 +1,27 @@
 /**
- * Mode Cloud 账号 Host 服务：绑定、目录、6 位码配对、失败语义。
- * 全部使用假凭据/Bot 服务与 mock fetch；不访问真实云端。
+ * Mode Cloud 个人账号 Host 服务：GitHub Device Flow / 用户名密码登录、会话路径
+ * enroll、目录与 6 位码配对（docs/specs/cloud-personal-accounts.md）。
+ * 全部使用假凭据与 mock fetch；不访问真实云端。
  */
 import assert from "node:assert/strict";
 import { verify } from "node:crypto";
 import test from "node:test";
 
-import { Emitter } from "@mode/rpc";
 import {
-  IBotsService,
-  ICredentialService,
-  ServiceCollection,
-} from "@mode/services";
-import {
-  LAN_ACCESS_RELAY_TUNNEL_ID_CREDENTIAL_KEY,
+  CLOUD_ACCOUNT_ID_CREDENTIAL_KEY,
+  CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY,
+  CLOUD_RELAY_TOKEN_CREDENTIAL_KEY,
+  CLOUD_SESSION_TOKEN_CREDENTIAL_KEY,
   LAN_ACCESS_SERVER_ID_CREDENTIAL_KEY,
   buildLanPeerMetaKey,
   buildLanPeerTokenKey,
   parseLanPeerMeta,
 } from "@mode/shared";
+import { ICredentialService, ServiceCollection } from "@mode/services";
 
 import { createCloudAccountHostService } from "../src/host/cloudAccountService.js";
 
 const BASE_URL = "https://cloud.example.test";
-const RELAY_TUNNEL_ID = "tunnel-0000000001";
 const REMOTE_TUNNEL_ID = "tunnel-0000000002";
 
 function createFakeCredentials(): {
@@ -44,72 +42,6 @@ function createFakeCredentials(): {
   return { credentials, store };
 }
 
-function createFakeBots(providerUserId: string | null): IBotsService {
-  return {
-    listBots: async () =>
-      providerUserId
-        ? [
-            {
-              id: "bot-1",
-              enabled: true,
-              provider: "weixin",
-              providerUserId,
-              displayName: "微信用户",
-            },
-          ]
-        : [],
-  } as unknown as IBotsService;
-}
-
-function createSyncBots(): {
-  bots: IBotsService;
-  saved: Array<Record<string, unknown>>;
-} {
-  const saved: Array<Record<string, unknown>> = [];
-  const bot = {
-    id: "bot-cloud",
-    enabled: true,
-    provider: "weixin",
-    providerUserId: "wx-user-1",
-    displayName: "云端登录 Bot",
-    credentialRef: "bot:bot-cloud:credential",
-  };
-  const bots = {
-    listBots: async () => [bot],
-    saveBot: async (params: { bot: Record<string, unknown> }) => {
-      saved.push(params.bot);
-      return params.bot;
-    },
-  } as unknown as IBotsService;
-  return { bots, saved };
-}
-
-function createEventBots(): {
-  bots: IBotsService;
-  saved: Array<Record<string, unknown>>;
-  fire: () => void;
-} {
-  const emitter = new Emitter<void>();
-  const saved: Array<Record<string, unknown>> = [];
-  const bot = {
-    id: "bot-auto",
-    enabled: true,
-    provider: "weixin",
-    providerUserId: "wx-user-1",
-    displayName: "Auto Bot",
-    credentialRef: "bot:bot-auto:credential",
-  };
-  const bots = {
-    listBots: async () => [bot],
-    saveBot: async (params: { bot: Record<string, unknown> }) => {
-      saved.push(params.bot);
-      return params.bot;
-    },
-    onDidChange: emitter.event,
-  } as unknown as IBotsService;
-  return { bots, saved, fire: () => emitter.fire() };
-}
-
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -117,89 +49,21 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function installFetch(): () => void {
+interface Route {
+  method: string;
+  test: (url: URL) => boolean;
+  handler: (context: { url: URL; init?: RequestInit }) => Response | Promise<Response>;
+}
+
+function installFetch(routes: Route[]): () => void {
   const originalFetch = globalThis.fetch;
-  let loginPolls = 0;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
-    if (url.pathname === "/v1/auth/start") {
-      return json({ code: "123456", expiresAt: Date.now() + 300_000 });
-    }
-    if (url.pathname === "/v1/auth/poll") {
-      const body = JSON.parse(String(init?.body)) as {
-        code: string;
-        device: { id: string; relayTunnelId: string };
-      };
-      assert.equal(body.code, "123456");
-      assert.match(body.device.relayTunnelId, /^[A-Za-z0-9_-]{16,128}$/u);
-      loginPolls += 1;
-      if (loginPolls === 1) {
-        return json({ status: "pending" }, 202);
+    const method = (init?.method ?? "GET").toUpperCase();
+    for (const route of routes) {
+      if (route.method === method && route.test(url)) {
+        return await route.handler({ url, init });
       }
-      return json({
-        accountId: "account-login",
-        deviceId: body.device.id,
-        deviceToken: "login-device-token",
-        relayToken: "relay-token-from-login",
-      });
-    }
-    if (url.pathname === "/v1/admin/wechat-bot") {
-      assert.equal(new Headers(init?.headers).get("x-mode-enroll-token"), "enroll-token");
-      const body = JSON.parse(String(init?.body)) as { token: string; allowedUser: string };
-      assert.equal(body.token, "wechat-token");
-      assert.equal(body.allowedUser, "wx-user-1");
-      return json({ ok: true, wechatLogin: true });
-    }
-    if (url.pathname === "/v1/devices/enroll") {
-      const body = JSON.parse(String(init?.body)) as {
-        assertion: { payload: string; signature: string };
-        device: { publicKey: string; id: string; relayTunnelId: string };
-      };
-      assert.equal(new Headers(init?.headers).get("x-mode-enroll-token"), "enroll-token");
-      assert.equal(body.device.id, "device-1");
-      assert.equal(body.device.relayTunnelId, RELAY_TUNNEL_ID);
-      assert.equal(
-        verify(
-          null,
-          Buffer.from(body.assertion.payload, "utf8"),
-          body.device.publicKey,
-          Buffer.from(body.assertion.signature, "base64"),
-        ),
-        true,
-        "设备签名必须可被公钥验证",
-      );
-      return json({
-        accountId: "account-1",
-        deviceId: "device-1",
-        deviceToken: "device-token",
-      });
-    }
-    if (url.pathname === "/v1/devices") {
-      const authorization = new Headers(init?.headers).get("authorization");
-      assert.ok(
-        authorization === "Bearer device-token" ||
-          authorization === "Bearer login-device-token",
-        "目录请求应携带当前设备令牌",
-      );
-      return json({
-        account: { id: "account-1", displayName: "微信用户" },
-        devices: [
-          {
-            id: "device-2",
-            name: "Remote Desk",
-            platform: "win32",
-            version: "1.0.0",
-            online: true,
-            relayUrl: `${BASE_URL}/d/${REMOTE_TUNNEL_ID}`,
-          },
-        ],
-      });
-    }
-    if (url.pathname === `/d/${REMOTE_TUNNEL_ID}/api/lan/pair`) {
-      assert.equal(url.protocol, "https:");
-      const body = JSON.parse(String(init?.body)) as { code: string };
-      assert.equal(body.code, "A1B2C3");
-      return json({ token: "remote-token", serverId: "remote-server", name: "Remote Desk" });
     }
     return new Response("not found", { status: 404 });
   }) as typeof fetch;
@@ -208,9 +72,92 @@ function installFetch(): () => void {
   };
 }
 
+function cloudRoute(
+  method: "GET" | "POST",
+  pathname: string,
+  handler: Route["handler"],
+): Route {
+  return {
+    method,
+    test: (url) => url.origin === BASE_URL && url.pathname === pathname,
+    handler,
+  };
+}
+
+/** 目录响应：断言携带当前设备令牌。 */
+function directoryRoute(expectedToken: string): Route {
+  return cloudRoute("GET", "/v1/devices", ({ init }) => {
+    const authorization = new Headers(init?.headers).get("authorization");
+    assert.equal(authorization, `Bearer ${expectedToken}`, "目录请求应携带当前设备令牌");
+    return json({
+      account: { id: "account-1", username: "octo", displayName: "Octo Cat" },
+      devices: [
+        {
+          id: "device-2",
+          name: "Remote Desk",
+          platform: "win32",
+          online: true,
+          relayUrl: `${BASE_URL}/d/${REMOTE_TUNNEL_ID}`,
+        },
+      ],
+    });
+  });
+}
+
+/** 会话路径 enroll：验证 Ed25519 断言签名并记录 payload。 */
+function enrollRoute(captured: { payloads: Array<Record<string, unknown>> }): Route {
+  return cloudRoute("POST", "/v1/devices/enroll", ({ init }) => {
+    const body = JSON.parse(String(init?.body)) as {
+      assertion: { payload: string; signature: string };
+      device: { publicKey: string; id: string; relayTunnelId: string };
+      nonce: string;
+      issuedAt: number;
+    };
+    const authorization = new Headers(init?.headers).get("authorization");
+    assert.match(authorization ?? "", /^Bearer session-/u, "会话路径 enroll 必须用会话令牌");
+    assert.equal(
+      verify(
+        null,
+        Buffer.from(body.assertion.payload, "utf8"),
+        body.device.publicKey,
+        Buffer.from(body.assertion.signature, "base64"),
+      ),
+      true,
+      "设备签名必须可被上传公钥验证",
+    );
+    captured.payloads.push(JSON.parse(body.assertion.payload) as Record<string, unknown>);
+    return json({
+      accountId: "account-1",
+      deviceId: body.device.id,
+      deviceToken: "device-token-1",
+      relayToken: "relay-token-1",
+    });
+  });
+}
+
+function createRelayServer(): {
+  tokens: string[];
+  server: {
+    getState(): { port: number | null };
+    startRelayTunnel(token: string): void;
+  };
+} {
+  const tokens: string[] = [];
+  return {
+    tokens,
+    server: {
+      getState: () => ({ port: 45880 }),
+      startRelayTunnel: (token: string) => {
+        if (!tokens.includes(token)) {
+          tokens.push(token);
+        }
+      },
+    },
+  };
+}
+
 async function createService(options: {
   credentials: ICredentialService;
-  bots: IBotsService;
   env: NodeJS.ProcessEnv;
   getLanAccessServer?: () => {
     getState(): { port: number | null };
@@ -219,34 +166,297 @@ async function createService(options: {
 }) {
   const services = new ServiceCollection();
   services.register(ICredentialService, options.credentials);
-  services.register(IBotsService, options.bots);
   return await createCloudAccountHostService({
     services,
     log: () => undefined,
     env: options.env,
-    // 单测隔离本机部署文件；部署文件读取由 cloud-deployment-config.test 覆盖。
+    // 单测隔离本机部署文件；部署文件读取由 cloud-deployment-config 测试覆盖。
     deploymentConfig: {},
     ...(options.getLanAccessServer ? { getLanAccessServer: options.getLanAccessServer } : {}),
   });
 }
 
-test("绑定 + 目录 + 6 位码配对：自动写入公网端点", async () => {
-  const restoreFetch = installFetch();
+test("密码注册 → 会话 enroll → 目录 bound，中继令牌启动隧道", async () => {
+  const captured = { payloads: [] as Array<Record<string, unknown>> };
+  const restoreFetch = installFetch([
+    cloudRoute("POST", "/v1/auth/register", ({ init }) => {
+      const body = JSON.parse(String(init?.body)) as { username: string; password: string };
+      assert.equal(body.username, "octo");
+      assert.equal(body.password, "correct horse");
+      return json({ sessionToken: "session-1" });
+    }),
+    enrollRoute(captured),
+    directoryRoute("device-token-1"),
+  ]);
   const { credentials, store } = createFakeCredentials();
-  store.set(LAN_ACCESS_SERVER_ID_CREDENTIAL_KEY, "device-1");
-  store.set(LAN_ACCESS_RELAY_TUNNEL_ID_CREDENTIAL_KEY, RELAY_TUNNEL_ID);
+  const { tokens: relayTokens, server } = createRelayServer();
   const service = await createService({
     credentials,
-    bots: createFakeBots("wx-user-1"),
-    env: { MODE_CLOUD_ENROLL_TOKEN: "enroll-token", MODE_CLOUD_BASE_URL: BASE_URL },
+    env: { MODE_CLOUD_BASE_URL: BASE_URL },
+    getLanAccessServer: () => server,
   });
   try {
-    const state = await service.bind();
+    const state = await service.registerWithPassword({
+      username: "octo",
+      password: "correct horse",
+    });
     assert.equal(state.status, "bound");
     assert.equal(state.account?.id, "account-1");
+    assert.equal(state.account?.username, "octo");
     assert.equal(state.devices?.[0]?.id, "device-2");
-    assert.equal(store.get("cloud:device:token"), "device-token");
+    assert.equal(store.get(CLOUD_SESSION_TOKEN_CREDENTIAL_KEY), "session-1");
+    assert.equal(store.get(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY), "device-token-1");
+    assert.equal(store.get(CLOUD_RELAY_TOKEN_CREDENTIAL_KEY), "relay-token-1");
+    assert.equal(store.get(CLOUD_ACCOUNT_ID_CREDENTIAL_KEY), "account-1");
+    assert.ok(relayTokens.includes("relay-token-1"), "enroll 成功后应启动中继隧道");
+    const payload = captured.payloads[0] as {
+      device?: { relayTunnelId?: string };
+      account?: unknown;
+    };
+    assert.equal(payload.account, undefined, "会话路径 enroll 的断言 payload 不能含 account 块");
+    assert.match(payload.device?.relayTunnelId ?? "", /^[A-Za-z0-9_-]{16,128}$/u);
+  } finally {
+    await service.dispose();
+    restoreFetch();
+  }
+});
 
+test("用户名密码登录走同一 enroll 路径并保存会话", async () => {
+  const captured = { payloads: [] as Array<Record<string, unknown>> };
+  const restoreFetch = installFetch([
+    cloudRoute("POST", "/v1/auth/login", ({ init }) => {
+      const body = JSON.parse(String(init?.body)) as { username: string; password: string };
+      assert.equal(body.username, "octo");
+      assert.equal(body.password, "another pass");
+      return json({ sessionToken: "session-2" });
+    }),
+    enrollRoute(captured),
+    directoryRoute("device-token-1"),
+  ]);
+  const { credentials, store } = createFakeCredentials();
+  const service = await createService({
+    credentials,
+    env: { MODE_CLOUD_BASE_URL: BASE_URL },
+  });
+  try {
+    const state = await service.loginWithPassword({ username: "octo", password: "another pass" });
+    assert.equal(state.status, "bound");
+    assert.equal(store.get(CLOUD_SESSION_TOKEN_CREDENTIAL_KEY), "session-2");
+    assert.equal(store.get(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY), "device-token-1");
+    assert.equal(captured.payloads.length, 1, "登录后必须完成本机设备 enroll");
+  } finally {
+    await service.dispose();
+    restoreFetch();
+  }
+});
+
+test("GitHub Device Flow：begin 出码，poll 从 pending 到 bound", async () => {
+  const captured = { payloads: [] as Array<Record<string, unknown>> };
+  let tokenPolls = 0;
+  const restoreFetch = installFetch([
+    {
+      method: "POST",
+      test: (url) => url.origin === "https://github.com" && url.pathname === "/login/device/code",
+      handler: ({ init }) => {
+        const params = new URLSearchParams(String(init?.body));
+        assert.equal(params.get("client_id"), "test-client-id");
+        assert.equal(params.get("scope"), "read:user");
+        return json({
+          device_code: "dc-1",
+          user_code: "ABCD-1234",
+          verification_uri: "https://github.com/login/device",
+          interval: 0,
+          expires_in: 600,
+        });
+      },
+    },
+    {
+      method: "POST",
+      test: (url) =>
+        url.origin === "https://github.com" && url.pathname === "/login/oauth/access_token",
+      handler: ({ init }) => {
+        const params = new URLSearchParams(String(init?.body));
+        assert.equal(params.get("device_code"), "dc-1");
+        tokenPolls += 1;
+        if (tokenPolls === 1) {
+          return json({ error: "authorization_pending" });
+        }
+        return json({ access_token: "gho-token", scope: "read:user" });
+      },
+    },
+    cloudRoute("POST", "/v1/auth/github", ({ init }) => {
+      const body = JSON.parse(String(init?.body)) as { accessToken: string };
+      assert.equal(body.accessToken, "gho-token");
+      return json({ sessionToken: "session-gh" });
+    }),
+    enrollRoute(captured),
+    directoryRoute("device-token-1"),
+  ]);
+  const { credentials, store } = createFakeCredentials();
+  const service = await createService({
+    credentials,
+    env: { MODE_CLOUD_BASE_URL: BASE_URL, MODE_CLOUD_GITHUB_CLIENT_ID: "test-client-id" },
+  });
+  try {
+    const challenge = await service.beginGithubLogin();
+    assert.equal(challenge.userCode, "ABCD-1234");
+    assert.equal(challenge.verificationUri, "https://github.com/login/device");
+
+    const pending = await service.pollGithubLogin();
+    assert.equal(pending.status, "unbound", "用户未授权前应保持等待");
+    const bound = await service.pollGithubLogin();
+    assert.equal(bound.status, "bound");
+    assert.equal(store.get(CLOUD_SESSION_TOKEN_CREDENTIAL_KEY), "session-gh");
+    assert.equal(store.get(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY), "device-token-1");
+  } finally {
+    await service.dispose();
+    restoreFetch();
+  }
+});
+
+test("未配置 GitHub client_id 时 begin 直接报错", async () => {
+  const { credentials } = createFakeCredentials();
+  const service = await createService({
+    credentials,
+    env: { MODE_CLOUD_BASE_URL: BASE_URL },
+  });
+  try {
+    await assert.rejects(service.beginGithubLogin(), /Client ID/u);
+  } finally {
+    await service.dispose();
+  }
+});
+
+test("setAccountCredentials：未登录拒绝；已登录携带令牌调用凭据端点", async () => {
+  const { credentials, store } = createFakeCredentials();
+  await credentials.save(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY, "device-token-1");
+  let credentialsAuth = "";
+  const restoreFetch = installFetch([
+    cloudRoute("POST", "/v1/auth/credentials", ({ init }) => {
+      credentialsAuth = new Headers(init?.headers).get("authorization") ?? "";
+      const body = JSON.parse(String(init?.body)) as { username: string; password: string };
+      assert.equal(body.username, "octo");
+      assert.equal(body.password, "new pass");
+      return json({ ok: true });
+    }),
+    directoryRoute("device-token-1"),
+  ]);
+  const service = await createService({
+    credentials,
+    env: { MODE_CLOUD_BASE_URL: BASE_URL },
+  });
+  try {
+    const anonymousCredentials = createFakeCredentials();
+    const anonymous = await createService({
+      credentials: anonymousCredentials.credentials,
+      env: { MODE_CLOUD_BASE_URL: BASE_URL },
+    });
+    try {
+      await assert.rejects(
+        anonymous.setAccountCredentials({ username: "octo", password: "x" }),
+        /尚未登录/u,
+      );
+    } finally {
+      await anonymous.dispose();
+    }
+
+    const state = await service.setAccountCredentials({ username: "octo", password: "new pass" });
+    assert.equal(state.status, "bound");
+    assert.equal(credentialsAuth, "Bearer device-token-1");
+    assert.equal(store.get(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY), "device-token-1");
+  } finally {
+    await service.dispose();
+    restoreFetch();
+  }
+});
+
+test("unbind：撤销云端会话并清空本地凭据，回到 unbound", async () => {
+  const { credentials, store } = createFakeCredentials();
+  store.set(CLOUD_SESSION_TOKEN_CREDENTIAL_KEY, "session-1");
+  store.set(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY, "device-token-1");
+  store.set(CLOUD_RELAY_TOKEN_CREDENTIAL_KEY, "relay-token-1");
+  store.set(CLOUD_ACCOUNT_ID_CREDENTIAL_KEY, "account-1");
+  let logoutAuth = "";
+  const restoreFetch = installFetch([
+    cloudRoute("POST", "/v1/auth/logout", ({ init }) => {
+      logoutAuth = new Headers(init?.headers).get("authorization") ?? "";
+      return json({ ok: true });
+    }),
+  ]);
+  const service = await createService({
+    credentials,
+    env: { MODE_CLOUD_BASE_URL: BASE_URL },
+  });
+  try {
+    const state = await service.unbind();
+    assert.equal(state.status, "unbound");
+    assert.equal(logoutAuth, "Bearer session-1", "unbind 应先用会话撤销云端登录");
+    for (const key of [
+      CLOUD_SESSION_TOKEN_CREDENTIAL_KEY,
+      CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY,
+      CLOUD_RELAY_TOKEN_CREDENTIAL_KEY,
+      CLOUD_ACCOUNT_ID_CREDENTIAL_KEY,
+    ]) {
+      assert.equal(store.get(key), undefined, `unbind 必须清除 ${key}`);
+    }
+  } finally {
+    await service.dispose();
+    restoreFetch();
+  }
+});
+
+test("设备令牌存在但目录不可达时进入 error 状态", async () => {
+  const { credentials } = createFakeCredentials();
+  await credentials.save(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY, "device-token-1");
+  const restoreFetch = installFetch([
+    cloudRoute("GET", "/v1/devices", () => json({ error: "boom" }, 500)),
+  ]);
+  const service = await createService({
+    credentials,
+    env: { MODE_CLOUD_BASE_URL: BASE_URL },
+  });
+  try {
+    const state = await service.getState();
+    assert.equal(state.status, "error");
+    assert.match(state.error ?? "", /HTTP 500/u);
+  } finally {
+    await service.dispose();
+    restoreFetch();
+  }
+});
+
+test("pairDevice：云设备经 HTTPS 中继完成 6 位码配对", async () => {
+  const { credentials, store } = createFakeCredentials();
+  await credentials.save(CLOUD_DEVICE_TOKEN_CREDENTIAL_KEY, "device-token-1");
+  await credentials.save(LAN_ACCESS_SERVER_ID_CREDENTIAL_KEY, "device-1");
+  const restoreFetch = installFetch([
+    directoryRoute("device-token-1"),
+    {
+      method: "POST",
+      test: (url) => url.pathname === `/d/${REMOTE_TUNNEL_ID}/api/lan/pair`,
+      handler: ({ url, init }) => {
+        assert.equal(url.protocol, "https:", "云设备配对必须走 HTTPS");
+        const body = JSON.parse(String(init?.body)) as { code: string };
+        assert.equal(body.code, "A1B2C3");
+        return json({ token: "remote-token", serverId: "remote-server", name: "Remote Desk" });
+      },
+    },
+  ]);
+  const service = await createService({
+    credentials,
+    env: { MODE_CLOUD_BASE_URL: BASE_URL },
+  });
+  try {
+    await assert.rejects(
+      service.pairDevice({ deviceId: "device-2", code: "abc" }),
+      /6 位/u,
+      "非配对码格式必须直接拒绝",
+    );
+    await assert.rejects(
+      service.pairDevice({ deviceId: "missing", code: "A1B2C3" }),
+      /找不到/u,
+      "目录里不存在的设备必须拒绝",
+    );
     const paired = await service.pairDevice({ deviceId: "device-2", code: "a1b2c3" });
     assert.equal(paired.token, "remote-token");
     assert.equal(store.get(buildLanPeerTokenKey("remote-server")), "remote-token");
@@ -258,179 +468,5 @@ test("绑定 + 目录 + 6 位码配对：自动写入公网端点", async () => 
   } finally {
     await service.dispose();
     restoreFetch();
-  }
-});
-
-test("没有绑定的微信 Bot 时拒绝绑定", async () => {
-  const { credentials } = createFakeCredentials();
-  credentials.save(LAN_ACCESS_SERVER_ID_CREDENTIAL_KEY, "device-1");
-  credentials.save(LAN_ACCESS_RELAY_TUNNEL_ID_CREDENTIAL_KEY, RELAY_TUNNEL_ID);
-  const service = await createService({
-    credentials,
-    bots: createFakeBots(null),
-    env: { MODE_CLOUD_ENROLL_TOKEN: "enroll-token", MODE_CLOUD_BASE_URL: BASE_URL },
-  });
-  try {
-    await assert.rejects(service.bind(), /微信/u);
-  } finally {
-    await service.dispose();
-  }
-});
-
-test("云端 Bot 登录：pending → bound，保存账号/设备/中继令牌并启动隧道", async () => {
-  const restoreFetch = installFetch();
-  const { credentials, store } = createFakeCredentials();
-  store.set(LAN_ACCESS_SERVER_ID_CREDENTIAL_KEY, "device-login");
-  const tunnelStarts: string[] = [];
-  let tunnelStarted = false;
-  const service = await createService({
-    credentials,
-    bots: createFakeBots(null),
-    env: { MODE_CLOUD_BASE_URL: BASE_URL },
-    getLanAccessServer: () => ({
-      getState: () => ({ port: 45880 }),
-      startRelayTunnel: (token: string) => {
-        if (!tunnelStarted) {
-          tunnelStarted = true;
-          tunnelStarts.push(token);
-        }
-      },
-    }),
-  });
-  try {
-    const challenge = await service.beginWechatLogin();
-    assert.equal(challenge.code, "123456");
-    const pending = await service.pollWechatLogin();
-    assert.equal(pending.status, "pending");
-    const bound = await service.pollWechatLogin();
-    assert.equal(bound.status, "bound");
-    assert.equal(store.get("cloud:device:token"), "login-device-token");
-    assert.equal(store.get("cloud:relay-token"), "relay-token-from-login");
-    assert.deepEqual(tunnelStarts, ["relay-token-from-login"]);
-    assert.match(
-      store.get(LAN_ACCESS_RELAY_TUNNEL_ID_CREDENTIAL_KEY) ?? "",
-      /^[A-Za-z0-9_-]{16,128}$/u,
-    );
-  } finally {
-    await service.dispose();
-    restoreFetch();
-  }
-});
-
-test("同步云端登录 Bot：上传 token 并停用本地 Bot", async () => {
-  const restoreFetch = installFetch();
-  const { credentials, store } = createFakeCredentials();
-  store.set("bot:bot-cloud:credential", "wechat-token");
-  const { bots, saved } = createSyncBots();
-  const service = await createService({
-    credentials,
-    bots,
-    env: { MODE_CLOUD_ENROLL_TOKEN: "enroll-token", MODE_CLOUD_BASE_URL: BASE_URL },
-  });
-  try {
-    const candidates = await service.listCloudBotCandidates();
-    assert.deepEqual(candidates, [
-      {
-        id: "bot-cloud",
-        name: "云端登录 Bot",
-        boundUser: "wx-user-1",
-        enabled: true,
-        hasToken: true,
-      },
-    ]);
-    const state = await service.syncCloudLoginBot({ botId: "bot-cloud" });
-    assert.equal(state.status, "unbound");
-    assert.equal(saved.length, 1);
-    assert.equal(saved[0]?.enabled, false);
-  } finally {
-    await service.dispose();
-    restoreFetch();
-  }
-});
-
-test("绑定 Bot 后自动登录并同步云端，随后停用本地 Bot", async () => {
-  const restoreFetch = installFetch();
-  const { credentials, store } = createFakeCredentials();
-  store.set(LAN_ACCESS_SERVER_ID_CREDENTIAL_KEY, "device-1");
-  store.set(LAN_ACCESS_RELAY_TUNNEL_ID_CREDENTIAL_KEY, RELAY_TUNNEL_ID);
-  store.set("bot:bot-auto:credential", "wechat-token");
-  const { bots, saved, fire } = createEventBots();
-  const service = await createService({
-    credentials,
-    bots,
-    env: { MODE_CLOUD_ENROLL_TOKEN: "enroll-token", MODE_CLOUD_BASE_URL: BASE_URL },
-  });
-  try {
-    fire();
-    const deadline = Date.now() + 3_000;
-    while (saved.length === 0 && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    assert.equal(saved.length, 1, "自动同步应停用本地 Bot");
-    assert.equal(saved[0]?.enabled, false);
-    assert.equal(store.get("cloud:device:token"), "device-token");
-  } finally {
-    await service.dispose();
-    restoreFetch();
-  }
-});
-
-test("Host 启动时已绑定 Bot 也会自动登录（不依赖 onDidChange）", async () => {
-  const restoreFetch = installFetch();
-  const { credentials, store } = createFakeCredentials();
-  store.set(LAN_ACCESS_SERVER_ID_CREDENTIAL_KEY, "device-1");
-  store.set(LAN_ACCESS_RELAY_TUNNEL_ID_CREDENTIAL_KEY, RELAY_TUNNEL_ID);
-  store.set("bot:bot-auto:credential", "wechat-token");
-  // 刻意不调用 fire()：模拟 Bot 在上一个 Host 进程里就已绑定。
-  const { bots, saved } = createEventBots();
-  const service = await createService({
-    credentials,
-    bots,
-    env: { MODE_CLOUD_ENROLL_TOKEN: "enroll-token", MODE_CLOUD_BASE_URL: BASE_URL },
-  });
-  try {
-    const deadline = Date.now() + 3_000;
-    while (store.get("cloud:device:token") === undefined && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    assert.equal(store.get("cloud:device:token"), "device-token");
-    assert.equal(saved.length, 1, "自动同步应停用本地 Bot");
-    assert.equal(saved[0]?.enabled, false);
-  } finally {
-    await service.dispose();
-    restoreFetch();
-  }
-});
-
-test("未配置 enrollment token 时仍为 unbound（微信登录可用）；部署密钥绑定被拒绝", async () => {
-  const { credentials } = createFakeCredentials();
-  const withoutEnrollment = await createService({
-    credentials,
-    bots: createFakeBots("wx-user-1"),
-    env: {},
-  });
-  try {
-    const state = await withoutEnrollment.getState();
-    // 微信 6 位码登录不依赖部署密钥，未配置时不能把整个云账号判成不可用。
-    assert.equal(state.status, "unbound");
-    assert.equal(state.enrollmentConfigured, false);
-    assert.equal(state.boundWeixinName, "微信用户");
-    await assert.rejects(withoutEnrollment.bind(), /MODE_CLOUD_ENROLL_TOKEN/u);
-  } finally {
-    await withoutEnrollment.dispose();
-  }
-
-  const unbound = await createService({
-    credentials,
-    bots: createFakeBots("wx-user-1"),
-    env: { MODE_CLOUD_ENROLL_TOKEN: "enroll-token" },
-  });
-  try {
-    const state = await unbound.getState();
-    assert.equal(state.status, "unbound");
-    assert.equal(state.enrollmentConfigured, true);
-    assert.equal(state.boundWeixinName, "微信用户");
-  } finally {
-    await unbound.dispose();
   }
 });
