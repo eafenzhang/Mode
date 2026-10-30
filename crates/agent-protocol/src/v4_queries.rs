@@ -923,3 +923,144 @@ pub struct ConversationUnsubscribeParams {
     pub subscription_id: String,
     pub connection_id: String,
 }
+
+// ── 应用级用量（旧 usage/stats 的 v4 落位）──
+// 事实源在 CLI usage store；按调用端时区归桶。
+
+pub const V4_USAGE_STATS_METHOD: &str = "v4/usage/stats";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AppUsageRange {
+    #[serde(rename = "all")]
+    All,
+    #[serde(rename = "7d")]
+    SevenDays,
+    #[serde(rename = "30d")]
+    ThirtyDays,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UsageStatsParams {
+    pub range: AppUsageRange,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time_zone: Option<String>,
+}
+
+/// `appUsageFavoriteModelSchema`：`modelId` 是 nullable 而非 optional。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AppUsageFavoriteModel {
+    pub model_id: Option<String>,
+    pub total_tokens: Number,
+    pub share: Number,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AppUsageSummary {
+    pub total_tokens: Number,
+    pub input_tokens: Number,
+    pub output_tokens: Number,
+    pub reasoning_tokens: Number,
+    pub cache_creation_tokens: Number,
+    pub cache_read_tokens: Number,
+    pub cache_hit_rate: Number,
+    pub total_sessions: Number,
+    pub total_turns: Number,
+    pub tool_call_count: Number,
+    pub tool_error_rate: Number,
+    pub model_error_rate: Number,
+    pub avg_time_to_first_token_ms: Option<Number>,
+    pub avg_turn_duration_ms: Option<Number>,
+    pub active_days: Number,
+    pub current_streak_days: Number,
+    pub longest_session_ms: Number,
+    pub longest_streak_days: Number,
+    pub peak_day_tokens: Number,
+    pub favorite_model: Option<AppUsageFavoriteModel>,
+}
+
+/// `appUsageHeatmapCellSchema`：`level` 在协议里是 0..=4，Rust 侧保留整数原样，
+/// 取值域由 Agent schema 保证。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AppUsageHeatmapCell {
+    pub date: String,
+    pub level: u8,
+    pub total_tokens: Number,
+    pub turn_count: Number,
+    pub tool_call_count: Number,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AppUsageHeatmapWeek {
+    pub week_index: Number,
+    pub days: Vec<Option<AppUsageHeatmapCell>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AppUsageHeatmap {
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub max_tokens: Number,
+    pub weeks: Vec<AppUsageHeatmapWeek>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AppUsageDailyModelItem {
+    pub model_id: Option<String>,
+    pub total_tokens: Number,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AppUsageDailyModelUsage {
+    pub date: String,
+    pub models: Vec<AppUsageDailyModelItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AppUsageModelUsage {
+    pub model_id: Option<String>,
+    pub total_tokens: Number,
+    pub input_tokens: Number,
+    pub output_tokens: Number,
+    pub request_count: Number,
+    pub share: Number,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AppUsageToolUsage {
+    pub tool_name: String,
+    pub call_count: Number,
+    pub error_count: Number,
+    pub error_rate: Number,
+    pub avg_duration_ms: Option<Number>,
+}
+
+/// `appUsageSnapshotSchema`：非严格（zod 未加 `.strict()`），未知键忽略。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppUsageSnapshot {
+    pub range: AppUsageRange,
+    pub generated_at: Number,
+    pub time_zone: String,
+    pub source: AppUsageSource,
+    pub summary: AppUsageSummary,
+    pub heatmap: AppUsageHeatmap,
+    pub daily_model_usage: Vec<AppUsageDailyModelUsage>,
+    pub models: Vec<AppUsageModelUsage>,
+    pub tools: Vec<AppUsageToolUsage>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AppUsageSource {
+    #[serde(rename = "agent-db")]
+    AgentDb,
+}

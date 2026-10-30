@@ -1,0 +1,10 @@
+{
+  "case": "request-v4-usage-stats",
+  "direction": "host->runtime",
+  "note": "应用级用量查询：range + 可选调用端时区（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 94,
+    "method": "v4/usage/stats",
+    "params": { "range": "7d", "timeZone": "Asia/Shanghai" }
+  }
+}

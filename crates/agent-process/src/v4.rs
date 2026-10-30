@@ -21,7 +21,8 @@ use agent_protocol::v4_transport::{
     HostCapabilities, V4ClientMode, V4_WIRE_PROTOCOL_VERSION,
 };
 use agent_protocol::v4_queries::{
-    AttachmentAbortResult, AttachmentBeginParams, AttachmentBeginResult, AttachmentChunkParams,
+    AppUsageSnapshot, AttachmentAbortResult, AttachmentBeginParams, AttachmentBeginResult,
+    AttachmentChunkParams,
     AttachmentChunkResult, AttachmentCommitResult, AttachmentPreviewSourceParams,
     AttachmentPreviewSourceResult, AttachmentReadParams, AttachmentReadResult,
     AttachmentTerminalParams, BackgroundBashOutputParams, BackgroundBashOutputResult,
@@ -35,7 +36,7 @@ use agent_protocol::v4_queries::{
     WorkflowRunArtifactsParams, WorkflowRunArtifactsResult, WorkflowRunEventsParams,
     WorkflowRunEventsResult, WorkflowRunNodeResult, WorkflowRunNodeResultParams,
     WorkflowRunWorkspaceParams, WorkflowRunWorkspaceResult, WorkflowRunsQueryParams,
-    WorkflowRunsQueryResult, V4_ATTACHMENT_ABORT_METHOD, V4_ATTACHMENT_BEGIN_METHOD,
+    WorkflowRunsQueryResult, UsageStatsParams, V4_USAGE_STATS_METHOD, V4_ATTACHMENT_ABORT_METHOD, V4_ATTACHMENT_BEGIN_METHOD,
     V4_ATTACHMENT_CHUNK_METHOD, V4_ATTACHMENT_COMMIT_METHOD,
     V4_ATTACHMENT_PREVIEW_SOURCE_METHOD, V4_ATTACHMENT_READ_METHOD,
     V4_BACKGROUND_BASH_OUTPUT_METHOD, V4_CONNECTION_FLOW_METHOD,
@@ -650,5 +651,23 @@ impl AgentControlClient {
             ))
         })?;
         Ok(())
+    }
+
+    /// `v4/usage/stats`：应用级用量聚合（事实源在 CLI usage store）。
+    pub async fn usage_stats_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: UsageStatsParams,
+        policy: RuntimePolicy,
+    ) -> Result<AppUsageSnapshot, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("usage/stats params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_USAGE_STATS_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/usage/stats result: {error}"))
+        })
     }
 }

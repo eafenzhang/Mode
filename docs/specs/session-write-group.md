@@ -372,6 +372,11 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
 - 连接与订阅维护：`connection/flow`（`saturated`/`drained`/`closed`，结果严格空对象）、
   `conversation/resync`（`base` 必填但可为 null，`forceSnapshot` 可选，返回与订阅同形的
   ACK）、`conversation/unsubscribe`（严格空对象）。
+- `usage/stats`：应用级用量（旧 `usage/stats` 的 v4 落位）。参数严格（`range` 三值 +
+  可选 `timeZone`）；结果非严格（zod 未加 `.strict()`），含 summary（含 nullable 的
+  TTFT/轮时长与 `favoriteModel`）、热力图（含 nullable 单元格）、每日/模型/工具维度。
+  `heatmap.weeks[].days[].level` 在协议里是 0..=4，Rust 侧保留整数原样，取值域由
+  Agent schema 保证。
 
 ## 3. 验收
 
@@ -438,3 +443,6 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
 27. 连接与订阅维护：`connection/flow` 的状态值可断言且空结果严格；`resync` 的
     `base.seq`/`forceSnapshot` 可读、缺省键不出；`unsubscribe` 空结果严格；三者非法结果
     有独立前缀。
+28. 应用用量：`range`/`timeZone` 逐字段可读；快照解析出 summary 的 nullable 字段、
+    热力图的 nullable 单元格与三个维度数组；非法结果前缀
+    `invalid v4/usage/stats result`。

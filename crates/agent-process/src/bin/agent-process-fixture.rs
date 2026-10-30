@@ -759,6 +759,70 @@ fn main() {
                 result["totalBytes"] = json!(-5);
             }
             json!({ "id": id, "result": result })
+        } else if method == "v4/usage/stats" {
+            let mut result = json!({
+                "range": "7d",
+                "generatedAt": 1700000000000u64,
+                "timeZone": "Asia/Shanghai",
+                "source": "agent-db",
+                "summary": {
+                    "totalTokens": 100,
+                    "inputTokens": 40,
+                    "outputTokens": 50,
+                    "reasoningTokens": 10,
+                    "cacheCreationTokens": 5,
+                    "cacheReadTokens": 5,
+                    "cacheHitRate": 0.25,
+                    "totalSessions": 2,
+                    "totalTurns": 6,
+                    "toolCallCount": 9,
+                    "toolErrorRate": 0.1,
+                    "modelErrorRate": 0.0,
+                    "avgTimeToFirstTokenMs": null,
+                    "avgTurnDurationMs": 1200.5,
+                    "activeDays": 3,
+                    "currentStreakDays": 2,
+                    "longestSessionMs": 60000,
+                    "longestStreakDays": 3,
+                    "peakDayTokens": 70,
+                    "favoriteModel": { "modelId": null, "totalTokens": 60, "share": 0.6 }
+                },
+                "heatmap": {
+                    "startDate": null,
+                    "endDate": "2026-10-30",
+                    "maxTokens": 70,
+                    "weeks": [{
+                        "weekIndex": 0,
+                        "days": [
+                            { "date": "2026-10-29", "level": 2, "totalTokens": 30, "turnCount": 2, "toolCallCount": 3 },
+                            null
+                        ]
+                    }]
+                },
+                "dailyModelUsage": [{
+                    "date": "2026-10-29",
+                    "models": [{ "modelId": null, "totalTokens": 30 }]
+                }],
+                "models": [{
+                    "modelId": "glm-5",
+                    "totalTokens": 60,
+                    "inputTokens": 20,
+                    "outputTokens": 40,
+                    "requestCount": 4,
+                    "share": 0.6
+                }],
+                "tools": [{
+                    "toolName": "Bash",
+                    "callCount": 9,
+                    "errorCount": 1,
+                    "errorRate": 0.11,
+                    "avgDurationMs": null
+                }]
+            });
+            if mode == "bad-v4-usage-stats" {
+                result["source"] = json!("cache");
+            }
+            json!({ "id": id, "result": result })
         } else if method == "v4/connection/flow" {
             if mode == "bad-v4-connection-flow" {
                 json!({ "id": id, "result": { "unexpected": true } })

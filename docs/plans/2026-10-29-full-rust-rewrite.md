@@ -334,9 +334,10 @@ journal（cursor 永不失效），刻意不带 `atSeq`/`atLogEpoch`；`workflow
 local_path/chunked 两支、metadata-only `attachmentStat`；两条 `superRefine`（零字节
 零块、target/attachmentIndex 成对）在发出前本地拒绝。4 条新增测试 + 16 条双端夹具。**连接与订阅维护已落**：`connection/flow`、
 `conversation/resync`、`conversation/unsubscribe`（空结果严格、`base` 可为 null、
-`forceSnapshot` 缺省省略）；2 条新增测试 + 6 条双端夹具。
-剩余只读面是 `v4/usage/stats`、`v4/commands/query` 与 sessions-index /
-workspace-config 订阅。
+`forceSnapshot` 缺省省略）；2 条新增测试 + 6 条双端夹具。**应用用量已落**：
+`v4/usage/stats`（summary + 热力图 + 每日/模型/工具维度，nullable 字段与单元格保留
+显式 null）；2 条新增测试 + 双端夹具。剩余只读面是 `v4/commands/query` 与
+sessions-index / workspace-config 订阅。
 **未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
 所有权切换，以及其余 80 个成员（session 其余读/写、插件/automation/workflow 等；
 `IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 +

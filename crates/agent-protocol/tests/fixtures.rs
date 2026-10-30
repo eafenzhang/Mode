@@ -57,7 +57,7 @@ use agent_protocol::v4_queries::{
     ConversationAttachmentReadParams, ConversationAttachmentStatParams,
     ConversationAttachmentStatResult, ConversationResyncParams, ConversationResyncResult,
     ConversationUnsubscribeParams, ConversationUsageParams, ConversationUsageResult,
-    ConnectionFlowParams, ConnectionFlowResult,
+    ConnectionFlowParams, ConnectionFlowResult, AppUsageRange, AppUsageSnapshot, UsageStatsParams,
     FileChangesParams, FileChangesResult, FileRewindPreviewParams, FileRewindPreviewResult,
     PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunArtifactDataParams,
     WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult,
@@ -802,6 +802,17 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/unsubscribe".to_string());
                     }
+                    "v4/usage/stats" => {
+                        let stats: UsageStatsParams = decode(case, &params);
+                        assert_eq!(stats.range, AppUsageRange::SevenDays);
+                        assert_eq!(stats.time_zone.as_deref(), Some("Asia/Shanghai"));
+                        assert_eq!(
+                            serde_json::to_value(&stats).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/usage/stats".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let subscribe: ConversationSubscribeParams = decode(case, &params);
                         assert_eq!(subscribe.topic, "conversation/sess-1");
@@ -1474,6 +1485,18 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/unsubscribe".to_string());
                     }
+                    "v4/usage/stats" => {
+                        let result: AppUsageSnapshot = decode(case, &response.result);
+                        assert_eq!(result.range, AppUsageRange::SevenDays);
+                        assert_eq!(result.summary.total_tokens, 100.into());
+                        assert_eq!(result.heatmap.weeks[0].days[1], None);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/usage/stats".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let result: ConversationSubscribeResult = decode(case, &response.result);
                         assert_eq!(result.ack.subscription_id, "sub-1");
@@ -1546,7 +1569,8 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "v4/conversation/attachmentStat",
             "v4/connection/flow",
             "v4/conversation/resync",
-            "v4/conversation/unsubscribe"
+            "v4/conversation/unsubscribe",
+            "v4/usage/stats"
         ]
         .into_iter()
         .map(str::to_string)

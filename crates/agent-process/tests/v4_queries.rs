@@ -10,15 +10,16 @@ use agent_process::{
     RuntimePolicy, SpecFactory,
 };
 use agent_protocol::v4_queries::{
-    AttachmentBeginParams, AttachmentBeginResult, AttachmentChunkParams,
+    AppUsageRange, AttachmentBeginParams, AttachmentBeginResult, AttachmentChunkParams,
     AttachmentPreviewSourceParams, AttachmentPreviewSourceResult, AttachmentReadParams,
     AttachmentTerminalParams, BackgroundBashOutputParams, BackgroundBashOutputResult,
     BackgroundBashUnavailableKind, ConnectionFlowParams, ConnectionFlowState,
     ConversationAttachmentReadParams, ConversationAttachmentStatParams,
     ConversationResyncParams, ConversationRowTarget, ConversationUnsubscribeParams,
-    ConversationUsageParams, PlansParams, ResyncBase, RowsRangeParams, WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams,
-    WorkflowRunArtifactsParams, WorkflowRunEventsParams, WorkflowRunNodeResultParams,
-    WorkflowRunWorkspaceParams, WorkflowRunsQueryParams,
+    ConversationUsageParams, PlansParams, ResyncBase, RowsRangeParams, UsageStatsParams,
+    WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams, WorkflowRunArtifactsParams,
+    WorkflowRunEventsParams, WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams,
+    WorkflowRunsQueryParams,
 };
 use agent_protocol::v4_transport::V4ClientMode;
 use serde_json::{json, Value};
@@ -1230,6 +1231,65 @@ async fn invalid_maintenance_calls_carry_distinct_prefixes() {
             }
             other => panic!("{mode}: unexpected error: {other:?}"),
         }
+    }
+}
+
+#[tokio::test]
+async fn usage_stats_parses_snapshot_and_nullable_fields() {
+    let log = FrameLog::new("usage-stats");
+    let client = control("", &log, Arc::new(AtomicUsize::new(0)));
+
+    let snapshot = client
+        .usage_stats_v4(
+            &target(),
+            UsageStatsParams {
+                range: AppUsageRange::SevenDays,
+                time_zone: Some("Asia/Shanghai".to_string()),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(snapshot.range, AppUsageRange::SevenDays);
+    assert_eq!(snapshot.summary.total_tokens, 100.into());
+    assert_eq!(snapshot.summary.avg_time_to_first_token_ms, None);
+    assert_eq!(
+        snapshot
+            .summary
+            .favorite_model
+            .as_ref()
+            .and_then(|model| model.model_id.clone()),
+        None,
+        "favoriteModel.modelId 的显式 null 要保留"
+    );
+    assert_eq!(snapshot.heatmap.weeks[0].days[1], None);
+    assert_eq!(snapshot.heatmap.weeks[0].days[0].as_ref().unwrap().level, 2);
+
+    let frames = log.frame_params("v4/usage/stats");
+    assert_eq!(frames[0], json!({ "range": "7d", "timeZone": "Asia/Shanghai" }));
+}
+
+#[tokio::test]
+async fn invalid_usage_stats_carries_prefix() {
+    let log = FrameLog::new("bad-usage-stats");
+    let client = control("bad-v4-usage-stats", &log, Arc::new(AtomicUsize::new(0)));
+    let error = client
+        .usage_stats_v4(
+            &target(),
+            UsageStatsParams {
+                range: AppUsageRange::All,
+                time_zone: None,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap_err();
+    match error {
+        ControlError::InvalidResult(message) => assert!(
+            message.starts_with("invalid v4/usage/stats result"),
+            "{message}"
+        ),
+        other => panic!("unexpected error: {other:?}"),
     }
 }
 
