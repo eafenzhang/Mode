@@ -336,8 +336,11 @@ local_path/chunked 两支、metadata-only `attachmentStat`；两条 `superRefine
 `conversation/resync`、`conversation/unsubscribe`（空结果严格、`base` 可为 null、
 `forceSnapshot` 缺省省略）；2 条新增测试 + 6 条双端夹具。**应用用量已落**：
 `v4/usage/stats`（summary + 热力图 + 每日/模型/工具维度，nullable 字段与单元格保留
-显式 null）；2 条新增测试 + 双端夹具。剩余只读面是 `v4/commands/query` 与
-sessions-index / workspace-config 订阅。
+显式 null）；2 条新增测试 + 双端夹具。**workspace-config topic 载荷已落**：
+快照 + 单 op `config.updated` 增量强类型化（select/boolean 与 string|boolean 联合、
+供应商分组与思考档位、`protocolVersion` 显式校验）；订阅复用 conversation subscribe，
+无新 RPC 方法（3 条 round-trip 测试）。剩余只读面是 `v4/commands/query` 与
+sessions-index topic（后者依赖 snapshot 的 goal/meta/permission 子形状）。
 **未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
 所有权切换，以及其余 80 个成员（session 其余读/写、插件/automation/workflow 等；
 `IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 +

@@ -70,6 +70,7 @@ pub mod v4_rows;
 pub mod v4_snapshot;
 pub mod v4_transport;
 pub mod v4_workflow_runs;
+pub mod v4_workspace_config;
 pub mod workflow;
 pub mod workspace;
 

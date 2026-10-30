@@ -378,6 +378,20 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
   `heatmap.weeks[].days[].level` 在协议里是 0..=4，Rust 侧保留整数原样，取值域由
   Agent schema 保证。
 
+## 2p. workspace-config topic
+
+`agent-protocol::v4_workspace_config` 镜像 `workspace-config.ts` 的帧载荷。订阅复用
+`v4/conversation/subscribe`（topic = `workspace-config/<workspaceId>`），只回 ACK，
+初始帧走同一 post-response notification 时序，因此没有新的 RPC 方法。
+
+- `WorkspaceConfigState`：`configOptions`（select/boolean 两种 `type`，`currentValue`
+  是 string|boolean 联合，select 的 `options` 带供应商分组与思考档位）与
+  `slashCommands`。**整体替换语义，绝不深合并。**
+- `WorkspaceConfigSnapshot`：`protocolVersion` 固定为 1（Rust 侧以 `validate()` 显式
+  拒绝其它值），`workspaceId` + host 级 `logEpoch` + `config`。
+- `WorkspaceConfigDelta`：封闭集合只有一个 op `config.updated`。
+- 所有 schema 都未加 `.strict()`：未知键按 zod strip 语义忽略。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、
@@ -446,3 +460,6 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
 28. 应用用量：`range`/`timeZone` 逐字段可读；快照解析出 summary 的 nullable 字段、
     热力图的 nullable 单元格与三个维度数组；非法结果前缀
     `invalid v4/usage/stats result`。
+29. workspace-config topic：快照与 `config.updated` 增量各自 round-trip；`currentValue`
+    的 string/boolean 两支、select 的供应商分组与思考档位可读；`protocolVersion != 1`
+    被显式拒绝；未知键被忽略。
