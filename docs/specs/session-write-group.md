@@ -354,6 +354,8 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
   进程）；结果是「输出快照」（状态六值、有界 `output`、`truncated`、`outputPath`）或
   「不可用三态」（`unavailable`/`unsupported`/`read_failed`，可选 `code`）。方法不存在
   （`-32601`）映射为 `unsupported`，运行时不可用映射为 `unavailable`，其余错误上抛。
+- `conversation/usage`：会话级 token 用量（旧 `session/usage` 的 v4 落位）。结果严格：
+  各类 token 计数、请求/错误计数与按来源的输入基线。
 
 ## 3. 验收
 
@@ -412,3 +414,5 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
 24. 文件与后台输出：`fileChanges` 解析出行目标与 hunk，`fileRewindPreview` 解析出三张
     清单；`backgroundBashOutput` 在无活进程时回 `unavailable` 且不拉起进程，`-32601`
     映射为 `unsupported`；三条都有独立的非法结果前缀。
+25. 会话用量：各类 token 计数与按来源的输入基线可读，非法结果前缀
+    `invalid v4/conversation/usage result`。

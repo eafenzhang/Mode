@@ -6,6 +6,8 @@
 //! 两者都是「只读、无状态、超时重发安全」的查询，刻意不是 v4 command：没有 ACK、
 //! 没有幂等表，调用方按陈旧读防护自行丢弃结果。
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Number, Value};
 
@@ -605,4 +607,31 @@ pub struct BackgroundBashUnavailable {
 pub enum BackgroundBashOutputResult {
     Output(BackgroundBashOutput),
     Unavailable(BackgroundBashUnavailable),
+}
+
+// ── 会话级 token 用量 ──
+// 旧 `session/usage` 的 v4 落位：会话是协议一等概念，task 是 UI 投影概念不进协议词表。
+
+pub const V4_CONVERSATION_USAGE_METHOD: &str = "v4/conversation/usage";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConversationUsageParams {
+    pub session_id: String,
+}
+
+/// `v4ConversationUsageResultSchema`：严格；`inputBaselineBySource` 是按来源的输入基线。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConversationUsageResult {
+    pub session_id: String,
+    pub total_tokens: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub reasoning_tokens: u64,
+    pub cache_creation_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub model_request_count: u64,
+    pub model_error_count: u64,
+    pub input_baseline_by_source: BTreeMap<String, u64>,
 }

@@ -50,13 +50,14 @@ use agent_protocol::v4::{
     CommandAck, CommandAckStatus, ResolveInteractionEnvelope, ResolveInteractionType,
 };
 use agent_protocol::v4_queries::{
-    BackgroundBashOutputParams, BackgroundBashOutputResult, FileChangesParams, FileChangesResult,
-    FileRewindPreviewParams, FileRewindPreviewResult, PlansParams, PlansResult, RowsRangeParams,
-    RowsRangeResult, WorkflowRunArtifactDataParams, WorkflowRunArtifactDataResult,
-    WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult, WorkflowRunArtifactsParams,
-    WorkflowRunArtifactsResult, WorkflowRunEventsParams, WorkflowRunEventsResult,
-    WorkflowRunNodeResult, WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams,
-    WorkflowRunWorkspaceResult, WorkflowRunsQueryParams, WorkflowRunsQueryResult,
+    BackgroundBashOutputParams, BackgroundBashOutputResult, ConversationUsageParams,
+    ConversationUsageResult, FileChangesParams, FileChangesResult, FileRewindPreviewParams,
+    FileRewindPreviewResult, PlansParams, PlansResult, RowsRangeParams, RowsRangeResult,
+    WorkflowRunArtifactDataParams, WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams,
+    WorkflowRunArtifactReadResult, WorkflowRunArtifactsParams, WorkflowRunArtifactsResult,
+    WorkflowRunEventsParams, WorkflowRunEventsResult, WorkflowRunNodeResult,
+    WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams, WorkflowRunWorkspaceResult,
+    WorkflowRunsQueryParams, WorkflowRunsQueryResult,
 };
 use agent_protocol::v4_transport::{
     ConversationSubscribeParams, ConversationSubscribeResult, SubscribeMode, SubscribeVisibility,
@@ -660,6 +661,16 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/backgroundBashOutput".to_string());
                     }
+                    "v4/conversation/usage" => {
+                        let usage: ConversationUsageParams = decode(case, &params);
+                        assert_eq!(usage.session_id, "sess-1");
+                        assert_eq!(
+                            serde_json::to_value(&usage).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/usage".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let subscribe: ConversationSubscribeParams = decode(case, &params);
                         assert_eq!(subscribe.topic, "conversation/sess-1");
@@ -1210,6 +1221,17 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/backgroundBashOutput".to_string());
                     }
+                    "v4/conversation/usage" => {
+                        let result: ConversationUsageResult = decode(case, &response.result);
+                        assert_eq!(result.total_tokens, 30);
+                        assert_eq!(result.input_baseline_by_source.get("user"), Some(&10));
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/usage".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let result: ConversationSubscribeResult = decode(case, &response.result);
                         assert_eq!(result.ack.subscription_id, "sub-1");
@@ -1270,7 +1292,8 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "v4/conversation/workflowRunNodeResult",
             "v4/conversation/fileChanges",
             "v4/conversation/fileRewindPreview",
-            "v4/conversation/backgroundBashOutput"
+            "v4/conversation/backgroundBashOutput",
+            "v4/conversation/usage"
         ]
         .into_iter()
         .map(str::to_string)

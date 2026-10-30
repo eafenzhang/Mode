@@ -1,0 +1,12 @@
+{
+  "case": "request-v4-conversation-usage",
+  "direction": "host->runtime",
+  "note": "会话级 token 用量查询：只带 sessionId（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 82,
+    "method": "v4/conversation/usage",
+    "params": {
+      "sessionId": "sess-1"
+    }
+  }
+}

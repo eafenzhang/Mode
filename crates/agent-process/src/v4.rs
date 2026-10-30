@@ -22,7 +22,8 @@ use agent_protocol::v4_transport::{
 };
 use agent_protocol::v4_queries::{
     BackgroundBashOutputParams, BackgroundBashOutputResult, BackgroundBashUnavailable,
-    BackgroundBashUnavailableKind, FileChangesParams, FileChangesResult, FileRewindPreviewParams,
+    BackgroundBashUnavailableKind, ConversationUsageParams, ConversationUsageResult,
+    FileChangesParams, FileChangesResult, FileRewindPreviewParams,
     FileRewindPreviewResult, PlansParams, PlansResult, RowsRangeParams, RowsRangeResult,
     WorkflowRunArtifactDataParams, WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams,
     WorkflowRunArtifactReadResult, WorkflowRunArtifactsParams, WorkflowRunArtifactsResult,
@@ -31,6 +32,7 @@ use agent_protocol::v4_queries::{
     WorkflowRunsQueryParams, WorkflowRunsQueryResult, V4_BACKGROUND_BASH_OUTPUT_METHOD,
     V4_CONVERSATION_FILE_CHANGES_METHOD, V4_CONVERSATION_FILE_REWIND_PREVIEW_METHOD,
     V4_CONVERSATION_PLANS_METHOD, V4_CONVERSATION_ROWS_RANGE_METHOD,
+    V4_CONVERSATION_USAGE_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_DATA_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_READ_METHOD,
     V4_CONVERSATION_WORKFLOW_RUN_ARTIFACTS_METHOD, V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD,
@@ -398,6 +400,26 @@ impl AgentControlClient {
         serde_json::from_value(response).map_err(|error| {
             ControlError::InvalidResult(format!(
                 "invalid v4/conversation/backgroundBashOutput result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/conversation/usage`：会话级 token 用量（旧 `session/usage` 的 v4 落位）。
+    pub async fn conversation_usage_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: ConversationUsageParams,
+        policy: RuntimePolicy,
+    ) -> Result<ConversationUsageResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("conversation/usage params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_USAGE_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/usage result: {error}"
             ))
         })
     }

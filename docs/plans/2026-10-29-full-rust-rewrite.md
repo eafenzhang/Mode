@@ -327,8 +327,10 @@ journal（cursor 永不失效），刻意不带 `atSeq`/`atLogEpoch`；`workflow
 32 KiB 保形有界化）；2 条新增测试 + 4 条双端夹具。**文件与后台输出查询已落**：
 `fileChanges` / `fileRewindPreview`（行目标 + 基线 revision/epoch）与
 `backgroundBashOutput`（existing-only；`-32601` → `unsupported`、运行时不可用 →
-`unavailable`）；3 条新增测试 + 6 条双端夹具。会话级只读查询至此补齐，剩余只读面是
-附件（8 条）与 sessions-index / workspace-config 订阅。
+`unavailable`）；3 条新增测试 + 6 条双端夹具。**会话用量已落**：
+`v4/conversation/usage`（旧 `session/usage` 落位）的各类 token 计数与按来源输入基线
+（2 条测试 + 双端夹具）。会话级只读查询至此补齐，剩余只读面是附件（8 条）、
+`v4/usage/stats` 与 sessions-index / workspace-config 订阅。
 **未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
 所有权切换，以及其余 80 个成员（session 其余读/写、插件/automation/workflow 等；
 `IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 +

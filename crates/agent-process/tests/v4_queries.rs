@@ -11,9 +11,9 @@ use agent_process::{
 };
 use agent_protocol::v4_queries::{
     BackgroundBashOutputParams, BackgroundBashOutputResult, BackgroundBashUnavailableKind,
-    PlansParams, RowsRangeParams, WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams,
-    WorkflowRunArtifactsParams, WorkflowRunEventsParams, WorkflowRunNodeResultParams,
-    WorkflowRunWorkspaceParams, WorkflowRunsQueryParams,
+    ConversationUsageParams, PlansParams, RowsRangeParams, WorkflowRunArtifactDataParams,
+    WorkflowRunArtifactReadParams, WorkflowRunArtifactsParams, WorkflowRunEventsParams,
+    WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams, WorkflowRunsQueryParams,
 };
 use agent_protocol::v4_transport::V4ClientMode;
 use serde_json::{json, Value};
@@ -750,6 +750,53 @@ async fn invalid_file_queries_carry_distinct_prefixes() {
             }
             other => panic!("{mode}: unexpected error: {other:?}"),
         }
+    }
+}
+
+#[tokio::test]
+async fn conversation_usage_parses_counters_and_baseline() {
+    let log = FrameLog::new("usage");
+    let client = control("", &log, Arc::new(AtomicUsize::new(0)));
+
+    let usage = client
+        .conversation_usage_v4(
+            &target(),
+            ConversationUsageParams {
+                session_id: "sess-1".to_string(),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(usage.total_tokens, 30);
+    assert_eq!(usage.reasoning_tokens, 4);
+    assert_eq!(usage.model_request_count, 3);
+    assert_eq!(usage.input_baseline_by_source.get("user"), Some(&10));
+
+    let frames = log.frame_params("v4/conversation/usage");
+    assert_eq!(frames[0], json!({ "sessionId": "sess-1" }));
+}
+
+#[tokio::test]
+async fn invalid_conversation_usage_carries_prefix() {
+    let log = FrameLog::new("bad-usage");
+    let client = control("bad-v4-conversation-usage", &log, Arc::new(AtomicUsize::new(0)));
+    let error = client
+        .conversation_usage_v4(
+            &target(),
+            ConversationUsageParams {
+                session_id: "sess-1".to_string(),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap_err();
+    match error {
+        ControlError::InvalidResult(message) => assert!(
+            message.starts_with("invalid v4/conversation/usage result"),
+            "{message}"
+        ),
+        other => panic!("unexpected error: {other:?}"),
     }
 }
 

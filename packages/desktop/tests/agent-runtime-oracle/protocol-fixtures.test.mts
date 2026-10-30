@@ -89,6 +89,8 @@ import {
   v4ConversationRowsRangeResultSchema,
   v4ConversationSubscribeParamsSchema,
   v4ConversationSubscribeResultSchema,
+  v4ConversationUsageParamsSchema,
+  v4ConversationUsageResultSchema,
   v4ConversationWorkflowRunEventsParamsSchema,
   v4ConversationWorkflowRunEventsResultSchema,
   v4ConversationWorkflowRunsParamsSchema,
@@ -321,6 +323,7 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "v4/conversation/fileChanges": v4ConversationFileChangesParamsSchema,
     "v4/conversation/fileRewindPreview": v4ConversationFileRewindPreviewParamsSchema,
     "v4/conversation/backgroundBashOutput": v4BackgroundBashOutputParamsSchema,
+    "v4/conversation/usage": v4ConversationUsageParamsSchema,
     "workspace/readPresentation": modeWorkspaceReadPresentationParamsSchema,
     "workflows/get": modeWorkflowsGetParamsSchema,
     "workflows/list": modeWorkflowsListParamsSchema,
@@ -368,6 +371,7 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "v4/conversation/fileChanges": v4ConversationFileChangesResultSchema,
     "v4/conversation/fileRewindPreview": v4ConversationFileRewindPreviewResultSchema,
     "v4/conversation/backgroundBashOutput": backgroundBashOutputResultSchema,
+    "v4/conversation/usage": v4ConversationUsageResultSchema,
     "workspace/readPresentation": modeWorkspacePresentationSchema,
   };
   const exercisedCommands = new Set<string>();

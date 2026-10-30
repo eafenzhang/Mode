@@ -678,6 +678,23 @@ fn main() {
                     }
                 }),
             }
+        } else if method == "v4/conversation/usage" {
+            let mut result = json!({
+                "sessionId": "sess-1",
+                "totalTokens": 30,
+                "inputTokens": 10,
+                "outputTokens": 12,
+                "reasoningTokens": 4,
+                "cacheCreationTokens": 2,
+                "cacheReadTokens": 2,
+                "modelRequestCount": 3,
+                "modelErrorCount": 1,
+                "inputBaselineBySource": { "user": 10 }
+            });
+            if mode == "bad-v4-conversation-usage" {
+                result["totalTokens"] = json!(-1);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "plugins/overview" {
             let mut result = json!({
                 "marketplaces": [{

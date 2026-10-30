@@ -1,0 +1,21 @@
+{
+  "case": "response-v4-conversation-usage",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/usage",
+  "note": "会话用量：各类 token 计数 + 请求/错误计数 + 按来源的输入基线（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 82,
+    "result": {
+      "sessionId": "sess-1",
+      "totalTokens": 30,
+      "inputTokens": 10,
+      "outputTokens": 12,
+      "reasoningTokens": 4,
+      "cacheCreationTokens": 2,
+      "cacheReadTokens": 2,
+      "modelRequestCount": 3,
+      "modelErrorCount": 1,
+      "inputBaselineBySource": { "user": 10 }
+    }
+  }
+}
