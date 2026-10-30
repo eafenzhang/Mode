@@ -26,12 +26,9 @@ const publicBaseUrl =
   `http://localhost:${port}`;
 const cloudDbPath =
   argValue("--cloud-db") ?? process.env.MODE_CLOUD_DB_PATH ?? "./data/cloud.sqlite";
-const enrollToken =
-  argValue("--enroll-token") ?? process.env.MODE_CLOUD_ENROLL_TOKEN ?? "";
 const accountPepper =
   argValue("--account-pepper") ?? process.env.MODE_CLOUD_ACCOUNT_PEPPER ?? "";
-const inviteCode =
-  argValue("--invite-code") ?? process.env.MODE_CLOUD_INVITE_CODE ?? "";
+const dbKey = argValue("--db-key") ?? process.env.MODE_CLOUD_DB_KEY ?? "";
 const sessionTtlRaw =
   argValue("--session-ttl-ms") ?? process.env.MODE_CLOUD_SESSION_TTL_MS ?? "";
 const githubApiBaseUrl =
@@ -40,7 +37,7 @@ const githubClientId =
   argValue("--github-client-id") ?? process.env.MODE_CLOUD_GITHUB_CLIENT_ID ?? "";
 const githubBaseUrl =
   argValue("--github-base-url") ?? process.env.MODE_CLOUD_GITHUB_BASE_URL ?? "";
-if (enrollToken.trim() && cloudDbPath !== ":memory:") {
+if (cloudDbPath !== ":memory:") {
   mkdirSync(dirname(cloudDbPath), { recursive: true });
 }
 
@@ -61,9 +58,8 @@ const server = await startRelayServer({
   log: (line) => console.log(line),
   cloud: {
     dbPath: cloudDbPath,
-    enrollToken,
     accountPepper,
-    ...(inviteCode.trim() ? { inviteCode } : {}),
+    ...(dbKey.trim() ? { dbKey } : {}),
     ...(sessionTtlRaw.trim() && Number.isFinite(Number(sessionTtlRaw))
       ? { sessionTtlMs: Number(sessionTtlRaw) }
       : {}),
@@ -76,20 +72,11 @@ const server = await startRelayServer({
 console.log(`[relay] listening on http://${host}:${server.port}`);
 console.log(`[relay] public base: ${publicBaseUrl}`);
 console.log("[relay] device tunnel: wss://<relay>/_tunnel?tunnelId=<id>&token=<token>");
-console.log(
-  enrollToken.trim()
-    ? `[relay] cloud control: /v1/* (db=${cloudDbPath})`
-    : "[relay] cloud control: disabled (MODE_CLOUD_ENROLL_TOKEN is empty)",
-);
-console.log(
-  inviteCode.trim()
-    ? "[relay] password registration: invite code required"
-    : "[relay] password registration: open",
-);
+console.log(`[relay] cloud control: /v1/* (db=${cloudDbPath}, login=github-only)`);
 console.log(
   githubClientId.trim()
-    ? `[relay] web portal: http://${host}:${server.port}/ (GitHub login enabled)`
-    : `[relay] web portal: http://${host}:${server.port}/ (password login only)`,
+    ? `[relay] web portal: http://${host}:${server.port}/ (GitHub device flow)`
+    : `[relay] web portal: http://${host}:${server.port}/ (github login disabled: no client_id)`,
 );
 
 const shutdown = async (): Promise<void> => {

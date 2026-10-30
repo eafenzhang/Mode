@@ -80,7 +80,6 @@ type GithubLoginResult =
 
 interface GithubAccount {
   id: string;
-  username: string | null;
   displayName: string | null;
   status: string;
 }
@@ -97,7 +96,6 @@ async function completeGithubLogin(
     accessToken,
   );
   if (!profile) {
-    // 无效 token 与 GitHub 不可达都收敛为 401；密码登录作为兜底路径。
     return { ok: false, error: "invalid_github_token" };
   }
   const providerUserHash = hashProviderUser(options.accountPepper, "github", profile.id);
@@ -106,7 +104,6 @@ async function completeGithubLogin(
     | null;
   if (!account) {
     const created = options.store.auth.createAccount({
-      provider: "github",
       providerUserHash,
       displayName: profile.name ?? profile.login,
       now,

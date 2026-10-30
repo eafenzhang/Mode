@@ -1,266 +1,177 @@
 /**
- * Mode Cloud 控制面：enroll、设备目录、在线状态、账号隔离、撤销。
- * 使用 :memory: SQLite；不依赖外部服务。
+ * Mode Cloud 控制面：会话路径 enroll、设备目录、在线状态、账号隔离、撤销。
+ * 使用 :memory: SQLite 与 mock GitHub；不依赖外部服务。
  */
 import assert from "node:assert/strict";
-import { generateKeyPairSync, randomBytes, sign } from "node:crypto";
 import test from "node:test";
-
-import type { KeyObject } from "node:crypto";
 
 import { startRelayServer, type RelayServer } from "../src/server.js";
 import {
   startRelayTunnelClient,
   type RelayTunnelClient,
 } from "../src/tunnelClient.js";
+import {
+  enrollWithSession,
+  githubSession,
+  listDevices,
+  startMockGithub,
+  withRelay,
+} from "./helpers.mts";
 
-const RELAY_TOKEN = "relay-token";
-const ENROLL_TOKEN = "enroll-token";
-const PUBLIC_BASE = "https://relay.example.test";
-
-interface EnrollOptions {
-  port: number;
-  providerUserId: string;
-  deviceId: string;
-  tunnelId: string;
-  privateKey: KeyObject;
-  publicKey: KeyObject;
-  enrollToken?: string;
-  ipSeed: number;
-}
-
-let ipCounter = 0;
-
-async function enroll(options: EnrollOptions): Promise<{
-  status: number;
-  body: Record<string, unknown>;
-}> {
-  ipCounter += 1;
-  const issuedAt = Date.now();
-  const nonce = randomBytes(16).toString("base64url");
-  const payload = JSON.stringify({
-    account: { provider: "weixin", providerUserId: options.providerUserId },
-    device: { id: options.deviceId, relayTunnelId: options.tunnelId },
-    nonce,
-    issuedAt,
-  });
-  const signature = sign(null, Buffer.from(payload, "utf8"), options.privateKey).toString(
-    "base64",
-  );
-  const response = await fetch(`http://127.0.0.1:${options.port}/v1/devices/enroll`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-mode-enroll-token": options.enrollToken ?? ENROLL_TOKEN,
-      "x-forwarded-for": `10.0.0.${options.ipSeed ?? ipCounter}`,
-    },
-    body: JSON.stringify({
-      account: {
-        provider: "weixin",
-        providerUserId: options.providerUserId,
-        displayName: "Me",
-      },
-      device: {
-        id: options.deviceId,
-        name: "Desk",
-        platform: "win32",
-        version: "1.0.0",
-        publicKey: options.publicKey.export({ type: "spki", format: "pem" }).toString(),
-        relayTunnelId: options.tunnelId,
-      },
-      assertion: { payload, signature },
-      nonce,
-      issuedAt,
-    }),
-  });
-  return { status: response.status, body: (await response.json()) as Record<string, unknown> };
-}
-
-async function listDevices(
-  port: number,
-  token: string,
-): Promise<{ status: number; body: Record<string, unknown> }> {
-  const response = await fetch(`http://127.0.0.1:${port}/v1/devices`, {
-    headers: { authorization: `Bearer ${token}` },
-  });
-  return { status: response.status, body: (await response.json()) as Record<string, unknown> };
-}
-
-function createKeyPair(): { privateKey: KeyObject; publicKey: KeyObject } {
-  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-  return { privateKey, publicKey };
-}
-
-async function withRelay(
-  run: (relay: RelayServer) => Promise<void>,
-): Promise<void> {
-  const relay = await startRelayServer({
-    port: 0,
-    token: RELAY_TOKEN,
-    publicBaseUrl: PUBLIC_BASE,
-    log: () => undefined,
-    cloud: { dbPath: ":memory:", enrollToken: ENROLL_TOKEN, accountPepper: "pepper" },
-  });
+test("enroll + 目录：设备、公网地址与离线状态", async () => {
+  const github = await startMockGithub({ tokens: { t1: { id: 1, login: "u1" } } });
   try {
-    await run(relay);
-  } finally {
-    await relay.close();
-  }
-}
+    await withRelay({ githubApiBaseUrl: `http://127.0.0.1:${github.port}` }, async (relay) => {
+      const { sessionToken } = await githubSession(relay, "t1");
+      const enrolled = await enrollWithSession(relay.port, sessionToken, {
+        deviceId: "device-1",
+        tunnelId: "tunnel-0000000001",
+        accessToken: "agent-token-device-0001",
+      });
+      assert.equal(enrolled.status, 200);
+      const deviceToken = String(enrolled.body.deviceToken);
+      assert.equal(typeof deviceToken, "string");
 
-test("enroll + 目录：账号、设备、公网地址与离线状态", async () => {
-  await withRelay(async (relay) => {
-    const keys = createKeyPair();
-    const enrolled = await enroll({
-      port: relay.port,
-      providerUserId: "wx-user-1",
-      deviceId: "device-1",
-      tunnelId: "tunnel-0000000001",
-      ...keys,
-      ipSeed: 11,
+      const listed = await listDevices(relay.port, deviceToken);
+      assert.equal(listed.status, 200);
+      const devices = listed.body.devices as Array<Record<string, unknown>>;
+      assert.equal(devices.length, 1);
+      assert.equal(devices[0]?.id, "device-1");
+      assert.equal(devices[0]?.online, false);
+      assert.equal(devices[0]?.relayUrl, "https://relay.example.test/d/tunnel-0000000001");
     });
-    assert.equal(enrolled.status, 200);
-    const deviceToken = enrolled.body.deviceToken;
-    assert.equal(typeof deviceToken, "string");
-
-    const listed = await listDevices(relay.port, String(deviceToken));
-    assert.equal(listed.status, 200);
-    const devices = listed.body.devices as Array<Record<string, unknown>>;
-    assert.equal(devices.length, 1);
-    assert.equal(devices[0]?.id, "device-1");
-    assert.equal(devices[0]?.online, false);
-    assert.equal(devices[0]?.relayUrl, `${PUBLIC_BASE}/d/tunnel-0000000001`);
-  });
+  } finally {
+    await github.close();
+  }
 });
 
 test("在线状态跟随隧道注册与断开", async () => {
-  await withRelay(async (relay) => {
-    const keys = createKeyPair();
-    const enrolled = await enroll({
-      port: relay.port,
-      providerUserId: "wx-user-2",
-      deviceId: "device-2",
-      tunnelId: "tunnel-0000000002",
-      ...keys,
-      ipSeed: 12,
-    });
-    const deviceToken = String(enrolled.body.deviceToken);
+  const github = await startMockGithub({ tokens: { t1: { id: 2, login: "u2" } } });
+  try {
+    await withRelay({ githubApiBaseUrl: `http://127.0.0.1:${github.port}` }, async (relay) => {
+      const { sessionToken } = await githubSession(relay, "t1");
+      const enrolled = await enrollWithSession(relay.port, sessionToken, {
+        deviceId: "device-2",
+        tunnelId: "tunnel-0000000002",
+      });
+      const deviceToken = String(enrolled.body.deviceToken);
 
-    let tunnel: RelayTunnelClient | null = startRelayTunnelClient({
-      relayUrl: `ws://127.0.0.1:${relay.port}/_tunnel`,
-      token: RELAY_TOKEN,
-      tunnelId: "tunnel-0000000002",
-      localBaseUrl: "http://127.0.0.1:1",
-      log: () => undefined,
-      reconnect: false,
-    });
-    try {
-      const startedAt = Date.now();
-      while (!relay.getTunnelIds().includes("tunnel-0000000002")) {
-        if (Date.now() - startedAt > 5_000) {
-          throw new Error("tunnel registration timeout");
+      let tunnel: RelayTunnelClient | null = startRelayTunnelClient({
+        relayUrl: `ws://127.0.0.1:${relay.port}/_tunnel`,
+        token: String(enrolled.body.relayToken),
+        tunnelId: "tunnel-0000000002",
+        localBaseUrl: "http://127.0.0.1:1",
+        log: () => undefined,
+        reconnect: false,
+      });
+      try {
+        const startedAt = Date.now();
+        while (!relay.getTunnelIds().includes("tunnel-0000000002")) {
+          if (Date.now() - startedAt > 5_000) {
+            throw new Error("tunnel registration timeout");
+          }
+          await new Promise((resolve) => setTimeout(resolve, 20));
         }
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
-      const online = await listDevices(relay.port, deviceToken);
-      assert.equal((online.body.devices as Array<Record<string, unknown>>)[0]?.online, true);
+        const online = await listDevices(relay.port, deviceToken);
+        assert.equal((online.body.devices as Array<Record<string, unknown>>)[0]?.online, true);
 
-      tunnel.close();
-      tunnel = null;
-      const stoppedAt = Date.now();
-      while (relay.getTunnelIds().includes("tunnel-0000000002")) {
-        if (Date.now() - stoppedAt > 5_000) {
-          throw new Error("tunnel disconnect timeout");
+        tunnel.close();
+        tunnel = null;
+        const stoppedAt = Date.now();
+        while (relay.getTunnelIds().includes("tunnel-0000000002")) {
+          if (Date.now() - stoppedAt > 5_000) {
+            throw new Error("tunnel disconnect timeout");
+          }
+          await new Promise((resolve) => setTimeout(resolve, 20));
         }
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        const offline = await listDevices(relay.port, deviceToken);
+        assert.equal((offline.body.devices as Array<Record<string, unknown>>)[0]?.online, false);
+      } finally {
+        tunnel?.close();
       }
-      const offline = await listDevices(relay.port, deviceToken);
-      assert.equal((offline.body.devices as Array<Record<string, unknown>>)[0]?.online, false);
-    } finally {
-      tunnel?.close();
-    }
-  });
+    });
+  } finally {
+    await github.close();
+  }
 });
 
-test("鉴权与账号隔离：错误 enrollment token / 无 Bearer / 不同账号互不可见", async () => {
-  await withRelay(async (relay) => {
-    const keysA = createKeyPair();
-    const keysB = createKeyPair();
-    const wrong = await enroll({
-      port: relay.port,
-      providerUserId: "wx-a",
-      deviceId: "device-a",
-      tunnelId: "tunnel-000000000a",
-      enrollToken: "wrong-token",
-      ...keysA,
-      ipSeed: 21,
-    });
-    assert.equal(wrong.status, 401);
-
-    const accountA = await enroll({
-      port: relay.port,
-      providerUserId: "wx-a",
-      deviceId: "device-a",
-      tunnelId: "tunnel-000000000a",
-      ...keysA,
-      ipSeed: 22,
-    });
-    const accountB = await enroll({
-      port: relay.port,
-      providerUserId: "wx-b",
-      deviceId: "device-b",
-      tunnelId: "tunnel-000000000b",
-      ...keysB,
-      ipSeed: 23,
-    });
-    assert.equal(accountA.status, 200);
-    assert.equal(accountB.status, 200);
-
-    const noToken = await fetch(`http://127.0.0.1:${relay.port}/v1/devices`);
-    assert.equal(noToken.status, 401);
-
-    const listA = await listDevices(relay.port, String(accountA.body.deviceToken));
-    const listB = await listDevices(relay.port, String(accountB.body.deviceToken));
-    assert.deepEqual(
-      (listA.body.devices as Array<Record<string, unknown>>).map((device) => device.id),
-      ["device-a"],
-    );
-    assert.deepEqual(
-      (listB.body.devices as Array<Record<string, unknown>>).map((device) => device.id),
-      ["device-b"],
-    );
+test("账号隔离：不同 GitHub 账号的设备互不可见；无 Bearer 401", async () => {
+  const github = await startMockGithub({
+    tokens: { ta: { id: 10, login: "alice" }, tb: { id: 20, login: "bob" } },
   });
+  try {
+    await withRelay({ githubApiBaseUrl: `http://127.0.0.1:${github.port}` }, async (relay) => {
+      const alice = await githubSession(relay, "ta");
+      const bob = await githubSession(relay, "tb");
+      const enrolledA = await enrollWithSession(relay.port, alice.sessionToken, {
+        deviceId: "device-a",
+        tunnelId: "tunnel-000000000a",
+      });
+      const enrolledB = await enrollWithSession(relay.port, bob.sessionToken, {
+        deviceId: "device-b",
+        tunnelId: "tunnel-000000000b",
+      });
+      assert.equal(enrolledA.status, 200);
+      assert.equal(enrolledB.status, 200);
+
+      const noToken = await fetch(`http://127.0.0.1:${relay.port}/v1/devices`);
+      assert.equal(noToken.status, 401);
+
+      const listA = await listDevices(relay.port, String(enrolledA.body.deviceToken));
+      const listB = await listDevices(relay.port, String(enrolledB.body.deviceToken));
+      assert.deepEqual(
+        (listA.body.devices as Array<Record<string, unknown>>).map((device) => device.id),
+        ["device-a"],
+      );
+      assert.deepEqual(
+        (listB.body.devices as Array<Record<string, unknown>>).map((device) => device.id),
+        ["device-b"],
+      );
+    });
+  } finally {
+    await github.close();
+  }
 });
 
 test("撤销设备：目录立即移除，令牌失效", async () => {
-  await withRelay(async (relay) => {
-    const keys = createKeyPair();
-    const enrolled = await enroll({
-      port: relay.port,
-      providerUserId: "wx-revoke",
-      deviceId: "device-revoke",
-      tunnelId: "tunnel-000000000c",
-      ...keys,
-      ipSeed: 31,
-    });
-    const deviceToken = String(enrolled.body.deviceToken);
+  const github = await startMockGithub({ tokens: { t1: { id: 3, login: "u3" } } });
+  try {
+    await withRelay({ githubApiBaseUrl: `http://127.0.0.1:${github.port}` }, async (relay) => {
+      const { sessionToken } = await githubSession(relay, "t1");
+      const enrolled = await enrollWithSession(relay.port, sessionToken, {
+        deviceId: "device-revoke",
+        tunnelId: "tunnel-000000000c",
+      });
+      const deviceToken = String(enrolled.body.deviceToken);
 
-    const revoked = await fetch(
-      `http://127.0.0.1:${relay.port}/v1/devices/device-revoke/revoke`,
-      { method: "POST", headers: { authorization: `Bearer ${deviceToken}` } },
-    );
-    assert.equal(revoked.status, 200);
-    const after = await listDevices(relay.port, deviceToken);
-    assert.equal(after.status, 401);
-  });
+      const revoked = await fetch(
+        `http://127.0.0.1:${relay.port}/v1/devices/device-revoke/revoke`,
+        { method: "POST", headers: { authorization: `Bearer ${deviceToken}` } },
+      );
+      assert.equal(revoked.status, 200);
+      const after = await listDevices(relay.port, deviceToken);
+      assert.equal(after.status, 401);
+    });
+  } finally {
+    await github.close();
+  }
 });
 
 test("健康检查：控制面启用且数据库可读", async () => {
-  await withRelay(async (relay) => {
+  const relay: RelayServer = await startRelayServer({
+    port: 0,
+    token: "relay-token",
+    publicBaseUrl: "https://relay.example.test",
+    log: () => undefined,
+    cloud: { dbPath: ":memory:", accountPepper: "pepper", dbKey: "test-db-key" },
+  });
+  try {
     const response = await fetch(`http://127.0.0.1:${relay.port}/v1/health`);
     assert.equal(response.status, 200);
     const body = (await response.json()) as Record<string, unknown>;
     assert.equal(body.ok, true);
     assert.equal(body.control, true);
-  });
+  } finally {
+    await relay.close();
+  }
 });

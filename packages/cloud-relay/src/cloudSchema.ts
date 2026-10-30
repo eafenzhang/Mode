@@ -1,10 +1,10 @@
 /**
  * Mode Cloud SQLite schema。从 cloudStore 抽出以保持单文件行数限制。
  *
- * v2（docs/specs/cloud-personal-accounts.md）：
- * - cloud_accounts 增加 username / password_hash / updated_at：个人账号（用户名+密码）。
- * - cloud_user_sessions：人类主控会话（sessionToken 只存 SHA-256）。
- * - cloud_devices 增加 relay_token_hash：每设备中继令牌（替换部署级共享 secret）。
+ * v3（docs/specs/cloud-personal-accounts.md，GitHub-only v2）：
+ * - cloud_devices 增加 access_token_cipher（AES-256-GCM 密文）与 addresses（JSON 数组）；
+ * - cloud_accounts 删除 username / password_hash（密码注册已移除；DROP COLUMN 失败时
+ *   保留为无害死列，代码不再读写）。
  */
 import type { DatabaseSync } from "node:sqlite";
 
@@ -20,6 +20,20 @@ function addColumnIfMissing(
   const exists = columns.some((entry) => entry.name === column);
   if (!exists) {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration}`);
+  }
+}
+
+function dropColumnIfPresent(db: DatabaseSync, table: string, column: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{
+    name?: unknown;
+  }>;
+  if (!columns.some((entry) => entry.name === column)) {
+    return;
+  }
+  try {
+    db.exec(`ALTER TABLE ${table} DROP COLUMN ${column}`);
+  } catch {
+    // 旧 SQLite 不支持 DROP COLUMN：保留死列，代码层不再读写。
   }
 }
 
@@ -78,19 +92,20 @@ export function migrateCloudDatabase(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_cloud_user_sessions_expiry
       ON cloud_user_sessions(expires_at);
   `);
-  // v2 列迁移：老库逐列补齐（新库由上面的 CREATE TABLE 建出后再 ALTER 会重复添加，
-  // 因此必须按 PRAGMA 判断）。新列可空：存量微信锚点账号在补设用户名密码前保持 NULL。
-  addColumnIfMissing(db, "cloud_accounts", "username", "TEXT");
-  addColumnIfMissing(db, "cloud_accounts", "password_hash", "TEXT");
-  addColumnIfMissing(db, "cloud_accounts", "updated_at", "INTEGER");
+  // v3 列迁移：设备访问令牌密文 + 自报地址；密码列删除（GitHub-only）。
   addColumnIfMissing(db, "cloud_devices", "relay_token_hash", "TEXT");
+  addColumnIfMissing(db, "cloud_devices", "access_token_cipher", "TEXT");
+  addColumnIfMissing(db, "cloud_devices", "addresses", "TEXT");
+  dropColumnIfPresent(db, "cloud_accounts", "username");
+  dropColumnIfPresent(db, "cloud_accounts", "password_hash");
+  dropColumnIfPresent(db, "cloud_accounts", "updated_at");
   const applied = db
     .prepare("SELECT version FROM cloud_schema_migration ORDER BY version DESC LIMIT 1")
     .get() as { version?: unknown } | undefined;
   const currentVersion = typeof applied?.version === "number" ? applied.version : 0;
-  if (currentVersion < 2) {
+  if (currentVersion < 3) {
     db.prepare(
       "INSERT INTO cloud_schema_migration (version, applied_at, checksum) VALUES (?, ?, ?)",
-    ).run(2, Date.now(), "mode-cloud-v2-personal-accounts");
+    ).run(3, Date.now(), "mode-cloud-v3-github-only");
   }
 }

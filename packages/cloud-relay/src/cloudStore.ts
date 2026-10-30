@@ -1,8 +1,8 @@
 /**
- * Mode Cloud 控制面持久化（docs/specs/mode-cloud-account-directory.md）。
+ * Mode Cloud 控制面持久化（docs/specs/cloud-personal-accounts.md，v2）。
  *
- * 只保存账号锚点哈希、设备元数据、设备公钥和设备令牌哈希；
- * 不保存 LAN 令牌、配对码、远控票据或任何业务内容。
+ * 只保存账号锚点哈希、设备元数据、设备公钥和令牌（设备令牌/中继令牌只存哈希，
+ * 设备访问令牌只存 AES-256-GCM 密文）；不保存配对码、远控票据或任何业务内容。
  */
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
@@ -26,6 +26,10 @@ export interface CloudDeviceRow {
   version: string | null;
   publicKey: string;
   relayTunnelId: string;
+  /** 设备自报可直连地址（host:port）。 */
+  addresses: string[];
+  /** 设备访问令牌密文（AES-256-GCM）；解密只在目录序列化时进行。 */
+  accessTokenCipher: string | null;
   createdAt: number;
   lastSeenAt: number | null;
   revokedAt: number | null;
@@ -51,6 +55,9 @@ export interface CloudEnrollInput {
     version?: string;
     publicKey: string;
     relayTunnelId: string;
+    /** 本机 API 令牌密文（调用方先用 secretBox 加密）。 */
+    accessTokenCipher: string;
+    addresses?: string[];
   };
   tokenHash: string;
   /** 每设备中继令牌哈希（docs/specs/cloud-personal-accounts.md）； enroll 时轮换。 */
@@ -66,6 +73,21 @@ function columnNumber(value: unknown): number | null {
   return typeof value === "number" ? value : null;
 }
 
+function parseAddresses(value: unknown): string[] {
+  if (typeof value !== "string" || !value) {
+    return [];
+  }
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter((item): item is string => typeof item === "string" && item.length > 0);
+  } catch {
+    return [];
+  }
+}
+
 function mapDevice(row: Record<string, unknown>): CloudDeviceRow {
   return {
     id: columnText(row.id),
@@ -75,6 +97,11 @@ function mapDevice(row: Record<string, unknown>): CloudDeviceRow {
     version: typeof row.version === "string" ? row.version : null,
     publicKey: columnText(row.public_key),
     relayTunnelId: columnText(row.relay_tunnel_id),
+    addresses: parseAddresses(row.addresses),
+    accessTokenCipher:
+      typeof row.access_token_cipher === "string" && row.access_token_cipher
+        ? row.access_token_cipher
+        : null,
     createdAt: columnNumber(row.created_at) ?? 0,
     lastSeenAt: columnNumber(row.last_seen_at),
     revokedAt: columnNumber(row.revoked_at),
@@ -93,7 +120,7 @@ function mapAccount(row: Record<string, unknown>): CloudAccountRow {
 
 export class CloudStore {
   private readonly db: DatabaseSync;
-  /** 个人账号凭据（密码哈希 + 人类会话）；与设备目录同一个 SQLite，唯一真相不变。 */
+  /** 个人账号凭据（GitHub 锚点 + 人类会话）；与设备目录同一个 SQLite，唯一真相不变。 */
   readonly auth: CloudAuthStore;
 
   constructor(path: string) {
@@ -151,17 +178,13 @@ export class CloudStore {
         .get(input.device.id) as Record<string, unknown> | undefined;
       let tookOver = false;
       if (existingDevice && columnText(existingDevice.account_id) !== accountRow.id) {
-        // 换号接管（docs/specs/cloud-personal-accounts.md）：原属账号已无任何可用登录
-        // 方式（微信锚点且未补设密码——微信登录已移除）时，允许转移到当前登录账号；
-        // 仍可登录的账号维持 device_conflict，避免误把他人设备划走。
+        // 设备属于其他账号时默认拒绝（账号即信任边界）。唯一例外：原属账号是
+        // 旧身份（非 github——密码/微信登录已删除，该账号已无法登录）的遗留设备，
+        // 允许首个 GitHub 账号认领，否则升级部署后存量设备会被永久锁死。
         const owner = this.db
-          .prepare("SELECT provider, password_hash FROM cloud_accounts WHERE id = ?")
+          .prepare("SELECT provider FROM cloud_accounts WHERE id = ?")
           .get(columnText(existingDevice.account_id)) as Record<string, unknown> | undefined;
-        const ownerCanLogin =
-          Boolean(owner) &&
-          (columnText(owner?.provider) !== "weixin" ||
-            (typeof owner?.password_hash === "string" && owner.password_hash !== ""));
-        if (ownerCanLogin) {
+        if (columnText(owner?.provider) === "github") {
           return { ok: false, error: "device_conflict" } as const;
         }
         tookOver = true;
@@ -173,10 +196,11 @@ export class CloudStore {
         return { ok: false, error: "tunnel_conflict" } as const;
       }
 
+      const addressesJson = JSON.stringify(input.device.addresses ?? []);
       if (existingDevice) {
         this.db
           .prepare(
-            "UPDATE cloud_devices SET account_id = ?, name = ?, platform = ?, version = ?, public_key = ?, relay_tunnel_id = ?, relay_token_hash = ?, last_seen_at = ?, revoked_at = NULL WHERE id = ?",
+            "UPDATE cloud_devices SET account_id = ?, name = ?, platform = ?, version = ?, public_key = ?, relay_tunnel_id = ?, relay_token_hash = ?, access_token_cipher = ?, addresses = ?, last_seen_at = ?, revoked_at = NULL WHERE id = ?",
           )
           .run(
             accountRow.id,
@@ -186,13 +210,15 @@ export class CloudStore {
             input.device.publicKey,
             input.device.relayTunnelId,
             input.relayTokenHash,
+            input.device.accessTokenCipher,
+            addressesJson,
             input.now,
             input.device.id,
           );
       } else {
         this.db
           .prepare(
-            "INSERT INTO cloud_devices (id, account_id, name, platform, version, public_key, relay_tunnel_id, relay_token_hash, created_at, last_seen_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+            "INSERT INTO cloud_devices (id, account_id, name, platform, version, public_key, relay_tunnel_id, relay_token_hash, access_token_cipher, addresses, created_at, last_seen_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
           )
           .run(
             input.device.id,
@@ -203,6 +229,8 @@ export class CloudStore {
             input.device.publicKey,
             input.device.relayTunnelId,
             input.relayTokenHash,
+            input.device.accessTokenCipher,
+            addressesJson,
             input.now,
             input.now,
           );
@@ -283,7 +311,7 @@ export class CloudStore {
     return this.transaction(() => {
       const result = this.db
         .prepare(
-          "UPDATE cloud_devices SET revoked_at = ?, relay_token_hash = NULL WHERE id = ? AND account_id = ? AND revoked_at IS NULL",
+          "UPDATE cloud_devices SET revoked_at = ?, relay_token_hash = NULL, access_token_cipher = NULL WHERE id = ? AND account_id = ? AND revoked_at IS NULL",
         )
         .run(Date.now(), deviceId, accountId);
       if (Number(result.changes ?? 0) === 0) {

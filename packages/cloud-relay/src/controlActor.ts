@@ -17,7 +17,6 @@ export function resolveControlActor(
   req: IncomingMessage,
 ): {
   accountId: string;
-  username: string | null;
   displayName: string | null;
   status: string;
   source: "session" | "device";
@@ -32,7 +31,6 @@ export function resolveControlActor(
       if (account) {
         return {
           accountId: account.id,
-          username: account.username,
           displayName: account.displayName,
           status: account.status,
           source: "session",
@@ -41,10 +39,8 @@ export function resolveControlActor(
     }
     const found = options.store.findDeviceByTokenHash(hashDeviceToken(bearer));
     if (found) {
-      const account = options.store.auth.findAccountById(found.account.id);
       return {
         accountId: found.account.id,
-        username: account?.username ?? null,
         displayName: found.account.displayName,
         status: found.account.status,
         source: "device",

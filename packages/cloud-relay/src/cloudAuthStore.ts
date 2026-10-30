@@ -1,9 +1,10 @@
 /**
- * 个人账号的凭据存储（docs/specs/cloud-personal-accounts.md）。
+ * 个人账号的凭据存储（docs/specs/cloud-personal-accounts.md，v2）。
  *
  * 与 CloudStore 共享同一个 SQLite 连接（唯一持久化真相仍是这个库）；
  * 单独成类是为了让 cloudStore.ts / 本文件都低于 400 行 lint 上限。
- * 只存用户名明文（非凭据）、密码哈希与会话令牌哈希；原文令牌只在签发响应出现一次。
+ * 身份方式只有 GitHub：账号只存锚点哈希与显示名；令牌只存哈希，
+ * 原文令牌只在签发响应出现一次。
  */
 import { randomUUID } from "node:crypto";
 
@@ -13,10 +14,7 @@ export interface CloudAccountRow {
   id: string;
   provider: string;
   providerUserHash: string;
-  username: string | null;
   displayName: string | null;
-  /** scrypt 串；微信锚点账号在补设密码前为 null。 */
-  passwordHash: string | null;
   status: string;
 }
 
@@ -34,89 +32,39 @@ export function mapAuthAccount(row: Record<string, unknown>): CloudAccountRow {
     id: String(row.id ?? ""),
     provider: String(row.provider ?? ""),
     providerUserHash: String(row.provider_user_hash ?? ""),
-    username: typeof row.username === "string" && row.username ? row.username : null,
     displayName: typeof row.display_name === "string" ? row.display_name : null,
-    passwordHash:
-      typeof row.password_hash === "string" && row.password_hash ? row.password_hash : null,
     status: String(row.status ?? ""),
   };
-}
-
-/** 保留用户名：不能被注册为个人账号。 */
-const RESERVED_USERNAMES = new Set([
-  "admin",
-  "administrator",
-  "cloud",
-  "mode",
-  "null",
-  "root",
-  "support",
-  "system",
-]);
-
-export function validateUsername(raw: string): string | null {
-  const username = raw.trim().toLowerCase();
-  if (!/^[a-z0-9_-]{3,32}$/u.test(username) || RESERVED_USERNAMES.has(username)) {
-    return null;
-  }
-  return username;
-}
-
-export function validatePassword(raw: string): boolean {
-  return raw.length >= 8 && raw.length <= 128;
 }
 
 export class CloudAuthStore {
   constructor(private readonly db: DatabaseSync) {}
 
-  /** 创建账号（provider='password' 密码注册 / provider='github' JIT 建号）。 */
+  /** GitHub JIT 建号；同锚点已存在返回 conflict。 */
   createAccount(input: {
-    provider: string;
     providerUserHash: string;
-    username?: string;
-    passwordHash?: string;
     displayName?: string;
     now: number;
   }): CloudAccountRow | "conflict" {
     const existing = this.db
-      .prepare(
-        "SELECT * FROM cloud_accounts WHERE provider = ? AND provider_user_hash = ?",
-      )
-      .get(input.provider, input.providerUserHash) as Record<string, unknown> | undefined;
+      .prepare("SELECT * FROM cloud_accounts WHERE provider = 'github' AND provider_user_hash = ?")
+      .get(input.providerUserHash) as Record<string, unknown> | undefined;
     if (existing) {
       return "conflict";
     }
     const id = randomUUID();
     this.db
       .prepare(
-        "INSERT INTO cloud_accounts (id, provider, provider_user_hash, username, password_hash, display_name, created_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'active')",
+        "INSERT INTO cloud_accounts (id, provider, provider_user_hash, display_name, created_at, status) VALUES (?, 'github', ?, ?, ?, 'active')",
       )
-      .run(
-        id,
-        input.provider,
-        input.providerUserHash,
-        input.username ?? null,
-        input.passwordHash ?? null,
-        input.displayName ?? null,
-        input.now,
-      );
+      .run(id, input.providerUserHash, input.displayName ?? null, input.now);
     return mapAuthAccount({
       id,
-      provider: input.provider,
+      provider: "github",
       provider_user_hash: input.providerUserHash,
-      username: input.username ?? null,
-      password_hash: input.passwordHash ?? null,
       display_name: input.displayName ?? null,
       status: "active",
     });
-  }
-
-  /** 密码登录按 username 列查找（GitHub/迁移账号补设密码后同样命中）。 */
-  findAccountByUsername(username: string): CloudAccountRow | null {
-    const row = this.db
-      .prepare("SELECT * FROM cloud_accounts WHERE username = ?")
-      .get(username) as Record<string, unknown> | undefined;
-    return row ? mapAuthAccount(row) : null;
   }
 
   findAccountByAnchor(provider: string, providerUserHash: string): CloudAccountRow | null {
@@ -131,30 +79,6 @@ export class CloudAuthStore {
       .prepare("SELECT * FROM cloud_accounts WHERE id = ?")
       .get(id) as Record<string, unknown> | undefined;
     return row ? mapAuthAccount(row) : null;
-  }
-
-  /** 微信/GitHub 锚点账号补设用户名密码；用户名被占用返回 conflict。 */
-  setAccountCredentials(input: {
-    accountId: string;
-    username: string;
-    usernameHash: string;
-    passwordHash: string;
-    now: number;
-  }): "ok" | "conflict" | "not_found" {
-    const taken = this.db
-      .prepare(
-        "SELECT id FROM cloud_accounts WHERE provider = 'password' AND provider_user_hash = ? AND id <> ?",
-      )
-      .get(input.usernameHash, input.accountId) as Record<string, unknown> | undefined;
-    if (taken) {
-      return "conflict";
-    }
-    const result = this.db
-      .prepare(
-        "UPDATE cloud_accounts SET username = ?, password_hash = ?, updated_at = ? WHERE id = ?",
-      )
-      .run(input.username, input.passwordHash, input.now, input.accountId);
-    return Number(result.changes ?? 0) > 0 ? "ok" : "not_found";
   }
 
   createSession(input: {

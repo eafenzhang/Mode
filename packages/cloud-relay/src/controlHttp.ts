@@ -16,7 +16,6 @@ export const CLOUD_SESSION_COOKIE = "mode_cloud_session";
 
 export interface ControlApiOptions {
   store: CloudStore;
-  enrollToken: string;
   accountPepper: string;
   publicBaseUrl: string;
   /** 登录成功后下发给 Desktop 的共享中继令牌；后续可替换为每设备令牌。 */
@@ -26,8 +25,8 @@ export interface ControlApiOptions {
   closeTunnel: (tunnelId: string) => void;
   /** 隧道按设备鉴权；server 在其返回 false 时回退共享 secret（纯中继部署兼容）。 */
   verifyTunnelToken: (tunnelId: string, presented: string) => boolean;
-  /** 注册邀请码；未配置 = 开放注册（docs/specs/cloud-personal-accounts.md）。 */
-  inviteCode?: string;
+  /** 设备访问令牌静态加密密钥（AES-256-GCM；secretBox）。 */
+  dbKey: Buffer;
   /** 人类会话时长（毫秒），默认 30 天滑动过期。 */
   sessionTtlMs?: number;
   /** GitHub API 基址（验证 access token 用）；默认 https://api.github.com。 */

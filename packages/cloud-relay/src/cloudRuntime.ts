@@ -1,21 +1,21 @@
 /**
- * Mode Cloud 控制面运行时：SQLite + 控制 API 选项（docs/specs/cloud-personal-accounts.md）。
+ * Mode Cloud 控制面运行时：SQLite + 控制 API 选项（docs/specs/cloud-personal-accounts.md，v2）。
  *
- * 账号身份：GitHub OAuth（Device Flow，云端验证 access token）+ 用户名密码注册。
- * 微信云端 Bot 已移除（2026-10-30）。
+ * 账号身份：仅 GitHub OAuth（Device Flow，云端验证 access token，JIT 建号）。
+ * 控制面在提供 dbPath 时启用；纯中继部署不传 dbPath 即无控制面。
  */
 import { CloudStore } from "./cloudStore.js";
 import { hashDeviceToken } from "./controlHttp.js";
 import { createGithubDeviceFlow } from "./githubDeviceFlow.js";
 import { safeEqual } from "./internal.js";
+import { loadDbKey } from "./secretBox.js";
 import type { ControlApiOptions } from "./controlHttp.js";
 
 export interface RelayCloudOptions {
   dbPath?: string;
-  enrollToken?: string;
   accountPepper?: string;
-  /** 注册邀请码；未配置 = 开放注册（docs/specs/cloud-personal-accounts.md）。 */
-  inviteCode?: string;
+  /** 设备访问令牌静态加密密钥；未配置时在数据目录自动生成 cloud-db.key。 */
+  dbKey?: string;
   /** 人类会话时长（毫秒）；缺省 30 天。 */
   sessionTtlMs?: number;
   /** GitHub API 基址（验证 access token 用）；缺省 https://api.github.com。 */
@@ -40,11 +40,12 @@ export function startCloudRuntime(params: {
   closeTunnel: (tunnelId: string) => void;
   log: (line: string) => void;
 }): CloudRuntime | null {
-  const enrollToken = params.cloud.enrollToken?.trim();
-  if (!enrollToken) {
+  const dbPath = params.cloud.dbPath?.trim();
+  if (!dbPath) {
     return null;
   }
-  const store = new CloudStore(params.cloud.dbPath?.trim() || ":memory:");
+  const store = new CloudStore(dbPath);
+  const dbKey = loadDbKey({ envKey: params.cloud.dbKey, dbPath });
 
   /**
    * 隧道按设备鉴权：tunnelId 命中目录时校验该设备自己的 relayToken；
@@ -70,15 +71,15 @@ export function startCloudRuntime(params: {
 
   const control: ControlApiOptions = {
     store,
-    enrollToken,
-    accountPepper: (params.cloud.accountPepper ?? enrollToken).trim(),
+    // 锚点 HMAC 的 pepper：优先部署配置，缺省退回共享中继 secret（部署内稳定即可）。
+    accountPepper: (params.cloud.accountPepper ?? params.relayToken).trim(),
     publicBaseUrl: params.publicBaseUrl,
     relayToken: params.relayToken,
     getTunnelIds: params.getTunnelIds,
     closeTunnel: params.closeTunnel,
     verifyTunnelToken,
+    dbKey,
     githubDeviceFlow,
-    ...(params.cloud.inviteCode?.trim() ? { inviteCode: params.cloud.inviteCode.trim() } : {}),
     ...(params.cloud.sessionTtlMs && params.cloud.sessionTtlMs > 0
       ? { sessionTtlMs: params.cloud.sessionTtlMs }
       : {}),
