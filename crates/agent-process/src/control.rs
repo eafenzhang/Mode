@@ -92,6 +92,8 @@ pub enum ControlError {
     Spawn(AgentProcessError),
     Client(ClientError),
     InvalidResult(String),
+    /// 调用方构造的协议参数不满足 schema 的组合约束（发出前拒绝）。
+    InvalidParams(String),
     ProviderSync(String),
     /// existing-only 策略下没有活进程（对应 TS `MODE_AGENT_RUNTIME_UNAVAILABLE`）。
     RuntimeUnavailable { workspace_key: String },
@@ -109,6 +111,7 @@ impl std::fmt::Display for ControlError {
                 "{field} must be a 64-character lowercase sha256 digest"
             ),
             Self::InvalidResult(message) => formatter.write_str(message),
+            Self::InvalidParams(message) => formatter.write_str(message),
             Self::ProviderSync(message) => formatter.write_str(message),
             // 消息与 TS `createRuntimeUnavailableError` 一致。
             Self::RuntimeUnavailable { .. } => formatter.write_str("Mode Agent runtime is not running."),

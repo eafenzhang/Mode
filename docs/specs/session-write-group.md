@@ -26,6 +26,27 @@
 **与 TS 的差异**：TS 在 `getClient` 前先 `ensureAccountProviderConfigSynced` 并解析
 Off-Peak / 动态工作流灰度；本 facade 接收已解析的布尔值，provider 同步留给服务层。
 
+## 0b. `session/send`
+
+请求（`modeSessionSendParamsSchema`，`.strict()` + `superRefine`）：
+
+```
+{sessionId, modelSelection?, modelExecution?, inputId?, queryId?, content, attachments?,
+ browserAmbientContext?, expectedRevision?, expectedProviderRevision?, automationId?,
+ offPeakTaskId?, offPeakRunType?, botDeliveryTarget?, toolDenylist?}
+```
+
+- `attachments` 是开放对象数组（`record<string, unknown>`）；`browserAmbientContext`
+  是 `{tabCount(1..100), currentUrl?}`；`botDeliveryTarget` 是
+  `{provider(6 值), botId, providerUserId, chatType}`。
+- `modelExecution` 是单次执行约束：`selectionScope=execution` 必填，可选
+  `memoryExtraction=skip`、`requestAuth{apiKey?,headers?}`、`subagents{foregroundModel=submission,background=deny}`。
+- `superRefine` 三条约束在发出前校验：`automationId`/`offPeakTaskId` 互斥、
+  `offPeakRunType` 依赖 `offPeakTaskId`、`modelExecution` 依赖 `modelSelection`；
+  违规返回 `ControlError::InvalidParams`（不拉起 Agent）。
+- 结果 `{sessionId, accepted, stateRevision}`，`accepted` 在协议里是 `z.literal(true)`；
+  facade 对 `false` 报 `invalid session/send result: accepted must be true`。
+
 ## 1. 其余方法
 
 | 方法 | 协议方法 | params | result |
@@ -47,10 +68,11 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 
 ## 3. 验收
 
-1. 共享夹具覆盖五个请求与四个应答：`request/response-session-close`、
+1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、
    `request/response-session-set-model`、`request/response-session-set-thought-level`、
-   `request/response-session-set-mode`，以及带 MCP/导入历史的
-   `request-session-create-import`；TS zod 与 Rust 镜像同时接受，Rust 序列化回到线上字节。
+   `request/response-session-set-mode`，带 MCP/导入历史的 `request-session-create-import`，
+   以及带执行约束/附件/Off-Peak/Bot 的 `request-session-send-execution`；TS zod 与 Rust
+   镜像同时接受，Rust 序列化回到线上字节。
 2. `expectedRevision` / `persistAsWorkspaceLastUsed` / `thoughtLevel` 缺省时不出键。
 3. `create` 的全部可选字段缺省时不出键；灰度布尔只在 true 时出现。
 4. `closed` 缺省时返回 `true`。

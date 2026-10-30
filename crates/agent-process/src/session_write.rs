@@ -10,9 +10,10 @@
 use serde_json::Value;
 
 use agent_protocol::message::MessageModel;
-use agent_protocol::session::SessionCreateParams;
+use agent_protocol::session::{SessionCreateParams, SessionSendParams, SessionSendResult};
 use agent_protocol::session_create::{ImportHistory, McpServer};
 use agent_protocol::session_read::SessionMode;
+use agent_protocol::session_send::SESSION_SEND_METHOD;
 use agent_protocol::session_write::{
     SessionCloseParams, SessionCloseResult, SessionPersistence, SessionSetModeParams,
     SessionSetModelParams, SessionSetThoughtLevelParams, SESSION_CLOSE_METHOD,
@@ -74,6 +75,35 @@ impl AgentControlClient {
             .request(SESSION_CREATE_METHOD, Some(params))
             .await?;
         parse_snapshot(&response, "session/create")
+    }
+
+    /// `session/send`：提交一次输入，返回受理确认（`accepted` 必须是 `true`）。
+    ///
+    /// 组合约束在发出前校验：`automationId`/`offPeakTaskId` 互斥、`offPeakRunType`
+    /// 依赖 `offPeakTaskId`、`modelExecution` 依赖 `modelSelection`。
+    pub async fn send_prompt(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: SessionSendParams,
+    ) -> Result<SessionSendResult, ControlError> {
+        params
+            .validate()
+            .map_err(|message| ControlError::InvalidParams(message.to_string()))?;
+        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let params = serde_json::to_value(&params).expect("session/send params 序列化不会失败");
+        let response = process
+            .client()
+            .request(SESSION_SEND_METHOD, Some(params))
+            .await?;
+        let result: SessionSendResult = serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid session/send result: {error}"))
+        })?;
+        if !result.accepted {
+            return Err(ControlError::InvalidResult(
+                "invalid session/send result: accepted must be true".to_string(),
+            ));
+        }
+        Ok(result)
     }
 
     /// `session/close`：返回 `closed`（Agent 未返回该字段时按普通 close 成功处理为 `true`）。

@@ -9,9 +9,10 @@ use agent_process::{
     ControlError, CreateSessionOptions, SpecFactory,
 };
 use agent_protocol::message::MessageModel;
+use agent_protocol::session::SessionSendParams;
 use agent_protocol::session_read::SessionMode;
 use agent_protocol::session_write::SessionPersistence;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 const FIXTURE: &str = env!("CARGO_BIN_EXE_agent-process-fixture");
 
@@ -175,6 +176,106 @@ async fn malformed_create_result_is_rejected() {
                 message.contains("invalid session/create result"),
                 "unexpected message: {message}"
             );
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn send_prompt_sends_full_params_and_returns_ack() {
+    let log = FrameLog::new("send");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, spawns);
+    let target = AgentWorkspaceTarget::new("/ws/demo");
+
+    let params: SessionSendParams = serde_json::from_value(json!({
+        "sessionId": "sess-1",
+        "modelSelection": { "providerId": "zai", "modelId": "glm-4.6" },
+        "modelExecution": {
+            "selectionScope": "execution",
+            "subagents": { "foregroundModel": "submission", "background": "deny" }
+        },
+        "content": "你好",
+        "expectedRevision": 3,
+        "offPeakTaskId": "task-1",
+        "offPeakRunType": "resume",
+        "botDeliveryTarget": {
+            "provider": "feishu",
+            "botId": "bot-1",
+            "providerUserId": "user-1",
+            "chatType": "private"
+        },
+        "toolDenylist": ["Bash"]
+    }))
+    .unwrap();
+
+    let result = client.send_prompt(&target, params).await.unwrap();
+    assert!(result.accepted);
+    assert_eq!(result.session_id, "sess-1");
+    assert_eq!(result.state_revision, 3);
+
+    let sent = log.frame_params("session/send").expect("必须记录到请求帧");
+    assert_eq!(sent["sessionId"], "sess-1");
+    assert_eq!(sent["modelSelection"]["providerId"], "zai");
+    assert_eq!(sent["modelExecution"]["selectionScope"], "execution");
+    assert_eq!(sent["offPeakTaskId"], "task-1");
+    assert_eq!(sent["offPeakRunType"], "resume");
+    assert_eq!(sent["botDeliveryTarget"]["provider"], "feishu");
+    assert_eq!(sent["toolDenylist"], json!(["Bash"]));
+}
+
+#[tokio::test]
+async fn send_prompt_rejects_invalid_combinations_without_spawning() {
+    let log = FrameLog::new("send-invalid");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+    let target = AgentWorkspaceTarget::new("/ws/demo");
+
+    let params: SessionSendParams = serde_json::from_value(json!({
+        "sessionId": "sess-1",
+        "modelExecution": { "selectionScope": "execution" },
+        "content": "hi"
+    }))
+    .unwrap();
+    let error = client.send_prompt(&target, params).await.unwrap_err();
+    match error {
+        ControlError::InvalidParams(message) => {
+            assert_eq!(message, "modelExecution requires modelSelection");
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+    assert_eq!(spawns.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn send_prompt_rejects_unaccepted_result() {
+    let log = FrameLog::new("send-rejected");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("rejected-session-send", &log, spawns);
+    let params = SessionSendParams {
+        session_id: "sess-1".to_string(),
+        model_selection: None,
+        model_execution: None,
+        input_id: None,
+        query_id: None,
+        content: "hi".to_string(),
+        attachments: None,
+        browser_ambient_context: None,
+        expected_revision: None,
+        expected_provider_revision: None,
+        automation_id: None,
+        off_peak_task_id: None,
+        off_peak_run_type: None,
+        bot_delivery_target: None,
+        tool_denylist: None,
+    };
+    let error = client
+        .send_prompt(&AgentWorkspaceTarget::new("/ws/demo"), params)
+        .await
+        .unwrap_err();
+    match error {
+        ControlError::InvalidResult(message) => {
+            assert!(message.contains("accepted must be true"), "{message}");
         }
         other => panic!("unexpected error: {other:?}"),
     }

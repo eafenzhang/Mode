@@ -327,7 +327,9 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                     "session/send" => {
                         let params: SessionSendParams = decode(case, &params);
                         assert!(!params.session_id.is_empty() && !params.content.is_empty());
-                        assert_no_unmodeled_payload_fields(case, &params.extra);
+                        params
+                            .validate()
+                            .unwrap_or_else(|message| panic!("{case}：send 参数不满足约束：{message}"));
                         exercised.insert("session/send".to_string());
                     }
                     "session/list" => {

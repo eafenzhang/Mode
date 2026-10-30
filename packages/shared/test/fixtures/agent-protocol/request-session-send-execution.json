@@ -1,0 +1,48 @@
+{
+  "case": "request-session-send-execution",
+  "direction": "host->runtime",
+  "note": "提交输入完整参数：模型执行约束、附件、浏览器环境、Off-Peak 与 Bot 回推（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 52,
+    "method": "session/send",
+    "params": {
+      "sessionId": "sess-1",
+      "modelSelection": {
+        "providerId": "zai",
+        "modelId": "glm-4.6",
+        "options": { "reasoningLevel": "high" }
+      },
+      "modelExecution": {
+        "memoryExtraction": "skip",
+        "selectionScope": "execution",
+        "requestAuth": {
+          "apiKey": "key-1",
+          "headers": { "X-Test": "1" }
+        },
+        "subagents": {
+          "foregroundModel": "submission",
+          "background": "deny"
+        }
+      },
+      "inputId": "in-1",
+      "queryId": "q-1",
+      "content": "你好",
+      "attachments": [{ "kind": "image", "path": "a.png" }],
+      "browserAmbientContext": {
+        "tabCount": 2,
+        "currentUrl": "https://example.invalid"
+      },
+      "expectedRevision": 3,
+      "expectedProviderRevision": "prov-1",
+      "offPeakTaskId": "task-1",
+      "offPeakRunType": "resume",
+      "botDeliveryTarget": {
+        "provider": "feishu",
+        "botId": "bot-1",
+        "providerUserId": "user-1",
+        "chatType": "private"
+      },
+      "toolDenylist": ["Bash"]
+    }
+  }
+}

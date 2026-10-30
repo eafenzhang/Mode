@@ -89,33 +89,69 @@ pub struct SessionCreateParams {
     pub dynamic_workflow_enabled: Option<bool>,
 }
 
-/// `session/send` 的 params：提交一次用户输入。
+/// `session/send` 的 params（`modeSessionSendParamsSchema`，`.strict()`）。
+///
+/// 字段顺序与 TS `buildSessionSendParams` 的字面量一致；缺省字段省略。
+/// `superRefine` 的三条组合约束由 [`SessionSendParams::validate`] 表达。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SessionSendParams {
     pub session_id: String,
-    pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_selection: Option<crate::message::MessageModel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_execution: Option<crate::session_send::ModelExecution>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub query_id: Option<String>,
+    pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<serde_json::Map<String, serde_json::Value>>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser_ambient_context: Option<crate::session_send::BrowserAmbientContext>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expected_revision: Option<u64>,
-    #[serde(flatten)]
-    pub extra: ExtraFields,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_provider_revision: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub automation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub off_peak_task_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub off_peak_run_type: Option<crate::session_send::OffPeakRunType>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bot_delivery_target: Option<crate::session_send::BotDeliveryTarget>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_denylist: Option<Vec<String>>,
+}
+
+impl SessionSendParams {
+    /// 协议 `superRefine` 的三条组合约束；返回第一条违规消息。
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.automation_id.is_some() && self.off_peak_task_id.is_some() {
+            return Err("automationId and offPeakTaskId are mutually exclusive");
+        }
+        if self.off_peak_run_type.is_some() && self.off_peak_task_id.is_none() {
+            return Err("offPeakRunType requires offPeakTaskId");
+        }
+        if self.model_execution.is_some() && self.model_selection.is_none() {
+            return Err("modelExecution requires modelSelection");
+        }
+        Ok(())
+    }
 }
 
 /// `session/send` 的 result，也就是「输入已被受理」的确认。
 ///
-/// 这是命令面里的 **ack**：host 提交输入后不能假定被受理，必须看到 `accepted`。
+/// 协议里 `accepted` 是 `z.literal(true)`；镜像保留 `bool`，由调用方按 schema 语义
+/// 拒绝 `false`（facade 已做）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SessionSendResult {
     pub accepted: bool,
     pub session_id: String,
     pub state_revision: u64,
-    #[serde(flatten)]
-    pub extra: ExtraFields,
 }
 
 /// `session/requestRuntimePreferences` 的 params.scope。

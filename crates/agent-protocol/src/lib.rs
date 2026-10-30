@@ -58,6 +58,7 @@ pub mod session_create;
 pub mod session_debug;
 pub mod session_event;
 pub mod session_read;
+pub mod session_send;
 pub mod session_write;
 pub mod snapshot;
 
