@@ -246,6 +246,25 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
 **未做**：`conversationSnapshot` / `conversationDelta` 与工具 display 的强类型
 （`toolCall.display` 仍按原始 JSON）。
 
+## 2l. v4 会话快照（`conversationSnapshot`）
+
+`agent-protocol::v4_snapshot` 镜像 `snapshot.ts` 的 A 区与 rows 窗口：
+
+- `control`（phase/stopState/stopTargetKind/activeWorks/lastError/apiRetry）、
+  `availability`（8 个动作的 allowed/denied 联合）、`inputRouting`、`meta`、
+  `sharedContextImport`（V2 与 legacy 两形态）、`config`（会话模型/思考/协作模式）、
+  `modelTransition`、`usage`（上下文窗口 + 累计）、`queue`（含 intent 全字段与队列态
+  `dispatch`、附件、provenance）、`pendingInteractions`（permission / userInput /
+  workspaceHookReview 三种 payload）、`pendingCommands`、`backgroundWorks`、`subagents`、
+  `goal`/`plan`、`workspaceHookAdmission`、`rows`（`ConversationRow` 窗口 + 全序计数）。
+- `goal` 的 `summaryTitle` 是 `nullable().default(null)`，用三态保留显式 null；
+  `whitespace`/默认值字段按 zod 默认补齐（fixture 显式给出以避免序列化差异）。
+- `workspaceHookReview` payload 只镜像形状；zod `superRefine`（kind 与 payload 一致、
+  deadline、hookCount 等）暂未在 Rust 侧强制，留待消费方校验。
+
+**未做**：`workflowRuns` 暂按原始 JSON 透传（`workflow-runs.ts` 独立切片）；
+`state.updated` 补丁与 `conversationDelta`。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、
@@ -279,3 +298,5 @@ Rust 只提供形状与校验，connectionId 由频道层/调用方生成。
     round-trip。
 16. v4 行（第三批）：hookInvocation 与 execution 投影、timelineMarker 的 9 种 payload、
     `ConversationRow` 联合对 9 种 kind 的解析。
+17. v4 快照：完整 A 区 + rows 窗口 JSON round-trip；`goal.summaryTitle: null` 的三态与
+    `workspaceHookAdmission` 的显式 null 保留。
