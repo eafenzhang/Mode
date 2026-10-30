@@ -286,6 +286,61 @@ fn main() {
                 message["info"]["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": { "messages": [message] } })
+        } else if method == "v4/conversation/subscribe" {
+            let id = request.get("id").cloned().unwrap_or(Value::Null);
+            let reply = json!({
+                "id": id,
+                "result": {
+                    "ack": {
+                        "subscriptionId": "sub-1",
+                        "mode": "snapshot",
+                        "logEpoch": "epoch-1",
+                        "openTiming": { "version": 1 }
+                    }
+                }
+            });
+            let _ = writeln!(stdout, "{reply}");
+            let _ = stdout.flush();
+            std::thread::sleep(Duration::from_millis(50));
+            let complete = |subscription_id: &str, frame_id: &str| {
+                json!({
+                    "wireVersion": 3,
+                    "kind": "complete",
+                    "deliveryKind": "initial",
+                    "logicalFrameId": frame_id,
+                    "logicalFrameOrdinal": 1,
+                    "topic": "conversation/sess-1",
+                    "subscriptionId": subscription_id,
+                    "frame": {
+                        "topic": "conversation/sess-1",
+                        "subscriptionId": subscription_id,
+                        "fromSeq": 0,
+                        "toSeq": 1,
+                        "sentAt": 1,
+                        "payload": { "kind": "snapshot", "snapshot": {} }
+                    }
+                })
+            };
+            let fragment = json!({
+                "wireVersion": 3,
+                "kind": "fragment",
+                "deliveryKind": "online",
+                "logicalFrameId": "f2",
+                "logicalFrameOrdinal": 2,
+                "topic": "conversation/sess-1",
+                "subscriptionId": "sub-1",
+                "fragmentIndex": 0,
+                "fragmentCount": 1,
+                "logicalBytes": 10,
+                "checksum": { "algorithm": "crc32", "value": "00000000" },
+                "dataBase64": "e30="
+            });
+            for params in [complete("sub-1", "f1"), complete("sub-other", "f9"), fragment] {
+                let notification = json!({ "method": "v4/conversation/frame", "params": params });
+                let _ = writeln!(stdout, "{notification}");
+            }
+            let _ = stdout.flush();
+            continue;
         } else if method == "v4/command" {
             let command_id = request
                 .get("params")

@@ -1,0 +1,23 @@
+{
+  "case": "response-v4-conversation-subscribe",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/subscribe",
+  "note": "订阅 ACK：subscriptionId + mode + logEpoch + openTiming（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 67,
+    "result": {
+      "ack": {
+        "subscriptionId": "sub-1",
+        "mode": "resume",
+        "logEpoch": "epoch-1",
+        "openTiming": {
+          "version": 1,
+          "hostPrepareMs": 3,
+          "cliProcessState": "reused",
+          "sessionRuntimeState": "warm",
+          "snapshotRowCount": 2
+        }
+      }
+    }
+  }
+}

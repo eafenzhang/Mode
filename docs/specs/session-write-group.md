@@ -183,6 +183,26 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 **与 TS 的差异**：TS 使用独立的 plugin 管理进程（合成 workspace）与更长超时；本 facade
 复用 workspace runtime、使用协议默认超时。
 
+## 2i. v4 会话订阅：`v4/conversation/subscribe` + wire frame
+
+`subscribe_conversation_v4(target, params)`：
+
+- 请求：`{topic, base?{logEpoch,seq}, visibility?, connectionId, clientMode, workspace?,
+  legacyTaskIds?, resumeThoughtLevel?, workflowRunDeltas?}`；`legacyTaskIds` 上限 200
+  （越界返回 `InvalidParams`，不拉起 Agent）。
+- 应答严格只含 ACK：`{subscriptionId, mode(snapshot|resume), logEpoch, openTiming?}`；
+  首帧（snapshot 或 resume）随后以 `v4/conversation/frame` 通知发出。
+- `ConversationFrameSubscription`：`ack` + 已按 `subscriptionId` 过滤的 wire frame 流；
+  `frame` 支持 `complete`（内嵌会话帧原文）与 `fragment`（base64 分片 + crc32 校验）；
+  `Drop` 中止转发任务。
+- **范围**：wire 外壳严格镜像；`frame` 里的会话快照/增量（`conversationSnapshotSchema` /
+  `conversationDeltaSchema`）体量巨大，暂按原始 JSON 透传，等独立切片再建模。
+- 通知广播 `Lagged` 时跳过被丢弃的通知继续消费。
+
+**与 TS 的差异**：TS 在订阅前同步 Account Provider Config 并读取 task-index 的 thought
+hint；本 facade 由调用方在 `params` 里给出 `resumeThoughtLevel`。信任连接上下文
+（`connectionId` / `clientMode`）也由调用方提供，不在本层推断。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、
@@ -208,3 +228,5 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
     `rejected` 映射为 `CommandRejected` 并携带状态与 reasonCode。
 11. 插件只读：list 的组件分组/hook 详情/诊断可读；describe 的组件与 metadata 可读；
     overview 的市场/可安装/已安装摘要与 capability 可读；三类非法结果有独立前缀。
+12. v4 会话订阅：ACK 的 subscriptionId/mode/openTiming 可断言；`complete` 与 `fragment`
+    帧按 subscriptionId 过滤后到达；`legacyTaskIds` 超限不拉起 Agent。

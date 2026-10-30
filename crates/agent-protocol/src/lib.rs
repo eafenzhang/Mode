@@ -64,6 +64,7 @@ pub mod session_send;
 pub mod session_write;
 pub mod snapshot;
 pub mod v4;
+pub mod v4_transport;
 pub mod workflow;
 pub mod workspace;
 

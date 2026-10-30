@@ -30,6 +30,7 @@ mod session_events;
 mod session_read;
 mod session_write;
 mod v4;
+mod v4_transport;
 mod workflows;
 mod workspace;
 
@@ -50,6 +51,7 @@ pub use runtime_preferences::{
     default_runtime_preferences, default_runtime_preferences_handler, runtime_preferences_handler,
     SESSION_REQUEST_RUNTIME_PREFERENCES_METHOD,
 };
+pub use v4_transport::ConversationFrameSubscription;
 pub use registry::{
     AgentRuntimeRegistry, RuntimeIdentity, SpecFactory, StorageStartupSnapshot, WorkspaceTarget,
 };

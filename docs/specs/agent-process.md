@@ -201,6 +201,10 @@ ACK 的 accepted/duplicate/noop 视为成功，其余映射为 `ControlError::Co
 插件只读：`list_plugins`（组件分组/hook 详情/诊断）、`describe_plugin`（组件清单）与
 `get_plugins_overview`（市场/可安装/已安装摘要 + capability）。
 
+v4 会话订阅：`subscribe_conversation_v4` 返回 `ConversationFrameSubscription`
+（ACK + 按 subscriptionId 过滤的 complete/fragment wire frame 流）；会话帧内部按原始
+JSON 透传（待独立切片建模）。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -295,6 +299,9 @@ close 的 persistence 与默认 true、非法写结果被拒绝。
 runs 的 artifacts 与 limit 前置校验、updateMeta/delete/move 的参数与结果、六类非法结果。
 
 `crates/agent-process/tests/v4.rs`（2 条）：resolveInteraction 信封与 ACK、rejected 映射。
+
+`crates/agent-process/tests/v4_transport.rs`（2 条）：订阅 ACK 与 complete/fragment 帧过滤、
+legacyTaskIds 超限不拉起 Agent。
 
 `crates/agent-process/tests/plugins.rs`（5 条）：list 的 scope 与组件、describe 的组件分组、
 overview 的市场/安装摘要、三类非法结果。

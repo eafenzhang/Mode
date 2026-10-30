@@ -49,6 +49,10 @@ use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
 use agent_protocol::v4::{
     CommandAck, CommandAckStatus, ResolveInteractionEnvelope, ResolveInteractionType,
 };
+use agent_protocol::v4_transport::{
+    ConversationSubscribeParams, ConversationSubscribeResult, SubscribeMode, SubscribeVisibility,
+    V4ClientMode,
+};
 use agent_protocol::workflow::{
     SavedWorkflowScope, WorkflowRunStatus, WorkflowsDeleteParams, WorkflowsDeleteResult,
     WorkflowsGetParams, WorkflowsGetResult, WorkflowsListParams, WorkflowsListResult,
@@ -521,6 +525,27 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/command".to_string());
                     }
+                    "v4/conversation/subscribe" => {
+                        let subscribe: ConversationSubscribeParams = decode(case, &params);
+                        assert_eq!(subscribe.topic, "conversation/sess-1");
+                        assert_eq!(subscribe.connection_id, "conn-1");
+                        assert_eq!(subscribe.client_mode, V4ClientMode::DesktopContinuous);
+                        assert_eq!(
+                            subscribe.visibility,
+                            Some(SubscribeVisibility::Foreground)
+                        );
+                        assert_eq!(subscribe.resume_thought_level.as_deref(), Some("high"));
+                        assert_eq!(subscribe.workflow_run_deltas, Some(true));
+                        subscribe
+                            .validate()
+                            .unwrap_or_else(|message| panic!("{case}：订阅参数不合法：{message}"));
+                        assert_eq!(
+                            serde_json::to_value(&subscribe).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/subscribe".to_string());
+                    }
                     "session/requestRuntimePreferences" => {
                         let params: RuntimePreferencesRequestParams = decode(case, &params);
                         assert_eq!(params.scope, RuntimePreferencesScope::RuntimeMaterialization);
@@ -888,6 +913,18 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/command".to_string());
                     }
+                    "v4/conversation/subscribe" => {
+                        let result: ConversationSubscribeResult = decode(case, &response.result);
+                        assert_eq!(result.ack.subscription_id, "sub-1");
+                        assert_eq!(result.ack.mode, SubscribeMode::Resume);
+                        assert!(result.ack.open_timing.is_some());
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/subscribe".to_string());
+                    }
                     other => panic!("{case}：应答 {other} 没有镜像"),
                 }
             }
@@ -923,7 +960,8 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "workflows/updateMeta",
             "workflows/delete",
             "workflows/move",
-            "v4/command"
+            "v4/command",
+            "v4/conversation/subscribe"
         ]
         .into_iter()
         .map(str::to_string)
