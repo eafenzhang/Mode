@@ -21,7 +21,9 @@
 //!
 //! 只落 M2 对拍与最小会话循环要用到的面：帧形状、会话事件信封与只读切片实际产生的事件载荷、
 //! 以及 host 命令面里 M2 会发/会答的那几条（`session/create`、`session/send`、
-//! `session/requestRuntimePreferences`）。v1 方法表与 v4 各有几十个类型，一次翻译整套既是
+//! `session/requestRuntimePreferences`）。`session_read` 是 W4 会话只读组的第一片：
+//! `session/list` 的严格镜像，依据协议声明 schema，并用双端夹具锁住形状
+//! （见 `docs/specs/session-read-group.md`）。v1 方法表与 v4 各有几十个类型，一次翻译整套既是
 //! 无用代码，也接近 clean-room 禁止的「按上游思路复现」。后续任务按需补，补的时候同步补一条
 //! **录制的**夹具（见下）。
 //!
@@ -52,6 +54,7 @@ pub mod frame;
 pub mod permission;
 pub mod session;
 pub mod session_event;
+pub mod session_read;
 
 pub use frame::{
     ErrorObject, ErrorResponseFrame, ExtraFields, Frame, NotificationFrame, RequestFrame,

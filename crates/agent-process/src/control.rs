@@ -16,6 +16,17 @@ use mode_protocol_client::ClientError;
 
 pub const WORKSPACE_HOOK_TRUST_GRANT_METHOD: &str = "workspace/hooks/trustGrant";
 
+/// TS `MODE_AGENT_RUNTIME_UNAVAILABLE_CODE`：existing-only 取不到运行时时的错误码。
+pub const MODE_AGENT_RUNTIME_UNAVAILABLE_CODE: &str = "MODE_AGENT_RUNTIME_UNAVAILABLE";
+
+/// 取 client 时是否允许拉起 Agent（TS `ModeAgentRuntimePolicy`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RuntimePolicy {
+    #[default]
+    StartIfNeeded,
+    ExistingOnly,
+}
+
 #[derive(Debug, Clone)]
 pub struct AgentWorkspaceTarget {
     pub workspace_path: String,
@@ -50,7 +61,7 @@ impl AgentWorkspaceTarget {
         }
     }
 
-    fn registry_target(&self) -> WorkspaceTarget {
+    pub(crate) fn registry_target(&self) -> WorkspaceTarget {
         WorkspaceTarget {
             workspace_path: self.workspace_path.clone(),
             workspace_identity: self.workspace_identity.clone(),
@@ -82,6 +93,8 @@ pub enum ControlError {
     Client(ClientError),
     InvalidResult(String),
     ProviderSync(String),
+    /// existing-only 策略下没有活进程（对应 TS `MODE_AGENT_RUNTIME_UNAVAILABLE`）。
+    RuntimeUnavailable { workspace_key: String },
 }
 
 impl std::fmt::Display for ControlError {
@@ -95,10 +108,10 @@ impl std::fmt::Display for ControlError {
                 formatter,
                 "{field} must be a 64-character lowercase sha256 digest"
             ),
-            Self::InvalidResult(message) => {
-                write!(formatter, "invalid workspaceHookTrustGrant result: {message}")
-            }
+            Self::InvalidResult(message) => formatter.write_str(message),
             Self::ProviderSync(message) => formatter.write_str(message),
+            // 消息与 TS `createRuntimeUnavailableError` 一致。
+            Self::RuntimeUnavailable { .. } => formatter.write_str("Mode Agent runtime is not running."),
         }
     }
 }
@@ -127,6 +140,29 @@ impl AgentControlClient {
         Self {
             registry,
             provider_sync: crate::ProviderConfigSync::new(),
+        }
+    }
+
+    /// `getReadOnlyClient(params, runtimePolicy)` 的 Rust 形态。
+    ///
+    /// - `StartIfNeeded`：复用或拉起；
+    /// - `ExistingOnly`：只复用现有活进程，绝不 spawn。
+    pub(crate) async fn client_for(
+        &self,
+        target: &AgentWorkspaceTarget,
+        policy: RuntimePolicy,
+    ) -> Result<Arc<crate::AgentProcess>, ControlError> {
+        match policy {
+            RuntimePolicy::StartIfNeeded => Ok(self
+                .registry
+                .get_or_spawn(&target.registry_target())
+                .await?),
+            RuntimePolicy::ExistingOnly => self
+                .registry
+                .existing_process(&target.registry_target())
+                .ok_or_else(|| ControlError::RuntimeUnavailable {
+                    workspace_key: target.workspace_key(),
+                }),
         }
     }
 
@@ -260,8 +296,9 @@ struct GrantResultWire {
 }
 
 fn parse_grant_result(value: &Value) -> Result<GrantTrustResult, ControlError> {
-    let wire: GrantResultWire = serde_json::from_value(value.clone())
-        .map_err(|error| ControlError::InvalidResult(error.to_string()))?;
+    let wire: GrantResultWire = serde_json::from_value(value.clone()).map_err(|error| {
+        ControlError::InvalidResult(format!("invalid workspaceHookTrustGrant result: {error}"))
+    })?;
     Ok(GrantTrustResult {
         accepted: wire.accepted,
         reason_code: wire.reason_code,

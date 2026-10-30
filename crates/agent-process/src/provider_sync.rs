@@ -124,8 +124,11 @@ impl ProviderConfigSync {
                 })),
             )
             .await?;
-        let wire: UpdateAccountConfigWire = serde_json::from_value(response)
-            .map_err(|error| ControlError::InvalidResult(error.to_string()))?;
+        let wire: UpdateAccountConfigWire = serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid provider/updateAccountConfig result: {error}"
+            ))
+        })?;
         if wire.received_revision != snapshot.revision {
             return Err(ControlError::ProviderSync(
                 "Account Config 接收回执版本与交付版本不一致".into(),

@@ -10,6 +10,7 @@ name = "agent_process"
 path = "src/lib.rs"
 
 [dependencies]
+agent-protocol = { path = "../agent-protocol" }
 mode-protocol-client = { path = "../mode-protocol-client" }
 serde.workspace = true
 serde_json.workspace = true
@@ -19,4 +20,5 @@ tokio = { workspace = true, features = ["io-util", "process", "rt", "sync", "tim
 libc = "0.2"
 
 [dev-dependencies]
+agent-protocol = { path = "../agent-protocol" }
 tokio = { workspace = true, features = ["io-util", "process", "rt-multi-thread", "macros", "sync", "time"] }

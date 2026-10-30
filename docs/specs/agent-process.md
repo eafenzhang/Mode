@@ -136,8 +136,21 @@ cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd�
 - `dispose_all(grace)`：关闭全部（`disposeAll`）。
 - `storage_startup_state` / `subscribe_storage_startup`：existing-only 读取/订阅存储门。
 
-**未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；其余成员（session/插件/
-automation/workflow 等）按方法组迁移。
+## 会话只读组（第三组，进行中）
+
+第一片是 `list_sessions(target, options)`（协议方法 `session/list`）：
+
+- `ListSessionsOptions { include_archived=false, limit?, session_ids?, runtime_policy }`；
+  缺省的可选键不会序列化。
+- 结果按 `agent_protocol::session_read::SessionListResult`（`deny_unknown_fields`）严格解析，
+  失败消息前缀 `invalid session/list result`。
+- `RuntimePolicy::StartIfNeeded`（默认）复用或拉起；`ExistingOnly` 只复用活进程，
+  取不到时返回 `ControlError::RuntimeUnavailable`（消息与 code 与 TS
+  `MODE_AGENT_RUNTIME_UNAVAILABLE` 一致），绝不 spawn。
+- 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
+
+**未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
+automation/workflow 等按方法组迁移。
 
 ## 与 TS 的差异
 
@@ -189,6 +202,9 @@ TS 文案、非 storage 入口不等待、失效重建后 generation 递增。
 
 `crates/agent-process/tests/provider_sync.rs`（3 条）：payload 逐字段与 revision 去重、
 无源不拉起、回执版本不一致报错且不标记已交付。
+
+`crates/agent-process/tests/session_list.rs`（4 条）：workspace ref 与可选键形状、缺省不序列化、
+existing-only 不 spawn 且报 runtime-unavailable、未知结果字段被拒绝。
 
 `crates/mode-protocol-client` 另有一条 `close_write` 测试：写端关闭后新请求失败、
 读端仍能收到通知。

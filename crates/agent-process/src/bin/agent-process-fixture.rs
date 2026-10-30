@@ -118,6 +118,24 @@ fn main() {
                     "status": "received"
                 }
             })
+        } else if method == "session/list" {
+            let mut session = json!({
+                "sessionId": "sess-1",
+                "workspace": {
+                    "workspacePath": "/ws/fixture",
+                    "workspaceKey": "/ws/fixture"
+                },
+                "sessionKind": "interactive",
+                "title": "fixture",
+                "mode": "build",
+                "status": "idle",
+                "createdAt": 1,
+                "updatedAt": 2
+            });
+            if mode == "bad-session-list" {
+                session["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": { "sessions": [session] } })
         } else {
             json!({ "id": id, "result": { "method": method } })
         };

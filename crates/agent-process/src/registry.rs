@@ -98,6 +98,11 @@ impl AgentRuntimeRegistry {
         self.len() == 0
     }
 
+    /// 现有活进程（existing-only，不 spawn）；没有时返回 `None`。
+    pub fn existing_process(&self, target: &WorkspaceTarget) -> Option<Arc<AgentProcess>> {
+        self.live_entry(&target.key())
+    }
+
     /// 现有 runtime 的身份（existing-only，不 spawn）；没有活进程时返回 `None`。
     pub fn existing_identity(&self, target: &WorkspaceTarget) -> Option<RuntimeIdentity> {
         let key = target.key();

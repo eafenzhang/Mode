@@ -1,0 +1,63 @@
+{
+  "case": "response-session-list",
+  "direction": "runtime->host",
+  "respondsTo": "session/list",
+  "note": "运行时返回会话列表：最小项与带 model/target/archivedAt 的完整项（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 41,
+    "result": {
+      "sessions": [
+        {
+          "sessionId": "sess-1",
+          "workspace": {
+            "workspacePath": "/ws/demo",
+            "workspaceKey": "/ws/demo"
+          },
+          "sessionKind": "interactive",
+          "title": "",
+          "mode": "build",
+          "status": "idle",
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000001
+        },
+        {
+          "sessionId": "sess-2",
+          "workspace": {
+            "workspacePath": "/ws/demo",
+            "workspaceIdentity": "ssh://host/ws/demo",
+            "workspaceKey": "ssh://host/ws/demo"
+          },
+          "parentSessionId": "sess-1",
+          "traceId": "trace-1",
+          "sessionKind": "subagent_child",
+          "title": "示例会话",
+          "titleSource": "generated",
+          "mode": "plan",
+          "status": "completed",
+          "model": {
+            "providerId": "zai",
+            "modelId": "glm-4.6",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          },
+          "target": {
+            "sessionId": "sess-2",
+            "targetId": "goal-1",
+            "objective": "demo",
+            "summaryTitle": null,
+            "status": "complete",
+            "tokenBudget": null,
+            "tokensUsed": 10,
+            "timeUsedSeconds": 60,
+            "createdAt": 1700000000002,
+            "updatedAt": 1700000000003
+          },
+          "createdAt": 1700000000002,
+          "updatedAt": 1700000000003,
+          "archivedAt": 1700000000004
+        }
+      ]
+    }
+  }
+}

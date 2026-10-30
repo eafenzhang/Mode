@@ -1,0 +1,17 @@
+{
+  "case": "request-session-list",
+  "direction": "host->runtime",
+  "note": "host 读取会话列表：workspace ref + includeArchived 恒发；limit/sessionIds 缺省时省略键（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 41,
+    "method": "session/list",
+    "params": {
+      "workspace": {
+        "workspacePath": "/ws/demo",
+        "workspaceKey": "/ws/demo"
+      },
+      "includeArchived": false,
+      "limit": 50
+    }
+  }
+}

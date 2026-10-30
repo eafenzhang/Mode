@@ -12,6 +12,8 @@
 //
 // 夹具不是照着镜像写的：它由 `record-protocol-fixtures.mts` 从 oracle 的 stdout/stdin 上
 // **整帧原样**录下（见该文件的纪律说明）。
+// 例外：`request-session-list` / `response-session-list` 目前是**按协议声明 schema 构造**的
+// 形状夹具（note 已注明「非录制帧」），等会话只读链路接上运行时后补录制版本。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
@@ -22,6 +24,8 @@ import {
   modeProtocolMessageSchema,
   modeSessionCreateParamsSchema,
   modeSessionEventSchema,
+  modeSessionListParamsSchema,
+  modeSessionListResultSchema,
   modeSessionRequestRuntimePreferencesParamsSchema,
   modeSessionRuntimePreferencesResultSchema,
   modeSessionSendParamsSchema,
@@ -208,10 +212,12 @@ test("会话事件的载荷能被 v1 session event schema 接受，或只差已�
 test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
   const paramsSchemas: Record<string, Parseable> = {
     "session/create": modeSessionCreateParamsSchema,
+    "session/list": modeSessionListParamsSchema,
     "session/send": modeSessionSendParamsSchema,
     "session/requestRuntimePreferences": modeSessionRequestRuntimePreferencesParamsSchema,
   };
   const resultSchemas: Record<string, Parseable> = {
+    "session/list": modeSessionListResultSchema,
     "session/send": modeSessionSendResultSchema,
     "session/requestRuntimePreferences": modeSessionRuntimePreferencesResultSchema,
   };

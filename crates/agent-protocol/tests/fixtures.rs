@@ -10,6 +10,8 @@
 //! 夹具由 `packages/desktop/tests/agent-runtime-oracle/record-protocol-fixtures.mts`
 //! 从 oracle 的 stdout/stdin 上**整帧原样**录下，不是照着镜像类型写出来的：
 //! 两端各自用自己的类型去解同一份字节，哪一端单方面改了类型而另一端没跟上，那一端就红。
+//! 例外：`request-session-list` / `response-session-list` 是按协议声明 schema 构造的形状夹具
+//! （note 已注明「非录制帧」），等会话只读链路接上运行时后补录制版本。
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -24,6 +26,7 @@ use agent_protocol::session_event::{
     SessionTitleUpdatedPayload, TitleSource, ToolUpdatedPayload, TurnCompletedPayload,
     TurnStartedPayload,
 };
+use agent_protocol::session_read::{SessionKind, SessionListParams, SessionListResult};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -303,6 +306,19 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert_no_unmodeled_payload_fields(case, &params.extra);
                         exercised.insert("session/send".to_string());
                     }
+                    "session/list" => {
+                        let params: SessionListParams = decode(case, &params);
+                        let workspace = params.workspace.as_ref().expect("夹具带 workspace");
+                        assert!(
+                            !workspace.workspace_path.is_empty()
+                                && !workspace.workspace_key.is_empty(),
+                            "{case}：列表请求必须带 workspacePath/workspaceKey"
+                        );
+                        assert!(!params.include_archived);
+                        assert_eq!(params.limit, Some(50));
+                        assert!(params.session_ids.is_none(), "{case}：夹具不带 sessionIds");
+                        exercised.insert("session/list".to_string());
+                    }
                     "session/requestRuntimePreferences" => {
                         let params: RuntimePreferencesRequestParams = decode(case, &params);
                         assert_eq!(params.scope, RuntimePreferencesScope::RuntimeMaterialization);
@@ -338,6 +354,25 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("session/requestRuntimePreferences".to_string());
                     }
+                    "session/list" => {
+                        let result: SessionListResult = decode(case, &response.result);
+                        assert_eq!(result.sessions.len(), 2);
+                        assert_eq!(result.sessions[0].session_kind, SessionKind::Interactive);
+                        // `summaryTitle` 的两种写法都要原样保留：显式 null 写回 null。
+                        let goal = result.sessions[1]
+                            .target
+                            .as_ref()
+                            .expect("第二项带 target")
+                            .as_ref()
+                            .expect("target 不是 null");
+                        assert_eq!(goal.summary_title, Some(None));
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("session/list".to_string());
+                    }
                     other => panic!("{case}：应答 {other} 没有镜像"),
                 }
             }
@@ -348,6 +383,7 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
         exercised,
         [
             "session/create",
+            "session/list",
             "session/requestRuntimePreferences",
             "session/send"
         ]

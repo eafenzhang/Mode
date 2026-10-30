@@ -243,7 +243,11 @@ cwd 回落（6 条测试）。**mode-agent 控制面第一批已落**：`AgentCo
 `workspace/hooks/trustGrant`（workspace ref、摘要校验、严格结果解析、Agent message 原样
 上抛），用 fixture 对拍请求帧并验证同 workspace 复用；并补齐 workspace 生命周期组：
 existing-only `runtime_identity`（`${workspaceKey}:${generation}:${pid}`）、
-`dispose_workspace`、`dispose_all`；9 条测试。**存储启动门已落**：
+`dispose_workspace`、`dispose_all`；9 条测试。**会话只读组第一片已落**：
+`agent-protocol::session_read` 镜像 `modeSessionInfoSchema`/`modeSessionListParamsSchema`
+（含 `Option<Option<T>>` 的 nullable-optional 三态），`AgentControlClient::list_sessions`
+实现 `start-if-needed` / `existing-only` 两种运行时策略与 `MODE_AGENT_RUNTIME_UNAVAILABLE`
+错误；共享夹具双端校验，4 条控制面测试。规范见 `docs/specs/session-read-group.md`。**存储启动门已落**：
 state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`prepareStorage` 等待、
 `getStorageStartupState` existing-only 快照与订阅、进程代次递增；9 条测试。
 **Provider 交付协议侧已落**：`ProviderSource` 注入点 + 每 workspace 串行/revision 去重 +
@@ -253,8 +257,8 @@ state 严格校验、sequence/身份单调、ready/failed/首帧 30s 超时、`p
 并用本包 fixture 子进程端到端验证线格式与 revision 去重（4 + 1 条测试）。真实凭据 / OAuth /
 Family 可用性网络源仍需注入实现，属于 model-provider 域。
 **未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
-所有权切换，以及其余 109 个成员（session/插件/automation/workflow 等；`IModeAgentService`
-当前 115 个方法，已覆盖 6 个 workspace 生命周期方法）。
+所有权切换，以及其余 108 个成员（session 其余读/写、插件/automation/workflow 等；
+`IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 + `listSessions`）。
 所有权切换仍是 W4 下一片，`hooks` 的 grant 与任务/会话频道都等它。
 
 ### W5 生态面替换

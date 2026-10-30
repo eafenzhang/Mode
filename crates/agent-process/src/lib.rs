@@ -23,16 +23,18 @@ mod control;
 mod storage;
 mod provider_sync;
 mod resolve;
+mod session_read;
 
 pub use control::{
     build_grant_params, build_workspace_ref, AgentControlClient, AgentWorkspaceTarget,
-    ControlError, GrantTrustReasonCode, GrantTrustResult,
-    WORKSPACE_HOOK_TRUST_GRANT_METHOD,
+    ControlError, GrantTrustReasonCode, GrantTrustResult, RuntimePolicy,
+    MODE_AGENT_RUNTIME_UNAVAILABLE_CODE, WORKSPACE_HOOK_TRUST_GRANT_METHOD,
 };
 pub use provider_sync::{
     AccountProviderConfigSnapshot, ProviderConfigSync, ProviderReadFuture, ProviderSource,
     ProviderSyncOutcome, ProviderSyncStatus, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
+pub use session_read::ListSessionsOptions;
 pub use registry::{
     AgentRuntimeRegistry, RuntimeIdentity, SpecFactory, StorageStartupSnapshot, WorkspaceTarget,
 };
