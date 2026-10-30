@@ -316,8 +316,10 @@ JSON 收紧为该类型，较大变体用 `Box` 控制枚举尺寸（wire 不变
 **v4 只读查询已落**：`conversationRowsRange`（可信 `clientMode`、可选 `beforeRowId`、
 `rowId` 升序窗口 + 水位/纪元 + `hasMore`）与 `conversationPlans`（终态 ExitPlanMode 的
 `toolCall` 行）强类型化，两者都支持 `StartIfNeeded` / `ExistingOnly` 两种运行时策略；
-4 条控制面测试 + 双端夹具。`workflowRunEvents` / `workflowRuns` 枚举 / `fileChanges` /
-`rewindPreview` / `backgroundBashOutput` 等其余只读查询待迁移。
+4 条控制面测试 + 双端夹具。`workflowRunEvents` 与 `workflowRuns` 枚举也已落：两者读
+journal（cursor 永不失效），刻意不带 `atSeq`/`atLogEpoch`；`workflowRuns` 是重启后
+投影为空时的发现面（3 条新增测试 + 双端夹具）。`fileChanges` / `rewindPreview` /
+`backgroundBashOutput` 等其余只读查询待迁移。
 **未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
 所有权切换，以及其余 80 个成员（session 其余读/写、插件/automation/workflow 等；
 `IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 +

@@ -7,10 +7,11 @@
 //! 没有幂等表，调用方按陈旧读防护自行丢弃结果。
 
 use serde::{Deserialize, Serialize};
-use serde_json::Number;
+use serde_json::{Map, Number, Value};
 
 use crate::v4_rows::{ConversationRow, ToolCallRow};
 use crate::v4_transport::V4ClientMode;
+use crate::v4_workflow_runs::{WorkflowRunStatus, WorkflowRunStopReason};
 
 pub const V4_CONVERSATION_ROWS_RANGE_METHOD: &str = "v4/conversation/rowsRange";
 pub const V4_CONVERSATION_PLANS_METHOD: &str = "v4/conversation/plans";
@@ -57,4 +58,89 @@ pub struct PlansResult {
     pub plans: Vec<ToolCallRow>,
     pub at_seq: Number,
     pub at_log_epoch: String,
+}
+
+// ── workflow run 事件日志 ──
+// 读的是 journal（`dwf_event`），与 conversation log 无关，cursor 永不失效：
+// 所以这一族**刻意不带** `atSeq` / `atLogEpoch`（陈旧读防护在那里定义不出正确语义）。
+
+pub const V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD: &str =
+    "v4/conversation/workflowRunEvents";
+pub const V4_CONVERSATION_WORKFLOW_RUNS_METHOD: &str = "v4/conversation/workflowRuns";
+pub const WORKFLOW_RUN_EVENTS_MAX_LIMIT: u64 = 500;
+pub const WORKFLOW_RUNS_QUERY_MAX_LIMIT: u64 = 64;
+
+/// `v4ConversationWorkflowRunEventsParamsSchema`：严格。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunEventsParams {
+    pub session_id: String,
+    pub run_id: String,
+    /// 只取 `sequence > afterSequence` 的事件；缺省从头取。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_sequence: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+}
+
+/// `v4ConversationWorkflowRunEventsResultSchema`：严格。`payload` 已由 CLI 侧有界化，
+/// 读端按 `type` 解释，这里保留为开放对象。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunEventsResult {
+    pub events: Vec<WorkflowRunEvent>,
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunEvent {
+    pub sequence: u64,
+    #[serde(rename = "type")]
+    pub event_type: String,
+    pub payload: Map<String, Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+}
+
+/// `v4ConversationWorkflowRunsParamsSchema`：严格；`limit` 的缺省与钳制在 CLI 侧。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunsQueryParams {
+    pub session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+}
+
+/// `v4ConversationWorkflowRunsResultSchema`：严格；journal-backed 的重启后发现面。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunsQueryResult {
+    pub runs: Vec<WorkflowRunSummary>,
+}
+
+/// `v4ConversationWorkflowRunSummarySchema`：严格。与 `workflowRuns` 投影共用状态词汇，
+/// 但 schema 独立（查询状态变化不改变投影侧）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRunSummary {
+    pub run_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<u64>,
+    pub status: WorkflowRunStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stop_reason: Option<WorkflowRunStopReason>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resumed_from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub superseded_by: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure_code: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure_message: Option<String>,
+    pub resumable: bool,
 }

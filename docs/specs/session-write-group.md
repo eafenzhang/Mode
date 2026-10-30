@@ -319,6 +319,14 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
   且不拉起进程。
 - 非法结果前缀分别为 `invalid v4/conversation/rowsRange result` 与
   `invalid v4/conversation/plans result`。
+- `workflowRunEvents`：参数严格（`sessionId`/`runId`/可选 `afterSequence`/可选
+  `limit` ≤ 500），结果严格：`events` 按 `sequence` 单调、`payload` 保留为开放对象、
+  可选 `truncated`，外加 `hasMore`。读的是 journal，cursor 永不失效，因此**刻意不带**
+  `atSeq`/`atLogEpoch`（会话 rewind 不应让合法的 journal 页整页作废）。
+- `workflowRuns`：journal-backed 的 run 枚举（重启后 `workflowRuns` 投影为空时的
+  发现面）。参数严格、`limit` 的缺省与钳制在 CLI 侧；结果是
+  `WorkflowRunSummary`（状态五值、可选 `stopReason`、lineage、failure 编码、`resumable`），
+  最近更新在前。同样不带 `atSeq`/`atLogEpoch`。
 
 ## 3. 验收
 
@@ -365,3 +373,6 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
 20. v4 只读查询：`rowsRange` 注入可信 `clientMode`、`beforeRowId` 缺省时不出键，结果解析
     出 `rowId` 升序窗口与 `hasMore`；`plans` 解析出 `toolCall` 行；两条查询的非法结果有
     独立前缀，`existing-only` 不拉起进程。
+21. v4 工作流查询：`workflowRunEvents` 的游标/上限缺省时不出键，事件 `sequence`/`type`/
+    `payload`/`truncated` 可读；`workflowRuns` 的 `limit` 缺省时不出键，摘要的状态、
+    `stopReason`、lineage、failure 编码与 `resumable` 可读；两条都有独立的非法结果前缀。

@@ -493,6 +493,38 @@ fn main() {
                 result["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/workflowRunEvents" {
+            let mut result = json!({
+                "events": [{
+                    "sequence": 7,
+                    "type": "phase.started",
+                    "payload": { "phase": "build" }
+                }],
+                "hasMore": true
+            });
+            if mode == "bad-v4-workflow-run-events" {
+                result["hasMore"] = json!("yes");
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "v4/conversation/workflowRuns" {
+            let mut result = json!({
+                "runs": [{
+                    "runId": "run-1",
+                    "toolCallId": "call-1",
+                    "label": "发布",
+                    "updatedAt": 1700000000000u64,
+                    "status": "stopped",
+                    "stopReason": "superseded",
+                    "supersededBy": "run-2",
+                    "failureCode": "Interrupted",
+                    "failureMessage": "用户中止",
+                    "resumable": true
+                }]
+            });
+            if mode == "bad-v4-workflow-runs" {
+                result["runs"][0]["status"] = json!("archived");
+            }
+            json!({ "id": id, "result": result })
         } else if method == "plugins/overview" {
             let mut result = json!({
                 "marketplaces": [{

@@ -21,8 +21,10 @@ use agent_protocol::v4_transport::{
     HostCapabilities, V4ClientMode, V4_WIRE_PROTOCOL_VERSION,
 };
 use agent_protocol::v4_queries::{
-    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, V4_CONVERSATION_PLANS_METHOD,
-    V4_CONVERSATION_ROWS_RANGE_METHOD,
+    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunEventsParams,
+    WorkflowRunEventsResult, WorkflowRunsQueryParams, WorkflowRunsQueryResult,
+    V4_CONVERSATION_PLANS_METHOD, V4_CONVERSATION_ROWS_RANGE_METHOD,
+    V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD, V4_CONVERSATION_WORKFLOW_RUNS_METHOD,
 };
 use serde_json::Value;
 
@@ -153,6 +155,46 @@ impl AgentControlClient {
             .await?;
         serde_json::from_value(response).map_err(|error| {
             ControlError::InvalidResult(format!("invalid v4/conversation/plans result: {error}"))
+        })
+    }
+
+    /// `v4/conversation/workflowRunEvents`：journal 分页；分页在存储层完成，RPC 层不切片。
+    pub async fn conversation_workflow_run_events_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: WorkflowRunEventsParams,
+        policy: RuntimePolicy,
+    ) -> Result<WorkflowRunEventsResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("workflowRunEvents params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/workflowRunEvents result: {error}"
+            ))
+        })
+    }
+
+    /// `v4/conversation/workflowRuns`：journal-backed 的 run 枚举（重启后发现面）。
+    pub async fn conversation_workflow_runs_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: WorkflowRunsQueryParams,
+        policy: RuntimePolicy,
+    ) -> Result<WorkflowRunsQueryResult, ControlError> {
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("workflowRuns params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_CONVERSATION_WORKFLOW_RUNS_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/workflowRuns result: {error}"
+            ))
         })
     }
 }

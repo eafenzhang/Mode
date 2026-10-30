@@ -1,0 +1,15 @@
+{
+  "case": "request-v4-conversation-workflow-run-events",
+  "direction": "host->runtime",
+  "note": "run 事件日志分页：afterSequence 游标 + limit（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 72,
+    "method": "v4/conversation/workflowRunEvents",
+    "params": {
+      "sessionId": "sess-1",
+      "runId": "run-1",
+      "afterSequence": 6,
+      "limit": 50
+    }
+  }
+}

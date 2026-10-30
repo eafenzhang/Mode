@@ -1,0 +1,30 @@
+{
+  "case": "response-v4-conversation-workflow-runs",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/workflowRuns",
+  "note": "run 摘要目录：状态五值 + stopReason + lineage + failure 编码 + resumable（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 73,
+    "result": {
+      "runs": [
+        {
+          "runId": "run-1",
+          "toolCallId": "call-1",
+          "label": "发布",
+          "updatedAt": 1700000000000,
+          "status": "stopped",
+          "stopReason": "superseded",
+          "supersededBy": "run-2",
+          "failureCode": "Interrupted",
+          "failureMessage": "用户中止",
+          "resumable": true
+        },
+        {
+          "runId": "run-2",
+          "status": "running",
+          "resumable": false
+        }
+      ]
+    }
+  }
+}

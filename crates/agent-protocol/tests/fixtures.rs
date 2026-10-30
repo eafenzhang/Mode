@@ -50,7 +50,8 @@ use agent_protocol::v4::{
     CommandAck, CommandAckStatus, ResolveInteractionEnvelope, ResolveInteractionType,
 };
 use agent_protocol::v4_queries::{
-    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult,
+    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunEventsParams,
+    WorkflowRunEventsResult, WorkflowRunsQueryParams, WorkflowRunsQueryResult,
 };
 use agent_protocol::v4_transport::{
     ConversationSubscribeParams, ConversationSubscribeResult, SubscribeMode, SubscribeVisibility,
@@ -541,6 +542,30 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         assert_eq!(params.session_id, "sess-1");
                         exercised.insert("v4/conversation/plans".to_string());
                     }
+                    "v4/conversation/workflowRunEvents" => {
+                        let events: WorkflowRunEventsParams = decode(case, &params);
+                        assert_eq!(events.session_id, "sess-1");
+                        assert_eq!(events.run_id, "run-1");
+                        assert_eq!(events.after_sequence, Some(6));
+                        assert_eq!(events.limit, Some(50));
+                        assert_eq!(
+                            serde_json::to_value(&events).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/workflowRunEvents".to_string());
+                    }
+                    "v4/conversation/workflowRuns" => {
+                        let runs: WorkflowRunsQueryParams = decode(case, &params);
+                        assert_eq!(runs.session_id, "sess-1");
+                        assert_eq!(runs.limit, None, "limit 缺省时不得出键");
+                        assert_eq!(
+                            serde_json::to_value(&runs).unwrap(),
+                            params,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/workflowRuns".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let subscribe: ConversationSubscribeParams = decode(case, &params);
                         assert_eq!(subscribe.topic, "conversation/sess-1");
@@ -950,6 +975,41 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
                         );
                         exercised.insert("v4/conversation/plans".to_string());
                     }
+                    "v4/conversation/workflowRunEvents" => {
+                        let result: WorkflowRunEventsResult = decode(case, &response.result);
+                        assert_eq!(result.events.len(), 2);
+                        assert_eq!(result.events[0].sequence, 7);
+                        assert_eq!(result.events[0].event_type, "phase.started");
+                        assert_eq!(result.events[0].payload["phase"], "build");
+                        assert_eq!(result.events[1].truncated, Some(true));
+                        assert!(result.has_more);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/workflowRunEvents".to_string());
+                    }
+                    "v4/conversation/workflowRuns" => {
+                        let result: WorkflowRunsQueryResult = decode(case, &response.result);
+                        assert_eq!(result.runs.len(), 2);
+                        assert_eq!(result.runs[0].run_id, "run-1");
+                        assert_eq!(
+                            result.runs[0].status,
+                            agent_protocol::v4_workflow_runs::WorkflowRunStatus::Stopped
+                        );
+                        assert_eq!(
+                            result.runs[1].status,
+                            agent_protocol::v4_workflow_runs::WorkflowRunStatus::Running
+                        );
+                        assert!(result.runs[0].resumable);
+                        assert_eq!(
+                            serde_json::to_value(&result).unwrap(),
+                            response.result,
+                            "{case}：镜像的序列化结果与线上帧不一致（字段名/缺省处理有偏差）"
+                        );
+                        exercised.insert("v4/conversation/workflowRuns".to_string());
+                    }
                     "v4/conversation/subscribe" => {
                         let result: ConversationSubscribeResult = decode(case, &response.result);
                         assert_eq!(result.ack.subscription_id, "sub-1");
@@ -1000,7 +1060,9 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
             "v4/command",
             "v4/conversation/plans",
             "v4/conversation/rowsRange",
-            "v4/conversation/subscribe"
+            "v4/conversation/subscribe",
+            "v4/conversation/workflowRunEvents",
+            "v4/conversation/workflowRuns"
         ]
         .into_iter()
         .map(str::to_string)

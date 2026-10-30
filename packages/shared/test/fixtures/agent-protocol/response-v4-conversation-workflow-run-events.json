@@ -1,0 +1,25 @@
+{
+  "case": "response-v4-conversation-workflow-run-events",
+  "direction": "runtime->host",
+  "respondsTo": "v4/conversation/workflowRunEvents",
+  "note": "run 事件页：sequence 单调、payload 为开放对象、hasMore（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 72,
+    "result": {
+      "events": [
+        {
+          "sequence": 7,
+          "type": "phase.started",
+          "payload": { "phase": "build" }
+        },
+        {
+          "sequence": 8,
+          "type": "phase.completed",
+          "payload": { "phase": "build" },
+          "truncated": true
+        }
+      ],
+      "hasMore": true
+    }
+  }
+}

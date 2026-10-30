@@ -1,0 +1,12 @@
+{
+  "case": "request-v4-conversation-workflow-runs",
+  "direction": "host->runtime",
+  "note": "journal-backed run 枚举：只带 sessionId，limit 缺省由 CLI 侧钳制（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 73,
+    "method": "v4/conversation/workflowRuns",
+    "params": {
+      "sessionId": "sess-1"
+    }
+  }
+}

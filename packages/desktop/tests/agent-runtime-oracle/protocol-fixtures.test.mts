@@ -84,6 +84,10 @@ import {
   v4ConversationRowsRangeResultSchema,
   v4ConversationSubscribeParamsSchema,
   v4ConversationSubscribeResultSchema,
+  v4ConversationWorkflowRunEventsParamsSchema,
+  v4ConversationWorkflowRunEventsResultSchema,
+  v4ConversationWorkflowRunsParamsSchema,
+  v4ConversationWorkflowRunsResultSchema,
 } from "../../../shared/src/mode-protocol-v4/transport.js";
 
 /** 夹具外壳：`frame` 是线上整帧，其余是录制元数据（不属于线上形状）。 */
@@ -287,6 +291,8 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "v4/conversation/plans": v4ConversationPlansParamsSchema,
     "v4/conversation/rowsRange": v4ConversationRowsRangeParamsSchema,
     "v4/conversation/subscribe": v4ConversationSubscribeParamsSchema,
+    "v4/conversation/workflowRunEvents": v4ConversationWorkflowRunEventsParamsSchema,
+    "v4/conversation/workflowRuns": v4ConversationWorkflowRunsParamsSchema,
     "workspace/readPresentation": modeWorkspaceReadPresentationParamsSchema,
     "workflows/get": modeWorkflowsGetParamsSchema,
     "workflows/list": modeWorkflowsListParamsSchema,
@@ -324,6 +330,8 @@ test("host 命令与应答的载荷能被对应的 v1 schema 接受", () => {
     "v4/conversation/plans": v4ConversationPlansResultSchema,
     "v4/conversation/rowsRange": v4ConversationRowsRangeResultSchema,
     "v4/conversation/subscribe": v4ConversationSubscribeResultSchema,
+    "v4/conversation/workflowRunEvents": v4ConversationWorkflowRunEventsResultSchema,
+    "v4/conversation/workflowRuns": v4ConversationWorkflowRunsResultSchema,
     "workspace/readPresentation": modeWorkspacePresentationSchema,
   };
   const exercisedCommands = new Set<string>();

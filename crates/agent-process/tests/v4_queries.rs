@@ -9,7 +9,9 @@ use agent_process::{
     AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, AgentWorkspaceTarget, ControlError,
     RuntimePolicy, SpecFactory,
 };
-use agent_protocol::v4_queries::{PlansParams, RowsRangeParams};
+use agent_protocol::v4_queries::{
+    PlansParams, RowsRangeParams, WorkflowRunEventsParams, WorkflowRunsQueryParams,
+};
 use agent_protocol::v4_transport::V4ClientMode;
 use serde_json::{json, Value};
 
@@ -173,6 +175,136 @@ async fn invalid_results_carry_distinct_prefixes() {
     match error {
         ControlError::InvalidResult(message) => assert!(
             message.starts_with("invalid v4/conversation/plans result"),
+            "{message}"
+        ),
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn workflow_run_events_page_parses_and_omits_absent_cursor() {
+    let log = FrameLog::new("run-events");
+    let client = control("", &log, Arc::new(AtomicUsize::new(0)));
+
+    let result = client
+        .conversation_workflow_run_events_v4(
+            &target(),
+            WorkflowRunEventsParams {
+                session_id: "sess-1".to_string(),
+                run_id: "run-1".to_string(),
+                after_sequence: None,
+                limit: None,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.events.len(), 1);
+    assert_eq!(result.events[0].event_type, "phase.started");
+    assert_eq!(result.events[0].payload["phase"], "build");
+    assert!(result.has_more);
+
+    let frames = log.frame_params("v4/conversation/workflowRunEvents");
+    assert_eq!(
+        frames[0],
+        json!({ "sessionId": "sess-1", "runId": "run-1" }),
+        "游标缺省时不得出键"
+    );
+
+    client
+        .conversation_workflow_run_events_v4(
+            &target(),
+            WorkflowRunEventsParams {
+                session_id: "sess-1".to_string(),
+                run_id: "run-1".to_string(),
+                after_sequence: Some(6),
+                limit: Some(50),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    let frames = log.frame_params("v4/conversation/workflowRunEvents");
+    assert_eq!(frames[1]["afterSequence"], 6);
+    assert_eq!(frames[1]["limit"], 50);
+}
+
+#[tokio::test]
+async fn workflow_runs_enumeration_parses_journal_summaries() {
+    let log = FrameLog::new("runs-enum");
+    let client = control("", &log, Arc::new(AtomicUsize::new(0)));
+
+    let result = client
+        .conversation_workflow_runs_v4(
+            &target(),
+            WorkflowRunsQueryParams {
+                session_id: "sess-1".to_string(),
+                limit: Some(10),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.runs.len(), 1);
+    let run = &result.runs[0];
+    assert_eq!(run.status, agent_protocol::v4_workflow_runs::WorkflowRunStatus::Stopped);
+    assert_eq!(
+        run.stop_reason,
+        Some(agent_protocol::v4_workflow_runs::WorkflowRunStopReason::Superseded)
+    );
+    assert_eq!(run.superseded_by.as_deref(), Some("run-2"));
+    assert_eq!(run.failure_code.as_deref(), Some("Interrupted"));
+    assert!(run.resumable);
+
+    let frames = log.frame_params("v4/conversation/workflowRuns");
+    assert_eq!(frames[0], json!({ "sessionId": "sess-1", "limit": 10 }));
+}
+
+#[tokio::test]
+async fn invalid_workflow_queries_carry_distinct_prefixes() {
+    let events_log = FrameLog::new("bad-run-events");
+    let client = control(
+        "bad-v4-workflow-run-events",
+        &events_log,
+        Arc::new(AtomicUsize::new(0)),
+    );
+    let error = client
+        .conversation_workflow_run_events_v4(
+            &target(),
+            WorkflowRunEventsParams {
+                session_id: "sess-1".to_string(),
+                run_id: "run-1".to_string(),
+                after_sequence: None,
+                limit: None,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap_err();
+    match error {
+        ControlError::InvalidResult(message) => assert!(
+            message.starts_with("invalid v4/conversation/workflowRunEvents result"),
+            "{message}"
+        ),
+        other => panic!("unexpected error: {other:?}"),
+    }
+
+    let runs_log = FrameLog::new("bad-runs-enum");
+    let client = control("bad-v4-workflow-runs", &runs_log, Arc::new(AtomicUsize::new(0)));
+    let error = client
+        .conversation_workflow_runs_v4(
+            &target(),
+            WorkflowRunsQueryParams {
+                session_id: "sess-1".to_string(),
+                limit: None,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap_err();
+    match error {
+        ControlError::InvalidResult(message) => assert!(
+            message.starts_with("invalid v4/conversation/workflowRuns result"),
             "{message}"
         ),
         other => panic!("unexpected error: {other:?}"),
