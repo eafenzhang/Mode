@@ -276,7 +276,7 @@ fn build_server(
             CREDENTIAL_CHANNEL => {
                 // 坏凭据文件必须留下可观察的告警：服务层日志走不了 Node 的 logger，
                 // 用壳侧结构化日志记录路径与备份名（不记录任何值）。
-                let store = credential_store::CredentialStore::new(data_root.to_path_buf())
+                let store = credential_store::CredentialStore::new(data_root)
                     .with_corrupt_listener(Arc::new(|path, backup| {
                         crate::host::shell_log(&format!(
                             "credential store corrupt: path={} backup={}",
