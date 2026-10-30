@@ -1,0 +1,30 @@
+services:
+  stack:
+    # 单容器统一部署；与旧的 mode-cloud-relay / agent-go-relay / mymode-www 互斥，
+    # 切换时先停旧容器释放端口。
+    container_name: mode-stack
+    build:
+      context: .
+      args:
+        NODE_IMAGE: "${MODE_RELAY_NODE_IMAGE:-node:24-alpine}"
+        NPM_REGISTRY: "${MODE_RELAY_NPM_REGISTRY:-https://registry.npmjs.org}"
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # 旧部署该默认值写在 compose 里而非 .env；单容器部署同样固定到挂载卷，
+      # 避免 cli-server 的 ./data 相对路径在容器内建出空库。
+      MODE_CLOUD_DB_PATH: "/data/cloud.sqlite"
+    ports:
+      # 宿主映射与旧部署一致，Cloudflare Tunnel ingress 不需要改动。
+      - "${MODE_RELAY_BIND:-127.0.0.1}:${MODE_RELAY_PORT:-8787}:8787"
+      - "${MODE_GO_BIND:-0.0.0.0}:${MODE_GO_PORT:-8788}:8788"
+      - "${MODE_SITE_BIND:-127.0.0.1}:${MODE_SITE_PORT:-8095}:80"
+    volumes:
+      # Mode Cloud SQLite
+      - ./data:/data
+      # Mode Go relay 源码（含 node_modules）；只读挂载，更新源码后重启容器即可
+      - "${MODE_GO_SOURCE_DIR:-/vol1/1000/agent-go-relay}:/app/agent-go:ro"
+      # 官网静态站（需可写：version.json 定时刷新）与静态服务脚本
+      - "${MODE_SITE_DIR:-/vol1/docker/mymode-site}:/srv/public"
+      - "${MODE_SITE_SERVER:-/vol1/docker/mymode-site-server.cjs}:/srv/server.js:ro"
