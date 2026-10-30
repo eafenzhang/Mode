@@ -100,6 +100,36 @@ Goal 的 `summaryTitle` 在 schema 里是 `.default(null)`：**省略**与显式
   「内部标记 + deny_unknown_fields」），未知键仍被拒绝。
 - `assistant.structured`（`z.unknown().optional()`）用三态保留省略与显式 null。
 
+## 3e. `session/read`
+
+请求：`{ sessionId, deliveryKind?, messageLimit?, afterSeq? }`，缺省的可选键省略。
+
+应答直接是 `modeSessionStateSnapshotSchema`（不是包装对象）：
+
+| 字段 | 形状 |
+| --- | --- |
+| `protocol` | `{ name: "Mode Protocol" \| "ZCode Protocol", version: 1 }`（旧名仍被服务端接受） |
+| `session` | 同 `session/list` 的 `SessionInfo` |
+| `settings` | `model{current?, available[], lastUsed?}`、`thoughtLevel{enabled,current?,defaultLevel?,available[]}`、`mode{current}`、可选 `permission{mode?,rulesRevision?}` |
+| `projection` | 状态/计数/上下文 + `pendingPermissions[]`、`activeToolCalls[]`、`backgroundJobs[]`、可选 `target`/`lastError` |
+| `runtime` | `eventSeq/stateRevision/pendingRequestIds` + 可选 `deliveryKind`/`activeTurn*`/`apiRetry`/`contextUsage`/`goalVerifications`/`goalVerificationTimeline` |
+| `messages` | 同 `session/messages` 的消息与部件 |
+| `goalStats` / `todos` / `todoGroups` / `slashCommands` | 可选 |
+
+细节：
+
+- `pendingPermissions[].options[].kind` 是开放字符串（不是判别键），镜像保持原文；
+  `decision` 是 4 值枚举，`permissionUpdates[].type` 目前只有 `addRules`。
+- `lastError.attribution` 的 `statusCode` 限定 100–599；镜像用 `u16`，未做区间校验。
+- 浮点字段（`contextUsage.cost.amount`、cache hit rate）用 `serde_json::Number` 保留原样。
+- `runtime.apiRetry`、`contextUsage.cost`、`projection.target` 是 `nullable().optional()`，
+  用三态解码。
+- `projection.target` 与 `settings` 中的模型选择复用 `session/list` / `message` 的类型。
+- **与 TS 的差异**：TS 在默认策略下先同步 Account Provider Config 再读；Rust facade 没有
+  账号事实源，该同步留给服务层。
+- `protocol.version: 1` 在镜像里是 `u64`，没有做「必须等于 1」的运行时校验；健康快照由
+  夹具断言盯住。
+
 ## 4. 运行时策略
 
 `getReadOnlyClient(params, runtimePolicy)` 的两种语义：
@@ -115,20 +145,23 @@ Goal 的 `summaryTitle` 在 schema 里是 `.default(null)`：**省略**与显式
   返回值自行保存。
 - 交互偏好同步、Off-Peak 工具面同步、provider registry 预热属于 mode-agent 服务层编排，
   不在本组；接频道时由服务层在取 client 后补齐。
-- `session/list`、`session/events` 之外的方法按需补类型与录制夹具。
+- `session/list`、`session/events`、`session/subagents`、`session/messages`、`session/read`
+  之外的方法按需补类型与录制夹具。
 
 ## 6. 验收
 
 1. 共享夹具 `request-session-list.json` / `response-session-list.json` /
    `request-session-events.json` / `response-session-events.json` /
    `request-session-subagents.json` / `response-session-subagents.json` /
-   `request-session-messages.json` / `response-session-messages.json` 同时被 TS zod 与 Rust
+   `request-session-messages.json` / `response-session-messages.json` /
+   `request-session-read.json` / `response-session-read.json` 同时被 TS zod 与 Rust
    严格镜像接受；Rust 侧序列化回到线上字节。
-2. `sessionIds` / `limit` / `afterSeq` / `endedCursor` / `afterMessageId` 缺省时不出现键；
-   `includeArchived=false` 与 `endedLimit=20` 恒出现。
+2. `sessionIds` / `limit` / `afterSeq` / `endedCursor` / `afterMessageId` /
+   `deliveryKind` / `messageLimit` 缺省时不出现键；`includeArchived=false` 与
+   `endedLimit=20` 恒出现。
 3. `existing-only` 在没有活进程时返回 runtime-unavailable 错误且 spawn 次数为 0。
-4. 正常路径返回的 `sessions` / `events` / `subagents` / `messages` 逐项可读；同一 workspace
-   复用同一进程。
-5. 事件信封、子代理结果或消息多一个键时整条结果被拒绝，消息前缀分别为
+4. 正常路径返回的 `sessions` / `events` / `subagents` / `messages` / 快照逐项可读；
+   同一 workspace 复用同一进程。
+5. 事件信封、子代理结果、消息或快照多一个键时整条结果被拒绝，消息前缀分别为
    `invalid session/events result`、`invalid session/subagents result`、
-   `invalid session/messages result`。
+   `invalid session/messages result`、`invalid session/read result`。

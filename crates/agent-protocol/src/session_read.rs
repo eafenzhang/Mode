@@ -18,6 +18,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::message::MessageWithParts;
 use crate::session_event::SessionEvent;
+use crate::snapshot::DeliveryKind;
 
 /// `nullable().optional()` 的三态解码：键缺失走 `default`，显式 `null` 得到 `Some(None)`。
 ///
@@ -35,6 +36,7 @@ pub const SESSION_LIST_METHOD: &str = "session/list";
 pub const SESSION_EVENTS_METHOD: &str = "session/events";
 pub const SESSION_SUBAGENTS_METHOD: &str = "session/subagents";
 pub const SESSION_MESSAGES_METHOD: &str = "session/messages";
+pub const SESSION_READ_METHOD: &str = "session/read";
 
 /// 结果里的 workspace ref（`modeWorkspaceRefSchema`，严格四键）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -358,4 +360,17 @@ pub struct SessionMessagesParams {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SessionMessagesResult {
     pub messages: Vec<MessageWithParts>,
+}
+
+/// `session/read` 的 params（`modeSessionReadParamsSchema`）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionReadParams {
+    pub session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivery_kind: Option<DeliveryKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message_limit: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_seq: Option<u64>,
 }

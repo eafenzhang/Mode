@@ -1,0 +1,109 @@
+{
+  "case": "response-session-read",
+  "direction": "runtime->host",
+  "respondsTo": "session/read",
+  "note": "完整会话快照：settings/projection/runtime + 可选 goalStats/todos/todoGroups/slashCommands（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 45,
+    "result": {
+      "protocol": { "name": "Mode Protocol", "version": 1 },
+      "session": {
+        "sessionId": "sess-1",
+        "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+        "sessionKind": "interactive",
+        "title": "示例",
+        "mode": "build",
+        "status": "idle",
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "settings": {
+        "model": {
+          "current": { "providerId": "zai", "modelId": "glm-4.6" },
+          "available": [
+            {
+              "ref": { "providerId": "zai", "modelId": "glm-4.6" },
+              "label": "GLM-4.6",
+              "properties": {
+                "inputFormat": {
+                  "supportsText": true,
+                  "supportsImage": false,
+                  "supportsVideo": false,
+                  "supportsAudio": false,
+                  "supportsPdf": false
+                },
+                "outputFormat": { "supportsText": true }
+              }
+            }
+          ],
+          "lastUsed": { "providerId": "zai", "modelId": "glm-4.6" }
+        },
+        "thoughtLevel": {
+          "enabled": true,
+          "current": "high",
+          "defaultLevel": "medium",
+          "available": [{ "value": "high", "label": "High" }]
+        },
+        "mode": { "current": "build" },
+        "permission": { "mode": "build", "rulesRevision": 2 }
+      },
+      "projection": {
+        "sessionId": "sess-1",
+        "status": "idle",
+        "mode": "build",
+        "turnCount": 0,
+        "totalTokenCount": 0,
+        "contextUsed": 10,
+        "contextWindow": 128000,
+        "pendingPermissions": [],
+        "activeToolCalls": [],
+        "backgroundJobs": [],
+        "lastError": {
+          "type": "provider",
+          "message": "boom",
+          "attribution": { "source": "provider", "statusCode": 500 }
+        }
+      },
+      "runtime": {
+        "eventSeq": 0,
+        "stateRevision": 0,
+        "deliveryKind": "desktop-continuous",
+        "pendingRequestIds": [],
+        "apiRetry": null,
+        "contextUsage": {
+          "used": 10,
+          "size": 128000,
+          "cost": { "amount": 0, "currency": "USD" },
+          "cache": {
+            "inputTokens": 1,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "hitRate": null
+          },
+          "breakdown": [{ "source": "messages", "chars": 10 }]
+        }
+      },
+      "messages": [],
+      "goalStats": {
+        "timeUsedSeconds": 0,
+        "tokensUsed": 0,
+        "tokenBudget": null,
+        "contextUsed": 10,
+        "contextWindow": 128000,
+        "toolCallCount": 0,
+        "iterationCount": 0
+      },
+      "todos": [{ "content": "写测试", "status": "completed", "priority": "high" }],
+      "todoGroups": [
+        {
+          "id": "group-1",
+          "source": "session",
+          "todos": [{ "content": "写测试", "status": "completed", "priority": "high" }]
+        }
+      ],
+      "slashCommands": [
+        { "name": "/help", "description": "帮助", "source": "builtin" }
+      ]
+    }
+  }
+}

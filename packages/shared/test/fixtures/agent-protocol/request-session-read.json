@@ -1,0 +1,15 @@
+{
+  "case": "request-session-read",
+  "direction": "host->runtime",
+  "note": "host 读取完整会话快照：deliveryKind/messageLimit/afterSeq 可选（协议声明 shape，非录制帧）。",
+  "frame": {
+    "id": 45,
+    "method": "session/read",
+    "params": {
+      "sessionId": "sess-1",
+      "deliveryKind": "desktop-continuous",
+      "messageLimit": 100,
+      "afterSeq": 5
+    }
+  }
+}

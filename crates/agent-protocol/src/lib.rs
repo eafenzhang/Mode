@@ -56,6 +56,7 @@ pub mod permission;
 pub mod session;
 pub mod session_event;
 pub mod session_read;
+pub mod snapshot;
 
 pub use frame::{
     ErrorObject, ErrorResponseFrame, ExtraFields, Frame, NotificationFrame, RequestFrame,

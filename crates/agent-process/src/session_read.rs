@@ -10,10 +10,11 @@ use agent_protocol::message::MessageWithParts;
 use agent_protocol::session_event::SessionEvent;
 use agent_protocol::session_read::{
     SessionEventsParams, SessionEventsResult, SessionInfo, SessionListParams, SessionListResult,
-    SessionMessagesParams, SessionMessagesResult, SessionSubagentsParams, SessionSubagentsResult,
-    SessionWorkspaceRef, SESSION_EVENTS_METHOD, SESSION_LIST_METHOD, SESSION_MESSAGES_METHOD,
-    SESSION_SUBAGENTS_METHOD,
+    SessionMessagesParams, SessionMessagesResult, SessionReadParams, SessionSubagentsParams,
+    SessionSubagentsResult, SessionWorkspaceRef, SESSION_EVENTS_METHOD, SESSION_LIST_METHOD,
+    SESSION_MESSAGES_METHOD, SESSION_READ_METHOD, SESSION_SUBAGENTS_METHOD,
 };
+use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
 use serde_json::Value;
 
 use crate::control::{AgentControlClient, AgentWorkspaceTarget, ControlError, RuntimePolicy};
@@ -120,6 +121,34 @@ impl AgentControlClient {
             .await?;
         parse_session_messages(&response)
     }
+
+    /// `session/read`：读取完整会话状态快照（严格按 `modeSessionStateSnapshotSchema`）。
+    ///
+    /// TS 在默认策略下会先同步 Account Provider Config；本 facade 没有账号事实源，
+    /// 该编排留给服务层（见 `docs/specs/session-read-group.md`）。
+    pub async fn read_session(
+        &self,
+        target: &AgentWorkspaceTarget,
+        session_id: &str,
+        delivery_kind: Option<DeliveryKind>,
+        message_limit: Option<u64>,
+        after_seq: Option<u64>,
+    ) -> Result<SessionStateSnapshot, ControlError> {
+        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let params = SessionReadParams {
+            session_id: session_id.to_string(),
+            delivery_kind,
+            message_limit,
+            after_seq,
+        };
+        let params =
+            serde_json::to_value(&params).expect("session/read params 序列化不会失败");
+        let response = process
+            .client()
+            .request(SESSION_READ_METHOD, Some(params))
+            .await?;
+        parse_session_snapshot(&response)
+    }
 }
 
 /// `buildWorkspaceRef` 的结果形状：identity 保留原值（含空白），`workspaceKey` 已 trim。
@@ -157,4 +186,10 @@ fn parse_session_messages(value: &Value) -> Result<Vec<MessageWithParts>, Contro
         ControlError::InvalidResult(format!("invalid session/messages result: {error}"))
     })?;
     Ok(result.messages)
+}
+
+fn parse_session_snapshot(value: &Value) -> Result<SessionStateSnapshot, ControlError> {
+    serde_json::from_value(value.clone()).map_err(|error| {
+        ControlError::InvalidResult(format!("invalid session/read result: {error}"))
+    })
 }

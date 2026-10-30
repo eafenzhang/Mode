@@ -186,6 +186,43 @@ fn main() {
                 message["info"]["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": { "messages": [message] } })
+        } else if method == "session/read" {
+            let mut snapshot = json!({
+                "protocol": { "name": "Mode Protocol", "version": 1 },
+                "session": {
+                    "sessionId": "sess-1",
+                    "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+                    "sessionKind": "interactive",
+                    "title": "fixture",
+                    "mode": "build",
+                    "status": "idle",
+                    "createdAt": 1,
+                    "updatedAt": 2
+                },
+                "settings": {
+                    "model": { "available": [] },
+                    "thoughtLevel": { "enabled": false, "available": [] },
+                    "mode": { "current": "build" }
+                },
+                "projection": {
+                    "sessionId": "sess-1",
+                    "status": "idle",
+                    "mode": "build",
+                    "turnCount": 0,
+                    "totalTokenCount": 0,
+                    "contextUsed": 0,
+                    "contextWindow": 128000,
+                    "pendingPermissions": [],
+                    "activeToolCalls": [],
+                    "backgroundJobs": []
+                },
+                "runtime": { "eventSeq": 0, "stateRevision": 0, "pendingRequestIds": [] },
+                "messages": []
+            });
+            if mode == "bad-session-read" {
+                snapshot["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": snapshot })
         } else {
             json!({ "id": id, "result": { "method": method } })
         };
