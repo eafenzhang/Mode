@@ -13,43 +13,42 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_protocol::v4::{
-    CommandAck, ResolveInteractionAnswer, ResolveInteractionEnvelope, ResolveInteractionPayload,
-    ResolveInteractionType, V4_COMMAND_METHOD,
+    CommandAck, CommandsQueryParams, CommandsQueryResult, ResolveInteractionAnswer,
+    ResolveInteractionEnvelope, ResolveInteractionPayload, ResolveInteractionType,
+    V4_COMMANDS_QUERY_METHOD, V4_COMMAND_METHOD,
+};
+use agent_protocol::v4_queries::{
+    AppUsageSnapshot, AttachmentAbortResult, AttachmentBeginParams, AttachmentBeginResult,
+    AttachmentChunkParams, AttachmentChunkResult, AttachmentCommitResult,
+    AttachmentPreviewSourceParams, AttachmentPreviewSourceResult, AttachmentReadParams,
+    AttachmentReadResult, AttachmentTerminalParams, BackgroundBashOutputParams,
+    BackgroundBashOutputResult, BackgroundBashUnavailable, BackgroundBashUnavailableKind,
+    ConnectionFlowParams, ConnectionFlowResult, ConversationAttachmentReadParams,
+    ConversationAttachmentStatParams, ConversationAttachmentStatResult, ConversationResyncParams,
+    ConversationResyncResult, ConversationUnsubscribeParams, ConversationUsageParams,
+    ConversationUsageResult, FileChangesParams, FileChangesResult, FileRewindPreviewParams,
+    FileRewindPreviewResult, PlansParams, PlansResult, RowsRangeParams, RowsRangeResult,
+    UsageStatsParams, WorkflowRunArtifactDataParams, WorkflowRunArtifactDataResult,
+    WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult, WorkflowRunArtifactsParams,
+    WorkflowRunArtifactsResult, WorkflowRunEventsParams, WorkflowRunEventsResult,
+    WorkflowRunNodeResult, WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams,
+    WorkflowRunWorkspaceResult, WorkflowRunsQueryParams, WorkflowRunsQueryResult,
+    V4_ATTACHMENT_ABORT_METHOD, V4_ATTACHMENT_BEGIN_METHOD, V4_ATTACHMENT_CHUNK_METHOD,
+    V4_ATTACHMENT_COMMIT_METHOD, V4_ATTACHMENT_PREVIEW_SOURCE_METHOD, V4_ATTACHMENT_READ_METHOD,
+    V4_BACKGROUND_BASH_OUTPUT_METHOD, V4_CONNECTION_FLOW_METHOD,
+    V4_CONVERSATION_ATTACHMENT_READ_METHOD, V4_CONVERSATION_ATTACHMENT_STAT_METHOD,
+    V4_CONVERSATION_FILE_CHANGES_METHOD, V4_CONVERSATION_FILE_REWIND_PREVIEW_METHOD,
+    V4_CONVERSATION_PLANS_METHOD, V4_CONVERSATION_RESYNC_METHOD, V4_CONVERSATION_ROWS_RANGE_METHOD,
+    V4_CONVERSATION_UNSUBSCRIBE_METHOD, V4_CONVERSATION_USAGE_METHOD,
+    V4_CONVERSATION_WORKFLOW_RUNS_METHOD, V4_CONVERSATION_WORKFLOW_RUN_ARTIFACTS_METHOD,
+    V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_DATA_METHOD,
+    V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_READ_METHOD, V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD,
+    V4_CONVERSATION_WORKFLOW_RUN_NODE_RESULT_METHOD, V4_CONVERSATION_WORKFLOW_RUN_WORKSPACE_METHOD,
+    V4_USAGE_STATS_METHOD,
 };
 use agent_protocol::v4_transport::{
     ClientHello, Compression, DeliveryProfile, HelloAuth, HelloKind, HelloMessage,
     HostCapabilities, V4ClientMode, V4_WIRE_PROTOCOL_VERSION,
-};
-use agent_protocol::v4_queries::{
-    AppUsageSnapshot, AttachmentAbortResult, AttachmentBeginParams, AttachmentBeginResult,
-    AttachmentChunkParams,
-    AttachmentChunkResult, AttachmentCommitResult, AttachmentPreviewSourceParams,
-    AttachmentPreviewSourceResult, AttachmentReadParams, AttachmentReadResult,
-    AttachmentTerminalParams, BackgroundBashOutputParams, BackgroundBashOutputResult,
-    BackgroundBashUnavailable, BackgroundBashUnavailableKind, ConnectionFlowParams,
-    ConnectionFlowResult, ConversationAttachmentReadParams, ConversationAttachmentStatParams,
-    ConversationAttachmentStatResult, ConversationResyncParams, ConversationResyncResult,
-    ConversationUnsubscribeParams, ConversationUsageParams, ConversationUsageResult,
-    FileChangesParams, FileChangesResult, FileRewindPreviewParams, FileRewindPreviewResult,
-    PlansParams, PlansResult, RowsRangeParams, RowsRangeResult, WorkflowRunArtifactDataParams,
-    WorkflowRunArtifactDataResult, WorkflowRunArtifactReadParams, WorkflowRunArtifactReadResult,
-    WorkflowRunArtifactsParams, WorkflowRunArtifactsResult, WorkflowRunEventsParams,
-    WorkflowRunEventsResult, WorkflowRunNodeResult, WorkflowRunNodeResultParams,
-    WorkflowRunWorkspaceParams, WorkflowRunWorkspaceResult, WorkflowRunsQueryParams,
-    WorkflowRunsQueryResult, UsageStatsParams, V4_USAGE_STATS_METHOD, V4_ATTACHMENT_ABORT_METHOD, V4_ATTACHMENT_BEGIN_METHOD,
-    V4_ATTACHMENT_CHUNK_METHOD, V4_ATTACHMENT_COMMIT_METHOD,
-    V4_ATTACHMENT_PREVIEW_SOURCE_METHOD, V4_ATTACHMENT_READ_METHOD,
-    V4_BACKGROUND_BASH_OUTPUT_METHOD, V4_CONNECTION_FLOW_METHOD,
-    V4_CONVERSATION_ATTACHMENT_READ_METHOD,
-    V4_CONVERSATION_ATTACHMENT_STAT_METHOD, V4_CONVERSATION_FILE_CHANGES_METHOD,
-    V4_CONVERSATION_FILE_REWIND_PREVIEW_METHOD, V4_CONVERSATION_PLANS_METHOD,
-    V4_CONVERSATION_RESYNC_METHOD, V4_CONVERSATION_ROWS_RANGE_METHOD,
-    V4_CONVERSATION_UNSUBSCRIBE_METHOD, V4_CONVERSATION_USAGE_METHOD,
-    V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_DATA_METHOD,
-    V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_READ_METHOD,
-    V4_CONVERSATION_WORKFLOW_RUN_ARTIFACTS_METHOD, V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD,
-    V4_CONVERSATION_WORKFLOW_RUN_NODE_RESULT_METHOD, V4_CONVERSATION_WORKFLOW_RUN_WORKSPACE_METHOD,
-    V4_CONVERSATION_WORKFLOW_RUNS_METHOD,
 };
 use mode_protocol_client::ClientError;
 use serde_json::Value;
@@ -110,7 +109,9 @@ impl AgentControlClient {
         interaction_id: &str,
         answer: ResolveInteractionAnswer,
     ) -> Result<CommandAck, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let envelope = ResolveInteractionEnvelope {
             command_id: next_command_id(),
             client_id: self.v4_client_id().to_string(),
@@ -161,7 +162,9 @@ impl AgentControlClient {
             .request(V4_CONVERSATION_ROWS_RANGE_METHOD, Some(value))
             .await?;
         serde_json::from_value(response).map_err(|error| {
-            ControlError::InvalidResult(format!("invalid v4/conversation/rowsRange result: {error}"))
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/rowsRange result: {error}"
+            ))
         })
     }
 
@@ -232,7 +235,8 @@ impl AgentControlClient {
         policy: RuntimePolicy,
     ) -> Result<WorkflowRunArtifactsResult, ControlError> {
         let process = self.client_for(target, policy).await?;
-        let value = serde_json::to_value(&params).expect("workflowRunArtifacts params 序列化不会失败");
+        let value =
+            serde_json::to_value(&params).expect("workflowRunArtifacts params 序列化不会失败");
         let response = process
             .client()
             .request(V4_CONVERSATION_WORKFLOW_RUN_ARTIFACTS_METHOD, Some(value))
@@ -257,7 +261,10 @@ impl AgentControlClient {
             serde_json::to_value(&params).expect("workflowRunArtifactData params 序列化不会失败");
         let response = process
             .client()
-            .request(V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_DATA_METHOD, Some(value))
+            .request(
+                V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_DATA_METHOD,
+                Some(value),
+            )
             .await?;
         serde_json::from_value(response).map_err(|error| {
             ControlError::InvalidResult(format!(
@@ -278,7 +285,10 @@ impl AgentControlClient {
             serde_json::to_value(&params).expect("workflowRunArtifactRead params 序列化不会失败");
         let response = process
             .client()
-            .request(V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_READ_METHOD, Some(value))
+            .request(
+                V4_CONVERSATION_WORKFLOW_RUN_ARTIFACT_READ_METHOD,
+                Some(value),
+            )
             .await?;
         serde_json::from_value(response).map_err(|error| {
             ControlError::InvalidResult(format!(
@@ -343,7 +353,9 @@ impl AgentControlClient {
             .request(V4_CONVERSATION_FILE_CHANGES_METHOD, Some(value))
             .await?;
         serde_json::from_value(response).map_err(|error| {
-            ControlError::InvalidResult(format!("invalid v4/conversation/fileChanges result: {error}"))
+            ControlError::InvalidResult(format!(
+                "invalid v4/conversation/fileChanges result: {error}"
+            ))
         })
     }
 
@@ -355,8 +367,7 @@ impl AgentControlClient {
         policy: RuntimePolicy,
     ) -> Result<FileRewindPreviewResult, ControlError> {
         let process = self.client_for(target, policy).await?;
-        let value =
-            serde_json::to_value(&params).expect("fileRewindPreview params 序列化不会失败");
+        let value = serde_json::to_value(&params).expect("fileRewindPreview params 序列化不会失败");
         let response = process
             .client()
             .request(V4_CONVERSATION_FILE_REWIND_PREVIEW_METHOD, Some(value))
@@ -391,7 +402,8 @@ impl AgentControlClient {
             }
             Err(error) => return Err(error),
         };
-        let value = serde_json::to_value(&params).expect("backgroundBashOutput params 序列化不会失败");
+        let value =
+            serde_json::to_value(&params).expect("backgroundBashOutput params 序列化不会失败");
         let response = match process
             .client()
             .request(V4_BACKGROUND_BASH_OUTPUT_METHOD, Some(value))
@@ -424,15 +436,14 @@ impl AgentControlClient {
         policy: RuntimePolicy,
     ) -> Result<ConversationUsageResult, ControlError> {
         let process = self.client_for(target, policy).await?;
-        let value = serde_json::to_value(&params).expect("conversation/usage params 序列化不会失败");
+        let value =
+            serde_json::to_value(&params).expect("conversation/usage params 序列化不会失败");
         let response = process
             .client()
             .request(V4_CONVERSATION_USAGE_METHOD, Some(value))
             .await?;
         serde_json::from_value(response).map_err(|error| {
-            ControlError::InvalidResult(format!(
-                "invalid v4/conversation/usage result: {error}"
-            ))
+            ControlError::InvalidResult(format!("invalid v4/conversation/usage result: {error}"))
         })
     }
 
@@ -619,15 +630,14 @@ impl AgentControlClient {
         policy: RuntimePolicy,
     ) -> Result<ConversationResyncResult, ControlError> {
         let process = self.client_for(target, policy).await?;
-        let value = serde_json::to_value(&params).expect("conversation/resync params 序列化不会失败");
+        let value =
+            serde_json::to_value(&params).expect("conversation/resync params 序列化不会失败");
         let response = process
             .client()
             .request(V4_CONVERSATION_RESYNC_METHOD, Some(value))
             .await?;
         serde_json::from_value(response).map_err(|error| {
-            ControlError::InvalidResult(format!(
-                "invalid v4/conversation/resync result: {error}"
-            ))
+            ControlError::InvalidResult(format!("invalid v4/conversation/resync result: {error}"))
         })
     }
 
@@ -669,5 +679,28 @@ impl AgentControlClient {
         serde_json::from_value(response).map_err(|error| {
             ControlError::InvalidResult(format!("invalid v4/usage/stats result: {error}"))
         })
+    }
+
+    /// `v4/commands/query`：重连后按 `commandId` 与 CLI 权威事实对账。
+    pub async fn commands_query_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: CommandsQueryParams,
+        policy: RuntimePolicy,
+    ) -> Result<CommandsQueryResult, ControlError> {
+        params.validate().map_err(ControlError::InvalidParams)?;
+        let process = self.client_for(target, policy).await?;
+        let value = serde_json::to_value(&params).expect("commands/query params 序列化不会失败");
+        let response = process
+            .client()
+            .request(V4_COMMANDS_QUERY_METHOD, Some(value))
+            .await?;
+        let result: CommandsQueryResult = serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/commands/query result: {error}"))
+        })?;
+        result.validate().map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/commands/query result: {error}"))
+        })?;
+        Ok(result)
     }
 }

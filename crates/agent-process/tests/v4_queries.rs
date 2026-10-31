@@ -9,17 +9,17 @@ use agent_process::{
     AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, AgentWorkspaceTarget, ControlError,
     RuntimePolicy, SpecFactory,
 };
+use agent_protocol::v4::{CommandKey, CommandsQueryParams};
 use agent_protocol::v4_queries::{
     AppUsageRange, AttachmentBeginParams, AttachmentBeginResult, AttachmentChunkParams,
     AttachmentPreviewSourceParams, AttachmentPreviewSourceResult, AttachmentReadParams,
     AttachmentTerminalParams, BackgroundBashOutputParams, BackgroundBashOutputResult,
     BackgroundBashUnavailableKind, ConnectionFlowParams, ConnectionFlowState,
-    ConversationAttachmentReadParams, ConversationAttachmentStatParams,
-    ConversationResyncParams, ConversationRowTarget, ConversationUnsubscribeParams,
-    ConversationUsageParams, PlansParams, ResyncBase, RowsRangeParams, UsageStatsParams,
-    WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams, WorkflowRunArtifactsParams,
-    WorkflowRunEventsParams, WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams,
-    WorkflowRunsQueryParams,
+    ConversationAttachmentReadParams, ConversationAttachmentStatParams, ConversationResyncParams,
+    ConversationRowTarget, ConversationUnsubscribeParams, ConversationUsageParams, PlansParams,
+    ResyncBase, RowsRangeParams, UsageStatsParams, WorkflowRunArtifactDataParams,
+    WorkflowRunArtifactReadParams, WorkflowRunArtifactsParams, WorkflowRunEventsParams,
+    WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams, WorkflowRunsQueryParams,
 };
 use agent_protocol::v4_transport::V4ClientMode;
 use serde_json::{json, Value};
@@ -121,7 +121,11 @@ async fn rows_range_sends_trusted_client_mode_and_omits_absent_before_row_id() {
     );
 
     client
-        .conversation_rows_range_v4(&target(), rows_params(Some(10)), RuntimePolicy::StartIfNeeded)
+        .conversation_rows_range_v4(
+            &target(),
+            rows_params(Some(10)),
+            RuntimePolicy::StartIfNeeded,
+        )
         .await
         .unwrap();
     let frames = log.frame_params("v4/conversation/rowsRange");
@@ -156,7 +160,11 @@ async fn plans_parses_tool_call_rows() {
 #[tokio::test]
 async fn invalid_results_carry_distinct_prefixes() {
     let rows_log = FrameLog::new("bad-rows");
-    let client = control("bad-v4-rows-range", &rows_log, Arc::new(AtomicUsize::new(0)));
+    let client = control(
+        "bad-v4-rows-range",
+        &rows_log,
+        Arc::new(AtomicUsize::new(0)),
+    );
     let error = client
         .conversation_rows_range_v4(&target(), rows_params(None), RuntimePolicy::StartIfNeeded)
         .await
@@ -256,7 +264,10 @@ async fn workflow_runs_enumeration_parses_journal_summaries() {
         .unwrap();
     assert_eq!(result.runs.len(), 1);
     let run = &result.runs[0];
-    assert_eq!(run.status, agent_protocol::v4_workflow_runs::WorkflowRunStatus::Stopped);
+    assert_eq!(
+        run.status,
+        agent_protocol::v4_workflow_runs::WorkflowRunStatus::Stopped
+    );
     assert_eq!(
         run.stop_reason,
         Some(agent_protocol::v4_workflow_runs::WorkflowRunStopReason::Superseded)
@@ -299,7 +310,11 @@ async fn invalid_workflow_queries_carry_distinct_prefixes() {
     }
 
     let runs_log = FrameLog::new("bad-runs-enum");
-    let client = control("bad-v4-workflow-runs", &runs_log, Arc::new(AtomicUsize::new(0)));
+    let client = control(
+        "bad-v4-workflow-runs",
+        &runs_log,
+        Arc::new(AtomicUsize::new(0)),
+    );
     let error = client
         .conversation_workflow_runs_v4(
             &target(),
@@ -411,7 +426,10 @@ async fn artifact_data_page_parses_items_and_reads_chunk() {
 #[tokio::test]
 async fn invalid_artifact_queries_carry_distinct_prefixes() {
     let cases: [(&str, &str); 3] = [
-        ("bad-v4-artifacts", "invalid v4/conversation/workflowRunArtifacts result"),
+        (
+            "bad-v4-artifacts",
+            "invalid v4/conversation/workflowRunArtifacts result",
+        ),
         (
             "bad-v4-artifact-data",
             "invalid v4/conversation/workflowRunArtifactData result",
@@ -493,7 +511,10 @@ async fn workspace_transcript_and_node_result_parse() {
         .unwrap();
     assert_eq!(nodes.nodes.len(), 1);
     let node = &nodes.nodes[0];
-    assert_eq!(node.kind, agent_protocol::v4_queries::WorkspaceNodeKind::WorldRun);
+    assert_eq!(
+        node.kind,
+        agent_protocol::v4_queries::WorkspaceNodeKind::WorldRun
+    );
     assert_eq!(node.op.as_deref(), Some("files.write"));
     assert_eq!(node.args.as_ref().map(Vec::len), Some(2));
     assert_eq!(node.summary.as_ref().map(|s| s.exit_code), Some(Some(0)));
@@ -531,7 +552,11 @@ async fn workspace_transcript_and_node_result_parse() {
 #[tokio::test]
 async fn invalid_workspace_queries_carry_distinct_prefixes() {
     let ws_log = FrameLog::new("bad-workspace");
-    let client = control("bad-v4-run-workspace", &ws_log, Arc::new(AtomicUsize::new(0)));
+    let client = control(
+        "bad-v4-run-workspace",
+        &ws_log,
+        Arc::new(AtomicUsize::new(0)),
+    );
     let error = client
         .conversation_workflow_run_workspace_v4(
             &target(),
@@ -552,7 +577,11 @@ async fn invalid_workspace_queries_carry_distinct_prefixes() {
     }
 
     let node_log = FrameLog::new("bad-node");
-    let client = control("bad-v4-node-result", &node_log, Arc::new(AtomicUsize::new(0)));
+    let client = control(
+        "bad-v4-node-result",
+        &node_log,
+        Arc::new(AtomicUsize::new(0)),
+    );
     let error = client
         .conversation_workflow_run_node_result_v4(
             &target(),
@@ -599,7 +628,10 @@ async fn file_changes_and_rewind_preview_parse() {
         .await
         .unwrap();
     assert_eq!(changes.files, 1);
-    assert_eq!(changes.state, Some(agent_protocol::v4_queries::FileChangesState::Active));
+    assert_eq!(
+        changes.state,
+        Some(agent_protocol::v4_queries::FileChangesState::Active)
+    );
     assert_eq!(changes.items[0].patches[0].lines, ["-a", "+b", "+c"]);
 
     let preview = client
@@ -616,12 +648,24 @@ async fn file_changes_and_rewind_preview_parse() {
         .await
         .unwrap();
     assert!(!preview.can_apply);
-    assert_eq!(preview.ignored_files[0].reason, agent_protocol::v4_queries::RewindIgnoredReason::BashIgnored);
-    assert_eq!(preview.safe_files[0].action, agent_protocol::v4_queries::RewindAction::Restore);
-    assert_eq!(preview.unsafe_files[0].reason, agent_protocol::v4_queries::RewindUnsafeReason::ExternalModified);
+    assert_eq!(
+        preview.ignored_files[0].reason,
+        agent_protocol::v4_queries::RewindIgnoredReason::BashIgnored
+    );
+    assert_eq!(
+        preview.safe_files[0].action,
+        agent_protocol::v4_queries::RewindAction::Restore
+    );
+    assert_eq!(
+        preview.unsafe_files[0].reason,
+        agent_protocol::v4_queries::RewindUnsafeReason::ExternalModified
+    );
 
     let frames = log.frame_params("v4/conversation/fileChanges");
-    assert_eq!(frames[0]["target"], json!({ "rowId": 3, "entityId": "entity-1" }));
+    assert_eq!(
+        frames[0]["target"],
+        json!({ "rowId": 3, "entityId": "entity-1" })
+    );
     assert_eq!(frames[0]["baseRevision"], 2);
 }
 
@@ -660,7 +704,10 @@ async fn background_bash_output_is_existing_only_and_maps_unsupported() {
         .unwrap();
     match result {
         BackgroundBashOutputResult::Output(output) => {
-            assert_eq!(output.status, agent_protocol::v4_queries::BackgroundBashStatus::Completed);
+            assert_eq!(
+                output.status,
+                agent_protocol::v4_queries::BackgroundBashStatus::Completed
+            );
             assert_eq!(output.output, "hello\n");
             assert_eq!(output.output_path, "/tmp/work-1.log");
         }
@@ -693,12 +740,18 @@ async fn background_bash_output_is_existing_only_and_maps_unsupported() {
 #[tokio::test]
 async fn invalid_file_queries_carry_distinct_prefixes() {
     let cases: [(&str, &str); 3] = [
-        ("bad-v4-file-changes", "invalid v4/conversation/fileChanges result"),
+        (
+            "bad-v4-file-changes",
+            "invalid v4/conversation/fileChanges result",
+        ),
         (
             "bad-v4-rewind-preview",
             "invalid v4/conversation/fileRewindPreview result",
         ),
-        ("bad-v4-bash-output", "invalid v4/conversation/backgroundBashOutput result"),
+        (
+            "bad-v4-bash-output",
+            "invalid v4/conversation/backgroundBashOutput result",
+        ),
     ];
     for (mode, prefix) in cases {
         let log = FrameLog::new(mode);
@@ -786,7 +839,11 @@ async fn conversation_usage_parses_counters_and_baseline() {
 #[tokio::test]
 async fn invalid_conversation_usage_carries_prefix() {
     let log = FrameLog::new("bad-usage");
-    let client = control("bad-v4-conversation-usage", &log, Arc::new(AtomicUsize::new(0)));
+    let client = control(
+        "bad-v4-conversation-usage",
+        &log,
+        Arc::new(AtomicUsize::new(0)),
+    );
     let error = client
         .conversation_usage_v4(
             &target(),
@@ -875,7 +932,11 @@ async fn attachment_upload_transaction_round_trips() {
 #[tokio::test]
 async fn attachment_begin_reappearance_is_committed() {
     let log = FrameLog::new("attachment-committed");
-    let client = control("v4-attachment-begin-committed", &log, Arc::new(AtomicUsize::new(0)));
+    let client = control(
+        "v4-attachment-begin-committed",
+        &log,
+        Arc::new(AtomicUsize::new(0)),
+    );
     let begin = client
         .attachment_begin_v4(&target(), begin_params(), RuntimePolicy::StartIfNeeded)
         .await
@@ -899,7 +960,10 @@ async fn attachment_begin_rejects_zero_bytes_with_chunks() {
         .await
         .unwrap_err();
     assert!(matches!(error, ControlError::InvalidParams(_)));
-    assert!(log.frame_params("v4/attachment/begin").is_empty(), "不得发出非法参数");
+    assert!(
+        log.frame_params("v4/attachment/begin").is_empty(),
+        "不得发出非法参数"
+    );
 }
 
 #[tokio::test]
@@ -1012,10 +1076,22 @@ async fn attachment_read_and_stat_parse() {
 #[tokio::test]
 async fn invalid_attachment_queries_carry_distinct_prefixes() {
     let cases: [(&str, &str); 6] = [
-        ("bad-v4-attachment-begin", "invalid v4/attachment/begin result"),
-        ("bad-v4-attachment-chunk", "invalid v4/attachment/chunk result"),
-        ("bad-v4-attachment-commit", "invalid v4/attachment/commit result"),
-        ("bad-v4-attachment-read", "invalid v4/attachment/read result"),
+        (
+            "bad-v4-attachment-begin",
+            "invalid v4/attachment/begin result",
+        ),
+        (
+            "bad-v4-attachment-chunk",
+            "invalid v4/attachment/chunk result",
+        ),
+        (
+            "bad-v4-attachment-commit",
+            "invalid v4/attachment/commit result",
+        ),
+        (
+            "bad-v4-attachment-read",
+            "invalid v4/attachment/read result",
+        ),
         (
             "bad-v4-conversation-attachment-read",
             "invalid v4/conversation/attachmentRead result",
@@ -1165,9 +1241,15 @@ async fn connection_flow_resync_and_unsubscribe_round_trip() {
         .unwrap();
 
     let flow_frames = log.frame_params("v4/connection/flow");
-    assert_eq!(flow_frames[0], json!({ "connectionId": "conn-1", "state": "saturated" }));
+    assert_eq!(
+        flow_frames[0],
+        json!({ "connectionId": "conn-1", "state": "saturated" })
+    );
     let resync_frames = log.frame_params("v4/conversation/resync");
-    assert_eq!(resync_frames[0]["base"], json!({ "logEpoch": "epoch-1", "seq": 7 }));
+    assert_eq!(
+        resync_frames[0]["base"],
+        json!({ "logEpoch": "epoch-1", "seq": 7 })
+    );
     assert!(
         resync_frames[0].get("forceSnapshot").is_none(),
         "forceSnapshot 缺省时不得出键"
@@ -1179,9 +1261,15 @@ async fn connection_flow_resync_and_unsubscribe_round_trip() {
 #[tokio::test]
 async fn invalid_maintenance_calls_carry_distinct_prefixes() {
     let cases: [(&str, &str); 3] = [
-        ("bad-v4-connection-flow", "invalid v4/connection/flow result"),
+        (
+            "bad-v4-connection-flow",
+            "invalid v4/connection/flow result",
+        ),
         ("bad-v4-resync", "invalid v4/conversation/resync result"),
-        ("bad-v4-unsubscribe", "invalid v4/conversation/unsubscribe result"),
+        (
+            "bad-v4-unsubscribe",
+            "invalid v4/conversation/unsubscribe result",
+        ),
     ];
     for (mode, prefix) in cases {
         let log = FrameLog::new(mode);
@@ -1266,7 +1354,10 @@ async fn usage_stats_parses_snapshot_and_nullable_fields() {
     assert_eq!(snapshot.heatmap.weeks[0].days[0].as_ref().unwrap().level, 2);
 
     let frames = log.frame_params("v4/usage/stats");
-    assert_eq!(frames[0], json!({ "range": "7d", "timeZone": "Asia/Shanghai" }));
+    assert_eq!(
+        frames[0],
+        json!({ "range": "7d", "timeZone": "Asia/Shanghai" })
+    );
 }
 
 #[tokio::test]
@@ -1315,4 +1406,112 @@ async fn existing_only_does_not_spawn_for_queries() {
         .await
         .unwrap();
     assert_eq!(spawns.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn commands_query_sends_nullable_session_keys_and_parses_unknown() {
+    let log = FrameLog::new("commands-query");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+
+    let params = CommandsQueryParams {
+        commands: vec![
+            CommandKey::global("cmd-1"),
+            CommandKey::session("sess-1", "cmd-2"),
+        ],
+        clock: None,
+    };
+    let result = client
+        .commands_query_v4(&target(), params, RuntimePolicy::StartIfNeeded)
+        .await
+        .unwrap();
+    assert_eq!(result.results.len(), 1);
+    assert_eq!(
+        result.results[0].result,
+        agent_protocol::v4::CommandQueryOutcome::Unknown(
+            agent_protocol::v4::UnknownCommand::Unknown
+        )
+    );
+    assert!(result.clock.is_none());
+    assert_eq!(spawns.load(Ordering::SeqCst), 1);
+
+    let frames = log.frame_params("v4/commands/query");
+    assert_eq!(
+        frames,
+        vec![json!({
+            "commands": [
+                { "sessionId": null, "commandId": "cmd-1" },
+                { "sessionId": "sess-1", "commandId": "cmd-2" }
+            ]
+        })]
+    );
+}
+
+#[tokio::test]
+async fn commands_query_parses_clock_and_rejects_invalid_params_before_spawn() {
+    let log = FrameLog::new("commands-query-clock");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let clock_client = control("v4-commands-query-clock", &log, Arc::clone(&spawns));
+    let result = clock_client
+        .commands_query_v4(
+            &target(),
+            CommandsQueryParams {
+                commands: vec![CommandKey::global("cmd-1")],
+                clock: Some(true),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap();
+    let clock = result.clock.expect("fixture 返回 clock");
+    assert_eq!(clock.instance_id, "cli-instance-1");
+    assert_eq!(clock.received_at.as_f64(), Some(10.5));
+    assert_eq!(clock.sent_at.as_f64(), Some(20.5));
+
+    let spawns_before = spawns.load(Ordering::SeqCst);
+    let error = clock_client
+        .commands_query_v4(
+            &target(),
+            CommandsQueryParams {
+                commands: vec![CommandKey::session("sess-1", "cmd-1")],
+                clock: Some(true),
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(error, ControlError::InvalidParams(_)), "{error:?}");
+    assert_eq!(spawns.load(Ordering::SeqCst), spawns_before);
+
+    let error = clock_client
+        .commands_query_v4(
+            &target(),
+            CommandsQueryParams {
+                commands: Vec::new(),
+                clock: None,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(error, ControlError::InvalidParams(_)), "{error:?}");
+}
+
+#[tokio::test]
+async fn commands_query_rejects_empty_results_from_agent() {
+    let log = FrameLog::new("commands-query-bad");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("bad-v4-commands-query", &log, spawns);
+    let error = client
+        .commands_query_v4(
+            &target(),
+            CommandsQueryParams {
+                commands: vec![CommandKey::global("cmd-1")],
+                clock: None,
+            },
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(error, ControlError::InvalidResult(_)), "{error:?}");
 }

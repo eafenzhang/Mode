@@ -89,7 +89,11 @@ fn write_notification(stdout: &mut std::io::Stdout, params: Value) {
 }
 
 fn write_reverse_preferences(stdout: &mut std::io::Stdout, invalid_scope: bool) {
-    let scope = if invalid_scope { "bogus" } else { "user-execution" };
+    let scope = if invalid_scope {
+        "bogus"
+    } else {
+        "user-execution"
+    };
     let request = json!({
         "id": "server-1",
         "method": "session/requestRuntimePreferences",
@@ -451,6 +455,25 @@ fn main() {
                     })
                 }
             })
+        } else if method == "v4/commands/query" {
+            let mut result = json!({
+                "results": [{
+                    "key": { "sessionId": "sess-1", "commandId": "cmd-1" },
+                    "result": "unknown"
+                }]
+            });
+            if mode == "v4-commands-query-clock" {
+                result["clock"] = json!({
+                    "instanceId": "cli-instance-1",
+                    "receivedAt": 10.5,
+                    "sentAt": 20.5
+                });
+            }
+            if mode == "bad-v4-commands-query" {
+                // results 必须 1..=64；空数组在客户端 validate 时拒绝。
+                result["results"] = json!([]);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "v4/conversation/rowsRange" {
             let mut result = json!({
                 "rows": [{
