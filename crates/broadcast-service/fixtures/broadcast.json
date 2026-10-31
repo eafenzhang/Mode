@@ -1,0 +1,113 @@
+{
+  "cases": [
+    {
+      "name": "claims",
+      "files": [],
+      "ops": [
+        {
+          "kind": "acquire",
+          "key": "state:theme"
+        },
+        {
+          "kind": "acquire",
+          "key": "state:theme"
+        },
+        {
+          "kind": "commit",
+          "key": "state:theme"
+        },
+        {
+          "kind": "acquire",
+          "key": "state:theme"
+        },
+        {
+          "kind": "release",
+          "key": "state:theme"
+        },
+        {
+          "kind": "acquire",
+          "key": "   "
+        },
+        {
+          "kind": "tryClaim",
+          "key": "once"
+        },
+        {
+          "kind": "tryClaim",
+          "key": "once"
+        },
+        {
+          "kind": "acquire",
+          "key": " spaced "
+        }
+      ],
+      "expected": [
+        {
+          "status": "acquired",
+          "lease": {
+            "key": "state:theme",
+            "token": "<token>"
+          }
+        },
+        {
+          "status": "busy",
+          "retryAfterMs": "<retry>"
+        },
+        {
+          "ok": true
+        },
+        {
+          "status": "committed"
+        },
+        {
+          "ok": true
+        },
+        {
+          "status": "unavailable"
+        },
+        true,
+        false,
+        {
+          "status": "acquired",
+          "lease": {
+            "key": "spaced",
+            "token": "<token>"
+          }
+        }
+      ],
+      "tree": []
+    },
+    {
+      "name": "send",
+      "files": [],
+      "ops": [
+        {
+          "kind": "send",
+          "message": {
+            "channel": "state:theme",
+            "payload": {
+              "theme": "dark"
+            },
+            "sourceWindowId": 2
+          }
+        },
+        {
+          "kind": "send",
+          "message": {
+            "channel": "state:locale",
+            "payload": "zh-CN"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "ok": true
+        },
+        {
+          "ok": true
+        }
+      ],
+      "tree": []
+    }
+  ]
+}

@@ -11,7 +11,7 @@
     "prepare": "husky",
     "dep:graph": "node scripts/dependency-graph.mjs",
     "dep:refs": "node scripts/dep-refs.mjs",
-    "verify:pre-push": "pnpm run lint && node scripts/check-language-policy.mjs && pnpm run check:sqlite-schema && pnpm run architecture:check -- --changed",
+    "verify:pre-push": "pnpm run lint && node scripts/check-language-policy.mjs && pnpm run check:sqlite-schema && pnpm run architecture:check -- --changed && pnpm run knip:gate",
     "check:upstream-overlap": "tsx scripts/upstream-overlap-check.ts",
     "check:rust-ledger": "tsx scripts/rust-ledger-gap.ts",
     "check:cli": "pnpm --dir apps/mode-cli check",
@@ -26,9 +26,6 @@
     "commands:fixtures": "tsx scripts/generate-commands-fixtures.ts",
     "tasks-db:fixtures": "tsx scripts/generate-tasks-db-fixtures.ts",
     "task-index:fixtures": "tsx scripts/generate-task-index-fixtures.ts",
-    "provider-config:fixtures": "tsx scripts/generate-provider-config-fixtures.ts",
-    "provider-config-source:fixtures": "tsx scripts/generate-provider-config-source-fixtures.ts",
-    "account-provider-overlay:fixtures": "tsx scripts/generate-account-provider-overlay-fixtures.ts",
     "off-peak:fixtures": "tsx scripts/generate-off-peak-fixtures.ts",
     "automation:fixtures": "tsx scripts/generate-automation-fixtures.ts",
     "automation-schedule:fixtures": "tsx scripts/generate-automation-schedule-fixtures.ts",
@@ -36,6 +33,10 @@
     "hook-snapshot:fixtures": "tsx scripts/generate-hook-snapshot-fixtures.ts",
     "hooks-save:fixtures": "tsx scripts/generate-hooks-save-fixtures.ts",
     "hooks-load:fixtures": "tsx scripts/generate-hooks-load-fixtures.ts",
+    "skills:fixtures": "tsx scripts/generate-skills-fixtures.ts",
+    "provider-config:fixtures": "tsx scripts/generate-provider-config-fixtures.ts",
+    "account-provider-overlay:fixtures": "tsx scripts/generate-account-provider-overlay-fixtures.ts",
+    "provider-config-source:fixtures": "tsx scripts/generate-provider-config-source-fixtures.ts",
     "verify:self-developed": "tsx scripts/upstream-overlap-check.ts --strict",
     "build": "pnpm -r build",
     "build:mode": "node scripts/build-mode.mjs",
@@ -67,7 +68,16 @@
     "architecture:baseline:update": "node scripts/architecture/architecture-check.mjs baseline:update",
     "architecture:context": "node scripts/architecture/architecture-check.mjs context",
     "orca:evidence": "node harness/orca-evidence/run.mjs",
-    "test:agent-runtime-oracle": "tsx --test packages/desktop/tests/agent-runtime-oracle/*.test.mts"
+    "test:agent-runtime-oracle": "tsx --test packages/desktop/tests/agent-runtime-oracle/*.test.mts",
+    "knip:gate": "knip --include files,unlisted,unresolved,binaries --no-config-hints --no-progress",
+    "subagents:fixtures": "tsx scripts/generate-subagents-fixtures.ts",
+    "mcp-sync:fixtures": "tsx scripts/generate-mcp-sync-fixtures.ts",
+    "settings-sync:fixtures": "tsx scripts/generate-settings-sync-fixtures.ts",
+    "broadcast:fixtures": "tsx scripts/generate-broadcast-fixtures.ts",
+    "skill-sync:fixtures": "tsx scripts/generate-skill-sync-fixtures.ts",
+    "git-cli:fixtures": "tsx scripts/generate-git-cli-fixtures.ts",
+    "git-service:fixtures": "tsx scripts/generate-git-service-fixtures.ts",
+    "git-checkpoint:fixtures": "tsx scripts/generate-git-checkpoint-fixtures.ts"
   },
   "dependencies": {
     "border-beam": "^1.0.1",
@@ -81,6 +91,7 @@
     "concurrently": "^9.1.2",
     "conventional-changelog-conventionalcommits": "^9.3.1",
     "conventional-changelog-writer": "^8.4.0",
+    "croner": "^10.0.1",
     "dotenv": "^17.4.2",
     "husky": "^9.1.7",
     "istanbul-lib-instrument": "6.0.3",
@@ -93,7 +104,8 @@
     "ts-morph": "^28.0.0",
     "tsx": "^4.19.4",
     "turbo": "^2.4.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "zod": "4.6.5"
   },
   "peerDependencies": {
     "@tanstack/react-virtual": "^3.13.23"

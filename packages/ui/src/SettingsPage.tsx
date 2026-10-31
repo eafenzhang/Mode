@@ -1022,7 +1022,7 @@ export function SettingsPage({
         setLocalePreference("system");
         return;
       }
-      if (value === "zh-CN" || value === "en-US" || value === "fa-IR") {
+      if (value === "zh-CN" || value === "en-US") {
         setLocalePreference(value as Locale);
       }
     },

@@ -1,0 +1,22 @@
+[package]
+name = "settings-sync-service"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "外部 Agent 配置同步（skills / commands / plugins / mcpServers 探测与导入）"
+
+[lib]
+name = "settings_sync_service"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+indexmap = { version = "2", features = ["serde"] }
+toml = "0.8"
+settings-store = { path = "../settings-store" }
+skills-service = { path = "../skills-service" }
+plugin-discovery = { path = "../plugin-discovery" }
+
+[target.'cfg(windows)'.dependencies]
+junction = "1"

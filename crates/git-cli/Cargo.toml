@@ -1,0 +1,15 @@
+[package]
+name = "git-cli"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Git CLI 基础层（命令执行、环境、porcelain/numstat/diff 解析），供 git / git-checkpoint 频道复用"
+
+[lib]
+name = "git_cli"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+plugin-discovery = { path = "../plugin-discovery" }

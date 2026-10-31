@@ -496,10 +496,16 @@ jobs:
           # mode-tauri 的 web_assets_extraction（内嵌前端解压回归）此前不在本列表：
           # 它只会在本地跑，而本地 gnu 工具链下 build.rs 的 /MANIFEST 链接参数直接链接
           # 失败——MSVC runner 是它唯一的权威验证路径，漏掉等于从未跑过。
+          # host-channels 的频道适配器测试与 skills-service 的 TS 对拍回放只做本地临时
+          # 目录读写、无外部依赖；不纳入本列表会让技能/频道的行为漂移拖到真机才暴露。
           cargo test --locked \
             -p platform -p protocol -p updater -p deeplink -p sidecar-host -p browser-import-host \
             -p agent-protocol -p agent-tools -p agent-core \
+            -p rpc-wire -p rpc-host \
             -p plugin-host -p plugin-host-adapter \
+            -p host-channels -p skills-service -p subagents-service -p mcp-sync-service \
+            -p settings-sync-service -p broadcast-service -p skill-sync-service -p git-cli -p git-service \
+            -p git-checkpoint-service \
             -p mode-tauri
           # `--all-targets` 覆盖 workspace 全部 crate 的 lib/bin/test/bench；
           # 被 required-features 门住的三个 harness bin 由下面的单独步骤覆盖。

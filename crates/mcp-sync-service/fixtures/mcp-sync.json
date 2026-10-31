@@ -1,0 +1,1214 @@
+{
+  "cases": [
+    {
+      "name": "load-user",
+      "files": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"theme\": \"dark\",\n  \"mcp\": {\n    \"servers\": {\n      \"alpha\": {\n        \"command\": \"npx\",\n        \"args\": [\n          \"-y\",\n          \"pkg\"\n        ]\n      },\n      \"disabled\": {\n        \"command\": \"node\",\n        \"args\": [\n          \"server.js\"\n        ],\n        \"enabled\": false\n      },\n      \"legacy\": {\n        \"command\": \"legacy\",\n        \"enable\": true\n      },\n      \"legacyoff\": {\n        \"command\": \"off\",\n        \"enable\": false,\n        \"enabled\": true\n      }\n    }\n  }\n}"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "load"
+        }
+      ],
+      "expected": [
+        {
+          "servers": [
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "alpha",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "pkg"
+                ]
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "disabled",
+              "config": {
+                "command": "node",
+                "args": [
+                  "server.js"
+                ],
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "legacy",
+              "config": {
+                "command": "legacy"
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "legacyoff",
+              "config": {
+                "command": "off",
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"mcp\": {\n    \"servers\": {\n      \"alpha\": {\n        \"args\": [\n          \"-y\",\n          \"pkg\"\n        ],\n        \"command\": \"npx\"\n      },\n      \"disabled\": {\n        \"args\": [\n          \"server.js\"\n        ],\n        \"command\": \"node\",\n        \"enabled\": false\n      },\n      \"legacy\": {\n        \"command\": \"legacy\"\n      },\n      \"legacyoff\": {\n        \"command\": \"off\",\n        \"enabled\": false\n      }\n    }\n  },\n  \"theme\": \"dark\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "load-workspace-preferred",
+      "files": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"theme\": \"dark\",\n  \"mcp\": {\n    \"servers\": {\n      \"alpha\": {\n        \"command\": \"npx\",\n        \"args\": [\n          \"-y\",\n          \"pkg\"\n        ]\n      },\n      \"disabled\": {\n        \"command\": \"node\",\n        \"args\": [\n          \"server.js\"\n        ],\n        \"enabled\": false\n      },\n      \"legacy\": {\n        \"command\": \"legacy\",\n        \"enable\": true\n      },\n      \"legacyoff\": {\n        \"command\": \"off\",\n        \"enable\": false,\n        \"enabled\": true\n      }\n    }\n  }\n}"
+        },
+        {
+          "path": "ws/.mode/config.json",
+          "content": "{\n  \"mcp\": {\n    \"servers\": {\n      \"wsone\": {\n        \"command\": \"node\",\n        \"args\": [\n          \"ws.js\"\n        ]\n      }\n    }\n  }\n}"
+        },
+        {
+          "path": "ws/.agents/mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"wsagents\": {\n      \"command\": \"node\"\n    }\n  }\n}"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "load",
+          "useWorkspace": true
+        },
+        {
+          "kind": "load"
+        }
+      ],
+      "expected": [
+        {
+          "servers": [
+            {
+              "source": "zcodeagentmcp",
+              "scope": "workspace",
+              "name": "wsone",
+              "config": {
+                "command": "node",
+                "args": [
+                  "ws.js"
+                ]
+              },
+              "enabled": true,
+              "projectPath": "<root>/ws",
+              "location": {
+                "source": "mode",
+                "scope": "project",
+                "directoryPath": "<root>/ws/.mode",
+                "projectPath": "<root>/ws"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/ws/.mode/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "alpha",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "pkg"
+                ]
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli",
+                "projectPath": "<root>/ws"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "disabled",
+              "config": {
+                "command": "node",
+                "args": [
+                  "server.js"
+                ],
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli",
+                "projectPath": "<root>/ws"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "legacy",
+              "config": {
+                "command": "legacy"
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli",
+                "projectPath": "<root>/ws"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "legacyoff",
+              "config": {
+                "command": "off",
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli",
+                "projectPath": "<root>/ws"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            }
+          ]
+        },
+        {
+          "servers": [
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "alpha",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "pkg"
+                ]
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "disabled",
+              "config": {
+                "command": "node",
+                "args": [
+                  "server.js"
+                ],
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "legacy",
+              "config": {
+                "command": "legacy"
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "legacyoff",
+              "config": {
+                "command": "off",
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"mcp\": {\n    \"servers\": {\n      \"alpha\": {\n        \"args\": [\n          \"-y\",\n          \"pkg\"\n        ],\n        \"command\": \"npx\"\n      },\n      \"disabled\": {\n        \"args\": [\n          \"server.js\"\n        ],\n        \"command\": \"node\",\n        \"enabled\": false\n      },\n      \"legacy\": {\n        \"command\": \"legacy\"\n      },\n      \"legacyoff\": {\n        \"command\": \"off\",\n        \"enabled\": false\n      }\n    }\n  },\n  \"theme\": \"dark\"\n}"
+        },
+        {
+          "path": "ws/.agents/mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"wsagents\": {\n      \"command\": \"node\"\n    }\n  }\n}"
+        },
+        {
+          "path": "ws/.mode/config.json",
+          "content": "{\n  \"mcp\": {\n    \"servers\": {\n      \"wsone\": {\n        \"args\": [\n          \"ws.js\"\n        ],\n        \"command\": \"node\"\n      }\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "load-agents-fallback",
+      "files": [
+        {
+          "path": "home/.agents/mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"fromagents\": {\n      \"command\": \"node\",\n      \"args\": [\n        \"a.js\"\n      ]\n    }\n  }\n}"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "load"
+        },
+        {
+          "kind": "candidates"
+        }
+      ],
+      "expected": [
+        {
+          "servers": [
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "fromagents",
+              "config": {
+                "command": "node",
+                "args": [
+                  "a.js"
+                ]
+              },
+              "enabled": true,
+              "location": {
+                "source": "agents",
+                "scope": "user",
+                "directoryPath": "<root>/home/.agents"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.agents/mcp.json"
+              }
+            }
+          ]
+        },
+        {
+          "candidates": [
+            {
+              "id": "<sha256>",
+              "name": "fromagents",
+              "config": {
+                "command": "node",
+                "args": [
+                  "a.js"
+                ]
+              },
+              "enabled": true,
+              "source": "agents",
+              "path": "<root>/home/.agents/mcp.json"
+            }
+          ],
+          "localHomeDir": "<root>/home"
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.agents/mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"fromagents\": {\n      \"args\": [\n        \"a.js\"\n      ],\n      \"command\": \"node\"\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "save-actions",
+      "files": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"theme\": \"dark\",\n  \"mcp\": {\n    \"servers\": {\n      \"alpha\": {\n        \"command\": \"npx\",\n        \"args\": [\n          \"-y\",\n          \"pkg\"\n        ]\n      },\n      \"disabled\": {\n        \"command\": \"node\",\n        \"args\": [\n          \"server.js\"\n        ],\n        \"enabled\": false\n      },\n      \"legacy\": {\n        \"command\": \"legacy\",\n        \"enable\": true\n      },\n      \"legacyoff\": {\n        \"command\": \"off\",\n        \"enable\": false,\n        \"enabled\": true\n      }\n    }\n  }\n}"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "save",
+          "payload": {
+            "action": "upsert",
+            "name": "newone",
+            "config": {
+              "command": "npx",
+              "args": [
+                "-y",
+                "new"
+              ]
+            }
+          }
+        },
+        {
+          "kind": "load"
+        },
+        {
+          "kind": "save",
+          "payload": {
+            "action": "set-enabled",
+            "name": "alpha",
+            "enabled": false
+          }
+        },
+        {
+          "kind": "load"
+        },
+        {
+          "kind": "save",
+          "payload": {
+            "action": "delete",
+            "name": "alpha"
+          }
+        },
+        {
+          "kind": "load"
+        },
+        {
+          "kind": "save",
+          "payload": {
+            "action": "set-enabled",
+            "name": "alpha"
+          }
+        },
+        {
+          "kind": "save",
+          "payload": {
+            "action": "upsert",
+            "name": "nocfg"
+          }
+        },
+        {
+          "kind": "save",
+          "payload": {
+            "action": "set-enabled",
+            "name": "alpha",
+            "enabled": true,
+            "location": {
+              "source": "other",
+              "scope": "user",
+              "directoryPath": "<root>/x"
+            }
+          }
+        }
+      ],
+      "expected": [
+        {
+          "ok": true
+        },
+        {
+          "servers": [
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "alpha",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "pkg"
+                ]
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "disabled",
+              "config": {
+                "command": "node",
+                "args": [
+                  "server.js"
+                ],
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "legacy",
+              "config": {
+                "command": "legacy"
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "legacyoff",
+              "config": {
+                "command": "off",
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "newone",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "new"
+                ]
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            }
+          ]
+        },
+        {
+          "ok": true
+        },
+        {
+          "servers": [
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "alpha",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "pkg"
+                ],
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "disabled",
+              "config": {
+                "command": "node",
+                "args": [
+                  "server.js"
+                ],
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "legacy",
+              "config": {
+                "command": "legacy"
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "legacyoff",
+              "config": {
+                "command": "off",
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "newone",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "new"
+                ]
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            }
+          ]
+        },
+        {
+          "ok": true
+        },
+        {
+          "servers": [
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "disabled",
+              "config": {
+                "command": "node",
+                "args": [
+                  "server.js"
+                ],
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "legacy",
+              "config": {
+                "command": "legacy"
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "legacyoff",
+              "config": {
+                "command": "off",
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "newone",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "new"
+                ]
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            }
+          ]
+        },
+        {
+          "error": "Missing enabled value for MCP set-enabled action"
+        },
+        {
+          "error": "Missing MCP config for upsert action"
+        },
+        {
+          "error": "Unsupported MCP settings directory source: other"
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"mcp\": {\n    \"servers\": {\n      \"disabled\": {\n        \"args\": [\n          \"server.js\"\n        ],\n        \"command\": \"node\",\n        \"enabled\": false\n      },\n      \"legacy\": {\n        \"command\": \"legacy\"\n      },\n      \"legacyoff\": {\n        \"command\": \"off\",\n        \"enabled\": false\n      },\n      \"newone\": {\n        \"args\": [\n          \"-y\",\n          \"new\"\n        ],\n        \"command\": \"npx\"\n      }\n    }\n  },\n  \"theme\": \"dark\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "candidates-export",
+      "files": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"theme\": \"dark\",\n  \"mcp\": {\n    \"servers\": {\n      \"alpha\": {\n        \"command\": \"npx\",\n        \"args\": [\n          \"-y\",\n          \"pkg\"\n        ]\n      },\n      \"disabled\": {\n        \"command\": \"node\",\n        \"args\": [\n          \"server.js\"\n        ],\n        \"enabled\": false\n      },\n      \"legacy\": {\n        \"command\": \"legacy\",\n        \"enable\": true\n      },\n      \"legacyoff\": {\n        \"command\": \"off\",\n        \"enable\": false,\n        \"enabled\": true\n      }\n    }\n  }\n}"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "candidates"
+        },
+        {
+          "kind": "export",
+          "names": [
+            "alpha",
+            "disabled"
+          ]
+        },
+        {
+          "kind": "export",
+          "serverIds": [
+            "missing-id"
+          ]
+        }
+      ],
+      "expected": [
+        {
+          "candidates": [
+            {
+              "id": "<sha256>",
+              "name": "alpha",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "pkg"
+                ]
+              },
+              "enabled": true,
+              "source": "mode",
+              "path": "<root>/home/.mode/cli/config.json"
+            },
+            {
+              "id": "<sha256>",
+              "name": "disabled",
+              "config": {
+                "command": "node",
+                "args": [
+                  "server.js"
+                ],
+                "enabled": false
+              },
+              "enabled": false,
+              "source": "mode",
+              "path": "<root>/home/.mode/cli/config.json"
+            },
+            {
+              "id": "<sha256>",
+              "name": "legacy",
+              "config": {
+                "command": "legacy"
+              },
+              "enabled": true,
+              "source": "mode",
+              "path": "<root>/home/.mode/cli/config.json"
+            },
+            {
+              "id": "<sha256>",
+              "name": "legacyoff",
+              "config": {
+                "command": "off",
+                "enabled": false
+              },
+              "enabled": false,
+              "source": "mode",
+              "path": "<root>/home/.mode/cli/config.json"
+            }
+          ],
+          "localHomeDir": "<root>/home"
+        },
+        {
+          "localHomeDir": "<root>/home",
+          "servers": [
+            {
+              "id": "<sha256>",
+              "name": "alpha",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "pkg"
+                ]
+              },
+              "enabled": true,
+              "source": "mode",
+              "path": "<root>/home/.mode/cli/config.json"
+            },
+            {
+              "id": "<sha256>",
+              "name": "disabled",
+              "config": {
+                "command": "node",
+                "args": [
+                  "server.js"
+                ],
+                "enabled": false
+              },
+              "enabled": false,
+              "source": "mode",
+              "path": "<root>/home/.mode/cli/config.json"
+            }
+          ]
+        },
+        {
+          "error": "mcp sync candidate not found: missing-id"
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"mcp\": {\n    \"servers\": {\n      \"alpha\": {\n        \"args\": [\n          \"-y\",\n          \"pkg\"\n        ],\n        \"command\": \"npx\"\n      },\n      \"disabled\": {\n        \"args\": [\n          \"server.js\"\n        ],\n        \"command\": \"node\",\n        \"enabled\": false\n      },\n      \"legacy\": {\n        \"command\": \"legacy\"\n      },\n      \"legacyoff\": {\n        \"command\": \"off\",\n        \"enabled\": false\n      }\n    }\n  },\n  \"theme\": \"dark\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "remote-statuses",
+      "files": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"theme\": \"dark\",\n  \"mcp\": {\n    \"servers\": {\n      \"alpha\": {\n        \"command\": \"npx\",\n        \"args\": [\n          \"-y\",\n          \"pkg\"\n        ]\n      },\n      \"disabled\": {\n        \"command\": \"node\",\n        \"args\": [\n          \"server.js\"\n        ],\n        \"enabled\": false\n      },\n      \"legacy\": {\n        \"command\": \"legacy\",\n        \"enable\": true\n      },\n      \"legacyoff\": {\n        \"command\": \"off\",\n        \"enable\": false,\n        \"enabled\": true\n      }\n    }\n  }\n}"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "remoteStatuses",
+          "names": [
+            "alpha",
+            "Alpha ",
+            "missing"
+          ]
+        }
+      ],
+      "expected": [
+        {
+          "remoteHomeDir": "<root>/home",
+          "statuses": [
+            {
+              "name": "alpha",
+              "exists": true,
+              "path": "<root>/home/.mode/cli/config.json"
+            },
+            {
+              "name": "Alpha ",
+              "exists": true,
+              "path": "<root>/home/.mode/cli/config.json"
+            },
+            {
+              "name": "missing",
+              "exists": false
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"mcp\": {\n    \"servers\": {\n      \"alpha\": {\n        \"args\": [\n          \"-y\",\n          \"pkg\"\n        ],\n        \"command\": \"npx\"\n      },\n      \"disabled\": {\n        \"args\": [\n          \"server.js\"\n        ],\n        \"command\": \"node\",\n        \"enabled\": false\n      },\n      \"legacy\": {\n        \"command\": \"legacy\"\n      },\n      \"legacyoff\": {\n        \"command\": \"off\",\n        \"enabled\": false\n      }\n    }\n  },\n  \"theme\": \"dark\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "write-access",
+      "files": [],
+      "ops": [
+        {
+          "kind": "checkWriteAccess"
+        }
+      ],
+      "expected": [
+        {
+          "ok": true,
+          "path": "<root>/home/.mode/cli"
+        }
+      ],
+      "tree": []
+    },
+    {
+      "name": "import",
+      "files": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"mcp\": {\n    \"servers\": {\n      \"existing-target\": {\n        \"command\": \"node\",\n        \"args\": [\n          \"t.js\"\n        ]\n      }\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.agents/mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"existing-agents\": {\n      \"command\": \"node\",\n      \"args\": [\n        \"a.js\"\n      ]\n    }\n  }\n}"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "import",
+          "importServers": [
+            {
+              "id": "server-1",
+              "name": "newone",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "pkg"
+                ]
+              },
+              "enabled": true,
+              "source": "mode",
+              "path": ""
+            },
+            {
+              "id": "server-2",
+              "name": "existing-target",
+              "config": {
+                "command": "x"
+              },
+              "enabled": true,
+              "source": "mode",
+              "path": ""
+            },
+            {
+              "id": "server-3",
+              "name": "existing-agents",
+              "config": {
+                "command": "y"
+              },
+              "enabled": true,
+              "source": "agents",
+              "path": ""
+            },
+            {
+              "id": "server-4",
+              "name": "filesystem",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "@modelcontextprotocol/server-filesystem",
+                  "<root>/ws/docs",
+                  "<root>/home/data"
+                ]
+              },
+              "enabled": false,
+              "source": "mode",
+              "path": ""
+            }
+          ]
+        },
+        {
+          "kind": "load"
+        },
+        {
+          "kind": "import",
+          "importServers": [],
+          "overwrite": true
+        }
+      ],
+      "expected": [
+        {
+          "results": [
+            {
+              "name": "newone",
+              "status": "synced",
+              "path": "<root>/home/.mode/cli/config.json"
+            },
+            {
+              "name": "existing-target",
+              "status": "skipped",
+              "path": "<root>/home/.mode/cli/config.json"
+            },
+            {
+              "name": "existing-agents",
+              "status": "synced",
+              "path": "<root>/home/.mode/cli/config.json"
+            },
+            {
+              "name": "filesystem",
+              "status": "synced",
+              "path": "<root>/home/.mode/cli/config.json"
+            }
+          ]
+        },
+        {
+          "servers": [
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "existing-target",
+              "config": {
+                "command": "node",
+                "args": [
+                  "t.js"
+                ]
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "newone",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "pkg"
+                ]
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "existing-agents",
+              "config": {
+                "command": "y"
+              },
+              "enabled": true,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            },
+            {
+              "source": "zcodeagentmcp",
+              "scope": "user",
+              "name": "filesystem",
+              "config": {
+                "command": "npx",
+                "args": [
+                  "-y",
+                  "@modelcontextprotocol/server-filesystem",
+                  "<root>/ws/docs",
+                  "<root>/home/data"
+                ],
+                "enabled": false
+              },
+              "enabled": false,
+              "location": {
+                "source": "mode",
+                "scope": "user",
+                "directoryPath": "<root>/home/.mode/cli"
+              },
+              "file": {
+                "format": "json",
+                "filePath": "<root>/home/.mode/cli/config.json"
+              }
+            }
+          ]
+        },
+        {
+          "error": "mcp sync overwrite is not supported"
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.agents/mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"existing-agents\": {\n      \"args\": [\n        \"a.js\"\n      ],\n      \"command\": \"node\"\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"mcp\": {\n    \"servers\": {\n      \"existing-agents\": {\n        \"command\": \"y\"\n      },\n      \"existing-target\": {\n        \"args\": [\n          \"t.js\"\n        ],\n        \"command\": \"node\"\n      },\n      \"filesystem\": {\n        \"args\": [\n          \"-y\",\n          \"@modelcontextprotocol/server-filesystem\",\n          \"<root>/ws/docs\",\n          \"<root>/home/data\"\n        ],\n        \"command\": \"npx\",\n        \"enabled\": false\n      },\n      \"newone\": {\n        \"args\": [\n          \"-y\",\n          \"pkg\"\n        ],\n        \"command\": \"npx\"\n      }\n    }\n  }\n}"
+        }
+      ]
+    }
+  ]
+}

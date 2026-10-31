@@ -775,7 +775,7 @@ function createWebPlatform(supportsLanPeerController = false): IPlatformService 
       window.open(url, "_blank", "noopener,noreferrer");
     },
     openCommunity: async () => {
-      // fa-IR 等非中文语言跟随英文社区入口。
+      // 非中文语言跟随英文社区入口。
       const locale = document.documentElement.lang === "zh-CN" ? "zh-CN" : "en-US";
       const communityUrl = await resolveWebCommunityUrl(locale);
       if (!communityUrl) {

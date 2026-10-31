@@ -1,0 +1,19 @@
+[package]
+name = "git-checkpoint-service"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Git workspace checkpoint（隐藏 commit + hidden ref + manifest 存储）"
+
+[lib]
+name = "git_checkpoint_service"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+git-cli = { path = "../git-cli" }
+git-service = { path = "../git-service" }
+plugin-discovery = { path = "../plugin-discovery" }
+workspace-identity = { path = "../workspace-identity" }

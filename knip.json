@@ -1,29 +1,179 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "tags": ["-lintignore"],
+  "tags": [
+    "-lintignore"
+  ],
   "workspaces": {
     ".": {
       "entry": [
         ".release-it.mjs",
-        "scripts/check-workspace-freshness.mjs",
-        "scripts/mise-run.mjs"
+        "scripts/**/*.{mjs,ts,mts}",
+        "harness/**/*.{mjs,ts,tsx,mts}",
+        "website/**/*.{js,cjs,html}",
+        "crates/**/*.ts",
+        "tools/**/*.{ts,mjs}",
+        "apps/remote-agent/test/**/*.mts"
+      ],
+      "ignoreDependencies": [
+        "ignore",
+        "esbuild",
+        "yazl",
+        "playwright-core",
+        "ws",
+        "yaml",
+        "node-pty",
+        "@modelcontextprotocol/client"
       ]
     },
     "packages/desktop": {
-      "entry": ["src/renderer/*.html"]
+      "entry": [
+        "src/renderer/*.html",
+        "src/renderer/src/webEntry.ts",
+        "src/renderer/src/nodeCryptoBrowserShim.ts",
+        "src/host-standalone/index.ts",
+        "scripts/**/*.{mjs,ts}",
+        "tests/**/*.{mjs,mts,ts}",
+        "src/renderer/src/web-entry.d.ts"
+      ],
+      "ignoreDependencies": [
+        "@mode/web-entry"
+      ]
     },
     "packages/server": {
-      "entry": ["src/index.ts", "src/entry-stdio.ts", "build-remote.ts"]
+      "entry": [
+        "src/entry-stdio.ts",
+        "test/**/*.ts"
+      ]
     },
     "packages/services": {
-      "entry": ["src/index.ts", "src/storage/module.ts"]
+      "entry": [
+        "src/storage/module.ts",
+        "test/**/*.ts",
+        "scripts/**/*.mjs"
+      ]
+    },
+    "packages/shared": {
+      "entry": [
+        "test/**/*.ts"
+      ]
+    },
+    "packages/ui": {
+      "entry": [
+        "test/**/*.ts",
+        "tests/**/*.mjs"
+      ],
+      "ignoreDependencies": [
+        "vite"
+      ]
+    },
+    "packages/web": {
+      "entry": [
+        "index.html"
+      ]
+    },
+    "packages/rpc": {
+      "entry": [
+        "examples/**/*.ts"
+      ]
+    },
+    "packages/cloud-relay": {
+      "entry": [
+        "test/**/*.mts"
+      ]
+    },
+    "packages/mode-cua": {
+      "entry": [
+        "helper/**/*.mjs",
+        "test/**/*.mjs"
+      ]
+    },
+    "packages/browser-import-extension": {
+      "entry": [
+        "src/popup.ts",
+        "scripts/**/*.ts"
+      ]
+    },
+    "packages/mode-server-cli": {
+      "entry": [
+        "scripts/**/*.mjs"
+      ]
+    },
+    "apps/desktop-tauri": {
+      "entry": [
+        "scripts/**/*.{ts,mjs,mts}",
+        "test/**/*.mts",
+        "bench/**/*.ts"
+      ]
+    },
+    "apps/mode-cli": {
+      "entry": [
+        "scripts/**/*.{mjs,ts}",
+        "tests/**/*.{mjs,ts}"
+      ]
+    },
+    "apps/mode-cli/tools/*": {
+      "entry": [
+        "src/**/*.{ts,mts}"
+      ]
     },
     "apps/mode-cli/packages/browser-use-plugin": {
-      "entry": ["src/browser-client.ts"]
+      "entry": [
+        "src/browser-client.ts"
+      ]
     },
     "apps/mode-cli/packages/mode-cua-plugin": {
-      "entry": ["scripts/computer-use-client.mjs"]
+      "entry": [
+        "scripts/computer-use-client.mjs"
+      ]
+    },
+    "apps/mode-cli/packages/adapters": {
+      "entry": [
+        "src/index.ts",
+        "test/**/*.{ts,mts,mjs}",
+        "tests/**/*.{ts,mts,mjs}",
+        "scripts/**/*.{ts,mjs,mts}"
+      ]
+    },
+    "apps/mode-cli/packages/bootstrap": {
+      "entry": [
+        "src/index.ts",
+        "test/**/*.{ts,mts,mjs}",
+        "tests/**/*.{ts,mts,mjs}",
+        "scripts/**/*.{ts,mjs,mts}"
+      ]
+    },
+    "apps/mode-cli/packages/core": {
+      "entry": [
+        "src/index.ts",
+        "test/**/*.{ts,mts,mjs}",
+        "tests/**/*.{ts,mts,mjs}",
+        "scripts/**/*.{ts,mjs,mts}"
+      ]
+    },
+    "apps/mode-cli/packages/tui": {
+      "entry": [
+        "src/index.ts",
+        "test/**/*.{ts,mts,mjs}",
+        "tests/**/*.{ts,mts,mjs}",
+        "scripts/**/*.{ts,mjs,mts}"
+      ]
+    },
+    "apps/mode-cli/packages/node-repl-host": {
+      "ignoreDependencies": [
+        "@modelcontextprotocol/sdk"
+      ]
     }
   },
-  "ignore": [".agents/**", "docs/**", "packages/ui/src/components/**"]
+  "ignore": [
+    ".agents/**",
+    ".claude/**",
+    ".plan/**",
+    "spikes/**",
+    "harness/**",
+    "apps/desktop-tauri/test/harness/**",
+    "**/dist-types/**"
+  ],
+  "ignoreBinaries": [
+    "check"
+  ]
 }

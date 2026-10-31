@@ -1,0 +1,13 @@
+[package]
+name = "plugin-discovery"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Node fs/path 兼容层与插件来源发现（skills / subagents 共用）"
+
+[lib]
+name = "plugin_discovery"
+path = "src/lib.rs"
+
+[dependencies]
+serde_json.workspace = true

@@ -1,0 +1,1581 @@
+{
+  "cases": [
+    {
+      "name": "detect-skills",
+      "files": [
+        {
+          "path": "home/.claude/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.claude/skills/dup/SKILL.md",
+          "content": "---\nname: existing\ndescription: duplicate name\n---\nexisting body\n"
+        },
+        {
+          "path": "home/.claude/skills/no-name/SKILL.md",
+          "content": "plain body without frontmatter\n"
+        },
+        {
+          "path": "home/.mode/skills/existing/SKILL.md",
+          "content": "---\nname: existing\ndescription: mode existing\n---\nexisting body\n"
+        },
+        {
+          "path": "ws/.claude/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        },
+        {
+          "path": "home/.claude/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "ws/.claude/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "home/.claude/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\"name\":\"myplugin\",\"version\":\"1.2.0\"}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"mcpServers\": {\n    \"srv\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"pkg\"\n      ],\n      \"timeout\": 5\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.codex/config.toml",
+          "content": "[mcp_servers.tomlserver]\ncommand = \"node\"\nargs = [\"a.js\"]\n"
+        },
+        {
+          "path": "ws/.mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"proj\": {\n      \"command\": \"x\"\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.claude/CLAUDE.md",
+          "content": "claude agents body\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "detect",
+          "categories": [
+            "skills"
+          ],
+          "intent": "manualImport"
+        },
+        {
+          "kind": "detect",
+          "categories": [
+            "skills"
+          ],
+          "intent": "manualImport",
+          "useWorkspace": true
+        },
+        {
+          "kind": "detect",
+          "categories": [
+            "skills"
+          ],
+          "intent": "firstRun"
+        }
+      ],
+      "expected": [
+        {
+          "agents": [
+            {
+              "agent": "claudeCode",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "skills",
+                  "discoveredCount": 3,
+                  "importableCount": 2,
+                  "skippedCount": 1,
+                  "sourcePaths": [
+                    "<root>/home/.claude/skills"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.claude/skills",
+                      "discoveredCount": 3,
+                      "importableCount": 2,
+                      "skippedCount": 1,
+                      "skills": [
+                        {
+                          "name": "alpha",
+                          "path": "<root>/home/.claude/skills/alpha",
+                          "importable": true,
+                          "version": "1.0.0"
+                        },
+                        {
+                          "name": "existing",
+                          "path": "<root>/home/.claude/skills/dup",
+                          "importable": false,
+                          "skipReason": "sameNameExists"
+                        },
+                        {
+                          "name": "no-name",
+                          "path": "<root>/home/.claude/skills/no-name",
+                          "importable": true
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "agents": [
+            {
+              "agent": "claudeCode",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "skills",
+                  "discoveredCount": 4,
+                  "importableCount": 3,
+                  "skippedCount": 1,
+                  "sourcePaths": [
+                    "<root>/home/.claude/skills",
+                    "<root>/ws/.claude/skills"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.claude/skills",
+                      "discoveredCount": 3,
+                      "importableCount": 2,
+                      "skippedCount": 1,
+                      "skills": [
+                        {
+                          "name": "alpha",
+                          "path": "<root>/home/.claude/skills/alpha",
+                          "importable": true,
+                          "version": "1.0.0"
+                        },
+                        {
+                          "name": "existing",
+                          "path": "<root>/home/.claude/skills/dup",
+                          "importable": false,
+                          "skipReason": "sameNameExists"
+                        },
+                        {
+                          "name": "no-name",
+                          "path": "<root>/home/.claude/skills/no-name",
+                          "importable": true
+                        }
+                      ]
+                    },
+                    {
+                      "scope": "project",
+                      "path": "<root>/ws/.claude/skills",
+                      "discoveredCount": 1,
+                      "importableCount": 1,
+                      "skippedCount": 0,
+                      "skills": [
+                        {
+                          "name": "wsone",
+                          "path": "<root>/ws/.claude/skills/wsone",
+                          "importable": true
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "agents": []
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.claude/CLAUDE.md",
+          "content": "claude agents body\n"
+        },
+        {
+          "path": "home/.claude/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "home/.claude/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\n  \"name\": \"myplugin\",\n  \"version\": \"1.2.0\"\n}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"mcpServers\": {\n    \"srv\": {\n      \"args\": [\n        \"-y\",\n        \"pkg\"\n      ],\n      \"command\": \"npx\",\n      \"timeout\": 5\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.claude/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.claude/skills/dup/SKILL.md",
+          "content": "---\nname: existing\ndescription: duplicate name\n---\nexisting body\n"
+        },
+        {
+          "path": "home/.claude/skills/no-name/SKILL.md",
+          "content": "plain body without frontmatter\n"
+        },
+        {
+          "path": "home/.codex/config.toml",
+          "content": "[mcp_servers.tomlserver]\ncommand = \"node\"\nargs = [\"a.js\"]\n"
+        },
+        {
+          "path": "home/.mode/skills/existing/SKILL.md",
+          "content": "---\nname: existing\ndescription: mode existing\n---\nexisting body\n"
+        },
+        {
+          "path": "ws/.claude/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "ws/.claude/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        },
+        {
+          "path": "ws/.mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"proj\": {\n      \"command\": \"x\"\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "detect-commands",
+      "files": [
+        {
+          "path": "home/.claude/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.claude/skills/dup/SKILL.md",
+          "content": "---\nname: existing\ndescription: duplicate name\n---\nexisting body\n"
+        },
+        {
+          "path": "home/.claude/skills/no-name/SKILL.md",
+          "content": "plain body without frontmatter\n"
+        },
+        {
+          "path": "home/.mode/skills/existing/SKILL.md",
+          "content": "---\nname: existing\ndescription: mode existing\n---\nexisting body\n"
+        },
+        {
+          "path": "ws/.claude/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        },
+        {
+          "path": "home/.claude/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "ws/.claude/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "home/.claude/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\"name\":\"myplugin\",\"version\":\"1.2.0\"}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"mcpServers\": {\n    \"srv\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"pkg\"\n      ],\n      \"timeout\": 5\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.codex/config.toml",
+          "content": "[mcp_servers.tomlserver]\ncommand = \"node\"\nargs = [\"a.js\"]\n"
+        },
+        {
+          "path": "ws/.mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"proj\": {\n      \"command\": \"x\"\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.claude/CLAUDE.md",
+          "content": "claude agents body\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "detect",
+          "categories": [
+            "commands"
+          ],
+          "intent": "manualImport"
+        },
+        {
+          "kind": "detect",
+          "categories": [
+            "commands"
+          ],
+          "intent": "manualImport",
+          "useWorkspace": true
+        }
+      ],
+      "expected": [
+        {
+          "agents": [
+            {
+              "agent": "claudeCode",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "commands",
+                  "discoveredCount": 1,
+                  "importableCount": 1,
+                  "skippedCount": 0,
+                  "sourcePaths": [
+                    "<root>/home/.claude/commands"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.claude/commands",
+                      "discoveredCount": 1,
+                      "importableCount": 1,
+                      "skippedCount": 0,
+                      "commands": [
+                        {
+                          "name": "/deploy",
+                          "path": "<root>/home/.claude/commands/deploy.md",
+                          "importable": true,
+                          "description": "deploy it",
+                          "argumentHint": "<env>"
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "agents": [
+            {
+              "agent": "claudeCode",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "commands",
+                  "discoveredCount": 2,
+                  "importableCount": 2,
+                  "skippedCount": 0,
+                  "sourcePaths": [
+                    "<root>/home/.claude/commands",
+                    "<root>/ws/.claude/commands"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.claude/commands",
+                      "discoveredCount": 1,
+                      "importableCount": 1,
+                      "skippedCount": 0,
+                      "commands": [
+                        {
+                          "name": "/deploy",
+                          "path": "<root>/home/.claude/commands/deploy.md",
+                          "importable": true,
+                          "description": "deploy it",
+                          "argumentHint": "<env>"
+                        }
+                      ]
+                    },
+                    {
+                      "scope": "project",
+                      "path": "<root>/ws/.claude/commands",
+                      "discoveredCount": 1,
+                      "importableCount": 1,
+                      "skippedCount": 0,
+                      "commands": [
+                        {
+                          "name": "/project",
+                          "path": "<root>/ws/.claude/commands/project.md",
+                          "importable": true,
+                          "description": "project command"
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": false
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.claude/CLAUDE.md",
+          "content": "claude agents body\n"
+        },
+        {
+          "path": "home/.claude/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "home/.claude/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\n  \"name\": \"myplugin\",\n  \"version\": \"1.2.0\"\n}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"mcpServers\": {\n    \"srv\": {\n      \"args\": [\n        \"-y\",\n        \"pkg\"\n      ],\n      \"command\": \"npx\",\n      \"timeout\": 5\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.claude/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.claude/skills/dup/SKILL.md",
+          "content": "---\nname: existing\ndescription: duplicate name\n---\nexisting body\n"
+        },
+        {
+          "path": "home/.claude/skills/no-name/SKILL.md",
+          "content": "plain body without frontmatter\n"
+        },
+        {
+          "path": "home/.codex/config.toml",
+          "content": "[mcp_servers.tomlserver]\ncommand = \"node\"\nargs = [\"a.js\"]\n"
+        },
+        {
+          "path": "home/.mode/skills/existing/SKILL.md",
+          "content": "---\nname: existing\ndescription: mode existing\n---\nexisting body\n"
+        },
+        {
+          "path": "ws/.claude/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "ws/.claude/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        },
+        {
+          "path": "ws/.mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"proj\": {\n      \"command\": \"x\"\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "detect-plugins-mcp",
+      "files": [
+        {
+          "path": "home/.claude/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.claude/skills/dup/SKILL.md",
+          "content": "---\nname: existing\ndescription: duplicate name\n---\nexisting body\n"
+        },
+        {
+          "path": "home/.claude/skills/no-name/SKILL.md",
+          "content": "plain body without frontmatter\n"
+        },
+        {
+          "path": "home/.mode/skills/existing/SKILL.md",
+          "content": "---\nname: existing\ndescription: mode existing\n---\nexisting body\n"
+        },
+        {
+          "path": "ws/.claude/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        },
+        {
+          "path": "home/.claude/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "ws/.claude/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "home/.claude/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\"name\":\"myplugin\",\"version\":\"1.2.0\"}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"mcpServers\": {\n    \"srv\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"pkg\"\n      ],\n      \"timeout\": 5\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.codex/config.toml",
+          "content": "[mcp_servers.tomlserver]\ncommand = \"node\"\nargs = [\"a.js\"]\n"
+        },
+        {
+          "path": "ws/.mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"proj\": {\n      \"command\": \"x\"\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.claude/CLAUDE.md",
+          "content": "claude agents body\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "detect",
+          "categories": [
+            "plugins"
+          ],
+          "intent": "manualImport"
+        },
+        {
+          "kind": "detect",
+          "categories": [
+            "mcpServers"
+          ],
+          "intent": "manualImport"
+        },
+        {
+          "kind": "detect",
+          "categories": [
+            "mcpServers"
+          ],
+          "intent": "manualImport",
+          "useWorkspace": true
+        }
+      ],
+      "expected": [
+        {
+          "agents": [
+            {
+              "agent": "claudeCode",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "plugins",
+                  "discoveredCount": 1,
+                  "importableCount": 1,
+                  "skippedCount": 0,
+                  "sourcePaths": [
+                    "<root>/home/.claude/plugins"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.claude/plugins",
+                      "discoveredCount": 1,
+                      "importableCount": 1,
+                      "skippedCount": 0,
+                      "plugins": [
+                        {
+                          "name": "myplugin",
+                          "path": "<root>/home/.claude/plugins/myplugin",
+                          "importable": true,
+                          "version": "1.2.0"
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "agents": [
+            {
+              "agent": "claudeCode",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "mcpServers",
+                  "discoveredCount": 1,
+                  "importableCount": 1,
+                  "skippedCount": 0,
+                  "sourcePaths": [
+                    "<root>/home/.claude/settings.json"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.claude/settings.json",
+                      "discoveredCount": 1,
+                      "importableCount": 1,
+                      "skippedCount": 0,
+                      "mcpServers": [
+                        {
+                          "name": "srv",
+                          "path": "<root>/home/.claude/settings.json#srv",
+                          "importable": true
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": false
+                }
+              ]
+            },
+            {
+              "agent": "codexCli",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "mcpServers",
+                  "discoveredCount": 1,
+                  "importableCount": 1,
+                  "skippedCount": 0,
+                  "sourcePaths": [
+                    "<root>/home/.codex/config.toml"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.codex/config.toml",
+                      "discoveredCount": 1,
+                      "importableCount": 1,
+                      "skippedCount": 0,
+                      "mcpServers": [
+                        {
+                          "name": "tomlserver",
+                          "path": "<root>/home/.codex/config.toml#tomlserver",
+                          "importable": true
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "agents": [
+            {
+              "agent": "claudeCode",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "mcpServers",
+                  "discoveredCount": 2,
+                  "importableCount": 2,
+                  "skippedCount": 0,
+                  "sourcePaths": [
+                    "<root>/home/.claude/settings.json",
+                    "<root>/ws/.mcp.json"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.claude/settings.json",
+                      "discoveredCount": 1,
+                      "importableCount": 1,
+                      "skippedCount": 0,
+                      "mcpServers": [
+                        {
+                          "name": "srv",
+                          "path": "<root>/home/.claude/settings.json#srv",
+                          "importable": true
+                        }
+                      ]
+                    },
+                    {
+                      "scope": "project",
+                      "path": "<root>/ws/.mcp.json",
+                      "discoveredCount": 1,
+                      "importableCount": 1,
+                      "skippedCount": 0,
+                      "mcpServers": [
+                        {
+                          "name": "proj",
+                          "path": "<root>/ws/.mcp.json#proj",
+                          "importable": true
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": false
+                }
+              ]
+            },
+            {
+              "agent": "codexCli",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "mcpServers",
+                  "discoveredCount": 1,
+                  "importableCount": 1,
+                  "skippedCount": 0,
+                  "sourcePaths": [
+                    "<root>/home/.codex/config.toml"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.codex/config.toml",
+                      "discoveredCount": 1,
+                      "importableCount": 1,
+                      "skippedCount": 0,
+                      "mcpServers": [
+                        {
+                          "name": "tomlserver",
+                          "path": "<root>/home/.codex/config.toml#tomlserver",
+                          "importable": true
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": false
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.claude/CLAUDE.md",
+          "content": "claude agents body\n"
+        },
+        {
+          "path": "home/.claude/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "home/.claude/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\n  \"name\": \"myplugin\",\n  \"version\": \"1.2.0\"\n}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"mcpServers\": {\n    \"srv\": {\n      \"args\": [\n        \"-y\",\n        \"pkg\"\n      ],\n      \"command\": \"npx\",\n      \"timeout\": 5\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.claude/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.claude/skills/dup/SKILL.md",
+          "content": "---\nname: existing\ndescription: duplicate name\n---\nexisting body\n"
+        },
+        {
+          "path": "home/.claude/skills/no-name/SKILL.md",
+          "content": "plain body without frontmatter\n"
+        },
+        {
+          "path": "home/.codex/config.toml",
+          "content": "[mcp_servers.tomlserver]\ncommand = \"node\"\nargs = [\"a.js\"]\n"
+        },
+        {
+          "path": "home/.mode/skills/existing/SKILL.md",
+          "content": "---\nname: existing\ndescription: mode existing\n---\nexisting body\n"
+        },
+        {
+          "path": "ws/.claude/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "ws/.claude/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        },
+        {
+          "path": "ws/.mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"proj\": {\n      \"command\": \"x\"\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "import-copy",
+      "files": [
+        {
+          "path": "home/.claude/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.claude/skills/dup/SKILL.md",
+          "content": "---\nname: existing\ndescription: duplicate name\n---\nexisting body\n"
+        },
+        {
+          "path": "home/.claude/skills/no-name/SKILL.md",
+          "content": "plain body without frontmatter\n"
+        },
+        {
+          "path": "home/.mode/skills/existing/SKILL.md",
+          "content": "---\nname: existing\ndescription: mode existing\n---\nexisting body\n"
+        },
+        {
+          "path": "ws/.claude/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        },
+        {
+          "path": "home/.claude/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "ws/.claude/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "home/.claude/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\"name\":\"myplugin\",\"version\":\"1.2.0\"}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"mcpServers\": {\n    \"srv\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"pkg\"\n      ],\n      \"timeout\": 5\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.codex/config.toml",
+          "content": "[mcp_servers.tomlserver]\ncommand = \"node\"\nargs = [\"a.js\"]\n"
+        },
+        {
+          "path": "ws/.mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"proj\": {\n      \"command\": \"x\"\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.claude/CLAUDE.md",
+          "content": "claude agents body\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "importSelected",
+          "selections": [
+            {
+              "agent": "claudeCode",
+              "category": "skills",
+              "importMode": "copy",
+              "skillPaths": [
+                "<root>/home/.claude/skills/alpha"
+              ]
+            },
+            {
+              "agent": "claudeCode",
+              "category": "commands",
+              "importMode": "copy",
+              "commandPaths": [
+                "<root>/home/.claude/commands/deploy.md"
+              ]
+            },
+            {
+              "agent": "claudeCode",
+              "category": "plugins",
+              "importMode": "copy"
+            },
+            {
+              "agent": "claudeCode",
+              "category": "mcpServers"
+            },
+            {
+              "agent": "codexCli",
+              "category": "mcpServers"
+            },
+            {
+              "agent": "unknownAgent",
+              "category": "providers"
+            }
+          ]
+        },
+        {
+          "kind": "detect",
+          "categories": [
+            "skills"
+          ],
+          "intent": "manualImport"
+        },
+        {
+          "kind": "detect",
+          "categories": [
+            "plugins"
+          ],
+          "intent": "manualImport"
+        },
+        {
+          "kind": "detect",
+          "categories": [
+            "mcpServers"
+          ],
+          "intent": "manualImport"
+        }
+      ],
+      "expected": [
+        {
+          "successCount": 5,
+          "skippedCount": 1,
+          "failedCount": 0,
+          "taskResults": [
+            {
+              "agent": "claudeCode",
+              "category": "skills",
+              "status": "success",
+              "importedCount": 1,
+              "skippedCount": 0,
+              "failedCount": 0,
+              "skillResults": [
+                {
+                  "name": "alpha",
+                  "path": "<root>/home/.claude/skills/alpha",
+                  "sourceScope": "global",
+                  "status": "imported",
+                  "version": "1.0.0"
+                }
+              ]
+            },
+            {
+              "agent": "claudeCode",
+              "category": "commands",
+              "status": "success",
+              "importedCount": 1,
+              "skippedCount": 0,
+              "failedCount": 0,
+              "commandResults": [
+                {
+                  "name": "/deploy",
+                  "path": "<root>/home/.claude/commands/deploy.md",
+                  "sourceScope": "global",
+                  "status": "imported"
+                }
+              ]
+            },
+            {
+              "agent": "claudeCode",
+              "category": "plugins",
+              "status": "success",
+              "importedCount": 1,
+              "skippedCount": 0,
+              "failedCount": 0,
+              "pluginResults": [
+                {
+                  "name": "myplugin",
+                  "path": "<root>/home/.claude/plugins/myplugin",
+                  "sourceScope": "global",
+                  "status": "imported",
+                  "version": "1.2.0"
+                }
+              ]
+            },
+            {
+              "agent": "claudeCode",
+              "category": "mcpServers",
+              "status": "success",
+              "importedCount": 1,
+              "skippedCount": 0,
+              "failedCount": 0,
+              "mcpServerResults": [
+                {
+                  "name": "srv",
+                  "path": "<root>/home/.claude/settings.json#srv",
+                  "sourceScope": "global",
+                  "status": "imported"
+                }
+              ]
+            },
+            {
+              "agent": "codexCli",
+              "category": "mcpServers",
+              "status": "success",
+              "importedCount": 1,
+              "skippedCount": 0,
+              "failedCount": 0,
+              "mcpServerResults": [
+                {
+                  "name": "tomlserver",
+                  "path": "<root>/home/.codex/config.toml#tomlserver",
+                  "sourceScope": "global",
+                  "status": "imported"
+                }
+              ]
+            },
+            {
+              "agent": "unknownAgent",
+              "category": "providers",
+              "status": "skipped",
+              "importedCount": 0,
+              "skippedCount": 1,
+              "failedCount": 0
+            }
+          ]
+        },
+        {
+          "agents": [
+            {
+              "agent": "claudeCode",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "skills",
+                  "discoveredCount": 3,
+                  "importableCount": 1,
+                  "skippedCount": 2,
+                  "sourcePaths": [
+                    "<root>/home/.claude/skills"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.claude/skills",
+                      "discoveredCount": 3,
+                      "importableCount": 1,
+                      "skippedCount": 2,
+                      "skills": [
+                        {
+                          "name": "alpha",
+                          "path": "<root>/home/.claude/skills/alpha",
+                          "importable": false,
+                          "skipReason": "targetExists",
+                          "version": "1.0.0"
+                        },
+                        {
+                          "name": "existing",
+                          "path": "<root>/home/.claude/skills/dup",
+                          "importable": false,
+                          "skipReason": "sameNameExists"
+                        },
+                        {
+                          "name": "no-name",
+                          "path": "<root>/home/.claude/skills/no-name",
+                          "importable": true
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "agents": [
+            {
+              "agent": "claudeCode",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "plugins",
+                  "discoveredCount": 1,
+                  "importableCount": 0,
+                  "skippedCount": 1,
+                  "sourcePaths": [
+                    "<root>/home/.claude/plugins"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.claude/plugins",
+                      "discoveredCount": 1,
+                      "importableCount": 0,
+                      "skippedCount": 1,
+                      "plugins": [
+                        {
+                          "name": "myplugin",
+                          "path": "<root>/home/.claude/plugins/myplugin",
+                          "importable": false,
+                          "skipReason": "targetExists",
+                          "version": "1.2.0"
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "agents": [
+            {
+              "agent": "claudeCode",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "mcpServers",
+                  "discoveredCount": 1,
+                  "importableCount": 0,
+                  "skippedCount": 1,
+                  "sourcePaths": [
+                    "<root>/home/.claude/settings.json"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.claude/settings.json",
+                      "discoveredCount": 1,
+                      "importableCount": 0,
+                      "skippedCount": 1,
+                      "mcpServers": [
+                        {
+                          "name": "srv",
+                          "path": "<root>/home/.claude/settings.json#srv",
+                          "importable": false,
+                          "skipReason": "sameNameExists"
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": false
+                }
+              ]
+            },
+            {
+              "agent": "codexCli",
+              "discovered": true,
+              "categories": [
+                {
+                  "category": "mcpServers",
+                  "discoveredCount": 1,
+                  "importableCount": 0,
+                  "skippedCount": 1,
+                  "sourcePaths": [
+                    "<root>/home/.codex/config.toml"
+                  ],
+                  "sourceRoots": [
+                    {
+                      "scope": "global",
+                      "path": "<root>/home/.codex/config.toml",
+                      "discoveredCount": 1,
+                      "importableCount": 0,
+                      "skippedCount": 1,
+                      "mcpServers": [
+                        {
+                          "name": "tomlserver",
+                          "path": "<root>/home/.codex/config.toml#tomlserver",
+                          "importable": false,
+                          "skipReason": "sameNameExists"
+                        }
+                      ]
+                    }
+                  ],
+                  "selectedByDefault": false
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.claude/CLAUDE.md",
+          "content": "claude agents body\n"
+        },
+        {
+          "path": "home/.claude/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "home/.claude/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\n  \"name\": \"myplugin\",\n  \"version\": \"1.2.0\"\n}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"mcpServers\": {\n    \"srv\": {\n      \"args\": [\n        \"-y\",\n        \"pkg\"\n      ],\n      \"command\": \"npx\",\n      \"timeout\": 5\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.claude/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.claude/skills/dup/SKILL.md",
+          "content": "---\nname: existing\ndescription: duplicate name\n---\nexisting body\n"
+        },
+        {
+          "path": "home/.claude/skills/no-name/SKILL.md",
+          "content": "plain body without frontmatter\n"
+        },
+        {
+          "path": "home/.codex/config.toml",
+          "content": "[mcp_servers.tomlserver]\ncommand = \"node\"\nargs = [\"a.js\"]\n"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"mcp\": {\n    \"servers\": {\n      \"srv\": {\n        \"args\": [\n          \"-y\",\n          \"pkg\"\n        ],\n        \"command\": \"npx\"\n      },\n      \"tomlserver\": {\n        \"args\": [\n          \"a.js\"\n        ],\n        \"command\": \"node\"\n      }\n    }\n  },\n  \"plugins\": {\n    \"dirs\": [\n      \"<root>/home/.mode/plugins/myplugin\"\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.mode/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "home/.mode/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\n  \"name\": \"myplugin\",\n  \"version\": \"1.2.0\"\n}"
+        },
+        {
+          "path": "home/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.mode/skills/existing/SKILL.md",
+          "content": "---\nname: existing\ndescription: mode existing\n---\nexisting body\n"
+        },
+        {
+          "path": "ws/.claude/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "ws/.claude/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        },
+        {
+          "path": "ws/.mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"proj\": {\n      \"command\": \"x\"\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "import-workspace",
+      "files": [
+        {
+          "path": "home/.claude/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.claude/skills/dup/SKILL.md",
+          "content": "---\nname: existing\ndescription: duplicate name\n---\nexisting body\n"
+        },
+        {
+          "path": "home/.claude/skills/no-name/SKILL.md",
+          "content": "plain body without frontmatter\n"
+        },
+        {
+          "path": "home/.mode/skills/existing/SKILL.md",
+          "content": "---\nname: existing\ndescription: mode existing\n---\nexisting body\n"
+        },
+        {
+          "path": "ws/.claude/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        },
+        {
+          "path": "home/.claude/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "ws/.claude/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "home/.claude/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\"name\":\"myplugin\",\"version\":\"1.2.0\"}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"mcpServers\": {\n    \"srv\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"pkg\"\n      ],\n      \"timeout\": 5\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.codex/config.toml",
+          "content": "[mcp_servers.tomlserver]\ncommand = \"node\"\nargs = [\"a.js\"]\n"
+        },
+        {
+          "path": "ws/.mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"proj\": {\n      \"command\": \"x\"\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.claude/CLAUDE.md",
+          "content": "claude agents body\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "importSelected",
+          "useWorkspace": true,
+          "selections": [
+            {
+              "agent": "claudeCode",
+              "category": "skills",
+              "sourceScope": "project",
+              "targetScope": "project",
+              "importMode": "copy"
+            },
+            {
+              "agent": "claudeCode",
+              "category": "commands",
+              "sourceScope": "project",
+              "targetScope": "project",
+              "importMode": "copy"
+            },
+            {
+              "agent": "agents",
+              "category": "mcpServers",
+              "sourceScope": "project",
+              "targetScope": "project"
+            }
+          ]
+        }
+      ],
+      "expected": [
+        {
+          "successCount": 2,
+          "skippedCount": 0,
+          "failedCount": 0,
+          "taskResults": [
+            {
+              "agent": "claudeCode",
+              "category": "skills",
+              "status": "success",
+              "importedCount": 1,
+              "skippedCount": 0,
+              "failedCount": 0,
+              "skillResults": [
+                {
+                  "name": "wsone",
+                  "path": "<root>/ws/.claude/skills/wsone",
+                  "sourceScope": "project",
+                  "status": "imported"
+                }
+              ]
+            },
+            {
+              "agent": "claudeCode",
+              "category": "commands",
+              "status": "success",
+              "importedCount": 1,
+              "skippedCount": 0,
+              "failedCount": 0,
+              "commandResults": [
+                {
+                  "name": "/project",
+                  "path": "<root>/ws/.claude/commands/project.md",
+                  "sourceScope": "project",
+                  "status": "imported"
+                }
+              ]
+            },
+            {
+              "agent": "agents",
+              "category": "mcpServers",
+              "status": "skipped",
+              "importedCount": 0,
+              "skippedCount": 0,
+              "failedCount": 0,
+              "mcpServerResults": []
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.claude/CLAUDE.md",
+          "content": "claude agents body\n"
+        },
+        {
+          "path": "home/.claude/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "home/.claude/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\n  \"name\": \"myplugin\",\n  \"version\": \"1.2.0\"\n}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"mcpServers\": {\n    \"srv\": {\n      \"args\": [\n        \"-y\",\n        \"pkg\"\n      ],\n      \"command\": \"npx\",\n      \"timeout\": 5\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.claude/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.claude/skills/dup/SKILL.md",
+          "content": "---\nname: existing\ndescription: duplicate name\n---\nexisting body\n"
+        },
+        {
+          "path": "home/.claude/skills/no-name/SKILL.md",
+          "content": "plain body without frontmatter\n"
+        },
+        {
+          "path": "home/.codex/config.toml",
+          "content": "[mcp_servers.tomlserver]\ncommand = \"node\"\nargs = [\"a.js\"]\n"
+        },
+        {
+          "path": "home/.mode/skills/existing/SKILL.md",
+          "content": "---\nname: existing\ndescription: mode existing\n---\nexisting body\n"
+        },
+        {
+          "path": "ws/.claude/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "ws/.claude/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        },
+        {
+          "path": "ws/.mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"proj\": {\n      \"command\": \"x\"\n    }\n  }\n}"
+        },
+        {
+          "path": "ws/.mode/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "ws/.mode/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        }
+      ]
+    },
+    {
+      "name": "agents-file-and-first-run",
+      "files": [
+        {
+          "path": "home/.claude/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.claude/skills/dup/SKILL.md",
+          "content": "---\nname: existing\ndescription: duplicate name\n---\nexisting body\n"
+        },
+        {
+          "path": "home/.claude/skills/no-name/SKILL.md",
+          "content": "plain body without frontmatter\n"
+        },
+        {
+          "path": "home/.mode/skills/existing/SKILL.md",
+          "content": "---\nname: existing\ndescription: mode existing\n---\nexisting body\n"
+        },
+        {
+          "path": "ws/.claude/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        },
+        {
+          "path": "home/.claude/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "ws/.claude/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "home/.claude/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\"name\":\"myplugin\",\"version\":\"1.2.0\"}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"mcpServers\": {\n    \"srv\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"pkg\"\n      ],\n      \"timeout\": 5\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.codex/config.toml",
+          "content": "[mcp_servers.tomlserver]\ncommand = \"node\"\nargs = [\"a.js\"]\n"
+        },
+        {
+          "path": "ws/.mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"proj\": {\n      \"command\": \"x\"\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.claude/CLAUDE.md",
+          "content": "claude agents body\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "agentsFileStatus"
+        },
+        {
+          "kind": "copyAgentsFile"
+        },
+        {
+          "kind": "agentsFileStatus"
+        },
+        {
+          "kind": "copyAgentsFile"
+        },
+        {
+          "kind": "copyAgentsFile",
+          "overwrite": true
+        },
+        {
+          "kind": "firstRunState"
+        },
+        {
+          "kind": "markFirstRun"
+        },
+        {
+          "kind": "firstRunState"
+        }
+      ],
+      "expected": [
+        {
+          "sourcePath": "<root>/home/.claude/CLAUDE.md",
+          "targetPath": "<root>/home/.mode/AGENTS.md",
+          "sourceExists": true,
+          "targetExists": false,
+          "supported": true
+        },
+        {
+          "sourcePath": "<root>/home/.claude/CLAUDE.md",
+          "targetPath": "<root>/home/.mode/AGENTS.md",
+          "status": "copied",
+          "overwritten": false
+        },
+        {
+          "sourcePath": "<root>/home/.claude/CLAUDE.md",
+          "targetPath": "<root>/home/.mode/AGENTS.md",
+          "sourceExists": true,
+          "targetExists": true,
+          "supported": true
+        },
+        {
+          "sourcePath": "<root>/home/.claude/CLAUDE.md",
+          "targetPath": "<root>/home/.mode/AGENTS.md",
+          "status": "skipped",
+          "overwritten": false,
+          "skippedReason": "targetExists"
+        },
+        {
+          "sourcePath": "<root>/home/.claude/CLAUDE.md",
+          "targetPath": "<root>/home/.mode/AGENTS.md",
+          "status": "copied",
+          "overwritten": true
+        },
+        {
+          "handled": false
+        },
+        {
+          "ok": true
+        },
+        {
+          "handled": true
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.claude/CLAUDE.md",
+          "content": "claude agents body\n"
+        },
+        {
+          "path": "home/.claude/commands/deploy.md",
+          "content": "---\ndescription: deploy it\nargument-hint: <env>\n---\nrun deploy\n"
+        },
+        {
+          "path": "home/.claude/plugins/myplugin/.claude-plugin/plugin.json",
+          "content": "{\n  \"name\": \"myplugin\",\n  \"version\": \"1.2.0\"\n}"
+        },
+        {
+          "path": "home/.claude/settings.json",
+          "content": "{\n  \"mcpServers\": {\n    \"srv\": {\n      \"args\": [\n        \"-y\",\n        \"pkg\"\n      ],\n      \"command\": \"npx\",\n      \"timeout\": 5\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.claude/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: claude alpha\nversion: 1.0.0\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.claude/skills/dup/SKILL.md",
+          "content": "---\nname: existing\ndescription: duplicate name\n---\nexisting body\n"
+        },
+        {
+          "path": "home/.claude/skills/no-name/SKILL.md",
+          "content": "plain body without frontmatter\n"
+        },
+        {
+          "path": "home/.codex/config.toml",
+          "content": "[mcp_servers.tomlserver]\ncommand = \"node\"\nargs = [\"a.js\"]\n"
+        },
+        {
+          "path": "home/.mode/AGENTS.md",
+          "content": "claude agents body\n"
+        },
+        {
+          "path": "home/.mode/skills/existing/SKILL.md",
+          "content": "---\nname: existing\ndescription: mode existing\n---\nexisting body\n"
+        },
+        {
+          "path": "ws/.claude/commands/project.md",
+          "content": "---\ndescription: project command\n---\nrun project\n"
+        },
+        {
+          "path": "ws/.claude/skills/wsone/SKILL.md",
+          "content": "---\nname: wsone\ndescription: workspace claude\n---\nwsone body\n"
+        },
+        {
+          "path": "ws/.mcp.json",
+          "content": "{\n  \"mcpServers\": {\n    \"proj\": {\n      \"command\": \"x\"\n    }\n  }\n}"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+[package]
+name = "skill-sync-service"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "技能归档同步（候选扫描 / tar.gz 导出 / 导入），对应 services/src/skill-sync"
+
+[lib]
+name = "skill_sync_service"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+flate2 = "1"
+skills-service = { path = "../skills-service" }
+plugin-discovery = { path = "../plugin-discovery" }

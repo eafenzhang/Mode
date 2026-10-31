@@ -11,6 +11,7 @@
 [workspace]
 resolver = "2"
 members = [
+  "crates/account-provider-overlay",
   "crates/agent-core",
   "crates/agent-protocol",
   "crates/agent-tools",
@@ -25,7 +26,6 @@ members = [
   "crates/provider-config",
   "crates/provider-config-source",
   "crates/provider-source-chain",
-  "crates/account-provider-overlay",
   "crates/commands-service",
   "crates/mode-protocol-client",
   "crates/agent-process",
@@ -56,6 +56,16 @@ members = [
   "crates/file-service",
   "crates/file-watcher",
   "crates/device-mid",
+  "crates/skills-service",
+  "crates/plugin-discovery",
+  "crates/subagents-service",
+  "crates/mcp-sync-service",
+  "crates/settings-sync-service",
+  "crates/broadcast-service",
+  "crates/skill-sync-service",
+  "crates/git-cli",
+  "crates/git-service",
+  "crates/git-checkpoint-service",
   "apps/desktop-tauri/src-tauri",
 ]
 exclude = ["crates/mode-cua-ax"]

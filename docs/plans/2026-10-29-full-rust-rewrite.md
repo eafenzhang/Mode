@@ -74,7 +74,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | RPC 线格式 | `crates/rpc-wire` + `docs/specs/rpc-wire-format.md`，与 TS 字节级对拍 | **已完成**（`5e926cb9`） |
 | 协议层 | 13 字节 `ProtocolMessage` 头、stdio 4 字节前缀、请求与回帧信封的 Rust 编解码 | **已完成**（`crates/rpc-wire::frame/stdio/envelope`，14 条黄金样例对拍） |
 | 壳内 ChannelServer | 频道注册、分派、事件订阅/取消、错误映射、pending 与超时 | **已完成**（`crates/rpc-host` + `docs/specs/rpc-host-dispatch.md`，10 条行为用例） |
-| 帧路由 | 按频道分流（Rust 服务面 vs 遗留 Node），启动期一次性开关 | **已完成**：判定层 + 壳内接线（`inprocess.rs`）；已接管 12 个频道，scoped 控制帧登记并按 scope 复用服务面；开关默认关闭，真机未验 |
+| 帧路由 | 按频道分流（Rust 服务面 vs 遗留 Node），启动期一次性开关 | **已完成**：判定层 + 壳内接线（`inprocess.rs`）；已接管 19 个频道，scoped 控制帧登记并按 scope 复用服务面；开关默认关闭，真机未验 |
 | 启动分解度量 | `measure:host-startup`（host 四个 `startup_mark` + 解析脚本与 4 条单测） | **已完成**（标记已入 host；基线等下一次真实启动后读取） |
 
 出口：开关为空时产品行为与今天字节级一致；打开只读频道时 UI 正常。
@@ -110,7 +110,7 @@ disposeAll + `onDynamicChange` 事件，150ms 防抖，见 `docs/specs/file-watc
 `commands`（6 个方法：list / 写 / 改 / 删 / 启停 / 主目录；目录优先级、enable override、
 插件命令，见 `docs/specs/commands-service.md`）。
 
-十二个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
+十八个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
 TS `ServiceChannels` 的漂移守卫。**真机打开开关尚未验证**；控制帧与 `host` 频道仍归
 Node Host，scoped 帧已能本地接管（按 scope 复用服务面）。剩余域的障碍：`hooks` 的
 trust / config / digest 三件已就位，但 `grantWorkspaceHookTrust` 必须转发给 Agent
@@ -206,7 +206,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 3 | 任务 / 会话 / 任务索引 | ≈12.2k | `rusqlite` + tokio | W1 + SQLite 迁移 | 任务库 schema+迁移已 Rust 化（`crates/tasks-db`）；任务索引 Repo、闲时任务 Repo 与定时任务 Repo 已整体迁移（`crates/task-index-repo`、`crates/off-peak-repo`、`crates/automation-repo`，共用 `ModelSelection` 解析/编码抽至 `crates/model-selection`）；调度计算（cron 解析、`scheduleRule` 推进、carrier 校验）已 Rust 化（`crates/automation-schedule`）；Automation 运行时（20s 轮询 + manual 派发）已在 TS host-standalone 重建，写库所有者仍是 TS Repo；任务频道与会话链路**未**迁移 |
 | 4 | 凭据 | 277 | `ring`（文件托管密钥） | W1 | `credential` 已接管（`crates/credential-store`） |
 | 5 | 终端旧路径 | 1,354 | 壳已有 PTY | W2 | 未开始 |
-| 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 | 未开始 |
+| 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 | **基础层、repo 层、`git` 与 `git-checkpoint` 频道已迁（2026-10-31）**：`crates/git-cli`（命令执行/超时强杀/输出配额/local env 清理、二进制探测、status v2/numstat/diff/branch issue 解析、路径范围；39 op 对拍）；`crates/git-service`（repo 16 操作 + 门面 changes/refresh/commit；`pnpm git-service:fixtures` 7 个真实 git 仓库用例全绿，含 stagedOnly/推送/游离 HEAD）；`crates/git-checkpoint-service`（manifest store + 临时 index 隐藏 commit + diff/restore/冲突检测/删除；`pnpm git-checkpoint:fixtures` 7 个真实仓库用例全绿，含 rename 恢复、scope 边界、冲突与 force）；频道 `git`（18 方法）与 `git-checkpoint`（4 方法）已注册，`generateCommitMessage` 依赖 W4 Agent 模型 |
 | 7 | provider / 模型选择 / orcarouter / bigmodel | ≈7.5k | `reqwest` + `rustls` | W1 | **已开始（2026-10-30）**：纯配置模型已 Rust 化（`crates/provider-config`，`docs/specs/provider-config.md`）——Provider/Model/ManualModel、规则容器、access/api、Restricted CEL、严格 schema 与保序序列化，`pnpm provider-config:fixtures` + 75 条解析/8 条 complete 校验对拍；**文件只读源也已迁**（`crates/provider-config-source`，`docs/specs/provider-config-source.md`）——Personal 解码/legacy manual 归一/恢复、Builtin Release 候选选择与 `mode-builtin:<rev>:<sourceKey>`、两层组合 Snapshot 与 revision，`pnpm provider-config-source:fixtures` 对拍；**账号层 Overlay 也已迁**（`crates/account-provider-overlay`，`docs/specs/account-provider-overlay.md`）——family 分组/identity 缓存/unresolvedFamilies（start-plan 例外）、API Key 折叠、off-peak 选择匹配、team scope 与 `resetPrevious`、unavailableReason、states 生成与 `account:${JSON.stringify([...])}` revision，`pnpm account-provider-overlay:fixtures` 对拍；**事实链也已迁**（`crates/provider-source-chain`，`docs/specs/provider-source-chain.md`）——文件层 + 账号 Overlay 组合、首次 fail-closed 与 last-known-good、`providerId -> config` 线格式，适配为 `agent-process::ProviderSource` 并用真实子进程 fixture 验证交付与 revision 去重；**剩余**：轮询/watch、写路径（update/replace/migrate/importLegacy）、Active 物化缓存、remote Release 同步/LKG、registry/resolver（非账号部分）、model listing、真实凭据/OAuth 与 Family 可用性网络源、orcarouter/bigmodel 与频道接管 |
 | 8 | usage-stats / coding-plan | ≈5.4k | 壳内聚合 | W1 | 未开始 |
 | 9 | 远程工作区 / SSH / WSL / Docker | 远程链路 | `russh` + 本地进程 | W2 | 未开始 |
@@ -214,10 +214,10 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 11 | 远程桌面 | 媒体面已有 Rust helper | 壳内协调器 | W2 | 未开始 |
 | 12 | 云账号 / 设备目录 / OAuth | ≈4k | `reqwest` + 本地密钥 | W1 | 未开始 |
 | 13 | 对话共享 / 镜像 / 遥测 | ≈5.5k | 壳内 | W3-3 | `conversation-mirror` 已接管 |
-| 14 | skills / skill-sync / mcp-sync / plugin-sync / plugins | ≈4.5k | 壳内（素材仍是 JS） | W1 | 未开始 |
-| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` / `commands` 已接管；`hooks` 的服务面（读侧 `loadHooks` + `saveHooks` + 已审核开关）已 Rust 化并对拍，剩 `grantWorkspaceHookTrust` 与频道本体；grant 依赖 Agent authority，整体推迟到 W4 |
+| 14 | skills / skill-sync / mcp-sync / plugin-sync / plugins | ≈4.5k | 壳内（素材仍是 JS） | W1 | **skills 服务面与频道已迁（2026-10-31）**：`crates/skills-service` 覆盖 `skillsService` 六方法（list / setEnabled / buildPromptContext / copyToCommon / removeFromCommon / deleteSkill），四类根扫描 + 插件技能根 + frontmatter 子集解析，`pnpm skills:fixtures` 生成 TS 真源用例、`tests/replay.rs` 逐项深比较结果与结束树（5 用例全绿，spec `docs/specs/skills-service.md`）；频道适配器已注册。**mcp-sync 本地面已迁（2026-10-31）**：`crates/mcp-sync-service` 覆盖 7 个本地方法（载入/保存/候选/远程状态/导出/写访问/导入 + filesystem 路径改写），`pnpm mcp-sync:fixtures` 8 用例回放全绿；`listWorkspaceMcpServerStatuses` 依赖 W4 Agent 控制面，频道暂不注册。**skill-sync 已迁（2026-10-31）**：`crates/skill-sync-service` 覆盖 5 个方法（候选扫描/远端状态/ustar+gzip 导出/写访问/导入），`pnpm skill-sync:fixtures` 3 用例回放全绿（含 TS 归档在 Rust 侧导入）；嵌套 `Uint8Array` 由 `rpc_wire::nested_bytes` 辅助在适配器内编解码，频道已注册（spec `docs/specs/skill-sync-service.md`）。`plugin-sync` 与真机开关验收未开始 |
+| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` / `commands` / `subagents` / `broadcast` 已接管（subagents：`crates/subagents-service` 八方法 + 旧状态/旧 Markdown 迁移，`pnpm subagents:fixtures` 7 用例回放对拍；broadcast：`crates/broadcast-service` 按 Tauri 线 `parentPort: null` 的 local-only 语义实现发送 + claim 状态机，`pnpm broadcast:fixtures` 2 用例回放对拍；两者频道适配器均已注册；subagents 的 `prepareRuntimeState` 壳启动钩子未接）；`hooks` 的服务面（读侧 `loadHooks` + `saveHooks` + 已审核开关）已 Rust 化并对拍，剩 `grantWorkspaceHookTrust` 与频道本体；grant 依赖 Agent authority，整体推迟到 W4；`onboarding` 仍被 OAuth/任务库挡住 |
 | 16 | cua-permission-broker / cua-pip | ≈2.4k | 壳内 | 现有 helper | 未开始 |
-| 17 | 其余（media-preview、prompt-attachment-transfer、off-peak-task…） | ≈2k | 壳内 | W1 | `media-preview` / `prompt-attachment-transfer` 已接管 |
+| 17 | 其余（media-preview、prompt-attachment-transfer、off-peak-task、settings-sync…） | ≈2k | 壳内 | W1 | `media-preview` / `prompt-attachment-transfer` 已接管；**`settings-sync` 已迁（2026-10-31）**：`crates/settings-sync-service` 六方法（外部 15 agent × skills/commands/plugins + 12 MCP 来源探测与导入、Claude AGENTS.md 迁移、首启提示状态），`pnpm settings-sync:fixtures` 6 用例回放对拍，频道适配器已注册 |
 | 18 | 系统信息 / 内网探测 | ≈0.5k | 壳内 | W1 | `system` 已接管 |
 
 **每域完成定义**（缺一不可）：TS 实现保留为 oracle → 正常/错误/取消/事件四类对拍 →
@@ -420,7 +420,7 @@ sessions-index topic（后者依赖 snapshot 的 goal/meta/permission 子形状�
 
 ## 10. 下一步（2026-10-29 续）
 
-1. **真机验收开关**：打开 `MODE_HOST_INPROCESS_CHANNELS` 跑已接管的 12 个频道，核对回帧、
+1. **真机验收开关**：打开 `MODE_HOST_INPROCESS_CHANNELS` 跑已接管的 19 个频道，核对回帧、
    事件与错误路径；关闭开关回归 Node 路径。启动四段耗时用 `pnpm measure:host-startup` 读取。
    验收凭据频道时用一份临时数据根，避免把真实 `credentials.json` 写坏；验收 `file` 时用
    空 workspace，注意首次扫描会创建 `.modeignore`；验收 `file-watcher` 时确认
@@ -472,11 +472,13 @@ sessions-index topic（后者依赖 snapshot 的 goal/meta/permission 子形状�
    还没有到 Node 频道的 RPC 客户端，所以这两条链必须等 W4 的 Agent 控制面就位后再接，
    不能先从索引/列表方法入手。
 
-**本轮发现的数据根风险（未改，先记录）**：壳的 `resolve_data_root` 在未设置
-`MODE_DATA_BASE_DIR` 时会读 `setting.json` 的 `dataBaseDir` 指针，而 `resolve_config`
+**数据根风险（2026-10-31 已修）**：壳的 `resolve_data_root` 在未设置
+`MODE_DATA_BASE_DIR` 时会读 `setting.json` 的 `dataBaseDir` 指针，而此前的 `resolve_config`
 始终把「env ?? home」作为 `MODE_DATA_BASE_DIR` 传给 Node Host，后者因而忽略该指针。
 两者在「设置页改过数据目录且未设环境变量」时不指向同一棵树，所有壳内频道（含
-`credential`）都会与 Node 读写不同目录。修这条要单独对齐启动路径，不在本频道范围内。
+`credential`）都会与 Node 读写不同目录。现在壳在启动 Host 前用同一份解析
+（env → 指针 → home，`platform::commands::logs::resolve_data_base_dir`，已有单测）
+算出基目录并透传，壳内频道与 Host 同树；`host-shell.log` 路径也复用这一份。
 
 **2026-10-30 工作区清理（knip 收口，待提交）**：展开 knip 全仓覆盖后删除死代码——
 `packages/formal-proof`（形式化对拍实验包，`product-projection` / `projection-state`
@@ -488,3 +490,9 @@ sessions-index topic（后者依赖 snapshot 的 goal/meta/permission 子形状�
 （`AppShell` / `WorkspaceFrame` / `usePanelResize` 等），布局要求改以
 `WorkspaceShellLayout` 为准。删除面不触及 §2 计数口径中的 Agent 运行时六包与
 services 主体（services 仅去 3 个无引用文件），现状盘点数量级不变。
+
+**2026-10-31 knip 残留收口**：`knip:gate` 在展开覆盖后还报三处——根脚本
+`generate-automation-schedule-fixtures.ts` / `generate-provider-config-fixtures.ts`
+隐式依赖 `croner` / `zod`（已补进根 `devDependencies` 并更新 lockfile），
+`packages/cloud-relay/src/cloudCrypto.ts` 无引用（实际在用的是 `secretBox.ts`，
+已删除）。`pnpm verify:pre-push` 恢复全绿。

@@ -9,7 +9,7 @@
 | **Mode Cloud** | 云服务：个人账号（GitHub/用户名密码）、设备目录、WSS 中继、网页门户 | 已上线（fnOS 自部署，`relay.mymode.cloud`） | `packages/cloud-relay`；容器 `mode-cloud-relay` |
 | **Mode** | 编程智能体桌面端 | 现役 | `packages/desktop`、`apps/desktop-tauri`、`mode` CLI |
 | **Mode Go** | 智能体桌面被控端（远控目标、MCP 接入） | 现役 | 原名「Mode Agent 被控端」；内部 origin `mode-agent`、MCP 前缀 `mode-agent-*` 不变 |
-| **Mode Bot** | 对标 Grok Bot | 待开发（名称预留） | 暂无实现 |
+| **Mode Bot** | 对标 Grok Bot | 待开发（名称预留）；产品 spec 草案见 [mode-bot.md](./mode-bot.md) | 暂无实现 |
 
 ## 命名规则
 

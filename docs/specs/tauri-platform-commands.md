@@ -833,8 +833,8 @@ SSH/WSL/Docker 在 Tauri Host 明确返回不支持；bot reconnect 与 UI 断�
 
 - **语义依据**：官方帮助配置已整体下线（`isOfficialServiceEnabled("clientConfig")` 恒 false，
   真源 `packages/shared/src/officialPlatformPolicy.ts`），helpAppConfig 读取器对
-  zh-CN / en-US / fa-IR 三语一律返回兜底入口 `MODE_ISSUES_URL`，不发起网络请求。
-- **`canOpenCommunity(locale)`**：注入层直接 `Promise.resolve(true)`（三语入口恒存在）。
+  zh-CN / en-US 两种语言一律返回兜底入口 `MODE_ISSUES_URL`，不发起网络请求。
+- **`canOpenCommunity(locale)`**：注入层直接 `Promise.resolve(true)`（两种语言入口恒存在）。
 - **`openCommunity()`**：复用壳命令 `openExternal` 打开 `MODE_ISSUES_URL`；
   失败留在 Promise 语义里（`invokeAsync`），不留静默成功。
 - 注入层无导入能力，URL 按 shared 真源硬抄，注释标明改址需两处同步；

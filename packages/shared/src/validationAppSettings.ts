@@ -33,8 +33,8 @@ export const appSettingsOccupationEnum = appSettingsOccupationSchema;
 
 const nonEmptyStringSchema = z.string().trim().min(1);
 
-export const localeSchema = z.enum(["zh-CN", "en-US", "fa-IR"]);
-const localePreferenceSchema = z.enum(["system", "zh-CN", "en-US", "fa-IR"]);
+export const localeSchema = z.enum(["zh-CN", "en-US"]);
+const localePreferenceSchema = z.enum(["system", "zh-CN", "en-US"]);
 const modeInteractionBehaviorSchema = z.enum(["queue", "guide"]);
 const electronReleaseChannelSchema = z.enum(["stable", "preview"]);
 const desktopZoomLevelSchema = z.number().int().min(-3).max(5);
@@ -247,6 +247,30 @@ function migrateMessageStreamShowReasoningDefault(value: unknown): unknown {
     messageStreamShowReasoning: true,
     messageStreamShowReasoningMigrationInitialized: true,
   };
+}
+
+/**
+ * fa-IR 已退役（2026-10-29）。旧 setting.json 里的该值现在通不过 enum 校验，会让整个
+ * AppSettings 解析失败并回落到默认值（等于丢掉用户全部设置）。这里先把退役语言改写为
+ * en-US，升级只损失语言偏好本身。
+ */
+function migrateRetiredLocale(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const next = { ...raw };
+  let changed = false;
+  if (raw.locale === "fa-IR") {
+    next.locale = "en-US";
+    changed = true;
+  }
+  if (raw.localePreference === "fa-IR") {
+    next.localePreference = "en-US";
+    changed = true;
+  }
+  return changed ? next : value;
 }
 
 function migrateLegacyLocalePreference(value: unknown): unknown {
@@ -513,7 +537,9 @@ export const appSettingsSchema = z.preprocess(
         migrateMessageStreamShowReasoningDefault(
           migrateCloseToTrayOnWindowsDefault(
             migrateLegacyLocalePreference(
-              sanitizeModeEndpointOrigin(migrateLegacyWorkspaceSession(value)),
+              migrateRetiredLocale(
+                sanitizeModeEndpointOrigin(migrateLegacyWorkspaceSession(value)),
+              ),
             ),
           ),
         ),

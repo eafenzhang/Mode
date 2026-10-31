@@ -122,9 +122,13 @@ length:= VQL 编码的非负整数（仅 String/Buffer/VSBuffer/Object/Array 使
 - 嵌套 `Uint8Array` 不展开成 `{"0":…}`：被替换为
   `{"__mode_rpc_nested_uint8array_v1":true,"base64":"<标准 base64>"}`，解码时再还原。
   该标记只在**恰好**两个键且标记为 `true` 时生效。
-- Rust 侧本轮把 Object 当作**不透明 JSON 文本**承载（`Value::Json`），不做嵌套字节还原；
-  还原规则登记为实现差距，见 `docs/plans/2026-10-29-m4b-host-into-shell.md`。在还原实现前，
-  Rust 侧不得声称已覆盖含二进制附件的消息（skill sync / 附件传输）。
+- Rust 侧把 Object 当作**不透明 JSON 文本**承载（`Value::Json`），`Value` 无法表达
+  「对象里嵌套字节」，因此 rpc-wire **不做透明还原**。共享辅助
+  `rpc_wire::nested_bytes` 提供与 TS 同口径的判定与编解码：
+  `is_marker` / `from_marker` / `to_marker` / `base64_encode` / `base64_decode`。
+  频道适配器对**已知二进制字段**显式使用该辅助（编码方向 `Value::to_json` 已统一走
+  `to_marker`；解码方向由频道在解析参数时调用 `from_marker`）。
+  未使用该辅助的频道不得声称已覆盖含二进制嵌套的消息。
 
 ## 对拍口径
 

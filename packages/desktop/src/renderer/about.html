@@ -208,27 +208,17 @@
             copyright: "Copyright © {year} Mode.",
             audit: "Community audit build, not affiliated with Z.AI.",
           },
-          "fa-IR": {
-            version: "نسخه",
-            ok: "تأیید",
-            copyright: "حق نشر © {year} Mode.",
-            audit: "نسخه ممیزی مستقل جامعه؛ وابسته به Z.AI نیست.",
-          },
         };
         const stored = localStorage.getItem("mode-locale-preference");
         const system = (navigator.language || "en-US").toLowerCase();
         const locale =
           stored === "zh-CN"
             ? "zh-CN"
-            : stored === "fa-IR"
-              ? "fa-IR"
-              : stored === "en-US"
-                ? "en-US"
-                : system.startsWith("zh")
-                  ? "zh-CN"
-                  : system.startsWith("fa")
-                    ? "fa-IR"
-                    : "en-US";
+            : stored === "en-US"
+              ? "en-US"
+              : system.startsWith("zh")
+                ? "zh-CN"
+                : "en-US";
         const text = messages[locale] || messages["en-US"];
         const params = new URLSearchParams(location.search);
         document.getElementById("version").textContent = params.get("version") || "0.0.0";

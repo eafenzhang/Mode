@@ -1,0 +1,853 @@
+{
+  "cases": [
+    {
+      "name": "status",
+      "files": [],
+      "ops": [
+        {
+          "kind": "status",
+          "stdout": "# branch.head main\u0000# branch.upstream origin/main\u0000# branch.ab +2 -1\u0000? new file.md\u00001 .M N... 100644 100644 100644 a b dir/mod file.md\u00002 R. N... 100644 100644 100644 a b R100 renamed.md\u0000original.md\u0000u UU N... 100644 100644 100644 100644 a b c conflict.md\u0000"
+        },
+        {
+          "kind": "status",
+          "stdout": "# branch.head (detached)\u0000? only.md\u0000"
+        },
+        {
+          "kind": "status",
+          "stdout": "# branch.ab +0 -0\u0000x unknown\u00001 .M bad\u0000"
+        },
+        {
+          "kind": "status",
+          "stdout": ""
+        }
+      ],
+      "expected": [
+        {
+          "branchName": "main",
+          "trackingBranchName": "origin/main",
+          "headRefType": "branch",
+          "ahead": 2,
+          "behind": 1,
+          "entries": [
+            {
+              "path": "new file.md",
+              "originalPath": null,
+              "kind": "added",
+              "x": null,
+              "y": "?",
+              "isUntracked": true,
+              "isConflicted": false
+            },
+            {
+              "path": "dir/mod file.md",
+              "originalPath": null,
+              "kind": "modified",
+              "x": ".",
+              "y": "M",
+              "isUntracked": false,
+              "isConflicted": false
+            },
+            {
+              "path": "renamed.md",
+              "originalPath": "original.md",
+              "kind": "renamed",
+              "x": "R",
+              "y": ".",
+              "isUntracked": false,
+              "isConflicted": false
+            },
+            {
+              "path": "conflict.md",
+              "originalPath": null,
+              "kind": "modified",
+              "x": "U",
+              "y": "U",
+              "isUntracked": false,
+              "isConflicted": true
+            }
+          ]
+        },
+        {
+          "branchName": null,
+          "trackingBranchName": null,
+          "headRefType": "detached",
+          "ahead": 0,
+          "behind": 0,
+          "entries": [
+            {
+              "path": "only.md",
+              "originalPath": null,
+              "kind": "added",
+              "x": null,
+              "y": "?",
+              "isUntracked": true,
+              "isConflicted": false
+            }
+          ]
+        },
+        {
+          "branchName": null,
+          "trackingBranchName": null,
+          "headRefType": "branch",
+          "ahead": 0,
+          "behind": 0,
+          "entries": []
+        },
+        {
+          "branchName": null,
+          "trackingBranchName": null,
+          "headRefType": "branch",
+          "ahead": 0,
+          "behind": 0,
+          "entries": []
+        }
+      ],
+      "tree": []
+    },
+    {
+      "name": "numstat",
+      "files": [],
+      "ops": [
+        {
+          "kind": "numstat",
+          "stdout": "3\t0\tadded.md\u0000-\t-\tbin.dat\u00003\t1\t\u0000old.md\u0000new.md\u0000"
+        },
+        {
+          "kind": "numstat",
+          "stdout": "1\t2\tdir/a\tb.md\u0000"
+        },
+        {
+          "kind": "numstat",
+          "stdout": "bad\u0000\u0000"
+        }
+      ],
+      "expected": [
+        {
+          "added.md": {
+            "added": 3,
+            "removed": 0
+          },
+          "bin.dat": {
+            "added": 0,
+            "removed": 0
+          },
+          "new.md": {
+            "added": 3,
+            "removed": 1,
+            "kind": "renamed",
+            "originalPath": "old.md"
+          }
+        },
+        {
+          "dir/a\tb.md": {
+            "added": 1,
+            "removed": 2
+          }
+        },
+        {}
+      ],
+      "tree": []
+    },
+    {
+      "name": "config",
+      "files": [],
+      "ops": [
+        {
+          "kind": "config",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "global\tfile:/x\tA\tB\n",
+            "stderr": "",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "config",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 1,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "config",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "only\ttwo\n",
+            "stderr": "",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "config",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "config",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "",
+            "exitCode": null,
+            "signal": null,
+            "durationMs": 16000,
+            "timedOut": true,
+            "timeoutMs": 15000,
+            "forceKillAttempted": true,
+            "orphaned": true,
+            "outputTruncated": false,
+            "timeoutElapsedMs": 15010,
+            "timeoutCloseDelayMs": 990
+          }
+        },
+        {
+          "kind": "config",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": true
+          }
+        }
+      ],
+      "expected": [
+        {
+          "scope": "global",
+          "source": "file:/x",
+          "value": "A\tB"
+        },
+        {
+          "scope": null,
+          "source": null,
+          "value": null
+        },
+        {
+          "scope": null,
+          "source": null,
+          "value": "only\ttwo"
+        },
+        {
+          "scope": null,
+          "source": null,
+          "value": null
+        },
+        {
+          "error": "git config timed out after 15000ms (elapsed=16000ms, killAt=15010ms, cleanup=990ms, forceKill=true, orphaned=true)"
+        },
+        {
+          "error": "git config output exceeded limit"
+        }
+      ],
+      "tree": []
+    },
+    {
+      "name": "issues",
+      "files": [],
+      "ops": [
+        {
+          "kind": "issues",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "error: Your local changes to the following files would be overwritten by checkout:\n\tpkg/a.md\nPlease commit your changes.",
+            "exitCode": 1,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "issues",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "error: The following untracked working tree files would be overwritten by switch:\n\tnew.md\n",
+            "exitCode": 1,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "issues",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "fatal: a branch named 'x' already exists",
+            "exitCode": 128,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "issues",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "fatal: invalid reference: nope",
+            "exitCode": 128,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "issues",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "fatal: 'x' is already used by worktree at '/tmp/x'",
+            "exitCode": 128,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "issues",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "error: you need to resolve your current index first",
+            "exitCode": 128,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "issues",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "fatal: cannot switch branch while rebasing",
+            "exitCode": 128,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "issues",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "fatal: something else",
+            "exitCode": 128,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "issues",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 128,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        }
+      ],
+      "expected": [
+        [
+          {
+            "code": "tracked-changes-would-be-overwritten",
+            "message": "Tracked changes would be overwritten by switching branches.",
+            "paths": [
+              "pkg/a.md"
+            ],
+            "detail": "error: Your local changes to the following files would be overwritten by checkout:\n\tpkg/a.md\nPlease commit your changes."
+          }
+        ],
+        [
+          {
+            "code": "untracked-changes-would-be-overwritten",
+            "message": "Untracked files would be overwritten by switching branches.",
+            "paths": [
+              "new.md"
+            ],
+            "detail": "error: The following untracked working tree files would be overwritten by switch:\n\tnew.md"
+          }
+        ],
+        [
+          {
+            "code": "branch-already-exists",
+            "message": "Branch already exists.",
+            "detail": "fatal: a branch named 'x' already exists"
+          }
+        ],
+        [
+          {
+            "code": "target-branch-not-found",
+            "message": "Target branch was not found.",
+            "detail": "fatal: invalid reference: nope"
+          }
+        ],
+        [
+          {
+            "code": "branch-in-other-worktree",
+            "message": "Branch is already checked out in another worktree.",
+            "detail": "fatal: 'x' is already used by worktree at '/tmp/x'"
+          }
+        ],
+        [
+          {
+            "code": "conflicts-present",
+            "message": "Repository still has unresolved conflicts.",
+            "detail": "error: you need to resolve your current index first"
+          }
+        ],
+        [
+          {
+            "code": "operation-in-progress",
+            "message": "Another Git operation is still in progress.",
+            "detail": "fatal: cannot switch branch while rebasing"
+          }
+        ],
+        [
+          {
+            "code": "unknown",
+            "message": "Git could not complete the branch operation.",
+            "detail": "fatal: something else"
+          }
+        ],
+        [
+          {
+            "code": "unknown",
+            "message": "Git could not complete the branch operation.",
+            "detail": null
+          }
+        ]
+      ],
+      "tree": []
+    },
+    {
+      "name": "diff",
+      "files": [],
+      "ops": [
+        {
+          "kind": "diff",
+          "path": "a.md",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": true,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "diff",
+          "path": "a.md",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": true
+          }
+        },
+        {
+          "kind": "diff",
+          "path": "a.md",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "boom",
+            "exitCode": 1,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "diff",
+          "path": "a.md",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "   ",
+            "stderr": "",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "diff",
+          "path": "a.bin",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "Binary files a and b differ\n",
+            "stderr": "",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "diff",
+          "path": "a.bin",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "GIT binary patch\n",
+            "stderr": "",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "diff",
+          "path": "a.md",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "diff --git a/a.md b/a.md\n",
+            "stderr": "",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          }
+        },
+        {
+          "kind": "diff",
+          "path": "a.md",
+          "result": {
+            "binaryPath": "git",
+            "cwd": ".",
+            "args": [],
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 1,
+            "timedOut": false,
+            "timeoutMs": 15000,
+            "forceKillAttempted": false,
+            "orphaned": false,
+            "outputTruncated": false
+          },
+          "options": {
+            "emptySummary": "EMPTY",
+            "binarySummary": "BIN"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "path": "a.md",
+          "availability": "unavailable",
+          "patch": null,
+          "beforeContent": null,
+          "afterContent": null,
+          "summary": "Git diff command timed out."
+        },
+        {
+          "path": "a.md",
+          "availability": "truncated",
+          "patch": null,
+          "beforeContent": null,
+          "afterContent": null,
+          "summary": "Git diff output exceeded the preview limit."
+        },
+        {
+          "path": "a.md",
+          "availability": "unavailable",
+          "patch": null,
+          "beforeContent": null,
+          "afterContent": null,
+          "summary": "boom"
+        },
+        {
+          "path": "a.md",
+          "availability": "unavailable",
+          "patch": null,
+          "beforeContent": null,
+          "afterContent": null,
+          "summary": "No diff output available."
+        },
+        {
+          "path": "a.bin",
+          "availability": "binary",
+          "patch": null,
+          "beforeContent": null,
+          "afterContent": null,
+          "summary": "Binary diff is not previewable."
+        },
+        {
+          "path": "a.bin",
+          "availability": "binary",
+          "patch": null,
+          "beforeContent": null,
+          "afterContent": null,
+          "summary": "Binary diff is not previewable."
+        },
+        {
+          "path": "a.md",
+          "availability": "patch",
+          "patch": "diff --git a/a.md b/a.md\n",
+          "beforeContent": null,
+          "afterContent": null,
+          "summary": null
+        },
+        {
+          "path": "a.md",
+          "availability": "unavailable",
+          "patch": null,
+          "beforeContent": null,
+          "afterContent": null,
+          "summary": "EMPTY"
+        }
+      ],
+      "tree": []
+    },
+    {
+      "name": "paths",
+      "files": [],
+      "ops": [
+        {
+          "kind": "path",
+          "fn": "normalize",
+          "args": [
+            "a\\b\\c"
+          ]
+        },
+        {
+          "kind": "path",
+          "fn": "workspace",
+          "args": [
+            "./pkg///"
+          ]
+        },
+        {
+          "kind": "path",
+          "fn": "workspace",
+          "args": [
+            ""
+          ]
+        },
+        {
+          "kind": "path",
+          "fn": "inScope",
+          "args": [
+            "pkg/a.md",
+            "pkg"
+          ]
+        },
+        {
+          "kind": "path",
+          "fn": "inScope",
+          "args": [
+            "pkgx/a.md",
+            "pkg"
+          ]
+        },
+        {
+          "kind": "path",
+          "fn": "inScope",
+          "args": [
+            "anything",
+            "."
+          ]
+        },
+        {
+          "kind": "path",
+          "fn": "toWorkspaceRelative",
+          "args": [
+            "pkg/a.md",
+            "pkg"
+          ]
+        },
+        {
+          "kind": "path",
+          "fn": "toWorkspaceRelative",
+          "args": [
+            "pkg",
+            "pkg"
+          ]
+        },
+        {
+          "kind": "path",
+          "fn": "toWorkspaceRelative",
+          "args": [
+            "pkgx/a.md",
+            "pkg"
+          ]
+        }
+      ],
+      "expected": [
+        "a/b/c",
+        "pkg",
+        ".",
+        true,
+        false,
+        true,
+        "a.md",
+        ".",
+        "pkgx/a.md"
+      ],
+      "tree": []
+    }
+  ]
+}

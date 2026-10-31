@@ -17,12 +17,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use host_channels::{
-    AttachmentTransferChannel, ClientConfigChannel, ClientScenesChannel, CommandsChannel,
-    ConversationMirrorChannel, CredentialChannel, FileChannel, FileWatcherChannel,
-    MediaPreviewChannel, MemoryChannel, SettingChannel, SystemChannel, ATTACHMENT_TRANSFER_CHANNEL,
-    CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL, CONVERSATION_MIRROR_CHANNEL,
-    CREDENTIAL_CHANNEL, FILE_CHANNEL, FILE_WATCHER_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
-    SETTING_CHANNEL, SYSTEM_CHANNEL,
+    AttachmentTransferChannel, BroadcastChannel, ClientConfigChannel, ClientScenesChannel,
+    CommandsChannel, ConversationMirrorChannel, CredentialChannel, FileChannel, FileWatcherChannel,
+    GitChannel, GitCheckpointChannel, MediaPreviewChannel, MemoryChannel, SettingChannel,
+    SettingsSyncChannel, SkillSyncChannel, SkillsChannel, SubagentsChannel, SystemChannel,
+    ATTACHMENT_TRANSFER_CHANNEL,
+    BROADCAST_CHANNEL, CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL,
+    CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL, FILE_CHANNEL, FILE_WATCHER_CHANNEL,
+    GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL, SETTING_CHANNEL,
+    SETTINGS_SYNC_CHANNEL, SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
@@ -76,7 +79,14 @@ impl InprocessState {
                 | SYSTEM_CHANNEL
                 | FILE_CHANNEL
                 | FILE_WATCHER_CHANNEL
-                | COMMANDS_CHANNEL => owned.push(name),
+                | COMMANDS_CHANNEL
+                | SKILLS_CHANNEL
+                | SUBAGENTS_CHANNEL
+                | SETTINGS_SYNC_CHANNEL
+                | BROADCAST_CHANNEL
+                | SKILL_SYNC_CHANNEL
+                | GIT_CHANNEL
+                | GIT_CHECKPOINT_CHANNEL => owned.push(name),
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
                 other => crate::host::shell_log(&format!("inprocess channel ignored (not ported yet): {other}")),
             }
@@ -235,6 +245,12 @@ fn build_server(
                     data_root.to_path_buf(),
                 )))),
             ),
+            BROADCAST_CHANNEL => server.register_channel(
+                BROADCAST_CHANNEL,
+                Arc::new(BroadcastChannel::new(Arc::new(
+                    broadcast_service::BroadcastService::new(),
+                ))),
+            ),
             ATTACHMENT_TRANSFER_CHANNEL => server.register_channel(
                 ATTACHMENT_TRANSFER_CHANNEL,
                 Arc::new(AttachmentTransferChannel),
@@ -331,6 +347,66 @@ fn build_server(
                     ))),
                 );
             }
+            SKILLS_CHANNEL => {
+                // 用户级技能在桌面运行时始终可用：Node Host 显式传 `{ isDesktopRuntime: true }`，
+                // 壳内没有 `MODE_PROCESS_LABEL`，不能依赖 `from_process()` 的默认判定。
+                let mut options = skills_service::SkillsServiceOptions::from_process();
+                options.is_desktop_runtime = true;
+                server.register_channel(
+                    SKILLS_CHANNEL,
+                    Arc::new(SkillsChannel::new(Arc::new(
+                        skills_service::SkillsService::new(options),
+                    ))),
+                );
+            }
+            SUBAGENTS_CHANNEL => {
+                let mut options = subagents_service::SubagentsServiceOptions::from_process();
+                options.is_desktop_runtime = Some(true);
+                server.register_channel(
+                    SUBAGENTS_CHANNEL,
+                    Arc::new(SubagentsChannel::new(Arc::new(
+                        subagents_service::SubagentsService::new(options),
+                    ))),
+                );
+            }
+            SETTINGS_SYNC_CHANNEL => {
+                // 首启提示状态落在 `setting.json`：与 `setting` 频道用同一套路径解析
+                // （坏文件重试与原子写都在 `settings_store` 内），只是各持一个无状态实例。
+                let env = settings_store::HomeEnv::from_process();
+                let paths = settings_store::resolve_settings_paths(&env);
+                let current_base = data_root
+                    .parent()
+                    .map(std::path::Path::to_path_buf)
+                    .unwrap_or_else(|| paths.home.clone());
+                let settings = Arc::new(settings_store::SettingsService::new(paths, current_base));
+                server.register_channel(
+                    SETTINGS_SYNC_CHANNEL,
+                    Arc::new(SettingsSyncChannel::new(Arc::new(
+                        settings_sync_service::SettingsSyncService::new(
+                            settings_sync_service::SettingsSyncServiceOptions::default(),
+                            settings,
+                        ),
+                    ))),
+                );
+            }
+            SKILL_SYNC_CHANNEL => server.register_channel(
+                SKILL_SYNC_CHANNEL,
+                Arc::new(SkillSyncChannel::new(Arc::new(
+                    skill_sync_service::SkillSyncService::new(
+                        skill_sync_service::SkillSyncServiceOptions::default(),
+                    ),
+                ))),
+            ),
+            GIT_CHANNEL => server.register_channel(
+                GIT_CHANNEL,
+                Arc::new(GitChannel::new(host_channels::git::default_service())),
+            ),
+            GIT_CHECKPOINT_CHANNEL => server.register_channel(
+                GIT_CHECKPOINT_CHANNEL,
+                Arc::new(GitCheckpointChannel::new(
+                    host_channels::git_checkpoint::default_service(data_root.to_path_buf()),
+                )),
+            ),
             other => crate::host::shell_log(&format!("inprocess channel not constructible: {other}")),
         }
     }

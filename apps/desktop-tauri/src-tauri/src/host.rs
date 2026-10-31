@@ -23,9 +23,9 @@ use sidecar_host::bridge::{
     CMD_PLATFORM_REPORT, CMD_RECV, CMD_SEND, CMD_STARTUP_CONTROL, CMD_STARTUP_ID, CMD_STATE,
 };
 use sidecar_host::respawn::{RespawnHistory, MAX_QUICK_CRASHES};
-use sidecar_host::{data_base_dir_from, HostConfig, HostHandle};
+use sidecar_host::{HostConfig, HostHandle};
 use settings_store::paths::MODE_DATA_ROOT_DIR_NAME;
-use settings_store::{read_document, resolve_settings_paths, HomeEnv, ReadOutcome, ReadOptions};
+use settings_store::{resolve_home, resolve_settings_paths, HomeEnv};
 use tauri::{AppHandle, Manager, Runtime, State};
 
 use crate::inprocess::{InprocessState, RouteDecision};
@@ -49,6 +49,31 @@ fn new_startup_id() -> String {
 /// 为什么单独一个文件：Host 的写者按 `host-YYYY-MM-DD.log` 跨日滚动，壳不能和它抢同一个文件；
 /// `host-` 前缀让 `exportLogs` 的 Host 线过滤会一并导出。渲染层 `window.mode.log` 在 Tauri
 /// 下是刻意缺席的，P1-3（心跳 kill 后卡启动 Logo）只能靠壳侧记录 reload/startupId 采用顺序。
+/// 数据**基**目录（壳与 Host 共用同一份解析）。
+///
+/// 优先级与 Host 的 `resolveDataRoot` 一致：显式 `MODE_DATA_BASE_DIR` → 默认根
+/// `setting.json` 的 `dataBaseDir` 指针 → 家目录。壳必须把它透传给 Host：早期实现只透传
+/// 「env ?? home」，用户改过数据目录但没设环境变量时，Host 会读 `{home}/.mode`，而壳内
+/// 频道（含 credential）读 `{pointer}/.mode`，两边落进两棵树。
+///
+/// 优先级判定本身复用 `platform::commands::logs::resolve_data_base_dir`（那里有用例：
+/// env 优先、指针只在无 env 时生效、坏文件回落 home）。
+fn data_base_for_home(home: &Path) -> PathBuf {
+    // 家目录解析与 Host 同口径（`MODE_DESKTOP_HOME_DIR` → HOME → USERPROFILE → 调用方兜底）。
+    let env = HomeEnv {
+        fallback_home: home.to_path_buf(),
+        ..HomeEnv::from_process()
+    };
+    let resolved_home = resolve_home(&env);
+    let env_override = std::env::var("MODE_DATA_BASE_DIR").ok();
+    let settings_raw = std::fs::read_to_string(resolve_settings_paths(&env).file).ok();
+    platform::commands::logs::resolve_data_base_dir(
+        &resolved_home,
+        env_override.as_deref(),
+        settings_raw.as_deref(),
+    )
+}
+
 fn shell_log_path() -> Option<PathBuf> {
     let home = std::env::var("USERPROFILE")
         .ok()
@@ -57,16 +82,7 @@ fn shell_log_path() -> Option<PathBuf> {
     if home.as_os_str().is_empty() {
         return None;
     }
-    let env_override = std::env::var("MODE_DATA_BASE_DIR").ok();
-    let settings_raw = std::fs::read_to_string(
-        sidecar_host::settings_probe::default_root_settings_file(&home),
-    )
-    .ok();
-    let base = platform::commands::logs::resolve_data_base_dir(
-        &home,
-        env_override.as_deref(),
-        settings_raw.as_deref(),
-    );
+    let base = data_base_for_home(&home);
     Some(platform::commands::logs::log_dir_for_data_base_dir(&base).join("host-shell.log"))
 }
 
@@ -162,9 +178,10 @@ pub fn resolve_config<R: Runtime>(app: &AppHandle<R>) -> HostConfig {
     config.attempt_id = format!("{startup_id}-a1");
     // `MODE_DATA_BASE_DIR` 是**基**目录：原样透传给子进程，由 Host 派生 `{base}/.mode`
     // （口径见 sidecar_host::data_base_dir_from 与 docs/specs/tauri-renderer-host.md §4）。
+    // 这里必须与壳内频道用同一份解析（含 `setting.json` 指针），否则两边读写不同的树。
     config.data_base_dir = {
         let home = app.path().home_dir().unwrap_or_else(|_| PathBuf::from("."));
-        data_base_dir_from(std::env::var_os("MODE_DATA_BASE_DIR").as_deref(), &home)
+        data_base_for_home(&home)
     };
     config
 }
@@ -381,29 +398,7 @@ pub fn resolve_data_root<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
         .path()
         .home_dir()
         .unwrap_or_else(|_| PathBuf::from("."));
-    let env_base = std::env::var_os("MODE_DATA_BASE_DIR");
-    let base = data_base_dir_from(env_base.as_deref(), &home);
-    if env_base.is_some() {
-        return base.join(MODE_DATA_ROOT_DIR_NAME);
-    }
-
-    let env = HomeEnv {
-        mode_desktop_home_dir: std::env::var_os("MODE_DESKTOP_HOME_DIR"),
-        home: std::env::var_os("HOME"),
-        user_profile: std::env::var_os("USERPROFILE"),
-        fallback_home: home,
-    };
-    let paths = resolve_settings_paths(&env);
-    // 启动早期读取：坏文件的重试交给正常路径（3×300ms），最坏情况只影响启动门面。
-    let options = ReadOptions::default();
-    match read_document(&paths, &options) {
-        ReadOutcome::Loaded(value) => value
-            .get("dataBaseDir")
-            .and_then(|value| value.as_str())
-            .map(|dir| Path::new(dir).join(MODE_DATA_ROOT_DIR_NAME))
-            .unwrap_or_else(|| base.join(MODE_DATA_ROOT_DIR_NAME)),
-        _ => base.join(MODE_DATA_ROOT_DIR_NAME),
-    }
+    data_base_for_home(&home).join(MODE_DATA_ROOT_DIR_NAME)
 }
 
 fn reload_main_window<R: Runtime>(app: &AppHandle<R>) {

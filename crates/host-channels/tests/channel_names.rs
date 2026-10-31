@@ -20,6 +20,13 @@ fn every_local_channel_name_exists_in_service_channels() {
         ("file", "File"),
         ("file-watcher", "FileWatcher"),
         ("commands", "Commands"),
+        ("skills", "Skills"),
+        ("subagents", "Subagents"),
+        ("settings-sync", "SettingsSync"),
+        ("broadcast", "Broadcast"),
+        ("skill-sync", "SkillSync"),
+        ("git", "Git"),
+        ("git-checkpoint", "GitCheckpoint"),
     ];
     for (value, key) in names {
         let expected = format!("{key}: \"{value}\"");
@@ -45,6 +52,13 @@ fn local_channel_names_are_unique() {
         host_channels::FILE_CHANNEL,
         host_channels::FILE_WATCHER_CHANNEL,
         host_channels::COMMANDS_CHANNEL,
+        host_channels::SKILLS_CHANNEL,
+        host_channels::SUBAGENTS_CHANNEL,
+        host_channels::SETTINGS_SYNC_CHANNEL,
+        host_channels::BROADCAST_CHANNEL,
+        host_channels::SKILL_SYNC_CHANNEL,
+        host_channels::GIT_CHANNEL,
+        host_channels::GIT_CHECKPOINT_CHANNEL,
     ];
     let mut sorted = names.to_vec();
     sorted.sort_unstable();

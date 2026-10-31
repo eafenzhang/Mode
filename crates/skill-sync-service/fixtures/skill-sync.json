@@ -1,0 +1,415 @@
+{
+  "cases": [
+    {
+      "name": "candidates",
+      "files": [
+        {
+          "path": "home/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: mode alpha\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.mode/skills/alpha/note.txt",
+          "content": "alpha note\n"
+        },
+        {
+          "path": "home/.mode/skills/group/nested/SKILL.md",
+          "content": "---\nname: nested\ndescription: nested skill\n---\nnested body\n"
+        },
+        {
+          "path": "home/.mode/skills/dup/SKILL.md",
+          "content": "---\nname: shared\ndescription: mode shared\n---\nshared body\n"
+        },
+        {
+          "path": "home/.mode/skills/nofm/SKILL.md",
+          "content": "no frontmatter\n"
+        },
+        {
+          "path": "home/.mode/skills/broken/SKILL.md",
+          "content": "---\nname: [broken\n---\n"
+        },
+        {
+          "path": "home/.agents/skills/shared/SKILL.md",
+          "content": "---\nname: shared\ndescription: agents shared\n---\nshared body\n"
+        },
+        {
+          "path": "home/.agents/skills/only/SKILL.md",
+          "content": "---\nname: agentsonly\ndescription: agents only\n---\nagentsonly body\n"
+        },
+        {
+          "path": "home/.agents/skills/dup/SKILL.md",
+          "content": "---\nname: other\ndescription: covered dir\n---\nother body\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "listCandidates"
+        },
+        {
+          "kind": "remoteStatuses",
+          "directoryNames": [
+            "alpha",
+            "group/nested",
+            "missing"
+          ],
+          "skills": [
+            {
+              "directoryName": "group/nested",
+              "name": "nested"
+            },
+            {
+              "directoryName": "missing",
+              "name": "agentsonly"
+            }
+          ]
+        },
+        {
+          "kind": "writeAccess"
+        }
+      ],
+      "expected": [
+        {
+          "candidates": [
+            {
+              "id": "<sha256>",
+              "name": "alpha",
+              "directoryName": "alpha",
+              "description": "mode alpha",
+              "path": "<root>/home/.mode/skills/alpha/SKILL.md",
+              "sizeBytes": 66
+            },
+            {
+              "id": "<sha256>",
+              "name": "broken",
+              "directoryName": "broken",
+              "description": "",
+              "path": "<root>/home/.mode/skills/broken/SKILL.md",
+              "sizeBytes": 22
+            },
+            {
+              "id": "<sha256>",
+              "name": "shared",
+              "directoryName": "dup",
+              "description": "mode shared",
+              "path": "<root>/home/.mode/skills/dup/SKILL.md",
+              "sizeBytes": 58
+            },
+            {
+              "id": "<sha256>",
+              "name": "nested",
+              "directoryName": "group/nested",
+              "description": "nested skill",
+              "path": "<root>/home/.mode/skills/group/nested/SKILL.md",
+              "sizeBytes": 59
+            },
+            {
+              "id": "<sha256>",
+              "name": "nofm",
+              "directoryName": "nofm",
+              "description": "",
+              "path": "<root>/home/.mode/skills/nofm/SKILL.md",
+              "sizeBytes": 15
+            },
+            {
+              "id": "<sha256>",
+              "name": "agentsonly",
+              "directoryName": "only",
+              "description": "agents only",
+              "path": "<root>/home/.agents/skills/only/SKILL.md",
+              "sizeBytes": 66
+            }
+          ],
+          "maxArchiveBytes": 20971520
+        },
+        {
+          "statuses": [
+            {
+              "directoryName": "alpha",
+              "exists": true,
+              "path": "<root>/home/.mode/skills/alpha"
+            },
+            {
+              "directoryName": "group/nested",
+              "exists": true,
+              "path": "<root>/home/.mode/skills/group/nested"
+            },
+            {
+              "directoryName": "missing",
+              "exists": true,
+              "path": "<root>/home/.agents/skills/only"
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "path": "<root>/home/.mode/skills"
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.agents/skills/dup/SKILL.md",
+          "content": "---\nname: other\ndescription: covered dir\n---\nother body\n"
+        },
+        {
+          "path": "home/.agents/skills/only/SKILL.md",
+          "content": "---\nname: agentsonly\ndescription: agents only\n---\nagentsonly body\n"
+        },
+        {
+          "path": "home/.agents/skills/shared/SKILL.md",
+          "content": "---\nname: shared\ndescription: agents shared\n---\nshared body\n"
+        },
+        {
+          "path": "home/.mode/skills/alpha/note.txt",
+          "content": "alpha note\n"
+        },
+        {
+          "path": "home/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: mode alpha\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.mode/skills/broken/SKILL.md",
+          "content": "---\nname: [broken\n---\n"
+        },
+        {
+          "path": "home/.mode/skills/dup/SKILL.md",
+          "content": "---\nname: shared\ndescription: mode shared\n---\nshared body\n"
+        },
+        {
+          "path": "home/.mode/skills/group/nested/SKILL.md",
+          "content": "---\nname: nested\ndescription: nested skill\n---\nnested body\n"
+        },
+        {
+          "path": "home/.mode/skills/nofm/SKILL.md",
+          "content": "no frontmatter\n"
+        }
+      ]
+    },
+    {
+      "name": "export",
+      "files": [
+        {
+          "path": "home/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: mode alpha\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.mode/skills/alpha/note.txt",
+          "content": "alpha note\n"
+        },
+        {
+          "path": "home/.mode/skills/group/nested/SKILL.md",
+          "content": "---\nname: nested\ndescription: nested skill\n---\nnested body\n"
+        },
+        {
+          "path": "home/.mode/skills/dup/SKILL.md",
+          "content": "---\nname: shared\ndescription: mode shared\n---\nshared body\n"
+        },
+        {
+          "path": "home/.mode/skills/nofm/SKILL.md",
+          "content": "no frontmatter\n"
+        },
+        {
+          "path": "home/.mode/skills/broken/SKILL.md",
+          "content": "---\nname: [broken\n---\n"
+        },
+        {
+          "path": "home/.agents/skills/shared/SKILL.md",
+          "content": "---\nname: shared\ndescription: agents shared\n---\nshared body\n"
+        },
+        {
+          "path": "home/.agents/skills/only/SKILL.md",
+          "content": "---\nname: agentsonly\ndescription: agents only\n---\nagentsonly body\n"
+        },
+        {
+          "path": "home/.agents/skills/dup/SKILL.md",
+          "content": "---\nname: other\ndescription: covered dir\n---\nother body\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "export",
+          "names": [
+            "alpha",
+            "group/nested",
+            "only"
+          ]
+        },
+        {
+          "kind": "remoteStatuses",
+          "directoryNames": [
+            "../escape",
+            "a/../../b"
+          ]
+        },
+        {
+          "kind": "export",
+          "skillIds": [
+            "missing-id"
+          ]
+        }
+      ],
+      "expected": [
+        {
+          "archive": "<archive>",
+          "archiveBytes": "<bytes>",
+          "skills": [
+            {
+              "id": "<sha256>",
+              "name": "alpha",
+              "directoryName": "alpha"
+            },
+            {
+              "id": "<sha256>",
+              "name": "nested",
+              "directoryName": "group/nested"
+            },
+            {
+              "id": "<sha256>",
+              "name": "agentsonly",
+              "directoryName": "only"
+            }
+          ]
+        },
+        {
+          "error": "unsafe skill sync path: ../escape"
+        },
+        {
+          "error": "skill sync candidate not found: missing-id"
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.agents/skills/dup/SKILL.md",
+          "content": "---\nname: other\ndescription: covered dir\n---\nother body\n"
+        },
+        {
+          "path": "home/.agents/skills/only/SKILL.md",
+          "content": "---\nname: agentsonly\ndescription: agents only\n---\nagentsonly body\n"
+        },
+        {
+          "path": "home/.agents/skills/shared/SKILL.md",
+          "content": "---\nname: shared\ndescription: agents shared\n---\nshared body\n"
+        },
+        {
+          "path": "home/.mode/skills/alpha/note.txt",
+          "content": "alpha note\n"
+        },
+        {
+          "path": "home/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: mode alpha\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.mode/skills/broken/SKILL.md",
+          "content": "---\nname: [broken\n---\n"
+        },
+        {
+          "path": "home/.mode/skills/dup/SKILL.md",
+          "content": "---\nname: shared\ndescription: mode shared\n---\nshared body\n"
+        },
+        {
+          "path": "home/.mode/skills/group/nested/SKILL.md",
+          "content": "---\nname: nested\ndescription: nested skill\n---\nnested body\n"
+        },
+        {
+          "path": "home/.mode/skills/nofm/SKILL.md",
+          "content": "no frontmatter\n"
+        }
+      ]
+    },
+    {
+      "name": "import",
+      "files": [
+        {
+          "path": "home/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: existing alpha\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.agents/skills/nested-other/SKILL.md",
+          "content": "---\nname: nested\ndescription: existing nested name\n---\nnested body\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "import",
+          "archiveBase64": "H4sIAAAAAAAACu2X3WrDIBTHc52n8AXSHmNioG8w1rs9gV2kDUs0RAvr2xe1bIsXCxuY0nJ+N4bjAQ1/z5fox5PYZkkBAOCc+xUA4tV/06quqgqgdHYKdVNnpE57rcDZWDFlAINu5W9+S/sPivD6K23lxn7aNGcs6k9ZpH/JADICaa4zB/U/CeL0z+99FeQOhPh/e33Z7zdDm+aMxfjnTRz/AAzjfw2KosiVGOSO+JeQt9K8T91oO612xP3zze78Qq446PaCueJZOE76PG6VNFa2qdrAv/d/JS059n9rMNM/URlY1L+J+z/GGMX8vwbf+T+8gXkBCDZiPrq+9yXgZsAa8Cxo1V8Sj///mf+rhmL+XwOvf9r2f1F/CmWkP+W8xvy/Bj/6/6NU1rj3MK8BwU78hp8CvvywDCAIgjwuV/6zCkcAGgAA"
+        },
+        {
+          "kind": "listCandidates"
+        },
+        {
+          "kind": "import",
+          "archiveBase64": "H4sIAAAAAAAACu2X3WrDIBTHc52n8AXSHmNioG8w1rs9gV2kDUs0RAvr2xe1bIsXCxuY0nJ+N4bjAQ1/z5fox5PYZkkBAOCc+xUA4tV/06quqgqgdHYKdVNnpE57rcDZWDFlAINu5W9+S/sPivD6K23lxn7aNGcs6k9ZpH/JADICaa4zB/U/CeL0z+99FeQOhPh/e33Z7zdDm+aMxfjnTRz/AAzjfw2KosiVGOSO+JeQt9K8T91oO612xP3zze78Qq446PaCueJZOE76PG6VNFa2qdrAv/d/JS059n9rMNM/URlY1L+J+z/GGMX8vwbf+T+8gXkBCDZiPrq+9yXgZsAa8Cxo1V8Sj///mf+rhmL+XwOvf9r2f1F/CmWkP+W8xvy/Bj/6/6NU1rj3MK8BwU78hp8CvvywDCAIgjwuV/6zCkcAGgAA",
+          "overwrite": true
+        }
+      ],
+      "expected": [
+        {
+          "results": [
+            {
+              "name": "alpha",
+              "directoryName": "alpha",
+              "status": "skipped",
+              "path": "<root>/home/.mode/skills/alpha"
+            },
+            {
+              "name": "nested",
+              "directoryName": "group/nested",
+              "status": "skipped",
+              "path": "<root>/home/.agents/skills/nested-other"
+            },
+            {
+              "name": "agentsonly",
+              "directoryName": "only",
+              "status": "synced",
+              "path": "<root>/home/.mode/skills/only"
+            }
+          ]
+        },
+        {
+          "candidates": [
+            {
+              "id": "<sha256>",
+              "name": "alpha",
+              "directoryName": "alpha",
+              "description": "existing alpha",
+              "path": "<root>/home/.mode/skills/alpha/SKILL.md",
+              "sizeBytes": 59
+            },
+            {
+              "id": "<sha256>",
+              "name": "nested",
+              "directoryName": "nested-other",
+              "description": "existing nested name",
+              "path": "<root>/home/.agents/skills/nested-other/SKILL.md",
+              "sizeBytes": 67
+            },
+            {
+              "id": "<sha256>",
+              "name": "agentsonly",
+              "directoryName": "only",
+              "description": "agents only",
+              "path": "<root>/home/.mode/skills/only/SKILL.md",
+              "sizeBytes": 66
+            }
+          ],
+          "maxArchiveBytes": 20971520
+        },
+        {
+          "error": "skill sync overwrite is not supported"
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.agents/skills/nested-other/SKILL.md",
+          "content": "---\nname: nested\ndescription: existing nested name\n---\nnested body\n"
+        },
+        {
+          "path": "home/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: existing alpha\n---\nalpha body\n"
+        },
+        {
+          "path": "home/.mode/skills/only/SKILL.md",
+          "content": "---\nname: agentsonly\ndescription: agents only\n---\nagentsonly body\n"
+        }
+      ]
+    }
+  ]
+}

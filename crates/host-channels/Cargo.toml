@@ -10,13 +10,21 @@ name = "host_channels"
 path = "src/lib.rs"
 
 [dependencies]
+broadcast-service = { path = "../broadcast-service" }
 commands-service = { path = "../commands-service" }
+git-cli = { path = "../git-cli" }
+git-service = { path = "../git-service" }
+git-checkpoint-service = { path = "../git-checkpoint-service" }
 conversation-mirror = { path = "../conversation-mirror" }
 credential-store = { path = "../credential-store" }
 file-service = { path = "../file-service" }
 file-watcher = { path = "../file-watcher" }
 project-memory = { path = "../project-memory" }
 settings-store = { path = "../settings-store" }
+skills-service = { path = "../skills-service" }
+settings-sync-service = { path = "../settings-sync-service" }
+skill-sync-service = { path = "../skill-sync-service" }
+subagents-service = { path = "../subagents-service" }
 system-service = { path = "../system-service" }
 rpc-host = { path = "../rpc-host" }
 rpc-wire = { path = "../rpc-wire" }

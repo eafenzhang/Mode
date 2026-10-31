@@ -261,11 +261,6 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
                       id: "sidebar.settings.locale.zh-CN",
                     })}
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="fa-IR">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.locale.fa-IR",
-                    })}
-                  </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>

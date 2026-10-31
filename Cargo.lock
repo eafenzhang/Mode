@@ -442,6 +442,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "broadcast-service"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "brotli"
 version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1685,6 +1693,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "git-checkpoint-service"
+version = "0.1.0"
+dependencies = [
+ "git-cli",
+ "git-service",
+ "plugin-discovery",
+ "serde",
+ "serde_json",
+ "uuid",
+ "workspace-identity",
+]
+
+[[package]]
+name = "git-cli"
+version = "0.1.0"
+dependencies = [
+ "plugin-discovery",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "git-service"
+version = "0.1.0"
+dependencies = [
+ "git-cli",
+ "plugin-discovery",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "glib"
 version = "0.18.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1871,17 +1911,25 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 name = "host-channels"
 version = "0.1.0"
 dependencies = [
+ "broadcast-service",
  "commands-service",
  "conversation-mirror",
  "credential-store",
  "file-service",
  "file-watcher",
+ "git-checkpoint-service",
+ "git-cli",
+ "git-service",
  "project-memory",
  "rpc-host",
  "rpc-wire",
  "serde",
  "serde_json",
  "settings-store",
+ "settings-sync-service",
+ "skill-sync-service",
+ "skills-service",
+ "subagents-service",
  "system-service",
  "tokio",
 ]
@@ -2436,6 +2484,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "junction"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cfc352a66ba903c23239ef51e809508b6fc2b0f90e3476ac7a9ff47e863ae95"
+dependencies = [
+ "scopeguard",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "keyboard-types"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2593,6 +2651,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcp-sync-service"
+version = "0.1.0"
+dependencies = [
+ "atomic-file",
+ "indexmap 2.14.2",
+ "plugin-discovery",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2669,6 +2739,7 @@ dependencies = [
 name = "mode-tauri"
 version = "0.1.0"
 dependencies = [
+ "broadcast-service",
  "commands-service",
  "conversation-mirror",
  "credential-store",
@@ -2684,7 +2755,11 @@ dependencies = [
  "serde",
  "serde_json",
  "settings-store",
+ "settings-sync-service",
  "sidecar-host",
+ "skill-sync-service",
+ "skills-service",
+ "subagents-service",
  "system-service",
  "tauri",
  "tauri-build",
@@ -3366,6 +3441,13 @@ dependencies = [
  "quick-xml",
  "serde",
  "time",
+]
+
+[[package]]
+name = "plugin-discovery"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
@@ -4301,6 +4383,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "settings-sync-service"
+version = "0.1.0"
+dependencies = [
+ "indexmap 2.14.2",
+ "junction",
+ "plugin-discovery",
+ "serde",
+ "serde_json",
+ "settings-store",
+ "skills-service",
+ "toml 0.8.2",
+]
+
+[[package]]
 name = "sha2"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4377,6 +4473,28 @@ name = "siphasher"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
+
+[[package]]
+name = "skill-sync-service"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "plugin-discovery",
+ "serde",
+ "serde_json",
+ "sha2",
+ "skills-service",
+]
+
+[[package]]
+name = "skills-service"
+version = "0.1.0"
+dependencies = [
+ "plugin-discovery",
+ "serde",
+ "serde_json",
+ "sha2",
+]
 
 [[package]]
 name = "slab"
@@ -4489,6 +4607,16 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
+name = "subagents-service"
+version = "0.1.0"
+dependencies = [
+ "atomic-file",
+ "plugin-discovery",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "subtle"

@@ -13,18 +13,16 @@ import type {
 import { Button } from "@/ui-foundation/adapters/button.js";
 import zhCN from "@/i18n/locales/zh-CN.js";
 import enUS from "@/i18n/locales/en-US.js";
-import faIR from "@/i18n/locales/fa.js";
 
-type SupportedLocale = "zh-CN" | "en-US" | "fa-IR";
+type SupportedLocale = "zh-CN" | "en-US";
 
 const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
   "zh-CN": zhCN,
   "en-US": enUS,
-  "fa-IR": faIR,
 };
 
 function resolveLocale(value: unknown): SupportedLocale {
-  return value === "zh-CN" || value === "en-US" || value === "fa-IR" ? value : "en-US";
+  return value === "zh-CN" || value === "en-US" ? value : "en-US";
 }
 
 function formatBytes(bytes: number | null): string {
@@ -68,7 +66,6 @@ export function DataRootDecisionApp({ bridge }: { bridge: DataRootDecisionBridge
   const locale = resolveLocale(state?.locale);
   useEffect(() => {
     document.documentElement.lang = locale;
-    document.documentElement.dir = locale === "fa-IR" ? "rtl" : "ltr";
   }, [locale]);
 
   const t = useCallback(

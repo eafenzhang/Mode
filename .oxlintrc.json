@@ -73,7 +73,6 @@
     ".agents/skills",
     ".plan",
     ".claude",
-    "packages/formal-proof",
     "apps/mode-cli",
     "docs/electron"
   ]

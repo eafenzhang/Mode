@@ -3,12 +3,11 @@ import type { Locale } from "@mode/shared";
 import { TID_LOCALE_TOGGLE } from "@mode/shared";
 import { useModeIntl } from "./IntlProvider.js";
 
-const LOCALE_CYCLE: Locale[] = ["zh-CN", "en-US", "fa-IR"];
+const LOCALE_CYCLE: Locale[] = ["zh-CN", "en-US"];
 
 const LOCALE_LABELS: Record<Locale, string> = {
   "zh-CN": "中",
   "en-US": "En",
-  "fa-IR": "فا",
 };
 
 /**

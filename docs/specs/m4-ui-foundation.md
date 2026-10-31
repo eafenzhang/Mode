@@ -297,19 +297,16 @@ success/warning/destructive。
 - 断点只改布局/宽度/可见性/密度，不改变组件语义；主操作在所有断点保留；
 - 文本容器加 `min-w-0`，滚动容器加 `min-h-0`；优先 `w-full + max-w-*`。
 
-**实现落点（P1.2 静态骨架）**：`shellStyles.ts` / `AppShell.tsx`——会话/终端/Side Pane
-三个独立 frame、4px 间隔、4px 分隔条命中区（hover/focus/drag 2px 线）与 mobile drawer；
-`AppShell.header` 渲染在会话 frame 内。`headerStyles.ts` / `WorkspaceHeader.tsx` 提供
-标题/副标题/状态/操作槽位（文案由调用方传入，`ms-auto` 适配 RTL）。
-**尺寸换算（2026-10-18）**：`resizeMath.ts`——`clampPanelSize` / `resizeFromPointer` /
-`resizeFromKeyboard`（方向键 ±16px、Home/End 到边界、bounds 归一）/ `pointerDelta`
-（竖向向右为正、横向向上为正）；`ResizeHandle` 在提供 `size`/`bounds`/`onResize` 时支持
-键盘调整并输出 `aria-valuenow/min/max`。`usePanelResize` 负责 pointer capture、拖拽态与
-实时换算（`data-dragging` 交给调用方）。尺寸持久化归调用方的状态层（store/settings），
-组件不自己落盘。**组合（2026-10-19）**：`WorkspaceFrame` 持有 terminal/sidePane 尺寸，
-通过 `PanelResizeBinding` 把 `usePanelResize` 的指针/键盘绑定交给 `AppShell`；
-`panelSizePersistence.ts` 定义 `PanelSizePersistence` 契约（含内存实现与
-`resolveInitialPanelSize` 的 clamp）。
+**实现落点（2026-10-29 现状）**：产品实际使用的 shell 是
+`packages/ui/src/app-shell/WorkspaceShellLayout.tsx`——会话/终端/Side Pane 三个独立
+frame 由 `react-resizable-panels` 承担，尺寸持久化在 `v4/usePaneSessionPersistence.ts`。
+
+P1.2 的静态骨架（`AppShell.tsx` / `WorkspaceHeader.tsx` / `WorkspaceFrame.tsx` /
+`usePanelResize.ts` 及其 barrel `ui-foundation/index.ts`）从未接入产品路径；与之配套的
+纯样式/换算 helper（`shellStyles.ts`、`resizeMath.ts`、`headerStyles.ts`、
+`panelSizePersistence.ts` 等 13 个文件）也只被各自的单测引用，没有产品消费者。
+这两批代码连同 11 个只验证类名字符串的用例已于 2026-10-29 全部删除；本节的布局、拖拽与
+键盘要求以 `WorkspaceShellLayout` 的实现为准，不再维护参考实现。
 
 ## 4. 可访问性与 i18n
 
@@ -336,7 +333,7 @@ success/warning/destructive。
 `packages/ui/src/lib/uiFoundation.ts`（`resolveControlRadius` / `resolveNestedRadius` /
 `findUiTypographyViolations` / `UI_TEXT_TOKENS`），用例
 `packages/ui/test/uiFoundation.test.ts`。Button 的类名契约与 primitive 在
-`packages/ui/src/ui-foundation/`（`buttonStyles.ts` / `Button.tsx` / `index.ts`），
+`packages/ui/src/ui-foundation/`（`buttonStyles.ts` / `Button.tsx`），
 用例 `packages/ui/test/uiFoundationButton.test.ts`。输入类控件在
 `inputStyles.ts` / `Input.tsx` / `Textarea.tsx` / `SelectTrigger.tsx`（半径映射共用
 `radius.ts`），用例 `packages/ui/test/uiFoundationField.test.ts`。Surface 层在

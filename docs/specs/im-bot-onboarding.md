@@ -120,7 +120,7 @@
      `bots.feishuRegistrationTitle/Description/Button` 是当年手填面板被移除后的**遗留孤儿**
      （`packages/ui/src/i18n/locales/*.ts` 中存在但无引用），恢复时直接复用；仅新增
      `bots.feishuCredentialsMissing`、`bots.feishuManualTitle`、`bots.feishuManualDescription`、
-     `bots.feishuSaveManual`、`bots.feishuManualSaved` 五个词条（en-US / zh-CN / fa-IR 同步）。
+     `bots.feishuSaveManual`、`bots.feishuManualSaved` 五个词条（en-US / zh-CN 同步）。
    - 副产物：飞书无凭据时的 `control` 槽位由「扫码按钮」改为「尚未配置凭据」文案，
      与企微分支一致；扫码按钮移入面板内（`bots.feishuRegistrationButton`）。
      原先独立的 `hasActiveFeishuRegistration` 详情分支被该面板吸收后删除，
@@ -153,7 +153,7 @@
      （就绪绿 / 待办灰 / 异常红）。
    - **词条**：状态行按 `bots.onboarding.<段>.<态>` 取文案，共 9 条——
      `credentials.done|pending`、`binding.done|pending`、`activation.done|pending`、
-     `runtime.done|pending|error`（en-US / zh-CN / fa-IR 三语同步）。
+     `runtime.done|pending|error`（en-US / zh-CN 双语同步）。
    - **渲染位置**：`ProviderSettingsCard` 的左侧说明列，紧跟在「关联机器人」说明文字下方；
      右列只保留「移除密钥」操作，不再把状态行和按钮挤在同一列。
      `BotSummaryCard`（侧栏列表项摘要）不改——那里是列表摘要，放不下逐段状态行。
@@ -179,7 +179,7 @@
      `IBotsService.testBot` 在鉴权失败时返回 `{ ok: false, message }`，不会抛错。
      调用方必须读取 `ok`；只看 `await` 会把"凭据错误"误报成"已保存并连接"，
      用户要等到运行时状态异常才发现。
-   - **文案词条**：`bots.credentialsVerifyFailed`（en-US / zh-CN / fa-IR 三语同步）。
+   - **文案词条**：`bots.credentialsVerifyFailed`（en-US / zh-CN 双语同步）。
    - **只覆盖手填路径**（钉钉 / 企微手填 / 飞书手填）：扫码拿到的凭据由平台颁发，
      再探测一次只是多一次网络往返。扫码路径的异常继续由既有的运行时状态呈现。
    - **停用的机器人跳过验证**：`test` 在 `enabled=false` 时会直接返回"… is disabled."，
@@ -255,7 +255,7 @@ UI 只写 `enabled` 并读 `getStatus()`；运行时启停由 services 的 `reco
   `handleOpenTelegramBotFather` 两个处理函数、`TELEGRAM_BOTFATHER_URL` 常量，以及
   `usePlatform`（该文件唯一用途是打开 BotFather 链接）。
 - 清理因此失去引用的词条：`bots.openBotFather`、`bots.telegramBotFatherQrAlt`、
-  `bots.telegramBotFatherScanHint`、`bots.credentialPlaceholder`（en-US / zh-CN / fa-IR 同步）。
+  `bots.telegramBotFatherScanHint`、`bots.credentialPlaceholder`（en-US / zh-CN 同步）。
 - **服务层不动**：telegram 的适配器、运行时与配置 schema 照旧，已有 telegram 配置仍能凭既有凭据
   运行（与 lark / webhook 同属只读兼容），只是不再能通过 UI 编辑凭据。这与「通道保持 4 个」
   一致：产品面收口，数据面不破坏。

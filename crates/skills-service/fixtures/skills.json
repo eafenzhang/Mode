@@ -1,0 +1,1289 @@
+{
+  "cases": [
+    {
+      "name": "workspace-discovery",
+      "desktop": true,
+      "files": [
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: plain description\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/skills/group/nested/SKILL.md",
+          "content": "---\nname: nested\ndescription: |\n  line one\n  line two\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/skills/group/node_modules/pkg/SKILL.md",
+          "content": "---\nname: excluded\ndescription: should not be scanned\n---\nexcluded body\n"
+        },
+        {
+          "path": "ws/.mode/skills/.hidden/SKILL.md",
+          "content": "---\nname: hidden\ndescription: dot directories are skipped\n---\nhidden body\n"
+        },
+        {
+          "path": "ws/.mode/skills/.system/sys/SKILL.md",
+          "content": "---\nname: sys\ndescription: system skill\n---\nsys body\n"
+        },
+        {
+          "path": "ws/.mode/skills/crlf/SKILL.md",
+          "content": "---\r\nname: \"crlf\"\r\ndescription: 'quoted value'\r\n---\r\n\r\ncrlf body\r\n"
+        },
+        {
+          "path": "ws/.mode/skills/crlf/_meta.json",
+          "content": "{\"slug\":\" crlf-slug \",\"version\":\"1.2.3\",\"publishedAt\":1700000000}"
+        },
+        {
+          "path": "ws/.mode/skills/nofm/SKILL.md",
+          "content": "no frontmatter here\n"
+        },
+        {
+          "path": "ws/.mode/skills/leak/SKILL.md",
+          "content": "---\nname: leak\n# Usage\n\nleaked body line\n---\n"
+        },
+        {
+          "path": "ws/.mode/skills/chinese/SKILL.md",
+          "content": "---\nname: chinese\ndescription: 触发场景: 中文说明\n---\nchinese body\n"
+        },
+        {
+          "path": "ws/.mode/skills/toobig/SKILL.md",
+          "content": "---\nname: toobig\ndescription: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n---\ntoobig body\n"
+        },
+        {
+          "path": "ws/.mode/skills/badmeta/SKILL.md",
+          "content": "---\nname: badmeta\ndescription: broken metadata\n---\nbadmeta body\n"
+        },
+        {
+          "path": "ws/.mode/skills/badmeta/_meta.json",
+          "content": "{ not json"
+        },
+        {
+          "path": "ws/.agents/skills/beta/SKILL.md",
+          "content": "---\nname: beta\ndescription: agents workspace skill\n---\nbeta body\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "skills": [
+            {
+              "id": "glm:workspace:alpha:<id-hash>",
+              "name": "alpha",
+              "description": "plain description",
+              "body": "alpha body",
+              "path": "<root>/ws/.mode/skills/alpha/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/alpha/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:badmeta:<id-hash>",
+              "name": "badmeta",
+              "description": "broken metadata",
+              "body": "badmeta body",
+              "path": "<root>/ws/.mode/skills/badmeta/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/badmeta/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:beta:<id-hash>",
+              "name": "beta",
+              "description": "agents workspace skill",
+              "body": "beta body",
+              "path": "<root>/ws/.agents/skills/beta/SKILL.md",
+              "sourcePath": "<root>/ws/.agents/skills/beta/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:chinese:<id-hash>",
+              "name": "chinese",
+              "description": "触发场景: 中文说明",
+              "body": "chinese body",
+              "path": "<root>/ws/.mode/skills/chinese/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/chinese/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:crlf:<id-hash>",
+              "name": "crlf",
+              "description": "quoted value",
+              "body": "crlf body",
+              "path": "<root>/ws/.mode/skills/crlf/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/crlf/SKILL.md",
+              "scope": "workspace",
+              "enabled": true,
+              "metadata": {
+                "slug": "crlf-slug",
+                "version": "1.2.3",
+                "publishedAt": 1700000000
+              }
+            },
+            {
+              "id": "glm:workspace:leak:<id-hash>",
+              "name": "leak",
+              "description": "",
+              "body": "# Usage\n\nleaked body line",
+              "path": "<root>/ws/.mode/skills/leak/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/leak/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:nested:<id-hash>",
+              "name": "nested",
+              "description": "line one\nline two",
+              "body": "nested body",
+              "path": "<root>/ws/.mode/skills/group/nested/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/group/nested/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:nofm:<id-hash>",
+              "name": "nofm",
+              "description": "",
+              "body": "no frontmatter here",
+              "path": "<root>/ws/.mode/skills/nofm/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/nofm/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:sys:<id-hash>",
+              "name": "sys",
+              "description": "system skill",
+              "body": "sys body",
+              "path": "<root>/ws/.mode/skills/.system/sys/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/.system/sys/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": [
+            {
+              "code": "skill_description_too_long",
+              "severity": "error",
+              "message": "Skill description is too long (>1024): toobig",
+              "path": "<root>/ws/.mode/skills/toobig/SKILL.md",
+              "skillName": "toobig"
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "ws/.agents/skills/beta/SKILL.md",
+          "content": "---\nname: beta\ndescription: agents workspace skill\n---\nbeta body\n"
+        },
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/skills/.hidden/SKILL.md",
+          "content": "---\nname: hidden\ndescription: dot directories are skipped\n---\nhidden body\n"
+        },
+        {
+          "path": "ws/.mode/skills/.system/sys/SKILL.md",
+          "content": "---\nname: sys\ndescription: system skill\n---\nsys body\n"
+        },
+        {
+          "path": "ws/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: plain description\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/skills/badmeta/_meta.json",
+          "content": "{ not json"
+        },
+        {
+          "path": "ws/.mode/skills/badmeta/SKILL.md",
+          "content": "---\nname: badmeta\ndescription: broken metadata\n---\nbadmeta body\n"
+        },
+        {
+          "path": "ws/.mode/skills/chinese/SKILL.md",
+          "content": "---\nname: chinese\ndescription: 触发场景: 中文说明\n---\nchinese body\n"
+        },
+        {
+          "path": "ws/.mode/skills/crlf/_meta.json",
+          "content": "{\"slug\":\" crlf-slug \",\"version\":\"1.2.3\",\"publishedAt\":1700000000}"
+        },
+        {
+          "path": "ws/.mode/skills/crlf/SKILL.md",
+          "content": "---\r\nname: \"crlf\"\r\ndescription: 'quoted value'\r\n---\r\n\r\ncrlf body\r\n"
+        },
+        {
+          "path": "ws/.mode/skills/group/nested/SKILL.md",
+          "content": "---\nname: nested\ndescription: |\n  line one\n  line two\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/skills/group/node_modules/pkg/SKILL.md",
+          "content": "---\nname: excluded\ndescription: should not be scanned\n---\nexcluded body\n"
+        },
+        {
+          "path": "ws/.mode/skills/leak/SKILL.md",
+          "content": "---\nname: leak\n# Usage\n\nleaked body line\n---\n"
+        },
+        {
+          "path": "ws/.mode/skills/nofm/SKILL.md",
+          "content": "no frontmatter here\n"
+        },
+        {
+          "path": "ws/.mode/skills/toobig/SKILL.md",
+          "content": "---\nname: toobig\ndescription: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n---\ntoobig body\n"
+        }
+      ]
+    },
+    {
+      "name": "user-scope",
+      "desktop": true,
+      "files": [
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: plain description\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/skills/group/nested/SKILL.md",
+          "content": "---\nname: nested\ndescription: |\n  line one\n  line two\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/skills/group/node_modules/pkg/SKILL.md",
+          "content": "---\nname: excluded\ndescription: should not be scanned\n---\nexcluded body\n"
+        },
+        {
+          "path": "ws/.mode/skills/.hidden/SKILL.md",
+          "content": "---\nname: hidden\ndescription: dot directories are skipped\n---\nhidden body\n"
+        },
+        {
+          "path": "ws/.mode/skills/.system/sys/SKILL.md",
+          "content": "---\nname: sys\ndescription: system skill\n---\nsys body\n"
+        },
+        {
+          "path": "ws/.mode/skills/crlf/SKILL.md",
+          "content": "---\r\nname: \"crlf\"\r\ndescription: 'quoted value'\r\n---\r\n\r\ncrlf body\r\n"
+        },
+        {
+          "path": "ws/.mode/skills/crlf/_meta.json",
+          "content": "{\"slug\":\" crlf-slug \",\"version\":\"1.2.3\",\"publishedAt\":1700000000}"
+        },
+        {
+          "path": "ws/.mode/skills/nofm/SKILL.md",
+          "content": "no frontmatter here\n"
+        },
+        {
+          "path": "ws/.mode/skills/leak/SKILL.md",
+          "content": "---\nname: leak\n# Usage\n\nleaked body line\n---\n"
+        },
+        {
+          "path": "ws/.mode/skills/chinese/SKILL.md",
+          "content": "---\nname: chinese\ndescription: 触发场景: 中文说明\n---\nchinese body\n"
+        },
+        {
+          "path": "ws/.mode/skills/toobig/SKILL.md",
+          "content": "---\nname: toobig\ndescription: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n---\ntoobig body\n"
+        },
+        {
+          "path": "ws/.mode/skills/badmeta/SKILL.md",
+          "content": "---\nname: badmeta\ndescription: broken metadata\n---\nbadmeta body\n"
+        },
+        {
+          "path": "ws/.mode/skills/badmeta/_meta.json",
+          "content": "{ not json"
+        },
+        {
+          "path": "ws/.agents/skills/beta/SKILL.md",
+          "content": "---\nname: beta\ndescription: agents workspace skill\n---\nbeta body\n"
+        },
+        {
+          "path": "home/.mode/skills/dup/SKILL.md",
+          "content": "---\nname: shared\ndescription: user mode skill\n---\nshared body\n"
+        },
+        {
+          "path": "home/.agents/skills/dup2/SKILL.md",
+          "content": "---\nname: shared\ndescription: user agents duplicate\n---\nshared body\n"
+        },
+        {
+          "path": "home/.agents/skills/only/SKILL.md",
+          "content": "---\nname: agentsonly\ndescription: user agents only\n---\nagentsonly body\n"
+        },
+        {
+          "path": "home/.agents/skills/shared/SKILL.md",
+          "content": "---\nname: shared\ndescription: same folder name\n---\nshared body\n"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"theme\": \"dark\",\n  \"skills\": {\n    \"<root>/home/.mode/skills/dup/SKILL.md\": {\n      \"enable\": false\n    }\n  }\n}"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "skills": [
+            {
+              "id": "glm:user:agentsonly:<id-hash>",
+              "name": "agentsonly",
+              "description": "user agents only",
+              "body": "agentsonly body",
+              "path": "<root>/home/.agents/skills/only/SKILL.md",
+              "sourcePath": "<root>/home/.agents/skills/only/SKILL.md",
+              "scope": "user",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:alpha:<id-hash>",
+              "name": "alpha",
+              "description": "plain description",
+              "body": "alpha body",
+              "path": "<root>/ws/.mode/skills/alpha/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/alpha/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:badmeta:<id-hash>",
+              "name": "badmeta",
+              "description": "broken metadata",
+              "body": "badmeta body",
+              "path": "<root>/ws/.mode/skills/badmeta/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/badmeta/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:beta:<id-hash>",
+              "name": "beta",
+              "description": "agents workspace skill",
+              "body": "beta body",
+              "path": "<root>/ws/.agents/skills/beta/SKILL.md",
+              "sourcePath": "<root>/ws/.agents/skills/beta/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:chinese:<id-hash>",
+              "name": "chinese",
+              "description": "触发场景: 中文说明",
+              "body": "chinese body",
+              "path": "<root>/ws/.mode/skills/chinese/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/chinese/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:crlf:<id-hash>",
+              "name": "crlf",
+              "description": "quoted value",
+              "body": "crlf body",
+              "path": "<root>/ws/.mode/skills/crlf/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/crlf/SKILL.md",
+              "scope": "workspace",
+              "enabled": true,
+              "metadata": {
+                "slug": "crlf-slug",
+                "version": "1.2.3",
+                "publishedAt": 1700000000
+              }
+            },
+            {
+              "id": "glm:workspace:leak:<id-hash>",
+              "name": "leak",
+              "description": "",
+              "body": "# Usage\n\nleaked body line",
+              "path": "<root>/ws/.mode/skills/leak/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/leak/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:nested:<id-hash>",
+              "name": "nested",
+              "description": "line one\nline two",
+              "body": "nested body",
+              "path": "<root>/ws/.mode/skills/group/nested/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/group/nested/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:nofm:<id-hash>",
+              "name": "nofm",
+              "description": "",
+              "body": "no frontmatter here",
+              "path": "<root>/ws/.mode/skills/nofm/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/nofm/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:user:shared:<id-hash>",
+              "name": "shared",
+              "description": "user mode skill",
+              "body": "shared body",
+              "path": "<root>/home/.mode/skills/dup/SKILL.md",
+              "sourcePath": "<root>/home/.mode/skills/dup/SKILL.md",
+              "scope": "user",
+              "enabled": false
+            },
+            {
+              "id": "glm:workspace:sys:<id-hash>",
+              "name": "sys",
+              "description": "system skill",
+              "body": "sys body",
+              "path": "<root>/ws/.mode/skills/.system/sys/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/.system/sys/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": [
+            {
+              "code": "skill_description_too_long",
+              "severity": "error",
+              "message": "Skill description is too long (>1024): toobig",
+              "path": "<root>/ws/.mode/skills/toobig/SKILL.md",
+              "skillName": "toobig"
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.agents/skills/dup2/SKILL.md",
+          "content": "---\nname: shared\ndescription: user agents duplicate\n---\nshared body\n"
+        },
+        {
+          "path": "home/.agents/skills/only/SKILL.md",
+          "content": "---\nname: agentsonly\ndescription: user agents only\n---\nagentsonly body\n"
+        },
+        {
+          "path": "home/.agents/skills/shared/SKILL.md",
+          "content": "---\nname: shared\ndescription: same folder name\n---\nshared body\n"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"theme\": \"dark\",\n  \"skills\": {\n    \"<root>/home/.mode/skills/dup/SKILL.md\": {\n      \"enable\": false\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.mode/skills/dup/SKILL.md",
+          "content": "---\nname: shared\ndescription: user mode skill\n---\nshared body\n"
+        },
+        {
+          "path": "ws/.agents/skills/beta/SKILL.md",
+          "content": "---\nname: beta\ndescription: agents workspace skill\n---\nbeta body\n"
+        },
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/skills/.hidden/SKILL.md",
+          "content": "---\nname: hidden\ndescription: dot directories are skipped\n---\nhidden body\n"
+        },
+        {
+          "path": "ws/.mode/skills/.system/sys/SKILL.md",
+          "content": "---\nname: sys\ndescription: system skill\n---\nsys body\n"
+        },
+        {
+          "path": "ws/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: plain description\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/skills/badmeta/_meta.json",
+          "content": "{ not json"
+        },
+        {
+          "path": "ws/.mode/skills/badmeta/SKILL.md",
+          "content": "---\nname: badmeta\ndescription: broken metadata\n---\nbadmeta body\n"
+        },
+        {
+          "path": "ws/.mode/skills/chinese/SKILL.md",
+          "content": "---\nname: chinese\ndescription: 触发场景: 中文说明\n---\nchinese body\n"
+        },
+        {
+          "path": "ws/.mode/skills/crlf/_meta.json",
+          "content": "{\"slug\":\" crlf-slug \",\"version\":\"1.2.3\",\"publishedAt\":1700000000}"
+        },
+        {
+          "path": "ws/.mode/skills/crlf/SKILL.md",
+          "content": "---\r\nname: \"crlf\"\r\ndescription: 'quoted value'\r\n---\r\n\r\ncrlf body\r\n"
+        },
+        {
+          "path": "ws/.mode/skills/group/nested/SKILL.md",
+          "content": "---\nname: nested\ndescription: |\n  line one\n  line two\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/skills/group/node_modules/pkg/SKILL.md",
+          "content": "---\nname: excluded\ndescription: should not be scanned\n---\nexcluded body\n"
+        },
+        {
+          "path": "ws/.mode/skills/leak/SKILL.md",
+          "content": "---\nname: leak\n# Usage\n\nleaked body line\n---\n"
+        },
+        {
+          "path": "ws/.mode/skills/nofm/SKILL.md",
+          "content": "no frontmatter here\n"
+        },
+        {
+          "path": "ws/.mode/skills/toobig/SKILL.md",
+          "content": "---\nname: toobig\ndescription: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n---\ntoobig body\n"
+        }
+      ]
+    },
+    {
+      "name": "user-scope-disabled-runtime",
+      "desktop": false,
+      "files": [
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: plain description\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/skills/group/nested/SKILL.md",
+          "content": "---\nname: nested\ndescription: |\n  line one\n  line two\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/skills/group/node_modules/pkg/SKILL.md",
+          "content": "---\nname: excluded\ndescription: should not be scanned\n---\nexcluded body\n"
+        },
+        {
+          "path": "ws/.mode/skills/.hidden/SKILL.md",
+          "content": "---\nname: hidden\ndescription: dot directories are skipped\n---\nhidden body\n"
+        },
+        {
+          "path": "ws/.mode/skills/.system/sys/SKILL.md",
+          "content": "---\nname: sys\ndescription: system skill\n---\nsys body\n"
+        },
+        {
+          "path": "ws/.mode/skills/crlf/SKILL.md",
+          "content": "---\r\nname: \"crlf\"\r\ndescription: 'quoted value'\r\n---\r\n\r\ncrlf body\r\n"
+        },
+        {
+          "path": "ws/.mode/skills/crlf/_meta.json",
+          "content": "{\"slug\":\" crlf-slug \",\"version\":\"1.2.3\",\"publishedAt\":1700000000}"
+        },
+        {
+          "path": "ws/.mode/skills/nofm/SKILL.md",
+          "content": "no frontmatter here\n"
+        },
+        {
+          "path": "ws/.mode/skills/leak/SKILL.md",
+          "content": "---\nname: leak\n# Usage\n\nleaked body line\n---\n"
+        },
+        {
+          "path": "ws/.mode/skills/chinese/SKILL.md",
+          "content": "---\nname: chinese\ndescription: 触发场景: 中文说明\n---\nchinese body\n"
+        },
+        {
+          "path": "ws/.mode/skills/toobig/SKILL.md",
+          "content": "---\nname: toobig\ndescription: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n---\ntoobig body\n"
+        },
+        {
+          "path": "ws/.mode/skills/badmeta/SKILL.md",
+          "content": "---\nname: badmeta\ndescription: broken metadata\n---\nbadmeta body\n"
+        },
+        {
+          "path": "ws/.mode/skills/badmeta/_meta.json",
+          "content": "{ not json"
+        },
+        {
+          "path": "ws/.agents/skills/beta/SKILL.md",
+          "content": "---\nname: beta\ndescription: agents workspace skill\n---\nbeta body\n"
+        },
+        {
+          "path": "home/.mode/skills/dup/SKILL.md",
+          "content": "---\nname: shared\ndescription: user mode skill\n---\nshared body\n"
+        },
+        {
+          "path": "home/.agents/skills/dup2/SKILL.md",
+          "content": "---\nname: shared\ndescription: user agents duplicate\n---\nshared body\n"
+        },
+        {
+          "path": "home/.agents/skills/only/SKILL.md",
+          "content": "---\nname: agentsonly\ndescription: user agents only\n---\nagentsonly body\n"
+        },
+        {
+          "path": "home/.agents/skills/shared/SKILL.md",
+          "content": "---\nname: shared\ndescription: same folder name\n---\nshared body\n"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"theme\": \"dark\",\n  \"skills\": {\n    \"<root>/home/.mode/skills/dup/SKILL.md\": {\n      \"enable\": false\n    }\n  }\n}"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "skills": [
+            {
+              "id": "glm:workspace:alpha:<id-hash>",
+              "name": "alpha",
+              "description": "plain description",
+              "body": "alpha body",
+              "path": "<root>/ws/.mode/skills/alpha/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/alpha/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:badmeta:<id-hash>",
+              "name": "badmeta",
+              "description": "broken metadata",
+              "body": "badmeta body",
+              "path": "<root>/ws/.mode/skills/badmeta/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/badmeta/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:beta:<id-hash>",
+              "name": "beta",
+              "description": "agents workspace skill",
+              "body": "beta body",
+              "path": "<root>/ws/.agents/skills/beta/SKILL.md",
+              "sourcePath": "<root>/ws/.agents/skills/beta/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:chinese:<id-hash>",
+              "name": "chinese",
+              "description": "触发场景: 中文说明",
+              "body": "chinese body",
+              "path": "<root>/ws/.mode/skills/chinese/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/chinese/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:crlf:<id-hash>",
+              "name": "crlf",
+              "description": "quoted value",
+              "body": "crlf body",
+              "path": "<root>/ws/.mode/skills/crlf/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/crlf/SKILL.md",
+              "scope": "workspace",
+              "enabled": true,
+              "metadata": {
+                "slug": "crlf-slug",
+                "version": "1.2.3",
+                "publishedAt": 1700000000
+              }
+            },
+            {
+              "id": "glm:workspace:leak:<id-hash>",
+              "name": "leak",
+              "description": "",
+              "body": "# Usage\n\nleaked body line",
+              "path": "<root>/ws/.mode/skills/leak/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/leak/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:nested:<id-hash>",
+              "name": "nested",
+              "description": "line one\nline two",
+              "body": "nested body",
+              "path": "<root>/ws/.mode/skills/group/nested/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/group/nested/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:nofm:<id-hash>",
+              "name": "nofm",
+              "description": "",
+              "body": "no frontmatter here",
+              "path": "<root>/ws/.mode/skills/nofm/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/nofm/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:sys:<id-hash>",
+              "name": "sys",
+              "description": "system skill",
+              "body": "sys body",
+              "path": "<root>/ws/.mode/skills/.system/sys/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/.system/sys/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": false,
+            "userScopeReason": "desktop_only"
+          },
+          "diagnostics": [
+            {
+              "code": "skill_description_too_long",
+              "severity": "error",
+              "message": "Skill description is too long (>1024): toobig",
+              "path": "<root>/ws/.mode/skills/toobig/SKILL.md",
+              "skillName": "toobig"
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.agents/skills/dup2/SKILL.md",
+          "content": "---\nname: shared\ndescription: user agents duplicate\n---\nshared body\n"
+        },
+        {
+          "path": "home/.agents/skills/only/SKILL.md",
+          "content": "---\nname: agentsonly\ndescription: user agents only\n---\nagentsonly body\n"
+        },
+        {
+          "path": "home/.agents/skills/shared/SKILL.md",
+          "content": "---\nname: shared\ndescription: same folder name\n---\nshared body\n"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"theme\": \"dark\",\n  \"skills\": {\n    \"<root>/home/.mode/skills/dup/SKILL.md\": {\n      \"enable\": false\n    }\n  }\n}"
+        },
+        {
+          "path": "home/.mode/skills/dup/SKILL.md",
+          "content": "---\nname: shared\ndescription: user mode skill\n---\nshared body\n"
+        },
+        {
+          "path": "ws/.agents/skills/beta/SKILL.md",
+          "content": "---\nname: beta\ndescription: agents workspace skill\n---\nbeta body\n"
+        },
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/skills/.hidden/SKILL.md",
+          "content": "---\nname: hidden\ndescription: dot directories are skipped\n---\nhidden body\n"
+        },
+        {
+          "path": "ws/.mode/skills/.system/sys/SKILL.md",
+          "content": "---\nname: sys\ndescription: system skill\n---\nsys body\n"
+        },
+        {
+          "path": "ws/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: plain description\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/skills/badmeta/_meta.json",
+          "content": "{ not json"
+        },
+        {
+          "path": "ws/.mode/skills/badmeta/SKILL.md",
+          "content": "---\nname: badmeta\ndescription: broken metadata\n---\nbadmeta body\n"
+        },
+        {
+          "path": "ws/.mode/skills/chinese/SKILL.md",
+          "content": "---\nname: chinese\ndescription: 触发场景: 中文说明\n---\nchinese body\n"
+        },
+        {
+          "path": "ws/.mode/skills/crlf/_meta.json",
+          "content": "{\"slug\":\" crlf-slug \",\"version\":\"1.2.3\",\"publishedAt\":1700000000}"
+        },
+        {
+          "path": "ws/.mode/skills/crlf/SKILL.md",
+          "content": "---\r\nname: \"crlf\"\r\ndescription: 'quoted value'\r\n---\r\n\r\ncrlf body\r\n"
+        },
+        {
+          "path": "ws/.mode/skills/group/nested/SKILL.md",
+          "content": "---\nname: nested\ndescription: |\n  line one\n  line two\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/skills/group/node_modules/pkg/SKILL.md",
+          "content": "---\nname: excluded\ndescription: should not be scanned\n---\nexcluded body\n"
+        },
+        {
+          "path": "ws/.mode/skills/leak/SKILL.md",
+          "content": "---\nname: leak\n# Usage\n\nleaked body line\n---\n"
+        },
+        {
+          "path": "ws/.mode/skills/nofm/SKILL.md",
+          "content": "no frontmatter here\n"
+        },
+        {
+          "path": "ws/.mode/skills/toobig/SKILL.md",
+          "content": "---\nname: toobig\ndescription: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n---\ntoobig body\n"
+        }
+      ]
+    },
+    {
+      "name": "plugin-roots",
+      "desktop": true,
+      "files": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"plugins\": {\n    \"dirs\": [\n      \"<root>/home/.mode/cli/plugins-inline\"\n    ],\n    \"enabled\": true,\n    \"enabledPlugins\": {\n      \"plug-b@inline\": false,\n      \"plug-c@zcode-plugins-official\": true\n    },\n    \"suppressedBuiltins\": [\n      \"builtin-x@zcode-plugins-official\"\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-a/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"plug-a\",\"skills\":\"skills\"}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-a/skills/one/SKILL.md",
+          "content": "---\nname: one\ndescription: inline plugin skill\n---\none body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-a/skills/escape/SKILL.md",
+          "content": "---\nname: escape\ndescription: not part of the configured root\n---\nescape body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-b/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"plug-b\"}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-b/skills/two/SKILL.md",
+          "content": "---\nname: two\ndescription: disabled plugin skill\n---\ntwo body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-bad/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"Plug-Bad\"}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-bad/skills/three/SKILL.md",
+          "content": "---\nname: three\ndescription: invalid plugin name\n---\nthree body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins/cache/mode-plugins-official/builtin-y/1.0.0/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"builtin-y\",\"skills\":[\"skills\"]}"
+        },
+        {
+          "path": "home/.mode/cli/plugins/cache/mode-plugins-official/builtin-y/1.0.0/skills/four/SKILL.md",
+          "content": "---\nname: four\ndescription: official cache skill\n---\nfour body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins/cache/mode-plugins-official/builtin-y/2.0.0/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"builtin-y\",\"skills\":[\"skills\"]}"
+        },
+        {
+          "path": "home/.mode/cli/plugins/cache/mode-plugins-official/builtin-y/2.0.0/skills/five/SKILL.md",
+          "content": "---\nname: five\ndescription: newer version skill\n---\nfive body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins/cache/mode-plugins-official/builtin-x/1.0.0/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"builtin-x\",\"skills\":[\"skills\"]}"
+        },
+        {
+          "path": "home/.mode/cli/plugins/cache/mode-plugins-official/builtin-x/1.0.0/skills/six/SKILL.md",
+          "content": "---\nname: six\ndescription: suppressed builtin\n---\nsix body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins/installed_plugins.json",
+          "content": "{\"plugins\":[{\"id\":\"claude-z@zcode-plugins-official\",\"marketplace\":\"zcode-plugins-official\",\"installPath\":\"<root>/home/installed/claude-z\"},{\"id\":\"relative\",\"marketplace\":\"inline\",\"installPath\":\"relative/path\"}]}"
+        },
+        {
+          "path": "home/installed/claude-z/.claude-plugin/plugin.json",
+          "content": "{\"name\":\"claude-z\",\"skills\":\"skills\"}"
+        },
+        {
+          "path": "home/installed/claude-z/skills/seven/SKILL.md",
+          "content": "---\nname: seven\ndescription: installed marketplace skill\n---\nseven body\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "deleteSkill",
+          "name": "one"
+        }
+      ],
+      "expected": [
+        {
+          "skills": [],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": []
+        },
+        {
+          "error": "skill not found by name: one"
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"plugins\": {\n    \"dirs\": [\n      \"<root>/home/.mode/cli/plugins-inline\"\n    ],\n    \"enabled\": true,\n    \"enabledPlugins\": {\n      \"plug-b@inline\": false,\n      \"plug-c@zcode-plugins-official\": true\n    },\n    \"suppressedBuiltins\": [\n      \"builtin-x@zcode-plugins-official\"\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-a/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"plug-a\",\"skills\":\"skills\"}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-a/skills/escape/SKILL.md",
+          "content": "---\nname: escape\ndescription: not part of the configured root\n---\nescape body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-a/skills/one/SKILL.md",
+          "content": "---\nname: one\ndescription: inline plugin skill\n---\none body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-b/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"plug-b\"}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-b/skills/two/SKILL.md",
+          "content": "---\nname: two\ndescription: disabled plugin skill\n---\ntwo body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-bad/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"Plug-Bad\"}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-bad/skills/three/SKILL.md",
+          "content": "---\nname: three\ndescription: invalid plugin name\n---\nthree body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins/cache/mode-plugins-official/builtin-x/1.0.0/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"builtin-x\",\"skills\":[\"skills\"]}"
+        },
+        {
+          "path": "home/.mode/cli/plugins/cache/mode-plugins-official/builtin-x/1.0.0/skills/six/SKILL.md",
+          "content": "---\nname: six\ndescription: suppressed builtin\n---\nsix body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins/cache/mode-plugins-official/builtin-y/1.0.0/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"builtin-y\",\"skills\":[\"skills\"]}"
+        },
+        {
+          "path": "home/.mode/cli/plugins/cache/mode-plugins-official/builtin-y/1.0.0/skills/four/SKILL.md",
+          "content": "---\nname: four\ndescription: official cache skill\n---\nfour body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins/cache/mode-plugins-official/builtin-y/2.0.0/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"builtin-y\",\"skills\":[\"skills\"]}"
+        },
+        {
+          "path": "home/.mode/cli/plugins/cache/mode-plugins-official/builtin-y/2.0.0/skills/five/SKILL.md",
+          "content": "---\nname: five\ndescription: newer version skill\n---\nfive body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins/installed_plugins.json",
+          "content": "{\"plugins\":[{\"id\":\"claude-z@zcode-plugins-official\",\"marketplace\":\"zcode-plugins-official\",\"installPath\":\"<root>/home/installed/claude-z\"},{\"id\":\"relative\",\"marketplace\":\"inline\",\"installPath\":\"relative/path\"}]}"
+        },
+        {
+          "path": "home/installed/claude-z/.claude-plugin/plugin.json",
+          "content": "{\"name\":\"claude-z\",\"skills\":\"skills\"}"
+        },
+        {
+          "path": "home/installed/claude-z/skills/seven/SKILL.md",
+          "content": "---\nname: seven\ndescription: installed marketplace skill\n---\nseven body\n"
+        }
+      ]
+    },
+    {
+      "name": "mutations",
+      "desktop": true,
+      "files": [
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: workspace alpha\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/skills/hard/SKILL.md",
+          "content": "---\nname: hard\ndescription: workspace deletable\n---\nhard body\n"
+        },
+        {
+          "path": "ws/.agents/skills/beta/SKILL.md",
+          "content": "---\nname: beta\ndescription: workspace agents beta\n---\nbeta body\n"
+        },
+        {
+          "path": "home/.mode/skills/userone/SKILL.md",
+          "content": "---\nname: userone\ndescription: user common skill\n---\nuserone body\n"
+        },
+        {
+          "path": "home/.agents/skills/agentone/SKILL.md",
+          "content": "---\nname: agentone\ndescription: agents skill\n---\nagentone body\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "setEnabled",
+          "name": "alpha",
+          "enabled": false
+        },
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "buildPromptContext",
+          "prompt": "please use $alpha and $userone"
+        },
+        {
+          "kind": "copyToCommon",
+          "name": "agentone"
+        },
+        {
+          "kind": "removeFromCommon",
+          "name": "userone"
+        },
+        {
+          "kind": "deleteSkill",
+          "name": "hard"
+        },
+        {
+          "kind": "removeFromCommon",
+          "name": "beta"
+        },
+        {
+          "kind": "setEnabled",
+          "skillId": "glm:user:ghost:000000000000",
+          "enabled": true
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "skills": [
+            {
+              "id": "glm:user:agentone:<id-hash>",
+              "name": "agentone",
+              "description": "agents skill",
+              "body": "agentone body",
+              "path": "<root>/home/.agents/skills/agentone/SKILL.md",
+              "sourcePath": "<root>/home/.agents/skills/agentone/SKILL.md",
+              "scope": "user",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:alpha:<id-hash>",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "body": "alpha body",
+              "path": "<root>/ws/.mode/skills/alpha/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/alpha/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:beta:<id-hash>",
+              "name": "beta",
+              "description": "workspace agents beta",
+              "body": "beta body",
+              "path": "<root>/ws/.agents/skills/beta/SKILL.md",
+              "sourcePath": "<root>/ws/.agents/skills/beta/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:hard:<id-hash>",
+              "name": "hard",
+              "description": "workspace deletable",
+              "body": "hard body",
+              "path": "<root>/ws/.mode/skills/hard/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/hard/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:user:userone:<id-hash>",
+              "name": "userone",
+              "description": "user common skill",
+              "body": "userone body",
+              "path": "<root>/home/.mode/skills/userone/SKILL.md",
+              "sourcePath": "<root>/home/.mode/skills/userone/SKILL.md",
+              "scope": "user",
+              "enabled": true
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": []
+        },
+        {
+          "ok": true
+        },
+        {
+          "skills": [
+            {
+              "id": "glm:user:agentone:<id-hash>",
+              "name": "agentone",
+              "description": "agents skill",
+              "body": "agentone body",
+              "path": "<root>/home/.agents/skills/agentone/SKILL.md",
+              "sourcePath": "<root>/home/.agents/skills/agentone/SKILL.md",
+              "scope": "user",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:alpha:<id-hash>",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "body": "alpha body",
+              "path": "<root>/ws/.mode/skills/alpha/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/alpha/SKILL.md",
+              "scope": "workspace",
+              "enabled": false
+            },
+            {
+              "id": "glm:workspace:beta:<id-hash>",
+              "name": "beta",
+              "description": "workspace agents beta",
+              "body": "beta body",
+              "path": "<root>/ws/.agents/skills/beta/SKILL.md",
+              "sourcePath": "<root>/ws/.agents/skills/beta/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:hard:<id-hash>",
+              "name": "hard",
+              "description": "workspace deletable",
+              "body": "hard body",
+              "path": "<root>/ws/.mode/skills/hard/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/hard/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            },
+            {
+              "id": "glm:user:userone:<id-hash>",
+              "name": "userone",
+              "description": "user common skill",
+              "body": "userone body",
+              "path": "<root>/home/.mode/skills/userone/SKILL.md",
+              "sourcePath": "<root>/home/.mode/skills/userone/SKILL.md",
+              "scope": "user",
+              "enabled": true
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": []
+        },
+        {
+          "prompt": "please use $alpha and $userone\n\n<available_skills>\n<activated_skill name=\"userone\" path=\"<root>/home/.mode/skills/userone/SKILL.md\">\nuserone body\n</activated_skill>\n</available_skills>",
+          "activatedSkillNames": [
+            "userone"
+          ]
+        },
+        {
+          "newPath": "<root>/home/.mode/skills/agentone/SKILL.md"
+        },
+        {
+          "ok": true
+        },
+        {
+          "ok": true
+        },
+        {
+          "error": "该技能不在通用目录中"
+        },
+        {
+          "error": "Skill not found: glm:user:ghost:000000000000"
+        },
+        {
+          "skills": [
+            {
+              "id": "glm:user:agentone:<id-hash>",
+              "name": "agentone",
+              "description": "agents skill",
+              "body": "agentone body",
+              "path": "<root>/home/.mode/skills/agentone/SKILL.md",
+              "sourcePath": "<root>/home/.mode/skills/agentone/SKILL.md",
+              "scope": "user",
+              "enabled": true
+            },
+            {
+              "id": "glm:workspace:alpha:<id-hash>",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "body": "alpha body",
+              "path": "<root>/ws/.mode/skills/alpha/SKILL.md",
+              "sourcePath": "<root>/ws/.mode/skills/alpha/SKILL.md",
+              "scope": "workspace",
+              "enabled": false
+            },
+            {
+              "id": "glm:workspace:beta:<id-hash>",
+              "name": "beta",
+              "description": "workspace agents beta",
+              "body": "beta body",
+              "path": "<root>/ws/.agents/skills/beta/SKILL.md",
+              "sourcePath": "<root>/ws/.agents/skills/beta/SKILL.md",
+              "scope": "workspace",
+              "enabled": true
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": []
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.agents/skills/agentone/SKILL.md",
+          "content": "---\nname: agentone\ndescription: agents skill\n---\nagentone body\n"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"skills\": {\n    \"<root>/ws/.mode/skills/alpha/SKILL.md\": {\n      \"enable\": false\n    }\n  }\n}\n"
+        },
+        {
+          "path": "home/.mode/skills/agentone/SKILL.md",
+          "content": "---\nname: agentone\ndescription: agents skill\n---\nagentone body\n"
+        },
+        {
+          "path": "home/.mode/v2/skills-audit.log",
+          "content": "{\"activatedSkillNames\":[\"userone\"],\"createdAt\":\"<ts>\",\"workspaceIdentity\":null,\"workspacePath\":\"<root>/ws\"}"
+        },
+        {
+          "path": "ws/.agents/skills/beta/SKILL.md",
+          "content": "---\nname: beta\ndescription: workspace agents beta\n---\nbeta body\n"
+        },
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/skills/alpha/SKILL.md",
+          "content": "---\nname: alpha\ndescription: workspace alpha\n---\nalpha body\n"
+        }
+      ]
+    }
+  ]
+}

@@ -320,34 +320,7 @@ fn to_json(value: &Value) -> serde_json::Value {
         Value::Int(number) => serde_json::Value::from(*number),
         Value::Array(items) => serde_json::Value::Array(items.iter().map(to_json).collect()),
         Value::Json(text) => serde_json::from_str(text).unwrap_or(serde_json::Value::Null),
-        Value::Bytes(bytes) | Value::Buffer(bytes) => serde_json::json!({
-            "__mode_rpc_nested_uint8array_v1": true,
-            "base64": base64_encode(bytes),
-        }),
+        Value::Bytes(bytes) | Value::Buffer(bytes) => rpc_wire::nested_bytes::to_marker(bytes),
     }
 }
 
-fn base64_encode(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let b0 = chunk[0] as u32;
-        let b1 = *chunk.get(1).unwrap_or(&0) as u32;
-        let b2 = *chunk.get(2).unwrap_or(&0) as u32;
-        let triple = (b0 << 16) | (b1 << 8) | b2;
-        out.push(ALPHABET[((triple >> 18) & 0x3f) as usize] as char);
-        out.push(ALPHABET[((triple >> 12) & 0x3f) as usize] as char);
-        out.push(if chunk.len() > 1 {
-            ALPHABET[((triple >> 6) & 0x3f) as usize] as char
-        } else {
-            '='
-        });
-        out.push(if chunk.len() > 2 {
-            ALPHABET[(triple & 0x3f) as usize] as char
-        } else {
-            '='
-        });
-    }
-    out
-}

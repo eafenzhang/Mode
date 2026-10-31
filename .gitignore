@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-types/
 # zcode-server-cli 发行包 staging 输出，本地组装产物不入库。
 dist-release/
 # macOS CI 按架构隔离 electron-builder 输出目录，这些仍是构建产物。
@@ -104,3 +105,5 @@ apps/desktop-tauri/dist-host-sidecar/
 
 # Mode Cloud 部署配置（含 enrollment / relay secret；安装或构建时生成，不提交）
 cloud-deployment.json
+# Mode Cloud 设备令牌加密密钥（数据目录自动生成，勿提交）
+cloud-db.key

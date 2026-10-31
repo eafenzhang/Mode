@@ -18,7 +18,6 @@ import {
 } from "../src/ChatEmptyScratchWorkspaceDialog.js";
 import { ModeIntlProvider } from "../src/i18n/IntlProvider.js";
 import enUS from "../src/i18n/locales/en-US.js";
-import faIR from "../src/i18n/locales/fa.js";
 import zhCN from "../src/i18n/locales/zh-CN.js";
 
 const read = (relativePath: string): string =>
@@ -105,7 +104,7 @@ test("对话框渲染名称、位置与操作按钮（zh-CN）", () => {
   assert.match(html, /取消/);
 });
 
-test("三套 locale 都有创建工作区文案", () => {
+test("两套 locale 都有创建工作区文案", () => {
   const keys = [
     "chat.empty.createWorkspace.title",
     "chat.empty.createWorkspace.description",
@@ -120,7 +119,6 @@ test("三套 locale 都有创建工作区文案", () => {
   for (const [localeName, messages] of [
     ["zh-CN", zhCN],
     ["en-US", enUS],
-    ["fa-IR", faIR],
   ] as const) {
     for (const key of keys) {
       assert.equal(

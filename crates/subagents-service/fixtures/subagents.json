@@ -1,0 +1,2747 @@
+{
+  "cases": [
+    {
+      "name": "list-basic",
+      "desktop": true,
+      "files": [
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/agents/alpha.md",
+          "content": "---\nname: \"alpha\"\ndescription: \"workspace alpha\"\nmodel: glm/GLM-4.7\nthoughtLevel: high\ntools: Read, Grep\nmaxTurns: 3\nbackground: true\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/agents/group/nested.md",
+          "content": "---\nname: \"nested\"\ndescription: \"nested agent\"\nmcpServers:\n  - name: fs\n    command: npx\n    args:\n      - -y\n      - pkg\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/agents/notes.txt",
+          "content": "not an agent\n"
+        },
+        {
+          "path": "home/.mode/agents/userone.md",
+          "content": "---\nname: \"userone\"\ndescription: \"user agent\"\n---\nuser body\n"
+        },
+        {
+          "path": "home/.mode/agents/broken.md",
+          "content": "---\nname: broken\n---\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "userAgents": [
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "pluginAgents": [],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": [
+            {
+              "code": "agent_missing_required_frontmatter",
+              "message": "Agent frontmatter must include description: <root>/home/.mode/agents/broken.md",
+              "path": "<root>/home/.mode/agents/broken.md"
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/agents/broken.md",
+          "content": "---\nname: broken\n---\n"
+        },
+        {
+          "path": "home/.mode/agents/userone.md",
+          "content": "---\nname: \"userone\"\ndescription: \"user agent\"\n---\nuser body\n"
+        },
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/agents/alpha.md",
+          "content": "---\nname: \"alpha\"\ndescription: \"workspace alpha\"\nmodel: glm/GLM-4.7\nthoughtLevel: high\ntools: Read, Grep\nmaxTurns: 3\nbackground: true\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/agents/group/nested.md",
+          "content": "---\nname: \"nested\"\ndescription: \"nested agent\"\nmcpServers:\n  - name: fs\n    command: npx\n    args:\n      - -y\n      - pkg\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/agents/notes.txt",
+          "content": "not an agent\n"
+        }
+      ]
+    },
+    {
+      "name": "list-cli",
+      "desktop": false,
+      "files": [
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/agents/alpha.md",
+          "content": "---\nname: \"alpha\"\ndescription: \"workspace alpha\"\nmodel: glm/GLM-4.7\nthoughtLevel: high\ntools: Read, Grep\nmaxTurns: 3\nbackground: true\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/agents/group/nested.md",
+          "content": "---\nname: \"nested\"\ndescription: \"nested agent\"\nmcpServers:\n  - name: fs\n    command: npx\n    args:\n      - -y\n      - pkg\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/agents/notes.txt",
+          "content": "not an agent\n"
+        },
+        {
+          "path": "home/.mode/agents/userone.md",
+          "content": "---\nname: \"userone\"\ndescription: \"user agent\"\n---\nuser body\n"
+        },
+        {
+          "path": "home/.mode/agents/broken.md",
+          "content": "---\nname: broken\n---\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "userAgents": [
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "pluginAgents": [],
+          "capability": {
+            "userScopeAvailable": false,
+            "userScopeReason": "desktop_only"
+          },
+          "diagnostics": []
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/agents/broken.md",
+          "content": "---\nname: broken\n---\n"
+        },
+        {
+          "path": "home/.mode/agents/userone.md",
+          "content": "---\nname: \"userone\"\ndescription: \"user agent\"\n---\nuser body\n"
+        },
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/agents/alpha.md",
+          "content": "---\nname: \"alpha\"\ndescription: \"workspace alpha\"\nmodel: glm/GLM-4.7\nthoughtLevel: high\ntools: Read, Grep\nmaxTurns: 3\nbackground: true\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/agents/group/nested.md",
+          "content": "---\nname: \"nested\"\ndescription: \"nested agent\"\nmcpServers:\n  - name: fs\n    command: npx\n    args:\n      - -y\n      - pkg\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/agents/notes.txt",
+          "content": "not an agent\n"
+        }
+      ]
+    },
+    {
+      "name": "settings-user-only",
+      "desktop": true,
+      "files": [
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/agents/alpha.md",
+          "content": "---\nname: \"alpha\"\ndescription: \"workspace alpha\"\nmodel: glm/GLM-4.7\nthoughtLevel: high\ntools: Read, Grep\nmaxTurns: 3\nbackground: true\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/agents/group/nested.md",
+          "content": "---\nname: \"nested\"\ndescription: \"nested agent\"\nmcpServers:\n  - name: fs\n    command: npx\n    args:\n      - -y\n      - pkg\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/agents/notes.txt",
+          "content": "not an agent\n"
+        },
+        {
+          "path": "home/.mode/agents/userone.md",
+          "content": "---\nname: \"userone\"\ndescription: \"user agent\"\n---\nuser body\n"
+        },
+        {
+          "path": "home/.mode/agents/broken.md",
+          "content": "---\nname: broken\n---\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "list",
+          "mode": "settingsUserOnly"
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            }
+          ],
+          "userAgents": [
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            }
+          ],
+          "pluginAgents": [],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": [
+            {
+              "code": "agent_missing_required_frontmatter",
+              "message": "Agent frontmatter must include description: <root>/home/.mode/agents/broken.md",
+              "path": "<root>/home/.mode/agents/broken.md"
+            }
+          ]
+        },
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "userAgents": [
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "pluginAgents": [],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": [
+            {
+              "code": "agent_missing_required_frontmatter",
+              "message": "Agent frontmatter must include description: <root>/home/.mode/agents/broken.md",
+              "path": "<root>/home/.mode/agents/broken.md"
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/agents/broken.md",
+          "content": "---\nname: broken\n---\n"
+        },
+        {
+          "path": "home/.mode/agents/userone.md",
+          "content": "---\nname: \"userone\"\ndescription: \"user agent\"\n---\nuser body\n"
+        },
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/agents/alpha.md",
+          "content": "---\nname: \"alpha\"\ndescription: \"workspace alpha\"\nmodel: glm/GLM-4.7\nthoughtLevel: high\ntools: Read, Grep\nmaxTurns: 3\nbackground: true\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/agents/group/nested.md",
+          "content": "---\nname: \"nested\"\ndescription: \"nested agent\"\nmcpServers:\n  - name: fs\n    command: npx\n    args:\n      - -y\n      - pkg\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/agents/notes.txt",
+          "content": "not an agent\n"
+        }
+      ]
+    },
+    {
+      "name": "state-mutations",
+      "desktop": true,
+      "files": [
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/agents/alpha.md",
+          "content": "---\nname: \"alpha\"\ndescription: \"workspace alpha\"\nmodel: glm/GLM-4.7\nthoughtLevel: high\ntools: Read, Grep\nmaxTurns: 3\nbackground: true\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/agents/group/nested.md",
+          "content": "---\nname: \"nested\"\ndescription: \"nested agent\"\nmcpServers:\n  - name: fs\n    command: npx\n    args:\n      - -y\n      - pkg\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/agents/notes.txt",
+          "content": "not an agent\n"
+        },
+        {
+          "path": "home/.mode/agents/userone.md",
+          "content": "---\nname: \"userone\"\ndescription: \"user agent\"\n---\nuser body\n"
+        },
+        {
+          "path": "home/.mode/agents/broken.md",
+          "content": "---\nname: broken\n---\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "setEnabled",
+          "resolveName": "userone",
+          "enabled": false
+        },
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "setEnabled",
+          "resolveName": "userone",
+          "enabled": true
+        },
+        {
+          "kind": "setBuiltInModelOverride",
+          "agentName": "general-purpose",
+          "modelSelection": {
+            "providerId": "glm",
+            "modelId": "GLM-5",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          }
+        },
+        {
+          "kind": "setBuiltInModelOverride",
+          "agentName": "Explore",
+          "modelSelection": {
+            "providerId": "zai-api",
+            "modelId": "GLM-4.7"
+          }
+        },
+        {
+          "kind": "setPluginAgentModelOverride",
+          "agentId": "plugin:plug@inline:helper",
+          "modelSelection": {
+            "providerId": "glm",
+            "modelId": "GLM-5"
+          }
+        },
+        {
+          "kind": "setPluginAgentModelOverride",
+          "agentId": "not-a-plugin-id"
+        },
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "setBuiltInModelOverride",
+          "agentName": "general-purpose"
+        },
+        {
+          "kind": "setPluginAgentModelOverride",
+          "agentId": "plugin:plug@inline:helper"
+        },
+        {
+          "kind": "getPrimaryUserAgentsDirectory"
+        }
+      ],
+      "expected": [
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "userAgents": [
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "pluginAgents": [],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": [
+            {
+              "code": "agent_missing_required_frontmatter",
+              "message": "Agent frontmatter must include description: <root>/home/.mode/agents/broken.md",
+              "path": "<root>/home/.mode/agents/broken.md"
+            }
+          ]
+        },
+        {
+          "ok": true
+        },
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": false,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "userAgents": [
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": false,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "pluginAgents": [],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": [
+            {
+              "code": "agent_missing_required_frontmatter",
+              "message": "Agent frontmatter must include description: <root>/home/.mode/agents/broken.md",
+              "path": "<root>/home/.mode/agents/broken.md"
+            }
+          ]
+        },
+        {
+          "ok": true
+        },
+        {
+          "ok": true
+        },
+        {
+          "ok": true
+        },
+        {
+          "ok": true
+        },
+        {
+          "error": "无效插件 Subagent 身份"
+        },
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-5",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "modelSelectionOverride": {
+                "providerId": "glm",
+                "modelId": "GLM-5",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "modelSelection": {
+                "providerId": "zai-api",
+                "modelId": "GLM-4.7"
+              },
+              "modelSelectionOverride": {
+                "providerId": "zai-api",
+                "modelId": "GLM-4.7"
+              },
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "userAgents": [
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "pluginAgents": [],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": [
+            {
+              "code": "agent_missing_required_frontmatter",
+              "message": "Agent frontmatter must include description: <root>/home/.mode/agents/broken.md",
+              "path": "<root>/home/.mode/agents/broken.md"
+            }
+          ]
+        },
+        {
+          "ok": true
+        },
+        {
+          "ok": true
+        },
+        {
+          "path": "<root>/home/.mode/agents"
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/agents/broken.md",
+          "content": "---\nname: broken\n---\n"
+        },
+        {
+          "path": "home/.mode/agents/userone.md",
+          "content": "---\nname: \"userone\"\ndescription: \"user agent\"\n---\nuser body\n"
+        },
+        {
+          "path": "home/.mode/v2/agents-state.json",
+          "content": "{\n  \"builtInModelSelectionOverrides\": {\n    \"Explore\": {\n      \"modelId\": \"GLM-4.7\",\n      \"providerId\": \"zai-api\"\n    }\n  },\n  \"disabledAgentIds\": [],\n  \"pluginAgentModelSelectionOverrides\": {}\n}"
+        },
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/agents/alpha.md",
+          "content": "---\nname: \"alpha\"\ndescription: \"workspace alpha\"\nmodel: glm/GLM-4.7\nthoughtLevel: high\ntools: Read, Grep\nmaxTurns: 3\nbackground: true\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/agents/group/nested.md",
+          "content": "---\nname: \"nested\"\ndescription: \"nested agent\"\nmcpServers:\n  - name: fs\n    command: npx\n    args:\n      - -y\n      - pkg\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/agents/notes.txt",
+          "content": "not an agent\n"
+        }
+      ]
+    },
+    {
+      "name": "create-update-delete",
+      "desktop": true,
+      "files": [
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/agents/alpha.md",
+          "content": "---\nname: \"alpha\"\ndescription: \"workspace alpha\"\nmodel: glm/GLM-4.7\nthoughtLevel: high\ntools: Read, Grep\nmaxTurns: 3\nbackground: true\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/agents/group/nested.md",
+          "content": "---\nname: \"nested\"\ndescription: \"nested agent\"\nmcpServers:\n  - name: fs\n    command: npx\n    args:\n      - -y\n      - pkg\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/agents/notes.txt",
+          "content": "not an agent\n"
+        },
+        {
+          "path": "home/.mode/agents/userone.md",
+          "content": "---\nname: \"userone\"\ndescription: \"user agent\"\n---\nuser body\n"
+        },
+        {
+          "path": "home/.mode/agents/broken.md",
+          "content": "---\nname: broken\n---\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "createAgent",
+          "scope": "workspace",
+          "useWorkspace": true,
+          "config": {
+            "name": "new-one",
+            "description": "created",
+            "systemPrompt": "do the thing",
+            "color": "blue",
+            "modelSelection": {
+              "providerId": "glm",
+              "modelId": "GLM-5"
+            },
+            "tools": [
+              "Read",
+              "Grep"
+            ],
+            "skills": [
+              "alpha"
+            ],
+            "permissionMode": "auto",
+            "maxTurns": 2,
+            "background": false,
+            "injectAgentsMd": true
+          }
+        },
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "createAgent",
+          "scope": "workspace",
+          "useWorkspace": true,
+          "config": {
+            "name": "new-one",
+            "description": "dup",
+            "systemPrompt": "dup"
+          }
+        },
+        {
+          "kind": "createAgent",
+          "config": {
+            "name": "ab",
+            "description": "short",
+            "systemPrompt": "short"
+          }
+        },
+        {
+          "kind": "createAgent",
+          "config": {
+            "name": "Explore",
+            "description": "reserved",
+            "systemPrompt": "reserved"
+          }
+        },
+        {
+          "kind": "updateAgent",
+          "resolveName": "new-one",
+          "scope": "workspace",
+          "useWorkspace": true,
+          "config": {
+            "name": "renamed",
+            "description": "renamed desc",
+            "systemPrompt": "renamed prompt",
+            "tools": [
+              "Read"
+            ]
+          }
+        },
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "deleteAgent",
+          "resolveName": "renamed"
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "agent": {
+            "id": "user:workspace:new-one",
+            "name": "new-one",
+            "description": "created",
+            "systemPrompt": "do the thing",
+            "color": "blue",
+            "modelSelection": {
+              "providerId": "glm",
+              "modelId": "GLM-5"
+            },
+            "tools": [
+              "Read",
+              "Grep"
+            ],
+            "skills": [
+              "alpha"
+            ],
+            "permissionMode": "auto",
+            "maxTurns": 2,
+            "background": false,
+            "injectAgentsMd": true,
+            "path": "<root>/ws/.mode/agents/new-one.md",
+            "scope": "workspace",
+            "source": "user",
+            "enabled": true,
+            "readOnly": false,
+            "projectPath": "<root>/ws"
+          }
+        },
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:new-one",
+              "name": "new-one",
+              "description": "created",
+              "systemPrompt": "do the thing",
+              "color": "blue",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-5"
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "skills": [
+                "alpha"
+              ],
+              "permissionMode": "auto",
+              "maxTurns": 2,
+              "background": false,
+              "injectAgentsMd": true,
+              "path": "<root>/ws/.mode/agents/new-one.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "userAgents": [
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:new-one",
+              "name": "new-one",
+              "description": "created",
+              "systemPrompt": "do the thing",
+              "color": "blue",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-5"
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "skills": [
+                "alpha"
+              ],
+              "permissionMode": "auto",
+              "maxTurns": 2,
+              "background": false,
+              "injectAgentsMd": true,
+              "path": "<root>/ws/.mode/agents/new-one.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "pluginAgents": [],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": [
+            {
+              "code": "agent_missing_required_frontmatter",
+              "message": "Agent frontmatter must include description: <root>/home/.mode/agents/broken.md",
+              "path": "<root>/home/.mode/agents/broken.md"
+            }
+          ]
+        },
+        {
+          "error": "Agent file \"new-one.md\" already exists"
+        },
+        {
+          "error": "Name must be between 3 and 50 characters"
+        },
+        {
+          "error": "Agent name \"Explore\" is reserved by a built-in agent"
+        },
+        {
+          "agent": {
+            "id": "user:workspace:renamed",
+            "name": "renamed",
+            "description": "renamed desc",
+            "systemPrompt": "renamed prompt",
+            "tools": [
+              "Read"
+            ],
+            "path": "<root>/ws/.mode/agents/renamed.md",
+            "scope": "workspace",
+            "source": "user",
+            "enabled": true,
+            "readOnly": false,
+            "projectPath": "<root>/ws"
+          }
+        },
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:renamed",
+              "name": "renamed",
+              "description": "renamed desc",
+              "systemPrompt": "renamed prompt",
+              "tools": [
+                "Read"
+              ],
+              "path": "<root>/ws/.mode/agents/renamed.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "userAgents": [
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:renamed",
+              "name": "renamed",
+              "description": "renamed desc",
+              "systemPrompt": "renamed prompt",
+              "tools": [
+                "Read"
+              ],
+              "path": "<root>/ws/.mode/agents/renamed.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "pluginAgents": [],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": [
+            {
+              "code": "agent_missing_required_frontmatter",
+              "message": "Agent frontmatter must include description: <root>/home/.mode/agents/broken.md",
+              "path": "<root>/home/.mode/agents/broken.md"
+            }
+          ]
+        },
+        {
+          "ok": true
+        },
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "userAgents": [
+            {
+              "id": "user:user:userone",
+              "name": "userone",
+              "description": "user agent",
+              "systemPrompt": "user body",
+              "path": "<root>/home/.mode/agents/userone.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            },
+            {
+              "id": "user:workspace:alpha",
+              "name": "alpha",
+              "description": "workspace alpha",
+              "systemPrompt": "alpha body",
+              "modelSelection": {
+                "providerId": "glm",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "tools": [
+                "Read",
+                "Grep"
+              ],
+              "maxTurns": 3,
+              "background": true,
+              "path": "<root>/ws/.mode/agents/alpha.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            },
+            {
+              "id": "user:workspace:nested",
+              "name": "nested",
+              "description": "nested agent",
+              "systemPrompt": "nested body",
+              "mcpServers": [
+                {
+                  "name": "fs",
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "pkg"
+                  ]
+                }
+              ],
+              "path": "<root>/ws/.mode/agents/group/nested.md",
+              "scope": "workspace",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false,
+              "projectPath": "<root>/ws"
+            }
+          ],
+          "pluginAgents": [],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": [
+            {
+              "code": "agent_missing_required_frontmatter",
+              "message": "Agent frontmatter must include description: <root>/home/.mode/agents/broken.md",
+              "path": "<root>/home/.mode/agents/broken.md"
+            }
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/agents/broken.md",
+          "content": "---\nname: broken\n---\n"
+        },
+        {
+          "path": "home/.mode/agents/userone.md",
+          "content": "---\nname: \"userone\"\ndescription: \"user agent\"\n---\nuser body\n"
+        },
+        {
+          "path": "home/.mode/v2/agents-state.json",
+          "content": "{\n  \"builtInModelSelectionOverrides\": {},\n  \"disabledAgentIds\": [],\n  \"pluginAgentModelSelectionOverrides\": {}\n}"
+        },
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "ws/.mode/agents/alpha.md",
+          "content": "---\nname: \"alpha\"\ndescription: \"workspace alpha\"\nmodel: glm/GLM-4.7\nthoughtLevel: high\ntools: Read, Grep\nmaxTurns: 3\nbackground: true\n---\nalpha body\n"
+        },
+        {
+          "path": "ws/.mode/agents/group/nested.md",
+          "content": "---\nname: \"nested\"\ndescription: \"nested agent\"\nmcpServers:\n  - name: fs\n    command: npx\n    args:\n      - -y\n      - pkg\n---\nnested body\n"
+        },
+        {
+          "path": "ws/.mode/agents/notes.txt",
+          "content": "not an agent\n"
+        }
+      ]
+    },
+    {
+      "name": "plugin-agents",
+      "desktop": true,
+      "files": [
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"plugins\": {\n    \"dirs\": [\n      \"<root>/home/.mode/cli/plugins-inline\"\n    ],\n    \"enabledPlugins\": {\n      \"plug-a@inline\": true,\n      \"plug-b@inline\": false,\n      \"plug-c@inline\": true,\n      \"claude-z@mode-plugins-official\": true\n    },\n    \"suppressedBuiltins\": [\n      \"builtin-x@zcode-plugins-official\"\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-a/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"plug-a\",\"agents\":\"agents\"}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-a/agents/helper.md",
+          "content": "---\nname: \"helper\"\ndescription: \"plugin helper\"\n---\nhelper body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-b/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"plug-b\"}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-b/agents/hidden.md",
+          "content": "---\nname: \"hidden\"\ndescription: \"disabled plugin\"\n---\nbody\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-c/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"plug-c\"}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-c/agents/helper.md",
+          "content": "---\nname: \"helper\"\ndescription: \"second helper\"\n---\nbody\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins/installed_plugins.json",
+          "content": "{\"plugins\":[{\"id\":\"claude-z@zcode-plugins-official\",\"marketplace\":\"zcode-plugins-official\",\"installPath\":\"<root>/home/installed/claude-z\",\"name\":\"claude-z\"}]}"
+        },
+        {
+          "path": "home/installed/claude-z/.claude-plugin/plugin.json",
+          "content": "{\"name\":\"claude-z\",\"agents\":[\"agents\",\"./extra\"]}"
+        },
+        {
+          "path": "home/installed/claude-z/agents/seven.md",
+          "content": "---\nname: \"seven\"\ndescription: \"installed plugin agent\"\n---\nbody\n"
+        },
+        {
+          "path": "home/installed/claude-z/extra/eight.md",
+          "content": "---\nname: \"eight\"\ndescription: \"installed extra agent\"\n---\nbody\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "list",
+          "mode": "settingsUserOnly"
+        }
+      ],
+      "expected": [
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "plugin:claude-z@mode-plugins-official:eight",
+              "name": "claude-z:eight",
+              "description": "installed extra agent",
+              "systemPrompt": "body",
+              "path": "<root>/home/installed/claude-z/extra/eight.md",
+              "scope": "user",
+              "source": "plugin",
+              "enabled": true,
+              "readOnly": true,
+              "pluginId": "claude-z@mode-plugins-official",
+              "pluginName": "claude-z"
+            },
+            {
+              "id": "plugin:claude-z@mode-plugins-official:seven",
+              "name": "claude-z:seven",
+              "description": "installed plugin agent",
+              "systemPrompt": "body",
+              "path": "<root>/home/installed/claude-z/agents/seven.md",
+              "scope": "user",
+              "source": "plugin",
+              "enabled": true,
+              "readOnly": true,
+              "pluginId": "claude-z@mode-plugins-official",
+              "pluginName": "claude-z"
+            },
+            {
+              "id": "plugin:plugin:claude-z@mode-plugins-official:eight:alias:eight",
+              "name": "eight",
+              "description": "installed extra agent",
+              "systemPrompt": "body",
+              "path": "<root>/home/installed/claude-z/extra/eight.md",
+              "scope": "user",
+              "source": "plugin",
+              "enabled": true,
+              "readOnly": true,
+              "pluginId": "claude-z@mode-plugins-official",
+              "pluginName": "claude-z"
+            },
+            {
+              "id": "plugin:plugin:claude-z@mode-plugins-official:seven:alias:seven",
+              "name": "seven",
+              "description": "installed plugin agent",
+              "systemPrompt": "body",
+              "path": "<root>/home/installed/claude-z/agents/seven.md",
+              "scope": "user",
+              "source": "plugin",
+              "enabled": true,
+              "readOnly": true,
+              "pluginId": "claude-z@mode-plugins-official",
+              "pluginName": "claude-z"
+            }
+          ],
+          "userAgents": [],
+          "pluginAgents": [
+            {
+              "id": "plugin:claude-z@mode-plugins-official:eight",
+              "name": "claude-z:eight",
+              "description": "installed extra agent",
+              "systemPrompt": "body",
+              "path": "<root>/home/installed/claude-z/extra/eight.md",
+              "scope": "user",
+              "source": "plugin",
+              "enabled": true,
+              "readOnly": true,
+              "pluginId": "claude-z@mode-plugins-official",
+              "pluginName": "claude-z"
+            },
+            {
+              "id": "plugin:claude-z@mode-plugins-official:seven",
+              "name": "claude-z:seven",
+              "description": "installed plugin agent",
+              "systemPrompt": "body",
+              "path": "<root>/home/installed/claude-z/agents/seven.md",
+              "scope": "user",
+              "source": "plugin",
+              "enabled": true,
+              "readOnly": true,
+              "pluginId": "claude-z@mode-plugins-official",
+              "pluginName": "claude-z"
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": []
+        },
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            }
+          ],
+          "userAgents": [],
+          "pluginAgents": [
+            {
+              "id": "plugin:claude-z@mode-plugins-official:eight",
+              "name": "claude-z:eight",
+              "description": "installed extra agent",
+              "systemPrompt": "body",
+              "path": "<root>/home/installed/claude-z/extra/eight.md",
+              "scope": "user",
+              "source": "plugin",
+              "enabled": true,
+              "readOnly": true,
+              "pluginId": "claude-z@mode-plugins-official",
+              "pluginName": "claude-z"
+            },
+            {
+              "id": "plugin:claude-z@mode-plugins-official:seven",
+              "name": "claude-z:seven",
+              "description": "installed plugin agent",
+              "systemPrompt": "body",
+              "path": "<root>/home/installed/claude-z/agents/seven.md",
+              "scope": "user",
+              "source": "plugin",
+              "enabled": true,
+              "readOnly": true,
+              "pluginId": "claude-z@mode-plugins-official",
+              "pluginName": "claude-z"
+            }
+          ],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": []
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/cli/config.json",
+          "content": "{\n  \"plugins\": {\n    \"dirs\": [\n      \"<root>/home/.mode/cli/plugins-inline\"\n    ],\n    \"enabledPlugins\": {\n      \"plug-a@inline\": true,\n      \"plug-b@inline\": false,\n      \"plug-c@inline\": true,\n      \"claude-z@mode-plugins-official\": true\n    },\n    \"suppressedBuiltins\": [\n      \"builtin-x@zcode-plugins-official\"\n    ]\n  }\n}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-a/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"plug-a\",\"agents\":\"agents\"}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-a/agents/helper.md",
+          "content": "---\nname: \"helper\"\ndescription: \"plugin helper\"\n---\nhelper body\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-b/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"plug-b\"}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-b/agents/hidden.md",
+          "content": "---\nname: \"hidden\"\ndescription: \"disabled plugin\"\n---\nbody\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-c/.mode-plugin/plugin.json",
+          "content": "{\"name\":\"plug-c\"}"
+        },
+        {
+          "path": "home/.mode/cli/plugins-inline/plug-c/agents/helper.md",
+          "content": "---\nname: \"helper\"\ndescription: \"second helper\"\n---\nbody\n"
+        },
+        {
+          "path": "home/.mode/cli/plugins/installed_plugins.json",
+          "content": "{\"plugins\":[{\"id\":\"claude-z@zcode-plugins-official\",\"marketplace\":\"zcode-plugins-official\",\"installPath\":\"<root>/home/installed/claude-z\",\"name\":\"claude-z\"}]}"
+        },
+        {
+          "path": "home/installed/claude-z/.claude-plugin/plugin.json",
+          "content": "{\"name\":\"claude-z\",\"agents\":[\"agents\",\"./extra\"]}"
+        },
+        {
+          "path": "home/installed/claude-z/agents/seven.md",
+          "content": "---\nname: \"seven\"\ndescription: \"installed plugin agent\"\n---\nbody\n"
+        },
+        {
+          "path": "home/installed/claude-z/extra/eight.md",
+          "content": "---\nname: \"eight\"\ndescription: \"installed extra agent\"\n---\nbody\n"
+        },
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        }
+      ]
+    },
+    {
+      "name": "migrations",
+      "desktop": true,
+      "files": [
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        },
+        {
+          "path": "home/.mode/v2/agents-state.json",
+          "content": "{\n  \"builtInModelOverrides\": {\n    \"Explore\": \"builtin:zai/glm-4.7\",\n    \"general-purpose\": \"builtin:bigmodel/GLM-4.6\"\n  },\n  \"builtInThoughtLevelOverrides\": {\n    \"Explore\": \"high\"\n  },\n  \"pluginAgentModelOverrides\": {\n    \"plugin:p@inline:x\": \"builtin:zai/glm-4.7\"\n  },\n  \"pluginAgentThoughtLevelOverrides\": {\n    \"plugin:p@inline:x\": \"low\"\n  },\n  \"disabledAgentIds\": [\n    \"user:user:legacy\"\n  ]\n}"
+        },
+        {
+          "path": "home/.mode/agents/legacy.md",
+          "content": "---\nname: \"legacy\"\ndescription: \"legacy model\"\nmodel: \"builtin:zai/glm-4.7$high\"\n---\nlegacy body\n"
+        },
+        {
+          "path": "home/.mode/agents/plain.md",
+          "content": "---\nname: \"plain\"\ndescription: \"no model\"\n---\nbody\n"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "prepareRuntimeState"
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "ok": true
+        },
+        {
+          "agents": [
+            {
+              "id": "built-in:built-in:general-purpose",
+              "name": "general-purpose",
+              "description": "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks.",
+              "color": "blue",
+              "injectAgentsMd": true,
+              "modelSelection": {
+                "providerId": "bigmodel-api",
+                "modelId": "GLM-4.6"
+              },
+              "modelSelectionOverride": {
+                "providerId": "bigmodel-api",
+                "modelId": "GLM-4.6"
+              },
+              "systemPrompt": "",
+              "tools": [
+                "*"
+              ],
+              "path": "built-in:general-purpose",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "built-in:built-in:explore",
+              "name": "Explore",
+              "description": "Read-only search agent for broad fan-out searches.",
+              "color": "cyan",
+              "injectAgentsMd": false,
+              "modelSelection": {
+                "providerId": "zai-api",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "modelSelectionOverride": {
+                "providerId": "zai-api",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "systemPrompt": "",
+              "tools": [
+                "Bash",
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite"
+              ],
+              "path": "built-in:Explore",
+              "scope": "built-in",
+              "source": "built-in",
+              "enabled": true,
+              "readOnly": true
+            },
+            {
+              "id": "user:user:legacy",
+              "name": "legacy",
+              "description": "legacy model",
+              "systemPrompt": "legacy body",
+              "modelSelection": {
+                "providerId": "zai-api",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "path": "<root>/home/.mode/agents/legacy.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": false,
+              "readOnly": false
+            },
+            {
+              "id": "user:user:plain",
+              "name": "plain",
+              "description": "no model",
+              "systemPrompt": "body",
+              "path": "<root>/home/.mode/agents/plain.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            }
+          ],
+          "userAgents": [
+            {
+              "id": "user:user:legacy",
+              "name": "legacy",
+              "description": "legacy model",
+              "systemPrompt": "legacy body",
+              "modelSelection": {
+                "providerId": "zai-api",
+                "modelId": "GLM-4.7",
+                "options": {
+                  "reasoningLevel": "high"
+                }
+              },
+              "path": "<root>/home/.mode/agents/legacy.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": false,
+              "readOnly": false
+            },
+            {
+              "id": "user:user:plain",
+              "name": "plain",
+              "description": "no model",
+              "systemPrompt": "body",
+              "path": "<root>/home/.mode/agents/plain.md",
+              "scope": "user",
+              "source": "user",
+              "enabled": true,
+              "readOnly": false
+            }
+          ],
+          "pluginAgents": [],
+          "capability": {
+            "userScopeAvailable": true
+          },
+          "diagnostics": []
+        }
+      ],
+      "tree": [
+        {
+          "path": "home/.mode/agents/legacy.md",
+          "content": "---\nname: \"legacy\"\ndescription: \"legacy model\"\nmodel: \"zai-api/GLM-4.7$high\"\n---\nlegacy body\n"
+        },
+        {
+          "path": "home/.mode/agents/plain.md",
+          "content": "---\nname: \"plain\"\ndescription: \"no model\"\n---\nbody\n"
+        },
+        {
+          "path": "home/.mode/v2/agents-state.json",
+          "content": "{\n  \"builtInModelOverrides\": {\n    \"Explore\": \"builtin:zai/glm-4.7\",\n    \"general-purpose\": \"builtin:bigmodel/GLM-4.6\"\n  },\n  \"builtInModelSelectionOverrides\": {\n    \"Explore\": {\n      \"modelId\": \"GLM-4.7\",\n      \"options\": {\n        \"reasoningLevel\": \"high\"\n      },\n      \"providerId\": \"zai-api\"\n    },\n    \"general-purpose\": {\n      \"modelId\": \"GLM-4.6\",\n      \"providerId\": \"bigmodel-api\"\n    }\n  },\n  \"builtInThoughtLevelOverrides\": {\n    \"Explore\": \"high\"\n  },\n  \"disabledAgentIds\": [\n    \"user:user:legacy\"\n  ],\n  \"pluginAgentModelOverrides\": {\n    \"plugin:p@inline:x\": \"builtin:zai/glm-4.7\"\n  },\n  \"pluginAgentModelSelectionOverrides\": {\n    \"plugin:p@inline:x\": {\n      \"modelId\": \"GLM-4.7\",\n      \"options\": {\n        \"reasoningLevel\": \"low\"\n      },\n      \"providerId\": \"zai-api\"\n    }\n  },\n  \"pluginAgentThoughtLevelOverrides\": {\n    \"plugin:p@inline:x\": \"low\"\n  }\n}"
+        },
+        {
+          "path": "ws/.git/HEAD",
+          "content": "ref: refs/heads/main\n"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+[package]
+name = "subagents-service"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Subagent 管理（markdown 读写、状态覆盖、插件 agent 发现），对应 services/src/subagents"
+
+[lib]
+name = "subagents_service"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+plugin-discovery = { path = "../plugin-discovery" }
+atomic-file = { path = "../atomic-file" }

@@ -1,0 +1,652 @@
+{
+  "cases": [
+    {
+      "name": "create-diff-restore",
+      "workspace": "ws",
+      "setup": {
+        "files": [
+          {
+            "path": "a.md",
+            "content": "line1\n"
+          },
+          {
+            "path": "dir/b.md",
+            "content": "b1\n"
+          }
+        ]
+      },
+      "ops": [
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "write",
+          "path": "a.md",
+          "content": "line1\nline2\n"
+        },
+        {
+          "kind": "write",
+          "path": "new.md",
+          "content": "hello\n"
+        },
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "diff",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "kind": "write",
+          "path": "a.md",
+          "content": "line1\n"
+        },
+        {
+          "kind": "remove",
+          "path": "new.md"
+        },
+        {
+          "kind": "restore",
+          "from": 0,
+          "to": 1
+        }
+      ],
+      "expected": [
+        {
+          "checkpointId": "<checkpoint-0>",
+          "workspacePath": "<root>/ws",
+          "repoRoot": "<root>/ws",
+          "workspaceInRepoPath": ".",
+          "createdAt": "<ts>",
+          "refName": "refs/mode/checkpoints/<workspaceHash>/<checkpoint-0>",
+          "commitOid": "<hash>",
+          "scope": "workspace"
+        },
+        {
+          "ok": true
+        },
+        {
+          "ok": true
+        },
+        {
+          "checkpointId": "<checkpoint-1>",
+          "workspacePath": "<root>/ws",
+          "repoRoot": "<root>/ws",
+          "workspaceInRepoPath": ".",
+          "createdAt": "<ts>",
+          "refName": "refs/mode/checkpoints/<workspaceHash>/<checkpoint-1>",
+          "commitOid": "<hash>",
+          "scope": "workspace"
+        },
+        {
+          "fromCheckpointId": "<checkpoint-0>",
+          "toCheckpointId": "<checkpoint-1>",
+          "files": [
+            {
+              "path": "<root>/ws/a.md",
+              "repoRelativePath": "a.md",
+              "workspaceRelativePath": "a.md",
+              "originalPath": null,
+              "kind": "modified",
+              "added": 1,
+              "removed": 0
+            },
+            {
+              "path": "<root>/ws/new.md",
+              "repoRelativePath": "new.md",
+              "workspaceRelativePath": "new.md",
+              "originalPath": null,
+              "kind": "added",
+              "added": 1,
+              "removed": 0
+            }
+          ]
+        },
+        {
+          "ok": true
+        },
+        {
+          "ok": true
+        },
+        {
+          "success": true,
+          "restoredPaths": [
+            "<root>/ws/a.md",
+            "<root>/ws/new.md"
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "a.md",
+          "content": "line1\nline2\n"
+        },
+        {
+          "path": "dir/b.md",
+          "content": "b1\n"
+        },
+        {
+          "path": "new.md",
+          "content": "hello\n"
+        }
+      ]
+    },
+    {
+      "name": "restore-conflicts",
+      "workspace": "ws",
+      "setup": {
+        "files": [
+          {
+            "path": "a.md",
+            "content": "line1\n"
+          }
+        ]
+      },
+      "ops": [
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "write",
+          "path": "a.md",
+          "content": "line1\nline2\n"
+        },
+        {
+          "kind": "write",
+          "path": "new.md",
+          "content": "hello\n"
+        },
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "restore",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "kind": "restore",
+          "from": 0,
+          "to": 1,
+          "force": true
+        }
+      ],
+      "expected": [
+        {
+          "checkpointId": "<checkpoint-0>",
+          "workspacePath": "<root>/ws",
+          "repoRoot": "<root>/ws",
+          "workspaceInRepoPath": ".",
+          "createdAt": "<ts>",
+          "refName": "refs/mode/checkpoints/<workspaceHash>/<checkpoint-0>",
+          "commitOid": "<hash>",
+          "scope": "workspace"
+        },
+        {
+          "ok": true
+        },
+        {
+          "ok": true
+        },
+        {
+          "checkpointId": "<checkpoint-1>",
+          "workspacePath": "<root>/ws",
+          "repoRoot": "<root>/ws",
+          "workspaceInRepoPath": ".",
+          "createdAt": "<ts>",
+          "refName": "refs/mode/checkpoints/<workspaceHash>/<checkpoint-1>",
+          "commitOid": "<hash>",
+          "scope": "workspace"
+        },
+        {
+          "success": false,
+          "conflicts": [
+            {
+              "path": "<root>/ws/a.md",
+              "repoRelativePath": "a.md",
+              "workspaceRelativePath": "a.md",
+              "reason": "content-mismatch"
+            },
+            {
+              "path": "<root>/ws/new.md",
+              "repoRelativePath": "new.md",
+              "workspaceRelativePath": "new.md",
+              "reason": "unexpected-file-in-worktree"
+            }
+          ]
+        },
+        {
+          "success": true,
+          "restoredPaths": [
+            "<root>/ws/a.md",
+            "<root>/ws/new.md"
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "a.md",
+          "content": "line1\nline2\n"
+        },
+        {
+          "path": "new.md",
+          "content": "hello\n"
+        }
+      ]
+    },
+    {
+      "name": "rename-restore",
+      "workspace": "ws",
+      "setup": {
+        "files": [
+          {
+            "path": "old.md",
+            "content": "line1\nline2\nline3\nline4\nline5\n"
+          },
+          {
+            "path": "keep.md",
+            "content": "keep\n"
+          }
+        ]
+      },
+      "ops": [
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "renameFile",
+          "from": "old.md",
+          "to": "renamed.md"
+        },
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "diff",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "kind": "renameFile",
+          "from": "renamed.md",
+          "to": "old.md"
+        },
+        {
+          "kind": "restore",
+          "from": 0,
+          "to": 1
+        }
+      ],
+      "expected": [
+        {
+          "checkpointId": "<checkpoint-0>",
+          "workspacePath": "<root>/ws",
+          "repoRoot": "<root>/ws",
+          "workspaceInRepoPath": ".",
+          "createdAt": "<ts>",
+          "refName": "refs/mode/checkpoints/<workspaceHash>/<checkpoint-0>",
+          "commitOid": "<hash>",
+          "scope": "workspace"
+        },
+        {
+          "ok": true
+        },
+        {
+          "checkpointId": "<checkpoint-1>",
+          "workspacePath": "<root>/ws",
+          "repoRoot": "<root>/ws",
+          "workspaceInRepoPath": ".",
+          "createdAt": "<ts>",
+          "refName": "refs/mode/checkpoints/<workspaceHash>/<checkpoint-1>",
+          "commitOid": "<hash>",
+          "scope": "workspace"
+        },
+        {
+          "fromCheckpointId": "<checkpoint-0>",
+          "toCheckpointId": "<checkpoint-1>",
+          "files": [
+            {
+              "path": "<root>/ws/renamed.md",
+              "repoRelativePath": "renamed.md",
+              "workspaceRelativePath": "renamed.md",
+              "originalPath": "<root>/ws/old.md",
+              "kind": "renamed",
+              "added": 0,
+              "removed": 0
+            }
+          ]
+        },
+        {
+          "ok": true
+        },
+        {
+          "success": true,
+          "restoredPaths": [
+            "<root>/ws/renamed.md"
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "path": "keep.md",
+          "content": "keep\n"
+        },
+        {
+          "path": "renamed.md",
+          "content": "line1\nline2\nline3\nline4\nline5\n"
+        }
+      ]
+    },
+    {
+      "name": "delete-checkpoint",
+      "workspace": "ws",
+      "setup": {
+        "files": [
+          {
+            "path": "a.md",
+            "content": "line1\n"
+          }
+        ]
+      },
+      "ops": [
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "refs"
+        },
+        {
+          "kind": "delete",
+          "checkpoint": 0
+        },
+        {
+          "kind": "refs"
+        },
+        {
+          "kind": "diff",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "kind": "diff",
+          "from": 1,
+          "to": 1
+        }
+      ],
+      "expected": [
+        {
+          "checkpointId": "<checkpoint-0>",
+          "workspacePath": "<root>/ws",
+          "repoRoot": "<root>/ws",
+          "workspaceInRepoPath": ".",
+          "createdAt": "<ts>",
+          "refName": "refs/mode/checkpoints/<workspaceHash>/<checkpoint-0>",
+          "commitOid": "<hash>",
+          "scope": "workspace"
+        },
+        {
+          "checkpointId": "<checkpoint-1>",
+          "workspacePath": "<root>/ws",
+          "repoRoot": "<root>/ws",
+          "workspaceInRepoPath": ".",
+          "createdAt": "<ts>",
+          "refName": "refs/mode/checkpoints/<workspaceHash>/<checkpoint-1>",
+          "commitOid": "<hash>",
+          "scope": "workspace"
+        },
+        [
+          "refs/mode/checkpoints/<workspaceHash>/<checkpoint-0>",
+          "refs/mode/checkpoints/<workspaceHash>/<checkpoint-1>"
+        ],
+        {
+          "ok": true
+        },
+        [
+          "refs/mode/checkpoints/<workspaceHash>/<checkpoint-1>"
+        ],
+        {
+          "error": "Checkpoint does not exist: <checkpoint-0>"
+        },
+        {
+          "fromCheckpointId": "<checkpoint-1>",
+          "toCheckpointId": "<checkpoint-1>",
+          "files": []
+        }
+      ],
+      "tree": [
+        {
+          "path": "a.md",
+          "content": "line1\n"
+        }
+      ]
+    },
+    {
+      "name": "nested-workspace-scope",
+      "workspace": "ws/sub",
+      "setup": {
+        "files": [
+          {
+            "path": "root.md",
+            "content": "root1\n"
+          },
+          {
+            "path": "sub/inner.md",
+            "content": "inner1\n"
+          }
+        ]
+      },
+      "ops": [
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "write",
+          "path": "inner.md",
+          "content": "inner2\n"
+        },
+        {
+          "kind": "write",
+          "path": "added.md",
+          "content": "added\n"
+        },
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "diff",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "kind": "write",
+          "path": "../root.md",
+          "content": "root-dirty\n"
+        },
+        {
+          "kind": "write",
+          "path": "inner.md",
+          "content": "inner1\n"
+        },
+        {
+          "kind": "remove",
+          "path": "added.md"
+        },
+        {
+          "kind": "restore",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "kind": "read",
+          "path": "../root.md"
+        }
+      ],
+      "expected": [
+        {
+          "checkpointId": "<checkpoint-0>",
+          "workspacePath": "<root>/ws/sub",
+          "repoRoot": "<root>/ws",
+          "workspaceInRepoPath": "sub",
+          "createdAt": "<ts>",
+          "refName": "refs/mode/checkpoints/<workspaceHash>/<checkpoint-0>",
+          "commitOid": "<hash>",
+          "scope": "workspace"
+        },
+        {
+          "ok": true
+        },
+        {
+          "ok": true
+        },
+        {
+          "checkpointId": "<checkpoint-1>",
+          "workspacePath": "<root>/ws/sub",
+          "repoRoot": "<root>/ws",
+          "workspaceInRepoPath": "sub",
+          "createdAt": "<ts>",
+          "refName": "refs/mode/checkpoints/<workspaceHash>/<checkpoint-1>",
+          "commitOid": "<hash>",
+          "scope": "workspace"
+        },
+        {
+          "fromCheckpointId": "<checkpoint-0>",
+          "toCheckpointId": "<checkpoint-1>",
+          "files": [
+            {
+              "path": "<root>/ws/sub/added.md",
+              "repoRelativePath": "sub/added.md",
+              "workspaceRelativePath": "added.md",
+              "originalPath": null,
+              "kind": "added",
+              "added": 1,
+              "removed": 0
+            },
+            {
+              "path": "<root>/ws/sub/inner.md",
+              "repoRelativePath": "sub/inner.md",
+              "workspaceRelativePath": "inner.md",
+              "originalPath": null,
+              "kind": "modified",
+              "added": 1,
+              "removed": 1
+            }
+          ]
+        },
+        {
+          "ok": true
+        },
+        {
+          "ok": true
+        },
+        {
+          "ok": true
+        },
+        {
+          "success": true,
+          "restoredPaths": [
+            "<root>/ws/sub/added.md",
+            "<root>/ws/sub/inner.md"
+          ]
+        },
+        {
+          "content": "root-dirty\n"
+        }
+      ],
+      "tree": [
+        {
+          "path": "added.md",
+          "content": "added\n"
+        },
+        {
+          "path": "inner.md",
+          "content": "inner2\n"
+        }
+      ]
+    },
+    {
+      "name": "not-a-repository",
+      "workspace": "ws",
+      "setup": {
+        "files": [
+          {
+            "path": "a.md",
+            "content": "line1\n"
+          }
+        ],
+        "skipRepo": true
+      },
+      "ops": [
+        {
+          "kind": "create"
+        }
+      ],
+      "expected": [
+        {
+          "error": "Workspace is not inside a Git repository."
+        }
+      ],
+      "tree": [
+        {
+          "path": "a.md",
+          "content": "line1\n"
+        }
+      ]
+    },
+    {
+      "name": "missing-checkpoint",
+      "workspace": "ws",
+      "setup": {
+        "files": [
+          {
+            "path": "a.md",
+            "content": "line1\n"
+          }
+        ]
+      },
+      "ops": [
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "diff",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "kind": "restore",
+          "from": 0,
+          "to": 0
+        }
+      ],
+      "expected": [
+        {
+          "checkpointId": "<checkpoint-0>",
+          "workspacePath": "<root>/ws",
+          "repoRoot": "<root>/ws",
+          "workspaceInRepoPath": ".",
+          "createdAt": "<ts>",
+          "refName": "refs/mode/checkpoints/<workspaceHash>/<checkpoint-0>",
+          "commitOid": "<hash>",
+          "scope": "workspace"
+        },
+        {
+          "error": "Checkpoint does not exist: missing-checkpoint"
+        },
+        {
+          "success": true,
+          "restoredPaths": []
+        }
+      ],
+      "tree": [
+        {
+          "path": "a.md",
+          "content": "line1\n"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1736 @@
+{
+  "cases": [
+    {
+      "name": "status-diff-branches",
+      "setup": {
+        "files": [
+          {
+            "path": "a.md",
+            "content": "line1\n"
+          },
+          {
+            "path": "dir/b.md",
+            "content": "b1\n"
+          },
+          {
+            "path": ".gitignore",
+            "content": "ignored.txt\n"
+          }
+        ],
+        "branch": "feature",
+        "extraFiles": [
+          {
+            "path": "a.md",
+            "content": "line1\nline2\n"
+          },
+          {
+            "path": "dir/b.md",
+            "content": "b1\nb2\n"
+          },
+          {
+            "path": "new.md",
+            "content": "hello\n"
+          },
+          {
+            "path": "ignored.txt",
+            "content": "ignored\n"
+          }
+        ],
+        "addPaths": [
+          "dir/b.md"
+        ]
+      },
+      "ops": [
+        {
+          "kind": "status"
+        },
+        {
+          "kind": "ignored",
+          "paths": [
+            "a.md",
+            "ignored.txt",
+            "new.md",
+            "../escape"
+          ]
+        },
+        {
+          "kind": "branches"
+        },
+        {
+          "kind": "graph",
+          "maxCount": 10
+        },
+        {
+          "kind": "identity"
+        },
+        {
+          "kind": "repoInfo"
+        },
+        {
+          "kind": "diff",
+          "path": "a.md"
+        },
+        {
+          "kind": "diff",
+          "path": "dir/b.md",
+          "staged": true
+        },
+        {
+          "kind": "diff",
+          "path": "new.md"
+        },
+        {
+          "kind": "diff",
+          "path": "a.md",
+          "sourceId": "branch"
+        }
+      ],
+      "expected": [
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "main",
+            "trackingBranchName": null,
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": true,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "entries": [
+            {
+              "path": "a.md",
+              "originalPath": null,
+              "kind": "modified",
+              "x": ".",
+              "y": "M",
+              "isUntracked": false,
+              "isConflicted": false
+            },
+            {
+              "path": "dir/b.md",
+              "originalPath": null,
+              "kind": "modified",
+              "x": "M",
+              "y": ".",
+              "isUntracked": false,
+              "isConflicted": false
+            },
+            {
+              "path": "new.md",
+              "originalPath": null,
+              "kind": "added",
+              "x": null,
+              "y": "?",
+              "isUntracked": true,
+              "isConflicted": false
+            }
+          ],
+          "stagedStats": {
+            "dir/b.md": {
+              "added": 1,
+              "removed": 0
+            }
+          },
+          "unstagedStats": {
+            "a.md": {
+              "added": 1,
+              "removed": 0
+            }
+          },
+          "untrackedStats": {
+            "new.md": {
+              "added": 1,
+              "removed": 0
+            }
+          }
+        },
+        [
+          "<root>/ws/ignored.txt"
+        ],
+        {
+          "headRefType": "branch",
+          "currentBranchName": "main",
+          "branches": [
+            {
+              "name": "main",
+              "isCurrent": true,
+              "upstreamName": null,
+              "commitHash": "<hash>",
+              "commitTimestampMs": 1704067200000
+            },
+            {
+              "name": "feature",
+              "isCurrent": false,
+              "upstreamName": null,
+              "commitHash": "<hash>",
+              "commitTimestampMs": 1704067200000
+            }
+          ]
+        },
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "commits": [
+            {
+              "hash": "<hash>",
+              "parents": [],
+              "refs": [
+                {
+                  "name": "HEAD",
+                  "kind": "head"
+                },
+                {
+                  "name": "main",
+                  "kind": "branch"
+                },
+                {
+                  "name": "feature",
+                  "kind": "branch"
+                }
+              ],
+              "subject": "initial",
+              "authorName": "Mode Test",
+              "authoredAtMs": 1704067200000
+            }
+          ],
+          "hasMore": false
+        },
+        {
+          "userName": "Mode Test",
+          "userEmail": "mode@test.local",
+          "nameSource": "file:.git/config",
+          "emailSource": "file:.git/config",
+          "scopeLabel": "local"
+        },
+        {
+          "workspacePath": "<root>/ws",
+          "kind": "main-tree",
+          "isGitAvailable": true
+        },
+        {
+          "path": "<root>/ws/a.md",
+          "availability": "patch",
+          "patch": "diff --git a/a.md b/a.md\nindex a29bdeb..c0d0fb4 100644\n--- a/a.md\n+++ b/a.md\n@@ -1 +1,2 @@\n line1\n+line2\n",
+          "beforeContent": "line1\n",
+          "afterContent": "line1\nline2\n",
+          "summary": null
+        },
+        {
+          "path": "<root>/ws/dir/b.md",
+          "availability": "patch",
+          "patch": "diff --git a/dir/b.md b/dir/b.md\nindex c9c6af7..9b89cd5 100644\n--- a/dir/b.md\n+++ b/dir/b.md\n@@ -1 +1,2 @@\n b1\n+b2\n",
+          "beforeContent": "b1\n",
+          "afterContent": "b1\nb2\n",
+          "summary": null
+        },
+        {
+          "path": "<root>/ws/new.md",
+          "availability": "patch",
+          "patch": "--- /dev/null\n+++ b/new.md\n@@ -0,0 +1,1 @@\n+hello\n",
+          "beforeContent": "",
+          "afterContent": "hello\n",
+          "summary": null
+        },
+        {
+          "path": "<root>/ws/a.md",
+          "availability": "unavailable",
+          "patch": null,
+          "beforeContent": null,
+          "afterContent": null,
+          "summary": "Current branch does not have an upstream branch."
+        }
+      ],
+      "tree": []
+    },
+    {
+      "name": "branch-mutations",
+      "setup": {
+        "files": [
+          {
+            "path": "a.md",
+            "content": "line1\n"
+          },
+          {
+            "path": "dir/b.md",
+            "content": "b1\n"
+          },
+          {
+            "path": ".gitignore",
+            "content": "ignored.txt\n"
+          }
+        ],
+        "branch": "feature"
+      },
+      "ops": [
+        {
+          "kind": "branches"
+        },
+        {
+          "kind": "switch",
+          "branch": "feature"
+        },
+        {
+          "kind": "switch",
+          "branch": "feature"
+        },
+        {
+          "kind": "switch",
+          "branch": ""
+        },
+        {
+          "kind": "switch",
+          "branch": "missing"
+        },
+        {
+          "kind": "createBranch",
+          "branch": "topic"
+        },
+        {
+          "kind": "createBranch",
+          "branch": ""
+        },
+        {
+          "kind": "createBranch",
+          "branch": "bad name"
+        },
+        {
+          "kind": "branches"
+        }
+      ],
+      "expected": [
+        {
+          "headRefType": "branch",
+          "currentBranchName": "main",
+          "branches": [
+            {
+              "name": "main",
+              "isCurrent": true,
+              "upstreamName": null,
+              "commitHash": "<hash>",
+              "commitTimestampMs": 1704067200000
+            },
+            {
+              "name": "feature",
+              "isCurrent": false,
+              "upstreamName": null,
+              "commitHash": "<hash>",
+              "commitTimestampMs": 1704067200000
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "action": "switch",
+          "branchName": "feature",
+          "didChange": true,
+          "created": false,
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "feature",
+            "trackingBranchName": null,
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "issues": []
+        },
+        {
+          "ok": true,
+          "action": "switch",
+          "branchName": "feature",
+          "didChange": false,
+          "created": false,
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "feature",
+            "trackingBranchName": null,
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "issues": []
+        },
+        {
+          "ok": false,
+          "action": "switch",
+          "branchName": null,
+          "didChange": false,
+          "created": false,
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "feature",
+            "trackingBranchName": null,
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "issues": [
+            {
+              "code": "invalid-branch-name",
+              "message": "Branch name is invalid.",
+              "detail": null
+            }
+          ]
+        },
+        {
+          "ok": false,
+          "action": "switch",
+          "branchName": "missing",
+          "didChange": false,
+          "created": false,
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "feature",
+            "trackingBranchName": null,
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "issues": [
+            {
+              "code": "target-branch-not-found",
+              "message": "Target branch was not found.",
+              "detail": "fatal: invalid reference: missing"
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "action": "create-and-switch",
+          "branchName": "topic",
+          "didChange": true,
+          "created": true,
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "topic",
+            "trackingBranchName": null,
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "issues": []
+        },
+        {
+          "ok": false,
+          "action": "create-and-switch",
+          "branchName": null,
+          "didChange": false,
+          "created": false,
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "topic",
+            "trackingBranchName": null,
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "issues": [
+            {
+              "code": "invalid-branch-name",
+              "message": "Branch name is invalid.",
+              "detail": null
+            }
+          ]
+        },
+        {
+          "ok": false,
+          "action": "create-and-switch",
+          "branchName": "bad name",
+          "didChange": false,
+          "created": false,
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "topic",
+            "trackingBranchName": null,
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "issues": [
+            {
+              "code": "invalid-branch-name",
+              "message": "Branch name is invalid.",
+              "detail": "fatal: 'bad name' is not a valid branch name"
+            }
+          ]
+        },
+        {
+          "headRefType": "branch",
+          "currentBranchName": "topic",
+          "branches": [
+            {
+              "name": "topic",
+              "isCurrent": true,
+              "upstreamName": null,
+              "commitHash": "<hash>",
+              "commitTimestampMs": 1704067200000
+            },
+            {
+              "name": "feature",
+              "isCurrent": false,
+              "upstreamName": null,
+              "commitHash": "<hash>",
+              "commitTimestampMs": 1704067200000
+            },
+            {
+              "name": "main",
+              "isCurrent": false,
+              "upstreamName": null,
+              "commitHash": "<hash>",
+              "commitTimestampMs": 1704067200000
+            }
+          ]
+        }
+      ],
+      "tree": []
+    },
+    {
+      "name": "commit-push",
+      "setup": {
+        "files": [
+          {
+            "path": "a.md",
+            "content": "line1\n"
+          },
+          {
+            "path": "dir/b.md",
+            "content": "b1\n"
+          },
+          {
+            "path": ".gitignore",
+            "content": "ignored.txt\n"
+          }
+        ],
+        "remote": true,
+        "extraFiles": [
+          {
+            "path": "a.md",
+            "content": "line1\nline2\n"
+          },
+          {
+            "path": "new.md",
+            "content": "hello\n"
+          }
+        ],
+        "addPaths": [
+          "a.md",
+          "new.md"
+        ]
+      },
+      "ops": [
+        {
+          "kind": "status"
+        },
+        {
+          "kind": "branchComparison"
+        },
+        {
+          "kind": "commit",
+          "message": "feat: change"
+        },
+        {
+          "kind": "status"
+        },
+        {
+          "kind": "branchComparison"
+        },
+        {
+          "kind": "push"
+        },
+        {
+          "kind": "status"
+        },
+        {
+          "kind": "branchComparison"
+        }
+      ],
+      "expected": [
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "main",
+            "trackingBranchName": "origin/main",
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": true,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "entries": [
+            {
+              "path": "a.md",
+              "originalPath": null,
+              "kind": "modified",
+              "x": "M",
+              "y": ".",
+              "isUntracked": false,
+              "isConflicted": false
+            },
+            {
+              "path": "new.md",
+              "originalPath": null,
+              "kind": "added",
+              "x": "A",
+              "y": ".",
+              "isUntracked": false,
+              "isConflicted": false
+            }
+          ],
+          "stagedStats": {
+            "a.md": {
+              "added": 1,
+              "removed": 0
+            },
+            "new.md": {
+              "added": 1,
+              "removed": 0
+            }
+          },
+          "unstagedStats": {},
+          "untrackedStats": {}
+        },
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "baseRef": "origin/main",
+          "headRef": "main",
+          "comparisonLabel": "main -> origin/main",
+          "changes": []
+        },
+        {
+          "commitHash": "<hash>"
+        },
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "main",
+            "trackingBranchName": "origin/main",
+            "headRefType": "branch",
+            "ahead": 1,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "entries": [],
+          "stagedStats": {},
+          "unstagedStats": {},
+          "untrackedStats": {}
+        },
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "baseRef": "origin/main",
+          "headRef": "main",
+          "comparisonLabel": "main -> origin/main",
+          "changes": [
+            {
+              "path": "a.md",
+              "originalPath": null,
+              "kind": "added",
+              "added": 1,
+              "removed": 0
+            },
+            {
+              "path": "new.md",
+              "originalPath": null,
+              "kind": "added",
+              "added": 1,
+              "removed": 0
+            }
+          ]
+        },
+        {
+          "branchName": "main",
+          "trackingBranchName": "origin/main",
+          "remoteName": "origin",
+          "setUpstream": false,
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "main",
+            "trackingBranchName": "origin/main",
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          }
+        },
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "main",
+            "trackingBranchName": "origin/main",
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "entries": [],
+          "stagedStats": {},
+          "unstagedStats": {},
+          "untrackedStats": {}
+        },
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "baseRef": "origin/main",
+          "headRef": "main",
+          "comparisonLabel": "main -> origin/main",
+          "changes": []
+        }
+      ],
+      "tree": []
+    },
+    {
+      "name": "commit-staged-only",
+      "setup": {
+        "files": [
+          {
+            "path": "a.md",
+            "content": "line1\n"
+          },
+          {
+            "path": "dir/b.md",
+            "content": "b1\n"
+          },
+          {
+            "path": ".gitignore",
+            "content": "ignored.txt\n"
+          }
+        ],
+        "remote": true,
+        "extraFiles": [
+          {
+            "path": "a.md",
+            "content": "line1\nline2\n"
+          },
+          {
+            "path": "dir/b.md",
+            "content": "b1\nb2\n"
+          }
+        ],
+        "addPaths": [
+          "a.md",
+          "dir/b.md"
+        ]
+      },
+      "ops": [
+        {
+          "kind": "status"
+        },
+        {
+          "kind": "commit",
+          "message": "feat: selected",
+          "paths": [
+            "a.md"
+          ],
+          "stagedOnly": true
+        },
+        {
+          "kind": "status"
+        },
+        {
+          "kind": "discard",
+          "paths": [
+            "dir/b.md"
+          ],
+          "staged": true
+        },
+        {
+          "kind": "status"
+        }
+      ],
+      "expected": [
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "main",
+            "trackingBranchName": "origin/main",
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": true,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "entries": [
+            {
+              "path": "a.md",
+              "originalPath": null,
+              "kind": "modified",
+              "x": "M",
+              "y": ".",
+              "isUntracked": false,
+              "isConflicted": false
+            },
+            {
+              "path": "dir/b.md",
+              "originalPath": null,
+              "kind": "modified",
+              "x": "M",
+              "y": ".",
+              "isUntracked": false,
+              "isConflicted": false
+            }
+          ],
+          "stagedStats": {
+            "a.md": {
+              "added": 1,
+              "removed": 0
+            },
+            "dir/b.md": {
+              "added": 1,
+              "removed": 0
+            }
+          },
+          "unstagedStats": {},
+          "untrackedStats": {}
+        },
+        {
+          "commitHash": "<hash>"
+        },
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "main",
+            "trackingBranchName": "origin/main",
+            "headRefType": "branch",
+            "ahead": 1,
+            "behind": 0,
+            "isDirty": true,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "entries": [
+            {
+              "path": "dir/b.md",
+              "originalPath": null,
+              "kind": "modified",
+              "x": "M",
+              "y": ".",
+              "isUntracked": false,
+              "isConflicted": false
+            }
+          ],
+          "stagedStats": {
+            "dir/b.md": {
+              "added": 1,
+              "removed": 0
+            }
+          },
+          "unstagedStats": {},
+          "untrackedStats": {}
+        },
+        {
+          "ok": true
+        },
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "main",
+            "trackingBranchName": "origin/main",
+            "headRefType": "branch",
+            "ahead": 1,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "entries": [],
+          "stagedStats": {},
+          "unstagedStats": {},
+          "untrackedStats": {}
+        }
+      ],
+      "tree": []
+    },
+    {
+      "name": "facade",
+      "setup": {
+        "files": [
+          {
+            "path": "a.md",
+            "content": "line1\n"
+          },
+          {
+            "path": "dir/b.md",
+            "content": "b1\n"
+          },
+          {
+            "path": ".gitignore",
+            "content": "ignored.txt\n"
+          }
+        ],
+        "remote": true,
+        "extraFiles": [
+          {
+            "path": "a.md",
+            "content": "line1\nline2\n"
+          },
+          {
+            "path": "dir/b.md",
+            "content": "b1\nb2\n"
+          },
+          {
+            "path": "new.md",
+            "content": "hello\n"
+          }
+        ],
+        "addPaths": [
+          "dir/b.md"
+        ]
+      },
+      "ops": [
+        {
+          "kind": "changes",
+          "sourceId": "unstaged"
+        },
+        {
+          "kind": "changes",
+          "sourceId": "staged"
+        },
+        {
+          "kind": "summary"
+        },
+        {
+          "kind": "refresh",
+          "includeIdentity": true,
+          "includeBranchComparison": true
+        },
+        {
+          "kind": "commitService",
+          "message": "feat: facade",
+          "paths": [
+            "a.md",
+            "new.md"
+          ]
+        },
+        {
+          "kind": "changes",
+          "sourceId": "unstaged"
+        },
+        {
+          "kind": "changes",
+          "sourceId": "staged"
+        },
+        {
+          "kind": "generate"
+        }
+      ],
+      "expected": [
+        [
+          {
+            "path": "<root>/ws/a.md",
+            "repoRelativePath": "a.md",
+            "workspaceRelativePath": "a.md",
+            "x": ".",
+            "y": "M",
+            "kind": "modified",
+            "section": "unstaged",
+            "added": 1,
+            "removed": 0,
+            "isStaged": false,
+            "isUntracked": false,
+            "isConflicted": false
+          },
+          {
+            "path": "<root>/ws/new.md",
+            "repoRelativePath": "new.md",
+            "workspaceRelativePath": "new.md",
+            "y": "?",
+            "kind": "added",
+            "section": "untracked",
+            "added": 1,
+            "removed": 0,
+            "isStaged": false,
+            "isUntracked": true,
+            "isConflicted": false
+          }
+        ],
+        [
+          {
+            "path": "<root>/ws/dir/b.md",
+            "repoRelativePath": "dir/b.md",
+            "workspaceRelativePath": "dir/b.md",
+            "x": "M",
+            "y": ".",
+            "kind": "modified",
+            "section": "staged",
+            "added": 1,
+            "removed": 0,
+            "isStaged": true,
+            "isUntracked": false,
+            "isConflicted": false
+          }
+        ],
+        {
+          "workspacePath": "<root>/ws",
+          "repoRoot": "<root>/ws",
+          "workspaceInRepoPath": ".",
+          "autoRefreshWatchPaths": [
+            {
+              "path": "<root>/ws/.git",
+              "recursive": true
+            },
+            {
+              "path": "<root>/ws/.git",
+              "recursive": true
+            }
+          ],
+          "branchName": "main",
+          "trackingBranchName": "origin/main",
+          "headRefType": "branch",
+          "ahead": 0,
+          "behind": 0,
+          "isDirty": true,
+          "isGitAvailable": true,
+          "isRepository": true
+        },
+        {
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "main",
+            "trackingBranchName": "origin/main",
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": true,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "identity": {
+            "userName": "Mode Test",
+            "userEmail": "mode@test.local",
+            "nameSource": "file:.git/config",
+            "emailSource": "file:.git/config",
+            "scopeLabel": "local"
+          },
+          "unstagedChanges": [
+            {
+              "path": "<root>/ws/a.md",
+              "repoRelativePath": "a.md",
+              "workspaceRelativePath": "a.md",
+              "x": ".",
+              "y": "M",
+              "kind": "modified",
+              "section": "unstaged",
+              "added": 1,
+              "removed": 0,
+              "isStaged": false,
+              "isUntracked": false,
+              "isConflicted": false
+            },
+            {
+              "path": "<root>/ws/new.md",
+              "repoRelativePath": "new.md",
+              "workspaceRelativePath": "new.md",
+              "y": "?",
+              "kind": "added",
+              "section": "untracked",
+              "added": 1,
+              "removed": 0,
+              "isStaged": false,
+              "isUntracked": true,
+              "isConflicted": false
+            }
+          ],
+          "stagedChanges": [
+            {
+              "path": "<root>/ws/dir/b.md",
+              "repoRelativePath": "dir/b.md",
+              "workspaceRelativePath": "dir/b.md",
+              "x": "M",
+              "y": ".",
+              "kind": "modified",
+              "section": "staged",
+              "added": 1,
+              "removed": 0,
+              "isStaged": true,
+              "isUntracked": false,
+              "isConflicted": false
+            }
+          ],
+          "branchComparison": {
+            "baseRef": "origin/main",
+            "headRef": "main",
+            "comparisonLabel": "main -> origin/main",
+            "changes": []
+          }
+        },
+        {
+          "error": "git commit failed: error: pathspec 'new.md' did not match any file(s) known to git"
+        },
+        [
+          {
+            "path": "<root>/ws/a.md",
+            "repoRelativePath": "a.md",
+            "workspaceRelativePath": "a.md",
+            "x": ".",
+            "y": "M",
+            "kind": "modified",
+            "section": "unstaged",
+            "added": 1,
+            "removed": 0,
+            "isStaged": false,
+            "isUntracked": false,
+            "isConflicted": false
+          },
+          {
+            "path": "<root>/ws/new.md",
+            "repoRelativePath": "new.md",
+            "workspaceRelativePath": "new.md",
+            "y": "?",
+            "kind": "added",
+            "section": "untracked",
+            "added": 1,
+            "removed": 0,
+            "isStaged": false,
+            "isUntracked": true,
+            "isConflicted": false
+          }
+        ],
+        [
+          {
+            "path": "<root>/ws/dir/b.md",
+            "repoRelativePath": "dir/b.md",
+            "workspaceRelativePath": "dir/b.md",
+            "x": "M",
+            "y": ".",
+            "kind": "modified",
+            "section": "staged",
+            "added": 1,
+            "removed": 0,
+            "isStaged": true,
+            "isUntracked": false,
+            "isConflicted": false
+          }
+        ],
+        {
+          "error": "Commit message generation is not available."
+        }
+      ],
+      "tree": []
+    },
+    {
+      "name": "not-a-repository",
+      "setup": {
+        "files": [],
+        "skipRepo": true
+      },
+      "ops": [
+        {
+          "kind": "status"
+        },
+        {
+          "kind": "repoInfo"
+        },
+        {
+          "kind": "branches"
+        },
+        {
+          "kind": "graph"
+        },
+        {
+          "kind": "identity"
+        },
+        {
+          "kind": "ignored",
+          "paths": [
+            "a.md"
+          ]
+        }
+      ],
+      "expected": [
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [],
+            "isGitAvailable": true,
+            "isRepository": false
+          },
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [],
+            "branchName": null,
+            "trackingBranchName": null,
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": false
+          },
+          "entries": [],
+          "stagedStats": {},
+          "unstagedStats": {},
+          "untrackedStats": {}
+        },
+        {
+          "workspacePath": "<root>/ws",
+          "kind": "not-repository",
+          "isGitAvailable": true
+        },
+        {
+          "headRefType": "branch",
+          "currentBranchName": null,
+          "branches": []
+        },
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [],
+            "isGitAvailable": true,
+            "isRepository": false
+          },
+          "commits": [],
+          "hasMore": false
+        },
+        {
+          "userName": null,
+          "userEmail": null,
+          "nameSource": null,
+          "emailSource": null,
+          "scopeLabel": null
+        },
+        []
+      ],
+      "tree": []
+    },
+    {
+      "name": "detached-head",
+      "setup": {
+        "files": [
+          {
+            "path": "a.md",
+            "content": "line1\n"
+          },
+          {
+            "path": "dir/b.md",
+            "content": "b1\n"
+          },
+          {
+            "path": ".gitignore",
+            "content": "ignored.txt\n"
+          }
+        ],
+        "detach": true
+      },
+      "ops": [
+        {
+          "kind": "status"
+        },
+        {
+          "kind": "branches"
+        },
+        {
+          "kind": "push"
+        },
+        {
+          "kind": "switch",
+          "branch": "main"
+        }
+      ],
+      "expected": [
+        {
+          "resolution": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": null,
+            "trackingBranchName": null,
+            "headRefType": "detached",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "entries": [],
+          "stagedStats": {},
+          "unstagedStats": {},
+          "untrackedStats": {}
+        },
+        {
+          "headRefType": "detached",
+          "currentBranchName": null,
+          "branches": [
+            {
+              "name": "main",
+              "isCurrent": false,
+              "upstreamName": null,
+              "commitHash": "<hash>",
+              "commitTimestampMs": 1704067200000
+            }
+          ]
+        },
+        {
+          "error": "Cannot push while HEAD is detached."
+        },
+        {
+          "ok": true,
+          "action": "switch",
+          "branchName": "main",
+          "didChange": true,
+          "created": false,
+          "summary": {
+            "workspacePath": "<root>/ws",
+            "repoRoot": "<root>/ws",
+            "workspaceInRepoPath": ".",
+            "autoRefreshWatchPaths": [
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              },
+              {
+                "path": "<root>/ws/.git",
+                "recursive": true
+              }
+            ],
+            "branchName": "main",
+            "trackingBranchName": null,
+            "headRefType": "branch",
+            "ahead": 0,
+            "behind": 0,
+            "isDirty": false,
+            "isGitAvailable": true,
+            "isRepository": true
+          },
+          "issues": []
+        }
+      ],
+      "tree": []
+    }
+  ]
+}

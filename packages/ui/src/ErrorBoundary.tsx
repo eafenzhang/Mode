@@ -5,7 +5,6 @@ import { DEFAULT_LOCALE } from "@mode/shared";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
 import zhCN from "@/i18n/locales/zh-CN.js";
 import enUS from "@/i18n/locales/en-US.js";
-import faIR from "@/i18n/locales/fa.js";
 import { logger } from "@/logger.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
@@ -66,11 +65,7 @@ function resolveBoundaryLocale(): Locale {
   if (typeof localStorage !== "undefined" && typeof localStorage.getItem === "function") {
     try {
       const storedPreference = localStorage.getItem(LOCALE_PREFERENCE_KEY);
-      if (
-        storedPreference === "zh-CN" ||
-        storedPreference === "en-US" ||
-        storedPreference === "fa-IR"
-      ) {
+      if (storedPreference === "zh-CN" || storedPreference === "en-US") {
         return storedPreference;
       }
     } catch {
@@ -83,7 +78,6 @@ function resolveBoundaryLocale(): Locale {
   if (typeof navigator !== "undefined") {
     const normalized = navigator.language.toLowerCase();
     if (normalized.startsWith("zh")) return "zh-CN";
-    if (normalized.startsWith("fa")) return "fa-IR";
     return "en-US";
   }
 
@@ -92,7 +86,7 @@ function resolveBoundaryLocale(): Locale {
 
 function formatBoundaryMessage(id: string): string {
   const locale = resolveBoundaryLocale();
-  const messages = locale === "en-US" ? enUS : locale === "fa-IR" ? faIR : zhCN;
+  const messages = locale === "en-US" ? enUS : zhCN;
   return messages[id] ?? id;
 }
 
@@ -126,12 +120,10 @@ function ErrorFallback({
 }) {
   const errorSummary = error.message.trim() || formatBoundaryMessage("appError.unknown");
 
-  // 错误边界可能脱离 IntlProvider 渲染，这里按 fallback 语言同步 html lang/dir（fa-IR 为 RTL）。
+  // 错误边界可能脱离 IntlProvider 渲染，这里按 fallback 语言同步 html lang。
   useEffect(() => {
     if (typeof document === "undefined") return;
-    const locale = resolveBoundaryLocale();
-    document.documentElement.lang = locale;
-    document.documentElement.dir = locale === "fa-IR" ? "rtl" : "ltr";
+    document.documentElement.lang = resolveBoundaryLocale();
   }, []);
 
   return (

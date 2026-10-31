@@ -77,11 +77,10 @@ test("气泡尺寸钉上一版小尺寸，不允许再次放大", async () => {
   assert.ok(!source.includes("size-2.5"), "size-2.5 是 495369e 放大的值，不允许回归");
 });
 
-test("chat.typing 三语齐", async () => {
+test("chat.typing 双语文案齐", async () => {
   for (const [locale, expected] of [
     ["zh-CN", "正在输入"],
     ["en-US", "Typing"],
-    ["fa", "در حال تایپ"],
   ] as const) {
     const source = await readFile(
       new URL(`../../../packages/ui/src/i18n/locales/${locale}.ts`, import.meta.url),

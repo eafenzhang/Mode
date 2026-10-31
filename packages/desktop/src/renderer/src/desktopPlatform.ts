@@ -346,7 +346,6 @@ export function createDesktopPlatform(options: {
         (() => {
           const normalized = navigator.language.toLowerCase();
           if (normalized.startsWith("zh")) return "zh-CN" as const;
-          if (normalized.startsWith("fa")) return "fa-IR" as const;
           return "en-US" as const;
         })(),
       ),
