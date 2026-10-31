@@ -9,7 +9,7 @@
  */
 import { chmodSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   DATA_ROOT_MANIFEST_SCHEMA_VERSION,
   DATA_ROOT_PRODUCT_ID,
@@ -17,7 +17,11 @@ import {
   type DataRootManifestCreatedBy,
 } from "@mode/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
-import { getDataBaseDir, setDataRootPathOverride } from "../paths.js";
+import {
+  getDataBaseDir,
+  isDataBaseDirEnvOverrideActive,
+  setDataRootPathOverride,
+} from "../paths.js";
 import {
   discoverLegacyDataRootCandidates,
   executeDataRootCopyMigration,
@@ -27,6 +31,7 @@ import {
   forfeitConflictingDataRoot,
   forfeitDataRootByLabel,
   readDataRootStatus,
+  resolveDataRootDir,
   writeDataRootManifest,
 } from "./ownership.js";
 import type {
@@ -133,10 +138,28 @@ function buildManifest(input: {
 }
 
 /**
+ * 是否为 `MODE_DATA_BASE_DIR` 指定的隔离数据基目录。
+ *
+ * 只接管环境变量指向的那个 base：显式传入其它 baseDir 的测试/迁移调用保持原语义。
+ */
+function isIsolatedDataBaseDir(baseDir: string): boolean {
+  if (!isDataBaseDirEnvOverrideActive()) return false;
+  return resolve(resolveDataRootDir(baseDir)) === resolve(resolveDataRootDir(getDataBaseDir()));
+}
+
+/**
  * 全新初始化：必要时先备份冲突目录，再写归属文件。
  * 返回备份落点（未发生冲突时为 undefined）。
+ *
+ * `adoptUnowned`：隔离 base 下，壳可能先写入 `.mode/v2/logs` 再轮到 CLI 初始化。
+ * 这种「无归属文件但目录是本轮刚创建」的根不能备份让路：Windows 上目录内有打开句柄时
+ * rename 会 EPERM，导致 agent 直接退出（验收 2026-10-31 复现）。此时原地补写归属；
+ * product 不匹配等真正的冲突仍按原策略备份。
  */
-export function initializeFreshDataRoot(input: InitializeDataRootInput): {
+export function initializeFreshDataRoot(
+  input: InitializeDataRootInput,
+  options: { adoptUnowned?: boolean } = {},
+): {
   baseDir: string;
   manifestPath: string;
   forfeitedRoot?: string;
@@ -144,7 +167,11 @@ export function initializeFreshDataRoot(input: InitializeDataRootInput): {
   const baseDir = input.baseDir ?? getDataBaseDir();
   const status = readDataRootStatus(baseDir);
   let forfeitedRoot: string | undefined;
-  if (status.kind === "unowned" || status.kind === "corrupt") {
+  const adoptable =
+    options.adoptUnowned === true &&
+    status.kind === "unowned" &&
+    status.reason === "manifest-missing";
+  if (!adoptable && (status.kind === "unowned" || status.kind === "corrupt")) {
     forfeitedRoot = forfeitConflictingDataRoot(baseDir, status) ?? undefined;
   }
   const manifestPath = writeDataRootManifest(baseDir, buildManifest(input));
@@ -182,7 +209,25 @@ export function initializeDataRootInteractive(
     enterPendingDiagnosticMode();
     return { state: "pending", baseDir, status };
   }
-  // unowned / corrupt：不静默复用，进入决策。
+  // unowned / corrupt：不静默复用，进入决策。隔离 base 例外：目录是本轮 shell 先创建的，
+  // 原地补写归属即可（见 initializeFreshDataRoot 的 adoptUnowned 说明）。
+  if (
+    status.kind === "unowned" &&
+    status.reason === "manifest-missing" &&
+    isIsolatedDataBaseDir(baseDir)
+  ) {
+    const { forfeitedRoot } = initializeFreshDataRoot(
+      { ...input, baseDir },
+      { adoptUnowned: true },
+    );
+    releasePendingDiagnosticMode();
+    return {
+      state: "initialized",
+      baseDir,
+      initializedBy: "fresh",
+      ...(forfeitedRoot ? { forfeitedRoot } : {}),
+    };
+  }
   enterPendingDiagnosticMode();
   return { state: "pending", baseDir, status };
 }
@@ -252,7 +297,10 @@ export async function initializeDataRootNonInteractive(
     return { state: "initialized", baseDir, initializedBy: "migration" };
   }
 
-  const { forfeitedRoot } = initializeFreshDataRoot({ ...input, baseDir });
+  const { forfeitedRoot } = initializeFreshDataRoot(
+    { ...input, baseDir },
+    { adoptUnowned: action === "fresh" && isIsolatedDataBaseDir(baseDir) },
+  );
   releasePendingDiagnosticMode();
   return {
     state: "initialized",

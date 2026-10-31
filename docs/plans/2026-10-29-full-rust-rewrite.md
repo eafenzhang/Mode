@@ -74,7 +74,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | RPC 线格式 | `crates/rpc-wire` + `docs/specs/rpc-wire-format.md`，与 TS 字节级对拍 | **已完成**（`5e926cb9`） |
 | 协议层 | 13 字节 `ProtocolMessage` 头、stdio 4 字节前缀、请求与回帧信封的 Rust 编解码 | **已完成**（`crates/rpc-wire::frame/stdio/envelope`，14 条黄金样例对拍） |
 | 壳内 ChannelServer | 频道注册、分派、事件订阅/取消、错误映射、pending 与超时 | **已完成**（`crates/rpc-host` + `docs/specs/rpc-host-dispatch.md`，10 条行为用例） |
-| 帧路由 | 按频道分流（Rust 服务面 vs 遗留 Node），启动期一次性开关 | **已完成**：判定层 + 壳内接线（`inprocess.rs`）；已接管 19 个频道，scoped 控制帧登记并按 scope 复用服务面；开关默认关闭，真机未验 |
+| 帧路由 | 按频道分流（Rust 服务面 vs 遗留 Node），启动期一次性开关 | **已完成**：判定层 + 壳内接线（`inprocess.rs`）；已接管 19 个频道，scoped 控制帧登记并按 scope 复用服务面；开关默认关闭。**2026-10-31 本地真人路径验收**：19 个频道全部注册成功，15 个经 UI 路径验证（setting/memory/skills/subagents/commands/settings-sync/file/file-watcher/git/media-preview/credential/system + client-config/client-scenes/broadcast 间接），`prompt-attachment-transfer`、`conversation-mirror`、`skill-sync`、`git-checkpoint` 需模型或远程/手机环境，未覆盖；记录与截图在 `.plan/accept-0.0.109-inprocess/` |
 | 启动分解度量 | `measure:host-startup`（host 四个 `startup_mark` + 解析脚本与 4 条单测） | **已完成**（标记已入 host；基线等下一次真实启动后读取） |
 
 出口：开关为空时产品行为与今天字节级一致；打开只读频道时 UI 正常。

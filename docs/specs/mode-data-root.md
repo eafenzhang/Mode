@@ -171,7 +171,7 @@ main 模块加载
 7. 迁移中强杀/失败 → 下次启动仍 pending、可重试、staging 清理。
 8. 清除所有数据（删 `v2`）→ 归属保留、不重新引导。
 9. CLI 遇 unowned → 备份 + 全新，不阻塞。
-10. E2E/dev 隔离 base → 自动初始化，不弹窗。
+10. E2E/dev 隔离 base → 自动初始化，不弹窗；壳先写出的无归属目录原地补写归属。
 11. `ZCODE_DATA_BASE_DIR` 隔离实例 → 决策/初始化发生在隔离 base 内。
 12. 降级（schemaVersion 过新）→ corrupt 分支，不静默读取。
 
@@ -179,8 +179,15 @@ main 模块加载
 
 - **Host sidecar 不执行数据根初始化**：`packages/desktop/src/host-standalone/index.ts` 直接由
   `MODE_DATA_BASE_DIR` 派生 `{base}/.mode` 并开始写盘，不读写归属文件、也不做迁移。
-  当前只有 `packages/server` 的 HTTP/stdio 入口调用
-  `initializeDataRootNonInteractive()`。
+  `packages/server` 的 HTTP/stdio 入口与 `apps/mode-cli` 主入口调用
+  `initializeDataRootNonInteractive()`（agent 进程同样会走这一步）。
+- **隔离 base 的首次初始化（2026-11-01 修复）**：`MODE_DATA_BASE_DIR` 生效且传入/默认
+  base 等于当前数据基目录时，如果 `.mode` 已存在但**只缺归属文件**（典型原因：壳先写
+  `.mode/v2/logs`，CLI/agent 后初始化），初始化器原地补写归属并继续，不再备份让路。
+  背景：Windows 上目录内有打开句柄时 `rename(.mode → .mode.unowned-*)` 会 EPERM，
+  agent 直接退出（2026-10-31 本地验收复现）。交互与非交互 `fresh` 两条路径一致；
+  `product` 不匹配或 `corrupt` 仍按原策略处理。
+  覆盖用例：`packages/services/test/dataRootEnvOverride.test.ts`。
 - **迁移演练已覆盖「初始化器 → Host 消费」**：`packages/services/test/data-root-host-drill.test.ts`
   先用 `initializeDataRootNonInteractive({ action: "migrate" })` 把合成旧根复制到新根，
   再启动生产 Host（`test/fixtures/hostStdioClient.ts` 的真实 stdio 客户端），断言 Host 读到
