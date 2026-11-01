@@ -24,6 +24,7 @@ settings-store = { path = "../settings-store" }
 skills-service = { path = "../skills-service" }
 settings-sync-service = { path = "../settings-sync-service" }
 skill-sync-service = { path = "../skill-sync-service" }
+plugin-sync-service = { path = "../plugin-sync-service" }
 subagents-service = { path = "../subagents-service" }
 system-service = { path = "../system-service" }
 rpc-host = { path = "../rpc-host" }

@@ -103,6 +103,8 @@ sourceFingerprints})[..12]>`。
 
 - `pnpm plugin-sync:fixtures` 生成 `crates/plugin-sync-service/fixtures/plugin-sync.json`
   （3 个用例：完整 home、空 home、损坏配置）。
+- `cargo test -p host-channels --test plugin_sync_channel`：候选/导出/导入往返、
+  statuses、写权限与未知方法错误（2 条）。
 - `cargo test -p plugin-sync-service` 重建同构 home 并逐项深比较：
   `<root>` 路径、64 位 hash → `<sha256>`、去重后缀 → `<hash8>`、marketplace 目录后缀 →
   `<hash12>`、归档字段归一；fixture 还保存插件与 marketplace 两份 **TS 生成归档**，

@@ -1920,6 +1920,7 @@ dependencies = [
  "git-checkpoint-service",
  "git-cli",
  "git-service",
+ "plugin-sync-service",
  "project-memory",
  "rpc-host",
  "rpc-wire",

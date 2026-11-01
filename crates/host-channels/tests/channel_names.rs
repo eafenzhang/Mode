@@ -27,6 +27,7 @@ fn every_local_channel_name_exists_in_service_channels() {
         ("skill-sync", "SkillSync"),
         ("git", "Git"),
         ("git-checkpoint", "GitCheckpoint"),
+        ("plugin-sync", "PluginSync"),
     ];
     for (value, key) in names {
         let expected = format!("{key}: \"{value}\"");
@@ -59,6 +60,7 @@ fn local_channel_names_are_unique() {
         host_channels::SKILL_SYNC_CHANNEL,
         host_channels::GIT_CHANNEL,
         host_channels::GIT_CHECKPOINT_CHANNEL,
+        host_channels::PLUGIN_SYNC_CHANNEL,
     ];
     let mut sorted = names.to_vec();
     sorted.sort_unstable();

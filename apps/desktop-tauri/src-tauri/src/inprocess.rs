@@ -19,13 +19,14 @@ use std::time::Duration;
 use host_channels::{
     AttachmentTransferChannel, BroadcastChannel, ClientConfigChannel, ClientScenesChannel,
     CommandsChannel, ConversationMirrorChannel, CredentialChannel, FileChannel, FileWatcherChannel,
-    GitChannel, GitCheckpointChannel, MediaPreviewChannel, MemoryChannel, SettingChannel,
-    SettingsSyncChannel, SkillSyncChannel, SkillsChannel, SubagentsChannel, SystemChannel,
-    ATTACHMENT_TRANSFER_CHANNEL,
+    GitChannel, GitCheckpointChannel, MediaPreviewChannel, MemoryChannel, PluginSyncChannel,
+    SettingChannel, SettingsSyncChannel, SkillSyncChannel, SkillsChannel, SubagentsChannel,
+    SystemChannel, ATTACHMENT_TRANSFER_CHANNEL,
     BROADCAST_CHANNEL, CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL,
     CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL, FILE_CHANNEL, FILE_WATCHER_CHANNEL,
-    GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL, SETTING_CHANNEL,
-    SETTINGS_SYNC_CHANNEL, SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL,
+    GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
+    PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL, SKILLS_CHANNEL,
+    SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
@@ -86,7 +87,8 @@ impl InprocessState {
                 | BROADCAST_CHANNEL
                 | SKILL_SYNC_CHANNEL
                 | GIT_CHANNEL
-                | GIT_CHECKPOINT_CHANNEL => owned.push(name),
+                | GIT_CHECKPOINT_CHANNEL
+                | PLUGIN_SYNC_CHANNEL => owned.push(name),
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
                 other => crate::host::shell_log(&format!("inprocess channel ignored (not ported yet): {other}")),
             }
@@ -405,6 +407,12 @@ fn build_server(
                 GIT_CHECKPOINT_CHANNEL,
                 Arc::new(GitCheckpointChannel::new(
                     host_channels::git_checkpoint::default_service(data_root.to_path_buf()),
+                )),
+            ),
+            PLUGIN_SYNC_CHANNEL => server.register_channel(
+                PLUGIN_SYNC_CHANNEL,
+                Arc::new(PluginSyncChannel::new(
+                    host_channels::plugin_sync::default_service(),
                 )),
             ),
             other => crate::host::shell_log(&format!("inprocess channel not constructible: {other}")),

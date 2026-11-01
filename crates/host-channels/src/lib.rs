@@ -7,7 +7,8 @@
 //! `credential`（四个文件方法）、`commands`（6 个命令管理方法）、`skills`（6 个技能方法）、
 //! `subagents`（8 个 subagent 管理方法）、`settings-sync`（6 个外部配置同步方法）、
 //! `broadcast`（发送 + 5 个 claim 方法 + `onMessage`）、`skill-sync`（5 个归档同步方法）、
-//! `git`（18 个仓库操作；提交信息生成依赖 W4）、`git-checkpoint`（4 个 workspace 快照方法）。
+//! `git`（18 个仓库操作；提交信息生成依赖 W4）、`git-checkpoint`（4 个 workspace 快照方法）、
+//! `plugin-sync`（7 个插件归档同步方法）。
 
 mod base64;
 mod params;
@@ -23,6 +24,7 @@ pub mod file_watcher;
 pub mod git;
 pub mod git_checkpoint;
 pub mod media_preview;
+pub mod plugin_sync;
 pub mod setting;
 pub mod settings_sync;
 pub mod skill_sync;
@@ -42,6 +44,7 @@ pub use file_watcher::FileWatcherChannel;
 pub use git::GitChannel;
 pub use git_checkpoint::GitCheckpointChannel;
 pub use media_preview::MediaPreviewChannel;
+pub use plugin_sync::PluginSyncChannel;
 pub use setting::SettingChannel;
 pub use settings_sync::SettingsSyncChannel;
 pub use skill_sync::SkillSyncChannel;
@@ -69,3 +72,4 @@ pub const SETTINGS_SYNC_CHANNEL: &str = "settings-sync";
 pub const SKILL_SYNC_CHANNEL: &str = "skill-sync";
 pub const GIT_CHANNEL: &str = "git";
 pub const GIT_CHECKPOINT_CHANNEL: &str = "git-checkpoint";
+pub const PLUGIN_SYNC_CHANNEL: &str = "plugin-sync";
