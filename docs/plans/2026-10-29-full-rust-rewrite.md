@@ -366,6 +366,10 @@ protocolVersion 校验，5 条协议测试。**订阅 facade 已接**：`subscri
 `helloConversationV4` + `initializeConversationV4` + `subscribeConversationV4` +
 `sendConversationCommandV4`（仅 resolveInteraction））。
 所有权切换仍是 W4 下一片，`hooks` 的 grant 与任务/会话频道都等它。
+**设计草案已落（2026-11-01，待批准）**：`docs/specs/host-ownership-switch.md`
+定义频道级一次性切换、单 Agent 所有权不变量、请求/事件顺序、健康状态面
+（不引入定时 ping）与 S0–S4 分阶段出口；开放决策包括 `not-needed` 审计方式、
+`blocked` 方法降级语义、健康面暴露位置与 Host 聚合面读 agent 的方式。
 
 ### W5 生态面替换
 
