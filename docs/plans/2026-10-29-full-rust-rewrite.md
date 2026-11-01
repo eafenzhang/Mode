@@ -343,7 +343,10 @@ local_path/chunked 两支、metadata-only `attachmentStat`；两条 `superRefine
 `CommandKey` 的 required-nullable `sessionId`（手写 Deserialize 区分缺失与 null）、
 clock 探针只允许全局 key、结果 `ACK | "unknown"` 联合与 1..=64 条校验；
 `AgentControlClient::commands_query_v4` 发送前本地校验，4 条协议测试 + 3 条控制面测试。
-剩余只读面是 sessions-index topic（依赖 snapshot 的 goal/meta/permission 子形状）。
+**sessions-index topic 已落（2026-11-01）**：`SessionSummary`（旧 frame 的缺席字段兼容）、
+workflowActivity（runs ≤ 4、phases ≤ 32、alongside 下标界）、pending 摘要、快照/增量
+（`session.upserted` / `session.removed`）与 complete/fragment wire frame；topic 前缀与
+protocolVersion 校验，5 条协议测试。只读面到此补齐。
 **未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
 所有权切换，以及其余 80 个成员（session 其余读/写、插件/automation/workflow 等；
 `IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 +
