@@ -346,7 +346,10 @@ clock 探针只允许全局 key、结果 `ACK | "unknown"` 联合与 1..=64 条�
 **sessions-index topic 已落（2026-11-01）**：`SessionSummary`（旧 frame 的缺席字段兼容）、
 workflowActivity（runs ≤ 4、phases ≤ 32、alongside 下标界）、pending 摘要、快照/增量
 （`session.upserted` / `session.removed`）与 complete/fragment wire frame；topic 前缀与
-protocolVersion 校验，5 条协议测试。只读面到此补齐。
+protocolVersion 校验，5 条协议测试。**订阅 facade 已接**：`subscribe_sessions_index_v4`
+复用 `v4/conversation/subscribe`，按 `subscriptionId` 过滤
+`v4/conversation/frame` 并反序列化为 sessions-index 帧（与 conversation 共用泛型过滤，
+2 条控制面测试）。只读面到此补齐。
 **未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
 所有权切换，以及其余 80 个成员（session 其余读/写、插件/automation/workflow 等；
 `IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 +

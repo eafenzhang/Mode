@@ -351,6 +351,56 @@ fn main() {
             json!({ "id": id, "result": { "messages": [message] } })
         } else if method == "v4/conversation/subscribe" {
             let id = request.get("id").cloned().unwrap_or(Value::Null);
+            let topic = request
+                .get("params")
+                .and_then(|params| params.get("topic"))
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            if topic.starts_with("sessions-index/") {
+                // sessions-index ack 与 conversation 同形（不带 openTiming）。
+                let reply = json!({
+                    "id": id,
+                    "result": {
+                        "ack": {
+                            "subscriptionId": "sub-1",
+                            "mode": "snapshot",
+                            "logEpoch": "epoch-1"
+                        }
+                    }
+                });
+                let _ = writeln!(stdout, "{reply}");
+                let _ = stdout.flush();
+                std::thread::sleep(Duration::from_millis(50));
+                let frame = json!({
+                    "wireVersion": 3,
+                    "kind": "complete",
+                    "deliveryKind": "initial",
+                    "logicalFrameId": "si-1",
+                    "logicalFrameOrdinal": 1,
+                    "topic": topic,
+                    "subscriptionId": "sub-1",
+                    "frame": {
+                        "topic": topic,
+                        "subscriptionId": "sub-1",
+                        "fromSeq": 0,
+                        "toSeq": 1,
+                        "sentAt": 1,
+                        "payload": {
+                            "kind": "snapshot",
+                            "snapshot": {
+                                "protocolVersion": 1,
+                                "workspaceId": "ws-1",
+                                "logEpoch": "epoch-1",
+                                "sessions": []
+                            }
+                        }
+                    }
+                });
+                let notification = json!({ "method": "v4/conversation/frame", "params": frame });
+                let _ = writeln!(stdout, "{notification}");
+                let _ = stdout.flush();
+                continue;
+            }
             let reply = json!({
                 "id": id,
                 "result": {

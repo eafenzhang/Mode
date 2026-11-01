@@ -32,8 +32,15 @@
 ## 3. 传输
 
 sessions-index 与 conversation 共用 `v4/conversation/subscribe`（`topic` 自由字符串），
-没有新增 RPC 方法；本模块只补 topic 载荷、帧与 wire frame。分片重组仍由消费方负责，
+没有新增 RPC 方法；本模块补 topic 载荷、帧与 wire frame。分片重组仍由消费方负责，
 与 conversation topic 一致。
+
+客户端 facade：`AgentControlClient::subscribe_sessions_index_v4` 复用同一个 subscribe RPC，
+发送前校验 `sessions-index/<workspaceId>`；`SessionsIndexFrameSubscription` 从
+`v4/conversation/frame` 通知里按 `subscriptionId` 过滤并反序列化为
+`SessionsIndexWireFrame`。conversation 订阅与 sessions-index 订阅共用私有泛型
+`subscribe_topic_frames`，避免两条链路各自实现过滤逻辑。unsubscribe/resync 复用现有
+`v4/conversation/unsubscribe|resync`（同为 topic 字符串）。
 
 ## 4. 验收
 
@@ -44,3 +51,9 @@ sessions-index 与 conversation 共用 `v4/conversation/subscribe`（`topic` 自
 3. 增量 upserted/removed 解析，未知 `op` 拒绝；
 4. topic、protocolVersion、runs/phases/alongside 越界；
 5. complete/fragment wire frame 解析与 topic 前缀校验。
+
+`cargo test -p agent-process --test v4_transport`（sessions-index 相关 2 条）：
+
+1. 订阅请求帧 topic 正确、ACK 无 openTiming、首帧反序列化为
+   `SessionsIndexWireFrame::Complete` 且 snapshot.workspaceId/logEpoch 正确；
+2. 非 `sessions-index/` topic 在 spawn 前以 `InvalidParams` 拒绝。

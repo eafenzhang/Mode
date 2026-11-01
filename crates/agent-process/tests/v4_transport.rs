@@ -189,3 +189,77 @@ async fn rejects_too_many_legacy_task_ids() {
     }
     assert_eq!(spawns.load(Ordering::SeqCst), 0, "参数非法不得拉起 Agent");
 }
+
+fn sessions_index_params() -> ConversationSubscribeParams {
+    ConversationSubscribeParams {
+        topic: "sessions-index/ws-1".to_string(),
+        base: None,
+        visibility: None,
+        connection_id: "conn-1".to_string(),
+        client_mode: V4ClientMode::DesktopContinuous,
+        workspace: None,
+        legacy_task_ids: None,
+        resume_thought_level: None,
+        workflow_run_deltas: None,
+    }
+}
+
+#[tokio::test]
+async fn subscribes_sessions_index_and_receives_snapshot_frame() {
+    let log = FrameLog::new("sessions-index");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+
+    let mut subscription = client
+        .subscribe_sessions_index_v4(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            sessions_index_params(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(subscription.ack.subscription_id, "sub-1");
+    assert_eq!(subscription.ack.mode, SubscribeMode::Snapshot);
+    assert_eq!(subscription.ack.log_epoch, "epoch-1");
+    assert!(subscription.ack.open_timing.is_none());
+    assert_eq!(spawns.load(Ordering::SeqCst), 1);
+
+    let first = tokio::time::timeout(Duration::from_secs(2), subscription.recv())
+        .await
+        .expect("必须收到首帧")
+        .expect("流仍在");
+    match first {
+        agent_protocol::v4_sessions_index::SessionsIndexWireFrame::Complete(frame) => {
+            assert_eq!(frame.topic, "sessions-index/ws-1");
+            match &frame.frame.payload {
+                agent_protocol::v4_sessions_index::SessionsIndexFramePayload::Snapshot(payload) => {
+                    assert_eq!(payload.snapshot.workspace_id, "ws-1");
+                    assert_eq!(payload.snapshot.log_epoch, "epoch-1");
+                    assert!(payload.snapshot.sessions.is_empty());
+                }
+                other => panic!("unexpected payload: {other:?}"),
+            }
+        }
+        other => panic!("unexpected frame: {other:?}"),
+    }
+
+    let sent = log
+        .frame_params("v4/conversation/subscribe")
+        .expect("请求帧");
+    assert_eq!(sent["topic"], "sessions-index/ws-1");
+}
+
+#[tokio::test]
+async fn rejects_non_sessions_index_topic_before_spawn() {
+    let log = FrameLog::new("sessions-index-bad");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+    let error = match client
+        .subscribe_sessions_index_v4(&AgentWorkspaceTarget::new("/ws/demo"), params())
+        .await
+    {
+        Ok(_) => panic!("非 sessions-index topic 必须拒绝"),
+        Err(error) => error,
+    };
+    assert!(matches!(error, ControlError::InvalidParams(_)), "{error:?}");
+    assert_eq!(spawns.load(Ordering::SeqCst), 0);
+}
