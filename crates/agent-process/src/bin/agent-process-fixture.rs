@@ -401,6 +401,50 @@ fn main() {
                 let _ = stdout.flush();
                 continue;
             }
+            if topic.starts_with("workspace-config/") {
+                let reply = json!({
+                    "id": id,
+                    "result": {
+                        "ack": {
+                            "subscriptionId": "sub-1",
+                            "mode": "snapshot",
+                            "logEpoch": "epoch-1"
+                        }
+                    }
+                });
+                let _ = writeln!(stdout, "{reply}");
+                let _ = stdout.flush();
+                std::thread::sleep(Duration::from_millis(50));
+                let frame = json!({
+                    "wireVersion": 3,
+                    "kind": "complete",
+                    "deliveryKind": "initial",
+                    "logicalFrameId": "wc-1",
+                    "logicalFrameOrdinal": 1,
+                    "topic": topic,
+                    "subscriptionId": "sub-1",
+                    "frame": {
+                        "topic": topic,
+                        "subscriptionId": "sub-1",
+                        "fromSeq": 0,
+                        "toSeq": 1,
+                        "sentAt": 1,
+                        "payload": {
+                            "kind": "snapshot",
+                            "snapshot": {
+                                "protocolVersion": 1,
+                                "workspaceId": "ws-1",
+                                "logEpoch": "epoch-1",
+                                "config": { "configOptions": [], "slashCommands": [] }
+                            }
+                        }
+                    }
+                });
+                let notification = json!({ "method": "v4/conversation/frame", "params": frame });
+                let _ = writeln!(stdout, "{notification}");
+                let _ = stdout.flush();
+                continue;
+            }
             let reply = json!({
                 "id": id,
                 "result": {

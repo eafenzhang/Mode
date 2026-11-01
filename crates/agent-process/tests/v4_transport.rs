@@ -263,3 +263,72 @@ async fn rejects_non_sessions_index_topic_before_spawn() {
     assert!(matches!(error, ControlError::InvalidParams(_)), "{error:?}");
     assert_eq!(spawns.load(Ordering::SeqCst), 0);
 }
+
+fn workspace_config_params() -> ConversationSubscribeParams {
+    ConversationSubscribeParams {
+        topic: "workspace-config/ws-1".to_string(),
+        base: None,
+        visibility: None,
+        connection_id: "conn-1".to_string(),
+        client_mode: V4ClientMode::DesktopContinuous,
+        workspace: None,
+        legacy_task_ids: None,
+        resume_thought_level: None,
+        workflow_run_deltas: None,
+    }
+}
+
+#[tokio::test]
+async fn subscribes_workspace_config_and_receives_snapshot_frame() {
+    let log = FrameLog::new("workspace-config");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+
+    let mut subscription = client
+        .subscribe_workspace_config_v4(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            workspace_config_params(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(subscription.ack.subscription_id, "sub-1");
+    assert!(subscription.ack.open_timing.is_none());
+    assert_eq!(spawns.load(Ordering::SeqCst), 1);
+
+    let first = tokio::time::timeout(Duration::from_secs(2), subscription.recv())
+        .await
+        .expect("必须收到首帧")
+        .expect("流仍在");
+    match first {
+        agent_protocol::v4_workspace_config::WorkspaceConfigWireFrame::Complete(frame) => {
+            assert_eq!(frame.topic, "workspace-config/ws-1");
+            match &frame.frame.payload {
+                agent_protocol::v4_workspace_config::WorkspaceConfigFramePayload::Snapshot(
+                    payload,
+                ) => {
+                    assert_eq!(payload.snapshot.workspace_id, "ws-1");
+                    assert!(payload.snapshot.config.config_options.is_empty());
+                    assert!(payload.snapshot.config.slash_commands.is_empty());
+                }
+                other => panic!("unexpected payload: {other:?}"),
+            }
+        }
+        other => panic!("unexpected frame: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn rejects_non_workspace_config_topic_before_spawn() {
+    let log = FrameLog::new("workspace-config-bad");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+    let error = match client
+        .subscribe_workspace_config_v4(&AgentWorkspaceTarget::new("/ws/demo"), params())
+        .await
+    {
+        Ok(_) => panic!("非 workspace-config topic 必须拒绝"),
+        Err(error) => error,
+    };
+    assert!(matches!(error, ControlError::InvalidParams(_)), "{error:?}");
+    assert_eq!(spawns.load(Ordering::SeqCst), 0);
+}

@@ -139,3 +139,122 @@ pub struct ConfigUpdatedDelta {
 pub enum WorkspaceConfigDelta {
     ConfigUpdated(ConfigUpdatedDelta),
 }
+
+// ── topic frame / wire frame ──
+//
+// 真源：`transport.ts` 的 `workspaceConfigTopicFrameSchema` /
+// `workspaceConfigTopicWireFrameSchema`。三个生产 topic（conversation /
+// sessions-index / workspace-config）共用同一帧外壳与 notification，只有 payload 类型不同。
+
+use serde_json::Number;
+
+use crate::v4_transport::{
+    FragmentWireFrame, FramePayloadKindDeltas, FramePayloadKindSnapshot, WireDeliveryKind,
+    WireFrameKindComplete,
+};
+
+pub const WORKSPACE_CONFIG_TOPIC_PREFIX: &str = "workspace-config/";
+
+/// `workspaceConfigTopic(workspaceId)`。
+pub fn workspace_config_topic(workspace_id: &str) -> String {
+    format!("{WORKSPACE_CONFIG_TOPIC_PREFIX}{workspace_id}")
+}
+
+/// `parseWorkspaceConfigTopic`：前缀 + 非空 workspaceId。
+pub fn parse_workspace_config_topic(topic: &str) -> Option<&str> {
+    let workspace_id = topic.strip_prefix(WORKSPACE_CONFIG_TOPIC_PREFIX)?;
+    (!workspace_id.is_empty()).then_some(workspace_id)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceConfigSnapshotPayload {
+    pub kind: FramePayloadKindSnapshot,
+    pub snapshot: WorkspaceConfigSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceConfigDeltasPayload {
+    pub kind: FramePayloadKindDeltas,
+    pub deltas: Vec<WorkspaceConfigDelta>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum WorkspaceConfigFramePayload {
+    Snapshot(Box<WorkspaceConfigSnapshotPayload>),
+    Deltas(WorkspaceConfigDeltasPayload),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceConfigTopicFrame {
+    pub topic: String,
+    pub subscription_id: String,
+    pub from_seq: Number,
+    pub to_seq: Number,
+    pub sent_at: Number,
+    pub payload: WorkspaceConfigFramePayload,
+}
+
+impl WorkspaceConfigTopicFrame {
+    pub fn validate(&self) -> Result<(), String> {
+        if parse_workspace_config_topic(&self.topic).is_none() {
+            return Err("invalid workspace-config topic".to_string());
+        }
+        if let WorkspaceConfigFramePayload::Snapshot(payload) = &self.payload {
+            payload.snapshot.validate()?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceConfigCompleteWireFrame {
+    pub wire_version: u64,
+    pub kind: WireFrameKindComplete,
+    pub delivery_kind: WireDeliveryKind,
+    pub logical_frame_id: String,
+    pub logical_frame_ordinal: u64,
+    pub topic: String,
+    pub subscription_id: String,
+    pub frame: WorkspaceConfigTopicFrame,
+}
+
+impl WorkspaceConfigCompleteWireFrame {
+    pub fn validate(&self) -> Result<(), String> {
+        self.frame.validate()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum WorkspaceConfigWireFrame {
+    Complete(Box<WorkspaceConfigCompleteWireFrame>),
+    Fragment(FragmentWireFrame),
+}
+
+impl WorkspaceConfigWireFrame {
+    pub fn subscription_id(&self) -> &str {
+        match self {
+            Self::Complete(frame) => &frame.subscription_id,
+            Self::Fragment(frame) => &frame.subscription_id,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        let topic = match self {
+            Self::Complete(frame) => {
+                frame.validate()?;
+                &frame.topic
+            }
+            Self::Fragment(frame) => &frame.topic,
+        };
+        if parse_workspace_config_topic(topic).is_none() {
+            return Err("invalid workspace-config topic".to_string());
+        }
+        Ok(())
+    }
+}

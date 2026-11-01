@@ -49,12 +49,12 @@ Off-Peak / 动态工作流灰度；本 facade 接收已解析的布尔值，prov
 
 ## 1. 其余方法
 
-| 方法 | 协议方法 | params | result |
-| --- | --- | --- | --- |
-| `close_session` | `session/close` | `{sessionId, expectedPersistence?}` | `{closed?}`（缺省按成功 `true`） |
-| `set_session_model` | `session/setModel` | `{sessionId, model, expectedRevision?, persistAsWorkspaceLastUsed?}` | 完整状态快照 |
-| `set_session_thought_level` | `session/setThoughtLevel` | `{sessionId, thoughtLevel?, expectedRevision?, persistAsWorkspaceLastUsed?}` | 完整状态快照 |
-| `set_session_mode` | `session/setMode` | `{sessionId, mode, expectedRevision?}` | 完整状态快照 |
+| 方法                        | 协议方法                  | params                                                                       | result                           |
+| --------------------------- | ------------------------- | ---------------------------------------------------------------------------- | -------------------------------- |
+| `close_session`             | `session/close`           | `{sessionId, expectedPersistence?}`                                          | `{closed?}`（缺省按成功 `true`） |
+| `set_session_model`         | `session/setModel`        | `{sessionId, model, expectedRevision?, persistAsWorkspaceLastUsed?}`         | 完整状态快照                     |
+| `set_session_thought_level` | `session/setThoughtLevel` | `{sessionId, thoughtLevel?, expectedRevision?, persistAsWorkspaceLastUsed?}` | 完整状态快照                     |
+| `set_session_mode`          | `session/setMode`         | `{sessionId, mode, expectedRevision?}`                                       | 完整状态快照                     |
 
 - `persistAsWorkspaceLastUsed` 在 schema 里是 `z.boolean().default(true)`，但请求侧语义是
   「undefined 省略」：Rust 镜像用 `Option<bool>`，缺省时不写字段。
@@ -72,9 +72,11 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 在 `authority === "local"` 时直接回默认值：
 
 ```json
-{ "askUserQuestionAutoResolutionEnabled": true,
+{
+  "askUserQuestionAutoResolutionEnabled": true,
   "nativeSearchEnhancementsEnabled": true,
-  "memoryEnabled": false }
+  "memoryEnabled": false
+}
 ```
 
 - `agent-process::runtime_preferences_handler(resolve)` 负责解析参数、调用注入的 scoped
@@ -170,7 +172,7 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 
 - `list_plugins(target, configScope?)` → `plugins/list`：`{workspace, configScope?}`，
   结果 `{plugins[], diagnostics[]}`。插件条目含 `id/name/enabled/source/marketplace/
-  skillRootCount/commandRootCount/mcpServerNames/rootPath` 等必填项，以及
+skillRootCount/commandRootCount/mcpServerNames/rootPath` 等必填项，以及
   `components[]`（agent/command/skill/hook/mcp 分组）、`hookDetails[]`（含
   `shell: true|string`、`timeout` 数字）、`userConfig`/`configuredOptions`/`*Source` 等可选面。
 - `describe_plugin(target, marketplace, pluginName)` → `plugins/describe`：
@@ -188,7 +190,7 @@ Agent。本 facade 只做 `get_or_spawn`；readiness 门禁属于服务层编排
 `subscribe_conversation_v4(target, params)`：
 
 - 请求：`{topic, base?{logEpoch,seq}, visibility?, connectionId, clientMode, workspace?,
-  legacyTaskIds?, resumeThoughtLevel?, workflowRunDeltas?}`；`legacyTaskIds` 上限 200
+legacyTaskIds?, resumeThoughtLevel?, workflowRunDeltas?}`；`legacyTaskIds` 上限 200
   （越界返回 `InvalidParams`，不拉起 Agent）。
 - 应答严格只含 ACK：`{subscriptionId, mode(snapshot|resume), logEpoch, openTiming?}`；
   首帧（snapshot 或 resume）随后以 `v4/conversation/frame` 通知发出。
@@ -207,9 +209,9 @@ hint；本 facade 由调用方在 `params` 里给出 `resumeThoughtLevel`。信�
 
 - `build_host_hello(connectionId)`：与 TS `helloConversationV4` 同形——
   `{kind:"hello", protocolVersion:3, connectionId, clientMode:"desktop-continuous",
-  deliveryProfile:"continuous", serverTime, capabilities{nativeDialogs,localTerminal,
-  binaryFrames,compression,workspaceHookReview,independentPlanState,workflowRunDeltas},
-  auth:{}}`；`validate()` 强制 clientMode 与 deliveryProfile 匹配。
+deliveryProfile:"continuous", serverTime, capabilities{nativeDialogs,localTerminal,
+binaryFrames,compression,workspaceHookReview,independentPlanState,workflowRunDeltas},
+auth:{}}`；`validate()` 强制 clientMode 与 deliveryProfile 匹配。
 - `validate_client_hello(value)`：严格解析 `clientHello`（未知键拒绝），对应 TS
   `initializeConversationV4`。
 
@@ -365,7 +367,7 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
     与 CLI 网关执行。
   - `attachment/read` 与 `conversation/attachmentRead`：offset/limit 分段读，结果
     同形（base64 + 任意已授权 MIME + `totalBytes` + nullable `nextOffset`）。
-  - `attachment/previewSource`：Desktop local 已发送视频返回 `local_path`（video/*
+  - `attachment/previewSource`：Desktop local 已发送视频返回 `local_path`（video/\*
     绝对路径），远端/Web 返回 `chunked`；`clientMode` 必填（可信位）。
   - `conversation/attachmentStat`：metadata-only 探测，允许超过传输上限的真实大小，
     `mtimeMs` 可选。
@@ -391,6 +393,14 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
   拒绝其它值），`workspaceId` + host 级 `logEpoch` + `config`。
 - `WorkspaceConfigDelta`：封闭集合只有一个 op `config.updated`。
 - 所有 schema 都未加 `.strict()`：未知键按 zod strip 语义忽略。
+- topic 帧：`WorkspaceConfigTopicFrame`（snapshot | deltas）与
+  `WorkspaceConfigWireFrame`（complete | fragment），topic 必须是
+  `workspace-config/<workspaceId>`；`workspace_config_topic` /
+  `parse_workspace_config_topic` 与 TS 对偶。
+- 客户端 facade：`subscribe_workspace_config_v4` 与 conversation / sessions-index 共用
+  泛型 `subscribe_topic_frames`，按 `subscriptionId` 过滤帧；topic 前缀在 spawn 前校验。
+  测试：`v4_workspace_config_frames`（2 条）+ `v4_transport` 的 workspace-config 用例
+  （2 条）。
 
 ## 3. 验收
 

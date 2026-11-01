@@ -22,6 +22,7 @@ use agent_protocol::v4_transport::{
     ConversationSubscribeAck, ConversationSubscribeParams, ConversationSubscribeResult,
     ConversationWireFrame, V4_CONVERSATION_FRAME_NOTIFICATION, V4_CONVERSATION_SUBSCRIBE_METHOD,
 };
+use agent_protocol::v4_workspace_config::{parse_workspace_config_topic, WorkspaceConfigWireFrame};
 
 use crate::control::{AgentControlClient, AgentWorkspaceTarget, ControlError, RuntimePolicy};
 
@@ -65,7 +66,26 @@ impl Drop for SessionsIndexFrameSubscription {
     }
 }
 
-/// 两个 topic 的 wire frame 都需要提供 subscriptionId 供过滤。
+/// workspace-config 订阅句柄。
+pub struct WorkspaceConfigFrameSubscription {
+    pub ack: ConversationSubscribeAck,
+    frames: mpsc::Receiver<WorkspaceConfigWireFrame>,
+    abort: AbortHandle,
+}
+
+impl WorkspaceConfigFrameSubscription {
+    pub async fn recv(&mut self) -> Option<WorkspaceConfigWireFrame> {
+        self.frames.recv().await
+    }
+}
+
+impl Drop for WorkspaceConfigFrameSubscription {
+    fn drop(&mut self) {
+        self.abort.abort();
+    }
+}
+
+/// 三个 topic 的 wire frame 都需要提供 subscriptionId 供过滤。
 trait TopicWireFrame: DeserializeOwned + Send + 'static {
     fn subscription_id(&self) -> &str;
 }
@@ -77,6 +97,12 @@ impl TopicWireFrame for ConversationWireFrame {
 }
 
 impl TopicWireFrame for SessionsIndexWireFrame {
+    fn subscription_id(&self) -> &str {
+        self.subscription_id()
+    }
+}
+
+impl TopicWireFrame for WorkspaceConfigWireFrame {
     fn subscription_id(&self) -> &str {
         self.subscription_id()
     }
@@ -167,5 +193,23 @@ impl AgentControlClient {
         }
         let (ack, frames, abort) = subscribe_topic_frames(self, target, &params).await?;
         Ok(SessionsIndexFrameSubscription { ack, frames, abort })
+    }
+
+    /// 建立 workspace-config 订阅：topic 必须是 `workspace-config/<workspaceId>`。
+    pub async fn subscribe_workspace_config_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: ConversationSubscribeParams,
+    ) -> Result<WorkspaceConfigFrameSubscription, ControlError> {
+        params
+            .validate()
+            .map_err(|message| ControlError::InvalidParams(message.to_string()))?;
+        if parse_workspace_config_topic(&params.topic).is_none() {
+            return Err(ControlError::InvalidParams(
+                "invalid workspace-config topic".to_string(),
+            ));
+        }
+        let (ack, frames, abort) = subscribe_topic_frames(self, target, &params).await?;
+        Ok(WorkspaceConfigFrameSubscription { ack, frames, abort })
     }
 }

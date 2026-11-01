@@ -339,7 +339,9 @@ local_path/chunked 两支、metadata-only `attachmentStat`；两条 `superRefine
 显式 null）；2 条新增测试 + 双端夹具。**workspace-config topic 载荷已落**：
 快照 + 单 op `config.updated` 增量强类型化（select/boolean 与 string|boolean 联合、
 供应商分组与思考档位、`protocolVersion` 显式校验）；订阅复用 conversation subscribe，
-无新 RPC 方法（3 条 round-trip 测试）。**`v4/commands/query` 已落（2026-11-01）**：
+无新 RPC 方法（3 条 round-trip 测试）。**帧与订阅已补齐（2026-11-01）**：
+topic frame/wire frame、topic 解析与 `subscribe_workspace_config_v4`（与
+conversation/sessions-index 共用泛型过滤），5 条测试。**`v4/commands/query` 已落（2026-11-01）**：
 `CommandKey` 的 required-nullable `sessionId`（手写 Deserialize 区分缺失与 null）、
 clock 探针只允许全局 key、结果 `ACK | "unknown"` 联合与 1..=64 条校验；
 `AgentControlClient::commands_query_v4` 发送前本地校验，4 条协议测试 + 3 条控制面测试。
