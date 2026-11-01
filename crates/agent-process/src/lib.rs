@@ -29,6 +29,7 @@ mod runtime_preferences;
 mod session_events;
 mod session_read;
 mod session_write;
+mod skills;
 mod v4;
 mod v4_transport;
 mod workflows;

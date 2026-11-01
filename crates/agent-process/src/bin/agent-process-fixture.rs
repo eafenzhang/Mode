@@ -1179,6 +1179,22 @@ fn main() {
                 snapshot["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": snapshot })
+        } else if method == "skills/referenceCatalog" {
+            let mut result = json!({
+                "authority": "workspace",
+                "skills": [{
+                    "id": "demo",
+                    "name": "demo",
+                    "description": "Demo skill",
+                    "path": "/ws/demo/.mode/skills/demo/SKILL.md",
+                    "scope": "workspace",
+                    "enabled": true
+                }]
+            });
+            if mode == "disabled-skill-catalog" {
+                result["skills"][0]["enabled"] = json!(false);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "plugins/referenceCatalogWithCategory"
             || method == "plugins/referenceCatalog"
         {

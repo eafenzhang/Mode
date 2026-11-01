@@ -222,6 +222,15 @@ marketplace?, pluginName?, sourceTrust?("official"), icon?, listing?, diagnostic
   Rust 在解析后执行同款 `superRefine`。
 - 测试：`tests/plugins.rs` 新增 2 条（回退路径、可信身份校验）。
 
+### 2h-3. 技能引用目录（2026-11-01）
+
+`skills/referenceCatalog`：`{workspace, sessionId?}` →
+`{authority: session|workspace, skills[]}`。条目为 `{id, name, description, path,
+scope(workspace|user|plugin), enabled: true, pluginName?}`；带 `sessionId` 时读该 Session
+首次 context 冻结的目录，不带时读 workspace 当前目录。Rust 侧校验 `enabled` 必须为 true
+（与 `z.literal(true)` 对齐），disabled 条目直接 `InvalidResult`。
+测试：`crates/agent-process/tests/skills.rs`（2 条）。
+
 ## 2i. v4 会话订阅：`v4/conversation/subscribe` + wire frame
 
 `subscribe_conversation_v4(target, params)`：
