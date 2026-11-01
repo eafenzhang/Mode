@@ -16,12 +16,14 @@ use agent_protocol::session_read::SessionMode;
 use agent_protocol::session_send::SESSION_SEND_METHOD;
 use agent_protocol::session_write::{
     SessionCloseParams, SessionCloseResult, SessionCompactParams, SessionCompactResult,
-    SessionGoalParams, SessionGoalResult, SessionPersistence, SessionSetModeParams,
-    SessionSetModelParams, SessionSetThoughtLevelParams, SESSION_CLOSE_METHOD,
-    SESSION_COMPACT_METHOD, SESSION_CREATE_METHOD, SESSION_GOAL_METHOD, SESSION_SET_MODEL_METHOD,
-    SESSION_SET_MODE_METHOD, SESSION_SET_THOUGHT_LEVEL_METHOD,
+    SessionGoalParams, SessionGoalResult, SessionPersistence, SessionResumeParams,
+    SessionSetModeParams, SessionSetModelParams, SessionSetThoughtLevelParams,
+    SESSION_CLOSE_METHOD, SESSION_COMPACT_METHOD, SESSION_CREATE_METHOD, SESSION_GOAL_METHOD,
+    SESSION_RESUME_METHOD, SESSION_SET_MODEL_METHOD, SESSION_SET_MODE_METHOD,
+    SESSION_SET_THOUGHT_LEVEL_METHOD,
 };
 use agent_protocol::snapshot::SessionStateSnapshot;
+use mode_protocol_client::ClientError;
 
 use crate::control::{AgentControlClient, AgentWorkspaceTarget, ControlError, RuntimePolicy};
 use crate::session_read::session_workspace_ref;
@@ -249,6 +251,92 @@ impl AgentControlClient {
             ControlError::InvalidResult(format!("invalid session/goal result: {error}"))
         })
     }
+
+    /// `session/resume`：冷恢复；旧 Agent 对新增字段报 `-32602` 时按 TS 同一集合
+    /// 省略字段重试一次（只信任 `data.message` 里的结构化 zod issues）。
+    pub async fn resume_session(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: SessionResumeParams,
+    ) -> Result<SessionStateSnapshot, ControlError> {
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
+        let first = request_resume(process.client(), &params).await;
+        match first {
+            Ok(response) => parse_snapshot(&response, "session/resume"),
+            Err(error) => {
+                let fields = resume_compat_fields(&error);
+                if fields.is_empty() {
+                    return Err(error);
+                }
+                let retry_params = params.omit_fields(&fields);
+                let response = request_resume(process.client(), &retry_params).await?;
+                parse_snapshot(&response, "session/resume")
+            }
+        }
+    }
+}
+
+async fn request_resume(
+    client: &mode_protocol_client::ProtocolClient,
+    params: &SessionResumeParams,
+) -> Result<Value, ControlError> {
+    let value = serde_json::to_value(params).expect("session/resume params 序列化不会失败");
+    client
+        .request(SESSION_RESUME_METHOD, Some(value))
+        .await
+        .map_err(ControlError::Client)
+}
+
+/// 解析 `-32602` 的 `data.message`（JSON 数组）并与 TS 集合比对：
+/// 只要出现不认识的键（或结构不符），就不做兼容重试，原错误上抛。
+fn resume_compat_fields(error: &ControlError) -> Vec<String> {
+    let ControlError::Client(ClientError::Server {
+        code: -32602,
+        data: Some(data),
+        ..
+    }) = error
+    else {
+        return Vec::new();
+    };
+    let Some(serialized) = data.get("message").and_then(Value::as_str) else {
+        return Vec::new();
+    };
+    let Ok(issues) = serde_json::from_str::<Value>(serialized) else {
+        return Vec::new();
+    };
+    let Some(issues) = issues.as_array() else {
+        return Vec::new();
+    };
+    let mut keys: Vec<String> = Vec::new();
+    for issue in issues {
+        if issue.get("code").and_then(Value::as_str) != Some("unrecognized_keys") {
+            continue;
+        }
+        if issue
+            .get("path")
+            .and_then(Value::as_array)
+            .is_some_and(|path| !path.is_empty())
+        {
+            continue;
+        }
+        let Some(issue_keys) = issue.get("keys").and_then(Value::as_array) else {
+            continue;
+        };
+        for key in issue_keys {
+            let Some(key) = key.as_str() else {
+                continue;
+            };
+            if !SessionResumeParams::OPTIONAL_COMPAT_FIELDS.contains(&key) {
+                return Vec::new();
+            }
+            if !keys.iter().any(|existing| existing == key) {
+                keys.push(key.to_string());
+            }
+        }
+    }
+    keys
 }
 
 fn parse_snapshot(value: &Value, method: &str) -> Result<SessionStateSnapshot, ControlError> {

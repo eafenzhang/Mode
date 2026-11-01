@@ -1369,6 +1369,42 @@ fn main() {
                 result["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": result })
+        } else if method == "session/resume" {
+            let has_tool_allowlist = request
+                .get("params")
+                .and_then(|params| params.get("toolAllowlist"))
+                .is_some();
+            if mode == "old-session-resume" && has_tool_allowlist {
+                let issues = json!([{
+                    "code": "unrecognized_keys",
+                    "path": [],
+                    "keys": ["toolAllowlist", "offPeakToolEnabled"]
+                }]);
+                json!({
+                    "id": id,
+                    "error": {
+                        "code": -32602,
+                        "message": "Invalid params",
+                        "data": { "message": issues.to_string() }
+                    }
+                })
+            } else if mode == "bad-session-resume" {
+                let issues = json!([{
+                    "code": "unrecognized_keys",
+                    "path": [],
+                    "keys": ["workspace"]
+                }]);
+                json!({
+                    "id": id,
+                    "error": {
+                        "code": -32602,
+                        "message": "Invalid params",
+                        "data": { "message": issues.to_string() }
+                    }
+                })
+            } else {
+                json!({ "id": id, "result": minimal_snapshot() })
+            }
         } else if method == "session/compact" {
             let mut result = json!({
                 "response": "compacted",

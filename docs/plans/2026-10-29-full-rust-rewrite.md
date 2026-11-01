@@ -369,6 +369,7 @@ protocolVersion 校验，5 条协议测试。**订阅 facade 已接**：`subscri
 `listSessions` + `readSessionEvents` + `listSessionSubagents` + `readSessionMessages` +
 `readSession` + `readSessionDebug` + `onDynamicSessionEvent` + `createSession` +
 `sendPrompt` + `closeSession` + `setModel` + `setThoughtLevel` + `setMode` +
+`resumeSession` +
 `compactSession` + `goalSession` +
 `readWorkspacePresentation` + `collectLocalRuntimeChildProcesses` +
 `listMcpServerStatuses` + `listSavedWorkflows` + `getSavedWorkflow` +
@@ -384,8 +385,8 @@ protocolVersion 校验，5 条协议测试。**订阅 facade 已接**：`subscri
 **S1 覆盖矩阵工具已落（2026-11-01）**：`pnpm agent:coverage` 校验
 `IModeAgentService` 方法与 `docs/specs/agent-method-coverage.json` 双向一致、
 `status=rust` 的函数存在；`pnpm agent:callsites` 生成调用点证据。基线 115 个方法
-（rust=88 / blocked=14 / todo=13 / not-needed=0），已接入 `verify:pre-push` 与
-release verify。剩余 todo 集中在 automation 域、`initialize`/`resumeSession` 与
+（rust=89 / blocked=14 / todo=12 / not-needed=0），已接入 `verify:pre-push` 与
+release verify。剩余 todo 集中在 automation 域、`initialize` 与
 `syncAppRuntimePreferences`。
 
 ### W5 生态面替换

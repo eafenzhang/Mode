@@ -433,7 +433,8 @@
   },
   {
     "method": "resumeSession",
-    "status": "todo"
+    "status": "rust",
+    "rust": "resume_session"
   },
   {
     "method": "resyncConversationV4",

@@ -93,7 +93,7 @@
 | `respondSessionRuntimePreferences` | blocked | 2 | packages/desktop/src/host/remoteWorkspaceServiceCollection.ts:310<br>packages/services/src/mode-agent/modeAgentService.ts:4785 |
 | `restartAutomation` | todo | 4 | packages/ui/src/settings/AutomationsSection.tsx:1073<br>packages/ui/src/store/automationManagementStore.ts:378<br>packages/ui/src/store/automationManagementStore.ts:386 |
 | `restoreBuiltinPlugin` | rust | 4 | packages/ui/src/store/pluginManagementStore.ts:317<br>packages/services/src/mode-agent/modeAgentService.ts:4261<br>packages/services/src/plugins/pluginManagement.ts:79 |
-| `resumeSession` | todo | 5 | packages/services/src/mode-agent/modeAgentService.ts:3635<br>packages/services/src/mode-agent/modeTaskServiceAdapter.ts:1149<br>packages/services/src/mode-session/modeSession.ts:144 |
+| `resumeSession` | rust | 5 | packages/services/src/mode-agent/modeAgentService.ts:3635<br>packages/services/src/mode-agent/modeTaskServiceAdapter.ts:1149<br>packages/services/src/mode-session/modeSession.ts:144 |
 | `resyncConversationV4` | rust | 4 | packages/ui/src/v4/agentConversationTransport.ts:256<br>packages/services/src/mode-agent/modeAgentConnectionScope.ts:551<br>packages/services/src/mode-agent/modeAgentConnectionScope.ts:847 |
 | `resyncSessionsIndexV4` | rust | 6 | packages/ui/src/v4/agentSessionsIndexTransport.ts:165<br>packages/desktop/src/host-standalone/windowController/windowHostSessionsIndexObserver.ts:180<br>packages/services/src/mode-agent/modeAgentConnectionScope.ts:553 |
 | `resyncWorkspaceConfigV4` | rust | 4 | packages/services/src/mode-agent/modeAgentConnectionScope.ts:555<br>packages/services/src/mode-agent/modeAgentConnectionScope.ts:1025<br>packages/services/src/mode-agent/modeAgentService.ts:5686 |

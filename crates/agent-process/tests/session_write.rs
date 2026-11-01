@@ -10,9 +10,11 @@ use agent_process::{
 };
 use agent_protocol::message::MessageModel;
 use agent_protocol::session::SessionSendParams;
+use agent_protocol::session::WorkspaceRef;
 use agent_protocol::session_read::SessionMode;
 use agent_protocol::session_write::{
     SessionCompactParams, SessionGoalAction, SessionGoalParams, SessionPersistence,
+    SessionResumeParams,
 };
 use serde_json::{json, Value};
 
@@ -32,6 +34,24 @@ impl FrameLog {
         ));
         let _ = std::fs::remove_file(&path);
         Self(path)
+    }
+
+    fn frame_params_all(&self, method: &str) -> Vec<Value> {
+        let marker = format!("frame	{method}	");
+        for _ in 0..100 {
+            if let Ok(text) = std::fs::read_to_string(&self.0) {
+                let params: Vec<Value> = text
+                    .lines()
+                    .filter(|line| line.starts_with(&marker))
+                    .filter_map(|line| line.splitn(3, '\t').nth(2)?.parse().ok())
+                    .collect();
+                if !params.is_empty() {
+                    return params;
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        Vec::new()
     }
 
     fn frame_params(&self, method: &str) -> Option<Value> {
@@ -487,4 +507,85 @@ async fn compact_and_goal_reject_unknown_result_fields() {
         };
         assert!(matches!(error, ControlError::InvalidResult(_)), "{error:?}");
     }
+}
+
+fn resume_params() -> SessionResumeParams {
+    SessionResumeParams {
+        session_id: "sess-1".to_string(),
+        workspace: Some(WorkspaceRef {
+            workspace_path: "/ws/demo".to_string(),
+            workspace_key: "/ws/demo".to_string(),
+            workspace_identity: None,
+            remote_session_id: None,
+            extra: Default::default(),
+        }),
+        thought_level: Some("high".to_string()),
+        mcp_servers: None,
+        tool_allowlist: Some(vec!["Read".to_string()]),
+        tool_denylist: None,
+        off_peak_tool_enabled: Some(true),
+        dynamic_workflow_enabled: None,
+    }
+}
+
+#[tokio::test]
+async fn resume_sends_full_params_and_parses_snapshot() {
+    let log = FrameLog::new("resume");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+    let snapshot = client
+        .resume_session(&AgentWorkspaceTarget::new("/ws/demo"), resume_params())
+        .await
+        .unwrap();
+    assert_eq!(snapshot.session.session_id, "sess-1");
+    assert_eq!(
+        log.frame_params("session/resume"),
+        Some(json!({
+            "sessionId": "sess-1",
+            "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+            "thoughtLevel": "high",
+            "toolAllowlist": ["Read"],
+            "offPeakToolEnabled": true
+        }))
+    );
+}
+
+#[tokio::test]
+async fn resume_retries_once_without_unrecognized_optional_fields() {
+    let log = FrameLog::new("resume-compat");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("old-session-resume", &log, Arc::clone(&spawns));
+    client
+        .resume_session(&AgentWorkspaceTarget::new("/ws/demo"), resume_params())
+        .await
+        .unwrap();
+    let frames = log.frame_params_all("session/resume");
+    assert_eq!(frames.len(), 2, "必须恰好重试一次");
+    assert_eq!(frames[0]["toolAllowlist"], json!(["Read"]));
+    assert_eq!(frames[0]["offPeakToolEnabled"], json!(true));
+    assert!(frames[1].get("toolAllowlist").is_none());
+    assert!(frames[1].get("offPeakToolEnabled").is_none());
+    assert_eq!(frames[1]["sessionId"], json!("sess-1"));
+}
+
+#[tokio::test]
+async fn resume_does_not_retry_for_non_optional_unrecognized_key() {
+    let log = FrameLog::new("resume-bad");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("bad-session-resume", &log, spawns);
+    let error = match client
+        .resume_session(&AgentWorkspaceTarget::new("/ws/demo"), resume_params())
+        .await
+    {
+        Ok(_) => panic!("非可选字段不得触发兼容重试"),
+        Err(error) => error,
+    };
+    assert!(
+        matches!(
+            error,
+            ControlError::Client(mode_protocol_client::ClientError::Server { code: -32602, .. })
+        ),
+        "{error:?}"
+    );
+    assert_eq!(log.frame_params_all("session/resume").len(), 1);
 }
