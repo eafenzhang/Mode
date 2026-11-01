@@ -179,6 +179,11 @@ impl AgentControlClient {
             .collect()
     }
 
+    /// 只读健康快照；不拉起 Agent。没有该 workspace 的条目时返回 `None`。
+    pub fn runtime_health(&self, target: &AgentWorkspaceTarget) -> Option<crate::RuntimeHealth> {
+        self.registry.health(&target.registry_target())
+    }
+
     /// `getReadOnlyClient(params, runtimePolicy)` 的 Rust 形态。
     ///
     /// - `StartIfNeeded`：复用或拉起；

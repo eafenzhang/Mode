@@ -120,6 +120,14 @@ sequenceDiagram
 - `degraded`：gate ready 但最近一次请求因传输/超时失败，且进程仍存活；
 - `ready`：gate ready 且无未解释的失败。
 
+**S0 计算面已落（2026-11-01）**：`AgentRuntimeRegistry::health(&WorkspaceTarget)` 与
+`AgentControlClient::runtime_health(&AgentWorkspaceTarget)`，返回
+`{state, workspaceKey, runtimeIdentity, generation, processId, storageState, lastError}`；
+没有条目时返回 `None`。判定：传输关闭或 storage gate 终态失败 → `dead`
+（`lastError` 带 gate 错误）；非 storage 入口 → `ready`；gate 未 ready → `starting`。
+`degraded` 需要请求失败计数，当前不产生。暴露位置（日志 / `host.describe`）仍待决策 3。
+测试：`crates/agent-process/tests/health.rs`（3 条）。
+
 **不做定时 ping**：本地 stdio 的存活由进程/管道事件判定；合成请求会污染
 `pending` 与性能指标。若未来接远端 Agent（SSH/WSL），再单独定义心跳。
 

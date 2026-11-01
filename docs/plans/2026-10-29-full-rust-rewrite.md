@@ -387,6 +387,11 @@ protocolVersion 校验，5 条协议测试。**订阅 facade 已接**：`subscri
 `status=rust` 的函数存在；`pnpm agent:callsites` 生成调用点证据。基线 115 个方法
 （rust=90 / blocked=14 / todo=11 / not-needed=0），已接入 `verify:pre-push` 与
 release verify。剩余 todo 集中在 automation 域与 `initialize`。
+**S0 健康计算面已落（2026-11-01）**：`AgentRuntimeRegistry::health` /
+`AgentControlClient::runtime_health` 返回
+`{state, workspaceKey, runtimeIdentity, generation, processId, storageState, lastError}`；
+传输关闭/storage 终态失败 → dead，非 storage 入口 → ready，gate 未 ready → starting；
+`degraded` 待请求失败计数。3 条测试；暴露位置仍待决策 3。
 
 ### W5 生态面替换
 

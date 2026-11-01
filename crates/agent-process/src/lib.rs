@@ -18,18 +18,18 @@ use tokio::process::{Child, Command};
 use tokio::sync::{broadcast, Mutex};
 use tokio::task::JoinHandle;
 
-mod registry;
 mod control;
 mod mcp;
 mod plugins;
-mod storage;
 mod provider_sync;
+mod registry;
 mod resolve;
 mod runtime_preferences;
 mod session_events;
 mod session_read;
 mod session_write;
 mod skills;
+mod storage;
 mod v4;
 mod v4_transport;
 mod workflows;
@@ -41,32 +41,33 @@ pub use control::{
     ControlError, GrantTrustReasonCode, GrantTrustResult, RuntimePolicy,
     MODE_AGENT_RUNTIME_UNAVAILABLE_CODE, WORKSPACE_HOOK_TRUST_GRANT_METHOD,
 };
-pub use workspace_policy::AppRuntimePreferences;
+pub use mcp::ListMcpServersOptions;
 pub use provider_sync::{
     AccountProviderConfigSnapshot, ProviderConfigSync, ProviderReadFuture, ProviderSource,
     ProviderSyncOutcome, ProviderSyncStatus, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
-pub use mcp::ListMcpServersOptions;
-pub use session_read::ListSessionsOptions;
-pub use session_events::{SessionSubscription, SESSION_EVENT_NOTIFICATION};
-pub use session_write::CreateSessionOptions;
-pub use runtime_preferences::{
-    default_runtime_preferences, default_runtime_preferences_handler, runtime_preferences_handler,
-    SESSION_REQUEST_RUNTIME_PREFERENCES_METHOD,
-};
-pub use v4::{build_host_hello, validate_client_hello};
-pub use v4_transport::ConversationFrameSubscription;
 pub use registry::{
-    AgentRuntimeRegistry, RuntimeIdentity, SpecFactory, StorageStartupSnapshot, WorkspaceTarget,
-};
-pub use storage::{
-    StorageDatabaseKind, StorageStartupGate, StorageStartupPhase, StorageStartupState,
-    DEFAULT_FIRST_STATUS_TIMEOUT, STORAGE_STATE_NOTIFICATION,
+    AgentRuntimeRegistry, RuntimeHealth, RuntimeHealthState, RuntimeIdentity, SpecFactory,
+    StorageStartupSnapshot, WorkspaceTarget,
 };
 pub use resolve::{
     resolve_agent_command, AgentCommandSource, AgentResolveContext, AgentResolveError,
     ResolvedAgentCommand,
 };
+pub use runtime_preferences::{
+    default_runtime_preferences, default_runtime_preferences_handler, runtime_preferences_handler,
+    SESSION_REQUEST_RUNTIME_PREFERENCES_METHOD,
+};
+pub use session_events::{SessionSubscription, SESSION_EVENT_NOTIFICATION};
+pub use session_read::ListSessionsOptions;
+pub use session_write::CreateSessionOptions;
+pub use storage::{
+    StorageDatabaseKind, StorageStartupGate, StorageStartupPhase, StorageStartupState,
+    DEFAULT_FIRST_STATUS_TIMEOUT, STORAGE_STATE_NOTIFICATION,
+};
+pub use v4::{build_host_hello, validate_client_hello};
+pub use v4_transport::ConversationFrameSubscription;
+pub use workspace_policy::AppRuntimePreferences;
 
 const STDERR_CHANNEL_CAPACITY: usize = 256;
 const KILL_REAP_TIMEOUT: Duration = Duration::from_secs(2);
@@ -104,7 +105,10 @@ impl std::fmt::Display for AgentProcessError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Spawn { command, message } => {
-                write!(formatter, "failed to spawn agent process `{command}`: {message}")
+                write!(
+                    formatter,
+                    "failed to spawn agent process `{command}`: {message}"
+                )
             }
         }
     }
@@ -329,4 +333,3 @@ pub fn pid_is_alive(pid: u32) -> bool {
         false
     }
 }
-

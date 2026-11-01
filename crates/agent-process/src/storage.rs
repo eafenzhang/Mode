@@ -125,6 +125,15 @@ impl StorageStartupGate {
         self.required
     }
 
+    /// 启动门失败时的最终错误（成功或未失败时为 None）；健康快照用。
+    pub fn terminal_error(&self) -> Option<String> {
+        self.state
+            .lock()
+            .expect("storage gate poisoned")
+            .terminal_error
+            .clone()
+    }
+
     /// 接受一条状态：校验 + attemptId/databaseId 不变 + sequence 严格递增 + 终态不可再变。
     pub fn accept(&self, value: &Value) -> bool {
         let Some(next) = parse_state(value) else {
@@ -144,7 +153,10 @@ impl StorageStartupGate {
             }
         }
         if next.phase == StorageStartupPhase::Failed {
-            let code = next.error_code.clone().unwrap_or_else(|| "sql_failed".into());
+            let code = next
+                .error_code
+                .clone()
+                .unwrap_or_else(|| "sql_failed".into());
             guard.terminal_error = Some(format!("SQLite startup failed: {code}"));
             guard.current = Some(next.clone());
             drop(guard);
@@ -218,7 +230,11 @@ impl StorageStartupGate {
             let synthetic = StorageStartupState {
                 schema_version: 1,
                 attempt_id: format!("rust-{}", now_nanos()),
-                sequence: guard.current.as_ref().map(|state| state.sequence + 1).unwrap_or(1),
+                sequence: guard
+                    .current
+                    .as_ref()
+                    .map(|state| state.sequence + 1)
+                    .unwrap_or(1),
                 database_id: "unresolved".into(),
                 database_kind: StorageDatabaseKind::Session,
                 phase: StorageStartupPhase::Failed,
@@ -263,7 +279,10 @@ mod tests {
     fn accepts_monotonic_states_and_rejects_lower_or_changed_identity() {
         let gate = StorageStartupGate::new(true, Duration::from_secs(1));
         assert!(gate.accept(&state(1, "checking", "a")));
-        assert!(!gate.accept(&state(1, "migrating", "a")), "sequence 必须递增");
+        assert!(
+            !gate.accept(&state(1, "migrating", "a")),
+            "sequence 必须递增"
+        );
         assert!(gate.accept(&state(2, "ready", "a")));
         assert!(!gate.accept(&state(3, "failed", "a")), "ready 后不可再变");
         assert!(!gate.accept(&state(2, "ready", "b")), "attemptId 不可变");

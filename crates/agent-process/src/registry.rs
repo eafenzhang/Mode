@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use tokio::sync::Mutex as AsyncMutex;
 
-use crate::storage::StorageStartupState;
+use crate::storage::{StorageStartupPhase, StorageStartupState};
 use crate::{spawn, AgentProcess, AgentProcessError, AgentProcessSpec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,6 +58,30 @@ struct Entry {
 pub struct StorageStartupSnapshot {
     pub generation: u64,
     pub state: Option<StorageStartupState>,
+}
+
+/// 健康状态（W4 所有权切换 S0，只读）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuntimeHealthState {
+    Starting,
+    Ready,
+    /// 进程存活且 storage gate ready，但最近一次请求失败。
+    /// 当前尚未接入请求失败计数，保留枚举值供后续填充。
+    Degraded,
+    Dead,
+}
+
+/// 单个 workspace 的健康快照；`None` 表示当前没有该 workspace 的运行时条目。
+#[derive(Debug, Clone, PartialEq)]
+pub struct RuntimeHealth {
+    pub state: RuntimeHealthState,
+    pub workspace_key: String,
+    /// `${workspaceKey}:${generation}:${pid}`，与 `get_runtime_identity` 同口径。
+    pub runtime_identity: String,
+    pub generation: u64,
+    pub process_id: Option<u32>,
+    pub storage_state: Option<StorageStartupState>,
+    pub last_error: Option<String>,
 }
 
 /// 现有 runtime 的不透明身份；用于区分换代前后的订阅/命令。
@@ -126,6 +150,41 @@ impl AgentRuntimeRegistry {
             .values()
             .map(|entry| entry.target.clone())
             .collect()
+    }
+
+    /// 只读健康快照（S0）：不改动进程、不拉起。
+    ///
+    /// 判定：传输关闭或 storage gate 终态失败 → `dead`；storage gate 未 ready → `starting`；
+    /// 其余 → `ready`。`degraded` 需要请求失败计数，当前不产生。
+    pub fn health(&self, target: &WorkspaceTarget) -> Option<RuntimeHealth> {
+        let key = target.key();
+        let entries = self.entries.lock().expect("registry poisoned");
+        let entry = entries.get(&key)?;
+        let process_id = entry.process.pid();
+        let gate = entry.process.storage_gate();
+        let storage_state = gate.snapshot();
+        let last_error = gate.terminal_error();
+        let closed = entry.process.client().is_closed();
+        let storage_ready = !gate.is_required()
+            || storage_state
+                .as_ref()
+                .is_some_and(|snapshot| snapshot.phase == StorageStartupPhase::Ready);
+        let state = if closed || last_error.is_some() {
+            RuntimeHealthState::Dead
+        } else if storage_ready {
+            RuntimeHealthState::Ready
+        } else {
+            RuntimeHealthState::Starting
+        };
+        Some(RuntimeHealth {
+            state,
+            workspace_key: key.clone(),
+            runtime_identity: format!("{key}:{}:{process_id}", entry.generation),
+            generation: entry.generation,
+            process_id: Some(process_id),
+            storage_state,
+            last_error,
+        })
     }
 
     /// 当前没有任何活进程条目。
