@@ -1179,6 +1179,60 @@ fn main() {
                 snapshot["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": snapshot })
+        } else if method == "plugins/marketplace/add"
+            || method == "plugins/marketplace/remove"
+            || method == "plugins/marketplace/update"
+        {
+            let mut result = json!({
+                "marketplace": {
+                    "id": "market",
+                    "name": "Market",
+                    "source": { "type": "git" },
+                    "pluginCount": 1
+                },
+                "diagnostics": []
+            });
+            if mode == "bad-plugin-install" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "plugins/cancelOperation" {
+            let mut result = json!({ "operationId": "op-1", "cancelled": true });
+            if mode == "bad-plugin-install" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "plugins/install" || method == "plugins/update" {
+            let mut result = json!({
+                "installedPlugins": [{
+                    "id": "demo@market",
+                    "name": "demo",
+                    "marketplace": "market",
+                    "enabled": true,
+                    "scope": "user"
+                }],
+                "dependencyClosure": ["dep@market"],
+                "diagnostics": []
+            });
+            if mode == "bad-plugin-install" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "plugins/uninstall" {
+            let mut result = json!({
+                "removedPlugin": {
+                    "id": "demo@market",
+                    "name": "demo",
+                    "marketplace": "market",
+                    "enabled": true,
+                    "scope": "user"
+                },
+                "diagnostics": []
+            });
+            if mode == "bad-plugin-install" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "skills/referenceCatalog" {
             let mut result = json!({
                 "authority": "workspace",

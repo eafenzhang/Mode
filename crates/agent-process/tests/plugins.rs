@@ -373,3 +373,124 @@ async fn suggested_reference_requires_trusted_identity_for_actionable_status() {
     };
     assert!(matches!(error, ControlError::InvalidResult(_)), "{error:?}");
 }
+
+#[tokio::test]
+async fn marketplace_and_install_methods_send_params_and_parse_results() {
+    let log = FrameLog::new("install");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+
+    let added = client
+        .add_plugin_marketplace(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            "github:owner/repo",
+            Some(true),
+            Some("op-add"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(added.marketplace.unwrap().plugin_count, 1);
+    assert_eq!(
+        log.frame_params("plugins/marketplace/add"),
+        Some(json!({
+            "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+            "source": "github:owner/repo",
+            "dryRun": true,
+            "operationId": "op-add"
+        }))
+    );
+
+    client
+        .remove_plugin_marketplace(&AgentWorkspaceTarget::new("/ws/demo"), "market")
+        .await
+        .unwrap();
+    client
+        .update_plugin_marketplace(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            None,
+            Some("op-sync"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        log.frame_params("plugins/marketplace/update"),
+        Some(json!({
+            "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+            "operationId": "op-sync"
+        }))
+    );
+
+    let installed = client
+        .install_plugin(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            "demo",
+            "market",
+            Some(PluginScope::User),
+            None,
+            Some("op-install"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(installed.installed_plugins[0].id, "demo@market");
+    assert_eq!(installed.dependency_closure, vec!["dep@market".to_string()]);
+    assert_eq!(
+        log.frame_params("plugins/install"),
+        Some(json!({
+            "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+            "pluginName": "demo",
+            "marketplace": "market",
+            "scope": "user",
+            "operationId": "op-install"
+        }))
+    );
+
+    let cancelled = client
+        .cancel_plugin_operation(&AgentWorkspaceTarget::new("/ws/demo"), "op-install")
+        .await
+        .unwrap();
+    assert!(cancelled.cancelled);
+    assert_eq!(
+        log.frame_params("plugins/cancelOperation"),
+        Some(json!({ "operationId": "op-install" }))
+    );
+
+    let removed = client
+        .uninstall_plugin(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            Some("demo@market"),
+            None,
+            None,
+            Some(true),
+        )
+        .await
+        .unwrap();
+    assert_eq!(removed.removed_plugin.unwrap().id, "demo@market");
+
+    let updated = client
+        .update_plugin(&AgentWorkspaceTarget::new("/ws/demo"), None, Some("market"))
+        .await
+        .unwrap();
+    assert_eq!(updated.installed_plugins.len(), 1);
+}
+
+#[tokio::test]
+async fn malformed_install_result_is_rejected() {
+    let log = FrameLog::new("install-bad");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("bad-plugin-install", &log, spawns);
+    let error = match client
+        .install_plugin(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            "demo",
+            "market",
+            None,
+            None,
+            None,
+        )
+        .await
+    {
+        Ok(_) => panic!("未知字段必须拒绝"),
+        Err(error) => error,
+    };
+    assert!(matches!(error, ControlError::InvalidResult(_)), "{error:?}");
+}

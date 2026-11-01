@@ -663,3 +663,134 @@ impl PluginsResolveSuggestedReferenceResult {
         Ok(())
     }
 }
+
+// ── 市场与安装写侧 ──
+
+pub const PLUGINS_MARKETPLACE_ADD_METHOD: &str = "plugins/marketplace/add";
+pub const PLUGINS_MARKETPLACE_REMOVE_METHOD: &str = "plugins/marketplace/remove";
+pub const PLUGINS_MARKETPLACE_UPDATE_METHOD: &str = "plugins/marketplace/update";
+pub const PLUGINS_INSTALL_METHOD: &str = "plugins/install";
+pub const PLUGINS_CANCEL_OPERATION_METHOD: &str = "plugins/cancelOperation";
+pub const PLUGINS_UNINSTALL_METHOD: &str = "plugins/uninstall";
+pub const PLUGINS_UPDATE_METHOD: &str = "plugins/update";
+pub const PLUGIN_OPERATION_PROGRESS_NOTIFICATION: &str = "plugins/operationProgress";
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsMarketplaceAddParams {
+    pub workspace: SessionWorkspaceRef,
+    pub source: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dry_run: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsMarketplaceRemoveParams {
+    pub workspace: SessionWorkspaceRef,
+    pub marketplace: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsMarketplaceUpdateParams {
+    pub workspace: SessionWorkspaceRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marketplace: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+}
+
+/// `modePluginsMarketplaceMutationResultSchema`：三组字段都可选。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsMarketplaceMutationResult {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marketplace: Option<PluginMarketplaceSummary>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marketplaces: Option<Vec<PluginMarketplaceSummary>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<Vec<PluginDiagnostic>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsInstallParams {
+    pub workspace: SessionWorkspaceRef,
+    pub plugin_name: String,
+    pub marketplace: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<PluginScope>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dry_run: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsCancelOperationParams {
+    pub operation_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsCancelOperationResult {
+    pub operation_id: String,
+    pub cancelled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsUninstallParams {
+    pub workspace: SessionWorkspaceRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marketplace: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remove_cache: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsInstallResult {
+    pub installed_plugins: Vec<InstalledPluginSummary>,
+    pub dependency_closure: Vec<String>,
+    pub diagnostics: Vec<PluginDiagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsUninstallResult {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub removed_plugin: Option<InstalledPluginSummary>,
+    pub diagnostics: Vec<PluginDiagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsUpdateParams {
+    pub workspace: SessionWorkspaceRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marketplace: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PluginOperationProgressState {
+    #[serde(rename = "refreshing")]
+    Refreshing,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginOperationProgressNotification {
+    pub operation_id: String,
+    pub state: PluginOperationProgressState,
+}

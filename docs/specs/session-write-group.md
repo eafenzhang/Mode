@@ -231,6 +231,23 @@ scope(workspace|user|plugin), enabled: true, pluginName?}`；带 `sessionId` 时
 （与 `z.literal(true)` 对齐），disabled 条目直接 `InvalidResult`。
 测试：`crates/agent-process/tests/skills.rs`（2 条）。
 
+### 2h-4. 插件市场与安装写侧（2026-11-01）
+
+| 方法                        | 协议方法                     | params                                                                | result                                                     |
+| --------------------------- | ---------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `add_plugin_marketplace`    | `plugins/marketplace/add`    | `{workspace, source, dryRun?, operationId?}`                          | `{marketplace?, marketplaces?, diagnostics?}`              |
+| `remove_plugin_marketplace` | `plugins/marketplace/remove` | `{workspace, marketplace}`                                            | 同上                                                       |
+| `update_plugin_marketplace` | `plugins/marketplace/update` | `{workspace, marketplace?, operationId?}`                             | 同上                                                       |
+| `install_plugin`            | `plugins/install`            | `{workspace, pluginName, marketplace, scope?, dryRun?, operationId?}` | `{installedPlugins[], dependencyClosure[], diagnostics[]}` |
+| `cancel_plugin_operation`   | `plugins/cancelOperation`    | `{operationId}`（不带 workspace）                                     | `{operationId, cancelled}`                                 |
+| `uninstall_plugin`          | `plugins/uninstall`          | `{workspace, pluginId?, pluginName?, marketplace?, removeCache?}`     | `{removedPlugin?, diagnostics[]}`                          |
+| `update_plugin`             | `plugins/update`             | `{workspace, pluginId?, marketplace?}`                                | 与 install 同形                                            |
+
+- `plugins/operationProgress` 通知类型已镜像（`{operationId, state:"refreshing"}`），
+  订阅 facade 待所有权切换时再接。
+- `uninstall` 的 pluginId 与 pluginName+marketplace 二选一由调用方保证，schema 不强制。
+- 测试：`tests/plugins.rs` 新增 2 条（请求形状/结果解析、未知字段拒绝）。
+
 ## 2i. v4 会话订阅：`v4/conversation/subscribe` + wire frame
 
 `subscribe_conversation_v4(target, params)`：
