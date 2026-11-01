@@ -62,6 +62,7 @@ members = [
   "crates/mcp-sync-service",
   "crates/settings-sync-service",
   "crates/broadcast-service",
+  "crates/automation-service",
   "crates/skill-sync-service",
   "crates/plugin-sync-service",
   "crates/git-cli",
