@@ -63,6 +63,7 @@ members = [
   "crates/settings-sync-service",
   "crates/broadcast-service",
   "crates/skill-sync-service",
+  "crates/plugin-sync-service",
   "crates/git-cli",
   "crates/git-service",
   "crates/git-checkpoint-service",

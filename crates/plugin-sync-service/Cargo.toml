@@ -1,0 +1,16 @@
+[package]
+name = "plugin-sync-service"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "插件归档同步：候选扫描、远端判重、导出/导入与写权限探测"
+
+[lib]
+name = "plugin_sync_service"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+plugin-discovery = { path = "../plugin-discovery" }

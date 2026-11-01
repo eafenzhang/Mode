@@ -1,0 +1,253 @@
+{
+  "cases": [
+    {
+      "name": "candidates-status-write-access",
+      "setup": {
+        "dirs": [
+          "plugins/plugin-a",
+          "plugins/plugin-b",
+          "plugins/plugin-a",
+          "plugins/dup-a/shared",
+          "plugins/dup-b/shared",
+          "plugins/broken",
+          "plugins/no-manifest"
+        ],
+        "files": [
+          {
+            "path": "plugins/plugin-a/.mode-plugin/plugin.json",
+            "content": "{\n  \"name\": \"Plugin A\",\n  \"description\": \" A desc \",\n  \"version\": \" 1.0.0 \"\n}"
+          },
+          {
+            "path": "plugins/plugin-a/skills/demo/SKILL.md",
+            "content": "# demo\n"
+          },
+          {
+            "path": "plugins/plugin-a/commands/demo.md",
+            "content": "# demo\n"
+          },
+          {
+            "path": "plugins/plugin-a/.mcp.json",
+            "content": "{}\n"
+          },
+          {
+            "path": "plugins/plugin-b/.claude-plugin/plugin.json",
+            "content": "{\n  \"name\": \"Plugin B\"\n}"
+          },
+          {
+            "path": "plugins/plugin-b/hooks/hooks.json",
+            "content": "{}\n"
+          },
+          {
+            "path": "plugins/dup-a/shared/.mode-plugin/plugin.json",
+            "content": "{\n  \"name\": \"Shared A\"\n}"
+          },
+          {
+            "path": "plugins/dup-b/shared/.mode-plugin/plugin.json",
+            "content": "{\n  \"name\": \"Shared B\"\n}"
+          },
+          {
+            "path": "plugins/broken/.zcode-plugin/plugin.json",
+            "content": "{not json"
+          },
+          {
+            "path": "plugins/no-manifest/readme.md",
+            "content": "x\n"
+          },
+          {
+            "path": "home/.mode/plugins/existing-dir/file.txt",
+            "content": "x\n"
+          }
+        ]
+      },
+      "ops": [
+        {
+          "kind": "candidates"
+        },
+        {
+          "kind": "statuses",
+          "plugins": [
+            {
+              "pluginId": "custom@inline",
+              "directoryName": "existing-dir"
+            },
+            {
+              "pluginId": "plugin b@INLINE",
+              "directoryName": "new-b"
+            },
+            {
+              "pluginId": "missing@inline",
+              "directoryName": "missing-dir"
+            }
+          ]
+        },
+        {
+          "kind": "writeAccess"
+        }
+      ],
+      "expected": [
+        {
+          "candidates": [
+            {
+              "id": "<sha256>",
+              "name": "Plugin A",
+              "pluginId": "Plugin A@inline",
+              "directoryName": "plugin-a",
+              "description": "A desc",
+              "version": "1.0.0",
+              "path": "<root>/plugins/plugin-a",
+              "sizeBytes": 94,
+              "enabled": false,
+              "enabledOverride": false,
+              "componentTypes": [
+                "skills",
+                "commands",
+                "mcp"
+              ]
+            },
+            {
+              "id": "<sha256>",
+              "name": "Plugin B",
+              "pluginId": "Plugin B@inline",
+              "directoryName": "plugin-b",
+              "path": "<root>/plugins/plugin-b",
+              "sizeBytes": 27,
+              "enabled": true,
+              "componentTypes": [
+                "hooks"
+              ]
+            },
+            {
+              "id": "<sha256>",
+              "name": "Shared A",
+              "pluginId": "Shared A@inline",
+              "directoryName": "shared",
+              "path": "<root>/plugins/dup-a/shared",
+              "sizeBytes": 24,
+              "enabled": true,
+              "componentTypes": []
+            },
+            {
+              "id": "<sha256>",
+              "name": "Shared B",
+              "pluginId": "Shared B@inline",
+              "directoryName": "shared-<hash8>",
+              "path": "<root>/plugins/dup-b/shared",
+              "sizeBytes": 24,
+              "enabled": true,
+              "componentTypes": []
+            }
+          ],
+          "maxArchiveBytes": 52428800
+        },
+        {
+          "statuses": [
+            {
+              "pluginId": "custom@inline",
+              "directoryName": "existing-dir",
+              "exists": true,
+              "path": "<root>/home/.mode/plugins/existing-dir",
+              "reason": "targetExists"
+            },
+            {
+              "pluginId": "plugin b@INLINE",
+              "directoryName": "new-b",
+              "exists": true,
+              "path": "<root>/plugins/plugin-b",
+              "reason": "samePluginId"
+            },
+            {
+              "pluginId": "missing@inline",
+              "directoryName": "missing-dir",
+              "exists": false
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "path": "<root>/home/.mode/plugins, <root>/home/.mode/cli"
+        }
+      ]
+    },
+    {
+      "name": "empty-home",
+      "setup": {
+        "files": [],
+        "dirs": [],
+        "skipConfig": true
+      },
+      "ops": [
+        {
+          "kind": "candidates"
+        },
+        {
+          "kind": "statuses",
+          "plugins": [
+            {
+              "pluginId": "x@inline",
+              "directoryName": "x"
+            }
+          ]
+        },
+        {
+          "kind": "writeAccess"
+        }
+      ],
+      "expected": [
+        {
+          "candidates": [],
+          "maxArchiveBytes": 52428800
+        },
+        {
+          "statuses": [
+            {
+              "pluginId": "x@inline",
+              "directoryName": "x",
+              "exists": false
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "path": "<root>/home/.mode/plugins, <root>/home/.mode/cli"
+        }
+      ]
+    },
+    {
+      "name": "invalid-config",
+      "setup": {
+        "files": [],
+        "dirs": [],
+        "invalidConfig": true
+      },
+      "ops": [
+        {
+          "kind": "candidates"
+        },
+        {
+          "kind": "statuses",
+          "plugins": [
+            {
+              "pluginId": "x@inline",
+              "directoryName": "x"
+            }
+          ]
+        },
+        {
+          "kind": "writeAccess"
+        }
+      ],
+      "expected": [
+        {
+          "error": "<json-error>"
+        },
+        {
+          "error": "<json-error>"
+        },
+        {
+          "ok": true,
+          "path": "<root>/home/.mode/plugins, <root>/home/.mode/cli"
+        }
+      ]
+    }
+  ]
+}

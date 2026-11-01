@@ -510,7 +510,7 @@ jobs:
             -p rpc-wire -p rpc-host \
             -p plugin-host -p plugin-host-adapter \
             -p host-channels -p skills-service -p subagents-service -p mcp-sync-service \
-            -p settings-sync-service -p broadcast-service -p skill-sync-service -p git-cli -p git-service \
+            -p settings-sync-service -p broadcast-service -p skill-sync-service -p plugin-sync-service -p git-cli -p git-service \
             -p git-checkpoint-service \
             -p mode-tauri
           # `--all-targets` 覆盖 workspace 全部 crate 的 lib/bin/test/bench；

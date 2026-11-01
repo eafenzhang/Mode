@@ -78,6 +78,7 @@
     "settings-sync:fixtures": "tsx scripts/generate-settings-sync-fixtures.ts",
     "broadcast:fixtures": "tsx scripts/generate-broadcast-fixtures.ts",
     "skill-sync:fixtures": "tsx scripts/generate-skill-sync-fixtures.ts",
+    "plugin-sync:fixtures": "tsx scripts/generate-plugin-sync-fixtures.ts",
     "git-cli:fixtures": "tsx scripts/generate-git-cli-fixtures.ts",
     "git-service:fixtures": "tsx scripts/generate-git-service-fixtures.ts",
     "git-checkpoint:fixtures": "tsx scripts/generate-git-checkpoint-fixtures.ts"
