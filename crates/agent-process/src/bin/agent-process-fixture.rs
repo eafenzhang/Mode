@@ -1179,6 +1179,48 @@ fn main() {
                 snapshot["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": snapshot })
+        } else if method == "plugins/setEnabled" {
+            let mut result = json!({
+                "plugin": {
+                    "id": "demo@market",
+                    "name": "demo",
+                    "enabled": true,
+                    "source": "market",
+                    "marketplace": "market",
+                    "skillRootCount": 0,
+                    "commandRootCount": 0,
+                    "mcpServerNames": [],
+                    "rootPath": "/ws/demo/.mode/plugins/demo"
+                },
+                "enabled": true
+            });
+            if mode == "bad-plugin-write" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "plugins/restoreBuiltin"
+            || method == "plugins/configure"
+            || method == "plugins/resetConfig"
+        {
+            let mut result = json!({ "pluginId": "demo@market", "diagnostics": [] });
+            if mode == "bad-plugin-write" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "plugins/validate" {
+            let mut result = json!({
+                "ok": true,
+                "diagnostics": [],
+                "compatibility": {
+                    "runnable": ["agent"],
+                    "diagnosticOnly": [],
+                    "unsupported": []
+                }
+            });
+            if mode == "bad-plugin-write" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "workspace/updateInteractionPreferences" {
             let mut result = json!({
                 "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },

@@ -191,6 +191,21 @@ skillRootCount/commandRootCount/mcpServerNames/rootPath` 等必填项，以及
 **与 TS 的差异**：TS 使用独立的 plugin 管理进程（合成 workspace）与更长超时；本 facade
 复用 workspace runtime、使用协议默认超时。
 
+### 2h-1. 插件写侧（2026-11-01）
+
+| 方法                     | 协议方法                 | params                                                                      | result                                                                      |
+| ------------------------ | ------------------------ | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `set_plugin_enabled`     | `plugins/setEnabled`     | `{workspace, pluginId, enabled, operationId?, scope?}`                      | `{plugin: PluginInfo, enabled}`                                             |
+| `restore_builtin_plugin` | `plugins/restoreBuiltin` | `{workspace, pluginId}`                                                     | `{pluginId, diagnostics[]}`                                                 |
+| `configure_plugin`       | `plugins/configure`      | `{workspace, pluginId, options(object), clearOptionKeys?, scope?, dryRun?}` | `{pluginId, diagnostics[]}`                                                 |
+| `reset_plugin_config`    | `plugins/resetConfig`    | `{workspace, pluginId, scope?}`                                             | `{pluginId, diagnostics[]}`                                                 |
+| `validate_plugin`        | `plugins/validate`       | `{workspace, pluginName?, marketplace?, source?}`                           | `{ok, diagnostics[], compatibility{runnable, diagnosticOnly, unsupported}}` |
+
+- `options` 是任意 JSON 对象；`dryRun` 只校验不落盘。
+- `resetConfig` 复用 `plugins/configure` 的结果形状。
+- `validate` 的 name/marketplace/source 至少给一个由调用方保证，schema 不强制。
+- 测试：`crates/agent-process/tests/plugins.rs`（新增 2 条，含未知字段拒绝）。
+
 ## 2i. v4 会话订阅：`v4/conversation/subscribe` + wire frame
 
 `subscribe_conversation_v4(target, params)`：

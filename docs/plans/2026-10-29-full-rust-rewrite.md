@@ -284,7 +284,10 @@ rejected/stale/failed 映射 `CommandRejected`）；`commandId`/`clientId` 目�
 `helloConversationV4` 与订阅仍待迁移（2 条 + 双端夹具）。
 **插件只读面已落**：`plugins/list`（组件分组/hook 详情/userConfig/诊断）、
 `plugins/describe`（组件清单 + metadata）与 `plugins/overview`（市场/可安装/已安装摘要 +
-capability）（5 条 + 双端夹具）。
+capability）（5 条 + 双端夹具）。**插件写侧已落（2026-11-01）**：
+`plugins/setEnabled` / `restoreBuiltin` / `configure` / `resetConfig` / `validate`
+五组 params/result 严格镜像（configure 的任意 JSON options、validate 的兼容性分组），
+2 条控制面测试（含未知字段拒绝）。
 **v4 会话订阅已落**：`v4/conversation/subscribe` 参数/ACK 严格镜像，wire frame
 （complete/fragment + crc32）按 subscriptionId 过滤后流入；会话帧内部先按原始 JSON
 透传，随后由 `conversationDelta` 收紧（2 条 + 双端夹具）。**v4 握手已落**：host hello（能力位/profile 校验）与

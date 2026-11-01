@@ -10,7 +10,7 @@ use agent_process::{
     SpecFactory,
 };
 use agent_protocol::plugin::{PluginComponentKind, PluginScope};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 const FIXTURE: &str = env!("CARGO_BIN_EXE_agent-process-fixture");
 
@@ -82,7 +82,10 @@ async fn lists_plugins_with_scope_and_parses_components() {
     assert_eq!(result.plugins.len(), 1);
     let plugin = &result.plugins[0];
     assert_eq!(plugin.id, "demo-plugin");
-    assert_eq!(plugin.components.as_ref().unwrap()[0].kind, PluginComponentKind::Skill);
+    assert_eq!(
+        plugin.components.as_ref().unwrap()[0].kind,
+        PluginComponentKind::Skill
+    );
     assert!(plugin.hook_details.as_ref().unwrap()[0].runnable);
     assert_eq!(result.diagnostics.len(), 1);
 
@@ -103,9 +106,14 @@ async fn describes_plugin_with_component_groups() {
         .unwrap();
     assert_eq!(result.components.len(), 1);
     assert_eq!(result.components[0].items[0].name, "run");
-    assert_eq!(result.metadata.as_ref().unwrap().author.as_deref(), Some("demo"));
+    assert_eq!(
+        result.metadata.as_ref().unwrap().author.as_deref(),
+        Some("demo")
+    );
 
-    let params = log.frame_params("plugins/describe").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("plugins/describe")
+        .expect("必须记录到请求帧");
     assert_eq!(params["marketplace"], "official");
     assert_eq!(params["pluginName"], "demo");
 }
@@ -131,7 +139,9 @@ async fn reads_plugins_overview() {
     assert!(result.capability.supported);
     assert_eq!(result.official_marketplace_enabled, Some(true));
 
-    let params = log.frame_params("plugins/overview").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("plugins/overview")
+        .expect("必须记录到请求帧");
     assert_eq!(params["workspace"]["workspacePath"], "/ws/demo");
     assert_eq!(params["configScope"], "user");
 }
@@ -185,4 +195,95 @@ async fn malformed_plugin_results_are_rejected() {
         }
         other => panic!("unexpected error: {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn plugin_write_methods_send_params_and_parse_results() {
+    let log = FrameLog::new("writes");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+
+    let enabled = client
+        .set_plugin_enabled(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            "demo@market",
+            true,
+            Some("op-1"),
+            Some(PluginScope::User),
+        )
+        .await
+        .unwrap();
+    assert_eq!(enabled.plugin.id, "demo@market");
+    assert!(enabled.enabled);
+    assert_eq!(
+        log.frame_params("plugins/setEnabled"),
+        Some(json!({
+            "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+            "pluginId": "demo@market",
+            "enabled": true,
+            "operationId": "op-1",
+            "scope": "user"
+        }))
+    );
+
+    let configured = client
+        .configure_plugin(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            "demo@market",
+            [("token".to_string(), json!("abc"))].into_iter().collect(),
+            Some(vec!["old".to_string()]),
+            None,
+            Some(true),
+        )
+        .await
+        .unwrap();
+    assert_eq!(configured.plugin_id, "demo@market");
+    let configure_frame = log.frame_params("plugins/configure").expect("configure 帧");
+    assert_eq!(configure_frame["options"], json!({ "token": "abc" }));
+    assert_eq!(configure_frame["clearOptionKeys"], json!(["old"]));
+    assert_eq!(configure_frame["dryRun"], json!(true));
+
+    let reset = client
+        .reset_plugin_config(&AgentWorkspaceTarget::new("/ws/demo"), "demo@market", None)
+        .await
+        .unwrap();
+    assert_eq!(reset.plugin_id, "demo@market");
+
+    let restored = client
+        .restore_builtin_plugin(&AgentWorkspaceTarget::new("/ws/demo"), "demo@market")
+        .await
+        .unwrap();
+    assert!(restored.diagnostics.is_empty());
+
+    let validated = client
+        .validate_plugin(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            Some("demo"),
+            Some("market"),
+            None,
+        )
+        .await
+        .unwrap();
+    assert!(validated.ok);
+    assert_eq!(validated.compatibility.runnable, vec!["agent".to_string()]);
+}
+
+#[tokio::test]
+async fn plugin_write_rejects_unknown_result_fields() {
+    let log = FrameLog::new("writes-bad");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("bad-plugin-write", &log, spawns);
+    let error = match client
+        .validate_plugin(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            Some("demo"),
+            None,
+            None,
+        )
+        .await
+    {
+        Ok(_) => panic!("未知字段必须拒绝"),
+        Err(error) => error,
+    };
+    assert!(matches!(error, ControlError::InvalidResult(_)), "{error:?}");
 }

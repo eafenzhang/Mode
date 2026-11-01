@@ -415,3 +415,111 @@ pub struct PluginsOverviewResult {
     pub official_marketplace_enabled: Option<bool>,
     pub capability: PluginOverviewCapability,
 }
+
+// ── 插件写侧（配置/启用/校验/恢复内置）──
+
+pub const PLUGINS_SET_ENABLED_METHOD: &str = "plugins/setEnabled";
+pub const PLUGINS_RESTORE_BUILTIN_METHOD: &str = "plugins/restoreBuiltin";
+pub const PLUGINS_CONFIGURE_METHOD: &str = "plugins/configure";
+pub const PLUGINS_RESET_CONFIG_METHOD: &str = "plugins/resetConfig";
+pub const PLUGINS_VALIDATE_METHOD: &str = "plugins/validate";
+
+/// `modePluginsSetEnabledParamsSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsSetEnabledParams {
+    pub workspace: SessionWorkspaceRef,
+    pub plugin_id: String,
+    pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<PluginScope>,
+}
+
+/// `modePluginsSetEnabledResultSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsSetEnabledResult {
+    pub plugin: PluginInfo,
+    pub enabled: bool,
+}
+
+/// `modePluginsRestoreBuiltinParamsSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsRestoreBuiltinParams {
+    pub workspace: SessionWorkspaceRef,
+    pub plugin_id: String,
+}
+
+/// `modePluginsRestoreBuiltinResultSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsRestoreBuiltinResult {
+    pub plugin_id: String,
+    pub diagnostics: Vec<PluginDiagnostic>,
+}
+
+/// `modePluginsConfigureParamsSchema`：`options` 是任意 JSON 对象。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsConfigureParams {
+    pub workspace: SessionWorkspaceRef,
+    pub plugin_id: String,
+    pub options: BTreeMap<String, serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clear_option_keys: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<PluginScope>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dry_run: Option<bool>,
+}
+
+/// `modePluginsConfigureResultSchema`（resetConfig 复用同一结果）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsConfigureResult {
+    pub plugin_id: String,
+    pub diagnostics: Vec<PluginDiagnostic>,
+}
+
+/// `modePluginsResetConfigParamsSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsResetConfigParams {
+    pub workspace: SessionWorkspaceRef,
+    pub plugin_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<PluginScope>,
+}
+
+/// `modePluginsValidateParamsSchema`：三者至少给一个由调用方保证，schema 不强制。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsValidateParams {
+    pub workspace: SessionWorkspaceRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marketplace: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginCompatibility {
+    pub runnable: Vec<String>,
+    pub diagnostic_only: Vec<String>,
+    pub unsupported: Vec<String>,
+}
+
+/// `modePluginsValidateResultSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsValidateResult {
+    pub ok: bool,
+    pub diagnostics: Vec<PluginDiagnostic>,
+    pub compatibility: PluginCompatibility,
+}
