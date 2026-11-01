@@ -163,8 +163,11 @@ bytes ──► FrameRouter::route
 `client-scenes`、`media-preview`、`conversation-mirror`、`credential`、`system`、`file`、
 `file-watcher`、`commands`）；scoped 帧已支持本地接管——按 scope 惰性建独立 `ChannelServer`，回帧经
 `encode_scoped_frame` 加 `0xFF + scopeId` 前缀，Host 换代时一并 `dispose`。
-**尚未做**：真机打开开关跑一遍（目前只做编译、单元与管线验收）；Control 帧仍归 Node
-Host；`host` 频道不接管（心跳不能测壳自己）。`credential` 见
+**2026-10-31 本地真人路径验收**：当时 19 个频道全部注册成功，15 个经 UI 路径验证；
+`plugin-sync` 为后续第 20 个（仅 SSH/WSL 远程可达）。记录见
+`.plan/accept-0.0.109-inprocess/report.md`。**尚未做**：Control 帧仍归 Node Host；
+`host` 频道不接管（心跳不能测壳自己）；远程工作区内的 skill-sync / git-checkpoint /
+plugin-sync 真机用例。`credential` 见
 `docs/specs/credential-store.md`，`system` 见 `docs/specs/system-service.md`，
 `file` 见 `docs/specs/file-service.md`，`file-watcher` 见
 `docs/specs/file-watcher-service.md`（首个事件型频道），`commands` 见
@@ -195,10 +198,12 @@ Rust 实现已完成（`crates/project-memory` + `docs/specs/project-memory-serv
 每域完成的定义（缺一不可）：该频道的 TS 实现保留为 oracle；对拍矩阵覆盖正常/错误/取消/
 事件四类；`MODE_HOST_INPROCESS_CHANNELS` 打开后该域的真机用例通过；关闭开关仍走 TS 路径。
 
-**截至 2026-10-29 的进度**：已完成 `memory`、`prompt-attachment-transfer`、
+**截至 2026-11-01 的进度（20 个频道）**：`memory`、`prompt-attachment-transfer`、
 `client-config` / `client-scenes`、`media-preview`、`conversation-mirror`、`setting`、
-`commands`；`hooks` 的 trust store / 配置解析 / 摘要三件前置已就位（摘要与 TS 黄金字节对拍），
-频道本体（discovery、写入、grant 转发）未接。其余域未开始。
+`credential`、`system`、`file`、`file-watcher`、`commands`、`skills`、`subagents`、
+`settings-sync`、`broadcast`、`skill-sync`、`git`、`git-checkpoint`、`plugin-sync`。
+`hooks` 的 trust store / 配置解析 / 摘要三件前置已就位，频道本体（discovery、写入、
+grant 转发）依赖 W4 ownership；`terminal`、`usage-stats`、`remote`、`bots` 等域未开始。
 
 ### M4b-5 默认切换与删装配
 
@@ -241,5 +246,6 @@ W0 地基 → W1 平台基元 → W2 传输切换 → W3 逐域迁移 → W6 删
 - **`credential` 的密钥托管**：与 TS 一样用文件托管密钥（`MODE_CREDENTIAL_SECRET` 或
   fallback 串派生），未接系统钥匙串；Host 私有的 `onDidMutate` 当前没有调用方，
   壳内不转发。密钥派生必须与 Node 逐字节一致，否则切关时旧凭据会解不开。
-- 默认仍不改变产品路径：开关为空时 Node Host 是唯一所有者；打开开关只影响列出的 8 个
-  频道，真机行为尚未验收。
+- 默认仍不改变产品路径：开关为空时 Node Host 是唯一所有者；打开开关影响列出的 20 个
+  频道。本地真人路径已验收 19 个；第 20 个 `plugin-sync` 与 skill-sync / git-checkpoint
+  需远程工作区环境。
