@@ -14,7 +14,7 @@
  * cargo test -p plugin-sync-service
  * ```
  */
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,7 +49,11 @@ interface FixtureCase {
 type Op =
   | { kind: "candidates" }
   | { kind: "statuses"; plugins: Array<{ pluginId: string; directoryName: string }> }
-  | { kind: "writeAccess" };
+  | { kind: "writeAccess" }
+  | { kind: "export"; pluginNames: string[] }
+  | { kind: "import"; from: number }
+  | { kind: "importOverwrite"; from: number }
+  | { kind: "setDirs"; dirs: string[] };
 
 function homeDir(): string {
   return path.join(SANDBOX, "home");
@@ -69,15 +73,56 @@ function pluginFiles(root: string, manifestDir: string, manifest: object): FileS
   ];
 }
 
+function writeConfig(dirs: string[]): void {
+  const configPath = path.join(homeDir(), ".mode", "cli", "config.json");
+  mkdirSync(path.dirname(configPath), { recursive: true });
+  const absolute = dirs.map((dir) => path.join(SANDBOX, ...dir.split("/")));
+  writeFileSync(
+    configPath,
+    `${JSON.stringify(
+      {
+        plugins: {
+          dirs: absolute,
+          enabledPlugins: {
+            "plugin a@inline": false,
+            "pluginb@inline": true,
+            "not-a-bool@inline": "yes",
+          },
+        },
+      },
+      null,
+      2,
+    )}
+`,
+  );
+}
+
+function fixMtimes(root: string): void {
+  const fixed = new Date("2024-01-01T00:00:00Z");
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(dir)) {
+      const absolute = path.join(dir, name);
+      if (statSync(absolute).isDirectory()) walk(absolute);
+      utimesSync(absolute, fixed, fixed);
+    }
+    utimesSync(dir, fixed, fixed);
+  };
+  walk(root);
+}
+
 function setupCase(testCase: FixtureCase): void {
   rmSync(SANDBOX, { recursive: true, force: true });
   mkdirSync(homeDir(), { recursive: true });
   materialize(testCase.setup.files);
-  if (testCase.setup.skipConfig) return;
+  if (testCase.setup.skipConfig) {
+    fixMtimes(SANDBOX);
+    return;
+  }
   const configPath = path.join(homeDir(), ".mode", "cli", "config.json");
   mkdirSync(path.dirname(configPath), { recursive: true });
   if (testCase.setup.invalidConfig) {
     writeFileSync(configPath, "{not json");
+    fixMtimes(SANDBOX);
     return;
   }
   const dirs = testCase.setup.dirs.map((dir) => path.join(SANDBOX, ...dir.split("/")));
@@ -98,6 +143,25 @@ function setupCase(testCase: FixtureCase): void {
       2,
     )}\n`,
   );
+  fixMtimes(SANDBOX);
+}
+
+function listFiles(root: string): Array<{ path: string; content: string }> {
+  if (!existsSync(root)) return [];
+  const entries: Array<{ path: string; content: string }> = [];
+  const walk = (dir: string, prefix: string): void => {
+    for (const name of readdirSync(dir).sort()) {
+      const absolute = path.join(dir, name);
+      const relative = prefix ? `${prefix}/${name}` : name;
+      if (statSync(absolute).isDirectory()) {
+        walk(absolute, relative);
+        continue;
+      }
+      entries.push({ path: relative, content: readFileSync(absolute, "utf-8") });
+    }
+  };
+  walk(root, "");
+  return entries;
 }
 
 function normalizeText(text: string): string {
@@ -115,7 +179,9 @@ function normalizeText(text: string): string {
 
 const SHA256 = /^[0-9a-f]{64}$/u;
 
-function normalizeValue(value: unknown): unknown {
+function normalizeValue(value: unknown, key?: string): unknown {
+  if (key === "archive") return "<archive>";
+  if (key === "archiveBytes") return "<bytes>";
   if (typeof value === "string") {
     let replaced = normalizeText(value);
     if (SHA256.test(replaced)) return "<sha256>";
@@ -126,8 +192,8 @@ function normalizeValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((item) => normalizeValue(item));
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
-    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-      out[key] = normalizeValue(child);
+    for (const [childKey, child] of Object.entries(value as Record<string, unknown>)) {
+      out[childKey] = normalizeValue(child, childKey);
     }
     return out;
   }
@@ -176,6 +242,12 @@ const cases: FixtureCase[] = [
         ],
       },
       { kind: "writeAccess" },
+      { kind: "export", pluginNames: ["Plugin A", "Plugin B"] },
+      { kind: "setDirs", dirs: ["plugins/plugin-a"] },
+      { kind: "import", from: 0 },
+      { kind: "import", from: 0 },
+      { kind: "importOverwrite", from: 0 },
+      { kind: "export", pluginNames: ["Missing Plugin"] },
     ],
   },
   {
@@ -211,6 +283,7 @@ async function main(): Promise<void> {
     setupCase(testCase);
     const service = createPluginSyncService();
     const expected: unknown[] = [];
+    const archives: Uint8Array[] = [];
     for (const op of testCase.ops) {
       try {
         if (op.kind === "candidates") {
@@ -219,8 +292,39 @@ async function main(): Promise<void> {
           expected.push(
             normalizeValue(await service.listRemoteUserPluginStatuses({ plugins: op.plugins })),
           );
-        } else {
+        } else if (op.kind === "writeAccess") {
           expected.push(normalizeValue(await service.checkRemoteUserPluginWriteAccess()));
+        } else if (op.kind === "export") {
+          const candidates = await service.listLocalUserPluginCandidates();
+          const ids = op.pluginNames.map((name) => {
+            const candidate = candidates.candidates.find((item) => item.name === name);
+            if (!candidate) throw new Error(`fixture candidate not found: ${name}`);
+            return candidate.id;
+          });
+          // 归档 metadata 条目默认用 Date.now() 作 mtime；固定时钟保证 fixture 幂等。
+          const realNow = Date.now;
+          Date.now = () => 1704067200000;
+          let result;
+          try {
+            result = await service.exportPluginsArchive({ pluginIds: ids });
+          } finally {
+            Date.now = realNow;
+          }
+          archives.push(result.archive);
+          expected.push(normalizeValue(result));
+        } else if (op.kind === "import") {
+          expected.push(
+            normalizeValue(await service.importPluginsArchive({ archive: archives[op.from]! })),
+          );
+        } else if (op.kind === "importOverwrite") {
+          await service.importPluginsArchive({
+            archive: archives[op.from]!,
+            overwrite: true as never,
+          });
+          expected.push({ ok: true });
+        } else if (op.kind === "setDirs") {
+          writeConfig(op.dirs);
+          expected.push({ ok: true });
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -232,7 +336,25 @@ async function main(): Promise<void> {
         );
       }
     }
-    results.push({ name: testCase.name, setup: testCase.setup, ops: testCase.ops, expected });
+    const pluginRoot = path.join(homeDir(), ".mode", "plugins");
+    const configPath = path.join(homeDir(), ".mode", "cli", "config.json");
+    let config: unknown = null;
+    if (existsSync(configPath)) {
+      try {
+        config = normalizeValue(JSON.parse(readFileSync(configPath, "utf-8")));
+      } catch {
+        config = { error: "<json-error>" };
+      }
+    }
+    results.push({
+      name: testCase.name,
+      setup: testCase.setup,
+      ops: testCase.ops,
+      expected,
+      tree: listFiles(pluginRoot),
+      config,
+      archiveBase64: archives[0] ? Buffer.from(archives[0]).toString("base64") : null,
+    });
   }
 
   mkdirSync(path.dirname(OUTPUT), { recursive: true });

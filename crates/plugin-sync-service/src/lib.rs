@@ -1,16 +1,24 @@
-//! 插件归档同步（`plugin-sync-service`）：候选扫描、远端判重与写权限探测。
+//! 插件归档同步（`plugin-sync-service`）：候选扫描、远端判重、写权限与归档导入导出。
 //!
 //! 真源：`packages/services/src/plugin-sync/pluginSyncService.ts`（clean-room，只读本仓库 TS）。
-//! 本 crate 先覆盖三个本地方法；归档导出/导入与 marketplace source 在后续切片补齐。
-//! 行为契约见 `docs/specs/plugin-sync-service.md`。
+//! marketplace source 归档在后续切片补齐；行为契约见
+//! `docs/specs/plugin-sync-service.md`。
 
+mod archive;
 mod candidates;
 mod paths;
+mod plugins_archive;
 mod statuses;
 mod types;
 mod write_access;
 
 use std::path::{Path, PathBuf};
+
+pub use archive::{
+    create_archive, extract_archive, ArchiveEntry, ArchiveMetadata, ArchiveMetadataPlugin,
+    PLUGIN_SYNC_METADATA_ARCHIVE_PATH,
+};
+pub use plugins_archive::{import_plugins_archive, read_archive_metadata};
 
 pub use candidates::{
     collect_configured_inline_plugin_path_by_id, collect_local_user_plugin_candidates,
@@ -24,9 +32,10 @@ pub use paths::{
 };
 pub use statuses::{list_remote_user_plugin_statuses, RemoteStatusQuery};
 pub use types::{
-    PluginSyncCandidate, PluginSyncCandidateListResult, PluginSyncComponentType,
-    PluginSyncRemoteStatus, PluginSyncRemoteStatusReason, PluginSyncRemoteStatusResult,
-    RemoteSyncWriteAccessResult,
+    PluginSyncArchiveExportResult, PluginSyncArchivePlugin, PluginSyncCandidate,
+    PluginSyncCandidateListResult, PluginSyncComponentType, PluginSyncImportResult,
+    PluginSyncImportResultItem, PluginSyncImportStatus, PluginSyncRemoteStatus,
+    PluginSyncRemoteStatusReason, PluginSyncRemoteStatusResult, RemoteSyncWriteAccessResult,
 };
 pub use write_access::check_remote_user_plugin_write_access;
 
@@ -88,5 +97,86 @@ impl PluginSyncService {
 
     pub fn check_remote_user_plugin_write_access(&self) -> RemoteSyncWriteAccessResult {
         check_remote_user_plugin_write_access(&self.home_dir)
+    }
+
+    pub fn export_plugins_archive(
+        &self,
+        plugin_ids: &[String],
+    ) -> Result<PluginSyncArchiveExportResult, String> {
+        let candidates = collect_local_user_plugin_candidates(&self.home_dir)?;
+        let mut selected = Vec::with_capacity(plugin_ids.len());
+        for plugin_id in plugin_ids {
+            let candidate = candidates
+                .iter()
+                .find(|candidate| &candidate.id == plugin_id)
+                .ok_or_else(|| format!("plugin sync candidate not found: {plugin_id}"))?;
+            selected.push(candidate);
+        }
+        let selected_bytes: u64 = selected.iter().map(|candidate| candidate.size_bytes).sum();
+        if selected_bytes > self.max_archive_bytes {
+            return Err(format!(
+                "plugin sync archive exceeds limit: {selected_bytes}/{}",
+                self.max_archive_bytes
+            ));
+        }
+        let entries: Vec<ArchiveEntry> = selected
+            .iter()
+            .map(|candidate| ArchiveEntry::Source {
+                source_path: plugin_discovery::js::realpath(Path::new(&candidate.path))
+                    .unwrap_or_else(|| PathBuf::from(&candidate.path)),
+                archive_path: candidate.directory_name.clone(),
+            })
+            .collect();
+        let metadata = ArchiveMetadata {
+            plugins: selected
+                .iter()
+                .map(|candidate| ArchiveMetadataPlugin {
+                    name: candidate.name.clone(),
+                    plugin_id: candidate.plugin_id.clone(),
+                    directory_name: candidate.directory_name.clone(),
+                    enabled: candidate.enabled_override,
+                })
+                .collect(),
+        };
+        let archive = create_archive(&entries, &metadata)?;
+        if archive.len() as u64 > self.max_archive_bytes {
+            return Err(format!(
+                "plugin sync archive exceeds limit: {}/{}",
+                archive.len(),
+                self.max_archive_bytes
+            ));
+        }
+        Ok(PluginSyncArchiveExportResult {
+            archive_bytes: archive.len() as u64,
+            archive,
+            plugins: selected
+                .iter()
+                .map(|candidate| PluginSyncArchivePlugin {
+                    id: candidate.id.clone(),
+                    name: candidate.name.clone(),
+                    plugin_id: candidate.plugin_id.clone(),
+                    directory_name: candidate.directory_name.clone(),
+                    enabled: candidate.enabled_override,
+                })
+                .collect(),
+        })
+    }
+
+    pub fn import_plugins_archive(
+        &self,
+        archive: &[u8],
+        overwrite: bool,
+    ) -> Result<PluginSyncImportResult, String> {
+        if overwrite {
+            return Err("plugin sync overwrite is not supported".to_string());
+        }
+        if archive.len() as u64 > self.max_archive_bytes {
+            return Err(format!(
+                "plugin sync archive exceeds limit: {}/{}",
+                archive.len(),
+                self.max_archive_bytes
+            ));
+        }
+        import_plugins_archive(archive, &self.home_dir, self.max_archive_bytes)
     }
 }

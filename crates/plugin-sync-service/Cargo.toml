@@ -13,4 +13,6 @@ path = "src/lib.rs"
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+flate2 = "1"
+base64 = "0.22"
 plugin-discovery = { path = "../plugin-discovery" }

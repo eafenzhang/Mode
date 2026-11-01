@@ -3475,6 +3475,8 @@ dependencies = [
 name = "plugin-sync-service"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "flate2",
  "plugin-discovery",
  "serde",
  "serde_json",

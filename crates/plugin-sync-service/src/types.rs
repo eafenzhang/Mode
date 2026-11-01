@@ -74,3 +74,51 @@ pub struct RemoteSyncWriteAccessResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSyncArchivePlugin {
+    pub id: String,
+    pub name: String,
+    pub plugin_id: String,
+    pub directory_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSyncArchiveExportResult {
+    pub archive: Vec<u8>,
+    pub archive_bytes: u64,
+    pub plugins: Vec<PluginSyncArchivePlugin>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PluginSyncImportStatus {
+    #[serde(rename = "synced")]
+    Synced,
+    #[serde(rename = "skipped")]
+    Skipped,
+    #[serde(rename = "failed")]
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSyncImportResultItem {
+    pub name: String,
+    pub plugin_id: String,
+    pub directory_name: String,
+    pub status: PluginSyncImportStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSyncImportResult {
+    pub results: Vec<PluginSyncImportResultItem>,
+}

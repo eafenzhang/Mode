@@ -82,6 +82,37 @@
         },
         {
           "kind": "writeAccess"
+        },
+        {
+          "kind": "export",
+          "pluginNames": [
+            "Plugin A",
+            "Plugin B"
+          ]
+        },
+        {
+          "kind": "setDirs",
+          "dirs": [
+            "plugins/plugin-a"
+          ]
+        },
+        {
+          "kind": "import",
+          "from": 0
+        },
+        {
+          "kind": "import",
+          "from": 0
+        },
+        {
+          "kind": "importOverwrite",
+          "from": 0
+        },
+        {
+          "kind": "export",
+          "pluginNames": [
+            "Missing Plugin"
+          ]
         }
       ],
       "expected": [
@@ -165,8 +196,100 @@
         {
           "ok": true,
           "path": "<root>/home/.mode/plugins, <root>/home/.mode/cli"
+        },
+        {
+          "archive": "<archive>",
+          "archiveBytes": "<bytes>",
+          "plugins": [
+            {
+              "id": "<sha256>",
+              "name": "Plugin A",
+              "pluginId": "Plugin A@inline",
+              "directoryName": "plugin-a",
+              "enabled": false
+            },
+            {
+              "id": "<sha256>",
+              "name": "Plugin B",
+              "pluginId": "Plugin B@inline",
+              "directoryName": "plugin-b"
+            }
+          ]
+        },
+        {
+          "ok": true
+        },
+        {
+          "results": [
+            {
+              "name": "Plugin A",
+              "pluginId": "Plugin A@inline",
+              "directoryName": "plugin-a",
+              "status": "skipped",
+              "path": "<root>/plugins/plugin-a"
+            },
+            {
+              "name": "Plugin B",
+              "pluginId": "Plugin B@inline",
+              "directoryName": "plugin-b",
+              "status": "synced",
+              "path": "<root>/home/.mode/plugins/plugin-b"
+            }
+          ]
+        },
+        {
+          "results": [
+            {
+              "name": "Plugin A",
+              "pluginId": "Plugin A@inline",
+              "directoryName": "plugin-a",
+              "status": "skipped",
+              "path": "<root>/plugins/plugin-a"
+            },
+            {
+              "name": "Plugin B",
+              "pluginId": "Plugin B@inline",
+              "directoryName": "plugin-b",
+              "status": "skipped",
+              "path": "<root>/home/.mode/plugins/plugin-b"
+            }
+          ]
+        },
+        {
+          "error": "plugin sync overwrite is not supported"
+        },
+        {
+          "error": "fixture candidate not found: Missing Plugin"
         }
-      ]
+      ],
+      "tree": [
+        {
+          "path": "existing-dir/file.txt",
+          "content": "x\n"
+        },
+        {
+          "path": "plugin-b/.claude-plugin/plugin.json",
+          "content": "{\n  \"name\": \"Plugin B\"\n}"
+        },
+        {
+          "path": "plugin-b/hooks/hooks.json",
+          "content": "{}\n"
+        }
+      ],
+      "config": {
+        "plugins": {
+          "dirs": [
+            "<root>/plugins/plugin-a",
+            "<root>/home/.mode/plugins/plugin-b"
+          ],
+          "enabledPlugins": {
+            "plugin a@inline": false,
+            "pluginb@inline": true,
+            "not-a-bool@inline": "yes"
+          }
+        }
+      },
+      "archiveBase64": "H4sIAAAAAAAACu2aT2+bMBjGc+ZTvGLXhtnGgNTTmlu1apq047QDAW+jBRPhZFIV5btPmIZGNAkLMs4q3t8BEtuAoyfv8+I/q3zzK5Pz+ONsPAghJAxDfSaEdM/6M+UB55wQVpdTyhifQTBin1o2ah1XM0KKMhXn2vXVv1NWe/29Ill5j6qU5p/Rr7/f0Z9FAZkBMd+Vt0xc/+3OuXYXkCtyEP9lKubNV8PJ4HL/9wPG0P9tcFz/5mQqHfTpT2nQ0T+IqI/+b4OtA+DKuBDuLbhftexw597UpalQSZWt1lkp60q4g7oEmso/olL7CuoRj4Dr7K79Y5CLaeM/KYsilqkaYSAwwP8JC9D/bfBW/1QUpVekBp/Rr3/U0Z+zCP3fCh+g1hvHAFOljX/1lOX5GO4/xP9ZgP5vh67+tRuY/hMMyP88oKi/DY7q/+3z/cODuXeAAfk/rPXH/D8+mP+nzUv8L/+79R/M/1Zo9feSPN6MMwN8uf6c+Lj+Z4VT+pucAe7V3+/qHzKG+d8Kx+Z/FziVOxna+P9dlk/jDP+HjP/9ev0f/X98Ovrro+ltIP36d/d/cD9k6P82wP0f0+Zw2X+unmUywh4wHf+cn4x/Tll3/i/kEca/DfT7XyO/cm/huwMAsNXHUxsDdE1zyX16WPspk3kmxWujNKtEsi6r5y8v99nPNr42ETJe5qK+zc84V0IX727O9mJxtheLf+7F0m2e5gD8cNAGEQSZGn8BDNTENgAwAAA="
     },
     {
       "name": "empty-home",
@@ -210,7 +333,10 @@
           "ok": true,
           "path": "<root>/home/.mode/plugins, <root>/home/.mode/cli"
         }
-      ]
+      ],
+      "tree": [],
+      "config": null,
+      "archiveBase64": null
     },
     {
       "name": "invalid-config",
@@ -247,7 +373,12 @@
           "ok": true,
           "path": "<root>/home/.mode/plugins, <root>/home/.mode/cli"
         }
-      ]
+      ],
+      "tree": [],
+      "config": {
+        "error": "<json-error>"
+      },
+      "archiveBase64": null
     }
   ]
 }

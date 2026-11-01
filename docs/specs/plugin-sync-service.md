@@ -48,6 +48,23 @@
 `create_new` 写 `.mode-sync-preflight-<pid>-<nanos>`，随后删除；任一失败立即返回
 `{ok:false, path, error}`；全部成功返回 `{ok:true, path: "<dir1>, <dir2>"}`。
 
+## 4b. 归档格式与导入流程
+
+- ustar + gzip；目录条目 typeflag `5`（路径带尾 `/`），文件 `0`；header 字段
+  （mode/uid/gid/size/mtime/checksum、`ustar`/`00`、uname/gname=`mode`）与 TS 一致；
+  子项按名称 localeCompare 排序；软链等非普通文件导出报错
+  `unsupported plugin archive source: <path>`。
+- 归档末尾追加 `.mode-plugin-sync.json`（2 空格缩进 + 尾随换行），内容
+  `{plugins:[{name, pluginId, directoryName, enabled?}]}`。
+- 导入：解到临时目录（`max_extracted_bytes = maxArchiveBytes`），读 metadata 并逐项校验
+  `name/pluginId/directoryName` 非空与路径安全；manifest 的 pluginId（大小写不敏感）必须与
+  metadata 一致；目标已存在 → `skipped(targetExists)`；同名 pluginId 已在 config →
+  `skipped(samePluginId)`；否则复制到 `.importing-*` 后 rename，并原子写 config
+  （追加绝对路径、按需写 enabledPlugins；写失败回滚目标目录）。单项失败记为
+  `failed` + error，不影响其它插件。
+- `overwrite: true` → `plugin sync overwrite is not supported`；归档体积超限 →
+  `plugin sync archive exceeds limit: <actual>/<max>`。
+
 ## 5. 已知差异
 
 1. **配置 JSON 语法错误文案**：Node `JSON.parse` 的具体文案随版本变化；Rust 返回
@@ -55,11 +72,16 @@
 2. **目录去重后缀**：基于绝对路径的 sha256，沙盒路径不同会得到不同 8 位后缀；fixture
    把 `-<8 hex>` 归一并由 replay 校验其余字段。
 3. **写权限标记名**：TS 用 uuid，Rust 用 pid + nanos；只影响一次性文件名。
+4. **gzip 字节**：Node zlib 与 flate2 压缩输出不同；tar 结构与条目顺序一致，双向可解。
+   fixture 把 `archive` 归一为 `<archive>`，另存一份 TS 归档 base64 供 Rust 侧导入验证。
+5. **元数据 mtime**：TS metadata 条目默认 `Date.now()`；fixture 固定时钟保证幂等，
+   生产行为仍是当前时间。
 
 ## 6. 验收
 
 - `pnpm plugin-sync:fixtures` 生成 `crates/plugin-sync-service/fixtures/plugin-sync.json`
   （3 个用例：完整 home、空 home、损坏配置）。
 - `cargo test -p plugin-sync-service` 重建同构 home 并逐项深比较：
-  `<root>` 路径、64 位 hash → `<sha256>`、去重后缀 → `<hash8>`；
-  fixture 重复生成 sha256 一致。
+  `<root>` 路径、64 位 hash → `<sha256>`、去重后缀 → `<hash8>`、归档字段归一；
+  另有一条用例直接导入 fixture 里的 **TS 生成归档**，验证跨语言 tar 兼容。
+  fixture 重复生成 sha256 一致（文件 mtime 与 metadata 时钟固定）。

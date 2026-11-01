@@ -5,7 +5,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use plugin_sync_service::{
     check_remote_user_plugin_write_access, collect_local_user_plugin_candidates,
-    list_remote_user_plugin_statuses, normalize_relative_path, RemoteStatusQuery,
+    list_remote_user_plugin_statuses, normalize_relative_path, PluginSyncService,
+    PluginSyncServiceOptions, RemoteStatusQuery,
 };
 use serde_json::{json, Value};
 
@@ -68,7 +69,13 @@ fn replace_short_hash_suffix(text: &str) -> String {
     }
 }
 
-fn normalize_value(root: &str, value: &Value) -> Value {
+fn normalize_value(root: &str, key: Option<&str>, value: &Value) -> Value {
+    if key == Some("archive") {
+        return Value::String("<archive>".to_string());
+    }
+    if key == Some("archiveBytes") {
+        return Value::String("<bytes>".to_string());
+    }
     match value {
         Value::String(text) => {
             let replaced = normalize_text(root, text);
@@ -81,13 +88,18 @@ fn normalize_value(root: &str, value: &Value) -> Value {
         Value::Array(items) => Value::Array(
             items
                 .iter()
-                .map(|item| normalize_value(root, item))
+                .map(|item| normalize_value(root, None, item))
                 .collect(),
         ),
         Value::Object(object) => Value::Object(
             object
                 .iter()
-                .map(|(key, child)| (key.clone(), normalize_value(root, child)))
+                .map(|(child_key, child)| {
+                    (
+                        child_key.clone(),
+                        normalize_value(root, Some(child_key), child),
+                    )
+                })
                 .collect(),
         ),
         other => other.clone(),
@@ -142,11 +154,82 @@ fn setup_case(sandbox: &Path, setup: &Value) -> PathBuf {
     home
 }
 
+fn write_config(sandbox: &Path, home: &Path, dirs: &[String]) -> Result<(), String> {
+    let _ = sandbox;
+    let config_path = home.join(".mode").join("cli").join("config.json");
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let config = json!({
+        "plugins": {
+            "dirs": dirs,
+            "enabledPlugins": {
+                "plugin a@inline": false,
+                "pluginb@inline": true,
+                "not-a-bool@inline": "yes"
+            }
+        }
+    });
+    std::fs::write(
+        config_path,
+        format!(
+            "{}
+",
+            serde_json::to_string_pretty(&config).map_err(|error| error.to_string())?
+        ),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn read_tree(root: &Path) -> Vec<(String, String)> {
+    fn walk(dir: &Path, prefix: &str, output: &mut Vec<(String, String)>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        let mut entries: Vec<_> = entries.filter_map(Result::ok).collect();
+        entries.sort_by_key(std::fs::DirEntry::file_name);
+        for entry in entries {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let absolute = entry.path();
+            let relative = if prefix.is_empty() {
+                name.clone()
+            } else {
+                format!("{prefix}/{name}")
+            };
+            if absolute.is_dir() {
+                walk(&absolute, &relative, output);
+            } else {
+                output.push((
+                    relative,
+                    std::fs::read_to_string(&absolute).unwrap_or_default(),
+                ));
+            }
+        }
+    }
+    let mut output = Vec::new();
+    if root.exists() {
+        walk(root, "", &mut output);
+    }
+    output
+}
+
+fn read_config(home: &Path) -> Value {
+    let path = home.join(".mode").join("cli").join("config.json");
+    match std::fs::read_to_string(path) {
+        Ok(raw) => {
+            serde_json::from_str(&raw).unwrap_or_else(|_| json!({ "error": "<json-error>" }))
+        }
+        Err(_) => Value::Null,
+    }
+}
+
 fn run_case(case: &Value) {
     let name = case["name"].as_str().expect("case name");
     let sandbox = unique_sandbox();
     let root = sandbox.to_string_lossy().into_owned();
     let home = setup_case(&sandbox, &case["setup"]);
+    let service = PluginSyncService::new(PluginSyncServiceOptions::new(home.clone()));
+    let mut archives: Vec<Vec<u8>> = Vec::new();
     let expected = case["expected"].as_array().expect("expected");
     let ops = case["ops"].as_array().expect("ops");
     assert_eq!(expected.len(), ops.len(), "{name}: op/expected length");
@@ -181,6 +264,67 @@ fn run_case(case: &Value) {
                 serde_json::to_value(check_remote_user_plugin_write_access(&home))
                     .expect("write access json"),
             ),
+            "export" => {
+                let names: Vec<String> = op["pluginNames"]
+                    .as_array()
+                    .expect("pluginNames")
+                    .iter()
+                    .map(|name| name.as_str().expect("name").to_string())
+                    .collect();
+                match collect_local_user_plugin_candidates(&home) {
+                    Ok(candidates) => {
+                        let mut ids = Vec::with_capacity(names.len());
+                        let mut missing = None;
+                        for name in &names {
+                            match candidates.iter().find(|candidate| &candidate.name == name) {
+                                Some(candidate) => ids.push(candidate.id.clone()),
+                                None => {
+                                    missing = Some(name.clone());
+                                    break;
+                                }
+                            }
+                        }
+                        match missing {
+                            Some(name) => Err(format!("fixture candidate not found: {name}")),
+                            None => service.export_plugins_archive(&ids).and_then(|result| {
+                                archives.push(result.archive.clone());
+                                serde_json::to_value(&result).map_err(|error| error.to_string())
+                            }),
+                        }
+                    }
+                    Err(message) => Err(message),
+                }
+            }
+            "setDirs" => {
+                let dirs: Vec<String> = op["dirs"]
+                    .as_array()
+                    .expect("dirs")
+                    .iter()
+                    .map(|dir| {
+                        let relative = dir.as_str().expect("dir");
+                        sandbox
+                            .join(relative.replace('/', std::path::MAIN_SEPARATOR_STR))
+                            .to_string_lossy()
+                            .into_owned()
+                    })
+                    .collect();
+                write_config(&sandbox, &home, &dirs).map(|()| json!({ "ok": true }))
+            }
+            "import" => {
+                let index = op["from"].as_u64().expect("from") as usize;
+                service
+                    .import_plugins_archive(&archives[index], false)
+                    .and_then(|result| {
+                        serde_json::to_value(&result).map_err(|error| error.to_string())
+                    })
+            }
+            "importOverwrite" => {
+                let index = op["from"].as_u64().expect("from") as usize;
+                match service.import_plugins_archive(&archives[index], true) {
+                    Ok(_) => Err("overwrite unexpectedly succeeded".to_string()),
+                    Err(message) => Err(message),
+                }
+            }
             other => panic!("{name}: unknown op {other}"),
         };
         let actual = match actual {
@@ -188,11 +332,33 @@ fn run_case(case: &Value) {
             Err(message) => error_value(message),
         };
         assert_eq!(
-            normalize_value(&root, &actual),
-            normalize_value(&root, &expected[index]),
+            normalize_value(&root, None, &actual),
+            normalize_value(&root, None, &expected[index]),
             "{name}: op #{index} ({kind}) mismatch"
         );
     }
+
+    let expected_tree: Vec<(String, String)> = case["tree"]
+        .as_array()
+        .expect("tree")
+        .iter()
+        .map(|entry| {
+            (
+                entry["path"].as_str().expect("tree path").to_string(),
+                entry["content"].as_str().unwrap_or_default().to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        read_tree(&home.join(".mode").join("plugins")),
+        expected_tree,
+        "{name}: plugin tree mismatch"
+    );
+    assert_eq!(
+        normalize_value(&root, None, &read_config(&home)),
+        normalize_value(&root, None, &case["config"]),
+        "{name}: config mismatch"
+    );
 
     // 相对路径校验与平台无关，顺带覆盖安全边界。
     assert!(normalize_relative_path("../escape").is_err());
@@ -210,4 +376,47 @@ fn replay_fixtures() {
     for case in cases {
         run_case(case);
     }
+}
+
+#[test]
+fn imports_ts_produced_archive() {
+    use base64::Engine as _;
+
+    let fixture: Value =
+        serde_json::from_str(include_str!("../fixtures/plugin-sync.json")).expect("fixture json");
+    let encoded = fixture["cases"][0]["archiveBase64"]
+        .as_str()
+        .expect("TS archive base64");
+    let archive = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .expect("decode archive");
+
+    let sandbox = unique_sandbox();
+    let home = sandbox.join("home");
+    std::fs::create_dir_all(&home).expect("home");
+    let service = PluginSyncService::new(PluginSyncServiceOptions::new(home.clone()));
+    let result = service
+        .import_plugins_archive(&archive, false)
+        .expect("import TS archive");
+    assert_eq!(result.results.len(), 2, "TS 归档包含两个插件");
+    assert!(result
+        .results
+        .iter()
+        .all(|item| item.status == plugin_sync_service::PluginSyncImportStatus::Synced));
+    assert!(home
+        .join(".mode")
+        .join("plugins")
+        .join("plugin-a")
+        .join("skills")
+        .join("demo")
+        .join("SKILL.md")
+        .exists());
+    assert!(home
+        .join(".mode")
+        .join("plugins")
+        .join("plugin-b")
+        .join("hooks")
+        .join("hooks.json")
+        .exists());
+    let _ = std::fs::remove_dir_all(&sandbox);
 }
