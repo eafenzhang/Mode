@@ -88,7 +88,9 @@ pub struct GrantTrustResult {
 
 #[derive(Debug)]
 pub enum ControlError {
-    InvalidDigest { field: &'static str },
+    InvalidDigest {
+        field: &'static str,
+    },
     Spawn(AgentProcessError),
     Client(ClientError),
     InvalidResult(String),
@@ -98,7 +100,9 @@ pub enum ControlError {
     CommandRejected(String),
     ProviderSync(String),
     /// existing-only 策略下没有活进程（对应 TS `MODE_AGENT_RUNTIME_UNAVAILABLE`）。
-    RuntimeUnavailable { workspace_key: String },
+    RuntimeUnavailable {
+        workspace_key: String,
+    },
 }
 
 impl std::fmt::Display for ControlError {
@@ -117,7 +121,9 @@ impl std::fmt::Display for ControlError {
             Self::CommandRejected(message) => formatter.write_str(message),
             Self::ProviderSync(message) => formatter.write_str(message),
             // 消息与 TS `createRuntimeUnavailableError` 一致。
-            Self::RuntimeUnavailable { .. } => formatter.write_str("Mode Agent runtime is not running."),
+            Self::RuntimeUnavailable { .. } => {
+                formatter.write_str("Mode Agent runtime is not running.")
+            }
         }
     }
 }
@@ -160,6 +166,19 @@ impl AgentControlClient {
         &self.v4_client_id
     }
 
+    /// 当前活进程的 workspace 列表（广播写路径使用；按 registry key 去重）。
+    pub fn active_workspace_targets(&self) -> Vec<AgentWorkspaceTarget> {
+        self.registry
+            .active_targets()
+            .into_iter()
+            .map(|target| AgentWorkspaceTarget {
+                workspace_path: target.workspace_path,
+                workspace_identity: target.workspace_identity,
+                remote_session_id: None,
+            })
+            .collect()
+    }
+
     /// `getReadOnlyClient(params, runtimePolicy)` 的 Rust 形态。
     ///
     /// - `StartIfNeeded`：复用或拉起；
@@ -192,7 +211,10 @@ impl AgentControlClient {
         let Some(source) = source else {
             return Ok(None);
         };
-        let process = self.registry.get_or_spawn(&target.registry_target()).await?;
+        let process = self
+            .registry
+            .get_or_spawn(&target.registry_target())
+            .await?;
         self.provider_sync
             .sync(&target.workspace_key(), process.client(), source)
             .await
@@ -219,12 +241,19 @@ impl AgentControlClient {
     ///
     /// 对应 TS `getWorkspaceRuntimeIdentity` 的 existing-only 语义；调用方在 `None` 时
     /// 自行映射错误（TS 抛 `Mode agent runtime identity is unavailable.`）。
-    pub fn runtime_identity(&self, target: &AgentWorkspaceTarget) -> Option<crate::RuntimeIdentity> {
+    pub fn runtime_identity(
+        &self,
+        target: &AgentWorkspaceTarget,
+    ) -> Option<crate::RuntimeIdentity> {
         self.registry.existing_identity(&target.registry_target())
     }
 
     /// 关闭并移除该 workspace 的 Agent（对应 `disposeWorkspace`）。
-    pub async fn dispose_workspace(&self, target: &AgentWorkspaceTarget, grace: std::time::Duration) {
+    pub async fn dispose_workspace(
+        &self,
+        target: &AgentWorkspaceTarget,
+        grace: std::time::Duration,
+    ) {
         self.registry
             .invalidate(&target.workspace_key(), grace)
             .await;
@@ -254,7 +283,10 @@ impl AgentControlClient {
     ) -> Result<GrantTrustResult, ControlError> {
         validate_digest("bundleDigest", bundle_digest)?;
         validate_digest("hookDeclarationDigest", hook_declaration_digest)?;
-        let process = self.registry.get_or_spawn(&target.registry_target()).await?;
+        let process = self
+            .registry
+            .get_or_spawn(&target.registry_target())
+            .await?;
         let response = process
             .client()
             .request(
@@ -286,10 +318,7 @@ pub fn build_workspace_ref(target: &AgentWorkspaceTarget) -> Value {
             Value::String(remote_session_id.clone()),
         );
     }
-    object.insert(
-        "workspaceKey".into(),
-        Value::String(target.workspace_key()),
-    );
+    object.insert("workspaceKey".into(), Value::String(target.workspace_key()));
     Value::Object(object)
 }
 
@@ -332,4 +361,3 @@ fn validate_digest(field: &'static str, value: &str) -> Result<(), ControlError>
     }
     Err(ControlError::InvalidDigest { field })
 }
-

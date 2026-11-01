@@ -511,7 +511,8 @@
   },
   {
     "method": "syncAppRuntimePreferences",
-    "status": "todo"
+    "status": "rust",
+    "rust": "sync_app_runtime_preferences"
   },
   {
     "method": "testModelConnectivity",

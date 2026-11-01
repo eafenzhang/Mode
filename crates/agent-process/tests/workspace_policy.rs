@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use agent_process::{
-    AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, AgentWorkspaceTarget, ControlError,
-    SpecFactory,
+    AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, AgentWorkspaceTarget,
+    AppRuntimePreferences, ControlError, SpecFactory,
 };
 use agent_protocol::session::WorkspaceRef;
 use agent_protocol::workspace_policy::{
@@ -31,6 +31,24 @@ impl FrameLog {
         ));
         let _ = std::fs::remove_file(&path);
         Self(path)
+    }
+
+    fn frame_params_all(&self, method: &str) -> Vec<Value> {
+        let marker = format!("frame	{method}	");
+        for _ in 0..100 {
+            if let Ok(text) = std::fs::read_to_string(&self.0) {
+                let params: Vec<Value> = text
+                    .lines()
+                    .filter(|line| line.starts_with(&marker))
+                    .filter_map(|line| line.splitn(3, '\t').nth(2)?.parse().ok())
+                    .collect();
+                if !params.is_empty() {
+                    return params;
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        Vec::new()
     }
 
     fn frame_params(&self, method: &str) -> Option<Value> {
@@ -176,4 +194,90 @@ async fn malformed_policy_result_is_rejected() {
         Err(error) => error,
     };
     assert!(matches!(error, ControlError::InvalidResult(_)), "{error:?}");
+}
+
+#[tokio::test]
+async fn sync_app_runtime_preferences_fans_out_to_active_workspaces() {
+    let log = FrameLog::new("sync");
+    let client = control("", &log);
+    // 没有活进程时不发请求。
+    client
+        .sync_app_runtime_preferences(AppRuntimePreferences {
+            ask_user_question_auto_resolution_enabled: true,
+            model_io_full_retention_enabled: Some(true),
+        })
+        .await
+        .unwrap();
+    assert!(log
+        .frame_params_all("workspace/updateInteractionPreferences")
+        .is_empty());
+
+    client
+        .read_workspace_presentation(&AgentWorkspaceTarget::new("/ws/a"))
+        .await
+        .unwrap();
+    client
+        .read_workspace_presentation(&AgentWorkspaceTarget::new("/ws/b"))
+        .await
+        .unwrap();
+
+    client
+        .sync_app_runtime_preferences(AppRuntimePreferences {
+            ask_user_question_auto_resolution_enabled: true,
+            model_io_full_retention_enabled: Some(true),
+        })
+        .await
+        .unwrap();
+
+    let interaction = log.frame_params_all("workspace/updateInteractionPreferences");
+    let model_io = log.frame_params_all("workspace/updateModelIoPreferences");
+    assert_eq!(interaction.len(), 2);
+    assert_eq!(model_io.len(), 2);
+    assert!(interaction.iter().all(|frame| {
+        frame["preferences"]["askUserQuestionAutoResolutionEnabled"] == json!(true)
+    }));
+    assert!(model_io
+        .iter()
+        .all(|frame| frame["preferences"]["fullRetentionEnabled"] == json!(true)));
+}
+
+#[tokio::test]
+async fn sync_app_runtime_preferences_ignores_method_not_found_for_model_io() {
+    let log = FrameLog::new("sync-old");
+    let client = control("old-model-io", &log);
+    client
+        .read_workspace_presentation(&AgentWorkspaceTarget::new("/ws/a"))
+        .await
+        .unwrap();
+    client
+        .sync_app_runtime_preferences(AppRuntimePreferences {
+            ask_user_question_auto_resolution_enabled: false,
+            model_io_full_retention_enabled: Some(false),
+        })
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn sync_app_runtime_preferences_propagates_real_model_io_errors() {
+    let log = FrameLog::new("sync-bad");
+    let client = control("bad-model-io", &log);
+    client
+        .read_workspace_presentation(&AgentWorkspaceTarget::new("/ws/a"))
+        .await
+        .unwrap();
+    let error = client
+        .sync_app_runtime_preferences(AppRuntimePreferences {
+            ask_user_question_auto_resolution_enabled: true,
+            model_io_full_retention_enabled: None,
+        })
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            error,
+            ControlError::Client(mode_protocol_client::ClientError::Server { code: -32600, .. })
+        ),
+        "{error:?}"
+    );
 }

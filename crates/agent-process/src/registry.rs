@@ -44,13 +44,14 @@ impl WorkspaceTarget {
     }
 }
 
-pub type SpecFactory = Arc<
-    dyn Fn(&WorkspaceTarget) -> Result<AgentProcessSpec, AgentProcessError> + Send + Sync,
->;
+pub type SpecFactory =
+    Arc<dyn Fn(&WorkspaceTarget) -> Result<AgentProcessSpec, AgentProcessError> + Send + Sync>;
 
 struct Entry {
     process: Arc<AgentProcess>,
     generation: u64,
+    /// 拉起时的 workspace 身份；供 `syncAppRuntimePreferences` 等广播写入复用。
+    target: WorkspaceTarget,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -115,6 +116,16 @@ impl AgentRuntimeRegistry {
 
     pub fn len(&self) -> usize {
         self.entries.lock().expect("registry poisoned").len()
+    }
+
+    /// 当前活进程对应的 workspace（去重靠 entries 的 key）。
+    pub fn active_targets(&self) -> Vec<WorkspaceTarget> {
+        self.entries
+            .lock()
+            .expect("registry poisoned")
+            .values()
+            .map(|entry| entry.target.clone())
+            .collect()
     }
 
     /// 当前没有任何活进程条目。
@@ -230,6 +241,7 @@ impl AgentRuntimeRegistry {
             Entry {
                 process: Arc::clone(&process),
                 generation,
+                target: target.clone(),
             },
         );
         Ok(process)
@@ -265,11 +277,7 @@ impl AgentRuntimeRegistry {
         };
         let mut reaped = 0;
         for key in stale_keys {
-            let entry = self
-                .entries
-                .lock()
-                .expect("registry poisoned")
-                .remove(&key);
+            let entry = self.entries.lock().expect("registry poisoned").remove(&key);
             if let Some(entry) = entry {
                 entry.process.shutdown(grace).await;
                 reaped += 1;

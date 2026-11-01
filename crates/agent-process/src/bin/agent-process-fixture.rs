@@ -1349,15 +1349,27 @@ fn main() {
             }
             json!({ "id": id, "result": result })
         } else if method == "workspace/updateModelIoPreferences" {
-            let mut result = json!({
-                "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
-                "fullRetentionEnabled": false,
-                "updatedSessionCount": 3
-            });
-            if mode == "bad-workspace-policy" {
-                result["unexpected"] = json!(true);
+            if mode == "old-model-io" {
+                json!({
+                    "id": id,
+                    "error": { "code": -32601, "message": "Method not found" }
+                })
+            } else if mode == "bad-model-io" {
+                json!({
+                    "id": id,
+                    "error": { "code": -32600, "message": "Internal error" }
+                })
+            } else {
+                let mut result = json!({
+                    "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+                    "fullRetentionEnabled": false,
+                    "updatedSessionCount": 3
+                });
+                if mode == "bad-workspace-policy" {
+                    result["unexpected"] = json!(true);
+                }
+                json!({ "id": id, "result": result })
             }
-            json!({ "id": id, "result": result })
         } else if method == "workspace/updateOffPeakToolPolicy"
             || method == "workspace/updateDynamicWorkflowPolicy"
         {

@@ -485,7 +485,12 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
 
 - 全部 `.strict()`，`workspace` 复用 `session::WorkspaceRef`（含 identity/remote 可选字段）。
 - Off-Peak / 动态工作流在旧 CLI 可能 `method-not-found`：本层只做严格收发，降级由调用方决定。
-- 测试：`crates/agent-process/tests/workspace_policy.rs`（2 条，覆盖四种方法与未知字段拒绝）。
+- `sync_app_runtime_preferences(AppRuntimePreferences)`：广播到 registry 里所有活 workspace，
+  顺序为 interaction → model IO；model IO 的 `-32601` 只降级忽略，其它错误上抛。
+  registry 的 Entry 保存拉起时的 target，`active_workspace_targets()` 供广播复用；
+  不同 workspace 串行发送（TS 并行队列，最终状态一致）。
+- 测试：`crates/agent-process/tests/workspace_policy.rs`（5 条：四种方法、未知字段、
+  广播、`-32601` 降级、真实错误上抛）。
 
 ## 3. 验收
 

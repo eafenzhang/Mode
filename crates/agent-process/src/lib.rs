@@ -41,6 +41,7 @@ pub use control::{
     ControlError, GrantTrustReasonCode, GrantTrustResult, RuntimePolicy,
     MODE_AGENT_RUNTIME_UNAVAILABLE_CODE, WORKSPACE_HOOK_TRUST_GRANT_METHOD,
 };
+pub use workspace_policy::AppRuntimePreferences;
 pub use provider_sync::{
     AccountProviderConfigSnapshot, ProviderConfigSync, ProviderReadFuture, ProviderSource,
     ProviderSyncOutcome, ProviderSyncStatus, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,

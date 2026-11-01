@@ -109,7 +109,7 @@
 | `subscribeConversationV4` | rust | 4 | packages/ui/src/v4/agentConversationTransport.ts:167<br>packages/services/src/mode-agent/modeAgentConnectionScope.ts:812<br>packages/services/src/mode-agent/modeAgentConnectionScope.ts:818 |
 | `subscribeSessionsIndexV4` | rust | 6 | packages/ui/src/v4/agentSessionsIndexTransport.ts:121<br>packages/desktop/src/host-standalone/windowController/windowHostSessionsIndexObserver.ts:288<br>packages/services/src/mode-agent/modeAgentConnectionScope.ts:941 |
 | `subscribeWorkspaceConfigV4` | rust | 4 | packages/services/src/mode-agent/modeAgentConnectionScope.ts:988<br>packages/services/src/mode-agent/modeAgentConnectionScope.ts:994<br>packages/services/src/mode-agent/modeAgentService.ts:5658 |
-| `syncAppRuntimePreferences` | todo | 12 | packages/ui/src/hooks/useSettingService.ts:158<br>packages/ui/src/hooks/useSettingService.ts:159<br>packages/ui/src/Root.tsx:254 |
+| `syncAppRuntimePreferences` | rust | 12 | packages/ui/src/hooks/useSettingService.ts:158<br>packages/ui/src/hooks/useSettingService.ts:159<br>packages/ui/src/Root.tsx:254 |
 | `testModelConnectivity` | blocked | 6 | packages/ui/src/hooks/useModelProviders.ts:198<br>packages/ui/src/settings/ModelProviderSection.tsx:1026<br>packages/services/src/mode-agent/modeAgentService.ts:4510 |
 | `uninstallPlugin` | rust | 10 | packages/ui/src/settings/usePluginUninstall.ts:58<br>packages/ui/src/store/pluginManagementStore.ts:279<br>packages/ui/src/store/pluginManagementStore.ts:286 |
 | `unsubscribeConversationV4` | rust | 5 | packages/ui/src/v4/agentConversationTransport.ts:195<br>packages/ui/src/v4/agentConversationTransport.ts:281<br>packages/services/src/mode-agent/modeAgentConnectionScope.ts:524 |
