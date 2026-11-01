@@ -358,6 +358,7 @@ protocolVersion 校验，5 条协议测试。**订阅 facade 已接**：`subscri
 `listSessions` + `readSessionEvents` + `listSessionSubagents` + `readSessionMessages` +
 `readSession` + `readSessionDebug` + `onDynamicSessionEvent` + `createSession` +
 `sendPrompt` + `closeSession` + `setModel` + `setThoughtLevel` + `setMode` +
+`compactSession` + `goalSession` +
 `readWorkspacePresentation` + `collectLocalRuntimeChildProcesses` +
 `listMcpServerStatuses` + `listSavedWorkflows` + `getSavedWorkflow` +
 `listSavedWorkflowRuns` + `updateSavedWorkflowMeta` + `deleteSavedWorkflow` +

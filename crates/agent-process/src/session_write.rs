@@ -15,10 +15,11 @@ use agent_protocol::session_create::{ImportHistory, McpServer};
 use agent_protocol::session_read::SessionMode;
 use agent_protocol::session_send::SESSION_SEND_METHOD;
 use agent_protocol::session_write::{
-    SessionCloseParams, SessionCloseResult, SessionPersistence, SessionSetModeParams,
+    SessionCloseParams, SessionCloseResult, SessionCompactParams, SessionCompactResult,
+    SessionGoalParams, SessionGoalResult, SessionPersistence, SessionSetModeParams,
     SessionSetModelParams, SessionSetThoughtLevelParams, SESSION_CLOSE_METHOD,
-    SESSION_CREATE_METHOD, SESSION_SET_MODE_METHOD, SESSION_SET_MODEL_METHOD,
-    SESSION_SET_THOUGHT_LEVEL_METHOD,
+    SESSION_COMPACT_METHOD, SESSION_CREATE_METHOD, SESSION_GOAL_METHOD, SESSION_SET_MODEL_METHOD,
+    SESSION_SET_MODE_METHOD, SESSION_SET_THOUGHT_LEVEL_METHOD,
 };
 use agent_protocol::snapshot::SessionStateSnapshot;
 
@@ -51,7 +52,9 @@ impl AgentControlClient {
         target: &AgentWorkspaceTarget,
         options: CreateSessionOptions,
     ) -> Result<SessionStateSnapshot, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = SessionCreateParams {
             session_id: options.session_id,
             workspace: session_workspace_ref(target),
@@ -68,8 +71,7 @@ impl AgentControlClient {
             off_peak_tool_enabled: options.off_peak_tool_enabled.then_some(true),
             dynamic_workflow_enabled: options.dynamic_workflow_enabled.then_some(true),
         };
-        let params =
-            serde_json::to_value(&params).expect("session/create params 序列化不会失败");
+        let params = serde_json::to_value(&params).expect("session/create params 序列化不会失败");
         let response = process
             .client()
             .request(SESSION_CREATE_METHOD, Some(params))
@@ -89,7 +91,9 @@ impl AgentControlClient {
         params
             .validate()
             .map_err(|message| ControlError::InvalidParams(message.to_string()))?;
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = serde_json::to_value(&params).expect("session/send params 序列化不会失败");
         let response = process
             .client()
@@ -113,13 +117,14 @@ impl AgentControlClient {
         session_id: &str,
         expected_persistence: Option<SessionPersistence>,
     ) -> Result<bool, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = SessionCloseParams {
             session_id: session_id.to_string(),
             expected_persistence,
         };
-        let params =
-            serde_json::to_value(&params).expect("session/close params 序列化不会失败");
+        let params = serde_json::to_value(&params).expect("session/close params 序列化不会失败");
         let response = process
             .client()
             .request(SESSION_CLOSE_METHOD, Some(params))
@@ -139,15 +144,16 @@ impl AgentControlClient {
         expected_revision: Option<u64>,
         persist_as_workspace_last_used: Option<bool>,
     ) -> Result<SessionStateSnapshot, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = SessionSetModelParams {
             session_id: session_id.to_string(),
             model: model.clone(),
             expected_revision,
             persist_as_workspace_last_used,
         };
-        let params =
-            serde_json::to_value(&params).expect("session/setModel params 序列化不会失败");
+        let params = serde_json::to_value(&params).expect("session/setModel params 序列化不会失败");
         let response = process
             .client()
             .request(SESSION_SET_MODEL_METHOD, Some(params))
@@ -164,7 +170,9 @@ impl AgentControlClient {
         expected_revision: Option<u64>,
         persist_as_workspace_last_used: Option<bool>,
     ) -> Result<SessionStateSnapshot, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = SessionSetThoughtLevelParams {
             session_id: session_id.to_string(),
             thought_level: thought_level.map(str::to_string),
@@ -188,27 +196,62 @@ impl AgentControlClient {
         mode: SessionMode,
         expected_revision: Option<u64>,
     ) -> Result<SessionStateSnapshot, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = SessionSetModeParams {
             session_id: session_id.to_string(),
             mode,
             expected_revision,
         };
-        let params =
-            serde_json::to_value(&params).expect("session/setMode params 序列化不会失败");
+        let params = serde_json::to_value(&params).expect("session/setMode params 序列化不会失败");
         let response = process
             .client()
             .request(SESSION_SET_MODE_METHOD, Some(params))
             .await?;
         parse_snapshot(&response, "session/setMode")
     }
+
+    /// `session/compact`：返回 response + 完整快照（可选 compact 受理状态）。
+    pub async fn compact_session(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: SessionCompactParams,
+    ) -> Result<SessionCompactResult, ControlError> {
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
+        let value = serde_json::to_value(&params).expect("session/compact params 序列化不会失败");
+        let response = process
+            .client()
+            .request(SESSION_COMPACT_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid session/compact result: {error}"))
+        })
+    }
+
+    /// `session/goal`：action 覆盖 show/set/replace/pause/resume/clear。
+    pub async fn goal_session(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: SessionGoalParams,
+    ) -> Result<SessionGoalResult, ControlError> {
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
+        let value = serde_json::to_value(&params).expect("session/goal params 序列化不会失败");
+        let response = process
+            .client()
+            .request(SESSION_GOAL_METHOD, Some(value))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid session/goal result: {error}"))
+        })
+    }
 }
 
-fn parse_snapshot(
-    value: &Value,
-    method: &str,
-) -> Result<SessionStateSnapshot, ControlError> {
-    serde_json::from_value(value.clone()).map_err(|error| {
-        ControlError::InvalidResult(format!("invalid {method} result: {error}"))
-    })
+fn parse_snapshot(value: &Value, method: &str) -> Result<SessionStateSnapshot, ControlError> {
+    serde_json::from_value(value.clone())
+        .map_err(|error| ControlError::InvalidResult(format!("invalid {method} result: {error}")))
 }

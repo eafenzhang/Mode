@@ -80,3 +80,89 @@ pub struct SessionSetModeParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expected_revision: Option<u64>,
 }
+
+pub const SESSION_COMPACT_METHOD: &str = "session/compact";
+pub const SESSION_GOAL_METHOD: &str = "session/goal";
+
+/// `modeSessionCompactParamsSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionCompactParams {
+    pub session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instructions: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_revision: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionCompactState {
+    #[serde(rename = "accepted")]
+    Accepted,
+    #[serde(rename = "already_running")]
+    AlreadyRunning,
+}
+
+/// `modeSessionCompactResultSchema.compact`。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionCompactInfo {
+    pub state: SessionCompactState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+}
+
+/// `modeSessionCompactResultSchema`：结果复用完整状态快照。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionCompactResult {
+    pub response: String,
+    pub snapshot: crate::snapshot::SessionStateSnapshot,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compact: Option<SessionCompactInfo>,
+}
+
+/// `modeSessionGoalActionSchema`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionGoalAction {
+    #[serde(rename = "show")]
+    Show,
+    #[serde(rename = "set")]
+    Set,
+    #[serde(rename = "replace")]
+    Replace,
+    #[serde(rename = "pause")]
+    Pause,
+    #[serde(rename = "resume")]
+    Resume,
+    #[serde(rename = "clear")]
+    Clear,
+}
+
+/// `modeSessionGoalParamsSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionGoalParams {
+    pub session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_id: Option<String>,
+    pub action: SessionGoalAction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub objective: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_revision: Option<u64>,
+}
+
+/// `modeSessionGoalResultSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionGoalResult {
+    pub response: String,
+    pub snapshot: crate::snapshot::SessionStateSnapshot,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_turn: Option<bool>,
+}

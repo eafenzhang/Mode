@@ -5,13 +5,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use agent_process::{
-    AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, AgentWorkspaceTarget,
-    ControlError, CreateSessionOptions, SpecFactory,
+    AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, AgentWorkspaceTarget, ControlError,
+    CreateSessionOptions, SpecFactory,
 };
 use agent_protocol::message::MessageModel;
 use agent_protocol::session::SessionSendParams;
 use agent_protocol::session_read::SessionMode;
-use agent_protocol::session_write::SessionPersistence;
+use agent_protocol::session_write::{
+    SessionCompactParams, SessionGoalAction, SessionGoalParams, SessionPersistence,
+};
 use serde_json::{json, Value};
 
 const FIXTURE: &str = env!("CARGO_BIN_EXE_agent-process-fixture");
@@ -104,10 +106,15 @@ async fn create_session_sends_workspace_and_flags() {
         .unwrap();
     assert_eq!(snapshot.session.session_id, "sess-1");
 
-    let params = log.frame_params("session/create").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("session/create")
+        .expect("必须记录到请求帧");
     assert_eq!(params["sessionId"], "sess-new");
     assert_eq!(params["workspace"]["workspacePath"], "/ws/demo");
-    assert_eq!(params["workspace"]["workspaceIdentity"], " ssh://host/ws/demo ");
+    assert_eq!(
+        params["workspace"]["workspaceIdentity"],
+        " ssh://host/ws/demo "
+    );
     assert_eq!(params["workspace"]["workspaceKey"], "ssh://host/ws/demo");
     assert_eq!(params["mode"], "plan");
     assert_eq!(params["model"]["providerId"], "zai");
@@ -137,7 +144,9 @@ async fn create_session_omits_every_unset_optional() {
         .await
         .unwrap();
 
-    let params = log.frame_params("session/create").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("session/create")
+        .expect("必须记录到请求帧");
     assert_eq!(params["workspace"]["workspacePath"], "/ws/demo");
     for key in [
         "sessionId",
@@ -294,7 +303,9 @@ async fn set_model_sends_revision_and_persist_flag() {
         .unwrap();
     assert_eq!(snapshot.session.session_id, "sess-1");
 
-    let params = log.frame_params("session/setModel").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("session/setModel")
+        .expect("必须记录到请求帧");
     assert_eq!(params["sessionId"], "sess-1");
     assert_eq!(params["model"]["providerId"], "zai");
     assert_eq!(params["expectedRevision"], 3);
@@ -327,7 +338,9 @@ async fn thought_level_and_mode_omit_absent_options() {
         .set_session_mode(&target, "sess-1", SessionMode::Plan, Some(7))
         .await
         .unwrap();
-    let params = log.frame_params("session/setMode").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("session/setMode")
+        .expect("必须记录到请求帧");
     assert_eq!(params["mode"], "plan");
     assert_eq!(params["expectedRevision"], 7);
 }
@@ -385,5 +398,93 @@ async fn malformed_write_results_are_rejected() {
             );
         }
         other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+fn compact_params() -> SessionCompactParams {
+    SessionCompactParams {
+        session_id: "sess-1".to_string(),
+        input_id: None,
+        instructions: Some("summarize".to_string()),
+        expected_revision: None,
+    }
+}
+
+fn goal_params() -> SessionGoalParams {
+    SessionGoalParams {
+        session_id: "sess-1".to_string(),
+        input_id: None,
+        action: SessionGoalAction::Set,
+        objective: Some("ship it".to_string()),
+        expected_revision: Some(3),
+    }
+}
+
+#[tokio::test]
+async fn compact_and_goal_send_only_present_fields_and_parse_results() {
+    let log = FrameLog::new("compact-goal");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+
+    let compact = client
+        .compact_session(&AgentWorkspaceTarget::new("/ws/demo"), compact_params())
+        .await
+        .unwrap();
+    assert_eq!(compact.response, "compacted");
+    assert_eq!(compact.snapshot.session.session_id, "sess-1");
+    assert_eq!(
+        compact.compact.as_ref().map(|info| info.state),
+        Some(agent_protocol::session_write::SessionCompactState::Accepted)
+    );
+    assert_eq!(
+        log.frame_params("session/compact"),
+        Some(json!({ "sessionId": "sess-1", "instructions": "summarize" }))
+    );
+
+    let goal = client
+        .goal_session(&AgentWorkspaceTarget::new("/ws/demo"), goal_params())
+        .await
+        .unwrap();
+    assert_eq!(goal.response, "goal");
+    assert_eq!(goal.started_turn, Some(true));
+    assert_eq!(
+        log.frame_params("session/goal"),
+        Some(json!({
+            "sessionId": "sess-1",
+            "action": "set",
+            "objective": "ship it",
+            "expectedRevision": 3
+        }))
+    );
+}
+
+#[tokio::test]
+async fn compact_and_goal_reject_unknown_result_fields() {
+    let log = FrameLog::new("compact-goal-bad");
+    let spawns = Arc::new(AtomicUsize::new(0));
+
+    for (mode, label) in [
+        ("bad-session-compact", "compact"),
+        ("bad-session-goal", "goal"),
+    ] {
+        let client = control(mode, &log, Arc::clone(&spawns));
+        let error = if label == "compact" {
+            match client
+                .compact_session(&AgentWorkspaceTarget::new("/ws/demo"), compact_params())
+                .await
+            {
+                Ok(_) => panic!("compact 未知字段必须拒绝"),
+                Err(error) => error,
+            }
+        } else {
+            match client
+                .goal_session(&AgentWorkspaceTarget::new("/ws/demo"), goal_params())
+                .await
+            {
+                Ok(_) => panic!("goal 未知字段必须拒绝"),
+                Err(error) => error,
+            }
+        };
+        assert!(matches!(error, ControlError::InvalidResult(_)), "{error:?}");
     }
 }

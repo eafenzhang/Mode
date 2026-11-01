@@ -1179,6 +1179,26 @@ fn main() {
                 snapshot["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": snapshot })
+        } else if method == "session/compact" {
+            let mut result = json!({
+                "response": "compacted",
+                "snapshot": minimal_snapshot(),
+                "compact": { "state": "accepted", "operationId": "op-1" }
+            });
+            if mode == "bad-session-compact" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "session/goal" {
+            let mut result = json!({
+                "response": "goal",
+                "snapshot": minimal_snapshot(),
+                "startedTurn": true
+            });
+            if mode == "bad-session-goal" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "session/setModel"
             || method == "session/setThoughtLevel"
             || method == "session/setMode"

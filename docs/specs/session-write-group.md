@@ -49,12 +49,18 @@ Off-Peak / 动态工作流灰度；本 facade 接收已解析的布尔值，prov
 
 ## 1. 其余方法
 
-| 方法                        | 协议方法                  | params                                                                       | result                           |
-| --------------------------- | ------------------------- | ---------------------------------------------------------------------------- | -------------------------------- |
-| `close_session`             | `session/close`           | `{sessionId, expectedPersistence?}`                                          | `{closed?}`（缺省按成功 `true`） |
-| `set_session_model`         | `session/setModel`        | `{sessionId, model, expectedRevision?, persistAsWorkspaceLastUsed?}`         | 完整状态快照                     |
-| `set_session_thought_level` | `session/setThoughtLevel` | `{sessionId, thoughtLevel?, expectedRevision?, persistAsWorkspaceLastUsed?}` | 完整状态快照                     |
-| `set_session_mode`          | `session/setMode`         | `{sessionId, mode, expectedRevision?}`                                       | 完整状态快照                     |
+| 方法                        | 协议方法                  | params                                                                       | result                               |
+| --------------------------- | ------------------------- | ---------------------------------------------------------------------------- | ------------------------------------ |
+| `close_session`             | `session/close`           | `{sessionId, expectedPersistence?}`                                          | `{closed?}`（缺省按成功 `true`）     |
+| `set_session_model`         | `session/setModel`        | `{sessionId, model, expectedRevision?, persistAsWorkspaceLastUsed?}`         | 完整状态快照                         |
+| `set_session_thought_level` | `session/setThoughtLevel` | `{sessionId, thoughtLevel?, expectedRevision?, persistAsWorkspaceLastUsed?}` | 完整状态快照                         |
+| `set_session_mode`          | `session/setMode`         | `{sessionId, mode, expectedRevision?}`                                       | 完整状态快照                         |
+| `compact_session`           | `session/compact`         | `{sessionId, inputId?, instructions?, expectedRevision?}`                    | `{response, snapshot, compact?}`     |
+| `goal_session`              | `session/goal`            | `{sessionId, inputId?, action, objective?, expectedRevision?}`               | `{response, snapshot, startedTurn?}` |
+
+- `compact` 结果里的 `compact.state` 是 `accepted | already_running`，`operationId` 可选。
+- `goal.action` 是 `show | set | replace | pause | resume | clear`，objective 只在 set/replace
+  等需要目标的 action 上出现；结果 `startedTurn` 缺省省略。
 
 - `persistAsWorkspaceLastUsed` 在 schema 里是 `z.boolean().default(true)`，但请求侧语义是
   「undefined 省略」：Rust 镜像用 `Option<bool>`，缺省时不写字段。
