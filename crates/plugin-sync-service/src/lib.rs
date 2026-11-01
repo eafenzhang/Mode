@@ -6,6 +6,7 @@
 
 mod archive;
 mod candidates;
+mod marketplace_source;
 mod paths;
 mod plugins_archive;
 mod statuses;
@@ -31,10 +32,15 @@ pub use paths::{
     user_mode_config_path, user_mode_plugin_root, MODE_DATA_ROOT_DIR_NAME,
 };
 pub use statuses::{list_remote_user_plugin_statuses, RemoteStatusQuery};
+pub use marketplace_source::{
+    export_marketplace_source_archive, import_marketplace_source_archive,
+    MARKETPLACE_SOURCE_ROOT_DIRECTORY,
+};
 pub use types::{
     PluginSyncArchiveExportResult, PluginSyncArchivePlugin, PluginSyncCandidate,
     PluginSyncCandidateListResult, PluginSyncComponentType, PluginSyncImportResult,
-    PluginSyncImportResultItem, PluginSyncImportStatus, PluginSyncRemoteStatus,
+    PluginSyncImportResultItem, PluginSyncImportStatus, PluginSyncMarketplaceExportResult,
+    PluginSyncMarketplaceImportResult, PluginSyncMarketplaceImportStatus, PluginSyncRemoteStatus,
     PluginSyncRemoteStatusReason, PluginSyncRemoteStatusResult, RemoteSyncWriteAccessResult,
 };
 pub use write_access::check_remote_user_plugin_write_access;
@@ -160,6 +166,44 @@ impl PluginSyncService {
                 })
                 .collect(),
         })
+    }
+
+    pub fn export_marketplace_source_archive(
+        &self,
+        marketplace_id: &str,
+        plugin_names: &[String],
+        source: &serde_json::Value,
+    ) -> Result<PluginSyncMarketplaceExportResult, String> {
+        let export = export_marketplace_source_archive(
+            marketplace_id,
+            plugin_names,
+            source,
+            self.max_archive_bytes,
+        )?;
+        Ok(PluginSyncMarketplaceExportResult {
+            archive_bytes: export.archive.len() as u64,
+            archive: export.archive,
+            marketplace_id: export.marketplace_id,
+            plugin_names: export.plugin_names,
+        })
+    }
+
+    pub fn import_marketplace_source_archive(
+        &self,
+        archive: &[u8],
+        overwrite: bool,
+    ) -> Result<PluginSyncMarketplaceImportResult, String> {
+        if overwrite {
+            return Err("plugin marketplace source overwrite is not supported".to_string());
+        }
+        if archive.len() as u64 > self.max_archive_bytes {
+            return Err(format!(
+                "plugin marketplace source archive exceeds limit: {}/{}",
+                archive.len(),
+                self.max_archive_bytes
+            ));
+        }
+        import_marketplace_source_archive(archive, &self.home_dir, self.max_archive_bytes)
     }
 
     pub fn import_plugins_archive(

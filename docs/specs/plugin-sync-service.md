@@ -65,6 +65,25 @@
 - `overwrite: true` → `plugin sync overwrite is not supported`；归档体积超限 →
   `plugin sync archive exceeds limit: <actual>/<max>`。
 
+## 4c. marketplace source 归档
+
+- `source` 支持 `file`（读文件、sourceRoot=dirname）、`directory`（找
+  `marketplace.json` 或 `.claude-plugin/marketplace.json`）与 `settings`（内联 manifest，无 sourceRoot）。
+- manifest：`plugins` 支持数组或对象（对象键补成 name）；`dependencies` 过滤非空字符串；
+  `pluginRoot` 取顶层或 `metadata.pluginRoot`。
+- 闭包：DFS 去重；依赖 `name@marketplace` 只允许本 marketplace，跨市场直接报错；
+  请求插件缺失报 `marketplace plugin not found: <name>`。
+- 本地 source 解析：字符串 source 相对 pluginBase；对象 `directory` 取 `path`；
+  远程 source kind（github/git/url/git-subdir/npm/pip）不镜像；fallback 为
+  `pluginBase/<pluginName>`；镜像目录必须含 plugin manifest。
+- 镜像 manifest：移除顶层 `pluginRoot`，有本地镜像时写 `metadata.pluginRoot = "plugins"`，
+  每个插件 `source = "./<name>"`；目录名为 `<safe marketplaceId>-<sha256({manifestContent,
+sourceFingerprints})[..12]>`。
+- 归档只含 `<directoryName>/marketplace.json` 与镜像插件目录，metadata 是
+  `{plugins: [], marketplaceSources: [{marketplaceId, directoryName}]}`。
+- 导入校验 metadata 只有一个 marketplace、manifest.name 与 marketplaceId 一致；
+  目标已存在 → `skipped`，否则递归复制 → `synced`；`overwrite` 直接拒绝。
+
 ## 5. 已知差异
 
 1. **配置 JSON 语法错误文案**：Node `JSON.parse` 的具体文案随版本变化；Rust 返回
@@ -76,12 +95,16 @@
    fixture 把 `archive` 归一为 `<archive>`，另存一份 TS 归档 base64 供 Rust 侧导入验证。
 5. **元数据 mtime**：TS metadata 条目默认 `Date.now()`；fixture 固定时钟保证幂等，
    生产行为仍是当前时间。
+6. **镜像 manifest key 顺序**：Rust 用 `serde_json::Map`（有序 map）序列化，键顺序与 TS
+   对象插入顺序可能不同，导致 `directoryName` 的 12 位后缀不同；内容与导入行为一致，
+   fixture 把 `-<12 hex>` 归一为 `<hash12>`。
 
 ## 6. 验收
 
 - `pnpm plugin-sync:fixtures` 生成 `crates/plugin-sync-service/fixtures/plugin-sync.json`
   （3 个用例：完整 home、空 home、损坏配置）。
 - `cargo test -p plugin-sync-service` 重建同构 home 并逐项深比较：
-  `<root>` 路径、64 位 hash → `<sha256>`、去重后缀 → `<hash8>`、归档字段归一；
-  另有一条用例直接导入 fixture 里的 **TS 生成归档**，验证跨语言 tar 兼容。
-  fixture 重复生成 sha256 一致（文件 mtime 与 metadata 时钟固定）。
+  `<root>` 路径、64 位 hash → `<sha256>`、去重后缀 → `<hash8>`、marketplace 目录后缀 →
+  `<hash12>`、归档字段归一；fixture 还保存插件与 marketplace 两份 **TS 生成归档**，
+  由 Rust 侧直接导入验证跨语言 tar 兼容。fixture 重复生成 sha256 一致
+  （文件 mtime 与 metadata 时钟固定）。

@@ -53,7 +53,15 @@ type Op =
   | { kind: "export"; pluginNames: string[] }
   | { kind: "import"; from: number }
   | { kind: "importOverwrite"; from: number }
-  | { kind: "setDirs"; dirs: string[] };
+  | { kind: "setDirs"; dirs: string[] }
+  | {
+      kind: "exportMarketplace";
+      marketplaceId: string;
+      pluginNames: string[];
+      sourcePath: string;
+    }
+  | { kind: "importMarketplace"; from: number }
+  | { kind: "importMarketplaceOverwrite"; from: number };
 
 function homeDir(): string {
   return path.join(SANDBOX, "home");
@@ -151,6 +159,7 @@ function listFiles(root: string): Array<{ path: string; content: string }> {
   const entries: Array<{ path: string; content: string }> = [];
   const walk = (dir: string, prefix: string): void => {
     for (const name of readdirSync(dir).sort()) {
+      if (name === "marketplace-sources") continue;
       const absolute = path.join(dir, name);
       const relative = prefix ? `${prefix}/${name}` : name;
       if (statSync(absolute).isDirectory()) {
@@ -174,6 +183,8 @@ function normalizeText(text: string): string {
   if (path.sep === "\\") {
     replaced = replaced.split("\\\\").join("/").split("\\").join("/");
   }
+  // marketplace source 目录名带内容指纹；跨沙盒不稳定。
+  replaced = replaced.replace(/-[0-9a-f]{12}$/u, "-<hash12>");
   return replaced;
 }
 
@@ -229,6 +240,26 @@ const cases: FixtureCase[] = [
         { path: "plugins/broken/.zcode-plugin/plugin.json", content: "{not json" },
         { path: "plugins/no-manifest/readme.md", content: "x\n" },
         { path: "home/.mode/plugins/existing-dir/file.txt", content: "x\n" },
+        {
+          path: "market/marketplace.json",
+          content: `${JSON.stringify(
+            {
+              name: "mkt",
+              pluginRoot: "plugins",
+              plugins: [
+                { name: "alpha", source: "./alpha" },
+                { name: "beta", dependencies: ["alpha@mkt"] },
+                { name: "remote", source: { source: "github", repo: "x" } },
+                { name: "gamma", dependencies: ["alpha@other"] },
+              ],
+            },
+            null,
+            2,
+          )}\n`,
+        },
+        ...pluginFiles("market/plugins/alpha", ".mode-plugin", { name: "Alpha" }),
+        { path: "market/plugins/alpha/skills/a/SKILL.md", content: "# a\n" },
+        ...pluginFiles("market/plugins/beta", ".mode-plugin", { name: "Beta" }),
       ],
     },
     ops: [
@@ -248,6 +279,27 @@ const cases: FixtureCase[] = [
       { kind: "import", from: 0 },
       { kind: "importOverwrite", from: 0 },
       { kind: "export", pluginNames: ["Missing Plugin"] },
+      {
+        kind: "exportMarketplace",
+        marketplaceId: "mkt",
+        pluginNames: ["beta"],
+        sourcePath: "market",
+      },
+      { kind: "importMarketplace", from: 1 },
+      { kind: "importMarketplace", from: 1 },
+      { kind: "importMarketplaceOverwrite", from: 1 },
+      {
+        kind: "exportMarketplace",
+        marketplaceId: "wrong",
+        pluginNames: ["beta"],
+        sourcePath: "market",
+      },
+      {
+        kind: "exportMarketplace",
+        marketplaceId: "mkt",
+        pluginNames: ["gamma"],
+        sourcePath: "market",
+      },
     ],
   },
   {
@@ -322,6 +374,37 @@ async function main(): Promise<void> {
             overwrite: true as never,
           });
           expected.push({ ok: true });
+        } else if (op.kind === "exportMarketplace") {
+          const source = {
+            source: "directory",
+            path: path.join(SANDBOX, ...op.sourcePath.split("/")),
+          };
+          const realNow = Date.now;
+          Date.now = () => 1704067200000;
+          let result;
+          try {
+            result = await service.exportMarketplaceSourceArchive({
+              marketplaceId: op.marketplaceId,
+              pluginNames: op.pluginNames,
+              source,
+            });
+          } finally {
+            Date.now = realNow;
+          }
+          archives.push(result.archive);
+          expected.push(normalizeValue(result));
+        } else if (op.kind === "importMarketplace") {
+          expected.push(
+            normalizeValue(
+              await service.importMarketplaceSourceArchive({ archive: archives[op.from]! }),
+            ),
+          );
+        } else if (op.kind === "importMarketplaceOverwrite") {
+          await service.importMarketplaceSourceArchive({
+            archive: archives[op.from]!,
+            overwrite: true as never,
+          });
+          expected.push({ ok: true });
         } else if (op.kind === "setDirs") {
           writeConfig(op.dirs);
           expected.push({ ok: true });
@@ -354,6 +437,9 @@ async function main(): Promise<void> {
       tree: listFiles(pluginRoot),
       config,
       archiveBase64: archives[0] ? Buffer.from(archives[0]).toString("base64") : null,
+      marketplaceArchiveBase64: archives[1]
+        ? Buffer.from(archives[1]).toString("base64")
+        : null,
     });
   }
 

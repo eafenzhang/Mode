@@ -52,6 +52,15 @@ pub fn create_archive(
     entries: &[ArchiveEntry],
     metadata: &ArchiveMetadata,
 ) -> Result<Vec<u8>, String> {
+    let value = serde_json::to_value(metadata).map_err(|error| error.to_string())?;
+    create_archive_with_metadata_value(entries, value)
+}
+
+/// 与 `create_archive` 相同，但 metadata 是任意 JSON（marketplaceSources 等扩展字段）。
+pub(crate) fn create_archive_with_metadata_value(
+    entries: &[ArchiveEntry],
+    metadata: serde_json::Value,
+) -> Result<Vec<u8>, String> {
     let mut parts: Vec<u8> = Vec::new();
     for entry in entries {
         match entry {
@@ -83,7 +92,7 @@ pub fn create_archive(
     }
     let metadata_content = format!(
         "{}\n",
-        serde_json::to_string_pretty(metadata).map_err(|error| error.to_string())?
+        serde_json::to_string_pretty(&metadata).map_err(|error| error.to_string())?
     );
     append_tar_file(
         &mut parts,

@@ -55,18 +55,19 @@ fn is_sha256(text: &str) -> bool {
 
 fn replace_short_hash_suffix(text: &str) -> String {
     let bytes = text.as_bytes();
-    if bytes.len() < 9 || bytes[bytes.len() - 9] != b'-' {
-        return text.to_string();
+    for length in [12usize, 8] {
+        if bytes.len() < length + 1 || bytes[bytes.len() - length - 1] != b'-' {
+            continue;
+        }
+        let suffix = &text[text.len() - length..];
+        if suffix
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return format!("{}<hash{length}>", &text[..text.len() - length]);
+        }
     }
-    let suffix = &text[text.len() - 8..];
-    if suffix
-        .bytes()
-        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    {
-        format!("{}<hash8>", &text[..text.len() - 8])
-    } else {
-        text.to_string()
-    }
+    text.to_string()
 }
 
 fn normalize_value(root: &str, key: Option<&str>, value: &Value) -> Value {
@@ -190,6 +191,9 @@ fn read_tree(root: &Path) -> Vec<(String, String)> {
         entries.sort_by_key(std::fs::DirEntry::file_name);
         for entry in entries {
             let name = entry.file_name().to_string_lossy().into_owned();
+            if name == "marketplace-sources" {
+                continue;
+            }
             let absolute = entry.path();
             let relative = if prefix.is_empty() {
                 name.clone()
@@ -318,6 +322,43 @@ fn run_case(case: &Value) {
                         serde_json::to_value(&result).map_err(|error| error.to_string())
                     })
             }
+            "exportMarketplace" => {
+                let marketplace_id = op["marketplaceId"].as_str().expect("marketplaceId");
+                let names: Vec<String> = op["pluginNames"]
+                    .as_array()
+                    .expect("pluginNames")
+                    .iter()
+                    .map(|name| name.as_str().expect("name").to_string())
+                    .collect();
+                let source_path = op["sourcePath"].as_str().expect("sourcePath");
+                let source = json!({
+                    "source": "directory",
+                    "path": sandbox
+                        .join(source_path.replace('/', std::path::MAIN_SEPARATOR_STR))
+                        .to_string_lossy()
+                });
+                service
+                    .export_marketplace_source_archive(marketplace_id, &names, &source)
+                    .and_then(|result| {
+                        archives.push(result.archive.clone());
+                        serde_json::to_value(&result).map_err(|error| error.to_string())
+                    })
+            }
+            "importMarketplace" => {
+                let index = op["from"].as_u64().expect("from") as usize;
+                service
+                    .import_marketplace_source_archive(&archives[index], false)
+                    .and_then(|result| {
+                        serde_json::to_value(&result).map_err(|error| error.to_string())
+                    })
+            }
+            "importMarketplaceOverwrite" => {
+                let index = op["from"].as_u64().expect("from") as usize;
+                match service.import_marketplace_source_archive(&archives[index], true) {
+                    Ok(_) => Err("overwrite unexpectedly succeeded".to_string()),
+                    Err(message) => Err(message),
+                }
+            }
             "importOverwrite" => {
                 let index = op["from"].as_u64().expect("from") as usize;
                 match service.import_plugins_archive(&archives[index], true) {
@@ -417,6 +458,43 @@ fn imports_ts_produced_archive() {
         .join("plugin-b")
         .join("hooks")
         .join("hooks.json")
+        .exists());
+    let _ = std::fs::remove_dir_all(&sandbox);
+}
+
+#[test]
+fn imports_ts_marketplace_source_archive() {
+    use base64::Engine as _;
+
+    let fixture: Value =
+        serde_json::from_str(include_str!("../fixtures/plugin-sync.json")).expect("fixture json");
+    let encoded = fixture["cases"][0]["marketplaceArchiveBase64"]
+        .as_str()
+        .expect("TS marketplace archive base64");
+    let archive = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .expect("decode archive");
+
+    let sandbox = unique_sandbox();
+    let home = sandbox.join("home");
+    std::fs::create_dir_all(&home).expect("home");
+    let service = PluginSyncService::new(PluginSyncServiceOptions::new(home.clone()));
+    let result = service
+        .import_marketplace_source_archive(&archive, false)
+        .expect("import TS marketplace archive");
+    assert_eq!(result.marketplace_id, "mkt");
+    assert_eq!(
+        result.status,
+        plugin_sync_service::PluginSyncMarketplaceImportStatus::Synced
+    );
+    let manifest_path = std::path::Path::new(&result.path).join("marketplace.json");
+    let manifest = std::fs::read_to_string(manifest_path).expect("marketplace.json");
+    assert!(manifest.contains("\"mkt\""));
+    assert!(std::path::Path::new(&result.path)
+        .join("plugins")
+        .join("alpha")
+        .join(".mode-plugin")
+        .join("plugin.json")
         .exists());
     let _ = std::fs::remove_dir_all(&sandbox);
 }

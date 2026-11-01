@@ -56,6 +56,22 @@
           {
             "path": "home/.mode/plugins/existing-dir/file.txt",
             "content": "x\n"
+          },
+          {
+            "path": "market/marketplace.json",
+            "content": "{\n  \"name\": \"mkt\",\n  \"pluginRoot\": \"plugins\",\n  \"plugins\": [\n    {\n      \"name\": \"alpha\",\n      \"source\": \"./alpha\"\n    },\n    {\n      \"name\": \"beta\",\n      \"dependencies\": [\n        \"alpha@mkt\"\n      ]\n    },\n    {\n      \"name\": \"remote\",\n      \"source\": {\n        \"source\": \"github\",\n        \"repo\": \"x\"\n      }\n    },\n    {\n      \"name\": \"gamma\",\n      \"dependencies\": [\n        \"alpha@other\"\n      ]\n    }\n  ]\n}\n"
+          },
+          {
+            "path": "market/plugins/alpha/.mode-plugin/plugin.json",
+            "content": "{\n  \"name\": \"Alpha\"\n}"
+          },
+          {
+            "path": "market/plugins/alpha/skills/a/SKILL.md",
+            "content": "# a\n"
+          },
+          {
+            "path": "market/plugins/beta/.mode-plugin/plugin.json",
+            "content": "{\n  \"name\": \"Beta\"\n}"
           }
         ]
       },
@@ -113,6 +129,42 @@
           "pluginNames": [
             "Missing Plugin"
           ]
+        },
+        {
+          "kind": "exportMarketplace",
+          "marketplaceId": "mkt",
+          "pluginNames": [
+            "beta"
+          ],
+          "sourcePath": "market"
+        },
+        {
+          "kind": "importMarketplace",
+          "from": 1
+        },
+        {
+          "kind": "importMarketplace",
+          "from": 1
+        },
+        {
+          "kind": "importMarketplaceOverwrite",
+          "from": 1
+        },
+        {
+          "kind": "exportMarketplace",
+          "marketplaceId": "wrong",
+          "pluginNames": [
+            "beta"
+          ],
+          "sourcePath": "market"
+        },
+        {
+          "kind": "exportMarketplace",
+          "marketplaceId": "mkt",
+          "pluginNames": [
+            "gamma"
+          ],
+          "sourcePath": "market"
         }
       ],
       "expected": [
@@ -260,6 +312,34 @@
         },
         {
           "error": "fixture candidate not found: Missing Plugin"
+        },
+        {
+          "archive": "<archive>",
+          "archiveBytes": "<bytes>",
+          "marketplaceId": "mkt",
+          "pluginNames": [
+            "beta",
+            "alpha"
+          ]
+        },
+        {
+          "marketplaceId": "mkt",
+          "path": "<root>/home/.mode/plugins/marketplace-sources/mkt-<hash12>",
+          "status": "synced"
+        },
+        {
+          "marketplaceId": "mkt",
+          "path": "<root>/home/.mode/plugins/marketplace-sources/mkt-<hash12>",
+          "status": "skipped"
+        },
+        {
+          "error": "plugin marketplace source overwrite is not supported"
+        },
+        {
+          "error": "marketplace id mismatch: mkt !== wrong"
+        },
+        {
+          "error": "cross-marketplace dependency is not supported for SSH source mirror: alpha@other required by gamma"
         }
       ],
       "tree": [
@@ -289,7 +369,8 @@
           }
         }
       },
-      "archiveBase64": "H4sIAAAAAAAACu2aT2+bMBjGc+ZTvGLXhtnGgNTTmlu1apq047QDAW+jBRPhZFIV5btPmIZGNAkLMs4q3t8BEtuAoyfv8+I/q3zzK5Pz+ONsPAghJAxDfSaEdM/6M+UB55wQVpdTyhifQTBin1o2ah1XM0KKMhXn2vXVv1NWe/29Ill5j6qU5p/Rr7/f0Z9FAZkBMd+Vt0xc/+3OuXYXkCtyEP9lKubNV8PJ4HL/9wPG0P9tcFz/5mQqHfTpT2nQ0T+IqI/+b4OtA+DKuBDuLbhftexw597UpalQSZWt1lkp60q4g7oEmso/olL7CuoRj4Dr7K79Y5CLaeM/KYsilqkaYSAwwP8JC9D/bfBW/1QUpVekBp/Rr3/U0Z+zCP3fCh+g1hvHAFOljX/1lOX5GO4/xP9ZgP5vh67+tRuY/hMMyP88oKi/DY7q/+3z/cODuXeAAfk/rPXH/D8+mP+nzUv8L/+79R/M/1Zo9feSPN6MMwN8uf6c+Lj+Z4VT+pucAe7V3+/qHzKG+d8Kx+Z/FziVOxna+P9dlk/jDP+HjP/9ev0f/X98Ovrro+ltIP36d/d/cD9k6P82wP0f0+Zw2X+unmUywh4wHf+cn4x/Tll3/i/kEca/DfT7XyO/cm/huwMAsNXHUxsDdE1zyX16WPspk3kmxWujNKtEsi6r5y8v99nPNr42ETJe5qK+zc84V0IX727O9mJxtheLf+7F0m2e5gD8cNAGEQSZGn8BDNTENgAwAAA="
+      "archiveBase64": "H4sIAAAAAAAACu2aT2+bMBjGc+ZTvGLXhtnGgNTTmlu1apq047QDAW+jBRPhZFIV5btPmIZGNAkLMs4q3t8BEtuAoyfv8+I/q3zzK5Pz+ONsPAghJAxDfSaEdM/6M+UB55wQVpdTyhifQTBin1o2ah1XM0KKMhXn2vXVv1NWe/29Ill5j6qU5p/Rr7/f0Z9FAZkBMd+Vt0xc/+3OuXYXkCtyEP9lKubNV8PJ4HL/9wPG0P9tcFz/5mQqHfTpT2nQ0T+IqI/+b4OtA+DKuBDuLbhftexw597UpalQSZWt1lkp60q4g7oEmso/olL7CuoRj4Dr7K79Y5CLaeM/KYsilqkaYSAwwP8JC9D/bfBW/1QUpVekBp/Rr3/U0Z+zCP3fCh+g1hvHAFOljX/1lOX5GO4/xP9ZgP5vh67+tRuY/hMMyP88oKi/DY7q/+3z/cODuXeAAfk/rPXH/D8+mP+nzUv8L/+79R/M/1Zo9feSPN6MMwN8uf6c+Lj+Z4VT+pucAe7V3+/qHzKG+d8Kx+Z/FziVOxna+P9dlk/jDP+HjP/9ev0f/X98Ovrro+ltIP36d/d/cD9k6P82wP0f0+Zw2X+unmUywh4wHf+cn4x/Tll3/i/kEca/DfT7XyO/cm/huwMAsNXHUxsDdE1zyX16WPspk3kmxWujNKtEsi6r5y8v99nPNr42ETJe5qK+zc84V0IX727O9mJxtheLf+7F0m2e5gD8cNAGEQSZGn8BDNTENgAwAAA=",
+      "marketplaceArchiveBase64": "H4sIAAAAAAAACu2Zy07CQBSGu+5TTOqWy+kwnSordWckLnRpXAztqEgvpB0WhvDuptMqbQUqpRlimG9Bm7lSfs6cA384F/1LPH19dRiwK98ehiyZc7EImMcHH2kcGccDAEAJkVcAqF+BgGvYxCGEAOCs3XZGFAwEHezdyDIVLDEAwtjn+8Y19f9TViZCVsRCbo2RFc6F1csaFsHybRal1hg9mwghtJKvpZFTLpgcKlt9vuCRzyNvxjdzZA8LFu/sOlu3aHv5mZTGy8STiw2GcjnZse5t31AuZG2dnHfls81iByvkgvlMMGtcrFU802Mci2za9xOa2aS1eWoZTkZYj//ig5GSDLvZQ8Y/pTvjP7uvxj9xXNtATjfb7+fM43+//oPsqft5U/svw+H6u0Bdrb8KDtA/v7QoChr1x6SqP7ax4+r8r4JK/r+VaXh96vekUcfO+JdVVTcFQIv875KRPv9V0KB/JwVAi/yPia7/lHCI/m0LgOb879TzPxlhnf9VUMn/N/kvaV0AnA8N8Z/OZ0GQHlkGHH7+U0yIPv9V8Df9jysEW+hPqNZfCX/V/+n+bjIZhH6bPZr1J/X6j1Jb538VXCB2vn9+a4xygd9PPyOvK9OvBDT4f/iX/zeijo5/Jaxqdl/hnm1M4CfptG2xAktj7vyye5hbgrOEeyJOPh823mIl0ZQMu3P23zQajeZUfAFzWs5fACQAAA=="
     },
     {
       "name": "empty-home",
@@ -336,7 +417,8 @@
       ],
       "tree": [],
       "config": null,
-      "archiveBase64": null
+      "archiveBase64": null,
+      "marketplaceArchiveBase64": null
     },
     {
       "name": "invalid-config",
@@ -378,7 +460,8 @@
       "config": {
         "error": "<json-error>"
       },
-      "archiveBase64": null
+      "archiveBase64": null,
+      "marketplaceArchiveBase64": null
     }
   ]
 }

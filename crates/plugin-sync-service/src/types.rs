@@ -122,3 +122,28 @@ pub struct PluginSyncImportResultItem {
 pub struct PluginSyncImportResult {
     pub results: Vec<PluginSyncImportResultItem>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PluginSyncMarketplaceImportStatus {
+    #[serde(rename = "synced")]
+    Synced,
+    #[serde(rename = "skipped")]
+    Skipped,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSyncMarketplaceImportResult {
+    pub marketplace_id: String,
+    pub path: String,
+    pub status: PluginSyncMarketplaceImportStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSyncMarketplaceExportResult {
+    pub archive: Vec<u8>,
+    pub archive_bytes: u64,
+    pub marketplace_id: String,
+    pub plugin_names: Vec<String>,
+}
