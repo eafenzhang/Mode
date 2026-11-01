@@ -46,6 +46,33 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 宿主服务面里最大的六个域：`bots` 20,644、`mode-agent` 19,729、`session` 12,175、
 `conversation-share` 5,495、`model-provider` 5,272、`git` 4,778。
 
+## 2.1 进度快照（2026-11-01）
+
+| 波次 | 状态 |
+| --- | --- |
+| W0 地基 | **完成**：线格式、协议、`rpc-host`、壳内路由；20 个频道可启动期接管（默认关闭） |
+| W1 平台基元 | **完成**（见 W1 清单） |
+| W2 传输切换 | **部分**：壳内服务面与 scope 复用已就绪；Node Host 仍是默认所有者，`stdioFrames`/`stdoutGuard` 退场与流控对拍未做 |
+| W3 宿主域 | **已接管/迁移**：设置类、文件类、凭据、git/checkpoint、conversation-mirror、skills、skill-sync、plugin-sync、subagents、settings-sync、broadcast、system；**部分**：任务/会话（Repos 已迁、频道未）、provider 链、plugins 管理面、hooks/onboarding；**未开始**：终端、usage-stats、远程工作区、LAN、远程桌面、云账号、CUA broker |
+| W4 Agent 运行时 | **协议/客户端镜像 91/115**；S0 健康快照与 S1 覆盖矩阵完成；频道所有权切换（S2）待决策 |
+| W5 / W6 | 未开始 |
+
+**2026-10-31 ~ 11-01 本轮交付**
+
+- 数据根：隔离 base 首次初始化改为原地补写归属，修复 Windows EPERM 导致 agent 退出。
+- W3：`git-cli` / `git-service` / `git-checkpoint-service`、`skills-service`、`subagents-service`、
+  `settings-sync-service`、`broadcast-service`、`skill-sync-service`、`plugin-sync-service`
+  （7 方法含 marketplace source，频道注册为第 20 个）。
+- W4：`v4/commands/query`、sessions-index topic、workspace-config 帧/订阅、
+  `session/compact|goal|resume`、`syncAppRuntimePreferences`、`initialize`。
+- W4 门槛：`docs/specs/host-ownership-switch.md` 设计草案；S1 矩阵
+  （rust=91 / blocked=24 / todo=0，strict 门禁）；S0 只读健康快照。
+- 发布与验收：v0.0.109 已发布；本地真人路径验收 19 个频道（`plugin-sync` 为后续第 20 个，
+  仅 SSH/WSL 远程可达）。
+
+**阻塞项（需决策）**：automation 归属（Host 聚合面 vs 独立频道）、`mode-agent` 切换 S2、
+健康状态暴露位置、网络/凭据方法的降级语义。
+
 ## 3. 终态架构
 
 ```
@@ -67,7 +94,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 
 ## 4. 波次（只按依赖排序，不按成本删减）
 
-### W0 地基（进行中）
+### W0 地基（完成）
 
 | 项 | 产出 | 状态 |
 | --- | --- | --- |
@@ -79,7 +106,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 
 出口：开关为空时产品行为与今天字节级一致；打开只读频道时 UI 正常。
 
-### W1 平台基元（先做，因为 W3 全部依赖它们）
+### W1 平台基元（完成；W3 的全部依赖）
 
 settings、data-root、paths、credential（`ring` + 系统钥匙串）、fs/file/file-watcher、
 SQLite（任务库、会话库、迁移）、日志、进程管理（spawn/kill/taskkill 语义）、storage
@@ -199,7 +226,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 
 按依赖与风险排序，每域独立完成、独立开关、独立回滚：
 
-| 序 | 域 | TS 行数 | Rust 目标 | 关键依赖 | 进度（2026-10-29） |
+| 序 | 域 | TS 行数 | Rust 目标 | 关键依赖 | 进度（2026-11-01） |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 设置 / 客户端配置 | ≈3.3k | 壳内 `settings` | W1 | `setting` / `client-config` / `client-scenes` 已接管 |
 | 2 | 文件 / fs / 监视 | ≈2.8k | `ignore` + `notify` + std | W1 | `file` / `file-watcher` 已接管 |
@@ -208,7 +235,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 5 | 终端旧路径 | 1,354 | 壳已有 PTY | W2 | 未开始 |
 | 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 | **基础层、repo 层、`git` 与 `git-checkpoint` 频道已迁（2026-10-31）**：`crates/git-cli`（命令执行/超时强杀/输出配额/local env 清理、二进制探测、status v2/numstat/diff/branch issue 解析、路径范围；39 op 对拍）；`crates/git-service`（repo 16 操作 + 门面 changes/refresh/commit；`pnpm git-service:fixtures` 7 个真实 git 仓库用例全绿，含 stagedOnly/推送/游离 HEAD）；`crates/git-checkpoint-service`（manifest store + 临时 index 隐藏 commit + diff/restore/冲突检测/删除；`pnpm git-checkpoint:fixtures` 7 个真实仓库用例全绿，含 rename 恢复、scope 边界、冲突与 force）；频道 `git`（18 方法）与 `git-checkpoint`（4 方法）已注册，`generateCommitMessage` 依赖 W4 Agent 模型 |
 | 7 | provider / 模型选择 / orcarouter / bigmodel | ≈7.5k | `reqwest` + `rustls` | W1 | **已开始（2026-10-30）**：纯配置模型已 Rust 化（`crates/provider-config`，`docs/specs/provider-config.md`）——Provider/Model/ManualModel、规则容器、access/api、Restricted CEL、严格 schema 与保序序列化，`pnpm provider-config:fixtures` + 75 条解析/8 条 complete 校验对拍；**文件只读源也已迁**（`crates/provider-config-source`，`docs/specs/provider-config-source.md`）——Personal 解码/legacy manual 归一/恢复、Builtin Release 候选选择与 `mode-builtin:<rev>:<sourceKey>`、两层组合 Snapshot 与 revision，`pnpm provider-config-source:fixtures` 对拍；**账号层 Overlay 也已迁**（`crates/account-provider-overlay`，`docs/specs/account-provider-overlay.md`）——family 分组/identity 缓存/unresolvedFamilies（start-plan 例外）、API Key 折叠、off-peak 选择匹配、team scope 与 `resetPrevious`、unavailableReason、states 生成与 `account:${JSON.stringify([...])}` revision，`pnpm account-provider-overlay:fixtures` 对拍；**事实链也已迁**（`crates/provider-source-chain`，`docs/specs/provider-source-chain.md`）——文件层 + 账号 Overlay 组合、首次 fail-closed 与 last-known-good、`providerId -> config` 线格式，适配为 `agent-process::ProviderSource` 并用真实子进程 fixture 验证交付与 revision 去重；**剩余**：轮询/watch、写路径（update/replace/migrate/importLegacy）、Active 物化缓存、remote Release 同步/LKG、registry/resolver（非账号部分）、model listing、真实凭据/OAuth 与 Family 可用性网络源、orcarouter/bigmodel 与频道接管 |
-| 8 | usage-stats / coding-plan | ≈5.4k | 壳内聚合 | W1 | 未开始 |
+| 8 | usage-stats / coding-plan | ≈5.4k | 壳内聚合 | W1 | 未开始（`v4/usage/stats` 协议镜像已完成，服务层仍 Host） |
 | 9 | 远程工作区 / SSH / WSL / Docker | 远程链路 | `russh` + 本地进程 | W2 | 未开始 |
 | 10 | LAN 配对 / 发现 | ≈1.5k | UDP + 壳内 HTTP | W2 | 未开始 |
 | 11 | 远程桌面 | 媒体面已有 Rust helper | 壳内协调器 | W2 | 未开始 |
@@ -363,20 +390,10 @@ protocolVersion 校验，5 条协议测试。**订阅 facade 已接**：`subscri
 复用 `v4/conversation/subscribe`，按 `subscriptionId` 过滤
 `v4/conversation/frame` 并反序列化为 sessions-index 帧（与 conversation 共用泛型过滤，
 2 条控制面测试）。只读面到此补齐。
-**未做**：native binary 兜底、真实 provider/account 网络事实、健康探测，频道注册与
-所有权切换，以及其余 80 个成员（session 其余读/写、插件/automation/workflow 等；
-`IModeAgentService` 当前 115 个方法，已覆盖 6 个 workspace 生命周期方法 +
-`listSessions` + `readSessionEvents` + `listSessionSubagents` + `readSessionMessages` +
-`readSession` + `readSessionDebug` + `onDynamicSessionEvent` + `createSession` +
-`sendPrompt` + `closeSession` + `setModel` + `setThoughtLevel` + `setMode` +
-`resumeSession` + `syncAppRuntimePreferences` + `initialize` +
-`compactSession` + `goalSession` +
-`readWorkspacePresentation` + `collectLocalRuntimeChildProcesses` +
-`listMcpServerStatuses` + `listSavedWorkflows` + `getSavedWorkflow` +
-`listSavedWorkflowRuns` + `updateSavedWorkflowMeta` + `deleteSavedWorkflow` +
-`moveSavedWorkflow` + `listPlugins` + `describePlugin` + `getPluginsOverview` +
-`helloConversationV4` + `initializeConversationV4` + `subscribeConversationV4` +
-`sendConversationCommandV4`（仅 resolveInteraction））。
+**未做**：native binary 兜底、真实 provider/account 网络事实、频道注册与所有权切换。
+`IModeAgentService` 115 个方法已覆盖 91 个（明细见 `docs/specs/agent-method-coverage.json`）；
+其余 24 个全部 `blocked`：10 个 automation（Host 聚合面归属待定）、12 个宿主事件/反向请求
+（随 S2 接线）、2 个真实模型/网络方法（降级语义待定）。
 所有权切换仍是 W4 下一片，`hooks` 的 grant 与任务/会话频道都等它。
 **设计草案已落（2026-11-01，待批准）**：`docs/specs/host-ownership-switch.md`
 定义频道级一次性切换、单 Agent 所有权不变量、请求/事件顺序、健康状态面
