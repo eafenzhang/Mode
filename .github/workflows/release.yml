@@ -253,6 +253,12 @@ jobs:
       - name: Agent runtime parity matrix (roadmap M2)
         run: pnpm exec tsx scripts/agent-runtime-parity-matrix.ts --check
 
+      # W4 所有权切换 S1：IModeAgentService 方法覆盖矩阵。
+      # 新增/删除 interface 方法必须同步 docs/specs/agent-method-coverage.json，
+      # status=rust 的条目还要能在 crates/agent-process 找到对应函数。
+      - name: Agent method coverage (W4 S1)
+        run: pnpm agent:coverage
+
       # 路线图 M5「三指标仪表入库」第 2 项：上游重合度（目标 0）。
       # 工具已交付：`scripts/upstream-overlap-check.ts`（口径见
       # docs/specs/upstream-overlap-metric.md）。**当前只跑 report（非阻断）**：

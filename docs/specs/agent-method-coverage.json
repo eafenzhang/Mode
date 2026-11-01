@@ -1,0 +1,501 @@
+[
+  {
+    "method": "addPluginMarketplace",
+    "status": "rust",
+    "rust": "add_plugin_marketplace"
+  },
+  {
+    "method": "attachmentAbortV4",
+    "status": "todo"
+  },
+  {
+    "method": "attachmentBeginV4",
+    "status": "todo"
+  },
+  {
+    "method": "attachmentChunkV4",
+    "status": "todo"
+  },
+  {
+    "method": "attachmentCommitV4",
+    "status": "todo"
+  },
+  {
+    "method": "attachmentPreviewSourceV4",
+    "status": "todo"
+  },
+  {
+    "method": "attachmentReadV4",
+    "status": "todo"
+  },
+  {
+    "method": "backgroundBashOutputV4",
+    "status": "todo"
+  },
+  {
+    "method": "cancelPluginOperation",
+    "status": "rust",
+    "rust": "cancel_plugin_operation"
+  },
+  {
+    "method": "closeSession",
+    "status": "rust",
+    "rust": "close_session"
+  },
+  {
+    "method": "collectLocalRuntimeChildProcesses",
+    "status": "todo"
+  },
+  {
+    "method": "compactSession",
+    "status": "rust",
+    "rust": "compact_session"
+  },
+  {
+    "method": "configurePlugin",
+    "status": "rust",
+    "rust": "configure_plugin"
+  },
+  {
+    "method": "conversationAttachmentReadV4",
+    "status": "todo"
+  },
+  {
+    "method": "conversationAttachmentStatV4",
+    "status": "todo"
+  },
+  {
+    "method": "conversationFileChangesV4",
+    "status": "todo"
+  },
+  {
+    "method": "conversationFileRewindPreviewV4",
+    "status": "todo"
+  },
+  {
+    "method": "conversationPlansV4",
+    "status": "todo"
+  },
+  {
+    "method": "conversationRowsRangeV4",
+    "status": "todo"
+  },
+  {
+    "method": "conversationWorkflowRunArtifactDataV4",
+    "status": "todo"
+  },
+  {
+    "method": "conversationWorkflowRunArtifactReadV4",
+    "status": "todo"
+  },
+  {
+    "method": "conversationWorkflowRunArtifactsV4",
+    "status": "todo"
+  },
+  {
+    "method": "conversationWorkflowRunEventsV4",
+    "status": "todo"
+  },
+  {
+    "method": "conversationWorkflowRunNodeResultV4",
+    "status": "todo"
+  },
+  {
+    "method": "conversationWorkflowRunsV4",
+    "status": "todo"
+  },
+  {
+    "method": "conversationWorkflowRunWorkspaceV4",
+    "status": "todo"
+  },
+  {
+    "method": "createAutomation",
+    "status": "todo"
+  },
+  {
+    "method": "createSession",
+    "status": "rust",
+    "rust": "create_session"
+  },
+  {
+    "method": "deleteAutomation",
+    "status": "todo"
+  },
+  {
+    "method": "deleteAutomationRun",
+    "status": "todo"
+  },
+  {
+    "method": "deleteSavedWorkflow",
+    "status": "rust",
+    "rust": "delete_saved_workflow"
+  },
+  {
+    "method": "describePlugin",
+    "status": "rust",
+    "rust": "describe_plugin"
+  },
+  {
+    "method": "disposeAll",
+    "status": "rust",
+    "rust": "dispose_all"
+  },
+  {
+    "method": "disposeWorkspace",
+    "status": "rust",
+    "rust": "dispose_workspace"
+  },
+  {
+    "method": "generateWorkspaceText",
+    "status": "todo"
+  },
+  {
+    "method": "getAppUsageStats",
+    "status": "todo"
+  },
+  {
+    "method": "getPluginReferenceCatalog",
+    "status": "todo"
+  },
+  {
+    "method": "getPluginsOverview",
+    "status": "rust",
+    "rust": "get_plugins_overview"
+  },
+  {
+    "method": "getSavedWorkflow",
+    "status": "rust",
+    "rust": "get_saved_workflow"
+  },
+  {
+    "method": "getSkillReferenceCatalog",
+    "status": "todo"
+  },
+  {
+    "method": "getStorageStartupState",
+    "status": "todo"
+  },
+  {
+    "method": "getTaskTokenUsage",
+    "status": "todo"
+  },
+  {
+    "method": "getWorkspaceRuntimeIdentity",
+    "status": "todo"
+  },
+  {
+    "method": "goalSession",
+    "status": "rust",
+    "rust": "goal_session"
+  },
+  {
+    "method": "grantWorkspaceHookTrust",
+    "status": "rust",
+    "rust": "grant_workspace_hook_trust"
+  },
+  {
+    "method": "hasActiveCuaOperationTurn",
+    "status": "todo"
+  },
+  {
+    "method": "helloConversationV4",
+    "status": "todo"
+  },
+  {
+    "method": "initialize",
+    "status": "todo"
+  },
+  {
+    "method": "initializeConversationV4",
+    "status": "todo"
+  },
+  {
+    "method": "installPlugin",
+    "status": "rust",
+    "rust": "install_plugin"
+  },
+  {
+    "method": "listAllAutomations",
+    "status": "todo"
+  },
+  {
+    "method": "listAutomationRuns",
+    "status": "todo"
+  },
+  {
+    "method": "listAutomations",
+    "status": "todo"
+  },
+  {
+    "method": "listMcpServerStatuses",
+    "status": "rust",
+    "rust": "list_mcp_server_statuses"
+  },
+  {
+    "method": "listPlugins",
+    "status": "rust",
+    "rust": "list_plugins"
+  },
+  {
+    "method": "listSavedWorkflowRuns",
+    "status": "rust",
+    "rust": "list_saved_workflow_runs"
+  },
+  {
+    "method": "listSavedWorkflows",
+    "status": "rust",
+    "rust": "list_saved_workflows"
+  },
+  {
+    "method": "listSessions",
+    "status": "rust",
+    "rust": "list_sessions"
+  },
+  {
+    "method": "listSessionSubagents",
+    "status": "rust",
+    "rust": "list_session_subagents"
+  },
+  {
+    "method": "moveSavedWorkflow",
+    "status": "rust",
+    "rust": "move_saved_workflow"
+  },
+  {
+    "method": "onAgentRuntimeRestarted",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicConversationFrame",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicConversationTelemetryFact",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicCuaPermissionObservation",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicLocalTtftFacts",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicMcpResourceSamples",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicMcpTelemetry",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicPluginOperationProgress",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicProcessResourceSample",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicSessionEvent",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicSessionRuntimePreferencesRequest",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicSessionsIndexFrame",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicStorageStartupState",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicToolExecResource",
+    "status": "todo"
+  },
+  {
+    "method": "onDynamicWorkspaceConfigFrame",
+    "status": "todo"
+  },
+  {
+    "method": "prepareStorage",
+    "status": "rust",
+    "rust": "prepare_storage"
+  },
+  {
+    "method": "queryConversationCommandsV4",
+    "status": "todo"
+  },
+  {
+    "method": "readSession",
+    "status": "rust",
+    "rust": "read_session"
+  },
+  {
+    "method": "readSessionDebug",
+    "status": "rust",
+    "rust": "read_session_debug"
+  },
+  {
+    "method": "readSessionEvents",
+    "status": "rust",
+    "rust": "read_session_events"
+  },
+  {
+    "method": "readSessionMessages",
+    "status": "rust",
+    "rust": "read_session_messages"
+  },
+  {
+    "method": "readWorkspacePresentation",
+    "status": "rust",
+    "rust": "read_workspace_presentation"
+  },
+  {
+    "method": "removePluginMarketplace",
+    "status": "rust",
+    "rust": "remove_plugin_marketplace"
+  },
+  {
+    "method": "resetPluginConfig",
+    "status": "rust",
+    "rust": "reset_plugin_config"
+  },
+  {
+    "method": "resolveSuggestedPluginReference",
+    "status": "rust",
+    "rust": "resolve_suggested_plugin_reference"
+  },
+  {
+    "method": "respondSessionRuntimePreferences",
+    "status": "todo"
+  },
+  {
+    "method": "restartAutomation",
+    "status": "todo"
+  },
+  {
+    "method": "restoreBuiltinPlugin",
+    "status": "rust",
+    "rust": "restore_builtin_plugin"
+  },
+  {
+    "method": "resumeSession",
+    "status": "todo"
+  },
+  {
+    "method": "resyncConversationV4",
+    "status": "todo"
+  },
+  {
+    "method": "resyncSessionsIndexV4",
+    "status": "todo"
+  },
+  {
+    "method": "resyncWorkspaceConfigV4",
+    "status": "todo"
+  },
+  {
+    "method": "runAutomationNow",
+    "status": "todo"
+  },
+  {
+    "method": "sendConversationCommandV4",
+    "status": "todo"
+  },
+  {
+    "method": "sendPrompt",
+    "status": "rust",
+    "rust": "send_prompt"
+  },
+  {
+    "method": "setAutomationEnabled",
+    "status": "todo"
+  },
+  {
+    "method": "setConnectionFlowStateV4",
+    "status": "todo"
+  },
+  {
+    "method": "setMode",
+    "status": "todo"
+  },
+  {
+    "method": "setModel",
+    "status": "todo"
+  },
+  {
+    "method": "setPluginEnabled",
+    "status": "rust",
+    "rust": "set_plugin_enabled"
+  },
+  {
+    "method": "setThoughtLevel",
+    "status": "todo"
+  },
+  {
+    "method": "subscribeConversationV4",
+    "status": "todo"
+  },
+  {
+    "method": "subscribeSessionsIndexV4",
+    "status": "todo"
+  },
+  {
+    "method": "subscribeWorkspaceConfigV4",
+    "status": "todo"
+  },
+  {
+    "method": "syncAppRuntimePreferences",
+    "status": "todo"
+  },
+  {
+    "method": "testModelConnectivity",
+    "status": "todo"
+  },
+  {
+    "method": "uninstallPlugin",
+    "status": "rust",
+    "rust": "uninstall_plugin"
+  },
+  {
+    "method": "unsubscribeConversationV4",
+    "status": "todo"
+  },
+  {
+    "method": "unsubscribeSessionsIndexV4",
+    "status": "todo"
+  },
+  {
+    "method": "unsubscribeWorkspaceConfigV4",
+    "status": "todo"
+  },
+  {
+    "method": "updateAutomation",
+    "status": "todo"
+  },
+  {
+    "method": "updatePlugin",
+    "status": "rust",
+    "rust": "update_plugin"
+  },
+  {
+    "method": "updatePluginMarketplace",
+    "status": "rust",
+    "rust": "update_plugin_marketplace"
+  },
+  {
+    "method": "updateSavedWorkflowMeta",
+    "status": "rust",
+    "rust": "update_saved_workflow_meta"
+  },
+  {
+    "method": "validatePlugin",
+    "status": "rust",
+    "rust": "validate_plugin"
+  }
+]

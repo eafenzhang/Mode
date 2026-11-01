@@ -381,6 +381,10 @@ protocolVersion 校验，5 条协议测试。**订阅 facade 已接**：`subscri
 定义频道级一次性切换、单 Agent 所有权不变量、请求/事件顺序、健康状态面
 （不引入定时 ping）与 S0–S4 分阶段出口；开放决策包括 `not-needed` 审计方式、
 `blocked` 方法降级语义、健康面暴露位置与 Host 聚合面读 agent 的方式。
+**S1 覆盖矩阵工具已落（2026-11-01）**：`pnpm agent:coverage` 校验
+`IModeAgentService` 方法与 `docs/specs/agent-method-coverage.json` 双向一致、
+`status=rust` 的函数存在；基线 115 个方法（rust=39 / todo=76），已接入
+`verify:pre-push` 与 release verify。
 
 ### W5 生态面替换
 

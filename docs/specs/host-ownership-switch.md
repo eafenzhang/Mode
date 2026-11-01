@@ -85,6 +85,18 @@ sequenceDiagram
 
 门禁：`blocked` 为空，且 `rust` 覆盖所有 `not-needed` 之外的调用点。
 
+**S1 工具已落（2026-11-01）**：`scripts/agent-method-coverage.mjs` +
+`docs/specs/agent-method-coverage.json`。
+
+- `pnpm agent:coverage`（check）：清单与 interface 方法**双向**一致；`status=rust`
+  必须在 `crates/agent-process/src` 找到对应 snake_case 函数；`not-needed` / `blocked`
+  必须写 note；非法 status 直接失败。
+- `pnpm agent:coverage:write`：重新检测 Rust 覆盖，保留人工标注的
+  `not-needed` / `blocked` 与 note。
+- 已接入 `verify:pre-push` 与 release verify。
+- 基线（2026-11-01）：115 个方法，`rust=39`、`todo=76`。`todo` 需要逐项归类；
+  归类完成后才能把本检查升级为「`todo` 必须为 0」的切换门禁。
+
 ### 4.2 健康状态面
 
 新增只读状态（先由 Host 提供，切换后由壳/Rust 提供，形状不变）：
