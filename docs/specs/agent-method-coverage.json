@@ -131,7 +131,8 @@
   },
   {
     "method": "createAutomation",
-    "status": "todo"
+    "status": "blocked",
+    "note": "Host 聚合面（automationService），归属待 spec §6 第 4 项；切换 mode-agent 前需实现"
   },
   {
     "method": "createSession",
@@ -140,11 +141,13 @@
   },
   {
     "method": "deleteAutomation",
-    "status": "todo"
+    "status": "blocked",
+    "note": "Host 聚合面（automationService），归属待 spec §6 第 4 项；切换 mode-agent 前需实现"
   },
   {
     "method": "deleteAutomationRun",
-    "status": "todo"
+    "status": "blocked",
+    "note": "Host 聚合面（automationService），归属待 spec §6 第 4 项；切换 mode-agent 前需实现"
   },
   {
     "method": "deleteSavedWorkflow",
@@ -248,15 +251,18 @@
   },
   {
     "method": "listAllAutomations",
-    "status": "todo"
+    "status": "blocked",
+    "note": "Host 聚合面（automationService），归属待 spec §6 第 4 项；切换 mode-agent 前需实现"
   },
   {
     "method": "listAutomationRuns",
-    "status": "todo"
+    "status": "blocked",
+    "note": "Host 聚合面（automationService），归属待 spec §6 第 4 项；切换 mode-agent 前需实现"
   },
   {
     "method": "listAutomations",
-    "status": "todo"
+    "status": "blocked",
+    "note": "Host 聚合面（automationService），归属待 spec §6 第 4 项；切换 mode-agent 前需实现"
   },
   {
     "method": "listMcpServerStatuses",
@@ -425,7 +431,8 @@
   },
   {
     "method": "restartAutomation",
-    "status": "todo"
+    "status": "blocked",
+    "note": "Host 聚合面（automationService），归属待 spec §6 第 4 项；切换 mode-agent 前需实现"
   },
   {
     "method": "restoreBuiltinPlugin",
@@ -454,7 +461,8 @@
   },
   {
     "method": "runAutomationNow",
-    "status": "todo"
+    "status": "blocked",
+    "note": "Host 聚合面（automationService），归属待 spec §6 第 4 项；切换 mode-agent 前需实现"
   },
   {
     "method": "sendConversationCommandV4",
@@ -468,7 +476,8 @@
   },
   {
     "method": "setAutomationEnabled",
-    "status": "todo"
+    "status": "blocked",
+    "note": "Host 聚合面（automationService），归属待 spec §6 第 4 项；切换 mode-agent 前需实现"
   },
   {
     "method": "setConnectionFlowStateV4",
@@ -542,7 +551,8 @@
   },
   {
     "method": "updateAutomation",
-    "status": "todo"
+    "status": "blocked",
+    "note": "Host 聚合面（automationService），归属待 spec §6 第 4 项；切换 mode-agent 前需实现"
   },
   {
     "method": "updatePlugin",

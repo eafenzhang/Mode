@@ -86,9 +86,11 @@ function writeManifest(manifest) {
 }
 
 function main() {
-  const mode = process.argv[2];
+  const args = process.argv.slice(2);
+  const mode = args.find((value) => value === "--write" || value === "--check");
+  const strict = args.includes("--strict");
   if (mode !== "--write" && mode !== "--check") {
-    console.error("用法：node scripts/agent-method-coverage.ts --write|--check");
+    console.error("用法：node scripts/agent-method-coverage.ts --write|--check [--strict]");
     process.exit(2);
   }
 
@@ -144,6 +146,12 @@ function main() {
     }
     if ((entry.status === "not-needed" || entry.status === "blocked") && !entry.note) {
       problems.push(`${entry.method}: ${entry.status} 必须写 note`);
+    }
+  }
+
+  if (strict) {
+    for (const entry of manifest) {
+      if (entry.status === "todo") problems.push(`未归类：${entry.method}`);
     }
   }
 

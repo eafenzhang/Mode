@@ -12,7 +12,7 @@
     "dep:graph": "node scripts/dependency-graph.mjs",
     "dep:refs": "node scripts/dep-refs.mjs",
     "verify:pre-push": "pnpm run lint && node scripts/check-language-policy.mjs && pnpm run check:sqlite-schema && pnpm run architecture:check -- --changed && pnpm run agent:coverage && pnpm run knip:gate",
-    "agent:coverage": "tsx scripts/agent-method-coverage.ts --check",
+    "agent:coverage": "tsx scripts/agent-method-coverage.ts --check --strict",
     "agent:coverage:write": "tsx scripts/agent-method-coverage.ts --write",
     "agent:callsites": "tsx scripts/agent-method-callsites.ts",
     "check:upstream-overlap": "tsx scripts/upstream-overlap-check.ts",

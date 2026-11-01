@@ -385,8 +385,8 @@ protocolVersion 校验，5 条协议测试。**订阅 facade 已接**：`subscri
 **S1 覆盖矩阵工具已落（2026-11-01）**：`pnpm agent:coverage` 校验
 `IModeAgentService` 方法与 `docs/specs/agent-method-coverage.json` 双向一致、
 `status=rust` 的函数存在；`pnpm agent:callsites` 生成调用点证据。基线 115 个方法
-（rust=91 / blocked=14 / todo=10 / not-needed=0），已接入 `verify:pre-push` 与
-release verify。剩余 todo 仅 automation 域（10 个方法）。
+（rust=91 / blocked=24 / todo=0 / not-needed=0），已接入 `verify:pre-push` 与
+release verify。矩阵以 `--strict` 运行（todo 必须为 0）；automation 10 个方法与宿主事件/网络方法计入 `blocked`，待决策。
 **S0 健康计算面已落（2026-11-01）**：`AgentRuntimeRegistry::health` /
 `AgentControlClient::runtime_health` 返回
 `{state, workspaceKey, runtimeIdentity, generation, processId, storageState, lastError}`；

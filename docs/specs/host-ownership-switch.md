@@ -96,10 +96,10 @@ sequenceDiagram
 - 已接入 `verify:pre-push` 与 release verify。
 - `pnpm agent:callsites` 生成 `docs/specs/agent-method-callsites.md`（Renderer/Desktop/
   Services/CLI 的调用点计数与最多 3 个例子）；计数是启发式，只作归类证据。
-- 基线（2026-11-01）：115 个方法，`rust=91`、`blocked=14`、`todo=10`、`not-needed=0`。
+- 基线（2026-11-01）：115 个方法，`rust=91`、`blocked=24`、`todo=0`、`not-needed=0`。
   `blocked` 为宿主事件/反向请求与真实模型网络方法（note 已写明）；
   剩余 `todo` 集中在 automation 域、`initialize` 与
-  `syncAppRuntimePreferences`。归类完成后才能把检查升级为「`todo` 必须为 0」的切换门禁。
+  `syncAppRuntimePreferences`。检查已升级为「`todo` 必须为 0」；`blocked` 仍需在 S2 前逐项决策。
 
 ### 4.2 健康状态面
 
