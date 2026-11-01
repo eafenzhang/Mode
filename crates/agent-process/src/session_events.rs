@@ -60,7 +60,9 @@ impl AgentControlClient {
         after_seq: Option<u64>,
         include_snapshot: bool,
     ) -> Result<SessionSubscription, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let mut notifications = process.client().subscribe_notifications();
         let params = SessionSubscribeParams {
             session_id: session_id.to_string(),
@@ -107,8 +109,7 @@ impl AgentControlClient {
                         let Some(params) = value.get("params") else {
                             continue;
                         };
-                        let Ok(event) =
-                            serde_json::from_value::<SessionEvent>(params.clone())
+                        let Ok(event) = serde_json::from_value::<SessionEvent>(params.clone())
                         else {
                             continue;
                         };

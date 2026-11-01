@@ -34,7 +34,10 @@ pub fn default_runtime_preferences() -> RuntimePreferencesResult {
 /// 其它方法返回 `NotHandled`（由协议客户端回 `-32601`）。
 pub fn runtime_preferences_handler<F>(resolve: F) -> RequestHandler
 where
-    F: Fn(RuntimePreferencesScope) -> Result<RuntimePreferencesResult, String> + Send + Sync + 'static,
+    F: Fn(RuntimePreferencesScope) -> Result<RuntimePreferencesResult, String>
+        + Send
+        + Sync
+        + 'static,
 {
     Arc::new(move |request: &Value| {
         if request.get("method").and_then(Value::as_str)
@@ -45,11 +48,10 @@ where
         let Some(params) = request.get("params").filter(|value| value.is_object()) else {
             return invalid_params();
         };
-        let parsed: RuntimePreferencesRequestParams =
-            match serde_json::from_value(params.clone()) {
-                Ok(parsed) => parsed,
-                Err(_) => return invalid_params(),
-            };
+        let parsed: RuntimePreferencesRequestParams = match serde_json::from_value(params.clone()) {
+            Ok(parsed) => parsed,
+            Err(_) => return invalid_params(),
+        };
         match resolve(parsed.scope) {
             Ok(preferences) => match serde_json::to_value(&preferences) {
                 Ok(value) => RequestReply::Result(value),

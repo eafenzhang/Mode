@@ -333,9 +333,12 @@ mod tests {
         let workspace = temp_dir("env");
         std::fs::create_dir_all(workspace.join("sub")).unwrap();
         let mut ctx = context(&workspace);
-        ctx.env.insert("MODE_AGENT_SERVER_COMMAND".into(), " C:/node.exe ".into());
         ctx.env
-            .insert("MODE_AGENT_SERVER_ARGS_JSON".into(), r#"["x","--flag"]"#.into());
+            .insert("MODE_AGENT_SERVER_COMMAND".into(), " C:/node.exe ".into());
+        ctx.env.insert(
+            "MODE_AGENT_SERVER_ARGS_JSON".into(),
+            r#"["x","--flag"]"#.into(),
+        );
         ctx.env.insert(
             "MODE_AGENT_SERVER_CWD".into(),
             workspace.join("sub").to_string_lossy().into_owned(),
@@ -344,7 +347,10 @@ mod tests {
         let resolved = resolve_agent_command(&ctx).unwrap();
         assert_eq!(resolved.source, AgentCommandSource::Env);
         assert_eq!(resolved.spec.command, "C:/node.exe");
-        assert_eq!(resolved.spec.args, vec!["x", "--flag", "--surface", "desktop"]);
+        assert_eq!(
+            resolved.spec.args,
+            vec!["x", "--flag", "--surface", "desktop"]
+        );
         assert_eq!(resolved.spec.cwd, Some(workspace.join("sub")));
         assert!(resolved.storage_preparation_entry.is_none());
         std::fs::remove_dir_all(&workspace).ok();
@@ -354,7 +360,8 @@ mod tests {
     fn invalid_args_json_is_an_error() {
         let workspace = temp_dir("args");
         let mut ctx = context(&workspace);
-        ctx.env.insert("MODE_AGENT_SERVER_COMMAND".into(), "node".into());
+        ctx.env
+            .insert("MODE_AGENT_SERVER_COMMAND".into(), "node".into());
         ctx.env
             .insert("MODE_AGENT_SERVER_ARGS_JSON".into(), "[1,2]".into());
         assert!(matches!(
@@ -392,7 +399,10 @@ mod tests {
                 "desktop".into()
             ]
         );
-        assert_eq!(resolved.storage_preparation_entry.as_deref(), Some(entry.as_path()));
+        assert_eq!(
+            resolved.storage_preparation_entry.as_deref(),
+            Some(entry.as_path())
+        );
         std::fs::remove_dir_all(&workspace).ok();
     }
 
@@ -413,7 +423,10 @@ mod tests {
         let resolved = resolve_agent_command(&ctx).unwrap();
         assert_eq!(resolved.source, AgentCommandSource::Packaged);
         assert_eq!(resolved.spec.command, node.to_string_lossy());
-        assert_eq!(resolved.storage_preparation_entry.as_deref(), Some(entry.as_path()));
+        assert_eq!(
+            resolved.storage_preparation_entry.as_deref(),
+            Some(entry.as_path())
+        );
         std::fs::remove_dir_all(&workspace).ok();
         std::fs::remove_dir_all(&resources).ok();
     }

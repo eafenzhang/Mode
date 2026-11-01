@@ -85,10 +85,7 @@ impl ProviderConfigSync {
         };
         let _guard = gate.lock().await;
 
-        let snapshot = source
-            .read()
-            .await
-            .map_err(ControlError::ProviderSync)?;
+        let snapshot = source.read().await.map_err(ControlError::ProviderSync)?;
         if self
             .delivered
             .lock()

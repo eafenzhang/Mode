@@ -25,13 +25,14 @@ impl AgentControlClient {
         target: &AgentWorkspaceTarget,
         scope: Option<SavedWorkflowScope>,
     ) -> Result<WorkflowsListResult, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = WorkflowsListParams {
             workspace: session_workspace_ref(target),
             scope,
         };
-        let params =
-            serde_json::to_value(&params).expect("workflows/list params 序列化不会失败");
+        let params = serde_json::to_value(&params).expect("workflows/list params 序列化不会失败");
         let response = process
             .client()
             .request(WORKFLOWS_LIST_METHOD, Some(params))
@@ -48,7 +49,9 @@ impl AgentControlClient {
         name: &str,
         scope: Option<SavedWorkflowScope>,
     ) -> Result<WorkflowsGetResult, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = WorkflowsGetParams {
             workspace: session_workspace_ref(target),
             name: name.to_string(),
@@ -77,15 +80,16 @@ impl AgentControlClient {
                 "workflows/runs limit must be in 1..={WORKFLOWS_RUNS_MAX_LIMIT}"
             )));
         }
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = WorkflowsRunsParams {
             workspace: session_workspace_ref(target),
             name: name.map(str::to_string),
             limit,
             scope,
         };
-        let params =
-            serde_json::to_value(&params).expect("workflows/runs params 序列化不会失败");
+        let params = serde_json::to_value(&params).expect("workflows/runs params 序列化不会失败");
         let response = process
             .client()
             .request(WORKFLOWS_RUNS_METHOD, Some(params))
@@ -103,7 +107,9 @@ impl AgentControlClient {
         meta: SavedWorkflowMeta,
         scope: Option<SavedWorkflowScope>,
     ) -> Result<WorkflowsUpdateMetaResult, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = WorkflowsUpdateMetaParams {
             workspace: session_workspace_ref(target),
             name: name.to_string(),
@@ -128,14 +134,15 @@ impl AgentControlClient {
         name: &str,
         scope: Option<SavedWorkflowScope>,
     ) -> Result<WorkflowsDeleteResult, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = WorkflowsDeleteParams {
             workspace: session_workspace_ref(target),
             name: name.to_string(),
             scope,
         };
-        let params =
-            serde_json::to_value(&params).expect("workflows/delete params 序列化不会失败");
+        let params = serde_json::to_value(&params).expect("workflows/delete params 序列化不会失败");
         let response = process
             .client()
             .request(WORKFLOWS_DELETE_METHOD, Some(params))
@@ -151,7 +158,9 @@ impl AgentControlClient {
         target: &AgentWorkspaceTarget,
         name: &str,
     ) -> Result<WorkflowsMoveResult, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = WorkflowsMoveParams {
             workspace: session_workspace_ref(target),
             name: name.to_string(),

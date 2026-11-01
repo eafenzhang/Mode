@@ -25,10 +25,12 @@ impl AgentControlClient {
         let params = WorkspacePresentationParams {
             workspace: session_workspace_ref(target),
         };
-        let params =
-            serde_json::to_value(&params).expect("workspace/readPresentation params 序列化不会失败");
+        let params = serde_json::to_value(&params)
+            .expect("workspace/readPresentation params 序列化不会失败");
         for attempt in 0..2 {
-            let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+            let process = self
+                .client_for(target, RuntimePolicy::StartIfNeeded)
+                .await?;
             match process
                 .client()
                 .request(WORKSPACE_READ_PRESENTATION_METHOD, Some(params.clone()))
@@ -60,7 +62,9 @@ impl AgentControlClient {
         &self,
         target: &AgentWorkspaceTarget,
     ) -> Result<Vec<ChildProcess>, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let response = process
             .client()
             .request(PROCESS_CHILD_PROCESSES_METHOD, None)

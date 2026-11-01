@@ -25,7 +25,9 @@ impl AgentControlClient {
         target: &AgentWorkspaceTarget,
         options: ListMcpServersOptions,
     ) -> Result<McpListResult, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = McpListParams {
             workspace: session_workspace_ref(target),
             mcp_servers: options.mcp_servers,

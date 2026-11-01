@@ -45,8 +45,7 @@ impl AgentControlClient {
             limit: options.limit,
             session_ids: options.session_ids,
         };
-        let params =
-            serde_json::to_value(&params).expect("session/list params 序列化不会失败");
+        let params = serde_json::to_value(&params).expect("session/list params 序列化不会失败");
         let response = process
             .client()
             .request(SESSION_LIST_METHOD, Some(params))
@@ -64,14 +63,15 @@ impl AgentControlClient {
         after_seq: Option<u64>,
         limit: Option<u64>,
     ) -> Result<Vec<SessionEvent>, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = SessionEventsParams {
             session_id: session_id.to_string(),
             after_seq,
             limit,
         };
-        let params =
-            serde_json::to_value(&params).expect("session/events params 序列化不会失败");
+        let params = serde_json::to_value(&params).expect("session/events params 序列化不会失败");
         let response = process
             .client()
             .request(SESSION_EVENTS_METHOD, Some(params))
@@ -87,7 +87,9 @@ impl AgentControlClient {
         ended_cursor: Option<&str>,
         ended_limit: Option<u64>,
     ) -> Result<SessionSubagentsResult, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = SessionSubagentsParams {
             session_id: session_id.to_string(),
             ended_cursor: ended_cursor.map(str::to_string),
@@ -110,14 +112,15 @@ impl AgentControlClient {
         after_message_id: Option<&str>,
         limit: Option<u64>,
     ) -> Result<Vec<MessageWithParts>, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = SessionMessagesParams {
             session_id: session_id.to_string(),
             after_message_id: after_message_id.map(str::to_string),
             limit,
         };
-        let params =
-            serde_json::to_value(&params).expect("session/messages params 序列化不会失败");
+        let params = serde_json::to_value(&params).expect("session/messages params 序列化不会失败");
         let response = process
             .client()
             .request(SESSION_MESSAGES_METHOD, Some(params))
@@ -137,15 +140,16 @@ impl AgentControlClient {
         message_limit: Option<u64>,
         after_seq: Option<u64>,
     ) -> Result<SessionStateSnapshot, ControlError> {
-        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
         let params = SessionReadParams {
             session_id: session_id.to_string(),
             delivery_kind,
             message_limit,
             after_seq,
         };
-        let params =
-            serde_json::to_value(&params).expect("session/read params 序列化不会失败");
+        let params = serde_json::to_value(&params).expect("session/read params 序列化不会失败");
         let response = process
             .client()
             .request(SESSION_READ_METHOD, Some(params))
@@ -163,8 +167,7 @@ impl AgentControlClient {
         let params = SessionDebugParams {
             session_id: session_id.to_string(),
         };
-        let params =
-            serde_json::to_value(&params).expect("session/debug params 序列化不会失败");
+        let params = serde_json::to_value(&params).expect("session/debug params 序列化不会失败");
         let response = process
             .client()
             .request(SESSION_DEBUG_METHOD, Some(params))
