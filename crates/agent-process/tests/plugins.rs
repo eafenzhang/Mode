@@ -287,3 +287,89 @@ async fn plugin_write_rejects_unknown_result_fields() {
     };
     assert!(matches!(error, ControlError::InvalidResult(_)), "{error:?}");
 }
+
+#[tokio::test]
+async fn plugin_reference_catalog_prefers_category_and_falls_back_on_method_not_found() {
+    let log = FrameLog::new("catalog");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+    let catalog = client
+        .plugin_reference_catalog(&AgentWorkspaceTarget::new("/ws/demo"), Some("sess-1"))
+        .await
+        .unwrap();
+    assert_eq!(
+        catalog.authority,
+        agent_protocol::plugin::PluginReferenceAuthority::Workspace
+    );
+    assert_eq!(catalog.plugins[0].category.as_deref(), Some("productivity"));
+    assert_eq!(catalog.plugins[0].subagent_names, Vec::<String>::new());
+    assert_eq!(
+        log.frame_params("plugins/referenceCatalogWithCategory"),
+        Some(json!({
+            "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+            "sessionId": "sess-1"
+        }))
+    );
+
+    let fallback_log = FrameLog::new("catalog-fallback");
+    let fallback_client = control("old-plugin-agent", &fallback_log, spawns);
+    let fallback = fallback_client
+        .plugin_reference_catalog(&AgentWorkspaceTarget::new("/ws/demo"), None)
+        .await
+        .unwrap();
+    assert!(fallback.plugins[0].category.is_none());
+    assert!(fallback_log
+        .frame_params("plugins/referenceCatalog")
+        .is_some());
+}
+
+#[tokio::test]
+async fn suggested_reference_requires_trusted_identity_for_actionable_status() {
+    let log = FrameLog::new("suggested");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+    let ready = client
+        .resolve_suggested_plugin_reference(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            "suggested-1",
+            "op-1",
+            agent_protocol::plugin::PluginDeliveryKind::DesktopContinuous,
+            agent_protocol::plugin::PluginDeliveryKind::WebRemoteReplayable,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        ready.status,
+        agent_protocol::plugin::PluginSuggestedReferenceStatus::Ready
+    );
+    assert_eq!(
+        log.frame_params("plugins/resolveSuggestedReference"),
+        Some(json!({
+            "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+            "stableId": "suggested-1",
+            "operationId": "op-1",
+            "clientMode": "desktop-continuous",
+            "deliveryKind": "web-remote-replayable"
+        }))
+    );
+
+    let untrusted = control(
+        "suggested-reference-untrusted",
+        &FrameLog::new("suggested-bad"),
+        spawns,
+    );
+    let error = match untrusted
+        .resolve_suggested_plugin_reference(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            "suggested-1",
+            "op-1",
+            agent_protocol::plugin::PluginDeliveryKind::DesktopContinuous,
+            agent_protocol::plugin::PluginDeliveryKind::DesktopContinuous,
+        )
+        .await
+    {
+        Ok(_) => panic!("缺可信身份必须拒绝"),
+        Err(error) => error,
+    };
+    assert!(matches!(error, ControlError::InvalidResult(_)), "{error:?}");
+}

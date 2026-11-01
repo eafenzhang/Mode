@@ -1179,6 +1179,53 @@ fn main() {
                 snapshot["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": snapshot })
+        } else if method == "plugins/referenceCatalogWithCategory"
+            || method == "plugins/referenceCatalog"
+        {
+            if mode == "old-plugin-agent" && method == "plugins/referenceCatalogWithCategory" {
+                json!({
+                    "id": id,
+                    "error": { "code": -32601, "message": "Method not found" }
+                })
+            } else {
+                let entry = |with_category: bool| {
+                    let mut entry = json!({
+                        "pluginId": "demo@market",
+                        "name": "demo",
+                        "marketplace": "market",
+                        "enabled": true,
+                        "conflictingPluginIds": [],
+                        "skillQualifiedNames": ["demo:skill"],
+                        "mcpServerNames": [],
+                        "subagentNames": []
+                    });
+                    if with_category {
+                        entry["category"] = json!("productivity");
+                    }
+                    entry
+                };
+                let mut result = json!({
+                    "authority": "workspace",
+                    "plugins": [entry(method == "plugins/referenceCatalogWithCategory")]
+                });
+                if mode == "bad-plugin-catalog" {
+                    result["unexpected"] = json!(true);
+                }
+                json!({ "id": id, "result": result })
+            }
+        } else if method == "plugins/resolveSuggestedReference" {
+            let mut result = json!({
+                "stableId": "suggested-1",
+                "status": "ready",
+                "marketplace": "market",
+                "pluginName": "demo",
+                "sourceTrust": "official",
+                "diagnostics": []
+            });
+            if mode == "suggested-reference-untrusted" {
+                result.as_object_mut().unwrap().remove("sourceTrust");
+            }
+            json!({ "id": id, "result": result })
         } else if method == "plugins/setEnabled" {
             let mut result = json!({
                 "plugin": {

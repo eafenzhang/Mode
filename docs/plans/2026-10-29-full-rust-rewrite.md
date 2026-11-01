@@ -287,7 +287,10 @@ rejected/stale/failed 映射 `CommandRejected`）；`commandId`/`clientId` 目�
 capability）（5 条 + 双端夹具）。**插件写侧已落（2026-11-01）**：
 `plugins/setEnabled` / `restoreBuiltin` / `configure` / `resetConfig` / `validate`
 五组 params/result 严格镜像（configure 的任意 JSON options、validate 的兼容性分组），
-2 条控制面测试（含未知字段拒绝）。
+2 条控制面测试（含未知字段拒绝）。**引用目录与建议引用已落（2026-11-01）**：
+`referenceCatalogWithCategory → referenceCatalog` 的 `-32601` 回退、identifiers-only
+条目（subagentNames 缺省兼容）、`resolveSuggestedReference` 的可信身份 superRefine；
+2 条控制面测试。
 **v4 会话订阅已落**：`v4/conversation/subscribe` 参数/ACK 严格镜像，wire frame
 （complete/fragment + crc32）按 subscriptionId 过滤后流入；会话帧内部先按原始 JSON
 透传，随后由 `conversationDelta` 收紧（2 条 + 双端夹具）。**v4 握手已落**：host hello（能力位/profile 校验）与

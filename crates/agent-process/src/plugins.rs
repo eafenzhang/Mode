@@ -7,15 +7,19 @@
 //! workspace runtime（与 mcp/list 同一取舍），超时使用协议默认值。
 
 use agent_protocol::plugin::{
-    PluginScope, PluginsConfigureParams, PluginsConfigureResult, PluginsDescribeParams,
-    PluginsDescribeResult, PluginsListParams, PluginsListResult, PluginsOverviewParams,
-    PluginsOverviewResult, PluginsResetConfigParams, PluginsRestoreBuiltinParams,
+    PluginDeliveryKind, PluginReferenceCatalogParams, PluginScope, PluginsConfigureParams,
+    PluginsConfigureResult, PluginsDescribeParams, PluginsDescribeResult, PluginsListParams,
+    PluginsListResult, PluginsOverviewParams, PluginsOverviewResult, PluginsReferenceCatalogResult,
+    PluginsResetConfigParams, PluginsResolveSuggestedReferenceParams,
+    PluginsResolveSuggestedReferenceResult, PluginsRestoreBuiltinParams,
     PluginsRestoreBuiltinResult, PluginsSetEnabledParams, PluginsSetEnabledResult,
     PluginsValidateParams, PluginsValidateResult, PLUGINS_CONFIGURE_METHOD,
     PLUGINS_DESCRIBE_METHOD, PLUGINS_LIST_METHOD, PLUGINS_OVERVIEW_METHOD,
-    PLUGINS_RESET_CONFIG_METHOD, PLUGINS_RESTORE_BUILTIN_METHOD, PLUGINS_SET_ENABLED_METHOD,
-    PLUGINS_VALIDATE_METHOD,
+    PLUGINS_REFERENCE_CATALOG_METHOD, PLUGINS_REFERENCE_CATALOG_WITH_CATEGORY_METHOD,
+    PLUGINS_RESET_CONFIG_METHOD, PLUGINS_RESOLVE_SUGGESTED_REFERENCE_METHOD,
+    PLUGINS_RESTORE_BUILTIN_METHOD, PLUGINS_SET_ENABLED_METHOD, PLUGINS_VALIDATE_METHOD,
 };
+use mode_protocol_client::ClientError;
 
 use crate::control::{AgentControlClient, AgentWorkspaceTarget, ControlError, RuntimePolicy};
 use crate::session_read::session_workspace_ref;
@@ -210,6 +214,72 @@ impl AgentControlClient {
             "plugins/validate",
         )
         .await
+    }
+
+    /// 对话引用 catalog：优先 `referenceCatalogWithCategory`，旧 Agent `-32601`
+    /// 时回退到 `referenceCatalog`（两者 params/result 同形）。
+    pub async fn plugin_reference_catalog(
+        &self,
+        target: &AgentWorkspaceTarget,
+        session_id: Option<&str>,
+    ) -> Result<PluginsReferenceCatalogResult, ControlError> {
+        let params = PluginReferenceCatalogParams {
+            workspace: session_workspace_ref(target),
+            session_id: session_id.map(str::to_string),
+        };
+        let with_category: Result<PluginsReferenceCatalogResult, ControlError> =
+            request_plugin_policy(
+                self,
+                target,
+                PLUGINS_REFERENCE_CATALOG_WITH_CATEGORY_METHOD,
+                &params,
+                "plugins/referenceCatalogWithCategory",
+            )
+            .await;
+        match with_category {
+            Err(ControlError::Client(ClientError::Server { code: -32601, .. })) => {
+                request_plugin_policy(
+                    self,
+                    target,
+                    PLUGINS_REFERENCE_CATALOG_METHOD,
+                    &params,
+                    "plugins/referenceCatalog",
+                )
+                .await
+            }
+            other => other,
+        }
+    }
+
+    /// `plugins/resolveSuggestedReference`：可信安装身份解析；结果再做
+    /// actionable 状态的 `superRefine`。
+    pub async fn resolve_suggested_plugin_reference(
+        &self,
+        target: &AgentWorkspaceTarget,
+        stable_id: &str,
+        operation_id: &str,
+        client_mode: PluginDeliveryKind,
+        delivery_kind: PluginDeliveryKind,
+    ) -> Result<PluginsResolveSuggestedReferenceResult, ControlError> {
+        let params = PluginsResolveSuggestedReferenceParams {
+            workspace: session_workspace_ref(target),
+            stable_id: stable_id.to_string(),
+            operation_id: operation_id.to_string(),
+            client_mode,
+            delivery_kind,
+        };
+        let result: PluginsResolveSuggestedReferenceResult = request_plugin_policy(
+            self,
+            target,
+            PLUGINS_RESOLVE_SUGGESTED_REFERENCE_METHOD,
+            &params,
+            "plugins/resolveSuggestedReference",
+        )
+        .await?;
+        result
+            .validate()
+            .map_err(|message| ControlError::InvalidResult(message.to_string()))?;
+        Ok(result)
     }
 }
 

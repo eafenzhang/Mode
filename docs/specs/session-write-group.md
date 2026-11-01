@@ -206,6 +206,22 @@ skillRootCount/commandRootCount/mcpServerNames/rootPath` 等必填项，以及
 - `validate` 的 name/marketplace/source 至少给一个由调用方保证，schema 不强制。
 - 测试：`crates/agent-process/tests/plugins.rs`（新增 2 条，含未知字段拒绝）。
 
+### 2h-2. 插件引用目录与建议引用（2026-11-01）
+
+- `plugin_reference_catalog(target, sessionId?)`：先请求
+  `plugins/referenceCatalogWithCategory`，Agent 返回 `-32601` 时回退到
+  `plugins/referenceCatalog`；两者 params/result 同形
+  （`{workspace, sessionId?}` → `{authority: session|workspace, plugins[]}`）。
+  条目是 identifiers-only：`pluginId/name/marketplace/enabled/conflictingPluginIds/
+skillQualifiedNames/mcpServerNames/subagentNames`，可选 `category/icon/displayName*/description*`；
+  `subagentNames` 缺省按空数组兼容旧 Host。
+- `resolve_suggested_plugin_reference(...)`：`{workspace, stableId, operationId,
+clientMode, deliveryKind}` → `{stableId, status(ready|disabled|missing|conflict|unavailable),
+marketplace?, pluginName?, sourceTrust?("official"), icon?, listing?, diagnostics[]}`；
+  `ready/disabled/missing` 必须带 marketplace + pluginName + `sourceTrust: "official"`，
+  Rust 在解析后执行同款 `superRefine`。
+- 测试：`tests/plugins.rs` 新增 2 条（回退路径、可信身份校验）。
+
 ## 2i. v4 会话订阅：`v4/conversation/subscribe` + wire frame
 
 `subscribe_conversation_v4(target, params)`：

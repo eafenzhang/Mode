@@ -523,3 +523,143 @@ pub struct PluginsValidateResult {
     pub diagnostics: Vec<PluginDiagnostic>,
     pub compatibility: PluginCompatibility,
 }
+
+// ── 对话引用 catalog 与建议引用解析 ──
+
+pub const PLUGINS_REFERENCE_CATALOG_METHOD: &str = "plugins/referenceCatalog";
+pub const PLUGINS_REFERENCE_CATALOG_WITH_CATEGORY_METHOD: &str =
+    "plugins/referenceCatalogWithCategory";
+pub const PLUGINS_RESOLVE_SUGGESTED_REFERENCE_METHOD: &str = "plugins/resolveSuggestedReference";
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginReferenceCatalogParams {
+    pub workspace: SessionWorkspaceRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+/// `modePluginReferenceCatalogEntrySchema`：identifiers-only + 展示字段。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginReferenceCatalogEntry {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    pub plugin_id: String,
+    pub name: String,
+    pub marketplace: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name_i18n: Option<BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description_i18n: Option<BTreeMap<String, String>>,
+    pub enabled: bool,
+    pub conflicting_plugin_ids: Vec<String>,
+    pub skill_qualified_names: Vec<String>,
+    pub mcp_server_names: Vec<String>,
+    /// 旧 Host 不投影该字段时按空数组兼容。
+    #[serde(default)]
+    pub subagent_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PluginReferenceAuthority {
+    #[serde(rename = "session")]
+    Session,
+    #[serde(rename = "workspace")]
+    Workspace,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsReferenceCatalogResult {
+    pub authority: PluginReferenceAuthority,
+    pub plugins: Vec<PluginReferenceCatalogEntry>,
+}
+
+/// `modePluginSuggestedReferenceStatusSchema`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PluginSuggestedReferenceStatus {
+    #[serde(rename = "ready")]
+    Ready,
+    #[serde(rename = "disabled")]
+    Disabled,
+    #[serde(rename = "missing")]
+    Missing,
+    #[serde(rename = "conflict")]
+    Conflict,
+    #[serde(rename = "unavailable")]
+    Unavailable,
+}
+
+/// `modeDeliveryKindSchema`（不是 v4 的 wire delivery kind）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PluginDeliveryKind {
+    #[serde(rename = "desktop-continuous")]
+    DesktopContinuous,
+    #[serde(rename = "web-remote-replayable")]
+    WebRemoteReplayable,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsResolveSuggestedReferenceParams {
+    pub workspace: SessionWorkspaceRef,
+    pub stable_id: String,
+    pub operation_id: String,
+    pub client_mode: PluginDeliveryKind,
+    pub delivery_kind: PluginDeliveryKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SourceTrustOfficial {
+    #[serde(rename = "official")]
+    Official,
+}
+
+/// `modePluginsResolveSuggestedReferenceResultSchema`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginsResolveSuggestedReferenceResult {
+    pub stable_id: String,
+    pub status: PluginSuggestedReferenceStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marketplace: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_trust: Option<SourceTrustOfficial>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub listing: Option<PluginStoreListing>,
+    pub diagnostics: Vec<PluginDiagnostic>,
+}
+
+impl PluginsResolveSuggestedReferenceResult {
+    /// 协议 `superRefine`：actionable 状态必须带可信安装身份。
+    pub fn validate(&self) -> Result<(), String> {
+        if !matches!(
+            self.status,
+            PluginSuggestedReferenceStatus::Ready
+                | PluginSuggestedReferenceStatus::Disabled
+                | PluginSuggestedReferenceStatus::Missing
+        ) {
+            return Ok(());
+        }
+        if self.marketplace.as_deref().is_none_or(str::is_empty)
+            || self.plugin_name.as_deref().is_none_or(str::is_empty)
+            || self.source_trust != Some(SourceTrustOfficial::Official)
+        {
+            return Err(
+                "actionable suggested Plugin results require trusted install identity".to_string(),
+            );
+        }
+        Ok(())
+    }
+}
