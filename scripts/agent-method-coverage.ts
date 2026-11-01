@@ -9,8 +9,8 @@
  *   - note?: 人工说明（`not-needed` / `blocked` 必须写）
  *
  * 用法：
- *   node scripts/agent-method-coverage.mjs --write   # 重新检测 rust 覆盖并保留人工状态
- *   node scripts/agent-method-coverage.mjs --check   # CI/提交前校验
+ *   node scripts/agent-method-coverage.ts --write   # 重新检测 rust 覆盖并保留人工状态
+ *   node scripts/agent-method-coverage.ts --check   # CI/提交前校验
  *
  * 校验项：
  *   1. 清单与 interface 方法集合完全一致（双向，防止漏记与陈旧条目）；
@@ -46,11 +46,11 @@ function parseInterfaceMethods(source) {
 }
 
 function toSnakeCase(name) {
+  // 只在小写/数字 → 大写、连续大写 → 词首大写处插下划线；
+  // `V4` 这类字母+数字后缀保持连写（attachmentBeginV4 → attachment_begin_v4）。
   return name
     .replace(/([a-z0-9])([A-Z])/gu, "$1_$2")
     .replace(/([A-Z]+)([A-Z][a-z])/gu, "$1_$2")
-    .replace(/([a-zA-Z])([0-9])/gu, "$1_$2")
-    .replace(/([0-9])([a-zA-Z])/gu, "$1_$2")
     .toLowerCase();
 }
 
@@ -67,10 +67,13 @@ function readRustSources() {
   return files.map((path) => readFileSync(path, "utf8")).join("\n");
 }
 
+function fnExists(rustSource, fnName) {
+  return new RegExp(`fn\\s+${fnName}\\s*[<(]`, "u").test(rustSource);
+}
+
 function detectRustFn(rustSource, method) {
   const snake = toSnakeCase(method);
-  const pattern = new RegExp(`fn\\s+${snake}\\s*[<(]`, "u");
-  return pattern.test(rustSource) ? snake : null;
+  return fnExists(rustSource, snake) ? snake : null;
 }
 
 function loadManifest() {
@@ -85,7 +88,7 @@ function writeManifest(manifest) {
 function main() {
   const mode = process.argv[2];
   if (mode !== "--write" && mode !== "--check") {
-    console.error("用法：node scripts/agent-method-coverage.mjs --write|--check");
+    console.error("用法：node scripts/agent-method-coverage.ts --write|--check");
     process.exit(2);
   }
 
@@ -97,7 +100,13 @@ function main() {
   if (mode === "--write") {
     const next = methods.map((method) => {
       const existing = byMethod.get(method);
-      const rustFn = detectRustFn(rustSource, method);
+      // 人工声明的 rust 映射优先（方法名与 Rust fn 名不同，如 V4 查询），
+      // 但仍要验证函数真实存在；失效则退回自动检测/todo。
+      const declared =
+        existing?.status === "rust" && existing.rust && fnExists(rustSource, existing.rust)
+          ? existing.rust
+          : null;
+      const rustFn = declared ?? detectRustFn(rustSource, method);
       const status =
         existing && existing.status !== "rust" && existing.status !== "todo"
           ? existing.status

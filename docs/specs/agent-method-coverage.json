@@ -6,31 +6,38 @@
   },
   {
     "method": "attachmentAbortV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "attachment_abort_v4"
   },
   {
     "method": "attachmentBeginV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "attachment_begin_v4"
   },
   {
     "method": "attachmentChunkV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "attachment_chunk_v4"
   },
   {
     "method": "attachmentCommitV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "attachment_commit_v4"
   },
   {
     "method": "attachmentPreviewSourceV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "attachment_preview_source_v4"
   },
   {
     "method": "attachmentReadV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "attachment_read_v4"
   },
   {
     "method": "backgroundBashOutputV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "background_bash_output_v4"
   },
   {
     "method": "cancelPluginOperation",
@@ -44,7 +51,8 @@
   },
   {
     "method": "collectLocalRuntimeChildProcesses",
-    "status": "todo"
+    "status": "rust",
+    "rust": "list_child_processes"
   },
   {
     "method": "compactSession",
@@ -58,55 +66,68 @@
   },
   {
     "method": "conversationAttachmentReadV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_attachment_read_v4"
   },
   {
     "method": "conversationAttachmentStatV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_attachment_stat_v4"
   },
   {
     "method": "conversationFileChangesV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_file_changes_v4"
   },
   {
     "method": "conversationFileRewindPreviewV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_file_rewind_preview_v4"
   },
   {
     "method": "conversationPlansV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_plans_v4"
   },
   {
     "method": "conversationRowsRangeV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_rows_range_v4"
   },
   {
     "method": "conversationWorkflowRunArtifactDataV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_workflow_run_artifact_data_v4"
   },
   {
     "method": "conversationWorkflowRunArtifactReadV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_workflow_run_artifact_read_v4"
   },
   {
     "method": "conversationWorkflowRunArtifactsV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_workflow_run_artifacts_v4"
   },
   {
     "method": "conversationWorkflowRunEventsV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_workflow_run_events_v4"
   },
   {
     "method": "conversationWorkflowRunNodeResultV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_workflow_run_node_result_v4"
   },
   {
     "method": "conversationWorkflowRunsV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_workflow_runs_v4"
   },
   {
     "method": "conversationWorkflowRunWorkspaceV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_workflow_run_workspace_v4"
   },
   {
     "method": "createAutomation",
@@ -147,15 +168,18 @@
   },
   {
     "method": "generateWorkspaceText",
-    "status": "todo"
+    "status": "blocked",
+    "note": "依赖真实模型/网络与 provider 凭据，降级语义待批准（spec §6 第 2 项）"
   },
   {
     "method": "getAppUsageStats",
-    "status": "todo"
+    "status": "rust",
+    "rust": "usage_stats_v4"
   },
   {
     "method": "getPluginReferenceCatalog",
-    "status": "todo"
+    "status": "rust",
+    "rust": "plugin_reference_catalog"
   },
   {
     "method": "getPluginsOverview",
@@ -169,19 +193,23 @@
   },
   {
     "method": "getSkillReferenceCatalog",
-    "status": "todo"
+    "status": "rust",
+    "rust": "skill_reference_catalog"
   },
   {
     "method": "getStorageStartupState",
-    "status": "todo"
+    "status": "rust",
+    "rust": "storage_startup_state"
   },
   {
     "method": "getTaskTokenUsage",
-    "status": "todo"
+    "status": "rust",
+    "rust": "conversation_usage_v4"
   },
   {
     "method": "getWorkspaceRuntimeIdentity",
-    "status": "todo"
+    "status": "rust",
+    "rust": "runtime_identity"
   },
   {
     "method": "goalSession",
@@ -195,11 +223,13 @@
   },
   {
     "method": "hasActiveCuaOperationTurn",
-    "status": "todo"
+    "status": "blocked",
+    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
   },
   {
     "method": "helloConversationV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "build_host_hello"
   },
   {
     "method": "initialize",
@@ -207,7 +237,8 @@
   },
   {
     "method": "initializeConversationV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "validate_client_hello"
   },
   {
     "method": "installPlugin",
@@ -263,63 +294,78 @@
   },
   {
     "method": "onAgentRuntimeRestarted",
-    "status": "todo"
+    "status": "blocked",
+    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
   },
   {
     "method": "onDynamicConversationFrame",
-    "status": "todo"
+    "status": "rust",
+    "rust": "subscribe_conversation_v4"
   },
   {
     "method": "onDynamicConversationTelemetryFact",
-    "status": "todo"
+    "status": "blocked",
+    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
   },
   {
     "method": "onDynamicCuaPermissionObservation",
-    "status": "todo"
+    "status": "blocked",
+    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
   },
   {
     "method": "onDynamicLocalTtftFacts",
-    "status": "todo"
+    "status": "blocked",
+    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
   },
   {
     "method": "onDynamicMcpResourceSamples",
-    "status": "todo"
+    "status": "blocked",
+    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
   },
   {
     "method": "onDynamicMcpTelemetry",
-    "status": "todo"
+    "status": "blocked",
+    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
   },
   {
     "method": "onDynamicPluginOperationProgress",
-    "status": "todo"
+    "status": "blocked",
+    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
   },
   {
     "method": "onDynamicProcessResourceSample",
-    "status": "todo"
+    "status": "blocked",
+    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
   },
   {
     "method": "onDynamicSessionEvent",
-    "status": "todo"
+    "status": "rust",
+    "rust": "subscribe_session"
   },
   {
     "method": "onDynamicSessionRuntimePreferencesRequest",
-    "status": "todo"
+    "status": "blocked",
+    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
   },
   {
     "method": "onDynamicSessionsIndexFrame",
-    "status": "todo"
+    "status": "rust",
+    "rust": "subscribe_sessions_index_v4"
   },
   {
     "method": "onDynamicStorageStartupState",
-    "status": "todo"
+    "status": "rust",
+    "rust": "subscribe_storage_startup"
   },
   {
     "method": "onDynamicToolExecResource",
-    "status": "todo"
+    "status": "blocked",
+    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
   },
   {
     "method": "onDynamicWorkspaceConfigFrame",
-    "status": "todo"
+    "status": "rust",
+    "rust": "subscribe_workspace_config_v4"
   },
   {
     "method": "prepareStorage",
@@ -328,7 +374,8 @@
   },
   {
     "method": "queryConversationCommandsV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "commands_query_v4"
   },
   {
     "method": "readSession",
@@ -372,7 +419,8 @@
   },
   {
     "method": "respondSessionRuntimePreferences",
-    "status": "todo"
+    "status": "blocked",
+    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
   },
   {
     "method": "restartAutomation",
@@ -389,15 +437,18 @@
   },
   {
     "method": "resyncConversationV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "resync_conversation_v4"
   },
   {
     "method": "resyncSessionsIndexV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "resync_conversation_v4"
   },
   {
     "method": "resyncWorkspaceConfigV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "resync_conversation_v4"
   },
   {
     "method": "runAutomationNow",
@@ -405,7 +456,8 @@
   },
   {
     "method": "sendConversationCommandV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "resolve_interaction_v4"
   },
   {
     "method": "sendPrompt",
@@ -418,15 +470,18 @@
   },
   {
     "method": "setConnectionFlowStateV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "set_connection_flow_state_v4"
   },
   {
     "method": "setMode",
-    "status": "todo"
+    "status": "rust",
+    "rust": "set_session_mode"
   },
   {
     "method": "setModel",
-    "status": "todo"
+    "status": "rust",
+    "rust": "set_session_model"
   },
   {
     "method": "setPluginEnabled",
@@ -435,19 +490,23 @@
   },
   {
     "method": "setThoughtLevel",
-    "status": "todo"
+    "status": "rust",
+    "rust": "set_session_thought_level"
   },
   {
     "method": "subscribeConversationV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "subscribe_conversation_v4"
   },
   {
     "method": "subscribeSessionsIndexV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "subscribe_sessions_index_v4"
   },
   {
     "method": "subscribeWorkspaceConfigV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "subscribe_workspace_config_v4"
   },
   {
     "method": "syncAppRuntimePreferences",
@@ -455,7 +514,8 @@
   },
   {
     "method": "testModelConnectivity",
-    "status": "todo"
+    "status": "blocked",
+    "note": "依赖真实模型/网络与 provider 凭据，降级语义待批准（spec §6 第 2 项）"
   },
   {
     "method": "uninstallPlugin",
@@ -464,15 +524,18 @@
   },
   {
     "method": "unsubscribeConversationV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "unsubscribe_conversation_v4"
   },
   {
     "method": "unsubscribeSessionsIndexV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "unsubscribe_conversation_v4"
   },
   {
     "method": "unsubscribeWorkspaceConfigV4",
-    "status": "todo"
+    "status": "rust",
+    "rust": "unsubscribe_conversation_v4"
   },
   {
     "method": "updateAutomation",

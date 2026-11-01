@@ -85,7 +85,7 @@ sequenceDiagram
 
 门禁：`blocked` 为空，且 `rust` 覆盖所有 `not-needed` 之外的调用点。
 
-**S1 工具已落（2026-11-01）**：`scripts/agent-method-coverage.mjs` +
+**S1 工具已落（2026-11-01）**：`scripts/agent-method-coverage.ts` +
 `docs/specs/agent-method-coverage.json`。
 
 - `pnpm agent:coverage`（check）：清单与 interface 方法**双向**一致；`status=rust`
@@ -94,8 +94,12 @@ sequenceDiagram
 - `pnpm agent:coverage:write`：重新检测 Rust 覆盖，保留人工标注的
   `not-needed` / `blocked` 与 note。
 - 已接入 `verify:pre-push` 与 release verify。
-- 基线（2026-11-01）：115 个方法，`rust=39`、`todo=76`。`todo` 需要逐项归类；
-  归类完成后才能把本检查升级为「`todo` 必须为 0」的切换门禁。
+- `pnpm agent:callsites` 生成 `docs/specs/agent-method-callsites.md`（Renderer/Desktop/
+  Services/CLI 的调用点计数与最多 3 个例子）；计数是启发式，只作归类证据。
+- 基线（2026-11-01）：115 个方法，`rust=88`、`blocked=14`、`todo=13`、`not-needed=0`。
+  `blocked` 为宿主事件/反向请求与真实模型网络方法（note 已写明）；
+  剩余 `todo` 集中在 automation 域、`initialize`/`resumeSession` 与
+  `syncAppRuntimePreferences`。归类完成后才能把检查升级为「`todo` 必须为 0」的切换门禁。
 
 ### 4.2 健康状态面
 
