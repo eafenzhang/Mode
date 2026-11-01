@@ -19,6 +19,7 @@ use tokio::sync::{broadcast, Mutex};
 use tokio::task::JoinHandle;
 
 mod control;
+mod initialize;
 mod mcp;
 mod plugins;
 mod provider_sync;
@@ -40,6 +41,9 @@ pub use control::{
     build_grant_params, build_workspace_ref, AgentControlClient, AgentWorkspaceTarget,
     ControlError, GrantTrustReasonCode, GrantTrustResult, RuntimePolicy,
     MODE_AGENT_RUNTIME_UNAVAILABLE_CODE, WORKSPACE_HOOK_TRUST_GRANT_METHOD,
+};
+pub use initialize::{
+    AgentInitializeResult, MODE_PROTOCOL_NAME, MODE_PROTOCOL_VERSION,
 };
 pub use mcp::ListMcpServersOptions;
 pub use provider_sync::{

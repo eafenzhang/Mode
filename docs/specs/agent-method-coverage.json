@@ -233,7 +233,8 @@
   },
   {
     "method": "initialize",
-    "status": "todo"
+    "status": "rust",
+    "rust": "initialize"
   },
   {
     "method": "initializeConversationV4",

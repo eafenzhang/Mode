@@ -129,7 +129,7 @@ cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd�
 不会为了查询而拉起 Agent：
 
 - `runtime_identity(target)`：返回 `RuntimeIdentity { generation, identity, processId,
-  workspaceKey }`；`identity = ${workspaceKey}:${generation}:${pid}`（TS 还有 lane 维度，Rust
+workspaceKey }`；`identity = ${workspaceKey}:${generation}:${pid}`（TS 还有 lane 维度，Rust
   当前没有 lane）。没有活进程返回 `None`，频道层负责映射
   `Mode agent runtime identity is unavailable.`。
 - `dispose_workspace(target, grace)`：关闭并移除该 workspace 的 Agent（`disposeWorkspace`）。
@@ -208,6 +208,12 @@ JSON 透传（待独立切片建模）。
 v4 握手：`build_host_hello(connectionId)`（能力位与 TS 一致、profile 校验）与
 `validate_client_hello(value)`（严格解析 clientHello）。
 
+启动预热：`initialize(target)` 拉起/复用 Agent 并返回
+`{available, workspaceKey, protocolName, protocolVersion, transportKind, reason?, reasonCode?}`；
+失败折叠为 `available=false`（不抛错），与 TS 首屏可恢复语义一致。差异：TS 的 `getClient`
+还会等 provider/model readiness，本层不做。健康快照见
+`docs/specs/host-ownership-switch.md` §4.2。
+
 线格式、三态 nullable 字段与验收见 `docs/specs/session-read-group.md`。
 
 **未做**：频道注册与所有权切换（Host 仍是 Agent 所有者）；会话其余读/写方法与插件/
@@ -215,13 +221,13 @@ automation/workflow 等按方法组迁移。
 
 ## 与 TS 的差异
 
-| 差异 | 说明 |
-| --- | --- |
-| stderr 排空窗口 | TS 在关闭时等待 stderr 排空（1.8–3.25s）；这里关闭后直接 abort stderr 任务 |
-| 进程树快照 | TS 在发 EOF 前保存树成员以便找回 detached 后代；这里依赖 `taskkill /T` 与进程组 |
-| 强制终止顺序 | TS 先 `SIGTERM`/关闭再 `taskkill`；这里优雅等待后直接整树强杀 |
-| 进程组探测 | 未实现 `ownedProcessGroupId` 的存活校验 |
-| 日志 | 本 crate 不落日志；stderr 由调用方消费 |
+| 差异            | 说明                                                                            |
+| --------------- | ------------------------------------------------------------------------------- |
+| stderr 排空窗口 | TS 在关闭时等待 stderr 排空（1.8–3.25s）；这里关闭后直接 abort stderr 任务      |
+| 进程树快照      | TS 在发 EOF 前保存树成员以便找回 detached 后代；这里依赖 `taskkill /T` 与进程组 |
+| 强制终止顺序    | TS 先 `SIGTERM`/关闭再 `taskkill`；这里优雅等待后直接整树强杀                   |
+| 进程组探测      | 未实现 `ownedProcessGroupId` 的存活校验                                         |
+| 日志            | 本 crate 不落日志；stderr 由调用方消费                                          |
 
 ## 关闭语义
 

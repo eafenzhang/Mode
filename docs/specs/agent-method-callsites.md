@@ -52,7 +52,7 @@
 | `grantWorkspaceHookTrust` | rust | 3 | packages/services/src/mode-agent/modeAgentService.ts:3903<br>packages/services/src/node.ts:1794<br>packages/services/src/node.ts:2825 |
 | `hasActiveCuaOperationTurn` | blocked | 2 | packages/services/src/mode-agent/modeAgentService.ts:3447<br>packages/services/src/node.ts:2477 |
 | `helloConversationV4` | rust | 3 | packages/ui/src/v4/agentV4ConnectionHandshake.ts:27<br>packages/services/src/mode-agent/modeAgentConnectionScope.ts:668<br>packages/services/src/mode-agent/modeAgentService.ts:4999 |
-| `initialize` | todo | 30 | packages/ui/src/hooks/useCommands.ts:51<br>packages/ui/src/hooks/useOffPeakEligibility.ts:21<br>packages/ui/src/hooks/usePlugins.ts:49 |
+| `initialize` | rust | 30 | packages/ui/src/hooks/useCommands.ts:51<br>packages/ui/src/hooks/useOffPeakEligibility.ts:21<br>packages/ui/src/hooks/usePlugins.ts:49 |
 | `initializeConversationV4` | rust | 3 | packages/ui/src/v4/agentV4ConnectionHandshake.ts:35<br>packages/services/src/mode-agent/modeAgentConnectionScope.ts:673<br>packages/services/src/mode-agent/modeAgentService.ts:5022 |
 | `installPlugin` | rust | 13 | packages/ui/src/App.tsx:792<br>packages/ui/src/settings/PluginStorePage.tsx:303<br>packages/ui/src/settings/RemotePluginSyncDialog.tsx:896 |
 | `listAllAutomations` | todo | 2 | packages/ui/src/store/automationManagementStore.ts:144<br>packages/services/src/mode-agent/modeAgentService.ts:4354 |
