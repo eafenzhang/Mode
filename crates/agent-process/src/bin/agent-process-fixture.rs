@@ -1179,6 +1179,37 @@ fn main() {
                 snapshot["unexpected"] = json!(true);
             }
             json!({ "id": id, "result": snapshot })
+        } else if method == "workspace/updateInteractionPreferences" {
+            let mut result = json!({
+                "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+                "askUserQuestionAutoResolutionEnabled": true,
+                "snoozedInteractionCount": 2
+            });
+            if mode == "bad-workspace-policy" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "workspace/updateModelIoPreferences" {
+            let mut result = json!({
+                "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+                "fullRetentionEnabled": false,
+                "updatedSessionCount": 3
+            });
+            if mode == "bad-workspace-policy" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
+        } else if method == "workspace/updateOffPeakToolPolicy"
+            || method == "workspace/updateDynamicWorkflowPolicy"
+        {
+            let mut result = json!({
+                "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+                "enabled": true
+            });
+            if mode == "bad-workspace-policy" {
+                result["unexpected"] = json!(true);
+            }
+            json!({ "id": id, "result": result })
         } else if method == "session/compact" {
             let mut result = json!({
                 "response": "compacted",

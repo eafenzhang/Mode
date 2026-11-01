@@ -408,6 +408,22 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
   测试：`v4_workspace_config_frames`（2 条）+ `v4_transport` 的 workspace-config 用例
   （2 条）。
 
+## 2q. workspace 策略写路径
+
+`agent_protocol::workspace_policy` 镜像四组 workspace 级事实写入；它们不属于
+`IModeAgentService` 的方法计数，但切到 Rust owner 后 Host 仍需同步这些策略：
+
+| 协议方法                                 | params                                                            | result                                                                       |
+| ---------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `workspace/updateInteractionPreferences` | `{workspace, preferences:{askUserQuestionAutoResolutionEnabled}}` | `{workspace, askUserQuestionAutoResolutionEnabled, snoozedInteractionCount}` |
+| `workspace/updateModelIoPreferences`     | `{workspace, preferences:{fullRetentionEnabled}}`                 | `{workspace, fullRetentionEnabled, updatedSessionCount}`                     |
+| `workspace/updateOffPeakToolPolicy`      | `{workspace, enabled}`                                            | `{workspace, enabled}`                                                       |
+| `workspace/updateDynamicWorkflowPolicy`  | `{workspace, enabled}`                                            | `{workspace, enabled}`                                                       |
+
+- 全部 `.strict()`，`workspace` 复用 `session::WorkspaceRef`（含 identity/remote 可选字段）。
+- Off-Peak / 动态工作流在旧 CLI 可能 `method-not-found`：本层只做严格收发，降级由调用方决定。
+- 测试：`crates/agent-process/tests/workspace_policy.rs`（2 条，覆盖四种方法与未知字段拒绝）。
+
 ## 3. 验收
 
 1. 共享夹具覆盖六个请求与四个应答：`request/response-session-close`、

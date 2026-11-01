@@ -33,6 +33,7 @@ mod v4;
 mod v4_transport;
 mod workflows;
 mod workspace;
+mod workspace_policy;
 
 pub use control::{
     build_grant_params, build_workspace_ref, AgentControlClient, AgentWorkspaceTarget,

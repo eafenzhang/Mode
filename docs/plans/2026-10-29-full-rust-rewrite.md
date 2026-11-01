@@ -269,7 +269,10 @@ nullable-optional 三态与浮点 `Number` 保留（3 条）。**`session/debug`
 **会话事件订阅已落**：`session/subscribe` + `session/event` 实时流，replay 补号/排序、
 按 `eventId` 去重、按 session 过滤，`Drop` 中止转发（1 条 + 双端夹具）。
 **workspace 只读面已落**：`workspace/readPresentation`（closed-transport 重试一次）与
-`process/childProcesses`（无 params）（3 条 + 双端夹具）。
+`process/childProcesses`（无 params）（3 条 + 双端夹具）。**workspace 策略写路径已落
+（2026-11-01）**：`updateInteractionPreferences` / `updateModelIoPreferences` /
+`updateOffPeakToolPolicy` / `updateDynamicWorkflowPolicy` 四组 params/result 严格镜像，
+2 条控制面测试（含未知字段拒绝）。
 **`mcp/list` 已落**：状态快照严格镜像（status/failureKind/authorization），
 mode 缺省省略（3 条 + 双端夹具）。
 **工作流只读面已落**：`workflows/list|get|runs`，get 的 Ok/Failure 联合、runs 的
