@@ -279,13 +279,16 @@ function hasDetectedProfile(profile: TerminalDetectedProfile): boolean {
   return Boolean(profile.fontFamily || profile.fontSize || profile.theme);
 }
 
-function detectIterm2Profile(env: NodeJS.ProcessEnv): TerminalDetectedProfile | null {
-  const homeDir = resolveHomeDir(env);
-  const plist = readMacOsPlistFile(
-    join(homeDir, "Library", "Preferences", "com.googlecode.iterm2.plist"),
-  );
-  const profiles = Array.isArray(plist?.["New Bookmarks"])
-    ? (plist["New Bookmarks"] as unknown[])
+function asPlistRecord(plist: unknown): Record<string, unknown> | null {
+  return typeof plist === "object" && plist !== null && !Array.isArray(plist)
+    ? (plist as Record<string, unknown>)
+    : null;
+}
+
+export function detectIterm2ProfileFromRaw(plist: unknown): TerminalDetectedProfile | null {
+  const plistObject = asPlistRecord(plist);
+  const profiles = Array.isArray(plistObject?.["New Bookmarks"])
+    ? (plistObject?.["New Bookmarks"] as unknown[])
     : [];
   const defaultProfile = profiles.find(
     (profile) =>
@@ -315,18 +318,15 @@ function detectIterm2Profile(env: NodeJS.ProcessEnv): TerminalDetectedProfile | 
   return null;
 }
 
-function detectMacOsTerminalProfile(env: NodeJS.ProcessEnv): TerminalDetectedProfile | null {
-  const homeDir = resolveHomeDir(env);
-  const plist = readMacOsPlistFile(
-    join(homeDir, "Library", "Preferences", "com.apple.Terminal.plist"),
-  );
+export function detectMacOsTerminalProfileFromRaw(plist: unknown): TerminalDetectedProfile | null {
+  const plistObject = asPlistRecord(plist);
   const settingsNames = [
-    readNestedString(plist, ["Startup Window Settings"]),
-    readNestedString(plist, ["Default Window Settings"]),
+    readNestedString(plistObject, ["Startup Window Settings"]),
+    readNestedString(plistObject, ["Default Window Settings"]),
   ].filter((name): name is string => Boolean(name));
 
   for (const settingsName of settingsNames) {
-    const settings = plist?.[settingsName];
+    const settings = plistObject?.[settingsName];
     if (typeof settings !== "object" || settings === null || Array.isArray(settings)) {
       continue;
     }
@@ -356,12 +356,21 @@ export function createMacOsTerminalProfileDetectors(): readonly TerminalProfileD
     {
       id: "iterm2",
       platforms: ["darwin"],
-      detect: detectIterm2Profile,
+      detect: (env) => detectIterm2ProfileFromRaw(readMacOsPlistFile(iTerm2PlistPath(env))),
     },
     {
       id: "macos-terminal",
       platforms: ["darwin"],
-      detect: detectMacOsTerminalProfile,
+      detect: (env) =>
+        detectMacOsTerminalProfileFromRaw(readMacOsPlistFile(macosTerminalPlistPath(env))),
     },
   ];
+}
+
+function iTerm2PlistPath(env: NodeJS.ProcessEnv): string {
+  return join(resolveHomeDir(env), "Library", "Preferences", "com.googlecode.iterm2.plist");
+}
+
+function macosTerminalPlistPath(env: NodeJS.ProcessEnv): string {
+  return join(resolveHomeDir(env), "Library", "Preferences", "com.apple.Terminal.plist");
 }

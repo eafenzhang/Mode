@@ -52,6 +52,7 @@
     "integrated-terminal-shells:fixtures": "tsx scripts/generate-integrated-terminal-shells-fixtures.ts",
     "terminal-profile:fixtures": "tsx scripts/generate-terminal-profile-fixtures.ts",
     "terminal-profile-detect:fixtures": "tsx scripts/generate-terminal-profile-detect-fixtures.ts",
+    "terminal-profile-macos:fixtures": "tsx scripts/generate-terminal-profile-macos-fixtures.ts",
     "zai-start-plan-billing:fixtures": "tsx scripts/generate-zai-start-plan-billing-fixtures.ts",
     "zai-start-plan-quota:fixtures": "tsx scripts/generate-zai-start-plan-quota-fixtures.ts",
     "provider-balance:fixtures": "tsx scripts/generate-provider-balance-fixtures.ts",

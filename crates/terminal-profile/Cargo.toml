@@ -12,4 +12,5 @@ path = "src/lib.rs"
 [dependencies]
 indexmap = "2"
 regex = "1"
+base64 = "0.22"
 serde_json = { workspace = true }

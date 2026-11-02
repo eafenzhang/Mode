@@ -1,0 +1,319 @@
+{
+  "cases": [
+    {
+      "name": "iterm2-default-bookmark-first",
+      "kind": "iterm2",
+      "plist": {
+        "New Bookmarks": [
+          {
+            "Name": "not-default",
+            "Normal Font": "JetBrainsMono-Regular 13",
+            "Foreground Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            },
+            "Background Color": "#001122",
+            "Cursor Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            },
+            "Ansi 0 Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            },
+            "ANSI 8 Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            }
+          },
+          {
+            "Name": "default",
+            "Default Bookmark": true,
+            "Normal Font": "MesloLGS-NF 14.5",
+            "Foreground Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            },
+            "Background Color": "#00112233",
+            "Cursor Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            },
+            "Cursor Text Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            },
+            "Selection Color": {
+              "red": 10,
+              "green": 20,
+              "blue": 30,
+              "opacity": 0.5
+            },
+            "Ansi 0 Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            },
+            "ANSI 8 Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            },
+            "Ansi 15 Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            }
+          }
+        ]
+      },
+      "expected": {
+        "fontFamily": "MesloLGS NF",
+        "fontSize": 14.5,
+        "theme": {
+          "foreground": "rgba(255, 128, 32, 0.25)",
+          "background": "#00112233",
+          "cursor": "rgba(255, 128, 32, 0.25)",
+          "cursorAccent": "rgba(255, 128, 32, 0.25)",
+          "selectionBackground": "#0a141e",
+          "black": "rgba(255, 128, 32, 0.25)",
+          "brightBlack": "rgba(255, 128, 32, 0.25)",
+          "brightWhite": "rgba(255, 128, 32, 0.25)"
+        }
+      }
+    },
+    {
+      "name": "iterm2-no-default-order",
+      "kind": "iterm2",
+      "plist": {
+        "New Bookmarks": [
+          {
+            "Name": "not-default",
+            "Normal Font": "JetBrainsMono-Regular 13",
+            "Foreground Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            },
+            "Background Color": "#001122",
+            "Cursor Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            },
+            "Ansi 0 Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            },
+            "ANSI 8 Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            }
+          }
+        ]
+      },
+      "expected": {
+        "fontFamily": "JetBrainsMono Regular",
+        "fontSize": 13,
+        "theme": {
+          "foreground": "rgba(255, 128, 32, 0.25)",
+          "background": "#001122",
+          "cursor": "rgba(255, 128, 32, 0.25)",
+          "black": "rgba(255, 128, 32, 0.25)",
+          "brightBlack": "rgba(255, 128, 32, 0.25)"
+        }
+      }
+    },
+    {
+      "name": "iterm2-theme-only",
+      "kind": "iterm2",
+      "plist": {
+        "New Bookmarks": [
+          {
+            "Foreground Color": {
+              "Red Component": 255,
+              "Green Component": 0.5,
+              "Blue Component": 32,
+              "Alpha Component": 0.25
+            }
+          }
+        ]
+      },
+      "expected": {
+        "theme": {
+          "foreground": "rgba(255, 128, 32, 0.25)"
+        }
+      }
+    },
+    {
+      "name": "iterm2-invalid-font-only",
+      "kind": "iterm2",
+      "plist": {
+        "New Bookmarks": [
+          {
+            "Normal Font": "   "
+          }
+        ]
+      },
+      "expected": null
+    },
+    {
+      "name": "iterm2-empty-bookmarks",
+      "kind": "iterm2",
+      "plist": {},
+      "expected": null
+    },
+    {
+      "name": "terminal-startup-settings",
+      "kind": "terminal",
+      "plist": {
+        "Startup Window Settings": "Startup",
+        "Default Window Settings": "Default",
+        "Startup": {
+          "FontName": " SF Mono ",
+          "FontSize": "13",
+          "TextColor": {
+            "Red Component": 255,
+            "Green Component": 0.5,
+            "Blue Component": 32,
+            "Alpha Component": 0.25
+          },
+          "BackgroundColor": "#aabbcc",
+          "CursorColor": {
+            "red": 10,
+            "green": 20,
+            "blue": 30,
+            "opacity": 0.5
+          },
+          "SelectionColor": {
+            "Red Component": 255,
+            "Green Component": 0.5,
+            "Blue Component": 32,
+            "Alpha Component": 0.25
+          },
+          "ANSIBlackColor": {
+            "Red Component": 255,
+            "Green Component": 0.5,
+            "Blue Component": 32,
+            "Alpha Component": 0.25
+          },
+          "ANSIBrightWhiteColor": "#ffffff"
+        },
+        "Default": {
+          "Font": "TWFjQm9vay1Qcm86TWVzbG9MR1MgTkYgUmVndWxhcjoxMjM0NTY3ODkw",
+          "TextColor": {
+            "Red Component": 255,
+            "Green Component": 0.5,
+            "Blue Component": 32,
+            "Alpha Component": 0.25
+          },
+          "BackgroundColor": "#00112233"
+        }
+      },
+      "expected": {
+        "fontFamily": "SF Mono",
+        "fontSize": 13,
+        "theme": {
+          "foreground": "rgba(255, 128, 32, 0.25)",
+          "background": "#aabbcc",
+          "cursor": "#0a141e",
+          "selectionBackground": "rgba(255, 128, 32, 0.25)",
+          "black": "rgba(255, 128, 32, 0.25)",
+          "brightWhite": "#ffffff"
+        }
+      }
+    },
+    {
+      "name": "terminal-archived-font-fallback",
+      "kind": "terminal",
+      "plist": {
+        "Default Window Settings": "Default",
+        "Default": {
+          "Font": "TWFjQm9vay1Qcm86TWVzbG9MR1MgTkYgUmVndWxhcjoxMjM0NTY3ODkw",
+          "TextColor": {
+            "Red Component": 255,
+            "Green Component": 0.5,
+            "Blue Component": 32,
+            "Alpha Component": 0.25
+          },
+          "BackgroundColor": "#00112233"
+        }
+      },
+      "expected": {
+        "fontFamily": "TWFjQm9vay1Qcm86TWVzbG9MR1MgTkYgUmVndWxhcjoxMjM0NTY3ODkw",
+        "theme": {
+          "foreground": "rgba(255, 128, 32, 0.25)",
+          "background": "#00112233"
+        }
+      }
+    },
+    {
+      "name": "terminal-missing-settings-name",
+      "kind": "terminal",
+      "plist": {
+        "Default": {
+          "Font": "TWFjQm9vay1Qcm86TWVzbG9MR1MgTkYgUmVndWxhcjoxMjM0NTY3ODkw",
+          "TextColor": {
+            "Red Component": 255,
+            "Green Component": 0.5,
+            "Blue Component": 32,
+            "Alpha Component": 0.25
+          },
+          "BackgroundColor": "#00112233"
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "terminal-theme-only",
+      "kind": "terminal",
+      "plist": {
+        "Startup Window Settings": "ThemeOnly",
+        "ThemeOnly": {
+          "TextColor": {
+            "Red Component": 255,
+            "Green Component": 0.5,
+            "Blue Component": 32,
+            "Alpha Component": 0.25
+          },
+          "BackgroundColor": "#aabbcc"
+        }
+      },
+      "expected": {
+        "theme": {
+          "foreground": "rgba(255, 128, 32, 0.25)",
+          "background": "#aabbcc"
+        }
+      }
+    },
+    {
+      "name": "terminal-empty",
+      "kind": "terminal",
+      "plist": {},
+      "expected": null
+    }
+  ]
+}

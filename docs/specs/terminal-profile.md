@@ -14,6 +14,7 @@
 | `detect_windows_terminal_font_family_from_raw` | Windows Terminal 探测（注入 raw reader） |
 | `detect_vs_code_terminal_font_family_from_raw` | VS Code/Insiders 探测 |
 | `detect_kitty_font_family_from_raw` | kitty conf 探测 |
+| `detect_iterm2_profile_from_raw` / `detect_macos_terminal_profile_from_raw` | macOS plist 原始探测 |
 | `TerminalDetectedProfile` / `TerminalFontProfile` | 同名接口 |
 
 系统字体/主题探测、JSONC/TOML/YAML 文件读取和 macOS `plutil` 调用仍由适配层负责；
@@ -47,14 +48,35 @@ JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace`�
 - 路径拼接复刻 Windows `path.join` 的窄口径（统一 `\`、折叠重复分隔符、保留驱动器
   与前导 `\`）。
 
-## 4. 已知差异
+## 4. macOS plist 原始探测
 
-1. Alacritty（TOML/YAML）、macOS Terminal/iTerm2 plist、主题颜色解析尚未迁。
-2. Windows Terminal 的 `fontSize/theme` 仍由 macOS 探测迁移后提供；当前探测只返回字体族。
-3. 主题对象按键值原样透传，不做颜色归一化。
+- 输入是 `plutil -convert json` 产出的 JSON 值；Rust 只做纯解析，进程/文件路径由
+  调用方注入。
+- 字体：`MesloLGS-NF 14.5` → `MesloLGS NF` + `14.5`；字号只接受 parseFloat 后
+  6..72；归档 `NS.data` 仅作为 macOS Terminal 的 fallback。
+- 颜色：hex `#rgb/#rrggbb/#rrggbbaa` 与 `rgb(...)/rgba(...)` 原样保留；对象按
+  `Red/Green/Blue Component` 等别名取值，支持 0..1、0..255、0..65535 三档；alpha
+  <1 输出 `rgba(r, g, b, a)`（toFixed(3) 去尾零），否则输出 `#rrggbb`。
+- iTerm2：`New Bookmarks` 中 `Default Bookmark === true` 的条目提前，其余保持原序；
+  取第一个有字体/字号/主题的 profile。
+- macOS Terminal：先 `Startup Window Settings`，再 `Default Window Settings`；
+  字体依次 `FontName` → 归一 `Font` → archived `Font`；字号 `FontSize` → Font
+  descriptor；主题用 `TextColor/BackgroundColor/CursorColor/SelectionColor` 与
+  16 个 ANSI 颜色。
 
-## 5. 验收
+## 5. 已知差异
 
+1. Alacritty（TOML/YAML）尚未迁。
+2. `readMacOsArchivedFontName` 在现有实现里不是可达路径：`Font` 为字符串时
+   normalize 后直接作为字体族返回（夹具覆盖该既有行为，未做“修复”）。
+3. Rust 的 base64 解码只覆盖 STANDARD；plist 原始二进制仍由调用方 `plutil` 转换。
+
+## 6. 验收
+
+- `pnpm terminal-profile-macos:fixtures` →
+  `crates/terminal-profile/fixtures/macos.json`
+  - 10 条：iTerm2 default 提前/无 default/仅主题/非法字体/空 plist；Terminal startup
+    /archived fallback/缺 settings 名/仅主题/空 plist。
 - `pnpm terminal-profile-detect:fixtures` →
   `crates/terminal-profile/fixtures/detect.json`
   - 9 条：Windows default/preview/非 win32，VS Code APPDATA/home/无文件，
@@ -62,10 +84,10 @@ JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace`�
 - `pnpm terminal-profile:fixtures` → `crates/terminal-profile/fixtures/compose.json`
   - 12 条：自定义字体（重复/空白/大小写不同）、无 detected、detected 仅字体/仅字号/
     仅主题/空对象/空主题、fallback 全量、fallback 已存在时不重复追加。
-- `cargo test -p terminal-profile`（3 条 Rust 单测 + 2 条 TS 深比较回放）。
+- `cargo test -p terminal-profile`（4 条 Rust 单测 + 3 条 TS 深比较回放）。
 - `cargo clippy -p terminal-profile --all-targets -- -D warnings`。
 
-## 6. TS 对拍入口
+## 7. TS 对拍入口
 
 为可注入 detected profile，TS `terminalProfile.ts` 抽出并导出
 `composeTerminalFontProfile({ settings, detectedProfile })`；
