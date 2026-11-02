@@ -1,0 +1,362 @@
+{
+  "cases": [
+    {
+      "name": "windows-pty",
+      "kind": "windows-pty",
+      "platform": "win32",
+      "pathDelimiter": ";",
+      "release": "10.0.19045",
+      "env": {},
+      "cwd": null,
+      "osHome": "C:\\Users\\u",
+      "executable": [],
+      "directories": [],
+      "errors": [],
+      "expected": {
+        "backend": "conpty",
+        "buildNumber": 19045
+      }
+    },
+    {
+      "name": "linux-pty-empty",
+      "kind": "windows-pty",
+      "platform": "linux",
+      "pathDelimiter": ":",
+      "release": "6.1.0",
+      "env": {},
+      "cwd": null,
+      "osHome": "/home/u",
+      "executable": [],
+      "directories": [],
+      "errors": []
+    },
+    {
+      "name": "conpty-errors",
+      "kind": "conpty",
+      "platform": "",
+      "pathDelimiter": ":",
+      "release": null,
+      "env": {},
+      "cwd": null,
+      "osHome": null,
+      "executable": [],
+      "directories": [],
+      "errors": [
+        "Cannot find conpty.dll",
+        "conpty.node module handle is invalid",
+        "conpty.node module file name missing",
+        "spawn failed error code: 126",
+        "error code:  126",
+        "shell not found",
+        "error code: 127"
+      ],
+      "expected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "shell-windows-comspec",
+      "kind": "shell",
+      "platform": "win32",
+      "pathDelimiter": ";",
+      "release": null,
+      "env": {
+        "ComSpec": "C:\\Windows\\cmd.exe"
+      },
+      "cwd": null,
+      "osHome": null,
+      "executable": [
+        "C:\\Windows\\cmd.exe"
+      ],
+      "directories": [],
+      "errors": [],
+      "expected": {
+        "ok": true,
+        "value": "C:\\Windows\\cmd.exe"
+      }
+    },
+    {
+      "name": "shell-windows-pwsh",
+      "kind": "shell",
+      "platform": "win32",
+      "pathDelimiter": ";",
+      "release": null,
+      "env": {
+        "ComSpec": "C:\\Windows\\cmd.exe"
+      },
+      "cwd": null,
+      "osHome": null,
+      "executable": [
+        "pwsh.exe"
+      ],
+      "directories": [],
+      "errors": [],
+      "expected": {
+        "ok": true,
+        "value": "pwsh.exe"
+      }
+    },
+    {
+      "name": "shell-windows-none",
+      "kind": "shell",
+      "platform": "win32",
+      "pathDelimiter": ";",
+      "release": null,
+      "env": {},
+      "cwd": null,
+      "osHome": null,
+      "executable": [],
+      "directories": [],
+      "errors": [],
+      "expected": {
+        "ok": false,
+        "error": "No usable Windows shell found for terminal startup"
+      }
+    },
+    {
+      "name": "shell-unix-shell-env",
+      "kind": "shell",
+      "platform": "linux",
+      "pathDelimiter": ":",
+      "release": null,
+      "env": {
+        "SHELL": "/bin/fish"
+      },
+      "cwd": null,
+      "osHome": null,
+      "executable": [
+        "/bin/fish"
+      ],
+      "directories": [],
+      "errors": [],
+      "expected": {
+        "ok": true,
+        "value": "/bin/fish"
+      }
+    },
+    {
+      "name": "shell-unix-fallback",
+      "kind": "shell",
+      "platform": "linux",
+      "pathDelimiter": ":",
+      "release": null,
+      "env": {
+        "SHELL": "/bin/fish"
+      },
+      "cwd": null,
+      "osHome": null,
+      "executable": [
+        "/bin/bash"
+      ],
+      "directories": [],
+      "errors": [],
+      "expected": {
+        "ok": true,
+        "value": "/bin/bash"
+      }
+    },
+    {
+      "name": "shell-unix-none",
+      "kind": "shell",
+      "platform": "linux",
+      "pathDelimiter": ":",
+      "release": null,
+      "env": {},
+      "cwd": null,
+      "osHome": null,
+      "executable": [],
+      "directories": [],
+      "errors": [],
+      "expected": {
+        "ok": false,
+        "error": "No usable shell found for terminal startup"
+      }
+    },
+    {
+      "name": "cwd-preferred",
+      "kind": "cwd",
+      "platform": "",
+      "pathDelimiter": ":",
+      "release": null,
+      "env": {
+        "HOME": "C:\\Users\\u"
+      },
+      "cwd": "C:\\workspace",
+      "osHome": "C:\\Users\\u",
+      "executable": [],
+      "directories": [
+        "C:\\workspace"
+      ],
+      "errors": [],
+      "expected": {
+        "ok": true,
+        "value": "C:\\workspace"
+      }
+    },
+    {
+      "name": "cwd-home-fallback",
+      "kind": "cwd",
+      "platform": "",
+      "pathDelimiter": ":",
+      "release": null,
+      "env": {
+        "HOME": "C:\\Users\\u"
+      },
+      "cwd": "C:\\missing",
+      "osHome": "C:\\Users\\u",
+      "executable": [],
+      "directories": [
+        "C:\\Users\\u"
+      ],
+      "errors": [],
+      "expected": {
+        "ok": true,
+        "value": "C:\\Users\\u"
+      }
+    },
+    {
+      "name": "cwd-root-fallback",
+      "kind": "cwd",
+      "platform": "",
+      "pathDelimiter": ":",
+      "release": null,
+      "env": {},
+      "cwd": "C:\\missing",
+      "osHome": "C:\\Users\\u",
+      "executable": [],
+      "directories": [
+        "/"
+      ],
+      "errors": [],
+      "expected": {
+        "ok": true,
+        "value": "/"
+      }
+    },
+    {
+      "name": "cwd-none",
+      "kind": "cwd",
+      "platform": "",
+      "pathDelimiter": ":",
+      "release": null,
+      "env": {},
+      "cwd": "C:\\missing",
+      "osHome": "C:\\Users\\u",
+      "executable": [],
+      "directories": [],
+      "errors": [],
+      "expected": {
+        "ok": false,
+        "error": "No usable working directory found for terminal startup"
+      }
+    },
+    {
+      "name": "env-linux-locale-and-term",
+      "kind": "env",
+      "platform": "linux",
+      "pathDelimiter": ":",
+      "release": null,
+      "env": {
+        "PATH": "/usr/bin",
+        "TERM": "dumb",
+        "CI": "1",
+        "COLORTERM": "  ",
+        "LANG": "C",
+        "LC_CTYPE": "POSIX",
+        "LC_ALL": "  ",
+        "KEEP": "yes"
+      },
+      "cwd": null,
+      "osHome": null,
+      "executable": [],
+      "directories": [],
+      "errors": [],
+      "expected": {
+        "PATH": "/usr/bin",
+        "TERM": "xterm-256color",
+        "COLORTERM": "truecolor",
+        "LANG": "C.UTF-8",
+        "LC_CTYPE": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "KEEP": "yes"
+      }
+    },
+    {
+      "name": "env-linux-keeps-utf8",
+      "kind": "env",
+      "platform": "linux",
+      "pathDelimiter": ":",
+      "release": null,
+      "env": {
+        "LANG": "zh_CN.UTF-8",
+        "LC_CTYPE": "en_US.utf8",
+        "LC_ALL": "C.UTF-8",
+        "TERM": "xterm",
+        "COLORTERM": "24bit"
+      },
+      "cwd": null,
+      "osHome": null,
+      "executable": [],
+      "directories": [],
+      "errors": [],
+      "expected": {
+        "LANG": "zh_CN.UTF-8",
+        "LC_CTYPE": "en_US.utf8",
+        "LC_ALL": "C.UTF-8",
+        "TERM": "xterm-256color",
+        "COLORTERM": "24bit"
+      }
+    },
+    {
+      "name": "env-darwin-path-and-locale",
+      "kind": "env",
+      "platform": "darwin",
+      "pathDelimiter": ":",
+      "release": null,
+      "env": {
+        "PATH": "/custom:/usr/bin",
+        "TERM": "xterm-256color",
+        "COLORTERM": "truecolor",
+        "LANG": "POSIX"
+      },
+      "cwd": null,
+      "osHome": null,
+      "executable": [],
+      "directories": [],
+      "errors": [],
+      "expected": {
+        "PATH": "/custom:/usr/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/bin:/usr/sbin:/sbin",
+        "TERM": "xterm-256color",
+        "COLORTERM": "truecolor",
+        "LANG": "en_US.UTF-8",
+        "LC_CTYPE": "en_US.UTF-8"
+      }
+    },
+    {
+      "name": "env-darwin-no-path",
+      "kind": "env",
+      "platform": "darwin",
+      "pathDelimiter": ":",
+      "release": null,
+      "env": {},
+      "cwd": null,
+      "osHome": null,
+      "executable": [],
+      "directories": [],
+      "errors": [],
+      "expected": {
+        "PATH": "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin",
+        "TERM": "xterm-256color",
+        "COLORTERM": "truecolor",
+        "LANG": "en_US.UTF-8",
+        "LC_CTYPE": "en_US.UTF-8"
+      }
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+/* oxlint-disable eslint(max-lines) -- terminal 启动解析与 PTY 编排集中在同一服务边界。 */
 import { accessSync, chmodSync, constants, existsSync, statSync } from "node:fs";
 import { homedir, release } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
@@ -56,9 +57,13 @@ function parseWindowsBuildNumber(releaseText: string): number | undefined {
   return Number.isFinite(buildNumber) ? buildNumber : undefined;
 }
 
-function resolveTerminalWindowsPtyInfo(
-  platform: NodeJS.Platform = process.platform,
-  releaseText: string = release(),
+function resolveTerminalWindowsPtyInfo(): TerminalWindowsPtyInfo | undefined {
+  return resolveTerminalWindowsPtyInfoWith(process.platform, release());
+}
+
+export function resolveTerminalWindowsPtyInfoWith(
+  platform: NodeJS.Platform,
+  releaseText: string,
 ): TerminalWindowsPtyInfo | undefined {
   if (platform !== "win32") return undefined;
 
@@ -146,6 +151,10 @@ function ensureNodePtySpawnHelperExecutable(): void {
 }
 
 function shouldFallbackFromConptyDll(error: unknown): boolean {
+  return shouldFallbackFromConptyDllWith(error);
+}
+
+export function shouldFallbackFromConptyDllWith(error: unknown): boolean {
   const message = getErrorMessage(error);
   return /conpty\.node module handle|conpty\.node module file name|cannot find conpty\.dll|error code:\s*126/i.test(
     message,
@@ -172,12 +181,12 @@ const DARWIN_GUI_FALLBACK_PATHS = [
   "/sbin",
 ] as const;
 
-function mergePathEntries(entries: readonly (string | undefined)[]): string {
+function mergePathEntries(entries: readonly (string | undefined)[], pathDelimiter: string): string {
   const seen = new Set<string>();
   const merged: string[] = [];
 
   for (const value of entries) {
-    for (const entry of value?.split(delimiter) ?? []) {
+    for (const entry of value?.split(pathDelimiter) ?? []) {
       const trimmed = entry.trim();
       if (!trimmed || seen.has(trimmed)) continue;
       seen.add(trimmed);
@@ -185,30 +194,38 @@ function mergePathEntries(entries: readonly (string | undefined)[]): string {
     }
   }
 
-  return merged.join(delimiter);
+  return merged.join(pathDelimiter);
 }
 
-function resolveDarwinTerminalPath(env: NodeJS.ProcessEnv): string {
-  return mergePathEntries([env.PATH, ...DARWIN_GUI_FALLBACK_PATHS]);
+function resolveDarwinTerminalPath(env: NodeJS.ProcessEnv, pathDelimiter: string): string {
+  return mergePathEntries([env.PATH, ...DARWIN_GUI_FALLBACK_PATHS], pathDelimiter);
 }
 
-function resolveFallbackUtf8Locale(env: NodeJS.ProcessEnv): string {
+function resolveFallbackUtf8Locale(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): string {
   const inheritedUtf8Locale = [env.LC_ALL, env.LC_CTYPE, env.LANG].find(isUtf8Locale);
   if (inheritedUtf8Locale) return inheritedUtf8Locale;
 
-  return process.platform === "darwin" ? "en_US.UTF-8" : "C.UTF-8";
+  return platform === "darwin" ? "en_US.UTF-8" : "C.UTF-8";
 }
 
 function resolveTerminalEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return resolveTerminalEnvWith(process.platform, env);
+}
+
+export function resolveTerminalEnvWith(
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv,
+  pathDelimiter: string = delimiter,
+): NodeJS.ProcessEnv {
   const nextEnv = { ...env };
-  const fallbackLocale = resolveFallbackUtf8Locale(env);
+  const fallbackLocale = resolveFallbackUtf8Locale(platform, env);
 
   // macOS 从 Dock/Finder/登录项启动 Electron 时，父进程通常只带 /usr/bin:/bin:/usr/sbin:/sbin，
   // 甚至缺失 PATH；内置终端虽然打开了登录 shell，但 zsh/bash 仍会先继承这个过窄 PATH，
   // 导致 ls 以外的 npm/node/pnpm 等常用命令找不到，部分用户的 profile 又不会重新补齐。
   // 这里仅在传给 terminal 的环境里补常见 Homebrew 与系统路径，不改全局 process.env，并保留用户已有顺序。
-  if (process.platform === "darwin") {
-    nextEnv.PATH = resolveDarwinTerminalPath(env);
+  if (platform === "darwin") {
+    nextEnv.PATH = resolveDarwinTerminalPath(env, pathDelimiter);
   }
 
   // runtime 登录 shell 环境采集会用 TERM=dumb / CI=1 来避免 profile 脚本进入交互分支，
@@ -287,10 +304,18 @@ function spawnTerminalProcess(params: {
 }
 
 function resolveTerminalShell(): string {
-  if (process.platform === "win32") {
+  return resolveTerminalShellWith(process.platform, process.env, isExecutable);
+}
+
+export function resolveTerminalShellWith(
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv,
+  isExecutable: (command: string) => boolean,
+): string {
+  if (platform === "win32") {
     // Windows PowerShell 5.1 的 PSReadLine 在 ConPTY 下更容易把输入行空白重绘成 ANSI black 背景。
     // PowerShell 7+ 的终端兼容性更接近桌面端，优先使用已安装的 pwsh，找不到再回退到系统自带 shell。
-    const candidates = ["pwsh.exe", "powershell.exe", process.env.ComSpec, "cmd.exe"];
+    const candidates = ["pwsh.exe", "powershell.exe", env.ComSpec, "cmd.exe"];
 
     for (const candidate of candidates) {
       if (candidate && isExecutable(candidate)) return candidate;
@@ -302,7 +327,7 @@ function resolveTerminalShell(): string {
   // 之前直接信任 SHELL 环境变量，外部环境如果残留了一个不存在的 shell 路径，
   // node-pty 底层会把这个坏路径直接交给 posix_spawnp，终端创建时就会报错。
   // 这里先校验 SHELL 是否真的可执行，不可用时再按常见 shell 顺序回退，避免启动直接失败。
-  const candidates = [process.env.SHELL, "/bin/zsh", "/bin/bash", "/bin/sh"];
+  const candidates = [env.SHELL, "/bin/zsh", "/bin/bash", "/bin/sh"];
 
   for (const candidate of candidates) {
     if (candidate && isExecutable(candidate)) return candidate;
@@ -312,10 +337,19 @@ function resolveTerminalShell(): string {
 }
 
 function resolveTerminalCwd(cwd?: string): string {
+  return resolveTerminalCwdWith(cwd, process.env, homedir(), isUsableDirectory);
+}
+
+export function resolveTerminalCwdWith(
+  cwd: string | undefined,
+  env: NodeJS.ProcessEnv,
+  osHome: string,
+  isUsableDirectory: (path: string) => boolean,
+): string {
   // 工作区目录可能已经被删除、移动，或者启动时传进来的是一个失效路径。
   // 之前把这个 cwd 原样传给 node-pty，同样会在 spawn 阶段失败。
   // 这里优先使用传入目录，不可用时回退到 HOME / 系统 home / 根目录，保证终端还能拉起。
-  const candidates = [cwd, process.env.HOME, homedir(), "/"];
+  const candidates = [cwd, env.HOME, osHome, "/"];
 
   for (const candidate of candidates) {
     if (candidate && isUsableDirectory(candidate)) return candidate;

@@ -1,0 +1,15 @@
+[package]
+name = "terminal-service-resolution"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "终端 shell/cwd/env/Windows PTY 纯解析，对应 services/terminal/terminalService.ts 的可注入解析面"
+
+[lib]
+name = "terminal_service_resolution"
+path = "src/lib.rs"
+
+[dependencies]
+indexmap = "2"
+regex = "1"
+serde_json = { workspace = true }

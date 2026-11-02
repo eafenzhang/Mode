@@ -39,6 +39,7 @@ members = [
   "crates/usage-stats",
   "crates/integrated-terminal-shells",
   "crates/terminal-profile",
+  "crates/terminal-service-resolution",
   "crates/zai-start-plan-billing",
   "crates/provider-config-file-codec",
   "crates/tasks-db",
