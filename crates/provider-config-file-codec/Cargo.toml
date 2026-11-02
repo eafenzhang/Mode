@@ -1,0 +1,16 @@
+[package]
+name = "provider-config-file-codec"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Personal provider config 文件 encode/decode，对应 provider-node/provider-config-file-codec.ts"
+
+[lib]
+name = "provider_config_file_codec"
+path = "src/lib.rs"
+
+[dependencies]
+indexmap = "2"
+model-selection = { path = "../model-selection" }
+provider-config = { path = "../provider-config" }
+serde_json = { workspace = true }

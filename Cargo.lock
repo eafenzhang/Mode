@@ -3752,6 +3752,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "provider-config-file-codec"
+version = "0.1.0"
+dependencies = [
+ "indexmap 2.14.2",
+ "model-selection",
+ "provider-config",
+ "serde_json",
+]
+
+[[package]]
 name = "provider-config-source"
 version = "0.1.0"
 dependencies = [

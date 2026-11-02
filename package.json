@@ -42,6 +42,7 @@
     "hooks-load:fixtures": "tsx scripts/generate-hooks-load-fixtures.ts",
     "skills:fixtures": "tsx scripts/generate-skills-fixtures.ts",
     "provider-config:fixtures": "tsx scripts/generate-provider-config-fixtures.ts",
+    "provider-config-file:fixtures": "tsx scripts/generate-provider-config-file-fixtures.ts",
     "provider-legacy:fixtures": "tsx scripts/generate-provider-legacy-fixtures.ts",
     "provider-legacy-reader:fixtures": "tsx scripts/generate-provider-legacy-reader-fixtures.ts",
     "provider-legacy-import:fixtures": "tsx scripts/generate-provider-legacy-import-fixtures.ts",

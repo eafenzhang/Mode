@@ -1,0 +1,1122 @@
+{
+  "cases": [
+    {
+      "name": "current-schema",
+      "input": {
+        "schemaVersion": 1,
+        "config": {
+          "providerOrder": [
+            "custom-a"
+          ],
+          "providerConfigRules": {
+            "providerRules": [
+              {
+                "providerId": "custom-a",
+                "enabled": false,
+                "providerName": "Custom A",
+                "config": {
+                  "group": "standard-personal",
+                  "access": {
+                    "type": "api-key",
+                    "apiKey": "sk-test"
+                  },
+                  "api": {
+                    "type": "anthropic-messages",
+                    "baseUrl": "https://example.com"
+                  },
+                  "personalModelIds": [
+                    "m1",
+                    "m2"
+                  ],
+                  "modelOrder": [
+                    "m1",
+                    "m2"
+                  ]
+                }
+              }
+            ]
+          },
+          "modelConfigRules": {
+            "providerModelRules": [
+              {
+                "modelId": "m1",
+                "config": {
+                  "properties": {
+                    "contextWindow": 64000
+                  }
+                },
+                "providerId": "custom-a"
+              }
+            ],
+            "manualProviderModelRules": [
+              {
+                "providerId": "custom-a",
+                "modelId": "m2",
+                "config": {
+                  "enabled": true,
+                  "properties": {
+                    "contextWindow": 32000,
+                    "supportsJsonSchemaOutput": true,
+                    "supportsNativeWebSearch": false,
+                    "supportsMidConversationSystem": true,
+                    "inputFormat": {
+                      "supportsImage": true,
+                      "supportsVideo": false,
+                      "supportsPdf": true
+                    }
+                  },
+                  "optionSpecs": {
+                    "reasoningLevel": {
+                      "values": [
+                        "low",
+                        "high"
+                      ],
+                      "map": "{\"effort\": reasoningLevel}"
+                    },
+                    "maxOutputTokens": {
+                      "max": 8192
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "defaultModelSelection": {
+            "providerId": "custom-a",
+            "modelId": "m1",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "encoded": {
+          "schemaVersion": 1,
+          "config": {
+            "providerOrder": [
+              "custom-a"
+            ],
+            "providerConfigRules": {
+              "providerRules": [
+                {
+                  "providerId": "custom-a",
+                  "providerName": "Custom A",
+                  "enabled": false,
+                  "config": {
+                    "group": "standard-personal",
+                    "access": {
+                      "type": "api-key",
+                      "apiKey": "sk-test"
+                    },
+                    "api": {
+                      "type": "anthropic-messages",
+                      "baseUrl": "https://example.com"
+                    },
+                    "personalModelIds": [
+                      "m1",
+                      "m2"
+                    ],
+                    "modelOrder": [
+                      "m1",
+                      "m2"
+                    ]
+                  }
+                }
+              ]
+            },
+            "modelConfigRules": {
+              "providerModelRules": [
+                {
+                  "modelId": "m1",
+                  "config": {
+                    "properties": {
+                      "contextWindow": 64000
+                    }
+                  },
+                  "providerId": "custom-a"
+                }
+              ],
+              "manualProviderModelRules": [
+                {
+                  "modelId": "m2",
+                  "config": {
+                    "enabled": true,
+                    "properties": {
+                      "contextWindow": 32000,
+                      "supportsJsonSchemaOutput": true,
+                      "supportsNativeWebSearch": false,
+                      "supportsMidConversationSystem": true,
+                      "inputFormat": {
+                        "supportsImage": true,
+                        "supportsVideo": false,
+                        "supportsPdf": true
+                      }
+                    },
+                    "optionSpecs": {
+                      "reasoningLevel": {
+                        "values": [
+                          "low",
+                          "high"
+                        ],
+                        "map": "{\"effort\": reasoningLevel}"
+                      },
+                      "maxOutputTokens": {
+                        "max": 8192
+                      }
+                    }
+                  },
+                  "providerId": "custom-a"
+                }
+              ]
+            },
+            "defaultModelSelection": {
+              "providerId": "custom-a",
+              "modelId": "m1",
+              "options": {
+                "reasoningLevel": "high"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "current-schema-minimal",
+      "input": {
+        "schemaVersion": 1,
+        "config": {
+          "providerConfigRules": {
+            "providerRules": []
+          },
+          "modelConfigRules": {
+            "providerModelRules": [],
+            "manualProviderModelRules": []
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "encoded": {
+          "schemaVersion": 1,
+          "config": {
+            "providerConfigRules": {
+              "providerRules": []
+            },
+            "modelConfigRules": {
+              "providerModelRules": [],
+              "manualProviderModelRules": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "legacy-editable-manual",
+      "input": {
+        "schemaVersion": 1,
+        "config": {
+          "providerOrder": [
+            "custom-a"
+          ],
+          "providerConfigRules": {
+            "providerRules": [
+              {
+                "providerId": "custom-a",
+                "enabled": false,
+                "providerName": "Custom A",
+                "config": {
+                  "group": "standard-personal",
+                  "access": {
+                    "type": "api-key",
+                    "apiKey": "sk-test"
+                  },
+                  "api": {
+                    "type": "anthropic-messages",
+                    "baseUrl": "https://example.com"
+                  },
+                  "personalModelIds": [
+                    "m1",
+                    "m2"
+                  ],
+                  "modelOrder": [
+                    "m1",
+                    "m2"
+                  ]
+                }
+              }
+            ]
+          },
+          "modelConfigRules": {
+            "providerModelRules": [],
+            "manualProviderModelRules": [
+              {
+                "providerId": "custom-a",
+                "modelId": "m2",
+                "config": {
+                  "enabled": true,
+                  "properties": {
+                    "requiresMfjsToolSchema": true,
+                    "contextWindow": 32000,
+                    "supportsJsonSchemaOutput": true,
+                    "supportsNativeWebSearch": false,
+                    "supportsMidConversationSystem": true,
+                    "inputFormat": {
+                      "supportsImage": true,
+                      "supportsVideo": false,
+                      "supportsPdf": true
+                    }
+                  },
+                  "optionSpecs": {
+                    "reasoningLevel": {
+                      "values": [
+                        "low"
+                      ],
+                      "map": "{\"effort\": reasoningLevel}"
+                    },
+                    "maxOutputTokens": {
+                      "max": 4096
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "defaultModelSelection": {
+            "providerId": "custom-a",
+            "modelId": "m1",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "encoded": {
+          "schemaVersion": 1,
+          "config": {
+            "providerOrder": [
+              "custom-a"
+            ],
+            "providerConfigRules": {
+              "providerRules": [
+                {
+                  "providerId": "custom-a",
+                  "providerName": "Custom A",
+                  "enabled": false,
+                  "config": {
+                    "group": "standard-personal",
+                    "access": {
+                      "type": "api-key",
+                      "apiKey": "sk-test"
+                    },
+                    "api": {
+                      "type": "anthropic-messages",
+                      "baseUrl": "https://example.com"
+                    },
+                    "personalModelIds": [
+                      "m1",
+                      "m2"
+                    ],
+                    "modelOrder": [
+                      "m1",
+                      "m2"
+                    ]
+                  }
+                }
+              ]
+            },
+            "modelConfigRules": {
+              "providerModelRules": [],
+              "manualProviderModelRules": [
+                {
+                  "modelId": "m2",
+                  "config": {
+                    "enabled": true,
+                    "properties": {
+                      "contextWindow": 32000,
+                      "supportsJsonSchemaOutput": true,
+                      "supportsNativeWebSearch": false,
+                      "supportsMidConversationSystem": true,
+                      "inputFormat": {
+                        "supportsImage": true,
+                        "supportsVideo": false,
+                        "supportsPdf": true
+                      }
+                    },
+                    "optionSpecs": {
+                      "reasoningLevel": {
+                        "values": [
+                          "low"
+                        ],
+                        "map": "{\"effort\": reasoningLevel}"
+                      },
+                      "maxOutputTokens": {
+                        "max": 4096
+                      }
+                    }
+                  },
+                  "providerId": "custom-a"
+                }
+              ]
+            },
+            "defaultModelSelection": {
+              "providerId": "custom-a",
+              "modelId": "m1",
+              "options": {
+                "reasoningLevel": "high"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "legacy-complete-manual",
+      "input": {
+        "schemaVersion": 1,
+        "config": {
+          "providerOrder": [
+            "custom-a"
+          ],
+          "providerConfigRules": {
+            "providerRules": [
+              {
+                "providerId": "custom-a",
+                "enabled": false,
+                "providerName": "Custom A",
+                "config": {
+                  "group": "standard-personal",
+                  "access": {
+                    "type": "api-key",
+                    "apiKey": "sk-test"
+                  },
+                  "api": {
+                    "type": "anthropic-messages",
+                    "baseUrl": "https://example.com"
+                  },
+                  "personalModelIds": [
+                    "m1",
+                    "m2"
+                  ],
+                  "modelOrder": [
+                    "m1",
+                    "m2"
+                  ]
+                }
+              }
+            ]
+          },
+          "modelConfigRules": {
+            "providerModelRules": [],
+            "manualProviderModelRules": [
+              {
+                "providerId": "custom-a",
+                "modelId": "m2",
+                "config": {
+                  "enabled": true,
+                  "properties": {
+                    "requiresMfjsToolSchema": false,
+                    "contextWindow": 128000,
+                    "inputFormat": {
+                      "supportsText": true,
+                      "supportsImage": true,
+                      "supportsVideo": false,
+                      "supportsAudio": false,
+                      "supportsPdf": true
+                    },
+                    "outputFormat": {
+                      "supportsText": true
+                    },
+                    "supportsToolCall": true,
+                    "supportsJsonSchemaOutput": true,
+                    "supportsNativeWebSearch": false,
+                    "supportsMidConversationSystem": true
+                  },
+                  "optionSpecs": {
+                    "reasoningLevel": {
+                      "values": [
+                        "low",
+                        "medium"
+                      ],
+                      "map": "{\"effort\": reasoningLevel}"
+                    },
+                    "maxOutputTokens": {
+                      "max": 4096,
+                      "map": "{\"tokens\": maxOutputTokens}"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "defaultModelSelection": {
+            "providerId": "custom-a",
+            "modelId": "m1",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "encoded": {
+          "schemaVersion": 1,
+          "config": {
+            "providerOrder": [
+              "custom-a"
+            ],
+            "providerConfigRules": {
+              "providerRules": [
+                {
+                  "providerId": "custom-a",
+                  "providerName": "Custom A",
+                  "enabled": false,
+                  "config": {
+                    "group": "standard-personal",
+                    "access": {
+                      "type": "api-key",
+                      "apiKey": "sk-test"
+                    },
+                    "api": {
+                      "type": "anthropic-messages",
+                      "baseUrl": "https://example.com"
+                    },
+                    "personalModelIds": [
+                      "m1",
+                      "m2"
+                    ],
+                    "modelOrder": [
+                      "m1",
+                      "m2"
+                    ]
+                  }
+                }
+              ]
+            },
+            "modelConfigRules": {
+              "providerModelRules": [],
+              "manualProviderModelRules": [
+                {
+                  "modelId": "m2",
+                  "config": {
+                    "enabled": true,
+                    "properties": {
+                      "contextWindow": 128000,
+                      "supportsJsonSchemaOutput": true,
+                      "supportsNativeWebSearch": false,
+                      "supportsMidConversationSystem": true,
+                      "inputFormat": {
+                        "supportsImage": true,
+                        "supportsVideo": false,
+                        "supportsPdf": true
+                      }
+                    },
+                    "optionSpecs": {
+                      "reasoningLevel": {
+                        "values": [
+                          "low",
+                          "medium"
+                        ],
+                        "map": "{\"effort\": reasoningLevel}"
+                      },
+                      "maxOutputTokens": {
+                        "max": 4096
+                      }
+                    }
+                  },
+                  "providerId": "custom-a"
+                }
+              ]
+            },
+            "defaultModelSelection": {
+              "providerId": "custom-a",
+              "modelId": "m1",
+              "options": {
+                "reasoningLevel": "high"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "missing-version",
+      "input": {
+        "config": {}
+      },
+      "expected": {
+        "ok": false,
+        "kind": "version",
+        "message": "Provider Config 缺少 schemaVersion",
+        "version": null
+      }
+    },
+    {
+      "name": "negative-version",
+      "input": {
+        "schemaVersion": -1,
+        "config": {}
+      },
+      "expected": {
+        "ok": false,
+        "kind": "version",
+        "message": "Provider Config schemaVersion 必须是非负整数",
+        "version": null
+      }
+    },
+    {
+      "name": "fractional-version",
+      "input": {
+        "schemaVersion": 1.5,
+        "config": {}
+      },
+      "expected": {
+        "ok": false,
+        "kind": "version",
+        "message": "Provider Config schemaVersion 必须是非负整数",
+        "version": null
+      }
+    },
+    {
+      "name": "string-version",
+      "input": {
+        "schemaVersion": "1",
+        "config": {}
+      },
+      "expected": {
+        "ok": false,
+        "kind": "version",
+        "message": "Provider Config schemaVersion 必须是非负整数",
+        "version": null
+      }
+    },
+    {
+      "name": "future-version",
+      "input": {
+        "schemaVersion": 2,
+        "config": {}
+      },
+      "expected": {
+        "ok": false,
+        "kind": "version",
+        "message": "Provider Config schemaVersion 2 高于当前支持的 1",
+        "version": 2
+      }
+    },
+    {
+      "name": "zero-version",
+      "input": {
+        "schemaVersion": 0,
+        "config": {}
+      },
+      "expected": {
+        "ok": false,
+        "kind": "version",
+        "message": "缺少 Provider Config schemaVersion 0 到 1 的迁移器",
+        "version": 0
+      }
+    },
+    {
+      "name": "unknown-top-level",
+      "input": {
+        "schemaVersion": 1,
+        "config": {
+          "providerOrder": [
+            "custom-a"
+          ],
+          "providerConfigRules": {
+            "providerRules": [
+              {
+                "providerId": "custom-a",
+                "enabled": false,
+                "providerName": "Custom A",
+                "config": {
+                  "group": "standard-personal",
+                  "access": {
+                    "type": "api-key",
+                    "apiKey": "sk-test"
+                  },
+                  "api": {
+                    "type": "anthropic-messages",
+                    "baseUrl": "https://example.com"
+                  },
+                  "personalModelIds": [
+                    "m1",
+                    "m2"
+                  ],
+                  "modelOrder": [
+                    "m1",
+                    "m2"
+                  ]
+                }
+              }
+            ]
+          },
+          "modelConfigRules": {
+            "providerModelRules": [
+              {
+                "modelId": "m1",
+                "config": {
+                  "properties": {
+                    "contextWindow": 64000
+                  }
+                },
+                "providerId": "custom-a"
+              }
+            ],
+            "manualProviderModelRules": [
+              {
+                "providerId": "custom-a",
+                "modelId": "m2",
+                "config": {
+                  "enabled": true,
+                  "properties": {
+                    "contextWindow": 32000,
+                    "supportsJsonSchemaOutput": true,
+                    "supportsNativeWebSearch": false,
+                    "supportsMidConversationSystem": true,
+                    "inputFormat": {
+                      "supportsImage": true,
+                      "supportsVideo": false,
+                      "supportsPdf": true
+                    }
+                  },
+                  "optionSpecs": {
+                    "reasoningLevel": {
+                      "values": [
+                        "low",
+                        "high"
+                      ],
+                      "map": "{\"effort\": reasoningLevel}"
+                    },
+                    "maxOutputTokens": {
+                      "max": 8192
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "defaultModelSelection": {
+            "providerId": "custom-a",
+            "modelId": "m1",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          }
+        },
+        "extra": true
+      },
+      "expected": {
+        "ok": false,
+        "kind": "invalid"
+      }
+    },
+    {
+      "name": "unknown-config-field",
+      "input": {
+        "schemaVersion": 1,
+        "config": {
+          "providerOrder": [
+            "custom-a"
+          ],
+          "providerConfigRules": {
+            "providerRules": [
+              {
+                "providerId": "custom-a",
+                "enabled": false,
+                "providerName": "Custom A",
+                "config": {
+                  "group": "standard-personal",
+                  "access": {
+                    "type": "api-key",
+                    "apiKey": "sk-test"
+                  },
+                  "api": {
+                    "type": "anthropic-messages",
+                    "baseUrl": "https://example.com"
+                  },
+                  "personalModelIds": [
+                    "m1",
+                    "m2"
+                  ],
+                  "modelOrder": [
+                    "m1",
+                    "m2"
+                  ]
+                }
+              }
+            ]
+          },
+          "modelConfigRules": {
+            "providerModelRules": [
+              {
+                "modelId": "m1",
+                "config": {
+                  "properties": {
+                    "contextWindow": 64000
+                  }
+                },
+                "providerId": "custom-a"
+              }
+            ],
+            "manualProviderModelRules": [
+              {
+                "providerId": "custom-a",
+                "modelId": "m2",
+                "config": {
+                  "enabled": true,
+                  "properties": {
+                    "contextWindow": 32000,
+                    "supportsJsonSchemaOutput": true,
+                    "supportsNativeWebSearch": false,
+                    "supportsMidConversationSystem": true,
+                    "inputFormat": {
+                      "supportsImage": true,
+                      "supportsVideo": false,
+                      "supportsPdf": true
+                    }
+                  },
+                  "optionSpecs": {
+                    "reasoningLevel": {
+                      "values": [
+                        "low",
+                        "high"
+                      ],
+                      "map": "{\"effort\": reasoningLevel}"
+                    },
+                    "maxOutputTokens": {
+                      "max": 8192
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "defaultModelSelection": {
+            "providerId": "custom-a",
+            "modelId": "m1",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          },
+          "extra": true
+        }
+      },
+      "expected": {
+        "ok": false,
+        "kind": "invalid"
+      }
+    },
+    {
+      "name": "missing-model-rules",
+      "input": {
+        "schemaVersion": 1,
+        "config": {
+          "providerConfigRules": {
+            "providerRules": [
+              {
+                "providerId": "custom-a",
+                "enabled": false,
+                "providerName": "Custom A",
+                "config": {
+                  "group": "standard-personal",
+                  "access": {
+                    "type": "api-key",
+                    "apiKey": "sk-test"
+                  },
+                  "api": {
+                    "type": "anthropic-messages",
+                    "baseUrl": "https://example.com"
+                  },
+                  "personalModelIds": [
+                    "m1",
+                    "m2"
+                  ],
+                  "modelOrder": [
+                    "m1",
+                    "m2"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "ok": false,
+        "kind": "invalid"
+      }
+    },
+    {
+      "name": "empty-provider-order-item",
+      "input": {
+        "schemaVersion": 1,
+        "config": {
+          "providerOrder": [
+            ""
+          ],
+          "providerConfigRules": {
+            "providerRules": [
+              {
+                "providerId": "custom-a",
+                "enabled": false,
+                "providerName": "Custom A",
+                "config": {
+                  "group": "standard-personal",
+                  "access": {
+                    "type": "api-key",
+                    "apiKey": "sk-test"
+                  },
+                  "api": {
+                    "type": "anthropic-messages",
+                    "baseUrl": "https://example.com"
+                  },
+                  "personalModelIds": [
+                    "m1",
+                    "m2"
+                  ],
+                  "modelOrder": [
+                    "m1",
+                    "m2"
+                  ]
+                }
+              }
+            ]
+          },
+          "modelConfigRules": {
+            "providerModelRules": [
+              {
+                "modelId": "m1",
+                "config": {
+                  "properties": {
+                    "contextWindow": 64000
+                  }
+                },
+                "providerId": "custom-a"
+              }
+            ],
+            "manualProviderModelRules": [
+              {
+                "providerId": "custom-a",
+                "modelId": "m2",
+                "config": {
+                  "enabled": true,
+                  "properties": {
+                    "contextWindow": 32000,
+                    "supportsJsonSchemaOutput": true,
+                    "supportsNativeWebSearch": false,
+                    "supportsMidConversationSystem": true,
+                    "inputFormat": {
+                      "supportsImage": true,
+                      "supportsVideo": false,
+                      "supportsPdf": true
+                    }
+                  },
+                  "optionSpecs": {
+                    "reasoningLevel": {
+                      "values": [
+                        "low",
+                        "high"
+                      ],
+                      "map": "{\"effort\": reasoningLevel}"
+                    },
+                    "maxOutputTokens": {
+                      "max": 8192
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "defaultModelSelection": {
+            "providerId": "custom-a",
+            "modelId": "m1",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": false,
+        "kind": "invalid"
+      }
+    },
+    {
+      "name": "legacy-unknown-key",
+      "input": {
+        "schemaVersion": 1,
+        "config": {
+          "providerOrder": [
+            "custom-a"
+          ],
+          "providerConfigRules": {
+            "providerRules": [
+              {
+                "providerId": "custom-a",
+                "enabled": false,
+                "providerName": "Custom A",
+                "config": {
+                  "group": "standard-personal",
+                  "access": {
+                    "type": "api-key",
+                    "apiKey": "sk-test"
+                  },
+                  "api": {
+                    "type": "anthropic-messages",
+                    "baseUrl": "https://example.com"
+                  },
+                  "personalModelIds": [
+                    "m1",
+                    "m2"
+                  ],
+                  "modelOrder": [
+                    "m1",
+                    "m2"
+                  ]
+                }
+              }
+            ]
+          },
+          "modelConfigRules": {
+            "providerModelRules": [],
+            "manualProviderModelRules": [
+              {
+                "providerId": "custom-a",
+                "modelId": "m2",
+                "config": {
+                  "enabled": true,
+                  "properties": {
+                    "requiresMfjsToolSchema": true,
+                    "contextWindow": 32000,
+                    "supportsJsonSchemaOutput": true,
+                    "supportsNativeWebSearch": false,
+                    "supportsMidConversationSystem": true,
+                    "inputFormat": {
+                      "supportsImage": true,
+                      "supportsVideo": false,
+                      "supportsPdf": true
+                    }
+                  },
+                  "optionSpecs": {
+                    "reasoningLevel": {
+                      "values": [
+                        "low"
+                      ],
+                      "map": "{\"effort\": reasoningLevel}"
+                    },
+                    "maxOutputTokens": {
+                      "max": 4096
+                    }
+                  },
+                  "unknown": true
+                }
+              }
+            ]
+          },
+          "defaultModelSelection": {
+            "providerId": "custom-a",
+            "modelId": "m1",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": false,
+        "kind": "invalid"
+      }
+    },
+    {
+      "name": "legacy-invalid-map",
+      "input": {
+        "schemaVersion": 1,
+        "config": {
+          "providerOrder": [
+            "custom-a"
+          ],
+          "providerConfigRules": {
+            "providerRules": [
+              {
+                "providerId": "custom-a",
+                "enabled": false,
+                "providerName": "Custom A",
+                "config": {
+                  "group": "standard-personal",
+                  "access": {
+                    "type": "api-key",
+                    "apiKey": "sk-test"
+                  },
+                  "api": {
+                    "type": "anthropic-messages",
+                    "baseUrl": "https://example.com"
+                  },
+                  "personalModelIds": [
+                    "m1",
+                    "m2"
+                  ],
+                  "modelOrder": [
+                    "m1",
+                    "m2"
+                  ]
+                }
+              }
+            ]
+          },
+          "modelConfigRules": {
+            "providerModelRules": [],
+            "manualProviderModelRules": [
+              {
+                "providerId": "custom-a",
+                "modelId": "m2",
+                "config": {
+                  "enabled": true,
+                  "properties": {
+                    "requiresMfjsToolSchema": true,
+                    "contextWindow": 32000,
+                    "supportsJsonSchemaOutput": true,
+                    "supportsNativeWebSearch": false,
+                    "supportsMidConversationSystem": true,
+                    "inputFormat": {
+                      "supportsImage": true,
+                      "supportsVideo": false,
+                      "supportsPdf": true
+                    }
+                  },
+                  "optionSpecs": {
+                    "reasoningLevel": {
+                      "values": [
+                        "low"
+                      ],
+                      "map": "not a map"
+                    },
+                    "maxOutputTokens": {
+                      "max": 4096
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "defaultModelSelection": {
+            "providerId": "custom-a",
+            "modelId": "m1",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": false,
+        "kind": "invalid"
+      }
+    }
+  ]
+}
