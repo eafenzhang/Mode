@@ -1,3 +1,4 @@
+/* oxlint-disable eslint(max-lines) -- 多终端探测与组合集中在一个边界，拆分会降低对拍可读性。 */
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -147,20 +148,14 @@ function parseJsonc(raw: string): Record<string, unknown> | null {
   return null;
 }
 
-function readJsoncFile(filePath: string): Record<string, unknown> | null {
-  if (!existsSync(filePath)) {
-    return null;
-  }
+type RawFileReader = (filePath: string) => string | null;
 
-  try {
-    const raw = readFileSync(filePath, "utf8");
-    return parseJsonc(raw);
-  } catch {
-    return null;
-  }
+function readJsoncFileWith(rawReader: RawFileReader, filePath: string): Record<string, unknown> | null {
+  const raw = rawReader(filePath);
+  return raw === null ? null : parseJsonc(raw);
 }
 
-function readNestedString(value: unknown, pathSegments: readonly string[]): string | null {
+export function readTerminalConfigPath(value: unknown, pathSegments: readonly string[]): string | null {
   let current: unknown = value;
   for (const segment of pathSegments) {
     if (typeof current !== "object" || current === null || Array.isArray(current)) {
@@ -191,8 +186,12 @@ function readObjectFile(
   return null;
 }
 
-function detectWindowsTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProfile | null {
-  if (process.platform !== "win32") {
+export function detectWindowsTerminalFontFamilyFromRaw(
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv,
+  rawReader: RawFileReader,
+): TerminalDetectedProfile | null {
+  if (platform !== "win32") {
     return null;
   }
 
@@ -220,12 +219,12 @@ function detectWindowsTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetect
   ];
 
   for (const filePath of candidates) {
-    const parsed = readJsoncFile(filePath);
+    const parsed = readJsoncFileWith(rawReader, filePath);
     if (!parsed) {
       continue;
     }
 
-    const defaultProfileId = readNestedString(parsed, ["defaultProfile"]);
+    const defaultProfileId = readTerminalConfigPath(parsed, ["defaultProfile"]);
     const profiles = parsed.profiles as Record<string, unknown> | undefined;
     const list = Array.isArray(profiles?.list) ? profiles?.list : [];
     if (defaultProfileId) {
@@ -234,7 +233,7 @@ function detectWindowsTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetect
         if (!profile || profile.guid !== defaultProfileId) {
           continue;
         }
-        const fontFamily = readNestedString(profile, ["font", "face"]);
+        const fontFamily = readTerminalConfigPath(profile, ["font", "face"]);
         if (fontFamily) {
           return { fontFamily };
         }
@@ -242,7 +241,7 @@ function detectWindowsTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetect
     }
 
     const defaults = profiles?.defaults as Record<string, unknown> | undefined;
-    const defaultsFont = readNestedString(defaults, ["font", "face"]);
+    const defaultsFont = readTerminalConfigPath(defaults, ["font", "face"]);
     if (defaultsFont) {
       return { fontFamily: defaultsFont };
     }
@@ -252,7 +251,7 @@ function detectWindowsTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetect
       if (!profile) {
         continue;
       }
-      const fontFamily = readNestedString(profile, ["font", "face"]);
+      const fontFamily = readTerminalConfigPath(profile, ["font", "face"]);
       if (fontFamily) {
         return { fontFamily };
       }
@@ -262,7 +261,10 @@ function detectWindowsTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetect
   return null;
 }
 
-function detectVsCodeTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProfile | null {
+export function detectVsCodeTerminalFontFamilyFromRaw(
+  env: NodeJS.ProcessEnv,
+  rawReader: RawFileReader,
+): TerminalDetectedProfile | null {
   const homeDir = resolveHomeDir(env);
   const appData = env.APPDATA?.trim();
   const xdgConfigHome = env.XDG_CONFIG_HOME?.trim();
@@ -278,8 +280,8 @@ function detectVsCodeTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetecte
   ].filter((candidate): candidate is string => Boolean(candidate));
 
   for (const filePath of candidates) {
-    const parsed = readJsoncFile(filePath);
-    const fontFamily = readNestedString(parsed, ["terminal.integrated.fontFamily"]);
+    const parsed = readJsoncFileWith(rawReader, filePath);
+    const fontFamily = readTerminalConfigPath(parsed, ["terminal.integrated.fontFamily"]);
     if (fontFamily) {
       return { fontFamily };
     }
@@ -288,7 +290,10 @@ function detectVsCodeTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetecte
   return null;
 }
 
-function detectKittyFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProfile | null {
+export function detectKittyFontFamilyFromRaw(
+  env: NodeJS.ProcessEnv,
+  rawReader: RawFileReader,
+): TerminalDetectedProfile | null {
   const homeDir = resolveHomeDir(env);
   const xdgConfigHome = env.XDG_CONFIG_HOME?.trim() || join(homeDir, ".config");
   const candidates = [
@@ -297,11 +302,11 @@ function detectKittyFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProfile 
   ];
 
   for (const filePath of candidates) {
-    if (!existsSync(filePath)) {
+    const raw = rawReader(filePath);
+    if (raw === null) {
       continue;
     }
     try {
-      const raw = readFileSync(filePath, "utf8");
       const match = raw.match(/^\s*font_family\s+(.+)$/m);
       const fontFamily = normalizeFontFamily(match?.[1]);
       if (fontFamily) {
@@ -329,7 +334,7 @@ function detectAlacrittyFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProf
 
   for (const filePath of tomlCandidates) {
     const parsed = readObjectFile(filePath, parseToml);
-    const fontFamily = readNestedString(parsed, ["font", "normal", "family"]);
+    const fontFamily = readTerminalConfigPath(parsed, ["font", "normal", "family"]);
     if (fontFamily) {
       return { fontFamily };
     }
@@ -337,13 +342,36 @@ function detectAlacrittyFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProf
 
   for (const filePath of yamlCandidates) {
     const parsed = readObjectFile(filePath, parseYaml);
-    const fontFamily = readNestedString(parsed, ["font", "normal", "family"]);
+    const fontFamily = readTerminalConfigPath(parsed, ["font", "normal", "family"]);
     if (fontFamily) {
       return { fontFamily };
     }
   }
 
   return null;
+}
+
+function readRawFile(filePath: string): string | null {
+  if (!existsSync(filePath)) {
+    return null;
+  }
+  try {
+    return readFileSync(filePath, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function detectWindowsTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProfile | null {
+  return detectWindowsTerminalFontFamilyFromRaw(process.platform, env, readRawFile);
+}
+
+function detectVsCodeTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProfile | null {
+  return detectVsCodeTerminalFontFamilyFromRaw(env, readRawFile);
+}
+
+function detectKittyFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProfile | null {
+  return detectKittyFontFamilyFromRaw(env, readRawFile);
 }
 
 const TERMINAL_FONT_DETECTORS: readonly TerminalFontDetector[] = [

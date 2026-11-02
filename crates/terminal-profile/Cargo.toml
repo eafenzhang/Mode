@@ -11,4 +11,5 @@ path = "src/lib.rs"
 
 [dependencies]
 indexmap = "2"
+regex = "1"
 serde_json = { workspace = true }

@@ -4,6 +4,7 @@
 //! `composeTerminalFontProfile` 与字体栈 helper。系统探测结果由调用方注入。
 
 use indexmap::IndexMap;
+mod system_profile;
 use serde_json::{json, Number, Value};
 
 fn json_number(value: f64) -> Value {
@@ -117,6 +118,11 @@ pub fn compose_terminal_font_profile(
         source: TerminalFontFamilySource::Fallback,
     }
 }
+
+pub use system_profile::{
+    detect_kitty_font_family_from_raw, detect_vs_code_terminal_font_family_from_raw,
+    detect_windows_terminal_font_family_from_raw, parse_jsonc, read_terminal_config_path,
+};
 
 impl TerminalDetectedProfile {
     pub fn is_empty(&self) -> bool {

@@ -1,0 +1,122 @@
+{
+  "cases": [
+    {
+      "name": "windows-default-profile-wins",
+      "kind": "windows",
+      "platform": "win32",
+      "env": {
+        "LOCALAPPDATA": "C:/Users/u/AppData/Local"
+      },
+      "files": {
+        "C:\\Users\\u\\AppData\\Local\\Packages\\Microsoft.WindowsTerminal_8wekyb3d8bbwe\\LocalState\\settings.json": "{\n  // comments are stripped\n  \"defaultProfile\": \"{guid-a}\",\n  \"profiles\": {\n    \"defaults\": { \"font\": { \"face\": \"Default Font\" } },\n    \"list\": [\n      { \"guid\": \"{guid-b}\", \"font\": { \"face\": \"List Font\" } },\n      { \"guid\": \"{guid-a}\", \"font\": { \"face\": \" Guid Font \" }, },\n    ],\n  },\n}"
+      },
+      "expected": {
+        "fontFamily": "Guid Font"
+      }
+    },
+    {
+      "name": "windows-preview-fallback",
+      "kind": "windows",
+      "platform": "win32",
+      "env": {
+        "LOCALAPPDATA": "C:/Users/u/AppData/Local"
+      },
+      "files": {
+        "C:\\Users\\u\\AppData\\Local\\Packages\\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\\LocalState\\settings.json": "{\"profiles\":{\"list\":[{\"guid\":\"x\",\"font\":{\"face\":\"Preview Font\"}}]}}"
+      },
+      "expected": {
+        "fontFamily": "Preview Font"
+      }
+    },
+    {
+      "name": "windows-non-win32-empty",
+      "kind": "windows",
+      "platform": "linux",
+      "env": {
+        "LOCALAPPDATA": "C:/Users/u/AppData/Local"
+      },
+      "files": {},
+      "expected": null
+    },
+    {
+      "name": "vscode-appdata",
+      "kind": "vscode",
+      "platform": "",
+      "env": {
+        "HOME": "C:/Users/u",
+        "USERPROFILE": "C:/Users/u",
+        "APPDATA": "C:/Users/u/AppData/Roaming",
+        "XDG_CONFIG_HOME": "C:/xdg"
+      },
+      "files": {
+        "C:\\Users\\u\\AppData\\Roaming\\Code\\User\\settings.json": "{\n  \"terminal.integrated.fontFamily\": \" VS Code Mono \",\n}"
+      },
+      "expected": {
+        "fontFamily": "VS Code Mono"
+      }
+    },
+    {
+      "name": "vscode-home-fallback",
+      "kind": "vscode",
+      "platform": "",
+      "env": {
+        "HOME": "/home/u",
+        "XDG_CONFIG_HOME": "/xdg"
+      },
+      "files": {
+        "\\home\\u\\.config\\Code\\User\\settings.json": "{\n  \"terminal.integrated.fontFamily\": \" VS Code Mono \",\n}"
+      },
+      "expected": {
+        "fontFamily": "VS Code Mono"
+      }
+    },
+    {
+      "name": "vscode-no-files",
+      "kind": "vscode",
+      "platform": "",
+      "env": {},
+      "files": {},
+      "expected": null
+    },
+    {
+      "name": "kitty-xdg-quoted",
+      "kind": "kitty",
+      "platform": "",
+      "env": {
+        "HOME": "/home/u",
+        "XDG_CONFIG_HOME": "/xdg"
+      },
+      "files": {
+        "\\xdg\\kitty\\kitty.conf": "# comment\nfont_family \" Hack Nerd Font \"\nfont_size 12\n"
+      },
+      "expected": {
+        "fontFamily": " Hack Nerd Font "
+      }
+    },
+    {
+      "name": "kitty-home-fallback",
+      "kind": "kitty",
+      "platform": "",
+      "env": {
+        "HOME": "/home/u"
+      },
+      "files": {
+        "\\home\\u\\.config\\kitty\\kitty.conf": "font_family   JetBrains Mono  \n"
+      },
+      "expected": {
+        "fontFamily": "JetBrains Mono"
+      }
+    },
+    {
+      "name": "kitty-no-files",
+      "kind": "kitty",
+      "platform": "",
+      "env": {
+        "HOME": "/home/u",
+        "XDG_CONFIG_HOME": "/xdg"
+      },
+      "files": {},
+      "expected": null
+    }
+  ]
+}
