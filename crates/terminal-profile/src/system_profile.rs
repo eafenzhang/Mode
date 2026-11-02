@@ -381,6 +381,70 @@ pub fn detect_kitty_font_family_from_raw(
     None
 }
 
+fn parse_toml_object(raw: &str) -> Option<Value> {
+    let value = toml::from_str::<toml::Value>(raw).ok()?;
+    serde_json::to_value(value)
+        .ok()
+        .filter(|value| value.is_object())
+}
+
+fn parse_yaml_object(raw: &str) -> Option<Value> {
+    let value = serde_yaml::from_str::<serde_yaml::Value>(raw).ok()?;
+    serde_json::to_value(value)
+        .ok()
+        .filter(|value| value.is_object())
+}
+
+pub fn detect_alacritty_font_family_from_raw(
+    env: &BTreeMap<String, String>,
+    raw_reader: &RawFileReader<'_>,
+) -> Option<TerminalDetectedProfile> {
+    let home = home_dir(env);
+    let xdg_config_home =
+        env_value(env, "XDG_CONFIG_HOME").unwrap_or_else(|| path_string(&[&home, ".config"]));
+    let toml_candidates = [
+        path_string(&[&xdg_config_home, "alacritty", "alacritty.toml"]),
+        path_string(&[&home, ".alacritty.toml"]),
+    ];
+    let yaml_candidates = [
+        path_string(&[&xdg_config_home, "alacritty", "alacritty.yml"]),
+        path_string(&[&xdg_config_home, "alacritty", "alacritty.yaml"]),
+    ];
+    for file_path in toml_candidates {
+        let Some(raw) = raw_reader(&file_path) else {
+            continue;
+        };
+        let Some(parsed) = parse_toml_object(&raw) else {
+            continue;
+        };
+        if let Some(font_family) = read_terminal_config_path(&parsed, &["font", "normal", "family"])
+        {
+            return Some(TerminalDetectedProfile {
+                font_family: Some(font_family),
+                font_size: None,
+                theme: None,
+            });
+        }
+    }
+    for file_path in yaml_candidates {
+        let Some(raw) = raw_reader(&file_path) else {
+            continue;
+        };
+        let Some(parsed) = parse_yaml_object(&raw) else {
+            continue;
+        };
+        if let Some(font_family) = read_terminal_config_path(&parsed, &["font", "normal", "family"])
+        {
+            return Some(TerminalDetectedProfile {
+                font_family: Some(font_family),
+                font_size: None,
+                theme: None,
+            });
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

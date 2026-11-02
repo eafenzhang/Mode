@@ -166,26 +166,6 @@ export function readTerminalConfigPath(value: unknown, pathSegments: readonly st
   return typeof current === "string" ? normalizeFontFamily(current) : null;
 }
 
-function readObjectFile(
-  filePath: string,
-  parser: (raw: string) => unknown,
-): Record<string, unknown> | null {
-  if (!existsSync(filePath)) {
-    return null;
-  }
-
-  try {
-    const parsed = parser(readFileSync(filePath, "utf8"));
-    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
 export function detectWindowsTerminalFontFamilyFromRaw(
   platform: NodeJS.Platform,
   env: NodeJS.ProcessEnv,
@@ -320,7 +300,10 @@ export function detectKittyFontFamilyFromRaw(
   return null;
 }
 
-function detectAlacrittyFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProfile | null {
+export function detectAlacrittyFontFamilyFromRaw(
+  env: NodeJS.ProcessEnv,
+  rawReader: RawFileReader,
+): TerminalDetectedProfile | null {
   const homeDir = resolveHomeDir(env);
   const xdgConfigHome = env.XDG_CONFIG_HOME?.trim() || join(homeDir, ".config");
   const tomlCandidates = [
@@ -333,7 +316,19 @@ function detectAlacrittyFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProf
   ];
 
   for (const filePath of tomlCandidates) {
-    const parsed = readObjectFile(filePath, parseToml);
+    const raw = rawReader(filePath);
+    if (raw === null) {
+      continue;
+    }
+    let parsed: Record<string, unknown> | null = null;
+    try {
+      const value = parseToml(raw);
+      parsed = typeof value === "object" && value !== null && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null;
+    } catch {
+      parsed = null;
+    }
     const fontFamily = readTerminalConfigPath(parsed, ["font", "normal", "family"]);
     if (fontFamily) {
       return { fontFamily };
@@ -341,7 +336,19 @@ function detectAlacrittyFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProf
   }
 
   for (const filePath of yamlCandidates) {
-    const parsed = readObjectFile(filePath, parseYaml);
+    const raw = rawReader(filePath);
+    if (raw === null) {
+      continue;
+    }
+    let parsed: Record<string, unknown> | null = null;
+    try {
+      const value = parseYaml(raw);
+      parsed = typeof value === "object" && value !== null && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null;
+    } catch {
+      parsed = null;
+    }
     const fontFamily = readTerminalConfigPath(parsed, ["font", "normal", "family"]);
     if (fontFamily) {
       return { fontFamily };
@@ -368,6 +375,10 @@ function detectWindowsTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetect
 
 function detectVsCodeTerminalFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProfile | null {
   return detectVsCodeTerminalFontFamilyFromRaw(env, readRawFile);
+}
+
+function detectAlacrittyFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProfile | null {
+  return detectAlacrittyFontFamilyFromRaw(env, readRawFile);
 }
 
 function detectKittyFontFamily(env: NodeJS.ProcessEnv): TerminalDetectedProfile | null {

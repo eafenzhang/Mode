@@ -13,4 +13,7 @@ path = "src/lib.rs"
 indexmap = "2"
 regex = "1"
 base64 = "0.22"
+serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = "0.9"
+toml = "0.8"

@@ -125,8 +125,9 @@ pub use macos_profile::{
     terminal_detected_profile_to_json,
 };
 pub use system_profile::{
-    detect_kitty_font_family_from_raw, detect_vs_code_terminal_font_family_from_raw,
-    detect_windows_terminal_font_family_from_raw, parse_jsonc, read_terminal_config_path,
+    detect_alacritty_font_family_from_raw, detect_kitty_font_family_from_raw,
+    detect_vs_code_terminal_font_family_from_raw, detect_windows_terminal_font_family_from_raw,
+    parse_jsonc, read_terminal_config_path,
 };
 
 impl TerminalDetectedProfile {

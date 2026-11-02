@@ -15,6 +15,7 @@
 | `detect_vs_code_terminal_font_family_from_raw` | VS Code/Insiders 探测 |
 | `detect_kitty_font_family_from_raw` | kitty conf 探测 |
 | `detect_iterm2_profile_from_raw` / `detect_macos_terminal_profile_from_raw` | macOS plist 原始探测 |
+| `detect_alacritty_font_family_from_raw` | Alacritty TOML/YAML 探测 |
 | `TerminalDetectedProfile` / `TerminalFontProfile` | 同名接口 |
 
 系统字体/主题探测、JSONC/TOML/YAML 文件读取和 macOS `plutil` 调用仍由适配层负责；
@@ -64,9 +65,16 @@ JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace`�
   descriptor；主题用 `TextColor/BackgroundColor/CursorColor/SelectionColor` 与
   16 个 ANSI 颜色。
 
+### Alacritty
+
+- 候选顺序：`$XDG_CONFIG_HOME`（缺省 home `.config`）下的 `alacritty.toml`、
+  home `.alacritty.toml`；随后 `alacritty.yml`、`alacritty.yaml`。
+- TOML/YAML 必须解析成对象；读取 `font.normal.family`；解析失败或缺失时继续下一个
+  候选。home 缺省使用系统 `homedir()`，Rust 侧不注入系统回退，夹具不覆盖空 env。
+
 ## 5. 已知差异
 
-1. Alacritty（TOML/YAML）尚未迁。
+1. Rust 侧 `home` 无 OS 回退；空 HOME/USERPROFILE 的系统回退由调用方实现，夹具不覆盖。
 2. `readMacOsArchivedFontName` 在现有实现里不是可达路径：`Font` 为字符串时
    normalize 后直接作为字体族返回（夹具覆盖该既有行为，未做“修复”）。
 3. Rust 的 base64 解码只覆盖 STANDARD；plist 原始二进制仍由调用方 `plutil` 转换。
@@ -77,6 +85,10 @@ JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace`�
   `crates/terminal-profile/fixtures/macos.json`
   - 10 条：iTerm2 default 提前/无 default/仅主题/非法字体/空 plist；Terminal startup
     /archived fallback/缺 settings 名/仅主题/空 plist。
+- `pnpm terminal-profile-alacritty:fixtures` →
+  `crates/terminal-profile/fixtures/alacritty.json`
+  - 9 条：TOML XDG/home、YAML `.yml`/`.yaml`、TOML 缺字体或非法时回退、
+    非对象/非法 YAML、无文件。
 - `pnpm terminal-profile-detect:fixtures` →
   `crates/terminal-profile/fixtures/detect.json`
   - 9 条：Windows default/preview/非 win32，VS Code APPDATA/home/无文件，
@@ -84,7 +96,7 @@ JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace`�
 - `pnpm terminal-profile:fixtures` → `crates/terminal-profile/fixtures/compose.json`
   - 12 条：自定义字体（重复/空白/大小写不同）、无 detected、detected 仅字体/仅字号/
     仅主题/空对象/空主题、fallback 全量、fallback 已存在时不重复追加。
-- `cargo test -p terminal-profile`（4 条 Rust 单测 + 3 条 TS 深比较回放）。
+- `cargo test -p terminal-profile`（4 条 Rust 单测 + 4 条 TS 深比较回放）。
 - `cargo clippy -p terminal-profile --all-targets -- -D warnings`。
 
 ## 7. TS 对拍入口

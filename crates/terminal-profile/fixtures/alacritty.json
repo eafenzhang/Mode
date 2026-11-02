@@ -1,0 +1,115 @@
+{
+  "cases": [
+    {
+      "name": "xdg-toml",
+      "env": {
+        "HOME": "/home/u",
+        "XDG_CONFIG_HOME": "/xdg"
+      },
+      "files": {
+        "\\xdg\\alacritty\\alacritty.toml": "[font.normal]\nfamily = \" Tom TOML \"\n"
+      },
+      "expected": {
+        "fontFamily": "Tom TOML"
+      }
+    },
+    {
+      "name": "home-toml",
+      "env": {
+        "HOME": "/home/u",
+        "XDG_CONFIG_HOME": "/xdg"
+      },
+      "files": {
+        "\\home\\u\\.alacritty.toml": "[font.normal]\nfamily = 'Home TOML'\n"
+      },
+      "expected": {
+        "fontFamily": "Home TOML"
+      }
+    },
+    {
+      "name": "xdg-yml",
+      "env": {
+        "HOME": "/home/u",
+        "XDG_CONFIG_HOME": "/xdg"
+      },
+      "files": {
+        "\\xdg\\alacritty\\alacritty.yml": "font:\n  normal:\n    family: \"YML Font\"\n"
+      },
+      "expected": {
+        "fontFamily": "YML Font"
+      }
+    },
+    {
+      "name": "xdg-yaml",
+      "env": {
+        "HOME": "/home/u",
+        "XDG_CONFIG_HOME": "/xdg"
+      },
+      "files": {
+        "\\xdg\\alacritty\\alacritty.yaml": "font:\n  normal:\n    family: YAML Font\n"
+      },
+      "expected": {
+        "fontFamily": "YAML Font"
+      }
+    },
+    {
+      "name": "toml-missing-font-falls-back-to-yaml",
+      "env": {
+        "HOME": "/home/u",
+        "XDG_CONFIG_HOME": "/xdg"
+      },
+      "files": {
+        "\\xdg\\alacritty\\alacritty.toml": "[window]\nopacity = 0.5\n",
+        "\\xdg\\alacritty\\alacritty.yml": "font:\n  normal:\n    family: YAML Font\n"
+      },
+      "expected": {
+        "fontFamily": "YAML Font"
+      }
+    },
+    {
+      "name": "invalid-toml-falls-back-to-yaml",
+      "env": {
+        "HOME": "/home/u",
+        "XDG_CONFIG_HOME": "/xdg"
+      },
+      "files": {
+        "\\xdg\\alacritty\\alacritty.toml": "[font\nfamily = \"bad\"\n",
+        "\\xdg\\alacritty\\alacritty.yml": "font:\n  normal:\n    family: YAML Font\n"
+      },
+      "expected": {
+        "fontFamily": "YAML Font"
+      }
+    },
+    {
+      "name": "yaml-non-object-ignored",
+      "env": {
+        "HOME": "/home/u",
+        "XDG_CONFIG_HOME": "/xdg"
+      },
+      "files": {
+        "\\xdg\\alacritty\\alacritty.yml": "- just\n- list\n"
+      },
+      "expected": null
+    },
+    {
+      "name": "invalid-yaml",
+      "env": {
+        "HOME": "/home/u",
+        "XDG_CONFIG_HOME": "/xdg"
+      },
+      "files": {
+        "\\xdg\\alacritty\\alacritty.yml": "font:\n  normal: [unclosed\n"
+      },
+      "expected": null
+    },
+    {
+      "name": "no-files",
+      "env": {
+        "HOME": "/home/u",
+        "XDG_CONFIG_HOME": "/xdg"
+      },
+      "files": {},
+      "expected": null
+    }
+  ]
+}
