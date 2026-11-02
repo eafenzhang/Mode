@@ -1,0 +1,1031 @@
+{
+  "generatedAt": 1700000000000,
+  "nowMs": 1700000000000,
+  "cases": [
+    {
+      "name": "open-code-fields-win-over-legacy-extension",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "custom-a": {
+            "kind": "anthropic",
+            "id": " custom-a ",
+            "name": " Custom A ",
+            "options": {
+              "baseURL": " https://API.Example.com/v1/ ",
+              "apiKey": " sk-test-a ",
+              "headers": {
+                " X-Token ": " abc ",
+                "empty": "   "
+              }
+            },
+            "api": "https://ignored.example.com",
+            "enabled": false,
+            "systemDisabledReason": "oauth_provider_inactive",
+            "apiKeyRequired": true,
+            "logoUrl": "https://example.com/logo.svg",
+            "apiKeyUrl": "https://example.com/key",
+            "providerMappings": {
+              "claude": {
+                "source": "x"
+              },
+              "mode-a": {
+                "source": "m"
+              }
+            },
+            "createdAt": 111,
+            "updatedAt": 222,
+            "models": {
+              "claude-x": {
+                "id": "claude-x",
+                "name": " Claude X ",
+                "limit": {
+                  "context": 123456.9,
+                  "output": 8192.4
+                },
+                "modalities": {
+                  "input": [
+                    "text",
+                    "image",
+                    "text"
+                  ],
+                  "output": [
+                    "text",
+                    "pdf"
+                  ]
+                },
+                "reasoning": {
+                  "enabled": true,
+                  "variants": [
+                    "low",
+                    "high",
+                    "low"
+                  ],
+                  "defaultVariant": "high"
+                },
+                "priority": 3,
+                "supportsTools": true,
+                "customField": {
+                  "ignored": true
+                }
+              },
+              "claude-y": {
+                "limit": {
+                  "context": 512
+                },
+                "options": {
+                  "max_tokens": 4096
+                },
+                "hasMaxOutputTokens": true,
+                "deleted": true,
+                "name": "   "
+              }
+            },
+            "mode": {
+              "enabled": true,
+              "systemDisabledReason": "coding_plan_not_connected",
+              "endpoints": {
+                "baseURL": "https://legacy.example.com",
+                "paths": {
+                  "openai": "/v1"
+                }
+              },
+              "apiFormat": "openai-chat-completions",
+              "source": "builtin",
+              "apiKeyRequired": false,
+              "headers": {
+                "X-Mode": "1"
+              },
+              "createdAt": 1,
+              "updatedAt": 2,
+              "deletedModels": [
+                "claude-y",
+                "gone-model",
+                "gone-model"
+              ]
+            }
+          }
+        }
+      },
+      "providers": [
+        {
+          "id": "custom-a",
+          "name": "Custom A",
+          "enabled": false,
+          "systemDisabledReason": "oauth_provider_inactive",
+          "endpoints": {
+            "baseURL": "https://API.Example.com/v1",
+            "paths": {
+              "anthropic": "/v1/messages"
+            }
+          },
+          "apiFormat": "anthropic-messages",
+          "source": "builtin",
+          "apiKeyRequired": true,
+          "headers": {
+            "X-Mode": "1"
+          },
+          "logoUrl": "https://example.com/logo.svg",
+          "apiKey": "sk-test-a",
+          "apiKeyUrl": "https://example.com/key",
+          "defaultKind": "anthropic",
+          "models": [
+            {
+              "id": "claude-x",
+              "name": "Claude X",
+              "kinds": [
+                "anthropic"
+              ],
+              "defaultKind": "anthropic",
+              "modalities": {
+                "input": [
+                  "text",
+                  "image"
+                ],
+                "output": [
+                  "text",
+                  "pdf"
+                ]
+              },
+              "contextWindow": 123456,
+              "maxOutputTokens": 8192.4,
+              "reasoning": {
+                "defaultLevel": "high",
+                "levels": {
+                  "low": {},
+                  "high": {}
+                }
+              },
+              "priority": 3,
+              "supportsTools": true
+            }
+          ],
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        }
+      ]
+    },
+    {
+      "name": "legacy-mode-extension-fallbacks",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "legacy-a": {
+            "id": "legacy-a",
+            "name": "Legacy A",
+            "options": {
+              "apiKey": "sk-legacy",
+              "headers": {
+                " X-Legacy ": " yes "
+              }
+            },
+            "createdAt": 1000,
+            "models": {
+              "alpha": {
+                "name": " Alpha ",
+                "contextWindow": 64000.8,
+                "kinds": [
+                  "anthropic",
+                  "anthropic",
+                  "openai"
+                ],
+                "defaultKind": "anthropic",
+                "modalities": {
+                  "input": [
+                    "text",
+                    "text"
+                  ],
+                  "output": [
+                    "image",
+                    "image"
+                  ]
+                },
+                "reasoningSpec": {
+                  "levels": {
+                    "low": {},
+                    "high": {}
+                  },
+                  "defaultLevel": "low"
+                },
+                "priority": 1.5,
+                "disabledReason": "temporarily disabled",
+                "supportsStructuredOutput": false,
+                "modified": true
+              },
+              "beta": {
+                "kinds": [
+                  "openai"
+                ],
+                "mode": {
+                  "kinds": [
+                    "openai-compatible",
+                    "openai"
+                  ],
+                  "defaultKind": "openai-compatible",
+                  "reasoning": {
+                    "levels": {
+                      "medium": {
+                        "anthropic": {
+                          "set": [
+                            {
+                              "path": [
+                                "x"
+                              ],
+                              "value": 1
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "priority": 2,
+                  "disabledReason": "mode disabled",
+                  "supportsTools": false,
+                  "modified": true,
+                  "deleted": false
+                }
+              },
+              "gamma": {
+                "reasoning": {
+                  "variants": [
+                    "a",
+                    "b"
+                  ],
+                  "defaultVariant": "b"
+                }
+              },
+              "tombstone": {
+                "deleted": true,
+                "name": "Tombstone",
+                "contextWindow": 10
+              }
+            },
+            "providerMappings": {
+              "claude": {
+                "source": "legacy"
+              },
+              "mode-one": {
+                "source": "mode"
+              },
+              "keep": {
+                "source": "keep"
+              }
+            },
+            "apiFormat": "anthropic-messages",
+            "defaultKind": "anthropic",
+            "endpoints": {
+              "baseURL": "https://legacy.example.com/base/",
+              "paths": {
+                "anthropic": "/v1/messages"
+              }
+            },
+            "source": "builtin",
+            "catalogSourceId": "china-llm-mode-dev",
+            "catalogProviderId": "provider-a",
+            "modelsDevProviderId": "models-dev-a",
+            "apiKeyRequired": false,
+            "headers": {
+              " X-Provider ": " value "
+            },
+            "logoUrl": "https://example.com/legacy.svg",
+            "apiKeyUrl": "https://example.com/legacy-key",
+            "mode": {
+              "enabled": true,
+              "systemDisabledReason": "coding_plan_not_authenticated",
+              "createdAt": 11,
+              "updatedAt": 22,
+              "deletedModels": [
+                "ghost",
+                "beta"
+              ]
+            }
+          }
+        }
+      },
+      "providers": [
+        {
+          "id": "legacy-a",
+          "name": "Legacy A",
+          "enabled": true,
+          "systemDisabledReason": "coding_plan_not_authenticated",
+          "endpoints": {
+            "baseURL": "https://legacy.example.com/base",
+            "paths": {
+              "anthropic": "/v1/messages"
+            }
+          },
+          "apiFormat": "anthropic-messages",
+          "source": "builtin",
+          "catalogSourceId": "china-llm-mode-dev",
+          "catalogProviderId": "provider-a",
+          "modelsDevProviderId": "models-dev-a",
+          "apiKeyRequired": false,
+          "headers": {
+            " X-Provider ": " value "
+          },
+          "logoUrl": "https://example.com/legacy.svg",
+          "apiKey": "sk-legacy",
+          "apiKeyUrl": "https://example.com/legacy-key",
+          "defaultKind": "anthropic",
+          "models": [
+            {
+              "id": "alpha",
+              "name": "Alpha",
+              "kinds": [
+                "anthropic",
+                "openai"
+              ],
+              "defaultKind": "anthropic",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "image"
+                ]
+              },
+              "contextWindow": 64000,
+              "reasoning": {
+                "defaultLevel": "low",
+                "levels": {
+                  "low": {},
+                  "high": {}
+                }
+              },
+              "priority": 1.5,
+              "disabledReason": "temporarily disabled",
+              "supportsStructuredOutput": false,
+              "modified": true
+            },
+            {
+              "id": "beta",
+              "kinds": [
+                "openai"
+              ],
+              "defaultKind": "openai-compatible",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "text"
+                ]
+              },
+              "contextWindow": 200000,
+              "reasoning": {
+                "levels": {
+                  "medium": {}
+                }
+              },
+              "priority": 2,
+              "disabledReason": "mode disabled",
+              "supportsTools": false,
+              "modified": true,
+              "deleted": false
+            },
+            {
+              "id": "gamma",
+              "kinds": [
+                "anthropic"
+              ],
+              "defaultKind": "anthropic",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "text"
+                ]
+              },
+              "contextWindow": 200000,
+              "reasoning": {
+                "defaultLevel": "b",
+                "levels": {
+                  "a": {},
+                  "b": {}
+                }
+              }
+            }
+          ],
+          "providerMappings": {
+            "keep": {
+              "source": "keep"
+            }
+          },
+          "createdAt": 1000,
+          "updatedAt": 22
+        }
+      ]
+    },
+    {
+      "name": "legacy-endpoints-only",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "legacy-endpoints": {
+            "endpoints": {
+              "anthropic": " https://anthropic.example.com/v1/ "
+            },
+            "models": {
+              "first": {
+                "contextWindow": 1
+              }
+            },
+            "createdAt": 5
+          },
+          "legacy-openai": {
+            "endpoints": {
+              "openai": " https://openai.example.com/v1/ "
+            },
+            "models": {
+              "second": {
+                "contextWindow": 2
+              }
+            }
+          },
+          "legacy-both": {
+            "endpoints": {
+              "anthropic": "https://both.example.com/anthropic",
+              "openai": "https://both.example.com/openai"
+            },
+            "models": {
+              "third": {
+                "contextWindow": 3
+              }
+            }
+          }
+        }
+      },
+      "providers": [
+        {
+          "id": "legacy-endpoints",
+          "name": "legacy-endpoints",
+          "endpoints": {
+            "baseURL": "https://anthropic.example.com/v1",
+            "paths": {
+              "openai-compatible": "/chat/completions"
+            }
+          },
+          "apiFormat": "openai-chat-completions",
+          "source": "custom",
+          "apiKey": "",
+          "defaultKind": "openai-compatible",
+          "models": [
+            {
+              "id": "first",
+              "kinds": [
+                "openai-compatible"
+              ],
+              "defaultKind": "openai-compatible",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "text"
+                ]
+              },
+              "contextWindow": 1
+            }
+          ],
+          "createdAt": 5,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": "legacy-openai",
+          "name": "legacy-openai",
+          "endpoints": {
+            "baseURL": "https://openai.example.com/v1",
+            "paths": {
+              "openai-compatible": "/chat/completions"
+            }
+          },
+          "apiFormat": "openai-chat-completions",
+          "source": "custom",
+          "apiKey": "",
+          "defaultKind": "openai-compatible",
+          "models": [
+            {
+              "id": "second",
+              "kinds": [
+                "openai-compatible"
+              ],
+              "defaultKind": "openai-compatible",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "text"
+                ]
+              },
+              "contextWindow": 2
+            }
+          ],
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": "legacy-both",
+          "name": "legacy-both",
+          "endpoints": {
+            "baseURL": "https://both.example.com/openai",
+            "paths": {
+              "openai-compatible": "/chat/completions"
+            }
+          },
+          "apiFormat": "openai-chat-completions",
+          "source": "custom",
+          "apiKey": "",
+          "defaultKind": "openai-compatible",
+          "models": [
+            {
+              "id": "third",
+              "kinds": [
+                "openai-compatible"
+              ],
+              "defaultKind": "openai-compatible",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "text"
+                ]
+              },
+              "contextWindow": 3
+            }
+          ],
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        }
+      ]
+    },
+    {
+      "name": "bigmodel-coding-plan-legacy-runtime-production",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "account:bigmodel-individual-coding-plan": {
+            "kind": "openai-compatible",
+            "options": {
+              "baseURL": "https://open.bigmodel.cn/api/coding/paas/v4/",
+              "apiKey": "sk-bigmodel"
+            },
+            "models": {
+              "glm-5": {
+                "limit": {
+                  "context": 131072
+                }
+              }
+            }
+          }
+        }
+      },
+      "providers": [
+        {
+          "id": "account:bigmodel-individual-coding-plan",
+          "name": "account:bigmodel-individual-coding-plan",
+          "endpoints": {
+            "baseURL": "https://open.bigmodel.cn/api/anthropic",
+            "paths": {
+              "anthropic": "/v1/messages"
+            }
+          },
+          "apiFormat": "anthropic-messages",
+          "source": "custom",
+          "apiKey": "sk-bigmodel",
+          "defaultKind": "anthropic",
+          "models": [
+            {
+              "id": "glm-5",
+              "kinds": [
+                "anthropic"
+              ],
+              "defaultKind": "anthropic",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "text"
+                ]
+              },
+              "contextWindow": 131072
+            }
+          ],
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        }
+      ]
+    },
+    {
+      "name": "bigmodel-coding-plan-legacy-runtime-test",
+      "env": {
+        "runtime_env": "test",
+        "bigmodel_api_origin": "https://test-bigmodel.example.com"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "account:bigmodel-individual-coding-plan": {
+            "kind": "openai-compatible",
+            "options": {
+              "baseURL": "https://open.bigmodel.cn/api/coding/paas/v4",
+              "apiKey": "sk-bigmodel"
+            },
+            "models": {
+              "glm-5": {
+                "limit": {
+                  "context": 131072
+                }
+              }
+            }
+          }
+        }
+      },
+      "providers": [
+        {
+          "id": "account:bigmodel-individual-coding-plan",
+          "name": "account:bigmodel-individual-coding-plan",
+          "endpoints": {
+            "baseURL": "https://test-bigmodel.example.com/api/anthropic",
+            "paths": {
+              "anthropic": "/v1/messages"
+            }
+          },
+          "apiFormat": "anthropic-messages",
+          "source": "custom",
+          "apiKey": "sk-bigmodel",
+          "defaultKind": "anthropic",
+          "models": [
+            {
+              "id": "glm-5",
+              "kinds": [
+                "anthropic"
+              ],
+              "defaultKind": "anthropic",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "text"
+                ]
+              },
+              "contextWindow": 131072
+            }
+          ],
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        }
+      ]
+    },
+    {
+      "name": "preset-glm-runtime-kinds",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "zai-api": {
+            "kind": "anthropic",
+            "options": {
+              "baseURL": "https://api.example.com/coding/paas/v4"
+            },
+            "models": {
+              "glm-4": {}
+            }
+          },
+          "bigmodel-api": {
+            "kind": "openai-compatible",
+            "options": {
+              "baseURL": "https://api.example.com/api/anthropic"
+            },
+            "models": {
+              "glm-3": {}
+            }
+          },
+          "account:zai-start-plan": {
+            "kind": "openai-compatible",
+            "options": {
+              "baseURL": "https://api.example.com/mode-plan/anthropic"
+            },
+            "models": {}
+          }
+        }
+      },
+      "providers": [
+        {
+          "id": "zai-api",
+          "name": "zai-api",
+          "endpoints": {
+            "baseURL": "https://api.example.com/coding/paas/v4",
+            "paths": {
+              "openai-compatible": "/chat/completions"
+            }
+          },
+          "apiFormat": "openai-chat-completions",
+          "source": "custom",
+          "apiKey": "",
+          "defaultKind": "openai-compatible",
+          "models": [
+            {
+              "id": "glm-4",
+              "kinds": [
+                "openai-compatible"
+              ],
+              "defaultKind": "openai-compatible",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "text"
+                ]
+              },
+              "contextWindow": 200000
+            }
+          ],
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": "bigmodel-api",
+          "name": "bigmodel-api",
+          "endpoints": {
+            "baseURL": "https://api.example.com/api/anthropic",
+            "paths": {
+              "anthropic": "/v1/messages"
+            }
+          },
+          "apiFormat": "anthropic-messages",
+          "source": "custom",
+          "apiKey": "",
+          "defaultKind": "anthropic",
+          "models": [
+            {
+              "id": "glm-3",
+              "kinds": [
+                "anthropic"
+              ],
+              "defaultKind": "anthropic",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "text"
+                ]
+              },
+              "contextWindow": 200000
+            }
+          ],
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": "account:zai-start-plan",
+          "name": "account:zai-start-plan",
+          "endpoints": {
+            "baseURL": "https://api.example.com/mode-plan/anthropic",
+            "paths": {
+              "anthropic": "/v1/messages"
+            }
+          },
+          "apiFormat": "anthropic-messages",
+          "source": "custom",
+          "apiKey": "",
+          "defaultKind": "anthropic",
+          "models": [],
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        }
+      ]
+    },
+    {
+      "name": "store-migrations-drop-retired-and-empty-defaults",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "builtin:zapi": {
+            "id": "builtin:zapi",
+            "options": {
+              "apiKey": "sk-retired",
+              "baseURL": "https://retired.example.com"
+            },
+            "models": {
+              "old": {}
+            }
+          },
+          "default-empty": {
+            "id": "default-empty",
+            "options": {
+              "apiKey": "   ",
+              "baseURL": "https://default.example.com"
+            },
+            "models": {
+              "old": {}
+            }
+          },
+          "default-with-key": {
+            "id": "default-with-key",
+            "options": {
+              "apiKey": "sk-default",
+              "baseURL": "https://default.example.com"
+            },
+            "models": {
+              "kept": {}
+            }
+          }
+        }
+      },
+      "providers": [
+        {
+          "id": "default-with-key",
+          "name": "default-with-key",
+          "endpoints": {
+            "baseURL": "https://default.example.com",
+            "paths": {
+              "openai-compatible": "/chat/completions"
+            }
+          },
+          "apiFormat": "openai-chat-completions",
+          "source": "custom",
+          "apiKey": "sk-default",
+          "defaultKind": "openai-compatible",
+          "models": [
+            {
+              "id": "kept",
+              "kinds": [
+                "openai-compatible"
+              ],
+              "defaultKind": "openai-compatible",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "text"
+                ]
+              },
+              "contextWindow": 200000
+            }
+          ],
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        }
+      ]
+    },
+    {
+      "name": "open-code-kind-with-canonical-endpoints",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "kind-openai": {
+            "kind": "openai",
+            "endpoints": {
+              "baseURL": "https://responses.example.com/v1/",
+              "paths": {
+                "openai": "/responses"
+              }
+            },
+            "apiFormat": "anthropic-messages",
+            "defaultKind": "anthropic",
+            "models": {
+              "m": {
+                "kinds": [
+                  "openai",
+                  "openai-compatible"
+                ],
+                "defaultKind": "openai",
+                "contextWindow": 32000,
+                "maxOutputTokens": 2000,
+                "modalities": {
+                  "input": [
+                    "text"
+                  ],
+                  "output": [
+                    "audio",
+                    "text"
+                  ]
+                }
+              }
+            }
+          },
+          "kind-openai-compatible": {
+            "kind": "openai-compatible",
+            "options": {
+              "baseURL": "https://chat.example.com/v1/messages/"
+            },
+            "models": {}
+          }
+        }
+      },
+      "providers": [
+        {
+          "id": "kind-openai",
+          "name": "kind-openai",
+          "endpoints": {
+            "baseURL": "https://responses.example.com/v1",
+            "paths": {
+              "openai": "/responses"
+            }
+          },
+          "apiFormat": "openai-responses",
+          "source": "custom",
+          "apiKey": "",
+          "defaultKind": "openai",
+          "models": [
+            {
+              "id": "m",
+              "kinds": [
+                "openai"
+              ],
+              "defaultKind": "openai",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "audio",
+                  "text"
+                ]
+              },
+              "contextWindow": 32000,
+              "maxOutputTokens": 2000
+            }
+          ],
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": "kind-openai-compatible",
+          "name": "kind-openai-compatible",
+          "endpoints": {
+            "baseURL": "https://chat.example.com/v1/messages",
+            "paths": {
+              "openai-compatible": "/chat/completions"
+            }
+          },
+          "apiFormat": "openai-chat-completions",
+          "source": "custom",
+          "apiKey": "",
+          "defaultKind": "openai-compatible",
+          "models": [],
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        }
+      ]
+    },
+    {
+      "name": "missing-provider",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json"
+      },
+      "providers": []
+    },
+    {
+      "name": "empty-provider-map",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {}
+      },
+      "providers": []
+    }
+  ]
+}

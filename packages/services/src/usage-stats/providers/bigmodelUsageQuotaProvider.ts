@@ -1191,7 +1191,7 @@ function buildSubscriptionSnapshot(summary: {
   };
 }
 
-function buildZaiStartPlanSubscription(
+export function buildZaiStartPlanSubscription(
   plans: ZaiStartPlanPlan[] | undefined,
 ): UsageEntitlementSnapshot["subscription"] {
   const activePlans = (plans ?? []).filter(
@@ -1255,7 +1255,7 @@ function warnOnUnattributedStartPlanBuckets(
   });
 }
 
-function buildZaiStartPlanRemaining(
+export function buildZaiStartPlanRemaining(
   balances: ZaiStartPlanBalance[] | undefined,
 ): UsageEntitlementSnapshot["remaining"] {
   const limits = normalizeZaiStartPlanBalanceLimits(balances);
@@ -1277,7 +1277,7 @@ function buildZaiStartPlanRemaining(
   };
 }
 
-function buildZaiStartPlanQuota(
+export function buildZaiStartPlanQuota(
   balances: ZaiStartPlanBalance[] | undefined,
   plans?: ZaiStartPlanPlan[],
 ): UsageEntitlementSnapshot["quota"] {
@@ -1292,7 +1292,7 @@ function buildZaiStartPlanQuota(
   };
 }
 
-function normalizeZaiStartPlanBalanceLimits(
+export function normalizeZaiStartPlanBalanceLimits(
   balances: ZaiStartPlanBalance[] | undefined,
   plans?: ZaiStartPlanPlan[],
 ): UsageQuotaLimit[] {
@@ -1386,7 +1386,7 @@ function parseNumber(value: number | string | null | undefined): number | null {
   return Number.isFinite(numericValue) ? numericValue : null;
 }
 
-function pickCurrentZaiStartPlan(plans: ZaiStartPlanPlan[] | undefined): ZaiStartPlanPlan | null {
+export function pickCurrentZaiStartPlan(plans: ZaiStartPlanPlan[] | undefined): ZaiStartPlanPlan | null {
   return (
     plans?.find((plan) => {
       const status = readNonEmptyString(plan.status)?.toLowerCase();
@@ -1444,7 +1444,7 @@ function isZaiStartPlanIdentity(value: string | null | undefined): boolean {
   return value.includes("start-plan") || value.includes("start plan");
 }
 
-function pickZaiStartPlanBillingCycle(plan: ZaiStartPlanPlan): string | null {
+export function pickZaiStartPlanBillingCycle(plan: ZaiStartPlanPlan): string | null {
   return (
     plan.entitlements
       ?.map((item) => readNonEmptyString(item.period))

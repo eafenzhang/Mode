@@ -1,0 +1,989 @@
+{
+  "resolve": [
+    {
+      "baseUrl": "https://api.deepseek.com/v1",
+      "expected": {
+        "url": "https://api.deepseek.com/user/balance",
+        "host": "api.deepseek.com"
+      }
+    },
+    {
+      "baseUrl": "https://sub.api.deepseek.com",
+      "expected": {
+        "url": "https://api.deepseek.com/user/balance",
+        "host": "sub.api.deepseek.com"
+      }
+    },
+    {
+      "baseUrl": "https://api.moonshot.cn/v1",
+      "expected": {
+        "url": "https://api.moonshot.cn/v1/users/me/balance",
+        "host": "api.moonshot.cn"
+      }
+    },
+    {
+      "baseUrl": "https://api.moonshot.ai/anthropic",
+      "expected": {
+        "url": "https://api.moonshot.ai/v1/users/me/balance",
+        "host": "api.moonshot.ai"
+      }
+    },
+    {
+      "baseUrl": "https://API.MOONSHOT.AI",
+      "expected": {
+        "url": "https://api.moonshot.ai/v1/users/me/balance",
+        "host": "api.moonshot.ai"
+      }
+    },
+    {
+      "baseUrl": "https://api.siliconflow.cn/v1",
+      "expected": {
+        "url": "https://api.siliconflow.cn/v1/user/info",
+        "host": "api.siliconflow.cn"
+      }
+    },
+    {
+      "baseUrl": "https://api.siliconflow.com/v1",
+      "expected": {
+        "url": "https://api.siliconflow.com/v1/user/info",
+        "host": "api.siliconflow.com"
+      }
+    },
+    {
+      "baseUrl": "https://api.stepfun.com/v1",
+      "expected": {
+        "url": "https://api.stepfun.com/v1/accounts",
+        "host": "api.stepfun.com"
+      }
+    },
+    {
+      "baseUrl": "https://api.stepfun.ai/v1",
+      "expected": {
+        "url": "https://api.stepfun.ai/v1/accounts",
+        "host": "api.stepfun.ai"
+      }
+    },
+    {
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "expected": {
+        "url": "https://openrouter.ai/api/v1/credits",
+        "host": "openrouter.ai"
+      }
+    },
+    {
+      "baseUrl": "https://sub.openrouter.ai/x",
+      "expected": {
+        "url": "https://openrouter.ai/api/v1/credits",
+        "host": "sub.openrouter.ai"
+      }
+    },
+    {
+      "baseUrl": "https://api.novita.ai/v3",
+      "expected": {
+        "url": "https://api.novita.ai/v3/user/balance",
+        "host": "api.novita.ai"
+      }
+    },
+    {
+      "baseUrl": "https://api.example.com/v1",
+      "expected": null
+    },
+    {
+      "baseUrl": "not a url",
+      "expected": null
+    }
+  ],
+  "parse": [
+    {
+      "name": "deepseek-multi-currency",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "payload": {
+        "is_available": false,
+        "balance_infos": [
+          {
+            "currency": "CNY",
+            "total_balance": "12.50"
+          },
+          {
+            "currency": "USD",
+            "total_balance": 3
+          },
+          {
+            "currency": "  ",
+            "total_balance": 1
+          },
+          {
+            "total_balance": 2
+          },
+          "ignored"
+        ]
+      },
+      "expected": [
+        {
+          "label": "CNY",
+          "unit": "CNY",
+          "remaining": 12.5,
+          "isAvailable": false
+        },
+        {
+          "label": "USD",
+          "unit": "USD",
+          "remaining": 3,
+          "isAvailable": false
+        },
+        {
+          "label": "CNY",
+          "unit": "CNY",
+          "remaining": 1,
+          "isAvailable": false
+        },
+        {
+          "label": "CNY",
+          "unit": "CNY",
+          "remaining": 2,
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "name": "deepseek-missing",
+      "baseUrl": "https://api.deepseek.com",
+      "payload": {},
+      "expected": []
+    },
+    {
+      "name": "deepseek-non-object",
+      "baseUrl": "https://api.deepseek.com",
+      "payload": [
+        1,
+        2,
+        3
+      ],
+      "expected": []
+    },
+    {
+      "name": "moonshot-cny-data-wrapper",
+      "baseUrl": "https://api.moonshot.cn/v1",
+      "payload": {
+        "data": {
+          "available_balance": "100",
+          "voucher_balance": 20
+        }
+      },
+      "expected": [
+        {
+          "label": "CNY",
+          "unit": "CNY",
+          "remaining": 100,
+          "total": 20,
+          "isAvailable": true
+        }
+      ]
+    },
+    {
+      "name": "moonshot-usd-root-and-negative",
+      "baseUrl": "https://api.moonshot.ai",
+      "payload": {
+        "available_balance": -1,
+        "voucher_balance": null
+      },
+      "expected": [
+        {
+          "label": "USD",
+          "unit": "USD",
+          "remaining": -1,
+          "total": null,
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "name": "moonshot-null-remaining",
+      "baseUrl": "https://api.moonshot.ai/v1",
+      "payload": {
+        "data": {
+          "available_balance": null
+        }
+      },
+      "expected": [
+        {
+          "label": "USD",
+          "unit": "USD",
+          "remaining": null,
+          "total": null,
+          "isAvailable": true
+        }
+      ]
+    },
+    {
+      "name": "siliconflow-cny-total-balance",
+      "baseUrl": "https://api.siliconflow.cn/v1",
+      "payload": {
+        "data": {
+          "totalBalance": "5.5",
+          "balance": 9,
+          "chargeBalance": 100
+        }
+      },
+      "expected": [
+        {
+          "label": "CNY",
+          "unit": "CNY",
+          "remaining": 5.5,
+          "total": 100,
+          "isAvailable": true
+        }
+      ]
+    },
+    {
+      "name": "siliconflow-usd-fallback-balance",
+      "baseUrl": "https://api.siliconflow.com/v1",
+      "payload": {
+        "data": {
+          "balance": 2
+        }
+      },
+      "expected": [
+        {
+          "label": "USD",
+          "unit": "USD",
+          "remaining": 2,
+          "total": null,
+          "isAvailable": true
+        }
+      ]
+    },
+    {
+      "name": "stepfun",
+      "baseUrl": "https://api.stepfun.com/v1",
+      "payload": {
+        "balance": "7.25",
+        "total_cash_balance": 10
+      },
+      "expected": [
+        {
+          "label": "CNY",
+          "unit": "CNY",
+          "remaining": 7.25,
+          "total": 10,
+          "isAvailable": true
+        }
+      ]
+    },
+    {
+      "name": "openrouter",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "payload": {
+        "data": {
+          "total_credits": 50,
+          "total_usage": 12.5
+        }
+      },
+      "expected": [
+        {
+          "label": "USD",
+          "unit": "USD",
+          "remaining": 37.5,
+          "total": 50,
+          "used": 12.5,
+          "isAvailable": true
+        }
+      ]
+    },
+    {
+      "name": "openrouter-null-total",
+      "baseUrl": "https://openrouter.ai",
+      "payload": {
+        "data": {
+          "total_credits": null,
+          "total_usage": 10
+        }
+      },
+      "expected": [
+        {
+          "label": "USD",
+          "unit": "USD",
+          "remaining": null,
+          "total": null,
+          "used": 10,
+          "isAvailable": true
+        }
+      ]
+    },
+    {
+      "name": "novita-scaled",
+      "baseUrl": "https://api.novita.ai/v3",
+      "payload": {
+        "availableBalance": "12500",
+        "cashBalance": 20000
+      },
+      "expected": [
+        {
+          "label": "USD",
+          "unit": "USD",
+          "remaining": 1.25,
+          "total": 2,
+          "isAvailable": true
+        }
+      ]
+    },
+    {
+      "name": "novita-missing-total",
+      "baseUrl": "https://api.novita.ai/v3",
+      "payload": {
+        "availableBalance": 0
+      },
+      "expected": [
+        {
+          "label": "USD",
+          "unit": "USD",
+          "remaining": 0,
+          "total": null,
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "name": "unknown-provider",
+      "baseUrl": "https://api.example.com/v1",
+      "payload": {
+        "available_balance": 1
+      },
+      "expected": null
+    }
+  ],
+  "service": [
+    {
+      "name": "empty-provider-id",
+      "providerId": "   ",
+      "now": 1700000000000,
+      "resolver": {
+        "kind": "target",
+        "target": {
+          "baseUrl": "https://api.deepseek.com",
+          "apiKey": "k"
+        }
+      },
+      "response": {
+        "kind": "json",
+        "payload": {}
+      },
+      "expected": {
+        "providerId": "",
+        "providerName": "",
+        "generatedAt": 1700000000000,
+        "status": "unsupported",
+        "balances": []
+      }
+    },
+    {
+      "name": "no-resolver",
+      "providerId": "p1",
+      "now": 1700000000001,
+      "resolver": {
+        "kind": "absent"
+      },
+      "response": {
+        "kind": "json",
+        "payload": {}
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "p1",
+        "generatedAt": 1700000000001,
+        "status": "unsupported",
+        "balances": []
+      }
+    },
+    {
+      "name": "resolver-null",
+      "providerId": "p1",
+      "now": 1700000000002,
+      "resolver": {
+        "kind": "null"
+      },
+      "response": {
+        "kind": "json",
+        "payload": {}
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "p1",
+        "generatedAt": 1700000000002,
+        "status": "unsupported",
+        "balances": []
+      }
+    },
+    {
+      "name": "resolver-throws",
+      "providerId": "p1",
+      "now": 1700000000003,
+      "resolver": {
+        "kind": "throw"
+      },
+      "response": {
+        "kind": "json",
+        "payload": {}
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "p1",
+        "generatedAt": 1700000000003,
+        "status": "unsupported",
+        "balances": []
+      }
+    },
+    {
+      "name": "unknown-base-url",
+      "providerId": "p1",
+      "now": 1700000000004,
+      "resolver": {
+        "kind": "target",
+        "target": {
+          "providerName": " My Provider ",
+          "baseUrl": "https://api.example.com",
+          "apiKey": "k"
+        }
+      },
+      "response": {
+        "kind": "json",
+        "payload": {}
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "My Provider",
+        "generatedAt": 1700000000004,
+        "status": "unsupported",
+        "balances": []
+      }
+    },
+    {
+      "name": "empty-api-key",
+      "providerId": "p1",
+      "now": 1700000000005,
+      "resolver": {
+        "kind": "target",
+        "target": {
+          "baseUrl": "https://api.deepseek.com",
+          "apiKey": "  "
+        }
+      },
+      "response": {
+        "kind": "json",
+        "payload": {}
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "p1",
+        "generatedAt": 1700000000005,
+        "status": "not_configured",
+        "balances": []
+      }
+    },
+    {
+      "name": "unauthorized-401",
+      "providerId": "p1",
+      "now": 1700000000006,
+      "resolver": {
+        "kind": "target",
+        "target": {
+          "baseUrl": "https://api.deepseek.com",
+          "apiKey": "k"
+        }
+      },
+      "response": {
+        "kind": "status",
+        "status": 401
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "p1",
+        "generatedAt": 1700000000006,
+        "status": "unauthorized",
+        "balances": []
+      }
+    },
+    {
+      "name": "forbidden-403",
+      "providerId": "p1",
+      "now": 1700000000007,
+      "resolver": {
+        "kind": "target",
+        "target": {
+          "baseUrl": "https://api.deepseek.com",
+          "apiKey": "k"
+        }
+      },
+      "response": {
+        "kind": "status",
+        "status": 403
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "p1",
+        "generatedAt": 1700000000007,
+        "status": "unauthorized",
+        "balances": []
+      }
+    },
+    {
+      "name": "server-error",
+      "providerId": "p1",
+      "now": 1700000000008,
+      "resolver": {
+        "kind": "target",
+        "target": {
+          "baseUrl": "https://api.deepseek.com",
+          "apiKey": "k"
+        }
+      },
+      "response": {
+        "kind": "status",
+        "status": 500
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "p1",
+        "generatedAt": 1700000000008,
+        "status": "error",
+        "message": "request_failed",
+        "balances": []
+      }
+    },
+    {
+      "name": "network-error",
+      "providerId": "p1",
+      "now": 1700000000009,
+      "resolver": {
+        "kind": "target",
+        "target": {
+          "baseUrl": "https://api.deepseek.com",
+          "apiKey": "k"
+        }
+      },
+      "response": {
+        "kind": "network"
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "p1",
+        "generatedAt": 1700000000009,
+        "status": "error",
+        "message": "request_failed",
+        "balances": []
+      }
+    },
+    {
+      "name": "deepseek-ok",
+      "providerId": "p1",
+      "now": 1700000000010,
+      "resolver": {
+        "kind": "target",
+        "target": {
+          "providerName": " DeepSeek ",
+          "baseUrl": "https://api.deepseek.com/v1",
+          "apiKey": " sk-test "
+        }
+      },
+      "response": {
+        "kind": "json",
+        "payload": {
+          "is_available": true,
+          "balance_infos": [
+            {
+              "currency": "CNY",
+              "total_balance": 12
+            }
+          ]
+        }
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "DeepSeek",
+        "generatedAt": 1700000000010,
+        "status": "ok",
+        "balances": [
+          {
+            "label": "CNY",
+            "unit": "CNY",
+            "remaining": 12,
+            "isAvailable": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty-payload",
+      "providerId": "p1",
+      "now": 1700000000011,
+      "resolver": {
+        "kind": "target",
+        "target": {
+          "baseUrl": "https://api.deepseek.com",
+          "apiKey": "k"
+        }
+      },
+      "response": {
+        "kind": "json",
+        "payload": {}
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "p1",
+        "generatedAt": 1700000000011,
+        "status": "error",
+        "message": "empty_response",
+        "balances": []
+      }
+    },
+    {
+      "name": "moonshot-ok",
+      "providerId": "p1",
+      "now": 1700000000012,
+      "resolver": {
+        "kind": "target",
+        "target": {
+          "providerName": "",
+          "baseUrl": "https://api.moonshot.ai",
+          "apiKey": "k"
+        }
+      },
+      "response": {
+        "kind": "json",
+        "payload": {
+          "data": {
+            "available_balance": 9
+          }
+        }
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "p1",
+        "generatedAt": 1700000000012,
+        "status": "ok",
+        "balances": [
+          {
+            "label": "USD",
+            "unit": "USD",
+            "remaining": 9,
+            "total": null,
+            "isAvailable": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "provider-name-fallback",
+      "providerId": "p1",
+      "now": 1700000000013,
+      "resolver": {
+        "kind": "target",
+        "target": {
+          "providerName": null,
+          "baseUrl": "https://api.deepseek.com",
+          "apiKey": "k"
+        }
+      },
+      "response": {
+        "kind": "json",
+        "payload": {
+          "balance_infos": [
+            {
+              "total_balance": 1
+            }
+          ]
+        }
+      },
+      "expected": {
+        "providerId": "p1",
+        "providerName": "p1",
+        "generatedAt": 1700000000013,
+        "status": "ok",
+        "balances": [
+          {
+            "label": "CNY",
+            "unit": "CNY",
+            "remaining": 1,
+            "isAvailable": true
+          }
+        ]
+      }
+    }
+  ],
+  "targets": [
+    {
+      "name": "default",
+      "view": {
+        "providers": [
+          {
+            "providerId": "p1",
+            "providerName": " Name ",
+            "effectiveConfig": {
+              "access": {
+                "type": "api-key",
+                "apiKey": " k "
+              },
+              "api": {
+                "baseUrl": "https://api.deepseek.com"
+              }
+            }
+          }
+        ]
+      },
+      "providerId": "p1",
+      "expected": {
+        "providerId": "p1",
+        "providerName": "Name",
+        "baseUrl": "https://api.deepseek.com",
+        "apiKey": " k "
+      }
+    },
+    {
+      "name": "missing-provider",
+      "view": {
+        "providers": [
+          {
+            "providerId": "p1",
+            "providerName": " Name ",
+            "effectiveConfig": {
+              "access": {
+                "type": "api-key",
+                "apiKey": " k "
+              },
+              "api": {
+                "baseUrl": "https://api.deepseek.com"
+              }
+            }
+          }
+        ]
+      },
+      "providerId": "p2",
+      "expected": null
+    },
+    {
+      "name": "account-access",
+      "view": {
+        "providers": [
+          {
+            "providerId": "p1",
+            "providerName": " Name ",
+            "effectiveConfig": {
+              "access": {
+                "type": "zhipu-account"
+              },
+              "api": {
+                "baseUrl": "https://x"
+              }
+            }
+          }
+        ]
+      },
+      "providerId": "p1",
+      "expected": null
+    },
+    {
+      "name": "access-missing",
+      "view": {
+        "providers": [
+          {
+            "providerId": "p1",
+            "providerName": " Name ",
+            "effectiveConfig": {}
+          }
+        ]
+      },
+      "providerId": "p1",
+      "expected": null
+    },
+    {
+      "name": "empty-name",
+      "view": {
+        "providers": [
+          {
+            "providerId": "p1",
+            "providerName": "   ",
+            "effectiveConfig": {
+              "access": {
+                "type": "api-key",
+                "apiKey": " k "
+              },
+              "api": {
+                "baseUrl": "https://api.deepseek.com"
+              }
+            }
+          }
+        ]
+      },
+      "providerId": "p1",
+      "expected": {
+        "providerId": "p1",
+        "providerName": "p1",
+        "baseUrl": "https://api.deepseek.com",
+        "apiKey": " k "
+      }
+    },
+    {
+      "name": "null-base-url",
+      "view": {
+        "providers": [
+          {
+            "providerId": "p1",
+            "providerName": " Name ",
+            "effectiveConfig": {
+              "access": {
+                "type": "api-key",
+                "apiKey": "k"
+              },
+              "api": {
+                "baseUrl": null
+              }
+            }
+          }
+        ]
+      },
+      "providerId": "p1",
+      "expected": {
+        "providerId": "p1",
+        "providerName": "Name",
+        "baseUrl": null,
+        "apiKey": "k"
+      }
+    },
+    {
+      "name": "api-missing",
+      "view": {
+        "providers": [
+          {
+            "providerId": "p1",
+            "providerName": " Name ",
+            "effectiveConfig": {
+              "access": {
+                "type": "api-key",
+                "apiKey": "k"
+              }
+            }
+          }
+        ]
+      },
+      "providerId": "p1",
+      "expected": {
+        "providerId": "p1",
+        "providerName": "Name",
+        "baseUrl": null,
+        "apiKey": "k"
+      }
+    },
+    {
+      "name": "null-api-key",
+      "view": {
+        "providers": [
+          {
+            "providerId": "p1",
+            "providerName": " Name ",
+            "effectiveConfig": {
+              "access": {
+                "type": "api-key",
+                "apiKey": null
+              },
+              "api": {}
+            }
+          }
+        ]
+      },
+      "providerId": "p1",
+      "expected": {
+        "providerId": "p1",
+        "providerName": "Name",
+        "baseUrl": null,
+        "apiKey": null
+      }
+    },
+    {
+      "name": "numeric-api-key",
+      "view": {
+        "providers": [
+          {
+            "providerId": "p1",
+            "providerName": " Name ",
+            "effectiveConfig": {
+              "access": {
+                "type": "api-key",
+                "apiKey": 42
+              },
+              "api": {}
+            }
+          }
+        ]
+      },
+      "providerId": "p1",
+      "expected": {
+        "providerId": "p1",
+        "providerName": "Name",
+        "baseUrl": null,
+        "apiKey": null
+      }
+    },
+    {
+      "name": "multiple-providers",
+      "view": {
+        "providers": [
+          {
+            "providerId": "p0",
+            "providerName": "Other",
+            "effectiveConfig": {
+              "access": {
+                "type": "api-key",
+                "apiKey": " k "
+              },
+              "api": {
+                "baseUrl": "https://api.deepseek.com"
+              }
+            }
+          },
+          {
+            "providerId": "p1",
+            "providerName": "Second",
+            "effectiveConfig": {
+              "access": {
+                "type": "api-key",
+                "apiKey": " k "
+              },
+              "api": {
+                "baseUrl": "https://api.deepseek.com"
+              }
+            }
+          }
+        ]
+      },
+      "providerId": "p1",
+      "expected": {
+        "providerId": "p1",
+        "providerName": "Second",
+        "baseUrl": "https://api.deepseek.com",
+        "apiKey": " k "
+      }
+    },
+    {
+      "name": "case-sensitive-id",
+      "view": {
+        "providers": [
+          {
+            "providerId": "p1",
+            "providerName": " Name ",
+            "effectiveConfig": {
+              "access": {
+                "type": "api-key",
+                "apiKey": " k "
+              },
+              "api": {
+                "baseUrl": "https://api.deepseek.com"
+              }
+            }
+          }
+        ]
+      },
+      "providerId": "P1",
+      "expected": null
+    }
+  ]
+}

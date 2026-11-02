@@ -1,0 +1,2328 @@
+{
+  "zone": "utc",
+  "iana": "UTC",
+  "offsetSecs": 0,
+  "cases": [
+    {
+      "name": "create-basics",
+      "now": 1773135000000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Weekdays",
+            "cronExpr": "0 9 * * 1-5",
+            "prompt": "say hi",
+            "recurring": true,
+            "modelSelection": {
+              "providerId": "anthropic",
+              "modelId": "claude-sonnet",
+              "options": {
+                "reasoningLevel": "high"
+              }
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "One shot",
+            "cronExpr": "0 9 10 3 *",
+            "prompt": "say hi",
+            "recurring": false
+          }
+        },
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "listAll"
+        }
+      ],
+      "expected": [
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Weekdays",
+          "cronExpr": "0 9 * * 1-5",
+          "prompt": "say hi",
+          "modelSelection": {
+            "providerId": "anthropic",
+            "modelId": "claude-sonnet",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          },
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "staleOneShot": true
+        },
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773219600000,
+            "runCount": 0,
+            "recurring": true
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Weekdays",
+            "cronExpr": "0 9 * * 1-5",
+            "prompt": "say hi",
+            "modelSelection": {
+              "providerId": "anthropic",
+              "modelId": "claude-sonnet",
+              "options": {
+                "reasoningLevel": "high"
+              }
+            },
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773219600000,
+            "runCount": 0,
+            "recurring": true
+          }
+        ],
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773219600000,
+            "runCount": 0,
+            "recurring": true
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Weekdays",
+            "cronExpr": "0 9 * * 1-5",
+            "prompt": "say hi",
+            "modelSelection": {
+              "providerId": "anthropic",
+              "modelId": "claude-sonnet",
+              "options": {
+                "reasoningLevel": "high"
+              }
+            },
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773219600000,
+            "runCount": 0,
+            "recurring": true
+          }
+        ]
+      ]
+    },
+    {
+      "name": "create-minute-anchor",
+      "now": 1773143160000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "*/10 * * * *",
+            "prompt": "say hi",
+            "recurring": true
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "*/1 * * * *",
+            "prompt": "say hi",
+            "recurring": true
+          }
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "*/10 * * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773143760000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "minute",
+            "interval": 10,
+            "hour": 11,
+            "minute": 46,
+            "anchorAt": 1773143160000
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "*/1 * * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773143220000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "minute",
+            "interval": 1,
+            "hour": 11,
+            "minute": 46,
+            "anchorAt": 1773143160000
+          }
+        },
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "*/10 * * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773143760000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "minute",
+              "interval": 10,
+              "hour": 11,
+              "minute": 46,
+              "anchorAt": 1773143160000
+            }
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "*/1 * * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773143220000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "minute",
+              "interval": 1,
+              "hour": 11,
+              "minute": 46,
+              "anchorAt": 1773143160000
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "name": "create-relative-delay",
+      "now": 1773143160000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": false,
+            "relativeDelayMinutes": 3
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "bad cron",
+            "prompt": "say hi",
+            "recurring": false,
+            "relativeDelayMinutes": 90
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": false,
+            "relativeDelayMinutes": 0
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "relativeDelayMinutes": 1
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": false,
+            "relativeDelayMinutes": 1,
+            "maxRuns": 2
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": false,
+            "relativeDelayMinutes": 1,
+            "scheduleRule": {
+              "unit": "daily",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": false,
+            "relativeDelayMinutes": 525601
+          }
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "49 11 10 3 *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773143340000,
+          "runCount": 0,
+          "recurring": false,
+          "scheduleRule": {
+            "unit": "minute",
+            "interval": 3,
+            "hour": 11,
+            "minute": 49,
+            "anchorAt": 1773143160000
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "16 13 10 3 *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773148560000,
+          "runCount": 0,
+          "recurring": false,
+          "scheduleRule": {
+            "unit": "minute",
+            "interval": 90,
+            "hour": 13,
+            "minute": 16,
+            "anchorAt": 1773143160000
+          }
+        },
+        {
+          "error": "非法的相对时间定时任务：delayMinutes 必须是 1-525600 的整数"
+        },
+        {
+          "error": "非法的相对时间定时任务：相对延迟任务必须设置 recurring=false"
+        },
+        {
+          "error": "非法的相对时间定时任务：相对延迟任务固定只运行一次，不能设置 maxRuns"
+        },
+        {
+          "error": "非法的相对时间定时任务：不能同时提交 delayMinutes 和 scheduleRule"
+        },
+        {
+          "error": "非法的相对时间定时任务：delayMinutes 必须是 1-525600 的整数"
+        },
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "49 11 10 3 *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773143340000,
+            "runCount": 0,
+            "recurring": false,
+            "scheduleRule": {
+              "unit": "minute",
+              "interval": 3,
+              "hour": 11,
+              "minute": 49,
+              "anchorAt": 1773143160000
+            }
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "16 13 10 3 *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773148560000,
+            "runCount": 0,
+            "recurring": false,
+            "scheduleRule": {
+              "unit": "minute",
+              "interval": 90,
+              "hour": 13,
+              "minute": 16,
+              "anchorAt": 1773143160000
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "name": "create-carrier",
+      "now": 1773143160000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 */2 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "intervalUnit": "hourly",
+            "interval": 2
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "*/15 * * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "intervalUnit": "minute",
+            "interval": 15
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * 1",
+            "prompt": "say hi",
+            "recurring": true,
+            "intervalUnit": "weekly",
+            "interval": 2
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 1 * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "intervalUnit": "monthly",
+            "interval": 3
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "intervalUnit": "daily",
+            "interval": 1,
+            "scheduleRule": {
+              "unit": "daily",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "intervalUnit": "daily",
+            "interval": 1,
+            "relativeDelayMinutes": 5
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": false,
+            "intervalUnit": "daily",
+            "interval": 1
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "intervalUnit": "daily",
+            "interval": 0
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "intervalUnit": "daily",
+            "interval": 1.5
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "intervalUnit": "daily"
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "interval": 5
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "intervalUnit": "daily",
+            "interval": 201
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "intervalUnit": "daily",
+            "interval": 1,
+            "maxRuns": 2
+          }
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 */2 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773147600000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "hourly",
+            "interval": 2,
+            "hour": 0,
+            "minute": 0,
+            "anchorAt": 1773143160000
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "*/15 * * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773144060000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "minute",
+            "interval": 15,
+            "hour": 11,
+            "minute": 46,
+            "anchorAt": 1773143160000
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * 1",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1774256400000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "weekly",
+            "interval": 2,
+            "hour": 9,
+            "minute": 0,
+            "anchorAt": 1773143160000,
+            "weekdays": [
+              1
+            ]
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 1 * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1780304400000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "monthly",
+            "interval": 3,
+            "hour": 9,
+            "minute": 0,
+            "anchorAt": 1773143160000,
+            "monthDays": [
+              1
+            ],
+            "monthlyMode": "date"
+          }
+        },
+        {
+          "error": "非法的自定义重复入参：intervalUnit carrier 不能与直传 scheduleRule 同时提交"
+        },
+        {
+          "error": "非法的相对时间定时任务：相对延迟任务必须设置 recurring=false"
+        },
+        {
+          "error": "非法的自定义重复入参：intervalUnit carrier 必须使用 recurring=true"
+        },
+        {
+          "error": "非法的自定义重复入参：interval 必须是 1-200 的整数"
+        },
+        {
+          "error": "非法的自定义重复入参：interval 必须是 1-200 的整数"
+        },
+        {
+          "error": "非法的自定义重复入参：intervalUnit 与 interval 必须同时提交或同时省略"
+        },
+        {
+          "error": "非法的自定义重复入参：intervalUnit 与 interval 必须同时提交或同时省略"
+        },
+        {
+          "error": "非法的自定义重复入参：interval 必须是 1-200 的整数"
+        },
+        {
+          "error": "非法的自定义重复入参：intervalUnit carrier 不能与有限 maxRuns 同时提交"
+        },
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 */2 * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773147600000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "hourly",
+              "interval": 2,
+              "hour": 0,
+              "minute": 0,
+              "anchorAt": 1773143160000
+            }
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "*/15 * * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773144060000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "minute",
+              "interval": 15,
+              "hour": 11,
+              "minute": 46,
+              "anchorAt": 1773143160000
+            }
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 * * 1",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1774256400000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "weekly",
+              "interval": 2,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1773143160000,
+              "weekdays": [
+                1
+              ]
+            }
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 1 * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1780304400000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "monthly",
+              "interval": 3,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1773143160000,
+              "monthDays": [
+                1
+              ],
+              "monthlyMode": "date"
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "name": "create-explicit-rule",
+      "now": 1773135000000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * 1,3,5",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "weekly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000,
+              "weekdays": [
+                1,
+                3,
+                5
+              ]
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * 1",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "monthly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000,
+              "monthlyMode": "weekday",
+              "weekdays": [
+                1
+              ]
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 15 * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "monthly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000,
+              "monthDays": [
+                15,
+                28
+              ]
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 1 1 *",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "yearly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000,
+              "months": [
+                1,
+                6
+              ],
+              "monthDays": [
+                1
+              ]
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "daily",
+              "interval": 0,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * 1",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "weekly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 1 * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "monthly",
+              "interval": 1201,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000,
+              "monthDays": [
+                1
+              ]
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "yearly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000,
+              "months": [
+                13
+              ]
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 1 * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "monthly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000,
+              "monthDays": [
+                32
+              ]
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "daily",
+              "interval": 1,
+              "hour": 24,
+              "minute": 0,
+              "anchorAt": 1000
+            }
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "daily",
+              "interval": 1,
+              "hour": 9,
+              "minute": 60,
+              "anchorAt": 1000
+            }
+          }
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * 1,3,5",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "weekly",
+            "interval": 1,
+            "hour": 9,
+            "minute": 0,
+            "anchorAt": 1773135000000,
+            "weekdays": [
+              1,
+              3,
+              5
+            ]
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * 1",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1775466000000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "monthly",
+            "interval": 1,
+            "hour": 9,
+            "minute": 0,
+            "anchorAt": 1773135000000,
+            "weekdays": [
+              1
+            ],
+            "monthlyMode": "weekday"
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 15 * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773565200000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "monthly",
+            "interval": 1,
+            "hour": 9,
+            "minute": 0,
+            "anchorAt": 1773135000000,
+            "monthDays": [
+              15,
+              28
+            ]
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 1 1 *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1798794000000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "yearly",
+            "interval": 1,
+            "hour": 9,
+            "minute": 0,
+            "anchorAt": 1773135000000,
+            "monthDays": [
+              1
+            ],
+            "months": [
+              1,
+              6
+            ]
+          }
+        },
+        {
+          "error": "非法的定时任务调度规则：interval 必须是正整数"
+        },
+        {
+          "error": "非法的定时任务调度规则：weekly 规则必须包含有效的 weekdays"
+        },
+        {
+          "error": "非法的定时任务调度规则：monthly interval 不能超过 1200"
+        },
+        {
+          "error": "非法的定时任务调度规则：months 必须是 1-12 的非空整数数组"
+        },
+        {
+          "error": "非法的定时任务调度规则：monthly date 规则必须包含有效的 monthDays"
+        },
+        {
+          "error": "非法的定时任务调度规则：hour 必须是 0-23 的整数"
+        },
+        {
+          "error": "非法的定时任务调度规则：minute 必须是 0-59 的整数"
+        },
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 * * 1,3,5",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773219600000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "weekly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1773135000000,
+              "weekdays": [
+                1,
+                3,
+                5
+              ]
+            }
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 * * 1",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1775466000000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "monthly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1773135000000,
+              "weekdays": [
+                1
+              ],
+              "monthlyMode": "weekday"
+            }
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 15 * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773565200000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "monthly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1773135000000,
+              "monthDays": [
+                15,
+                28
+              ]
+            }
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 1 1 *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1798794000000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "yearly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1773135000000,
+              "monthDays": [
+                1
+              ],
+              "months": [
+                1,
+                6
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "name": "create-end-at",
+      "now": 1773135000000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "endAt": 1773135060000
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "endAt": 1804671000000
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": false,
+            "relativeDelayMinutes": 60,
+            "endAt": 1773136800000
+          }
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": false,
+          "lifecycleStatus": "completed",
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "30 10 10 3 *",
+          "prompt": "say hi",
+          "enabled": false,
+          "lifecycleStatus": "completed",
+          "runCount": 0,
+          "recurring": false,
+          "scheduleRule": {
+            "unit": "minute",
+            "interval": 60,
+            "hour": 10,
+            "minute": 30,
+            "anchorAt": 1773135000000
+          }
+        },
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "enabled": false,
+            "lifecycleStatus": "completed",
+            "runCount": 0,
+            "recurring": true
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773219600000,
+            "runCount": 0,
+            "recurring": true
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "30 10 10 3 *",
+            "prompt": "say hi",
+            "enabled": false,
+            "lifecycleStatus": "completed",
+            "runCount": 0,
+            "recurring": false,
+            "scheduleRule": {
+              "unit": "minute",
+              "interval": 60,
+              "hour": 10,
+              "minute": 30,
+              "anchorAt": 1773135000000
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "name": "create-invalid-cron",
+      "now": 1773135000000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * *",
+            "prompt": "say hi",
+            "recurring": true
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "61 9 * * *",
+            "prompt": "say hi",
+            "recurring": true
+          }
+        }
+      ],
+      "expected": [
+        {
+          "error": "非法的 cron 表达式：0 9 * *"
+        },
+        {
+          "error": "非法的 cron 表达式：61 9 * * *"
+        }
+      ]
+    },
+    {
+      "name": "update-cron",
+      "now": 1773135000000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "daily",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000
+            }
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "cronExpr": "30 10 * * *"
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 1,
+          "params": {
+            "scheduleRule": null
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "cronExpr": "*/5 * * * *"
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "title": "Renamed"
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "cronExpr": "not a cron"
+          }
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "daily",
+            "interval": 1,
+            "hour": 9,
+            "minute": 0,
+            "anchorAt": 1773135000000
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "30 10 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773138600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "*/5 * * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773135300000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "minute",
+            "interval": 5,
+            "hour": 9,
+            "minute": 30,
+            "anchorAt": 1773135000000
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Renamed",
+          "cronExpr": "*/5 * * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773135300000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "minute",
+            "interval": 5,
+            "hour": 9,
+            "minute": 30,
+            "anchorAt": 1773135000000
+          }
+        },
+        {
+          "error": "非法的 cron 表达式：not a cron"
+        },
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Renamed",
+            "cronExpr": "*/5 * * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773135300000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "minute",
+              "interval": 5,
+              "hour": 9,
+              "minute": 30,
+              "anchorAt": 1773135000000
+            }
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773219600000,
+            "runCount": 0,
+            "recurring": true
+          }
+        ]
+      ]
+    },
+    {
+      "name": "update-max-runs",
+      "now": 1773135000000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": false,
+            "maxRuns": 3
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "maxRuns": null
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "maxRuns": null,
+            "recurring": true
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "maxRuns": 5,
+            "recurring": true
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "maxRuns": 5,
+            "recurring": false
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "recurring": true
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "title": "Finite",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": false,
+            "maxRuns": 2
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 1,
+          "params": {
+            "recurring": true
+          }
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": false,
+          "maxRuns": 3
+        },
+        {
+          "error": "清空 maxRuns 时必须在同一次更新中设置 recurring=true"
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "error": "无限循环任务不能设置有限次数 maxRuns"
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": false,
+          "maxRuns": 5
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Finite",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": false,
+          "maxRuns": 2
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Finite",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773219600000,
+            "runCount": 0,
+            "recurring": true
+          },
+          {
+            "automationId": "<automation-id>",
+            "title": "Finite",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773219600000,
+            "runCount": 0,
+            "recurring": true
+          }
+        ]
+      ]
+    },
+    {
+      "name": "update-end-at",
+      "now": 1773135000000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "endAt": 1773135060000
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "endAt": null
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "endAt": 1775727000000
+          }
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": false,
+          "lifecycleStatus": "completed",
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773219600000,
+            "runCount": 0,
+            "recurring": true
+          }
+        ]
+      ]
+    },
+    {
+      "name": "update-carrier",
+      "now": 1773143160000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "intervalUnit": "minute",
+            "interval": 7
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "cronExpr": "0 */2 * * *",
+            "intervalUnit": "hourly",
+            "interval": 2
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "intervalUnit": "daily",
+            "interval": 1,
+            "scheduleRule": null
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "intervalUnit": "daily",
+            "interval": 1,
+            "recurring": false
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "intervalUnit": "daily",
+            "interval": 1,
+            "maxRuns": 2
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "intervalUnit": "daily"
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "intervalUnit": "daily",
+            "interval": 1.5
+          }
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773143580000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "minute",
+            "interval": 7,
+            "hour": 11,
+            "minute": 46,
+            "anchorAt": 1773143160000
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 */2 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773147600000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "hourly",
+            "interval": 2,
+            "hour": 0,
+            "minute": 0,
+            "anchorAt": 1773143160000
+          }
+        },
+        {
+          "error": "非法的自定义重复入参：intervalUnit carrier 不能与直传 scheduleRule 同时提交"
+        },
+        {
+          "error": "非法的自定义重复入参：intervalUnit carrier 必须使用 recurring=true"
+        },
+        {
+          "error": "非法的自定义重复入参：intervalUnit carrier 不能与有限 maxRuns 同时提交"
+        },
+        {
+          "error": "非法的自定义重复入参：intervalUnit 与 interval 必须同时提交或同时省略"
+        },
+        {
+          "error": "非法的自定义重复入参：interval 必须是 1-200 的整数"
+        },
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 */2 * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773147600000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "hourly",
+              "interval": 2,
+              "hour": 0,
+              "minute": 0,
+              "anchorAt": 1773143160000
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "name": "update-rule-anchor",
+      "now": 1773135000000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * 1,3,5",
+            "prompt": "say hi",
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "weekly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000,
+              "weekdays": [
+                1,
+                3,
+                5
+              ]
+            }
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "title": "Renamed",
+            "scheduleRule": {
+              "unit": "weekly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000,
+              "weekdays": [
+                1,
+                3,
+                5
+              ]
+            }
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "scheduleRule": {
+              "unit": "weekly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000,
+              "weekdays": [
+                2,
+                4
+              ]
+            }
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "scheduleRule": {
+              "unit": "weekly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000
+            }
+          }
+        },
+        {
+          "kind": "update",
+          "fromOp": 0,
+          "params": {
+            "scheduleRule": {
+              "unit": "monthly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1000,
+              "monthDays": []
+            }
+          }
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * 1,3,5",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "weekly",
+            "interval": 1,
+            "hour": 9,
+            "minute": 0,
+            "anchorAt": 1773135000000,
+            "weekdays": [
+              1,
+              3,
+              5
+            ]
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Renamed",
+          "cronExpr": "0 9 * * 1,3,5",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "weekly",
+            "interval": 1,
+            "hour": 9,
+            "minute": 0,
+            "anchorAt": 1773135000000,
+            "weekdays": [
+              1,
+              3,
+              5
+            ]
+          }
+        },
+        {
+          "automationId": "<automation-id>",
+          "title": "Renamed",
+          "cronExpr": "0 9 * * 1,3,5",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773306000000,
+          "runCount": 0,
+          "recurring": true,
+          "scheduleRule": {
+            "unit": "weekly",
+            "interval": 1,
+            "hour": 9,
+            "minute": 0,
+            "anchorAt": 1773135000000,
+            "weekdays": [
+              2,
+              4
+            ]
+          }
+        },
+        {
+          "error": "非法的定时任务调度规则：weekly 规则必须包含有效的 weekdays"
+        },
+        {
+          "error": "非法的定时任务调度规则：monthly date 规则必须包含有效的 monthDays"
+        },
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Renamed",
+            "cronExpr": "0 9 * * 1,3,5",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773306000000,
+            "runCount": 0,
+            "recurring": true,
+            "scheduleRule": {
+              "unit": "weekly",
+              "interval": 1,
+              "hour": 9,
+              "minute": 0,
+              "anchorAt": 1773135000000,
+              "weekdays": [
+                2,
+                4
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "name": "update-missing",
+      "now": 1773135000000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "update",
+          "automationId": "automation-missing",
+          "params": {
+            "title": "Nope"
+          }
+        },
+        {
+          "kind": "update",
+          "automationId": "automation-missing",
+          "params": {
+            "cronExpr": "*/5 * * * *"
+          }
+        }
+      ],
+      "expected": [
+        null,
+        null
+      ]
+    },
+    {
+      "name": "lifecycle-ops",
+      "now": 1773143160000,
+      "workspacePath": "/ws/demo",
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "recurring": true
+          }
+        },
+        {
+          "kind": "runNow",
+          "fromOp": 0
+        },
+        {
+          "kind": "listRuns",
+          "fromOp": 0
+        },
+        {
+          "kind": "setEnabled",
+          "fromOp": 0,
+          "enabled": false
+        },
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "restart",
+          "fromOp": 0
+        },
+        {
+          "kind": "deleteRun",
+          "runFromOp": 1
+        },
+        {
+          "kind": "listRuns",
+          "fromOp": 0
+        },
+        {
+          "kind": "delete",
+          "fromOp": 0
+        },
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "listAll"
+        }
+      ],
+      "expected": [
+        {
+          "automationId": "<automation-id>",
+          "title": "Task",
+          "cronExpr": "0 9 * * *",
+          "prompt": "say hi",
+          "enabled": true,
+          "lifecycleStatus": "active",
+          "nextRunAt": 1773219600000,
+          "runCount": 0,
+          "recurring": true
+        },
+        {
+          "automation": {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "enabled": true,
+            "lifecycleStatus": "active",
+            "nextRunAt": 1773219600000,
+            "runCount": 0,
+            "recurring": true
+          },
+          "run": {
+            "runId": "<run-id>",
+            "automationId": "<automation-id>",
+            "scheduledAt": 1773143160000,
+            "trigger": "manual",
+            "dispatchStatus": "claimed",
+            "createdAt": 1773143160000,
+            "updatedAt": 1773143160000
+          }
+        },
+        [
+          {
+            "runId": "<run-id>",
+            "automationId": "<automation-id>",
+            "scheduledAt": 1773143160000,
+            "trigger": "manual",
+            "dispatchStatus": "claimed",
+            "createdAt": 1773143160000,
+            "updatedAt": 1773143160000
+          }
+        ],
+        null,
+        [
+          {
+            "automationId": "<automation-id>",
+            "title": "Task",
+            "cronExpr": "0 9 * * *",
+            "prompt": "say hi",
+            "enabled": false,
+            "lifecycleStatus": "paused",
+            "nextRunAt": 1773219600000,
+            "runCount": 0,
+            "recurring": true
+          }
+        ],
+        null,
+        null,
+        [],
+        true,
+        [],
+        []
+      ]
+    }
+  ]
+}

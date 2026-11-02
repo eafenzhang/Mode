@@ -1,0 +1,233 @@
+{
+  "cases": [
+    {
+      "name": "linux-empty",
+      "platform": "linux",
+      "env": {},
+      "existing": [],
+      "expected": []
+    },
+    {
+      "name": "darwin-empty",
+      "platform": "darwin",
+      "env": {},
+      "existing": [],
+      "expected": []
+    },
+    {
+      "name": "windows-default",
+      "platform": "win32",
+      "env": {},
+      "existing": [],
+      "expected": [
+        {
+          "dialect": "cmd",
+          "id": "cmd:cmd.exe",
+          "label": "CMD",
+          "path": "cmd.exe",
+          "source": "system"
+        }
+      ]
+    },
+    {
+      "name": "comspec-trim-and-case-insensitive",
+      "platform": "win32",
+      "env": {
+        "COMSPEC": "  C:\\Windows\\System32\\cmd.exe  ",
+        "Path": "",
+        "Pathext": ""
+      },
+      "existing": [],
+      "expected": [
+        {
+          "dialect": "cmd",
+          "id": "cmd:C:\\Windows\\System32\\cmd.exe",
+          "label": "CMD",
+          "path": "C:\\Windows\\System32\\cmd.exe",
+          "source": "system"
+        }
+      ]
+    },
+    {
+      "name": "fixed-git-bash-system",
+      "platform": "win32",
+      "env": {
+        "ComSpec": "cmd.exe"
+      },
+      "existing": [
+        "C:\\Program Files\\Git\\bin\\bash.exe"
+      ],
+      "expected": [
+        {
+          "dialect": "cmd",
+          "id": "cmd:cmd.exe",
+          "label": "CMD",
+          "path": "cmd.exe",
+          "source": "system"
+        },
+        {
+          "dialect": "git-bash",
+          "id": "git-bash:C:\\Program Files\\Git\\bin\\bash.exe",
+          "label": "Git Bash",
+          "path": "C:\\Program Files\\Git\\bin\\bash.exe",
+          "source": "system"
+        }
+      ]
+    },
+    {
+      "name": "git-from-path-first-inference",
+      "platform": "win32",
+      "env": {
+        "ComSpec": "C:\\Windows\\cmd.exe",
+        "PATH": "C:\\Tools\\Git\\cmd;C:\\Other",
+        "PATHEXT": ".EXE;.CMD"
+      },
+      "existing": [
+        "C:\\Tools\\Git\\cmd\\git.exe",
+        "C:\\Tools\\Git\\bin\\bash.exe"
+      ],
+      "expected": [
+        {
+          "dialect": "cmd",
+          "id": "cmd:C:\\Windows\\cmd.exe",
+          "label": "CMD",
+          "path": "C:\\Windows\\cmd.exe",
+          "source": "system"
+        },
+        {
+          "dialect": "git-bash",
+          "id": "git-bash:C:\\Tools\\Git\\bin\\bash.exe",
+          "label": "Git Bash",
+          "path": "C:\\Tools\\Git\\bin\\bash.exe",
+          "source": "path"
+        }
+      ]
+    },
+    {
+      "name": "git-from-path-second-inference",
+      "platform": "win32",
+      "env": {
+        "PATH": "C:\\Tools\\Git\\usr\\bin",
+        "PATHEXT": ".EXE"
+      },
+      "existing": [
+        "C:\\Tools\\Git\\usr\\bin\\git.exe",
+        "C:\\Tools\\Git\\bin\\bash.exe"
+      ],
+      "expected": [
+        {
+          "dialect": "cmd",
+          "id": "cmd:cmd.exe",
+          "label": "CMD",
+          "path": "cmd.exe",
+          "source": "system"
+        },
+        {
+          "dialect": "git-bash",
+          "id": "git-bash:C:\\Tools\\Git\\bin\\bash.exe",
+          "label": "Git Bash",
+          "path": "C:\\Tools\\Git\\bin\\bash.exe",
+          "source": "path"
+        }
+      ]
+    },
+    {
+      "name": "git-exists-but-no-inferred-bash",
+      "platform": "win32",
+      "env": {
+        "PATH": "C:\\Tools\\Git\\cmd",
+        "PATHEXT": ".EXE"
+      },
+      "existing": [
+        "C:\\Tools\\Git\\cmd\\git.exe"
+      ],
+      "expected": [
+        {
+          "dialect": "cmd",
+          "id": "cmd:cmd.exe",
+          "label": "CMD",
+          "path": "cmd.exe",
+          "source": "system"
+        }
+      ]
+    },
+    {
+      "name": "default-pathext-order-finds-cmd",
+      "platform": "win32",
+      "env": {
+        "PATH": "C:\\Tools;D:\\Bin"
+      },
+      "existing": [
+        "D:\\Bin\\git.cmd",
+        "C:\\Tools\\git.exe",
+        "C:\\Tools\\git.cmd"
+      ],
+      "expected": [
+        {
+          "dialect": "cmd",
+          "id": "cmd:cmd.exe",
+          "label": "CMD",
+          "path": "cmd.exe",
+          "source": "system"
+        }
+      ]
+    },
+    {
+      "name": "path-empty-segments-and-spaces",
+      "platform": "win32",
+      "env": {
+        "ComSpec": "   ",
+        "Path": ";;C:\\A B\\Git\\cmd; ;C:\\C\\bin;",
+        "Pathext": " .EXE ;;.CMD "
+      },
+      "existing": [
+        "C:\\A B\\Git\\cmd\\git.exe",
+        "C:\\A B\\Git\\bin\\bash.exe"
+      ],
+      "expected": [
+        {
+          "dialect": "cmd",
+          "id": "cmd:cmd.exe",
+          "label": "CMD",
+          "path": "cmd.exe",
+          "source": "system"
+        },
+        {
+          "dialect": "git-bash",
+          "id": "git-bash:C:\\A B\\Git\\bin\\bash.exe",
+          "label": "Git Bash",
+          "path": "C:\\A B\\Git\\bin\\bash.exe",
+          "source": "path"
+        }
+      ]
+    },
+    {
+      "name": "fixed-bash-wins-before-path",
+      "platform": "win32",
+      "env": {
+        "PATH": "C:\\Tools\\Git\\cmd"
+      },
+      "existing": [
+        "C:\\Program Files\\Git\\bin\\bash.exe",
+        "C:\\Tools\\Git\\cmd\\git.exe",
+        "C:\\Tools\\Git\\bin\\bash.exe"
+      ],
+      "expected": [
+        {
+          "dialect": "cmd",
+          "id": "cmd:cmd.exe",
+          "label": "CMD",
+          "path": "cmd.exe",
+          "source": "system"
+        },
+        {
+          "dialect": "git-bash",
+          "id": "git-bash:C:\\Program Files\\Git\\bin\\bash.exe",
+          "label": "Git Bash",
+          "path": "C:\\Program Files\\Git\\bin\\bash.exe",
+          "source": "system"
+        }
+      ]
+    }
+  ]
+}

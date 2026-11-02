@@ -12,7 +12,7 @@ import type {
 } from "./terminalProfileTypes.js";
 export type { TerminalFontFamilySource, TerminalThemeProfile } from "./terminalProfileTypes.js";
 
-interface TerminalFontProfile {
+export interface TerminalFontProfile {
   fontFamily: string;
   fontSize?: number;
   theme?: TerminalThemeProfile;
@@ -383,11 +383,12 @@ function detectSystemTerminalProfile(env: NodeJS.ProcessEnv): TerminalDetectedPr
   return null;
 }
 
-export function resolveTerminalFontProfile(input: TerminalFontProfileInput): TerminalFontProfile {
-  const env = input.env ?? process.env;
+export function composeTerminalFontProfile(input: {
+  settings: TerminalFontProfileInput["settings"];
+  detectedProfile: TerminalDetectedProfile | null;
+}): TerminalFontProfile {
   const customFontFamily = normalizeFontFamily(input.settings.terminalFontFamily);
-  const detectedProfile =
-    input.settings.terminalInheritSystemProfile !== false ? detectSystemTerminalProfile(env) : null;
+  const detectedProfile = input.detectedProfile;
   if (customFontFamily) {
     return {
       fontFamily: dedupeFontFamilyStack(customFontFamily),
@@ -412,4 +413,14 @@ export function resolveTerminalFontProfile(input: TerminalFontProfileInput): Ter
     fontFamily: FONT_FAMILY_FALLBACKS.join(", "),
     source: "fallback",
   };
+}
+
+export function resolveTerminalFontProfile(input: TerminalFontProfileInput): TerminalFontProfile {
+  const env = input.env ?? process.env;
+  const detectedProfile =
+    input.settings.terminalInheritSystemProfile !== false ? detectSystemTerminalProfile(env) : null;
+  return composeTerminalFontProfile({
+    settings: input.settings,
+    detectedProfile,
+  });
 }

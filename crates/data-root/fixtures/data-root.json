@@ -1,0 +1,1154 @@
+{
+  "copyMigration": [
+    {
+      "name": "fresh",
+      "files": {
+        ".zcode/a.txt": "hello"
+      },
+      "dirs": [
+        ".zcode"
+      ],
+      "mode": "copy",
+      "cancel": false,
+      "compareProgress": true,
+      "expected": {
+        "result": {
+          "ok": true,
+          "migratedBases": [
+            "<root>\\.mode"
+          ],
+          "manifestPaths": [
+            "<root>\\.mode\\.mode-root.json"
+          ]
+        },
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\",\n  \"migration\": {\n    \"from\": \"<root>\\\\.zcode\",\n    \"at\": \"<ts>\",\n    \"mode\": \"copy\"\n  }\n}\n"
+          },
+          {
+            "path": ".mode/a.txt",
+            "kind": "file",
+            "content": "hello"
+          },
+          {
+            "path": ".zcode",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/a.txt",
+            "kind": "file",
+            "content": "hello"
+          },
+          {
+            "path": "home",
+            "kind": "dir"
+          }
+        ],
+        "progress": [
+          {
+            "phase": "preparing",
+            "copiedBytes": 0,
+            "totalBytes": 5,
+            "currentBaseDir": "<root>"
+          },
+          {
+            "phase": "copying",
+            "copiedBytes": 5,
+            "totalBytes": 5,
+            "currentBaseDir": "<root>"
+          },
+          {
+            "phase": "finalizing",
+            "copiedBytes": 5,
+            "totalBytes": 5,
+            "currentBaseDir": "<root>"
+          }
+        ]
+      }
+    },
+    {
+      "name": "import-mode",
+      "files": {
+        ".zcodium/b.txt": "1234567890"
+      },
+      "dirs": [
+        ".zcodium"
+      ],
+      "mode": "import",
+      "cancel": false,
+      "compareProgress": true,
+      "expected": {
+        "result": {
+          "ok": true,
+          "migratedBases": [
+            "<root>\\.mode"
+          ],
+          "manifestPaths": [
+            "<root>\\.mode\\.mode-root.json"
+          ]
+        },
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\",\n  \"migration\": {\n    \"from\": \"<root>\\\\.zcodium\",\n    \"at\": \"<ts>\",\n    \"mode\": \"import\"\n  }\n}\n"
+          },
+          {
+            "path": ".mode/b.txt",
+            "kind": "file",
+            "content": "1234567890"
+          },
+          {
+            "path": ".zcodium",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcodium/b.txt",
+            "kind": "file",
+            "content": "1234567890"
+          },
+          {
+            "path": "home",
+            "kind": "dir"
+          }
+        ],
+        "progress": [
+          {
+            "phase": "preparing",
+            "copiedBytes": 0,
+            "totalBytes": 10,
+            "currentBaseDir": "<root>"
+          },
+          {
+            "phase": "copying",
+            "copiedBytes": 10,
+            "totalBytes": 10,
+            "currentBaseDir": "<root>"
+          },
+          {
+            "phase": "finalizing",
+            "copiedBytes": 10,
+            "totalBytes": 10,
+            "currentBaseDir": "<root>"
+          }
+        ]
+      }
+    },
+    {
+      "name": "conflict-unowned",
+      "files": {
+        ".mode/stray.txt": "stray",
+        ".zcode/a.txt": "abc"
+      },
+      "dirs": [
+        ".mode",
+        ".zcode"
+      ],
+      "mode": "copy",
+      "cancel": false,
+      "compareProgress": true,
+      "expected": {
+        "result": {
+          "ok": true,
+          "migratedBases": [
+            "<root>\\.mode"
+          ],
+          "manifestPaths": [
+            "<root>\\.mode\\.mode-root.json"
+          ]
+        },
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode.unowned-<ts>",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode.unowned-<ts>/stray.txt",
+            "kind": "file",
+            "content": "stray"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\",\n  \"migration\": {\n    \"from\": \"<root>\\\\.zcode\",\n    \"at\": \"<ts>\",\n    \"mode\": \"copy\"\n  }\n}\n"
+          },
+          {
+            "path": ".mode/a.txt",
+            "kind": "file",
+            "content": "abc"
+          },
+          {
+            "path": ".zcode",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/a.txt",
+            "kind": "file",
+            "content": "abc"
+          },
+          {
+            "path": "home",
+            "kind": "dir"
+          }
+        ],
+        "progress": [
+          {
+            "phase": "preparing",
+            "copiedBytes": 0,
+            "totalBytes": 3,
+            "currentBaseDir": "<root>"
+          },
+          {
+            "phase": "copying",
+            "copiedBytes": 3,
+            "totalBytes": 3,
+            "currentBaseDir": "<root>"
+          },
+          {
+            "phase": "finalizing",
+            "copiedBytes": 3,
+            "totalBytes": 3,
+            "currentBaseDir": "<root>"
+          }
+        ]
+      }
+    },
+    {
+      "name": "conflict-normal",
+      "files": {
+        ".mode/.mode-root.json": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}",
+        ".mode/existing.txt": "keep",
+        ".zcode/a.txt": "abc"
+      },
+      "dirs": [
+        ".mode",
+        ".zcode"
+      ],
+      "mode": "copy",
+      "cancel": false,
+      "compareProgress": true,
+      "expected": {
+        "result": {
+          "ok": true,
+          "migratedBases": [],
+          "manifestPaths": []
+        },
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"<ts>\",\"firstSeenVersion\":\"0.0.1\"}"
+          },
+          {
+            "path": ".mode/existing.txt",
+            "kind": "file",
+            "content": "keep"
+          },
+          {
+            "path": ".zcode",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/a.txt",
+            "kind": "file",
+            "content": "abc"
+          },
+          {
+            "path": "home",
+            "kind": "dir"
+          }
+        ],
+        "progress": [
+          {
+            "phase": "preparing",
+            "copiedBytes": 0,
+            "totalBytes": 3,
+            "currentBaseDir": "<root>"
+          },
+          {
+            "phase": "copying",
+            "copiedBytes": 3,
+            "totalBytes": 3,
+            "currentBaseDir": "<root>"
+          },
+          {
+            "phase": "finalizing",
+            "copiedBytes": 3,
+            "totalBytes": 3,
+            "currentBaseDir": "<root>"
+          }
+        ]
+      }
+    },
+    {
+      "name": "cancelled",
+      "files": {
+        ".zcode/a.txt": "abc"
+      },
+      "dirs": [
+        ".zcode"
+      ],
+      "mode": "copy",
+      "cancel": true,
+      "compareProgress": true,
+      "expected": {
+        "result": {
+          "ok": false,
+          "error": "迁移已取消",
+          "cancelled": true
+        },
+        "tree": [
+          {
+            "path": ".zcode",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/a.txt",
+            "kind": "file",
+            "content": "abc"
+          },
+          {
+            "path": "home",
+            "kind": "dir"
+          }
+        ],
+        "progress": []
+      }
+    },
+    {
+      "name": "no-candidates",
+      "files": {},
+      "dirs": [],
+      "mode": "copy",
+      "cancel": false,
+      "compareProgress": true,
+      "expected": {
+        "result": {
+          "ok": false,
+          "error": "没有可迁移的旧数据目录",
+          "cancelled": false
+        },
+        "tree": [
+          {
+            "path": "home",
+            "kind": "dir"
+          }
+        ],
+        "progress": []
+      }
+    },
+    {
+      "name": "multi-candidate",
+      "files": {
+        ".zcodium/primary.txt": "p",
+        ".zcodium/v2/setting.json": "{\"dataBaseDir\":\"<rootForward>/custom\"}",
+        "custom/.zcode/custom.txt": "c"
+      },
+      "dirs": [
+        ".zcodium",
+        "custom/.zcode"
+      ],
+      "mode": "copy",
+      "cancel": false,
+      "compareProgress": false,
+      "expected": {
+        "result": {
+          "ok": true,
+          "migratedBases": [
+            "<root>\\.mode",
+            "<root>\\custom\\.mode"
+          ],
+          "manifestPaths": [
+            "<root>\\.mode\\.mode-root.json",
+            "<root>\\custom\\.mode\\.mode-root.json"
+          ]
+        },
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\",\n  \"migration\": {\n    \"from\": \"<root>\\\\.zcodium\",\n    \"at\": \"<ts>\",\n    \"mode\": \"copy\"\n  }\n}\n"
+          },
+          {
+            "path": ".mode/primary.txt",
+            "kind": "file",
+            "content": "p"
+          },
+          {
+            "path": ".mode/v2",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/v2/setting.json",
+            "kind": "file",
+            "content": "{\"dataBaseDir\":\"<root>/custom\"}"
+          },
+          {
+            "path": ".zcodium",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcodium/primary.txt",
+            "kind": "file",
+            "content": "p"
+          },
+          {
+            "path": ".zcodium/v2",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcodium/v2/setting.json",
+            "kind": "file",
+            "content": "{\"dataBaseDir\":\"<root>/custom\"}"
+          },
+          {
+            "path": "custom",
+            "kind": "dir"
+          },
+          {
+            "path": "custom/.mode",
+            "kind": "dir"
+          },
+          {
+            "path": "custom/.mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\",\n  \"migration\": {\n    \"from\": \"<root>\\\\custom\\\\.zcode\",\n    \"at\": \"<ts>\",\n    \"mode\": \"copy\"\n  }\n}\n"
+          },
+          {
+            "path": "custom/.mode/custom.txt",
+            "kind": "file",
+            "content": "c"
+          },
+          {
+            "path": "custom/.zcode",
+            "kind": "dir"
+          },
+          {
+            "path": "custom/.zcode/custom.txt",
+            "kind": "file",
+            "content": "c"
+          },
+          {
+            "path": "home",
+            "kind": "dir"
+          }
+        ],
+        "progress": null
+      }
+    },
+    {
+      "name": "transient-files",
+      "files": {
+        ".zcode/keep.txt": "k",
+        ".zcode/.DS_Store": "x",
+        ".zcode/a.lock": "x",
+        ".zcode/setting.json.abc.tmp": "x",
+        ".zcode/setting.json.lock": "x"
+      },
+      "dirs": [
+        ".zcode"
+      ],
+      "mode": "copy",
+      "cancel": false,
+      "compareProgress": true,
+      "expected": {
+        "result": {
+          "ok": true,
+          "migratedBases": [
+            "<root>\\.mode"
+          ],
+          "manifestPaths": [
+            "<root>\\.mode\\.mode-root.json"
+          ]
+        },
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\",\n  \"migration\": {\n    \"from\": \"<root>\\\\.zcode\",\n    \"at\": \"<ts>\",\n    \"mode\": \"copy\"\n  }\n}\n"
+          },
+          {
+            "path": ".mode/keep.txt",
+            "kind": "file",
+            "content": "k"
+          },
+          {
+            "path": ".zcode",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/.DS_Store",
+            "kind": "file",
+            "content": "x"
+          },
+          {
+            "path": ".zcode/a.lock",
+            "kind": "file",
+            "content": "x"
+          },
+          {
+            "path": ".zcode/keep.txt",
+            "kind": "file",
+            "content": "k"
+          },
+          {
+            "path": ".zcode/setting.json.abc.tmp",
+            "kind": "file",
+            "content": "x"
+          },
+          {
+            "path": ".zcode/setting.json.lock",
+            "kind": "file",
+            "content": "x"
+          },
+          {
+            "path": "home",
+            "kind": "dir"
+          }
+        ],
+        "progress": [
+          {
+            "phase": "preparing",
+            "copiedBytes": 0,
+            "totalBytes": 5,
+            "currentBaseDir": "<root>"
+          },
+          {
+            "phase": "copying",
+            "copiedBytes": 1,
+            "totalBytes": 5,
+            "currentBaseDir": "<root>"
+          },
+          {
+            "phase": "finalizing",
+            "copiedBytes": 1,
+            "totalBytes": 5,
+            "currentBaseDir": "<root>"
+          }
+        ]
+      }
+    },
+    {
+      "name": "nested",
+      "files": {
+        ".zcode/a.txt": "1",
+        ".zcode/dir/sub/b.txt": "22"
+      },
+      "dirs": [
+        ".zcode",
+        ".zcode/empty"
+      ],
+      "mode": "copy",
+      "cancel": false,
+      "compareProgress": false,
+      "expected": {
+        "result": {
+          "ok": true,
+          "migratedBases": [
+            "<root>\\.mode"
+          ],
+          "manifestPaths": [
+            "<root>\\.mode\\.mode-root.json"
+          ]
+        },
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\",\n  \"migration\": {\n    \"from\": \"<root>\\\\.zcode\",\n    \"at\": \"<ts>\",\n    \"mode\": \"copy\"\n  }\n}\n"
+          },
+          {
+            "path": ".mode/a.txt",
+            "kind": "file",
+            "content": "1"
+          },
+          {
+            "path": ".mode/dir",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/dir/sub",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/dir/sub/b.txt",
+            "kind": "file",
+            "content": "22"
+          },
+          {
+            "path": ".mode/empty",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/a.txt",
+            "kind": "file",
+            "content": "1"
+          },
+          {
+            "path": ".zcode/dir",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/dir/sub",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/dir/sub/b.txt",
+            "kind": "file",
+            "content": "22"
+          },
+          {
+            "path": ".zcode/empty",
+            "kind": "dir"
+          },
+          {
+            "path": "home",
+            "kind": "dir"
+          }
+        ],
+        "progress": null
+      }
+    }
+  ],
+  "discovery": [
+    {
+      "name": "primary-zcode",
+      "files": {},
+      "dirs": [
+        ".zcode"
+      ],
+      "expected": [
+        {
+          "baseDir": "<root>",
+          "legacyRoot": "<root>\\.zcode",
+          "isPrimaryBase": true
+        }
+      ]
+    },
+    {
+      "name": "both-roots",
+      "files": {},
+      "dirs": [
+        ".zcodium",
+        ".zcode"
+      ],
+      "expected": [
+        {
+          "baseDir": "<root>",
+          "legacyRoot": "<root>\\.zcodium",
+          "isPrimaryBase": true
+        }
+      ]
+    },
+    {
+      "name": "none",
+      "files": {},
+      "dirs": [],
+      "expected": []
+    },
+    {
+      "name": "custom-base",
+      "files": {
+        ".zcodium/v2/setting.json": "{\"dataBaseDir\":\"<rootForward>/custom\"}"
+      },
+      "dirs": [
+        ".zcodium",
+        "custom/.zcode"
+      ],
+      "expected": [
+        {
+          "baseDir": "<root>",
+          "legacyRoot": "<root>\\.zcodium",
+          "isPrimaryBase": true
+        },
+        {
+          "baseDir": "<root>\\custom",
+          "legacyRoot": "<root>\\custom\\.zcode",
+          "isPrimaryBase": false
+        }
+      ]
+    },
+    {
+      "name": "home-expansion",
+      "files": {
+        ".zcodium/v2/setting.json": "{\"dataBaseDir\":\"~/custombase\"}"
+      },
+      "dirs": [
+        ".zcodium",
+        "home/custombase/.zcode"
+      ],
+      "expected": [
+        {
+          "baseDir": "<root>",
+          "legacyRoot": "<root>\\.zcodium",
+          "isPrimaryBase": true
+        },
+        {
+          "baseDir": "<root>\\home\\custombase",
+          "legacyRoot": "<root>\\home\\custombase\\.zcode",
+          "isPrimaryBase": false
+        }
+      ]
+    },
+    {
+      "name": "duplicate-custom",
+      "files": {
+        ".zcodium/v2/setting.json": "{\"dataBaseDir\":\"<rootForward>\"}"
+      },
+      "dirs": [
+        ".zcodium"
+      ],
+      "expected": [
+        {
+          "baseDir": "<root>",
+          "legacyRoot": "<root>\\.zcodium",
+          "isPrimaryBase": true
+        }
+      ]
+    },
+    {
+      "name": "custom-without-legacy",
+      "files": {
+        ".zcodium/v2/setting.json": "{\"dataBaseDir\":\"<rootForward>/custom\"}"
+      },
+      "dirs": [
+        ".zcodium",
+        "custom"
+      ],
+      "expected": [
+        {
+          "baseDir": "<root>",
+          "legacyRoot": "<root>\\.zcodium",
+          "isPrimaryBase": true
+        }
+      ]
+    }
+  ],
+  "stats": [
+    {
+      "name": "empty",
+      "files": {},
+      "expected": {
+        "sizeBytes": 0,
+        "itemCount": 0,
+        "modifiedAtPresent": true
+      }
+    },
+    {
+      "name": "nested",
+      "files": {
+        "a.txt": "12345",
+        "dir/b.txt": "1234567890",
+        "dir/sub/c.bin": "x"
+      },
+      "expected": {
+        "sizeBytes": 16,
+        "itemCount": 5,
+        "modifiedAtPresent": true
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "mixed",
+      "entries": [
+        {
+          "name": ".mode.migrating-old",
+          "ageMs": 7200000,
+          "directory": true
+        },
+        {
+          "name": ".mode.migrating-fresh",
+          "ageMs": 0,
+          "directory": true
+        },
+        {
+          "name": ".mode.migrating-file",
+          "ageMs": 7200000,
+          "directory": false
+        },
+        {
+          "name": "other",
+          "ageMs": 7200000,
+          "directory": true
+        }
+      ],
+      "expected": {
+        "removed": [
+          "<root>\\.mode.migrating-old"
+        ],
+        "surviving": [
+          ".mode.migrating-file",
+          ".mode.migrating-fresh",
+          "other"
+        ]
+      }
+    },
+    {
+      "name": "none",
+      "entries": [],
+      "expected": {
+        "removed": [],
+        "surviving": []
+      }
+    }
+  ],
+  "manifestParse": [
+    {
+      "name": "full",
+      "raw": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\",\"migration\":{\"from\":\"/old\",\"at\":\"2026-01-01\",\"mode\":\"copy\"}}",
+      "expected": {
+        "product": "dev.mode.app",
+        "schemaVersion": 1,
+        "createdBy": "desktop",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "firstSeenVersion": "0.0.1",
+        "migration": {
+          "from": "/old",
+          "at": "2026-01-01",
+          "mode": "copy"
+        }
+      }
+    },
+    {
+      "name": "minimal",
+      "raw": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}",
+      "expected": {
+        "product": "dev.mode.app",
+        "schemaVersion": 1,
+        "createdBy": "desktop",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "firstSeenVersion": "0.0.1"
+      }
+    },
+    {
+      "name": "legacy-product",
+      "raw": "{\"product\":\"dev.zcodium.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}",
+      "expected": {
+        "product": "dev.zcodium.app",
+        "schemaVersion": 1,
+        "createdBy": "desktop",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "firstSeenVersion": "0.0.1"
+      }
+    },
+    {
+      "name": "extra-keys",
+      "raw": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\",\"ignored\":{\"any\":true}}",
+      "expected": {
+        "product": "dev.mode.app",
+        "schemaVersion": 1,
+        "createdBy": "desktop",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "firstSeenVersion": "0.0.1"
+      }
+    },
+    {
+      "name": "not-json",
+      "raw": "not json",
+      "expected": null
+    },
+    {
+      "name": "array",
+      "raw": "[]",
+      "expected": null
+    },
+    {
+      "name": "empty-product",
+      "raw": "{\"product\":\"   \",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}",
+      "expected": null
+    },
+    {
+      "name": "fractional-schema",
+      "raw": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1.5,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}",
+      "expected": null
+    },
+    {
+      "name": "string-schema",
+      "raw": "{\"product\":\"dev.mode.app\",\"schemaVersion\":\"1\",\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}",
+      "expected": null
+    },
+    {
+      "name": "bad-created-by",
+      "raw": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"robot\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}",
+      "expected": null
+    },
+    {
+      "name": "empty-created-at",
+      "raw": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"\",\"firstSeenVersion\":\"0.0.1\"}",
+      "expected": null
+    },
+    {
+      "name": "migration-null",
+      "raw": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\",\"migration\":null}",
+      "expected": null
+    },
+    {
+      "name": "migration-missing-from",
+      "raw": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\",\"migration\":{\"at\":\"2026-01-01\",\"mode\":\"copy\"}}",
+      "expected": null
+    },
+    {
+      "name": "migration-bad-mode",
+      "raw": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\",\"migration\":{\"from\":\"/old\",\"at\":\"2026-01-01\",\"mode\":\"move\"}}",
+      "expected": null
+    }
+  ],
+  "product": [
+    {
+      "product": "dev.mode.app",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "product": "dev.zcodium.app",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "product": "dev.other",
+      "expected": false,
+      "actual": false
+    }
+  ],
+  "status": [
+    {
+      "name": "absent",
+      "files": {},
+      "dirs": [],
+      "expected": {
+        "kind": "absent"
+      }
+    },
+    {
+      "name": "unowned-missing",
+      "files": {},
+      "dirs": [
+        ".mode"
+      ],
+      "expected": {
+        "kind": "unowned",
+        "reason": "manifest-missing",
+        "rootDir": "<root>\\.mode"
+      }
+    },
+    {
+      "name": "normal",
+      "files": {
+        ".mode/.mode-root.json": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}"
+      },
+      "dirs": [
+        ".mode"
+      ],
+      "expected": {
+        "kind": "normal",
+        "manifest": {
+          "product": "dev.mode.app",
+          "schemaVersion": 1,
+          "createdBy": "desktop",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "firstSeenVersion": "0.0.1"
+        }
+      }
+    },
+    {
+      "name": "normal-legacy-filename",
+      "files": {
+        ".mode/.zcodium-root.json": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}"
+      },
+      "dirs": [
+        ".mode"
+      ],
+      "expected": {
+        "kind": "normal",
+        "manifest": {
+          "product": "dev.mode.app",
+          "schemaVersion": 1,
+          "createdBy": "desktop",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "firstSeenVersion": "0.0.1"
+        }
+      }
+    },
+    {
+      "name": "unowned-product",
+      "files": {
+        ".mode/.mode-root.json": "{\"product\":\"dev.other\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}"
+      },
+      "dirs": [
+        ".mode"
+      ],
+      "expected": {
+        "kind": "unowned",
+        "reason": "product-mismatch",
+        "rootDir": "<root>\\.mode"
+      }
+    },
+    {
+      "name": "corrupt-json",
+      "files": {
+        ".mode/.mode-root.json": "{not json"
+      },
+      "dirs": [
+        ".mode"
+      ],
+      "expected": {
+        "kind": "corrupt",
+        "reason": "manifest-unreadable",
+        "rootDir": "<root>\\.mode"
+      }
+    },
+    {
+      "name": "corrupt-schema",
+      "files": {
+        ".mode/.mode-root.json": "{\"product\":\"dev.mode.app\",\"schemaVersion\":2,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}"
+      },
+      "dirs": [
+        ".mode"
+      ],
+      "expected": {
+        "kind": "corrupt",
+        "reason": "schema-unsupported",
+        "rootDir": "<root>\\.mode"
+      }
+    }
+  ],
+  "write": [
+    {
+      "manifest": {
+        "product": "dev.mode.app",
+        "schemaVersion": 1,
+        "createdBy": "desktop",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "firstSeenVersion": "0.0.1",
+        "migration": {
+          "from": "/old",
+          "at": "2026-01-01",
+          "mode": "import"
+        }
+      },
+      "expected": {
+        "path": "<root>\\.mode\\.mode-root.json",
+        "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"2026-01-01T00:00:00.000Z\",\n  \"firstSeenVersion\": \"0.0.1\",\n  \"migration\": {\n    \"from\": \"/old\",\n    \"at\": \"2026-01-01\",\n    \"mode\": \"import\"\n  }\n}\n"
+      }
+    }
+  ],
+  "forfeit": [
+    {
+      "name": "label-unowned",
+      "call": "label",
+      "label": "unowned",
+      "setup": true,
+      "expected": {
+        "backup": "<root>\\.mode.unowned-<ts>",
+        "rootExistsAfter": false
+      }
+    },
+    {
+      "name": "label-corrupt",
+      "call": "label",
+      "label": "corrupt",
+      "setup": true,
+      "expected": {
+        "backup": "<root>\\.mode.corrupt-<ts>",
+        "rootExistsAfter": false
+      }
+    },
+    {
+      "name": "label-missing-root",
+      "call": "label",
+      "label": "unowned",
+      "setup": false,
+      "expected": {
+        "backup": null,
+        "rootExistsAfter": false
+      }
+    },
+    {
+      "name": "conflict-unowned",
+      "call": "conflict",
+      "label": "unowned",
+      "setup": true,
+      "expected": {
+        "backup": "<root>\\.mode.unowned-<ts>",
+        "rootExistsAfter": false
+      }
+    },
+    {
+      "name": "conflict-corrupt",
+      "call": "conflict",
+      "label": "corrupt",
+      "setup": true,
+      "expected": {
+        "backup": "<root>\\.mode.corrupt-<ts>",
+        "rootExistsAfter": false
+      }
+    }
+  ],
+  "legacySettings": [
+    {
+      "name": "trimmed",
+      "content": "{\"dataBaseDir\":\" /custom/base \"}",
+      "expected": "/custom/base"
+    },
+    {
+      "name": "missing-key",
+      "content": "{}",
+      "expected": null
+    },
+    {
+      "name": "empty",
+      "content": "{\"dataBaseDir\":\"   \"}",
+      "expected": null
+    },
+    {
+      "name": "not-object",
+      "content": "[]",
+      "expected": null
+    },
+    {
+      "name": "invalid-json",
+      "content": "not json",
+      "expected": null
+    },
+    {
+      "name": "missing-file",
+      "content": null,
+      "expected": null
+    }
+  ]
+}

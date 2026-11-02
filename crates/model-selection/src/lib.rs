@@ -7,10 +7,10 @@
 //! 编码按 `providerId → modelId → options` 的对象字面量插入序手工拼接，
 //! `options` 为空对象时整个字段省略（对应 `Object.keys(...).length > 0`）。
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelSelection {
     pub provider_id: String,
@@ -19,7 +19,7 @@ pub struct ModelSelection {
     pub options: Option<SelectionOptions>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectionOptions {
     #[serde(skip_serializing_if = "Option::is_none")]

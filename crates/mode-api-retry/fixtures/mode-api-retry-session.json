@@ -1,0 +1,1054 @@
+{
+  "tracker": [
+    {
+      "name": "direct-api-retry-then-clear-on-complete",
+      "target": {
+        "workspacePath": "/ws/a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "event",
+          "event": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "apiRetry": {
+                  "attempt": 2,
+                  "maxAttempts": 4,
+                  "error": "e"
+                }
+              }
+            }
+          },
+          "expected": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "apiRetry": {
+                  "attempt": 2,
+                  "maxAttempts": 4,
+                  "error": "e"
+                }
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            },
+            "runtime": {
+              "apiRetry": {
+                "kind": "api_retry",
+                "attempt": 2,
+                "maxRetries": 3,
+                "retryDelayMs": 0,
+                "errorStatus": null,
+                "error": "e"
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "completed",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "completed",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            },
+            "runtime": {
+              "apiRetry": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "stream-recovery",
+      "target": {
+        "workspacePath": "/ws/a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "event",
+          "event": {
+            "type": "session.event",
+            "event": {
+              "type": "streamRecovery.updated",
+              "sessionId": "s1",
+              "payload": {
+                "retryNumber": 2,
+                "maxRetries": 5,
+                "message": "m"
+              }
+            }
+          },
+          "expected": {
+            "type": "session.event",
+            "event": {
+              "type": "streamRecovery.updated",
+              "sessionId": "s1",
+              "payload": {
+                "retryNumber": 2,
+                "maxRetries": 5,
+                "message": "m"
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            },
+            "runtime": {
+              "apiRetry": {
+                "kind": "api_retry",
+                "attempt": 2,
+                "maxRetries": 5,
+                "retryDelayMs": 0,
+                "errorStatus": null,
+                "error": "m"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "stream-recovery-nested-ignored",
+      "target": {
+        "workspacePath": "/ws/a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "event",
+          "event": {
+            "type": "session.event",
+            "event": {
+              "type": "streamRecovery.updated",
+              "sessionId": "s1",
+              "payload": {
+                "streamRecovery": {
+                  "retryNumber": 2
+                }
+              }
+            }
+          },
+          "expected": {
+            "type": "session.event",
+            "event": {
+              "type": "streamRecovery.updated",
+              "sessionId": "s1",
+              "payload": {
+                "streamRecovery": {
+                  "retryNumber": 2
+                }
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "progress-clears",
+      "target": {
+        "workspacePath": "/ws/a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "event",
+          "event": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "apiRetry": {
+                  "attempt": 1
+                }
+              }
+            }
+          },
+          "expected": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "apiRetry": {
+                  "attempt": 1
+                }
+              }
+            }
+          }
+        },
+        {
+          "kind": "event",
+          "event": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "kind": "text_delta",
+                "delta": "x"
+              }
+            }
+          },
+          "expected": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "kind": "text_delta",
+                "delta": "x"
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            },
+            "runtime": {
+              "apiRetry": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "empty-progress-keeps",
+      "target": {
+        "workspacePath": "/ws/a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "event",
+          "event": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "apiRetry": {
+                  "attempt": 1
+                }
+              }
+            }
+          },
+          "expected": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "apiRetry": {
+                  "attempt": 1
+                }
+              }
+            }
+          }
+        },
+        {
+          "kind": "event",
+          "event": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "kind": "text_delta",
+                "delta": ""
+              }
+            }
+          },
+          "expected": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "kind": "text_delta",
+                "delta": ""
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            },
+            "runtime": {
+              "apiRetry": {
+                "kind": "api_retry",
+                "attempt": 1,
+                "maxRetries": 1,
+                "retryDelayMs": 0,
+                "errorStatus": null,
+                "error": "Model retry scheduled"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "runtime-payload",
+      "target": {
+        "workspacePath": "/ws/a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "event",
+          "event": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "runtime": {
+                  "apiRetry": {
+                    "nextAttempt": 5
+                  }
+                }
+              }
+            }
+          },
+          "expected": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "runtime": {
+                  "apiRetry": {
+                    "nextAttempt": 5
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            },
+            "runtime": {
+              "apiRetry": {
+                "kind": "api_retry",
+                "attempt": 4,
+                "maxRetries": 4,
+                "retryDelayMs": 0,
+                "errorStatus": null,
+                "error": "Model retry scheduled"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "meta-payload",
+      "target": {
+        "workspacePath": "/ws/a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "event",
+          "event": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "_meta": {
+                  "mode": {
+                    "apiRetry": {
+                      "attempt": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "expected": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "_meta": {
+                  "mode": {
+                    "apiRetry": {
+                      "attempt": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            },
+            "runtime": {
+              "apiRetry": {
+                "kind": "api_retry",
+                "attempt": 1,
+                "maxRetries": 1,
+                "retryDelayMs": 0,
+                "errorStatus": null,
+                "error": "Model retry scheduled"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "model-retry-scheduled",
+      "target": {
+        "workspacePath": "/ws/a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "event",
+          "event": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "type": "model_retry_scheduled",
+                "attempt": 2
+              }
+            }
+          },
+          "expected": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "type": "model_retry_scheduled",
+                "attempt": 2
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            },
+            "runtime": {
+              "apiRetry": {
+                "kind": "api_retry",
+                "attempt": 2,
+                "maxRetries": 2,
+                "retryDelayMs": 0,
+                "errorStatus": null,
+                "error": "Model retry scheduled"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "snapshot-existing-api-retry",
+      "target": {
+        "workspacePath": "/ws/a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            },
+            "runtime": {
+              "apiRetry": {
+                "attempt": 3
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            },
+            "runtime": {
+              "apiRetry": {
+                "attempt": 3
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            },
+            "runtime": {
+              "apiRetry": {
+                "attempt": 3
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "session-isolation",
+      "target": {
+        "workspacePath": "/ws/a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "event",
+          "event": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s2",
+              "payload": {
+                "apiRetry": {
+                  "attempt": 1
+                }
+              }
+            }
+          },
+          "expected": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s2",
+              "payload": {
+                "apiRetry": {
+                  "attempt": 1
+                }
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s2",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s2",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            },
+            "runtime": {
+              "apiRetry": {
+                "kind": "api_retry",
+                "attempt": 1,
+                "maxRetries": 1,
+                "retryDelayMs": 0,
+                "errorStatus": null,
+                "error": "Model retry scheduled"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "workspace-identity-mismatch",
+      "target": {
+        "workspacePath": "/ws/a",
+        "workspaceIdentity": "id-a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "event",
+          "event": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "apiRetry": {
+                  "attempt": 1
+                }
+              }
+            }
+          },
+          "expected": {
+            "type": "session.event",
+            "event": {
+              "type": "session.updated",
+              "sessionId": "s1",
+              "payload": {
+                "apiRetry": {
+                  "attempt": 1
+                }
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          }
+        },
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a",
+                "workspaceIdentity": "id-a"
+              }
+            }
+          },
+          "expected": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a",
+                "workspaceIdentity": "id-a"
+              }
+            },
+            "runtime": {
+              "apiRetry": {
+                "kind": "api_retry",
+                "attempt": 1,
+                "maxRetries": 1,
+                "retryDelayMs": 0,
+                "errorStatus": null,
+                "error": "Model retry scheduled"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "non-session-event",
+      "target": {
+        "workspacePath": "/ws/a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "event",
+          "event": {
+            "type": "message",
+            "payload": {
+              "hello": 1
+            }
+          },
+          "expected": {
+            "type": "message",
+            "payload": {
+              "hello": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "snapshot-missing-session",
+      "target": {
+        "workspacePath": "/ws/a",
+        "sessionId": "s1"
+      },
+      "steps": [
+        {
+          "kind": "snapshot",
+          "snapshot": {
+            "session": {}
+          },
+          "expected": {
+            "session": {}
+          }
+        }
+      ]
+    }
+  ],
+  "draft": [
+    {
+      "name": "remember-by-snapshot-identity",
+      "steps": [
+        {
+          "kind": "remember",
+          "params": {
+            "workspacePath": "/ws/a",
+            "sessionId": "s1"
+          },
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a",
+                "workspaceIdentity": "id-a"
+              }
+            }
+          },
+          "expected": null
+        },
+        {
+          "kind": "has",
+          "target": {
+            "workspacePath": "/ws/a",
+            "workspaceIdentity": "id-a",
+            "sessionId": "s1"
+          },
+          "expected": true
+        },
+        {
+          "kind": "has",
+          "target": {
+            "workspacePath": "/ws/a",
+            "sessionId": "s1"
+          },
+          "expected": false
+        },
+        {
+          "kind": "forget",
+          "target": {
+            "workspacePath": "/ws/a",
+            "workspaceIdentity": "id-a",
+            "sessionId": "s1"
+          },
+          "expected": null
+        },
+        {
+          "kind": "has",
+          "target": {
+            "workspacePath": "/ws/a",
+            "workspaceIdentity": "id-a",
+            "sessionId": "s1"
+          },
+          "expected": false
+        }
+      ]
+    },
+    {
+      "name": "params-identity-fallback",
+      "steps": [
+        {
+          "kind": "remember",
+          "params": {
+            "workspacePath": "/ws/a",
+            "workspaceIdentity": "id-b",
+            "sessionId": "s1"
+          },
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a"
+              }
+            }
+          },
+          "expected": null
+        },
+        {
+          "kind": "has",
+          "target": {
+            "workspacePath": "/ws/a",
+            "workspaceIdentity": "id-b",
+            "sessionId": "s1"
+          },
+          "expected": true
+        }
+      ]
+    },
+    {
+      "name": "trim-identity",
+      "steps": [
+        {
+          "kind": "remember",
+          "params": {
+            "workspacePath": "/ws/a",
+            "sessionId": "s1"
+          },
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a",
+                "workspaceIdentity": "id-a"
+              }
+            }
+          },
+          "expected": null
+        },
+        {
+          "kind": "has",
+          "target": {
+            "workspacePath": "/ws/a",
+            "workspaceIdentity": " id-a ",
+            "sessionId": "s1"
+          },
+          "expected": true
+        }
+      ]
+    },
+    {
+      "name": "different-session",
+      "steps": [
+        {
+          "kind": "remember",
+          "params": {
+            "workspacePath": "/ws/a",
+            "sessionId": "s1"
+          },
+          "snapshot": {
+            "session": {
+              "sessionId": "s1",
+              "status": "running",
+              "workspace": {
+                "workspacePath": "/ws/a",
+                "workspaceIdentity": "id-a"
+              }
+            }
+          },
+          "expected": null
+        },
+        {
+          "kind": "has",
+          "target": {
+            "workspacePath": "/ws/a",
+            "workspaceIdentity": "id-a",
+            "sessionId": "s2"
+          },
+          "expected": false
+        }
+      ]
+    }
+  ]
+}

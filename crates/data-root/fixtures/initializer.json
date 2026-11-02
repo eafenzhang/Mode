@@ -1,0 +1,702 @@
+{
+  "action": [
+    {
+      "value": "fresh",
+      "expected": "fresh"
+    },
+    {
+      "value": "MIGRATE",
+      "expected": "migrate"
+    },
+    {
+      "value": " fail ",
+      "expected": "fail"
+    },
+    {
+      "value": "staging",
+      "expected": "fresh"
+    },
+    {
+      "value": "",
+      "expected": "fresh"
+    },
+    {
+      "value": null,
+      "expected": "fresh"
+    }
+  ],
+  "cases": [
+    {
+      "name": "interactive-absent-fresh",
+      "kind": "interactive",
+      "base": "absent",
+      "files": {},
+      "dirs": [],
+      "action": null,
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "initialized",
+          "baseDir": "<root>\\absent",
+          "initializedBy": "fresh"
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\"\n}\n"
+          }
+        ]
+      }
+    },
+    {
+      "name": "interactive-normal",
+      "kind": "interactive",
+      "base": "normal",
+      "files": {
+        ".mode/.mode-root.json": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}"
+      },
+      "dirs": [
+        ".mode"
+      ],
+      "action": null,
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "ready",
+          "baseDir": "<root>\\normal",
+          "status": {
+            "kind": "normal",
+            "manifest": {
+              "product": "dev.mode.app",
+              "schemaVersion": 1,
+              "createdBy": "desktop",
+              "createdAt": "<ts>",
+              "firstSeenVersion": "0.0.1"
+            }
+          }
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"<ts>\",\"firstSeenVersion\":\"0.0.1\"}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "interactive-pending-legacy",
+      "kind": "interactive",
+      "base": "pending",
+      "files": {
+        ".zcode/a.txt": "legacy"
+      },
+      "dirs": [
+        ".zcode"
+      ],
+      "action": null,
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "pending",
+          "baseDir": "<root>\\pending",
+          "status": {
+            "kind": "absent"
+          }
+        },
+        "activeDiagnosticRoot": "<tmp>\\mode-startup/<pid>",
+        "tree": [
+          {
+            "path": ".zcode",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/a.txt",
+            "kind": "file",
+            "content": "legacy"
+          }
+        ]
+      }
+    },
+    {
+      "name": "interactive-pending-unowned",
+      "kind": "interactive",
+      "base": "unowned",
+      "files": {
+        ".mode/.mode-root.json": "{\"product\":\"dev.other\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}"
+      },
+      "dirs": [
+        ".mode"
+      ],
+      "action": null,
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "pending",
+          "baseDir": "<root>\\unowned",
+          "status": {
+            "kind": "unowned",
+            "reason": "product-mismatch",
+            "rootDir": "<root>\\unowned\\.mode"
+          }
+        },
+        "activeDiagnosticRoot": "<tmp>\\mode-startup/<pid>",
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\"product\":\"dev.other\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"<ts>\",\"firstSeenVersion\":\"0.0.1\"}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "interactive-pending-corrupt",
+      "kind": "interactive",
+      "base": "corrupt",
+      "files": {
+        ".mode/.mode-root.json": "{bad"
+      },
+      "dirs": [
+        ".mode"
+      ],
+      "action": null,
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "pending",
+          "baseDir": "<root>\\corrupt",
+          "status": {
+            "kind": "corrupt",
+            "reason": "manifest-unreadable",
+            "rootDir": "<root>\\corrupt\\.mode"
+          }
+        },
+        "activeDiagnosticRoot": "<tmp>\\mode-startup/<pid>",
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{bad"
+          }
+        ]
+      }
+    },
+    {
+      "name": "interactive-isolated-adopt",
+      "kind": "interactive",
+      "base": "isolated",
+      "files": {
+        ".mode/v2/logs/a.log": "log"
+      },
+      "dirs": [
+        ".mode/v2/logs"
+      ],
+      "action": null,
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "initialized",
+          "baseDir": "<root>",
+          "initializedBy": "fresh"
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\"\n}\n"
+          },
+          {
+            "path": ".mode/v2",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/v2/logs",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/v2/logs/a.log",
+            "kind": "file",
+            "content": "log"
+          }
+        ]
+      }
+    },
+    {
+      "name": "noninteractive-normal",
+      "kind": "noninteractive",
+      "base": "ni-normal",
+      "files": {
+        ".mode/.mode-root.json": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"firstSeenVersion\":\"0.0.1\"}"
+      },
+      "dirs": [
+        ".mode"
+      ],
+      "action": null,
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "ready",
+          "baseDir": "<root>\\ni-normal",
+          "status": {
+            "kind": "normal",
+            "manifest": {
+              "product": "dev.mode.app",
+              "schemaVersion": 1,
+              "createdBy": "desktop",
+              "createdAt": "<ts>",
+              "firstSeenVersion": "0.0.1"
+            }
+          }
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\"product\":\"dev.mode.app\",\"schemaVersion\":1,\"createdBy\":\"desktop\",\"createdAt\":\"<ts>\",\"firstSeenVersion\":\"0.0.1\"}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "noninteractive-fail",
+      "kind": "noninteractive",
+      "base": "ni-fail",
+      "files": {},
+      "dirs": [],
+      "action": "fail",
+      "cancel": false,
+      "expected": {
+        "result": {
+          "error": "数据根 <root>\\ni-fail 状态异常（absent），MODE_DATA_ROOT_ACTION=fail 下拒绝启动"
+        },
+        "activeDiagnosticRoot": null,
+        "tree": []
+      }
+    },
+    {
+      "name": "noninteractive-fresh-legacy",
+      "kind": "noninteractive",
+      "base": "ni-fresh",
+      "files": {
+        ".zcode/a.txt": "legacy"
+      },
+      "dirs": [
+        ".zcode"
+      ],
+      "action": "fresh",
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "initialized",
+          "baseDir": "<root>\\ni-fresh",
+          "initializedBy": "fresh"
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\"\n}\n"
+          },
+          {
+            "path": ".zcode",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/a.txt",
+            "kind": "file",
+            "content": "legacy"
+          }
+        ]
+      }
+    },
+    {
+      "name": "noninteractive-fresh-unowned",
+      "kind": "noninteractive",
+      "base": "ni-unowned",
+      "files": {
+        ".mode/stray.txt": "stray"
+      },
+      "dirs": [
+        ".mode"
+      ],
+      "action": "fresh",
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "initialized",
+          "baseDir": "<root>\\ni-unowned",
+          "initializedBy": "fresh",
+          "forfeitedRoot": "<root>\\ni-unowned\\.mode.unowned-<ts>"
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode.unowned-<ts>",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode.unowned-<ts>/stray.txt",
+            "kind": "file",
+            "content": "stray"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\"\n}\n"
+          }
+        ]
+      }
+    },
+    {
+      "name": "noninteractive-migrate",
+      "kind": "noninteractive",
+      "base": "ni-migrate",
+      "files": {
+        ".zcode/a.txt": "legacy"
+      },
+      "dirs": [
+        ".zcode"
+      ],
+      "action": "migrate",
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "initialized",
+          "baseDir": "<root>\\ni-migrate",
+          "initializedBy": "migration"
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\",\n  \"migration\": {\n    \"from\": \"<root>\\\\ni-migrate\\\\.zcode\",\n    \"at\": \"<ts>\",\n    \"mode\": \"copy\"\n  }\n}\n"
+          },
+          {
+            "path": ".mode/a.txt",
+            "kind": "file",
+            "content": "legacy"
+          },
+          {
+            "path": ".zcode",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/a.txt",
+            "kind": "file",
+            "content": "legacy"
+          }
+        ]
+      }
+    },
+    {
+      "name": "noninteractive-migrate-no-candidates",
+      "kind": "noninteractive",
+      "base": "ni-migrate-empty",
+      "files": {},
+      "dirs": [],
+      "action": "migrate",
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "initialized",
+          "baseDir": "<root>\\ni-migrate-empty",
+          "initializedBy": "fresh"
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\"\n}\n"
+          }
+        ]
+      }
+    },
+    {
+      "name": "noninteractive-isolated-adopt",
+      "kind": "noninteractive",
+      "base": "isolated",
+      "files": {
+        ".mode/v2/logs/a.log": "log"
+      },
+      "dirs": [
+        ".mode/v2/logs"
+      ],
+      "action": "fresh",
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "initialized",
+          "baseDir": "<root>",
+          "initializedBy": "fresh"
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\"\n}\n"
+          },
+          {
+            "path": ".mode/v2",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/v2/logs",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/v2/logs/a.log",
+            "kind": "file",
+            "content": "log"
+          }
+        ]
+      }
+    },
+    {
+      "name": "noninteractive-corrupt-fresh",
+      "kind": "noninteractive",
+      "base": "ni-corrupt",
+      "files": {
+        ".mode/.mode-root.json": "{bad"
+      },
+      "dirs": [
+        ".mode"
+      ],
+      "action": "fresh",
+      "cancel": false,
+      "expected": {
+        "result": {
+          "state": "initialized",
+          "baseDir": "<root>\\ni-corrupt",
+          "initializedBy": "fresh",
+          "forfeitedRoot": "<root>\\ni-corrupt\\.mode.corrupt-<ts>"
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode.corrupt-<ts>",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode.corrupt-<ts>/.mode-root.json",
+            "kind": "file",
+            "content": "{bad"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\"\n}\n"
+          }
+        ]
+      }
+    },
+    {
+      "name": "import-existing-root",
+      "kind": "import",
+      "base": "import-existing",
+      "files": {
+        ".mode/old.txt": "old",
+        ".zcode/new.txt": "new"
+      },
+      "dirs": [
+        ".mode",
+        ".zcode"
+      ],
+      "action": null,
+      "cancel": false,
+      "expected": {
+        "result": {
+          "ok": true,
+          "backupRoot": "<root>\\import-existing\\.mode.import-<ts>",
+          "migratedBases": [
+            "<root>\\import-existing\\.mode"
+          ]
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode.import-<ts>",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode.import-<ts>/old.txt",
+            "kind": "file",
+            "content": "old"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\",\n  \"migration\": {\n    \"from\": \"<root>\\\\import-existing\\\\.zcode\",\n    \"at\": \"<ts>\",\n    \"mode\": \"import\"\n  }\n}\n"
+          },
+          {
+            "path": ".mode/new.txt",
+            "kind": "file",
+            "content": "new"
+          },
+          {
+            "path": ".zcode",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/new.txt",
+            "kind": "file",
+            "content": "new"
+          }
+        ]
+      }
+    },
+    {
+      "name": "import-no-root",
+      "kind": "import",
+      "base": "import-none",
+      "files": {
+        ".zcode/new.txt": "new"
+      },
+      "dirs": [
+        ".zcode"
+      ],
+      "action": null,
+      "cancel": false,
+      "expected": {
+        "result": {
+          "ok": true,
+          "backupRoot": null,
+          "migratedBases": [
+            "<root>\\import-none\\.mode"
+          ]
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode/.mode-root.json",
+            "kind": "file",
+            "content": "{\n  \"product\": \"dev.mode.app\",\n  \"schemaVersion\": 1,\n  \"createdBy\": \"desktop\",\n  \"createdAt\": \"<ts>\",\n  \"firstSeenVersion\": \"0.0.1\",\n  \"migration\": {\n    \"from\": \"<root>\\\\import-none\\\\.zcode\",\n    \"at\": \"<ts>\",\n    \"mode\": \"import\"\n  }\n}\n"
+          },
+          {
+            "path": ".mode/new.txt",
+            "kind": "file",
+            "content": "new"
+          },
+          {
+            "path": ".zcode",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/new.txt",
+            "kind": "file",
+            "content": "new"
+          }
+        ]
+      }
+    },
+    {
+      "name": "import-cancelled",
+      "kind": "import",
+      "base": "import-cancel",
+      "files": {
+        ".mode/old.txt": "old",
+        ".zcode/new.txt": "new"
+      },
+      "dirs": [
+        ".mode",
+        ".zcode"
+      ],
+      "action": null,
+      "cancel": true,
+      "expected": {
+        "result": {
+          "ok": false,
+          "error": "迁移已取消",
+          "cancelled": true,
+          "backupRoot": "<root>\\import-cancel\\.mode.import-<ts>"
+        },
+        "activeDiagnosticRoot": null,
+        "tree": [
+          {
+            "path": ".mode.import-<ts>",
+            "kind": "dir"
+          },
+          {
+            "path": ".mode.import-<ts>/old.txt",
+            "kind": "file",
+            "content": "old"
+          },
+          {
+            "path": ".zcode",
+            "kind": "dir"
+          },
+          {
+            "path": ".zcode/new.txt",
+            "kind": "file",
+            "content": "new"
+          }
+        ]
+      }
+    }
+  ]
+}

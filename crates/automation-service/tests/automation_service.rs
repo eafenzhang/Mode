@@ -3,7 +3,9 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use automation_repo::{AutomationCreateOptions, AutomationCreateParams, AutomationRepo, AutomationScope};
+use automation_repo::{
+    AutomationCreateOptions, AutomationCreateParams, AutomationRepo, AutomationScope,
+};
 use automation_service::{AutomationService, AutomationServiceOptions};
 
 struct TempDb(PathBuf);
@@ -92,9 +94,13 @@ fn list_set_enabled_run_now_and_delete() {
         .expect("claimed");
     assert_eq!(run.run.trigger, "manual");
     assert_eq!(run.automation.automation_id, automation_id);
-    let runs = service.list_runs(&automation_id, &scope).expect("list runs");
+    let runs = service
+        .list_runs(&automation_id, &scope)
+        .expect("list runs");
     assert_eq!(runs.len(), 1);
-    service.delete_run(&runs[0].run_id, &scope).expect("delete run");
+    service
+        .delete_run(&runs[0].run_id, &scope)
+        .expect("delete run");
     assert!(service
         .list_runs(&automation_id, &scope)
         .expect("list runs")

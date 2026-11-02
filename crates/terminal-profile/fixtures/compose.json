@@ -1,0 +1,171 @@
+{
+  "cases": [
+    {
+      "name": "custom-with-detected",
+      "settings": {
+        "terminalFontFamily": " Menlo, ,JetBrains Mono,Menlo "
+      },
+      "detectedProfile": {
+        "fontFamily": "Ignored",
+        "fontSize": 13.5,
+        "theme": {
+          "background": "#000000",
+          "foreground": "#ffffff"
+        }
+      },
+      "expected": {
+        "fontFamily": "Menlo, JetBrains Mono, Menlo, ui-monospace, SFMono-Regular, SF Mono, Monaco, Consolas, Cascadia Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace",
+        "fontSize": 13.5,
+        "theme": {
+          "background": "#000000",
+          "foreground": "#ffffff"
+        },
+        "source": "custom"
+      }
+    },
+    {
+      "name": "custom-without-detected",
+      "settings": {
+        "terminalFontFamily": "Fira Code",
+        "terminalInheritSystemProfile": false
+      },
+      "detectedProfile": null,
+      "expected": {
+        "fontFamily": "Fira Code, ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, Cascadia Mono, JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace",
+        "source": "custom"
+      }
+    },
+    {
+      "name": "custom-whitespace-uses-detected",
+      "settings": {
+        "terminalFontFamily": "   "
+      },
+      "detectedProfile": {
+        "fontFamily": "Menlo",
+        "fontSize": 11,
+        "theme": {
+          "cursor": "#fff"
+        }
+      },
+      "expected": {
+        "fontFamily": "Menlo, ui-monospace, SFMono-Regular, SF Mono, Monaco, Consolas, Cascadia Mono, JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace",
+        "fontSize": 11,
+        "theme": {
+          "cursor": "#fff"
+        },
+        "source": "system"
+      }
+    },
+    {
+      "name": "detected-font-only",
+      "settings": {},
+      "detectedProfile": {
+        "fontFamily": " SF Mono "
+      },
+      "expected": {
+        "fontFamily": "SF Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Cascadia Mono, JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace",
+        "source": "system"
+      }
+    },
+    {
+      "name": "detected-size-only",
+      "settings": {},
+      "detectedProfile": {
+        "fontSize": 9
+      },
+      "expected": {
+        "fontFamily": "ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, Cascadia Mono, JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace",
+        "fontSize": 9,
+        "source": "system"
+      }
+    },
+    {
+      "name": "detected-theme-only",
+      "settings": {},
+      "detectedProfile": {
+        "theme": {
+          "background": "#111111",
+          "red": "#ff0000"
+        }
+      },
+      "expected": {
+        "fontFamily": "ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, Cascadia Mono, JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace",
+        "theme": {
+          "background": "#111111",
+          "red": "#ff0000"
+        },
+        "source": "system"
+      }
+    },
+    {
+      "name": "detected-empty-object",
+      "settings": {},
+      "detectedProfile": {},
+      "expected": {
+        "fontFamily": "ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, Cascadia Mono, JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace",
+        "source": "system"
+      }
+    },
+    {
+      "name": "empty-theme-object",
+      "settings": {},
+      "detectedProfile": {
+        "fontFamily": "Hack",
+        "theme": {}
+      },
+      "expected": {
+        "fontFamily": "Hack, ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, Cascadia Mono, JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace",
+        "theme": {},
+        "source": "system"
+      }
+    },
+    {
+      "name": "no-detected",
+      "settings": {},
+      "detectedProfile": null,
+      "expected": {
+        "fontFamily": "ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, Cascadia Mono, JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace",
+        "source": "fallback"
+      }
+    },
+    {
+      "name": "case-sensitive-dedupe",
+      "settings": {
+        "terminalFontFamily": "menlo, Menlo, monospace, Consolas"
+      },
+      "detectedProfile": null,
+      "expected": {
+        "fontFamily": "menlo, Menlo, monospace, Consolas, ui-monospace, SFMono-Regular, SF Mono, Monaco, Cascadia Mono, JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC",
+        "source": "custom"
+      }
+    },
+    {
+      "name": "detected-empty-font-with-size",
+      "settings": {},
+      "detectedProfile": {
+        "fontFamily": "",
+        "fontSize": 15
+      },
+      "expected": {
+        "fontFamily": "ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, Cascadia Mono, JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace",
+        "fontSize": 15,
+        "source": "system"
+      }
+    },
+    {
+      "name": "duplicates-fallbacks-already-present",
+      "settings": {
+        "terminalFontFamily": "ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, Cascadia Mono, JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace"
+      },
+      "detectedProfile": {
+        "fontFamily": "Ignored",
+        "fontSize": 10
+      },
+      "expected": {
+        "fontFamily": "ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, Cascadia Mono, JetBrains Mono, MesloLGS NF, Hack Nerd Font, Noto Sans Mono CJK SC, monospace",
+        "fontSize": 10,
+        "source": "custom"
+      }
+    }
+  ]
+}

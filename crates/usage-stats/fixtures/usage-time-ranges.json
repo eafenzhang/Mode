@@ -1,0 +1,2505 @@
+{
+  "usageRanges": [
+    {
+      "now": 1767355200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "range": "all",
+      "expected": {
+        "startTime": "2025-12-04 00:00:00",
+        "endTime": "2026-01-02 23:59:59"
+      }
+    },
+    {
+      "now": 1767355200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "range": "7d",
+      "expected": {
+        "startTime": "2025-12-27 00:00:00",
+        "endTime": "2026-01-02 23:59:59"
+      }
+    },
+    {
+      "now": 1767355200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "range": "30d",
+      "expected": {
+        "startTime": "2025-12-04 00:00:00",
+        "endTime": "2026-01-02 23:59:59"
+      }
+    },
+    {
+      "now": 1767355200000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "range": "all",
+      "expected": {
+        "startTime": "2025-12-04 00:00:00",
+        "endTime": "2026-01-02 23:59:59"
+      }
+    },
+    {
+      "now": 1767355200000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "range": "7d",
+      "expected": {
+        "startTime": "2025-12-27 00:00:00",
+        "endTime": "2026-01-02 23:59:59"
+      }
+    },
+    {
+      "now": 1767355200000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "range": "30d",
+      "expected": {
+        "startTime": "2025-12-04 00:00:00",
+        "endTime": "2026-01-02 23:59:59"
+      }
+    },
+    {
+      "now": 1767355200000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "range": "all",
+      "expected": {
+        "startTime": "2025-12-04 00:00:00",
+        "endTime": "2026-01-02 23:59:59"
+      }
+    },
+    {
+      "now": 1767355200000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "range": "7d",
+      "expected": {
+        "startTime": "2025-12-27 00:00:00",
+        "endTime": "2026-01-02 23:59:59"
+      }
+    },
+    {
+      "now": 1767355200000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "range": "30d",
+      "expected": {
+        "startTime": "2025-12-04 00:00:00",
+        "endTime": "2026-01-02 23:59:59"
+      }
+    },
+    {
+      "now": 1798759800000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "range": "all",
+      "expected": {
+        "startTime": "2026-12-02 00:00:00",
+        "endTime": "2026-12-31 23:59:59"
+      }
+    },
+    {
+      "now": 1798759800000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "range": "7d",
+      "expected": {
+        "startTime": "2026-12-25 00:00:00",
+        "endTime": "2026-12-31 23:59:59"
+      }
+    },
+    {
+      "now": 1798759800000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "range": "30d",
+      "expected": {
+        "startTime": "2026-12-02 00:00:00",
+        "endTime": "2026-12-31 23:59:59"
+      }
+    },
+    {
+      "now": 1798759800000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "range": "all",
+      "expected": {
+        "startTime": "2026-12-03 00:00:00",
+        "endTime": "2027-01-01 23:59:59"
+      }
+    },
+    {
+      "now": 1798759800000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "range": "7d",
+      "expected": {
+        "startTime": "2026-12-26 00:00:00",
+        "endTime": "2027-01-01 23:59:59"
+      }
+    },
+    {
+      "now": 1798759800000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "range": "30d",
+      "expected": {
+        "startTime": "2026-12-03 00:00:00",
+        "endTime": "2027-01-01 23:59:59"
+      }
+    },
+    {
+      "now": 1798759800000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "range": "all",
+      "expected": {
+        "startTime": "2026-12-02 00:00:00",
+        "endTime": "2026-12-31 23:59:59"
+      }
+    },
+    {
+      "now": 1798759800000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "range": "7d",
+      "expected": {
+        "startTime": "2026-12-25 00:00:00",
+        "endTime": "2026-12-31 23:59:59"
+      }
+    },
+    {
+      "now": 1798759800000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "range": "30d",
+      "expected": {
+        "startTime": "2026-12-02 00:00:00",
+        "endTime": "2026-12-31 23:59:59"
+      }
+    },
+    {
+      "now": 1772323200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "range": "all",
+      "expected": {
+        "startTime": "2026-01-31 00:00:00",
+        "endTime": "2026-03-01 23:59:59"
+      }
+    },
+    {
+      "now": 1772323200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "range": "7d",
+      "expected": {
+        "startTime": "2026-02-23 00:00:00",
+        "endTime": "2026-03-01 23:59:59"
+      }
+    },
+    {
+      "now": 1772323200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "range": "30d",
+      "expected": {
+        "startTime": "2026-01-31 00:00:00",
+        "endTime": "2026-03-01 23:59:59"
+      }
+    },
+    {
+      "now": 1772323200000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "range": "all",
+      "expected": {
+        "startTime": "2026-01-31 00:00:00",
+        "endTime": "2026-03-01 23:59:59"
+      }
+    },
+    {
+      "now": 1772323200000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "range": "7d",
+      "expected": {
+        "startTime": "2026-02-23 00:00:00",
+        "endTime": "2026-03-01 23:59:59"
+      }
+    },
+    {
+      "now": 1772323200000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "range": "30d",
+      "expected": {
+        "startTime": "2026-01-31 00:00:00",
+        "endTime": "2026-03-01 23:59:59"
+      }
+    },
+    {
+      "now": 1772323200000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "range": "all",
+      "expected": {
+        "startTime": "2026-01-30 00:00:00",
+        "endTime": "2026-02-28 23:59:59"
+      }
+    },
+    {
+      "now": 1772323200000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "range": "7d",
+      "expected": {
+        "startTime": "2026-02-22 00:00:00",
+        "endTime": "2026-02-28 23:59:59"
+      }
+    },
+    {
+      "now": 1772323200000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "range": "30d",
+      "expected": {
+        "startTime": "2026-01-30 00:00:00",
+        "endTime": "2026-02-28 23:59:59"
+      }
+    }
+  ],
+  "codingRanges": [
+    {
+      "name": "today-1767313800000-UTC",
+      "now": 1767313800000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "today",
+        "timeZone": "UTC"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-01-02 00:00:00",
+          "endTime": "2026-01-02 23:59:59",
+          "granularity": "hour",
+          "xTime": [
+            "00:00:00",
+            "01:00:00",
+            "02:00:00",
+            "03:00:00",
+            "04:00:00",
+            "05:00:00",
+            "06:00:00",
+            "07:00:00",
+            "08:00:00",
+            "09:00:00",
+            "10:00:00",
+            "11:00:00",
+            "12:00:00",
+            "13:00:00",
+            "14:00:00",
+            "15:00:00",
+            "16:00:00",
+            "17:00:00",
+            "18:00:00",
+            "19:00:00",
+            "20:00:00",
+            "21:00:00",
+            "22:00:00",
+            "23:00:00"
+          ],
+          "startDateKey": "2026-01-02",
+          "endDateKey": "2026-01-02"
+        }
+      }
+    },
+    {
+      "name": "7d-1767313800000-UTC",
+      "now": 1767313800000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "7d",
+        "timeZone": "UTC"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2025-12-27 00:00:00",
+          "endTime": "2026-01-02 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2025-12-27",
+            "2025-12-28",
+            "2025-12-29",
+            "2025-12-30",
+            "2025-12-31",
+            "2026-01-01",
+            "2026-01-02"
+          ],
+          "startDateKey": "2025-12-27",
+          "endDateKey": "2026-01-02"
+        }
+      }
+    },
+    {
+      "name": "30d-1767313800000-UTC",
+      "now": 1767313800000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "30d",
+        "timeZone": "UTC"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2025-12-04 00:00:00",
+          "endTime": "2026-01-02 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2025-12-04",
+            "2025-12-05",
+            "2025-12-06",
+            "2025-12-07",
+            "2025-12-08",
+            "2025-12-09",
+            "2025-12-10",
+            "2025-12-11",
+            "2025-12-12",
+            "2025-12-13",
+            "2025-12-14",
+            "2025-12-15",
+            "2025-12-16",
+            "2025-12-17",
+            "2025-12-18",
+            "2025-12-19",
+            "2025-12-20",
+            "2025-12-21",
+            "2025-12-22",
+            "2025-12-23",
+            "2025-12-24",
+            "2025-12-25",
+            "2025-12-26",
+            "2025-12-27",
+            "2025-12-28",
+            "2025-12-29",
+            "2025-12-30",
+            "2025-12-31",
+            "2026-01-01",
+            "2026-01-02"
+          ],
+          "startDateKey": "2025-12-04",
+          "endDateKey": "2026-01-02"
+        }
+      }
+    },
+    {
+      "name": "today-1767313800000-Asia/Shanghai",
+      "now": 1767313800000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "request": {
+        "range": "today",
+        "timeZone": "Asia/Shanghai"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-01-02 00:00:00",
+          "endTime": "2026-01-02 23:59:59",
+          "granularity": "hour",
+          "xTime": [
+            "00:00:00",
+            "01:00:00",
+            "02:00:00",
+            "03:00:00",
+            "04:00:00",
+            "05:00:00",
+            "06:00:00",
+            "07:00:00",
+            "08:00:00",
+            "09:00:00",
+            "10:00:00",
+            "11:00:00",
+            "12:00:00",
+            "13:00:00",
+            "14:00:00",
+            "15:00:00",
+            "16:00:00",
+            "17:00:00",
+            "18:00:00",
+            "19:00:00",
+            "20:00:00",
+            "21:00:00",
+            "22:00:00",
+            "23:00:00"
+          ],
+          "startDateKey": "2026-01-02",
+          "endDateKey": "2026-01-02"
+        }
+      }
+    },
+    {
+      "name": "7d-1767313800000-Asia/Shanghai",
+      "now": 1767313800000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "request": {
+        "range": "7d",
+        "timeZone": "Asia/Shanghai"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2025-12-27 00:00:00",
+          "endTime": "2026-01-02 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2025-12-27",
+            "2025-12-28",
+            "2025-12-29",
+            "2025-12-30",
+            "2025-12-31",
+            "2026-01-01",
+            "2026-01-02"
+          ],
+          "startDateKey": "2025-12-27",
+          "endDateKey": "2026-01-02"
+        }
+      }
+    },
+    {
+      "name": "30d-1767313800000-Asia/Shanghai",
+      "now": 1767313800000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "request": {
+        "range": "30d",
+        "timeZone": "Asia/Shanghai"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2025-12-04 00:00:00",
+          "endTime": "2026-01-02 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2025-12-04",
+            "2025-12-05",
+            "2025-12-06",
+            "2025-12-07",
+            "2025-12-08",
+            "2025-12-09",
+            "2025-12-10",
+            "2025-12-11",
+            "2025-12-12",
+            "2025-12-13",
+            "2025-12-14",
+            "2025-12-15",
+            "2025-12-16",
+            "2025-12-17",
+            "2025-12-18",
+            "2025-12-19",
+            "2025-12-20",
+            "2025-12-21",
+            "2025-12-22",
+            "2025-12-23",
+            "2025-12-24",
+            "2025-12-25",
+            "2025-12-26",
+            "2025-12-27",
+            "2025-12-28",
+            "2025-12-29",
+            "2025-12-30",
+            "2025-12-31",
+            "2026-01-01",
+            "2026-01-02"
+          ],
+          "startDateKey": "2025-12-04",
+          "endDateKey": "2026-01-02"
+        }
+      }
+    },
+    {
+      "name": "today-1767313800000-Etc/GMT+5",
+      "now": 1767313800000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "request": {
+        "range": "today",
+        "timeZone": "Etc/GMT+5"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-01-01 00:00:00",
+          "endTime": "2026-01-01 23:59:59",
+          "granularity": "hour",
+          "xTime": [
+            "00:00:00",
+            "01:00:00",
+            "02:00:00",
+            "03:00:00",
+            "04:00:00",
+            "05:00:00",
+            "06:00:00",
+            "07:00:00",
+            "08:00:00",
+            "09:00:00",
+            "10:00:00",
+            "11:00:00",
+            "12:00:00",
+            "13:00:00",
+            "14:00:00",
+            "15:00:00",
+            "16:00:00",
+            "17:00:00",
+            "18:00:00",
+            "19:00:00",
+            "20:00:00",
+            "21:00:00",
+            "22:00:00",
+            "23:00:00"
+          ],
+          "startDateKey": "2026-01-01",
+          "endDateKey": "2026-01-01"
+        }
+      }
+    },
+    {
+      "name": "7d-1767313800000-Etc/GMT+5",
+      "now": 1767313800000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "request": {
+        "range": "7d",
+        "timeZone": "Etc/GMT+5"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2025-12-26 00:00:00",
+          "endTime": "2026-01-01 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2025-12-26",
+            "2025-12-27",
+            "2025-12-28",
+            "2025-12-29",
+            "2025-12-30",
+            "2025-12-31",
+            "2026-01-01"
+          ],
+          "startDateKey": "2025-12-26",
+          "endDateKey": "2026-01-01"
+        }
+      }
+    },
+    {
+      "name": "30d-1767313800000-Etc/GMT+5",
+      "now": 1767313800000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "request": {
+        "range": "30d",
+        "timeZone": "Etc/GMT+5"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2025-12-03 00:00:00",
+          "endTime": "2026-01-01 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2025-12-03",
+            "2025-12-04",
+            "2025-12-05",
+            "2025-12-06",
+            "2025-12-07",
+            "2025-12-08",
+            "2025-12-09",
+            "2025-12-10",
+            "2025-12-11",
+            "2025-12-12",
+            "2025-12-13",
+            "2025-12-14",
+            "2025-12-15",
+            "2025-12-16",
+            "2025-12-17",
+            "2025-12-18",
+            "2025-12-19",
+            "2025-12-20",
+            "2025-12-21",
+            "2025-12-22",
+            "2025-12-23",
+            "2025-12-24",
+            "2025-12-25",
+            "2025-12-26",
+            "2025-12-27",
+            "2025-12-28",
+            "2025-12-29",
+            "2025-12-30",
+            "2025-12-31",
+            "2026-01-01"
+          ],
+          "startDateKey": "2025-12-03",
+          "endDateKey": "2026-01-01"
+        }
+      }
+    },
+    {
+      "name": "today-1798759800000-UTC",
+      "now": 1798759800000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "today",
+        "timeZone": "UTC"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-12-31 00:00:00",
+          "endTime": "2026-12-31 23:59:59",
+          "granularity": "hour",
+          "xTime": [
+            "00:00:00",
+            "01:00:00",
+            "02:00:00",
+            "03:00:00",
+            "04:00:00",
+            "05:00:00",
+            "06:00:00",
+            "07:00:00",
+            "08:00:00",
+            "09:00:00",
+            "10:00:00",
+            "11:00:00",
+            "12:00:00",
+            "13:00:00",
+            "14:00:00",
+            "15:00:00",
+            "16:00:00",
+            "17:00:00",
+            "18:00:00",
+            "19:00:00",
+            "20:00:00",
+            "21:00:00",
+            "22:00:00",
+            "23:00:00"
+          ],
+          "startDateKey": "2026-12-31",
+          "endDateKey": "2026-12-31"
+        }
+      }
+    },
+    {
+      "name": "7d-1798759800000-UTC",
+      "now": 1798759800000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "7d",
+        "timeZone": "UTC"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-12-25 00:00:00",
+          "endTime": "2026-12-31 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2026-12-25",
+            "2026-12-26",
+            "2026-12-27",
+            "2026-12-28",
+            "2026-12-29",
+            "2026-12-30",
+            "2026-12-31"
+          ],
+          "startDateKey": "2026-12-25",
+          "endDateKey": "2026-12-31"
+        }
+      }
+    },
+    {
+      "name": "30d-1798759800000-UTC",
+      "now": 1798759800000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "30d",
+        "timeZone": "UTC"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-12-02 00:00:00",
+          "endTime": "2026-12-31 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2026-12-02",
+            "2026-12-03",
+            "2026-12-04",
+            "2026-12-05",
+            "2026-12-06",
+            "2026-12-07",
+            "2026-12-08",
+            "2026-12-09",
+            "2026-12-10",
+            "2026-12-11",
+            "2026-12-12",
+            "2026-12-13",
+            "2026-12-14",
+            "2026-12-15",
+            "2026-12-16",
+            "2026-12-17",
+            "2026-12-18",
+            "2026-12-19",
+            "2026-12-20",
+            "2026-12-21",
+            "2026-12-22",
+            "2026-12-23",
+            "2026-12-24",
+            "2026-12-25",
+            "2026-12-26",
+            "2026-12-27",
+            "2026-12-28",
+            "2026-12-29",
+            "2026-12-30",
+            "2026-12-31"
+          ],
+          "startDateKey": "2026-12-02",
+          "endDateKey": "2026-12-31"
+        }
+      }
+    },
+    {
+      "name": "today-1798759800000-Asia/Shanghai",
+      "now": 1798759800000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "request": {
+        "range": "today",
+        "timeZone": "Asia/Shanghai"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2027-01-01 00:00:00",
+          "endTime": "2027-01-01 23:59:59",
+          "granularity": "hour",
+          "xTime": [
+            "00:00:00",
+            "01:00:00",
+            "02:00:00",
+            "03:00:00",
+            "04:00:00",
+            "05:00:00",
+            "06:00:00",
+            "07:00:00",
+            "08:00:00",
+            "09:00:00",
+            "10:00:00",
+            "11:00:00",
+            "12:00:00",
+            "13:00:00",
+            "14:00:00",
+            "15:00:00",
+            "16:00:00",
+            "17:00:00",
+            "18:00:00",
+            "19:00:00",
+            "20:00:00",
+            "21:00:00",
+            "22:00:00",
+            "23:00:00"
+          ],
+          "startDateKey": "2027-01-01",
+          "endDateKey": "2027-01-01"
+        }
+      }
+    },
+    {
+      "name": "7d-1798759800000-Asia/Shanghai",
+      "now": 1798759800000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "request": {
+        "range": "7d",
+        "timeZone": "Asia/Shanghai"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-12-26 00:00:00",
+          "endTime": "2027-01-01 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2026-12-26",
+            "2026-12-27",
+            "2026-12-28",
+            "2026-12-29",
+            "2026-12-30",
+            "2026-12-31",
+            "2027-01-01"
+          ],
+          "startDateKey": "2026-12-26",
+          "endDateKey": "2027-01-01"
+        }
+      }
+    },
+    {
+      "name": "30d-1798759800000-Asia/Shanghai",
+      "now": 1798759800000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "request": {
+        "range": "30d",
+        "timeZone": "Asia/Shanghai"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-12-03 00:00:00",
+          "endTime": "2027-01-01 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2026-12-03",
+            "2026-12-04",
+            "2026-12-05",
+            "2026-12-06",
+            "2026-12-07",
+            "2026-12-08",
+            "2026-12-09",
+            "2026-12-10",
+            "2026-12-11",
+            "2026-12-12",
+            "2026-12-13",
+            "2026-12-14",
+            "2026-12-15",
+            "2026-12-16",
+            "2026-12-17",
+            "2026-12-18",
+            "2026-12-19",
+            "2026-12-20",
+            "2026-12-21",
+            "2026-12-22",
+            "2026-12-23",
+            "2026-12-24",
+            "2026-12-25",
+            "2026-12-26",
+            "2026-12-27",
+            "2026-12-28",
+            "2026-12-29",
+            "2026-12-30",
+            "2026-12-31",
+            "2027-01-01"
+          ],
+          "startDateKey": "2026-12-03",
+          "endDateKey": "2027-01-01"
+        }
+      }
+    },
+    {
+      "name": "today-1798759800000-Etc/GMT+5",
+      "now": 1798759800000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "request": {
+        "range": "today",
+        "timeZone": "Etc/GMT+5"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-12-31 00:00:00",
+          "endTime": "2026-12-31 23:59:59",
+          "granularity": "hour",
+          "xTime": [
+            "00:00:00",
+            "01:00:00",
+            "02:00:00",
+            "03:00:00",
+            "04:00:00",
+            "05:00:00",
+            "06:00:00",
+            "07:00:00",
+            "08:00:00",
+            "09:00:00",
+            "10:00:00",
+            "11:00:00",
+            "12:00:00",
+            "13:00:00",
+            "14:00:00",
+            "15:00:00",
+            "16:00:00",
+            "17:00:00",
+            "18:00:00",
+            "19:00:00",
+            "20:00:00",
+            "21:00:00",
+            "22:00:00",
+            "23:00:00"
+          ],
+          "startDateKey": "2026-12-31",
+          "endDateKey": "2026-12-31"
+        }
+      }
+    },
+    {
+      "name": "7d-1798759800000-Etc/GMT+5",
+      "now": 1798759800000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "request": {
+        "range": "7d",
+        "timeZone": "Etc/GMT+5"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-12-25 00:00:00",
+          "endTime": "2026-12-31 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2026-12-25",
+            "2026-12-26",
+            "2026-12-27",
+            "2026-12-28",
+            "2026-12-29",
+            "2026-12-30",
+            "2026-12-31"
+          ],
+          "startDateKey": "2026-12-25",
+          "endDateKey": "2026-12-31"
+        }
+      }
+    },
+    {
+      "name": "30d-1798759800000-Etc/GMT+5",
+      "now": 1798759800000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "request": {
+        "range": "30d",
+        "timeZone": "Etc/GMT+5"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-12-02 00:00:00",
+          "endTime": "2026-12-31 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2026-12-02",
+            "2026-12-03",
+            "2026-12-04",
+            "2026-12-05",
+            "2026-12-06",
+            "2026-12-07",
+            "2026-12-08",
+            "2026-12-09",
+            "2026-12-10",
+            "2026-12-11",
+            "2026-12-12",
+            "2026-12-13",
+            "2026-12-14",
+            "2026-12-15",
+            "2026-12-16",
+            "2026-12-17",
+            "2026-12-18",
+            "2026-12-19",
+            "2026-12-20",
+            "2026-12-21",
+            "2026-12-22",
+            "2026-12-23",
+            "2026-12-24",
+            "2026-12-25",
+            "2026-12-26",
+            "2026-12-27",
+            "2026-12-28",
+            "2026-12-29",
+            "2026-12-30",
+            "2026-12-31"
+          ],
+          "startDateKey": "2026-12-02",
+          "endDateKey": "2026-12-31"
+        }
+      }
+    },
+    {
+      "name": "custom-one-day",
+      "now": 1767312000000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customStartDate": "2026-01-01",
+        "customEndDate": "2026-01-01"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-01-01 00:00:00",
+          "endTime": "2026-01-01 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2026-01-01"
+          ],
+          "startDateKey": "2026-01-01",
+          "endDateKey": "2026-01-01"
+        }
+      }
+    },
+    {
+      "name": "custom-thirty-days",
+      "now": 1767312000000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customStartDate": "2026-01-01",
+        "customEndDate": "2026-01-30"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-01-01 00:00:00",
+          "endTime": "2026-01-30 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2026-01-01",
+            "2026-01-02",
+            "2026-01-03",
+            "2026-01-04",
+            "2026-01-05",
+            "2026-01-06",
+            "2026-01-07",
+            "2026-01-08",
+            "2026-01-09",
+            "2026-01-10",
+            "2026-01-11",
+            "2026-01-12",
+            "2026-01-13",
+            "2026-01-14",
+            "2026-01-15",
+            "2026-01-16",
+            "2026-01-17",
+            "2026-01-18",
+            "2026-01-19",
+            "2026-01-20",
+            "2026-01-21",
+            "2026-01-22",
+            "2026-01-23",
+            "2026-01-24",
+            "2026-01-25",
+            "2026-01-26",
+            "2026-01-27",
+            "2026-01-28",
+            "2026-01-29",
+            "2026-01-30"
+          ],
+          "startDateKey": "2026-01-01",
+          "endDateKey": "2026-01-30"
+        }
+      }
+    },
+    {
+      "name": "custom-thirty-one-days-too-long",
+      "now": 1767312000000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customStartDate": "2026-01-01",
+        "customEndDate": "2026-01-31"
+      },
+      "expected": {
+        "ok": false,
+        "error": "coding_plan_usage_custom_range_too_long"
+      }
+    },
+    {
+      "name": "custom-inverted",
+      "now": 1767312000000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customStartDate": "2026-01-02",
+        "customEndDate": "2026-01-01"
+      },
+      "expected": {
+        "ok": false,
+        "error": "coding_plan_usage_custom_range_invalid_order"
+      }
+    },
+    {
+      "name": "custom-trims-values",
+      "now": 1767312000000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customStartDate": " 2026-01-01 ",
+        "customEndDate": "2026-01-02 "
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-01-01 00:00:00",
+          "endTime": "2026-01-02 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2026-01-01",
+            "2026-01-02"
+          ],
+          "startDateKey": "2026-01-01",
+          "endDateKey": "2026-01-02"
+        }
+      }
+    },
+    {
+      "name": "custom-month-overflow",
+      "now": 1767312000000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customStartDate": "2026-13-01",
+        "customEndDate": "2027-01-02"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-13-01 00:00:00",
+          "endTime": "2027-01-02 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2027-01-01",
+            "2027-01-02"
+          ],
+          "startDateKey": "2026-13-01",
+          "endDateKey": "2027-01-02"
+        }
+      }
+    },
+    {
+      "name": "custom-day-overflow",
+      "now": 1767312000000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customStartDate": "2026-02-31",
+        "customEndDate": "2026-03-05"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-02-31 00:00:00",
+          "endTime": "2026-03-05 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2026-03-03",
+            "2026-03-04",
+            "2026-03-05"
+          ],
+          "startDateKey": "2026-02-31",
+          "endDateKey": "2026-03-05"
+        }
+      }
+    },
+    {
+      "name": "custom-leap-year",
+      "now": 1709164800000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customStartDate": "2024-02-28",
+        "customEndDate": "2024-03-01"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2024-02-28 00:00:00",
+          "endTime": "2024-03-01 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2024-02-28",
+            "2024-02-29",
+            "2024-03-01"
+          ],
+          "startDateKey": "2024-02-28",
+          "endDateKey": "2024-03-01"
+        }
+      }
+    },
+    {
+      "name": "custom-cross-year",
+      "now": 1798675200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customStartDate": "2026-12-31",
+        "customEndDate": "2027-01-02"
+      },
+      "expected": {
+        "ok": true,
+        "value": {
+          "startTime": "2026-12-31 00:00:00",
+          "endTime": "2027-01-02 23:59:59",
+          "granularity": "day",
+          "xTime": [
+            "2026-12-31",
+            "2027-01-01",
+            "2027-01-02"
+          ],
+          "startDateKey": "2026-12-31",
+          "endDateKey": "2027-01-02"
+        }
+      }
+    },
+    {
+      "name": "custom-missing-start",
+      "now": 1767312000000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customEndDate": "2026-01-02"
+      },
+      "expected": {
+        "ok": false,
+        "error": "coding_plan_usage_custom_start_date_invalid"
+      }
+    },
+    {
+      "name": "custom-missing-end",
+      "now": 1767312000000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customStartDate": "2026-01-01"
+      },
+      "expected": {
+        "ok": false,
+        "error": "coding_plan_usage_custom_end_date_invalid"
+      }
+    },
+    {
+      "name": "custom-invalid-start-shape",
+      "now": 1767312000000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customStartDate": "2026-1-01",
+        "customEndDate": "2026-01-02"
+      },
+      "expected": {
+        "ok": false,
+        "error": "coding_plan_usage_custom_start_date_invalid"
+      }
+    },
+    {
+      "name": "custom-invalid-end-shape",
+      "now": 1767312000000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "request": {
+        "range": "custom",
+        "customStartDate": "2026-01-01",
+        "customEndDate": "2026-01-2"
+      },
+      "expected": {
+        "ok": false,
+        "error": "coding_plan_usage_custom_end_date_invalid"
+      }
+    }
+  ],
+  "quota": {
+    "limits": [
+      {
+        "name": "non-array-null",
+        "limits": null,
+        "expected": []
+      },
+      {
+        "name": "non-array-object",
+        "limits": {},
+        "expected": []
+      },
+      {
+        "name": "empty",
+        "limits": [],
+        "expected": []
+      },
+      {
+        "name": "full-fields-and-details",
+        "limits": [
+          {
+            "type": "TIME_LIMIT",
+            "unit": 1,
+            "number": 100,
+            "usage": 25.5,
+            "currentValue": 3,
+            "remaining": 74.5,
+            "percentage": 25.5,
+            "nextResetTime": 1700000000000,
+            "usageDetails": [
+              {
+                "modelCode": "glm-5",
+                "displayName": " GLM 5 ",
+                "usage": 10
+              },
+              {
+                "modelCode": "glm-4",
+                "displayName": "   ",
+                "usage": 2.5
+              },
+              {
+                "modelCode": "glm-3",
+                "usage": "bad"
+              },
+              {
+                "modelCode": "",
+                "displayName": "",
+                "usage": 0
+              }
+            ]
+          },
+          {
+            "type": "TOKENS_LIMIT",
+            "unit": 2,
+            "usageDetails": "bad"
+          }
+        ],
+        "expected": [
+          {
+            "type": "TIME_LIMIT",
+            "unit": 1,
+            "number": 100,
+            "usage": 25.5,
+            "currentValue": 3,
+            "remaining": 74.5,
+            "percentage": 25.5,
+            "nextResetTime": 1700000000000,
+            "usageDetails": [
+              {
+                "modelCode": "glm-5",
+                "displayName": "GLM 5",
+                "usage": 10
+              },
+              {
+                "modelCode": "glm-4",
+                "usage": 2.5
+              },
+              {
+                "modelCode": "glm-3",
+                "usage": 0
+              },
+              {
+                "modelCode": "",
+                "usage": 0
+              }
+            ]
+          },
+          {
+            "type": "TOKENS_LIMIT",
+            "unit": 2,
+            "usageDetails": []
+          }
+        ]
+      },
+      {
+        "name": "filters-invalid-limits",
+        "limits": [
+          {
+            "type": ""
+          },
+          {
+            "type": 42
+          },
+          {
+            "type": "TOKENS_LIMIT",
+            "unit": "1",
+            "number": null,
+            "usageDetails": [
+              {
+                "displayName": "x"
+              }
+            ]
+          }
+        ],
+        "expected": [
+          {
+            "type": "TOKENS_LIMIT",
+            "usageDetails": []
+          }
+        ]
+      }
+    ],
+    "primary": [
+      {
+        "name": "time-limit-wins",
+        "limits": [
+          {
+            "type": "TOKENS_LIMIT",
+            "remaining": 1
+          },
+          {
+            "type": "TIME_LIMIT"
+          }
+        ],
+        "expected": {
+          "type": "TIME_LIMIT",
+          "usageDetails": []
+        }
+      },
+      {
+        "name": "remaining-fallback",
+        "limits": [
+          {
+            "type": "A"
+          },
+          {
+            "type": "B",
+            "remaining": 0
+          }
+        ],
+        "expected": {
+          "type": "B",
+          "remaining": 0,
+          "usageDetails": []
+        }
+      },
+      {
+        "name": "first-fallback",
+        "limits": [
+          {
+            "type": "A"
+          },
+          {
+            "type": "B"
+          }
+        ],
+        "expected": {
+          "type": "A",
+          "usageDetails": []
+        }
+      },
+      {
+        "name": "empty",
+        "limits": [],
+        "expected": null
+      }
+    ],
+    "subscriptions": [
+      {
+        "name": "auto-renew-true",
+        "timeZone": "Asia/Shanghai",
+        "offsetSecs": 28800,
+        "payload": [
+          {
+            "productId": "coding-plan-personal",
+            "productName": "Coding Plan",
+            "status": "VALID",
+            "inCurrentPeriod": true,
+            "autoRenew": true,
+            "nextRenewTime": "2026-01-02 03:04:05",
+            "valid": "2026-01-01 00:00:00 - 2026-02-01 00:00:00",
+            "billingCycle": " MONTHLY "
+          }
+        ],
+        "expected": {
+          "productId": "coding-plan-personal",
+          "productName": "Coding Plan",
+          "billingCycle": "MONTHLY",
+          "renewTime": "2026-01-01T19:04:05.000Z",
+          "expireTime": "2026-01-31T16:00:00.000Z"
+        }
+      },
+      {
+        "name": "auto-renew-one",
+        "timeZone": "Etc/GMT+5",
+        "offsetSecs": -18000,
+        "payload": [
+          {
+            "productId": "coding-plan-personal",
+            "status": "VALID",
+            "inCurrentPeriod": true,
+            "autoRenew": 1,
+            "nextRenewTime": "2026-02-01T00:00:00Z",
+            "valid": "2026-01-01 00:00:00 - 2026-02-15 00:00:00"
+          }
+        ],
+        "expected": {
+          "productId": "coding-plan-personal",
+          "productName": "coding-plan-personal",
+          "billingCycle": null,
+          "renewTime": "2026-02-01T00:00:00.000Z",
+          "expireTime": "2026-02-15T05:00:00.000Z"
+        }
+      },
+      {
+        "name": "not-auto-renew",
+        "timeZone": "UTC",
+        "offsetSecs": 0,
+        "payload": [
+          {
+            "productId": "coding-plan-personal",
+            "productName": "Coding Plan",
+            "status": "VALID",
+            "inCurrentPeriod": true,
+            "autoRenew": false,
+            "nextRenewTime": "2026-01-02T03:04:05+08:00",
+            "valid": "2026-01-01 00:00:00 - 2026-03-01 00:00:00"
+          }
+        ],
+        "expected": {
+          "productId": "coding-plan-personal",
+          "productName": "Coding Plan",
+          "billingCycle": null,
+          "renewTime": null,
+          "expireTime": "2026-01-01T19:04:05.000Z"
+        }
+      },
+      {
+        "name": "invalid-next-renew-falls-back-to-valid",
+        "timeZone": "UTC",
+        "offsetSecs": 0,
+        "payload": [
+          {
+            "productId": "coding-plan-personal",
+            "status": "VALID",
+            "inCurrentPeriod": true,
+            "autoRenew": true,
+            "nextRenewTime": "not-a-date",
+            "valid": "2026-01-01 00:00:00 - 2026-02-01 00:00:00 - 2026-03-01 00:00:00"
+          }
+        ],
+        "expected": {
+          "productId": "coding-plan-personal",
+          "productName": "coding-plan-personal",
+          "billingCycle": null,
+          "renewTime": null,
+          "expireTime": "2026-03-01T00:00:00.000Z"
+        }
+      },
+      {
+        "name": "no-valid-period",
+        "timeZone": "UTC",
+        "offsetSecs": 0,
+        "payload": [
+          {
+            "productId": "coding-plan-personal",
+            "status": "VALID",
+            "inCurrentPeriod": true,
+            "autoRenew": false,
+            "nextRenewTime": "2026-01-02T03:04:05Z"
+          }
+        ],
+        "expected": {
+          "productId": "coding-plan-personal",
+          "productName": "coding-plan-personal",
+          "billingCycle": null,
+          "renewTime": null,
+          "expireTime": "2026-01-02T03:04:05.000Z"
+        }
+      },
+      {
+        "name": "date-only-utc",
+        "timeZone": "Asia/Shanghai",
+        "offsetSecs": 28800,
+        "payload": [
+          {
+            "productId": "coding-plan-personal",
+            "status": "VALID",
+            "inCurrentPeriod": true,
+            "autoRenew": false,
+            "nextRenewTime": "2026-01-02"
+          }
+        ],
+        "expected": {
+          "productId": "coding-plan-personal",
+          "productName": "coding-plan-personal",
+          "billingCycle": null,
+          "renewTime": null,
+          "expireTime": "2026-01-02T00:00:00.000Z"
+        }
+      },
+      {
+        "name": "non-coding-product",
+        "timeZone": "UTC",
+        "offsetSecs": 0,
+        "payload": [
+          {
+            "productId": "api-plan",
+            "productName": "API",
+            "status": "VALID",
+            "inCurrentPeriod": true
+          }
+        ],
+        "expected": null
+      },
+      {
+        "name": "expired-status",
+        "timeZone": "UTC",
+        "offsetSecs": 0,
+        "payload": [
+          {
+            "productId": "coding-plan-personal",
+            "status": "EXPIRED",
+            "inCurrentPeriod": true
+          }
+        ],
+        "expected": null
+      },
+      {
+        "name": "not-current-period",
+        "timeZone": "UTC",
+        "offsetSecs": 0,
+        "payload": [
+          {
+            "productId": "coding-plan-personal",
+            "status": "VALID",
+            "inCurrentPeriod": false
+          }
+        ],
+        "expected": null
+      },
+      {
+        "name": "empty-product-id-first",
+        "timeZone": "UTC",
+        "offsetSecs": 0,
+        "payload": [
+          {
+            "productId": "",
+            "productName": "Coding Plan",
+            "status": "VALID",
+            "inCurrentPeriod": true
+          },
+          {
+            "productId": "coding-plan-later",
+            "status": "VALID",
+            "inCurrentPeriod": true
+          }
+        ],
+        "expected": null
+      },
+      {
+        "name": "empty-product-name-kept",
+        "timeZone": "UTC",
+        "offsetSecs": 0,
+        "payload": [
+          {
+            "productId": "coding-plan-personal",
+            "productName": "",
+            "status": "VALID",
+            "inCurrentPeriod": true,
+            "billingCycle": "   ",
+            "autoRenew": false,
+            "nextRenewTime": "2026-01-02T03:04:05Z"
+          }
+        ],
+        "expected": {
+          "productId": "coding-plan-personal",
+          "productName": "",
+          "billingCycle": null,
+          "renewTime": null,
+          "expireTime": "2026-01-02T03:04:05.000Z"
+        }
+      }
+    ]
+  },
+  "monitor": [
+    {
+      "name": "full-legacy-monitor",
+      "request": {
+        "range": "7d",
+        "timeZone": "Asia/Shanghai"
+      },
+      "modelData": {
+        "x_time": [
+          "2026-01-01",
+          "2026-01-02",
+          "2026-01-03"
+        ],
+        "tokensUsage": [
+          100,
+          0,
+          50
+        ],
+        "modelCallCount": [
+          2,
+          0,
+          1
+        ],
+        "totalUsage": {
+          "totalTokensUsage": 150,
+          "totalModelCallCount": 3,
+          "modelSummaryList": [
+            {
+              "modelName": "glm-5",
+              "totalTokens": 100
+            },
+            {
+              "modelName": "glm-4",
+              "totalTokens": 50
+            },
+            {
+              "modelName": "",
+              "totalTokens": 9
+            }
+          ]
+        }
+      },
+      "toolData": {
+        "networkSearchCount": [
+          1,
+          2
+        ],
+        "webReadMcpCount": [
+          0,
+          1
+        ],
+        "totalUsage": {
+          "totalNetworkSearchCount": 3,
+          "totalWebReadMcpCount": 1,
+          "totalZreadMcpCount": 0,
+          "totalSearchMcpCount": 4
+        }
+      },
+      "expected": {
+        "range": "7d",
+        "generatedAt": 1700000000000,
+        "timeZone": "Asia/Shanghai",
+        "estimatedTokenCharDivisor": 3,
+        "summary": {
+          "totalSessions": 3,
+          "totalCharacters": 450,
+          "totalEstimatedTokens": 150,
+          "totalMessages": 3,
+          "activeDays": 2,
+          "mostActiveDay": {
+            "date": "2026-01-01",
+            "label": "2026-01-01",
+            "totalCharacters": 300,
+            "totalEstimatedTokens": 100,
+            "sessionCount": 1,
+            "messageCount": 2,
+            "activityScore": 100
+          },
+          "favoriteModel": {
+            "modelId": "glm-5",
+            "totalCharacters": 300,
+            "totalEstimatedTokens": 100,
+            "share": 0.6666666666666666
+          },
+          "longestSessionMs": 0,
+          "longestStreakDays": 0,
+          "currentStreakDays": 0,
+          "firstActivityDate": "2026-01-01",
+          "lastActivityDate": "2026-01-03",
+          "peakHour": null
+        },
+        "daily": [
+          {
+            "date": "2026-01-01",
+            "label": "2026-01-01",
+            "totalCharacters": 300,
+            "totalEstimatedTokens": 100,
+            "sessionCount": 1,
+            "messageCount": 2,
+            "activityScore": 100
+          },
+          {
+            "date": "2026-01-02",
+            "label": "2026-01-02",
+            "totalCharacters": 0,
+            "totalEstimatedTokens": 0,
+            "sessionCount": 0,
+            "messageCount": 0,
+            "activityScore": 0
+          },
+          {
+            "date": "2026-01-03",
+            "label": "2026-01-03",
+            "totalCharacters": 150,
+            "totalEstimatedTokens": 50,
+            "sessionCount": 1,
+            "messageCount": 1,
+            "activityScore": 50
+          }
+        ],
+        "heatmap": {
+          "startDate": "2026-01-01",
+          "endDate": "2026-01-03",
+          "maxActivityScore": 100,
+          "weeks": [],
+          "monthLabels": []
+        },
+        "models": [
+          {
+            "modelId": "glm-5",
+            "totalCharacters": 300,
+            "totalEstimatedTokens": 100,
+            "inputCharacters": 0,
+            "inputEstimatedTokens": 0,
+            "outputCharacters": 0,
+            "outputEstimatedTokens": 0,
+            "sessionCount": 0,
+            "messageCount": 0,
+            "share": 0.6666666666666666
+          },
+          {
+            "modelId": "glm-4",
+            "totalCharacters": 150,
+            "totalEstimatedTokens": 50,
+            "inputCharacters": 0,
+            "inputEstimatedTokens": 0,
+            "outputCharacters": 0,
+            "outputEstimatedTokens": 0,
+            "sessionCount": 0,
+            "messageCount": 0,
+            "share": 0.3333333333333333
+          }
+        ],
+        "source": "bigmodel-monitor",
+        "tools": [
+          {
+            "toolCode": "network-search",
+            "displayName": "联网搜索 MCP",
+            "totalCalls": 3,
+            "dailyCalls": [
+              1,
+              2
+            ]
+          },
+          {
+            "toolCode": "web-reader",
+            "displayName": "网页读取 MCP",
+            "totalCalls": 1,
+            "dailyCalls": [
+              0,
+              1
+            ]
+          },
+          {
+            "toolCode": "zread",
+            "displayName": "开源仓库 MCP",
+            "totalCalls": 0,
+            "dailyCalls": []
+          },
+          {
+            "toolCode": "search-mcp",
+            "displayName": "Search MCP",
+            "totalCalls": 4,
+            "dailyCalls": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "model-summary-fallback-without-totals",
+      "request": {
+        "range": "all"
+      },
+      "modelData": {
+        "x_time": [
+          "2026-01-01",
+          "2026-01-02"
+        ],
+        "tokensUsage": [
+          7,
+          3
+        ],
+        "modelCallCount": [
+          1,
+          0
+        ],
+        "modelSummaryList": [
+          {
+            "modelName": "a",
+            "totalTokens": 5
+          },
+          {
+            "modelName": "a",
+            "totalTokens": 5
+          }
+        ]
+      },
+      "toolData": {},
+      "expected": {
+        "range": "all",
+        "generatedAt": 1700000000000,
+        "timeZone": "UTC",
+        "estimatedTokenCharDivisor": 3,
+        "summary": {
+          "totalSessions": 0,
+          "totalCharacters": 0,
+          "totalEstimatedTokens": 0,
+          "totalMessages": 0,
+          "activeDays": 2,
+          "mostActiveDay": {
+            "date": "2026-01-01",
+            "label": "2026-01-01",
+            "totalCharacters": 21,
+            "totalEstimatedTokens": 7,
+            "sessionCount": 1,
+            "messageCount": 1,
+            "activityScore": 7
+          },
+          "favoriteModel": {
+            "modelId": "a",
+            "totalCharacters": 15,
+            "totalEstimatedTokens": 5,
+            "share": 0
+          },
+          "longestSessionMs": 0,
+          "longestStreakDays": 0,
+          "currentStreakDays": 0,
+          "firstActivityDate": "2026-01-01",
+          "lastActivityDate": "2026-01-02",
+          "peakHour": null
+        },
+        "daily": [
+          {
+            "date": "2026-01-01",
+            "label": "2026-01-01",
+            "totalCharacters": 21,
+            "totalEstimatedTokens": 7,
+            "sessionCount": 1,
+            "messageCount": 1,
+            "activityScore": 7
+          },
+          {
+            "date": "2026-01-02",
+            "label": "2026-01-02",
+            "totalCharacters": 9,
+            "totalEstimatedTokens": 3,
+            "sessionCount": 0,
+            "messageCount": 0,
+            "activityScore": 3
+          }
+        ],
+        "heatmap": {
+          "startDate": "2026-01-01",
+          "endDate": "2026-01-02",
+          "maxActivityScore": 7,
+          "weeks": [],
+          "monthLabels": []
+        },
+        "models": [
+          {
+            "modelId": "a",
+            "totalCharacters": 15,
+            "totalEstimatedTokens": 5,
+            "inputCharacters": 0,
+            "inputEstimatedTokens": 0,
+            "outputCharacters": 0,
+            "outputEstimatedTokens": 0,
+            "sessionCount": 0,
+            "messageCount": 0,
+            "share": 0
+          },
+          {
+            "modelId": "a",
+            "totalCharacters": 15,
+            "totalEstimatedTokens": 5,
+            "inputCharacters": 0,
+            "inputEstimatedTokens": 0,
+            "outputCharacters": 0,
+            "outputEstimatedTokens": 0,
+            "sessionCount": 0,
+            "messageCount": 0,
+            "share": 0
+          }
+        ],
+        "source": "bigmodel-monitor",
+        "tools": [
+          {
+            "toolCode": "network-search",
+            "displayName": "联网搜索 MCP",
+            "totalCalls": 0,
+            "dailyCalls": []
+          },
+          {
+            "toolCode": "web-reader",
+            "displayName": "网页读取 MCP",
+            "totalCalls": 0,
+            "dailyCalls": []
+          },
+          {
+            "toolCode": "zread",
+            "displayName": "开源仓库 MCP",
+            "totalCalls": 0,
+            "dailyCalls": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool-totals-from-arrays",
+      "request": {
+        "range": "30d",
+        "timeZone": "UTC"
+      },
+      "modelData": {},
+      "toolData": {
+        "networkSearchCount": [
+          1,
+          2,
+          3
+        ],
+        "webReadMcpCount": [
+          0,
+          4
+        ],
+        "zreadMcpCount": [
+          5
+        ]
+      },
+      "expected": {
+        "range": "30d",
+        "generatedAt": 1700000000000,
+        "timeZone": "UTC",
+        "estimatedTokenCharDivisor": 3,
+        "summary": {
+          "totalSessions": 0,
+          "totalCharacters": 0,
+          "totalEstimatedTokens": 0,
+          "totalMessages": 0,
+          "activeDays": 0,
+          "mostActiveDay": null,
+          "favoriteModel": null,
+          "longestSessionMs": 0,
+          "longestStreakDays": 0,
+          "currentStreakDays": 0,
+          "firstActivityDate": null,
+          "lastActivityDate": null,
+          "peakHour": null
+        },
+        "daily": [],
+        "heatmap": {
+          "startDate": null,
+          "endDate": null,
+          "maxActivityScore": 0,
+          "weeks": [],
+          "monthLabels": []
+        },
+        "models": [],
+        "source": "bigmodel-monitor",
+        "tools": [
+          {
+            "toolCode": "network-search",
+            "displayName": "联网搜索 MCP",
+            "totalCalls": 6,
+            "dailyCalls": [
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "toolCode": "web-reader",
+            "displayName": "网页读取 MCP",
+            "totalCalls": 4,
+            "dailyCalls": [
+              0,
+              4
+            ]
+          },
+          {
+            "toolCode": "zread",
+            "displayName": "开源仓库 MCP",
+            "totalCalls": 5,
+            "dailyCalls": [
+              5
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "tie-most-active-and-stable-model-sort",
+      "request": {
+        "range": "7d",
+        "timeZone": "UTC"
+      },
+      "modelData": {
+        "x_time": [
+          "d1",
+          "d2",
+          "d3"
+        ],
+        "tokensUsage": [
+          5,
+          5,
+          3
+        ],
+        "modelCallCount": [
+          1,
+          1,
+          1
+        ],
+        "totalUsage": {
+          "totalTokensUsage": 13,
+          "totalModelCallCount": 3,
+          "modelSummaryList": [
+            {
+              "modelName": "first",
+              "totalTokens": 5
+            },
+            {
+              "modelName": "second",
+              "totalTokens": 5
+            }
+          ]
+        }
+      },
+      "toolData": {
+        "networkSearchCount": [
+          0
+        ],
+        "webReadMcpCount": [
+          0
+        ],
+        "zreadMcpCount": [
+          0
+        ],
+        "totalUsage": {
+          "totalSearchMcpCount": 0
+        }
+      },
+      "expected": {
+        "range": "7d",
+        "generatedAt": 1700000000000,
+        "timeZone": "UTC",
+        "estimatedTokenCharDivisor": 3,
+        "summary": {
+          "totalSessions": 3,
+          "totalCharacters": 39,
+          "totalEstimatedTokens": 13,
+          "totalMessages": 3,
+          "activeDays": 3,
+          "mostActiveDay": {
+            "date": "d1",
+            "label": "d1",
+            "totalCharacters": 15,
+            "totalEstimatedTokens": 5,
+            "sessionCount": 1,
+            "messageCount": 1,
+            "activityScore": 5
+          },
+          "favoriteModel": {
+            "modelId": "first",
+            "totalCharacters": 15,
+            "totalEstimatedTokens": 5,
+            "share": 0.38461538461538464
+          },
+          "longestSessionMs": 0,
+          "longestStreakDays": 0,
+          "currentStreakDays": 0,
+          "firstActivityDate": "d1",
+          "lastActivityDate": "d3",
+          "peakHour": null
+        },
+        "daily": [
+          {
+            "date": "d1",
+            "label": "d1",
+            "totalCharacters": 15,
+            "totalEstimatedTokens": 5,
+            "sessionCount": 1,
+            "messageCount": 1,
+            "activityScore": 5
+          },
+          {
+            "date": "d2",
+            "label": "d2",
+            "totalCharacters": 15,
+            "totalEstimatedTokens": 5,
+            "sessionCount": 1,
+            "messageCount": 1,
+            "activityScore": 5
+          },
+          {
+            "date": "d3",
+            "label": "d3",
+            "totalCharacters": 9,
+            "totalEstimatedTokens": 3,
+            "sessionCount": 1,
+            "messageCount": 1,
+            "activityScore": 3
+          }
+        ],
+        "heatmap": {
+          "startDate": "d1",
+          "endDate": "d3",
+          "maxActivityScore": 5,
+          "weeks": [],
+          "monthLabels": []
+        },
+        "models": [
+          {
+            "modelId": "first",
+            "totalCharacters": 15,
+            "totalEstimatedTokens": 5,
+            "inputCharacters": 0,
+            "inputEstimatedTokens": 0,
+            "outputCharacters": 0,
+            "outputEstimatedTokens": 0,
+            "sessionCount": 0,
+            "messageCount": 0,
+            "share": 0.38461538461538464
+          },
+          {
+            "modelId": "second",
+            "totalCharacters": 15,
+            "totalEstimatedTokens": 5,
+            "inputCharacters": 0,
+            "inputEstimatedTokens": 0,
+            "outputCharacters": 0,
+            "outputEstimatedTokens": 0,
+            "sessionCount": 0,
+            "messageCount": 0,
+            "share": 0.38461538461538464
+          }
+        ],
+        "source": "bigmodel-monitor",
+        "tools": [
+          {
+            "toolCode": "network-search",
+            "displayName": "联网搜索 MCP",
+            "totalCalls": 0,
+            "dailyCalls": [
+              0
+            ]
+          },
+          {
+            "toolCode": "web-reader",
+            "displayName": "网页读取 MCP",
+            "totalCalls": 0,
+            "dailyCalls": [
+              0
+            ]
+          },
+          {
+            "toolCode": "zread",
+            "displayName": "开源仓库 MCP",
+            "totalCalls": 0,
+            "dailyCalls": [
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty-payloads",
+      "request": {
+        "range": "all",
+        "timeZone": "UTC"
+      },
+      "modelData": {},
+      "toolData": {},
+      "expected": {
+        "range": "all",
+        "generatedAt": 1700000000000,
+        "timeZone": "UTC",
+        "estimatedTokenCharDivisor": 3,
+        "summary": {
+          "totalSessions": 0,
+          "totalCharacters": 0,
+          "totalEstimatedTokens": 0,
+          "totalMessages": 0,
+          "activeDays": 0,
+          "mostActiveDay": null,
+          "favoriteModel": null,
+          "longestSessionMs": 0,
+          "longestStreakDays": 0,
+          "currentStreakDays": 0,
+          "firstActivityDate": null,
+          "lastActivityDate": null,
+          "peakHour": null
+        },
+        "daily": [],
+        "heatmap": {
+          "startDate": null,
+          "endDate": null,
+          "maxActivityScore": 0,
+          "weeks": [],
+          "monthLabels": []
+        },
+        "models": [],
+        "source": "bigmodel-monitor",
+        "tools": [
+          {
+            "toolCode": "network-search",
+            "displayName": "联网搜索 MCP",
+            "totalCalls": 0,
+            "dailyCalls": []
+          },
+          {
+            "toolCode": "web-reader",
+            "displayName": "网页读取 MCP",
+            "totalCalls": 0,
+            "dailyCalls": []
+          },
+          {
+            "toolCode": "zread",
+            "displayName": "开源仓库 MCP",
+            "totalCalls": 0,
+            "dailyCalls": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "ragged-series",
+      "request": {
+        "range": "7d",
+        "timeZone": "UTC"
+      },
+      "modelData": {
+        "x_time": [
+          "d1",
+          "d2",
+          "d3",
+          "d4"
+        ],
+        "tokensUsage": [
+          2
+        ],
+        "modelCallCount": [
+          1,
+          2
+        ],
+        "totalUsage": {
+          "totalTokensUsage": 2,
+          "totalModelCallCount": 3,
+          "modelSummaryList": []
+        }
+      },
+      "toolData": {
+        "networkSearchCount": [],
+        "webReadMcpCount": [
+          2
+        ],
+        "totalUsage": {
+          "totalSearchMcpCount": -1
+        }
+      },
+      "expected": {
+        "range": "7d",
+        "generatedAt": 1700000000000,
+        "timeZone": "UTC",
+        "estimatedTokenCharDivisor": 3,
+        "summary": {
+          "totalSessions": 3,
+          "totalCharacters": 6,
+          "totalEstimatedTokens": 2,
+          "totalMessages": 3,
+          "activeDays": 1,
+          "mostActiveDay": {
+            "date": "d1",
+            "label": "d1",
+            "totalCharacters": 6,
+            "totalEstimatedTokens": 2,
+            "sessionCount": 1,
+            "messageCount": 1,
+            "activityScore": 2
+          },
+          "favoriteModel": null,
+          "longestSessionMs": 0,
+          "longestStreakDays": 0,
+          "currentStreakDays": 0,
+          "firstActivityDate": "d1",
+          "lastActivityDate": "d1",
+          "peakHour": null
+        },
+        "daily": [
+          {
+            "date": "d1",
+            "label": "d1",
+            "totalCharacters": 6,
+            "totalEstimatedTokens": 2,
+            "sessionCount": 1,
+            "messageCount": 1,
+            "activityScore": 2
+          },
+          {
+            "date": "d2",
+            "label": "d2",
+            "totalCharacters": 0,
+            "totalEstimatedTokens": 0,
+            "sessionCount": 1,
+            "messageCount": 2,
+            "activityScore": 0
+          },
+          {
+            "date": "d3",
+            "label": "d3",
+            "totalCharacters": 0,
+            "totalEstimatedTokens": 0,
+            "sessionCount": 0,
+            "messageCount": 0,
+            "activityScore": 0
+          },
+          {
+            "date": "d4",
+            "label": "d4",
+            "totalCharacters": 0,
+            "totalEstimatedTokens": 0,
+            "sessionCount": 0,
+            "messageCount": 0,
+            "activityScore": 0
+          }
+        ],
+        "heatmap": {
+          "startDate": "d1",
+          "endDate": "d1",
+          "maxActivityScore": 2,
+          "weeks": [],
+          "monthLabels": []
+        },
+        "models": [],
+        "source": "bigmodel-monitor",
+        "tools": [
+          {
+            "toolCode": "network-search",
+            "displayName": "联网搜索 MCP",
+            "totalCalls": 0,
+            "dailyCalls": []
+          },
+          {
+            "toolCode": "web-reader",
+            "displayName": "网页读取 MCP",
+            "totalCalls": 2,
+            "dailyCalls": [
+              2
+            ]
+          },
+          {
+            "toolCode": "zread",
+            "displayName": "开源仓库 MCP",
+            "totalCalls": 0,
+            "dailyCalls": []
+          }
+        ]
+      }
+    }
+  ]
+}

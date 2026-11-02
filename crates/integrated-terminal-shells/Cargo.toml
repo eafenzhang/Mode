@@ -1,0 +1,13 @@
+[package]
+name = "integrated-terminal-shells"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Windows 集成终端 shell 选项探测，对应 services/system/integratedTerminalShells.ts"
+
+[lib]
+name = "integrated_terminal_shells"
+path = "src/lib.rs"
+
+[dependencies]
+serde_json = { workspace = true }

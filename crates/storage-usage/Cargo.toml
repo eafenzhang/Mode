@@ -1,0 +1,15 @@
+[package]
+name = "storage-usage"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "存储分类目录、清理范围/保护、占用累加与卷分组，对应 services/storage/domain 与 shared/storage.ts"
+
+[lib]
+name = "storage_usage"
+path = "src/lib.rs"
+
+[dependencies]
+indexmap = "2"
+regex = "1"
+serde_json = { workspace = true }

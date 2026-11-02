@@ -1,0 +1,791 @@
+{
+  "cases": [
+    {
+      "name": "append-overwrite",
+      "ops": [
+        {
+          "kind": "setUser",
+          "userId": null
+        },
+        {
+          "kind": "append",
+          "deviceMid": "dev-1",
+          "entry": {
+            "occupation": "developer",
+            "interfaceMode": "coding",
+            "memoryEnabled": null,
+            "proactiveSuggestionsEnabled": true,
+            "completedAt": "2026-03-01T00:00:00.000Z"
+          }
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "setUser",
+          "userId": "user-1"
+        },
+        {
+          "kind": "append",
+          "deviceMid": "dev-1",
+          "entry": {
+            "occupation": "design",
+            "interfaceMode": "coding",
+            "memoryEnabled": null,
+            "proactiveSuggestionsEnabled": true,
+            "completedAt": "2026-03-01T00:00:00.000Z"
+          }
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "setUser",
+          "userId": null
+        },
+        {
+          "kind": "append",
+          "deviceMid": "dev-1",
+          "entry": {
+            "occupation": "developer",
+            "interfaceMode": "office",
+            "memoryEnabled": null,
+            "proactiveSuggestionsEnabled": true,
+            "completedAt": "2026-03-01T00:00:00.000Z"
+          }
+        },
+        {
+          "kind": "latest"
+        },
+        {
+          "kind": "rawFile"
+        },
+        {
+          "kind": "syncSettings"
+        }
+      ],
+      "expected": [
+        null,
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [
+            {
+              "userId": null,
+              "occupation": "developer",
+              "interfaceMode": "coding",
+              "memoryEnabled": null,
+              "proactiveSuggestionsEnabled": true,
+              "completedAt": "<ts>",
+              "uploadState": "pending"
+            }
+          ],
+          "decisions": []
+        },
+        null,
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [
+            {
+              "userId": null,
+              "occupation": "developer",
+              "interfaceMode": "coding",
+              "memoryEnabled": null,
+              "proactiveSuggestionsEnabled": true,
+              "completedAt": "<ts>",
+              "uploadState": "pending"
+            },
+            {
+              "userId": "user-1",
+              "occupation": "design",
+              "interfaceMode": "coding",
+              "memoryEnabled": null,
+              "proactiveSuggestionsEnabled": true,
+              "completedAt": "<ts>",
+              "uploadState": "pending"
+            }
+          ],
+          "decisions": []
+        },
+        null,
+        null,
+        {
+          "userId": null,
+          "occupation": "developer",
+          "interfaceMode": "office",
+          "memoryEnabled": null,
+          "proactiveSuggestionsEnabled": true,
+          "completedAt": "<ts>",
+          "uploadState": "pending"
+        },
+        "{\n  \"version\": 2,\n  \"deviceMid\": \"dev-1\",\n  \"entries\": [\n    {\n      \"userId\": null,\n      \"occupation\": \"developer\",\n      \"interfaceMode\": \"office\",\n      \"memoryEnabled\": null,\n      \"proactiveSuggestionsEnabled\": true,\n      \"completedAt\": \"<ts>\",\n      \"uploadState\": \"pending\"\n    },\n    {\n      \"userId\": \"user-1\",\n      \"occupation\": \"design\",\n      \"interfaceMode\": \"coding\",\n      \"memoryEnabled\": null,\n      \"proactiveSuggestionsEnabled\": true,\n      \"completedAt\": \"<ts>\",\n      \"uploadState\": \"pending\"\n    }\n  ],\n  \"decisions\": []\n}",
+        {
+          "onboardingOccupation": "developer",
+          "proactiveSuggestionsEnabled": true,
+          "memoryEnabled": false
+        }
+      ]
+    },
+    {
+      "name": "claim-anonymous",
+      "ops": [
+        {
+          "kind": "setupFile",
+          "content": "{\n  \"version\": 2,\n  \"deviceMid\": \"dev-1\",\n  \"entries\": [\n    {\n      \"userId\": null,\n      \"occupation\": \"developer\",\n      \"interfaceMode\": \"coding\",\n      \"memoryEnabled\": null,\n      \"proactiveSuggestionsEnabled\": true,\n      \"completedAt\": \"2026-03-01T00:00:00.000Z\",\n      \"uploadState\": \"pending\"\n    }\n  ],\n  \"decisions\": []\n}"
+        },
+        {
+          "kind": "setUser",
+          "userId": "user-1"
+        },
+        {
+          "kind": "claim"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "claim"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "setupFile",
+          "content": "{\n  \"version\": 2,\n  \"deviceMid\": \"dev-1\",\n  \"entries\": [],\n  \"decisions\": [\n    {\n      \"userId\": null,\n      \"status\": \"dismissed\",\n      \"reason\": \"user_closed\",\n      \"decidedAt\": \"2026-03-01T00:00:00.000Z\"\n    }\n  ]\n}"
+        },
+        {
+          "kind": "setUser",
+          "userId": "user-2"
+        },
+        {
+          "kind": "claim"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "setUser",
+          "userId": null
+        },
+        {
+          "kind": "claim"
+        },
+        {
+          "kind": "getRecords"
+        }
+      ],
+      "expected": [
+        null,
+        null,
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [
+            {
+              "userId": "user-1",
+              "occupation": "developer",
+              "interfaceMode": "coding",
+              "memoryEnabled": null,
+              "proactiveSuggestionsEnabled": true,
+              "completedAt": "<ts>",
+              "uploadState": "pending"
+            }
+          ],
+          "decisions": []
+        },
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [
+            {
+              "userId": "user-1",
+              "occupation": "developer",
+              "interfaceMode": "coding",
+              "memoryEnabled": null,
+              "proactiveSuggestionsEnabled": true,
+              "completedAt": "<ts>",
+              "uploadState": "pending"
+            }
+          ],
+          "decisions": []
+        },
+        null,
+        null,
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [],
+          "decisions": [
+            {
+              "userId": "user-2",
+              "status": "dismissed",
+              "reason": "user_closed",
+              "decidedAt": "<ts>"
+            }
+          ]
+        },
+        null,
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [],
+          "decisions": [
+            {
+              "userId": "user-2",
+              "status": "dismissed",
+              "reason": "user_closed",
+              "decidedAt": "<ts>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "should-onboard",
+      "ops": [
+        {
+          "kind": "setUser",
+          "userId": null
+        },
+        {
+          "kind": "setHasTask",
+          "hasTask": false
+        },
+        {
+          "kind": "shouldOnboard",
+          "deviceMid": "dev-1"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "setHasTask",
+          "hasTask": true
+        },
+        {
+          "kind": "shouldOnboard",
+          "deviceMid": "dev-1"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "shouldOnboard",
+          "deviceMid": "dev-1"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "setUser",
+          "userId": "user-9"
+        },
+        {
+          "kind": "shouldOnboard",
+          "deviceMid": "dev-1"
+        },
+        {
+          "kind": "getRecords"
+        }
+      ],
+      "expected": [
+        null,
+        null,
+        true,
+        null,
+        null,
+        false,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [],
+          "decisions": [
+            {
+              "userId": null,
+              "status": "existing_local_user",
+              "reason": "existing_local_task",
+              "decidedAt": "<ts>"
+            }
+          ]
+        },
+        false,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [],
+          "decisions": [
+            {
+              "userId": null,
+              "status": "existing_local_user",
+              "reason": "existing_local_task",
+              "decidedAt": "<ts>"
+            }
+          ]
+        },
+        null,
+        false,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [],
+          "decisions": [
+            {
+              "userId": null,
+              "status": "existing_local_user",
+              "reason": "existing_local_task",
+              "decidedAt": "<ts>"
+            },
+            {
+              "userId": "user-9",
+              "status": "existing_local_user",
+              "reason": "existing_local_task",
+              "decidedAt": "<ts>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dismiss",
+      "ops": [
+        {
+          "kind": "setUser",
+          "userId": null
+        },
+        {
+          "kind": "dismiss",
+          "deviceMid": "dev-1"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "dismiss",
+          "deviceMid": "dev-1"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "setUser",
+          "userId": "user-1"
+        },
+        {
+          "kind": "dismiss",
+          "deviceMid": "dev-1"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "append",
+          "deviceMid": "dev-1",
+          "entry": {
+            "occupation": "developer",
+            "interfaceMode": "coding",
+            "memoryEnabled": null,
+            "proactiveSuggestionsEnabled": true,
+            "completedAt": "2026-03-01T00:00:00.000Z"
+          }
+        },
+        {
+          "kind": "dismiss",
+          "deviceMid": "dev-1"
+        },
+        {
+          "kind": "getRecords"
+        }
+      ],
+      "expected": [
+        null,
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [],
+          "decisions": [
+            {
+              "userId": null,
+              "status": "dismissed",
+              "reason": "user_closed",
+              "decidedAt": "<ts>"
+            }
+          ]
+        },
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [],
+          "decisions": [
+            {
+              "userId": null,
+              "status": "dismissed",
+              "reason": "user_closed",
+              "decidedAt": "<ts>"
+            }
+          ]
+        },
+        null,
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [],
+          "decisions": [
+            {
+              "userId": null,
+              "status": "dismissed",
+              "reason": "user_closed",
+              "decidedAt": "<ts>"
+            },
+            {
+              "userId": "user-1",
+              "status": "dismissed",
+              "reason": "user_closed",
+              "decidedAt": "<ts>"
+            }
+          ]
+        },
+        null,
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [
+            {
+              "userId": "user-1",
+              "occupation": "developer",
+              "interfaceMode": "coding",
+              "memoryEnabled": null,
+              "proactiveSuggestionsEnabled": true,
+              "completedAt": "<ts>",
+              "uploadState": "pending"
+            }
+          ],
+          "decisions": [
+            {
+              "userId": null,
+              "status": "dismissed",
+              "reason": "user_closed",
+              "decidedAt": "<ts>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "sync-settings",
+      "ops": [
+        {
+          "kind": "setupFile",
+          "content": "{\n  \"version\": 2,\n  \"deviceMid\": \"dev-1\",\n  \"entries\": [\n    {\n      \"userId\": null,\n      \"occupation\": \"student\",\n      \"interfaceMode\": \"coding\",\n      \"memoryEnabled\": null,\n      \"proactiveSuggestionsEnabled\": true,\n      \"completedAt\": \"2026-03-01T00:00:00.000Z\",\n      \"uploadState\": \"pending\"\n    },\n    {\n      \"userId\": \"user-1\",\n      \"occupation\": \"astronaut\",\n      \"interfaceMode\": \"office\",\n      \"memoryEnabled\": false,\n      \"proactiveSuggestionsEnabled\": null,\n      \"completedAt\": \"2026-03-01T00:00:00.000Z\",\n      \"uploadState\": \"pending\"\n    },\n    {\n      \"userId\": null,\n      \"occupation\": \"developer\",\n      \"interfaceMode\": \"coding\",\n      \"memoryEnabled\": null,\n      \"proactiveSuggestionsEnabled\": true,\n      \"completedAt\": \"2026-03-01T00:00:00.000Z\",\n      \"uploadState\": \"pending\"\n    }\n  ],\n  \"decisions\": []\n}"
+        },
+        {
+          "kind": "setUser",
+          "userId": null
+        },
+        {
+          "kind": "latest"
+        },
+        {
+          "kind": "syncSettings"
+        },
+        {
+          "kind": "setUser",
+          "userId": "user-1"
+        },
+        {
+          "kind": "syncSettings"
+        },
+        {
+          "kind": "setUser",
+          "userId": "user-2"
+        },
+        {
+          "kind": "syncSettings"
+        },
+        {
+          "kind": "latest"
+        },
+        {
+          "kind": "updatePrefs",
+          "patch": {
+            "memoryEnabled": true
+          }
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "setUser",
+          "userId": null
+        },
+        {
+          "kind": "updatePrefs",
+          "patch": {
+            "memoryEnabled": false,
+            "proactiveSuggestionsEnabled": null
+          }
+        },
+        {
+          "kind": "latest"
+        },
+        {
+          "kind": "syncSettings"
+        }
+      ],
+      "expected": [
+        null,
+        null,
+        {
+          "userId": null,
+          "occupation": "developer",
+          "interfaceMode": "coding",
+          "memoryEnabled": null,
+          "proactiveSuggestionsEnabled": true,
+          "completedAt": "<ts>",
+          "uploadState": "pending"
+        },
+        {
+          "onboardingOccupation": "developer",
+          "proactiveSuggestionsEnabled": true,
+          "memoryEnabled": false
+        },
+        null,
+        {
+          "onboardingOccupation": "other",
+          "proactiveSuggestionsEnabled": false,
+          "memoryEnabled": false
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [
+            {
+              "userId": null,
+              "occupation": "student",
+              "interfaceMode": "coding",
+              "memoryEnabled": null,
+              "proactiveSuggestionsEnabled": true,
+              "completedAt": "<ts>",
+              "uploadState": "pending"
+            },
+            {
+              "userId": "user-1",
+              "occupation": "astronaut",
+              "interfaceMode": "office",
+              "memoryEnabled": false,
+              "proactiveSuggestionsEnabled": null,
+              "completedAt": "<ts>",
+              "uploadState": "pending"
+            },
+            {
+              "userId": null,
+              "occupation": "developer",
+              "interfaceMode": "coding",
+              "memoryEnabled": null,
+              "proactiveSuggestionsEnabled": true,
+              "completedAt": "<ts>",
+              "uploadState": "pending"
+            }
+          ],
+          "decisions": []
+        },
+        null,
+        null,
+        {
+          "userId": null,
+          "occupation": "developer",
+          "interfaceMode": "coding",
+          "memoryEnabled": false,
+          "proactiveSuggestionsEnabled": null,
+          "completedAt": "<ts>",
+          "uploadState": "pending"
+        },
+        {
+          "onboardingOccupation": "developer",
+          "proactiveSuggestionsEnabled": false,
+          "memoryEnabled": false
+        }
+      ]
+    },
+    {
+      "name": "v1-upgrade",
+      "ops": [
+        {
+          "kind": "setupFile",
+          "content": "{\n  \"version\": 1,\n  \"deviceMid\": \"dev-1\",\n  \"entries\": [\n    {\n      \"userId\": null,\n      \"occupation\": \"developer\",\n      \"interfaceMode\": \"coding\",\n      \"memoryEnabled\": null,\n      \"proactiveSuggestionsEnabled\": true,\n      \"completedAt\": \"2026-03-01T00:00:00.000Z\",\n      \"uploadState\": \"pending\"\n    }\n  ]\n}"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "rawFile"
+        },
+        {
+          "kind": "setUser",
+          "userId": null
+        },
+        {
+          "kind": "append",
+          "deviceMid": "dev-1",
+          "entry": {
+            "occupation": "student",
+            "interfaceMode": "coding",
+            "memoryEnabled": null,
+            "proactiveSuggestionsEnabled": true,
+            "completedAt": "2026-03-01T00:00:00.000Z"
+          }
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "rawFile"
+        }
+      ],
+      "expected": [
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [
+            {
+              "userId": null,
+              "occupation": "developer",
+              "interfaceMode": "coding",
+              "memoryEnabled": null,
+              "proactiveSuggestionsEnabled": true,
+              "completedAt": "<ts>",
+              "uploadState": "pending"
+            }
+          ],
+          "decisions": []
+        },
+        "{\n  \"version\": 1,\n  \"deviceMid\": \"dev-1\",\n  \"entries\": [\n    {\n      \"userId\": null,\n      \"occupation\": \"developer\",\n      \"interfaceMode\": \"coding\",\n      \"memoryEnabled\": null,\n      \"proactiveSuggestionsEnabled\": true,\n      \"completedAt\": \"<ts>\",\n      \"uploadState\": \"pending\"\n    }\n  ]\n}",
+        null,
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [
+            {
+              "userId": null,
+              "occupation": "student",
+              "interfaceMode": "coding",
+              "memoryEnabled": null,
+              "proactiveSuggestionsEnabled": true,
+              "completedAt": "<ts>",
+              "uploadState": "pending"
+            }
+          ],
+          "decisions": []
+        },
+        "{\n  \"version\": 2,\n  \"deviceMid\": \"dev-1\",\n  \"entries\": [\n    {\n      \"userId\": null,\n      \"occupation\": \"student\",\n      \"interfaceMode\": \"coding\",\n      \"memoryEnabled\": null,\n      \"proactiveSuggestionsEnabled\": true,\n      \"completedAt\": \"<ts>\",\n      \"uploadState\": \"pending\"\n    }\n  ],\n  \"decisions\": []\n}"
+      ]
+    },
+    {
+      "name": "invalid-file",
+      "ops": [
+        {
+          "kind": "setupFile",
+          "content": "not json"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "setupFile",
+          "content": "{\n  \"version\": 2,\n  \"deviceMid\": \"dev-1\",\n  \"entries\": []\n}"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "setupFile",
+          "content": "{\n  \"version\": 2,\n  \"deviceMid\": \"dev-1\",\n  \"entries\": [\n    {\n      \"userId\": null,\n      \"occupation\": \"developer\",\n      \"interfaceMode\": \"coding\",\n      \"memoryEnabled\": null,\n      \"proactiveSuggestionsEnabled\": true,\n      \"completedAt\": \"2026-03-01T00:00:00.000Z\",\n      \"uploadState\": \"uploaded\"\n    }\n  ],\n  \"decisions\": []\n}"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "setupFile",
+          "content": "{\n  \"version\": 2,\n  \"deviceMid\": \"dev-1\",\n  \"entries\": [\n    {\n      \"userId\": \"\"\n    }\n  ],\n  \"decisions\": []\n}"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "setUser",
+          "userId": null
+        },
+        {
+          "kind": "append",
+          "deviceMid": "dev-1",
+          "entry": {
+            "occupation": "developer",
+            "interfaceMode": "coding",
+            "memoryEnabled": null,
+            "proactiveSuggestionsEnabled": true,
+            "completedAt": "2026-03-01T00:00:00.000Z"
+          }
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "clear"
+        },
+        {
+          "kind": "getRecords"
+        },
+        {
+          "kind": "clear"
+        }
+      ],
+      "expected": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "version": 2,
+          "deviceMid": "dev-1",
+          "entries": [
+            {
+              "userId": null,
+              "occupation": "developer",
+              "interfaceMode": "coding",
+              "memoryEnabled": null,
+              "proactiveSuggestionsEnabled": true,
+              "completedAt": "<ts>",
+              "uploadState": "pending"
+            }
+          ],
+          "decisions": []
+        },
+        null,
+        null,
+        null
+      ]
+    }
+  ]
+}

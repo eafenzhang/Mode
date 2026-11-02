@@ -1,0 +1,428 @@
+{
+  "headers": [
+    {
+      "key": "Authorization",
+      "reserved": true
+    },
+    {
+      "key": " x-bigmodel-authorization ",
+      "reserved": true
+    },
+    {
+      "key": "Bigmodel-Target-Type",
+      "reserved": true
+    },
+    {
+      "key": "BIGMODEL-ORGANIZATION",
+      "reserved": true
+    },
+    {
+      "key": "bigmodel-project",
+      "reserved": true
+    },
+    {
+      "key": "X-Coding-Plan-Api-Key",
+      "reserved": true
+    },
+    {
+      "key": "mcp-session-id",
+      "reserved": true
+    },
+    {
+      "key": "mcp-protocol-version",
+      "reserved": true
+    },
+    {
+      "key": "X-Other",
+      "reserved": false
+    }
+  ],
+  "find": [
+    {
+      "name": "reserved-and-other",
+      "headers": {
+        "Authorization": "a",
+        "x-bigmodel-authorization": "b",
+        "Bigmodel-Target-Type": "PERSONAL",
+        "Bigmodel-Organization": "org",
+        "Bigmodel-Project": "proj",
+        "X-Coding-Plan-Api-Key": "key",
+        "mcp-session-id": "s",
+        "mcp-protocol-version": "1",
+        "X-Other": "ok"
+      },
+      "expected": [
+        "authorization",
+        "bigmodel-organization",
+        "bigmodel-project",
+        "bigmodel-target-type",
+        "mcp-protocol-version",
+        "mcp-session-id",
+        "x-bigmodel-authorization",
+        "x-coding-plan-api-key"
+      ]
+    },
+    {
+      "name": "duplicates-case-variants",
+      "headers": {
+        "authorization": "a",
+        "Authorization": "b",
+        " MCP-SESSION-ID ": "c"
+      },
+      "expected": [
+        "authorization",
+        "mcp-session-id"
+      ]
+    },
+    {
+      "name": "empty",
+      "headers": {},
+      "expected": []
+    }
+  ],
+  "summaries": [
+    {
+      "name": "team-with-target",
+      "headers": {
+        "Bigmodel-Organization": "org",
+        "Bigmodel-Project": "proj",
+        "Bigmodel-Target-Type": "TEAM",
+        "Authorization": "secret"
+      },
+      "expected": {
+        "identityHeaderNames": [
+          "authorization",
+          "bigmodel-organization",
+          "bigmodel-project",
+          "bigmodel-target-type"
+        ],
+        "identityOrganizationPresent": true,
+        "identityProjectPresent": true,
+        "identityTeamPaired": true,
+        "identityTargetType": "TEAM"
+      }
+    },
+    {
+      "name": "org-only",
+      "headers": {
+        "bigmodel-organization": "org",
+        "authorization": "secret"
+      },
+      "expected": {
+        "identityHeaderNames": [
+          "authorization",
+          "bigmodel-organization"
+        ],
+        "identityOrganizationPresent": true,
+        "identityProjectPresent": false,
+        "identityTeamPaired": false
+      }
+    },
+    {
+      "name": "empty-target",
+      "headers": {
+        "Bigmodel-Target-Type": "",
+        "Bigmodel-Organization": "org",
+        "Bigmodel-Project": "proj"
+      },
+      "expected": {
+        "identityHeaderNames": [
+          "bigmodel-organization",
+          "bigmodel-project",
+          "bigmodel-target-type"
+        ],
+        "identityOrganizationPresent": true,
+        "identityProjectPresent": true,
+        "identityTeamPaired": true
+      }
+    },
+    {
+      "name": "no-identity",
+      "headers": {
+        "x-other": "v"
+      },
+      "expected": {
+        "identityHeaderNames": [
+          "x-other"
+        ],
+        "identityOrganizationPresent": false,
+        "identityProjectPresent": false,
+        "identityTeamPaired": true
+      }
+    }
+  ],
+  "meta": [
+    {
+      "name": "new-key",
+      "meta": {
+        "com.mode/request-context": {
+          "a": 1
+        }
+      },
+      "expected": {
+        "a": 1
+      }
+    },
+    {
+      "name": "legacy-key",
+      "meta": {
+        "com.zcode/request-context": {
+          "legacy": true
+        }
+      },
+      "expected": {
+        "legacy": true
+      }
+    },
+    {
+      "name": "new-null-falls-back",
+      "meta": {
+        "com.mode/request-context": null,
+        "com.zcode/request-context": 2
+      },
+      "expected": 2
+    },
+    {
+      "name": "both-null",
+      "meta": {
+        "com.mode/request-context": null,
+        "com.zcode/request-context": null
+      },
+      "expected": null
+    },
+    {
+      "name": "missing",
+      "meta": {},
+      "expected": null
+    }
+  ],
+  "trust": [
+    {
+      "input": {
+        "origin": "https://api.example.com",
+        "modeApiOrigin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "ok",
+        "trusted": true
+      }
+    },
+    {
+      "input": {
+        "origin": "https://api.example.com/v1/",
+        "modeApiOrigin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "ok",
+        "trusted": true
+      }
+    },
+    {
+      "input": {
+        "origin": "HTTPS://API.EXAMPLE.COM",
+        "modeApiOrigin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "ok",
+        "trusted": true
+      }
+    },
+    {
+      "input": {
+        "origin": "https://api.example.com:443",
+        "modeApiOrigin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "ok",
+        "trusted": true
+      }
+    },
+    {
+      "input": {
+        "origin": "https://sub.api.example.com",
+        "modeApiOrigin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "origin_mismatch",
+        "trusted": false
+      }
+    },
+    {
+      "input": {
+        "origin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "mode_origin_unresolved",
+        "trusted": false
+      }
+    },
+    {
+      "input": {
+        "origin": "https://api.example.com",
+        "modeApiOrigin": "http://api.example.com"
+      },
+      "expected": {
+        "detail": "mode_origin_unresolved",
+        "trusted": false
+      }
+    },
+    {
+      "input": {
+        "origin": "https://api.example.com",
+        "modeApiOrigin": "not a url"
+      },
+      "expected": {
+        "detail": "mode_origin_unresolved",
+        "trusted": false
+      }
+    },
+    {
+      "input": {
+        "origin": "",
+        "modeApiOrigin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "invalid_input",
+        "trusted": false
+      }
+    },
+    {
+      "input": {
+        "origin": "   ",
+        "modeApiOrigin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "invalid_input",
+        "trusted": false
+      }
+    },
+    {
+      "input": {
+        "origin": "https://user:pass@api.example.com",
+        "modeApiOrigin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "origin_mismatch",
+        "trusted": false
+      }
+    },
+    {
+      "input": {
+        "origin": "http://127.0.0.1:3999",
+        "devTrustedOriginsRaw": "http://127.0.0.1:3999"
+      },
+      "expected": {
+        "detail": "ok",
+        "trusted": true
+      }
+    },
+    {
+      "input": {
+        "origin": "http://localhost:3999/path",
+        "devTrustedOriginsRaw": " , http://127.0.0.1:3999 , http://localhost:3999 , "
+      },
+      "expected": {
+        "detail": "ok",
+        "trusted": true
+      }
+    },
+    {
+      "input": {
+        "origin": "http://localhost:3999",
+        "devTrustedOriginsRaw": "http://127.0.0.1:3999",
+        "modeApiOrigin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "origin_mismatch",
+        "trusted": false
+      }
+    },
+    {
+      "input": {
+        "origin": "https://localhost:3999",
+        "devTrustedOriginsRaw": "http://localhost:3999",
+        "modeApiOrigin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "origin_mismatch",
+        "trusted": false
+      }
+    },
+    {
+      "input": {
+        "origin": "http://[::1]:4000",
+        "devTrustedOriginsRaw": "http://[::1]:4000"
+      },
+      "expected": {
+        "detail": "ok",
+        "trusted": true
+      }
+    },
+    {
+      "input": {
+        "origin": "http://example.com",
+        "devTrustedOriginsRaw": "http://example.com"
+      },
+      "expected": {
+        "detail": "mode_origin_unresolved",
+        "trusted": false
+      }
+    }
+  ],
+  "registry": [
+    {
+      "input": {
+        "resolver": "ok",
+        "value": "https://api.example.com",
+        "origin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "ok",
+        "trusted": true
+      }
+    },
+    {
+      "input": {
+        "resolver": "ok",
+        "value": "https://api.example.com",
+        "origin": "https://other.example.com"
+      },
+      "expected": {
+        "detail": "origin_mismatch",
+        "trusted": false
+      }
+    },
+    {
+      "input": {
+        "resolver": "none",
+        "origin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "mode_origin_unresolved",
+        "trusted": false
+      }
+    },
+    {
+      "input": {
+        "resolver": "error",
+        "origin": "https://api.example.com"
+      },
+      "expected": {
+        "detail": "mode_origin_unresolved",
+        "trusted": false
+      }
+    },
+    {
+      "input": {
+        "resolver": "ok",
+        "value": "https://api.example.com",
+        "origin": "http://127.0.0.1:3999",
+        "devTrustedOriginsRaw": "http://127.0.0.1:3999"
+      },
+      "expected": {
+        "detail": "ok",
+        "trusted": true
+      }
+    }
+  ]
+}

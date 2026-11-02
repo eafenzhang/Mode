@@ -1,0 +1,523 @@
+{
+  "normalize": [
+    {
+      "name": "undefined",
+      "hasValue": false,
+      "expected": {
+        "kind": "undefined"
+      }
+    },
+    {
+      "name": "null",
+      "hasValue": true,
+      "value": null,
+      "expected": {
+        "kind": "null"
+      }
+    },
+    {
+      "name": "empty-object",
+      "hasValue": true,
+      "value": {},
+      "expected": {
+        "kind": "undefined"
+      }
+    },
+    {
+      "name": "array",
+      "hasValue": true,
+      "value": [],
+      "expected": {
+        "kind": "undefined"
+      }
+    },
+    {
+      "name": "scalar",
+      "hasValue": true,
+      "value": "x",
+      "expected": {
+        "kind": "undefined"
+      }
+    },
+    {
+      "name": "attempt",
+      "hasValue": true,
+      "value": {
+        "attempt": 2
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 2,
+          "maxRetries": 2,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "Model retry scheduled"
+        }
+      }
+    },
+    {
+      "name": "next-attempt",
+      "hasValue": true,
+      "value": {
+        "nextAttempt": 5
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 4,
+          "maxRetries": 4,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "Model retry scheduled"
+        }
+      }
+    },
+    {
+      "name": "zero-attempt",
+      "hasValue": true,
+      "value": {
+        "attempt": 0,
+        "nextAttempt": 5
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 4,
+          "maxRetries": 4,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "Model retry scheduled"
+        }
+      }
+    },
+    {
+      "name": "max-attempts",
+      "hasValue": true,
+      "value": {
+        "attempt": 2,
+        "maxAttempts": 4
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 2,
+          "maxRetries": 3,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "Model retry scheduled"
+        }
+      }
+    },
+    {
+      "name": "max-retries-below-attempt",
+      "hasValue": true,
+      "value": {
+        "attempt": 3,
+        "maxRetries": 1
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 3,
+          "maxRetries": 3,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "Model retry scheduled"
+        }
+      }
+    },
+    {
+      "name": "delay-fallbacks",
+      "hasValue": true,
+      "value": {
+        "attempt": 1,
+        "retryDelayMs": 0,
+        "delayMs": 99
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 1,
+          "maxRetries": 1,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "Model retry scheduled"
+        }
+      }
+    },
+    {
+      "name": "status-and-error-fallbacks",
+      "hasValue": true,
+      "value": {
+        "attempt": 1,
+        "errorStatus": 429,
+        "statusCode": 500,
+        "error": "e",
+        "message": "m"
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 1,
+          "maxRetries": 1,
+          "retryDelayMs": 0,
+          "errorStatus": 429,
+          "error": "e"
+        }
+      }
+    },
+    {
+      "name": "reason",
+      "hasValue": true,
+      "value": {
+        "attempt": 1,
+        "reason": "r"
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 1,
+          "maxRetries": 1,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "r"
+        }
+      }
+    },
+    {
+      "name": "invalid-numbers",
+      "hasValue": true,
+      "value": {
+        "attempt": 1.5,
+        "nextAttempt": 4,
+        "maxRetries": -1,
+        "maxAttempts": 2.5,
+        "errorStatus": -1,
+        "statusCode": 503,
+        "message": "m"
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 3,
+          "maxRetries": 3,
+          "retryDelayMs": 0,
+          "errorStatus": 503,
+          "error": "m"
+        }
+      }
+    }
+  ],
+  "stream": [
+    {
+      "name": "undefined",
+      "hasValue": false,
+      "expected": {
+        "kind": "undefined"
+      }
+    },
+    {
+      "name": "null",
+      "hasValue": true,
+      "value": null,
+      "expected": {
+        "kind": "undefined"
+      }
+    },
+    {
+      "name": "empty",
+      "hasValue": true,
+      "value": {},
+      "expected": {
+        "kind": "undefined"
+      }
+    },
+    {
+      "name": "zero",
+      "hasValue": true,
+      "value": {
+        "retryNumber": 0
+      },
+      "expected": {
+        "kind": "undefined"
+      }
+    },
+    {
+      "name": "one",
+      "hasValue": true,
+      "value": {
+        "retryNumber": 1
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 1,
+          "maxRetries": 1,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "Model stream recovery retry started"
+        }
+      }
+    },
+    {
+      "name": "with-max",
+      "hasValue": true,
+      "value": {
+        "retryNumber": 3,
+        "maxRetries": 2
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 3,
+          "maxRetries": 3,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "Model stream recovery retry started"
+        }
+      }
+    },
+    {
+      "name": "message",
+      "hasValue": true,
+      "value": {
+        "retryNumber": 2,
+        "maxRetries": 5,
+        "message": "m"
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 2,
+          "maxRetries": 5,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "m"
+        }
+      }
+    },
+    {
+      "name": "fraction",
+      "hasValue": true,
+      "value": {
+        "retryNumber": 1.5
+      },
+      "expected": {
+        "kind": "undefined"
+      }
+    }
+  ],
+  "network": [
+    {
+      "name": "retry-scheduled",
+      "payload": {
+        "type": "model_retry_scheduled",
+        "attempt": 2,
+        "maxAttempts": 4,
+        "error": "x"
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 2,
+          "maxRetries": 3,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "x"
+        }
+      }
+    },
+    {
+      "name": "retry-scheduled-next",
+      "payload": {
+        "type": "model_retry_scheduled",
+        "nextAttempt": 5
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 4,
+          "maxRetries": 4,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "Model retry scheduled"
+        }
+      }
+    },
+    {
+      "name": "request-started-first",
+      "payload": {
+        "type": "model_request_started",
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "null"
+      }
+    },
+    {
+      "name": "request-started-retry",
+      "payload": {
+        "type": "model_request_started",
+        "attempt": 3
+      },
+      "expected": {
+        "kind": "undefined"
+      }
+    },
+    {
+      "name": "request-started-stream",
+      "payload": {
+        "type": "model_request_started",
+        "attempt": 1,
+        "streamRecovery": {
+          "retryNumber": 2
+        }
+      },
+      "expected": {
+        "kind": "status",
+        "status": {
+          "kind": "api_retry",
+          "attempt": 2,
+          "maxRetries": 2,
+          "retryDelayMs": 0,
+          "errorStatus": null,
+          "error": "Model stream recovery retry started"
+        }
+      }
+    },
+    {
+      "name": "request-completed",
+      "payload": {
+        "type": "model_request_completed"
+      },
+      "expected": {
+        "kind": "null"
+      }
+    },
+    {
+      "name": "failed-permanent",
+      "payload": {
+        "type": "model_request_failed",
+        "retryable": false
+      },
+      "expected": {
+        "kind": "null"
+      }
+    },
+    {
+      "name": "failed-retryable",
+      "payload": {
+        "type": "model_request_failed",
+        "retryable": true
+      },
+      "expected": {
+        "kind": "undefined"
+      }
+    },
+    {
+      "name": "unknown-type",
+      "payload": {
+        "type": "other"
+      },
+      "expected": {
+        "kind": "undefined"
+      }
+    }
+  ],
+  "progress": [
+    {
+      "name": "text-delta",
+      "payload": {
+        "kind": "text_delta",
+        "delta": "x"
+      },
+      "expected": true
+    },
+    {
+      "name": "text-delta-empty",
+      "payload": {
+        "kind": "text_delta",
+        "delta": ""
+      },
+      "expected": false
+    },
+    {
+      "name": "reasoning-delta",
+      "payload": {
+        "kind": "reasoning_delta",
+        "delta": " "
+      },
+      "expected": true
+    },
+    {
+      "name": "tool-start",
+      "payload": {
+        "kind": "tool_input_start",
+        "toolCallId": "id"
+      },
+      "expected": true
+    },
+    {
+      "name": "tool-start-empty-id",
+      "payload": {
+        "kind": "tool_input_start",
+        "toolCallId": ""
+      },
+      "expected": false
+    },
+    {
+      "name": "tool-call",
+      "payload": {
+        "kind": "tool_call",
+        "toolCallId": "id"
+      },
+      "expected": true
+    },
+    {
+      "name": "tool-input-delta",
+      "payload": {
+        "kind": "tool_input_delta",
+        "toolCallId": "id",
+        "delta": "d"
+      },
+      "expected": true
+    },
+    {
+      "name": "tool-input-delta-empty",
+      "payload": {
+        "kind": "tool_input_delta",
+        "toolCallId": "id",
+        "delta": ""
+      },
+      "expected": false
+    },
+    {
+      "name": "other-kind",
+      "payload": {
+        "kind": "other",
+        "toolCallId": "id"
+      },
+      "expected": false
+    },
+    {
+      "name": "empty",
+      "payload": {},
+      "expected": false
+    }
+  ]
+}

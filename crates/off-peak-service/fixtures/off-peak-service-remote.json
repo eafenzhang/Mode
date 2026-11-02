@@ -1,0 +1,874 @@
+{
+  "now": 1700000000000,
+  "cases": [
+    {
+      "name": "create-queued",
+      "seeds": [],
+      "client": {
+        "take": [
+          {
+            "ok": {
+              "ticketId": "tk-new",
+              "state": "queued",
+              "position": 2,
+              "nextPollAfterMs": 5000,
+              "registeredAt": 1700000000000
+            }
+          }
+        ]
+      },
+      "ops": [
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "ok": true,
+          "task": {
+            "offPeakTaskId": "<task-id>",
+            "serverTicketId": "tk-new",
+            "title": "T",
+            "prompt": "P",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": false,
+            "queuePosition": 2,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          "ticketInitialState": "queued",
+          "queuePosition": 2,
+          "providerName": "provider"
+        },
+        [
+          {
+            "offPeakTaskId": "<task-id>",
+            "serverTicketId": "tk-new",
+            "title": "T",
+            "prompt": "P",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": false,
+            "queuePosition": 2,
+            "nextPollAt": 1700000005000,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          }
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "take",
+          "taskId": "<task-id>"
+        }
+      ],
+      "events": [
+        {
+          "kind": "changed"
+        }
+      ]
+    },
+    {
+      "name": "create-ready",
+      "seeds": [],
+      "client": {
+        "take": [
+          {
+            "ok": {
+              "ticketId": "tk-new",
+              "state": "ready",
+              "registeredAt": 1700000000000
+            }
+          }
+        ]
+      },
+      "ops": [
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "ok": true,
+          "task": {
+            "offPeakTaskId": "<task-id>",
+            "serverTicketId": "tk-new",
+            "title": "T",
+            "prompt": "P",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": true,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          "ticketInitialState": "ready",
+          "providerName": "provider"
+        },
+        [
+          {
+            "offPeakTaskId": "<task-id>",
+            "serverTicketId": "tk-new",
+            "title": "T",
+            "prompt": "P",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": true,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          }
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "take",
+          "taskId": "<task-id>"
+        }
+      ],
+      "events": [
+        {
+          "kind": "changed"
+        },
+        {
+          "kind": "wake"
+        }
+      ]
+    },
+    {
+      "name": "create-errors",
+      "seeds": [],
+      "client": {
+        "take": [
+          {
+            "error": "3101"
+          },
+          {
+            "error": "3103"
+          },
+          {
+            "error": "network"
+          },
+          {
+            "error": "invalid"
+          }
+        ]
+      },
+      "ops": [
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "create"
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "ok": false,
+          "failureStage": "ticket_request",
+          "errorCategory": "eligibility_3101",
+          "errorCode": "3101",
+          "providerName": "provider"
+        },
+        {
+          "ok": false,
+          "failureStage": "ticket_request",
+          "errorCategory": "quota_3103",
+          "errorCode": "3103",
+          "providerName": "provider"
+        },
+        {
+          "ok": false,
+          "failureStage": "ticket_request",
+          "errorCategory": "network",
+          "errorCode": "",
+          "providerName": "provider"
+        },
+        {
+          "ok": false,
+          "failureStage": "ticket_request",
+          "errorCategory": "invalid_response",
+          "errorCode": "",
+          "providerName": "provider"
+        },
+        []
+      ],
+      "calls": [
+        {
+          "kind": "take",
+          "taskId": "<task-id>"
+        },
+        {
+          "kind": "take",
+          "taskId": "<task-id>"
+        },
+        {
+          "kind": "take",
+          "taskId": "<task-id>"
+        },
+        {
+          "kind": "take",
+          "taskId": "<task-id>"
+        }
+      ],
+      "events": []
+    },
+    {
+      "name": "create-validation",
+      "seeds": [],
+      "client": {},
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "title": "  "
+          }
+        },
+        {
+          "kind": "create",
+          "params": {
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "bad"
+            }
+          }
+        }
+      ],
+      "expected": [
+        {
+          "ok": false,
+          "failureStage": "client_validation",
+          "errorCategory": "client_validation",
+          "errorCode": "",
+          "providerName": "provider"
+        },
+        {
+          "ok": false,
+          "failureStage": "client_validation",
+          "errorCategory": "client_validation",
+          "errorCode": "",
+          "providerName": "provider"
+        }
+      ],
+      "calls": [],
+      "events": []
+    },
+    {
+      "name": "create-session-bound",
+      "seeds": [
+        {
+          "id": "t1",
+          "title": "Bound",
+          "runState": "queued",
+          "serverTicketId": "tk-1",
+          "boundSessionId": "s1"
+        }
+      ],
+      "client": {},
+      "ops": [
+        {
+          "kind": "create",
+          "params": {
+            "boundSessionId": "s1"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "ok": false,
+          "failureStage": "client_validation",
+          "errorCategory": "client_validation",
+          "errorCode": "session_bound",
+          "providerName": "provider"
+        }
+      ],
+      "calls": [],
+      "events": []
+    },
+    {
+      "name": "continue",
+      "seeds": [
+        {
+          "id": "t1",
+          "title": "Alive",
+          "runState": "paused",
+          "serverTicketId": "tk-1"
+        },
+        {
+          "id": "t2",
+          "title": "Expired",
+          "runState": "paused",
+          "serverTicketId": "tk-2"
+        },
+        {
+          "id": "t3",
+          "title": "Unknown",
+          "runState": "paused",
+          "serverTicketId": "tk-3"
+        }
+      ],
+      "client": {
+        "batch": [
+          {
+            "ok": {
+              "tickets": [
+                {
+                  "ticketId": "tk-1",
+                  "state": "ready",
+                  "position": 1
+                }
+              ]
+            }
+          },
+          {
+            "ok": {
+              "tickets": [
+                {
+                  "ticketId": "tk-2",
+                  "state": "expired"
+                }
+              ]
+            }
+          },
+          {
+            "error": "network"
+          }
+        ],
+        "take": [
+          {
+            "ok": {
+              "ticketId": "tk-4",
+              "state": "queued",
+              "registeredAt": 1700000000000
+            }
+          }
+        ]
+      },
+      "ops": [
+        {
+          "kind": "continue",
+          "id": "t1"
+        },
+        {
+          "kind": "continue",
+          "id": "t2"
+        },
+        {
+          "kind": "continue",
+          "id": "t3"
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "offPeakTaskId": "t1",
+          "serverTicketId": "tk-1",
+          "title": "Alive",
+          "prompt": "p",
+          "permissionMode": "edit",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "queued",
+          "queuedAt": 1700000000000,
+          "registeredAt": 1700000000000,
+          "schedulable": true,
+          "queuePosition": 1,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "offPeakTaskId": "t2",
+          "serverTicketId": "tk-4",
+          "title": "Expired",
+          "prompt": "p",
+          "permissionMode": "edit",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "queued",
+          "queuedAt": 1700000000000,
+          "registeredAt": 1700000000000,
+          "schedulable": false,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "offPeakTaskId": "t3",
+          "serverTicketId": "tk-3",
+          "title": "Unknown",
+          "prompt": "p",
+          "permissionMode": "edit",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "queued",
+          "queuedAt": 1700000000000,
+          "registeredAt": 1700000000000,
+          "schedulable": false,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        [
+          {
+            "offPeakTaskId": "t1",
+            "serverTicketId": "tk-1",
+            "title": "Alive",
+            "prompt": "p",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": true,
+            "queuePosition": 1,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t2",
+            "serverTicketId": "tk-4",
+            "title": "Expired",
+            "prompt": "p",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t3",
+            "serverTicketId": "tk-3",
+            "title": "Unknown",
+            "prompt": "p",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          }
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "batch",
+          "ticketIds": [
+            "tk-1"
+          ]
+        },
+        {
+          "kind": "batch",
+          "ticketIds": [
+            "tk-2"
+          ]
+        },
+        {
+          "kind": "take",
+          "taskId": "t2"
+        },
+        {
+          "kind": "batch",
+          "ticketIds": [
+            "tk-3"
+          ]
+        }
+      ],
+      "events": [
+        {
+          "kind": "changed"
+        },
+        {
+          "kind": "changed"
+        },
+        {
+          "kind": "changed"
+        }
+      ]
+    },
+    {
+      "name": "sync-and-settle",
+      "seeds": [
+        {
+          "id": "t1",
+          "title": "Ready",
+          "runState": "queued",
+          "serverTicketId": "tk-1"
+        },
+        {
+          "id": "t2",
+          "title": "Expired",
+          "runState": "queued",
+          "serverTicketId": "tk-2"
+        },
+        {
+          "id": "t3",
+          "title": "Done ok",
+          "runState": "completed",
+          "serverTicketId": "tk-3"
+        },
+        {
+          "id": "t4",
+          "title": "Done 400",
+          "runState": "completed",
+          "serverTicketId": "tk-4"
+        },
+        {
+          "id": "t5",
+          "title": "Done network",
+          "runState": "completed",
+          "serverTicketId": "tk-5"
+        }
+      ],
+      "client": {
+        "batch": [
+          {
+            "ok": {
+              "nextPollAfterMs": 1000,
+              "tickets": [
+                {
+                  "ticketId": "tk-1",
+                  "state": "ready",
+                  "position": 1
+                },
+                {
+                  "ticketId": "tk-2",
+                  "state": "expired"
+                }
+              ]
+            }
+          }
+        ],
+        "take": [
+          {
+            "ok": {
+              "ticketId": "tk-6",
+              "state": "queued",
+              "registeredAt": 1700000000000
+            }
+          }
+        ],
+        "settle": {
+          "tk-3": "ok",
+          "tk-4": "400",
+          "tk-5": "network"
+        }
+      },
+      "ops": [
+        {
+          "kind": "sync"
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        null,
+        [
+          {
+            "offPeakTaskId": "t1",
+            "serverTicketId": "tk-1",
+            "title": "Ready",
+            "prompt": "p",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": true,
+            "queuePosition": 1,
+            "nextPollAt": 1700000005000,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t2",
+            "serverTicketId": "tk-6",
+            "title": "Expired",
+            "prompt": "p",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t3",
+            "serverTicketId": "tk-3",
+            "title": "Done ok",
+            "prompt": "p",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "completed",
+            "queuedAt": 1700000000000,
+            "endedAt": 1700000000000,
+            "settledAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t4",
+            "serverTicketId": "tk-4",
+            "title": "Done 400",
+            "prompt": "p",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "completed",
+            "queuedAt": 1700000000000,
+            "endedAt": 1700000000000,
+            "settledAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t5",
+            "serverTicketId": "tk-5",
+            "title": "Done network",
+            "prompt": "p",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "completed",
+            "queuedAt": 1700000000000,
+            "endedAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          }
+        ]
+      ],
+      "calls": [
+        {
+          "kind": "settle",
+          "ticketId": "tk-3"
+        },
+        {
+          "kind": "settle",
+          "ticketId": "tk-4"
+        },
+        {
+          "kind": "settle",
+          "ticketId": "tk-5"
+        },
+        {
+          "kind": "batch",
+          "ticketIds": [
+            "tk-1",
+            "tk-2"
+          ]
+        },
+        {
+          "kind": "take",
+          "taskId": "t2"
+        }
+      ],
+      "events": [
+        {
+          "kind": "wake"
+        },
+        {
+          "kind": "changed"
+        }
+      ]
+    },
+    {
+      "name": "handle-expired-and-support",
+      "seeds": [
+        {
+          "id": "t1",
+          "title": "Running",
+          "runState": "running",
+          "serverTicketId": "tk-1"
+        }
+      ],
+      "client": {
+        "take": [
+          {
+            "ok": {
+              "ticketId": "tk-2",
+              "state": "queued",
+              "registeredAt": 1700000000000
+            }
+          }
+        ],
+        "availability": {
+          "ok": {
+            "canTakeNumber": true,
+            "nextTakeAt": 1700000010000
+          }
+        }
+      },
+      "ops": [
+        {
+          "kind": "handleExpired",
+          "id": "t1"
+        },
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "availability"
+        },
+        {
+          "kind": "support"
+        }
+      ],
+      "expected": [
+        null,
+        [
+          {
+            "offPeakTaskId": "t1",
+            "serverTicketId": "tk-2",
+            "title": "Running",
+            "conversationId": "conv-1",
+            "prompt": "p",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "startedAt": 1700000000000,
+            "registeredAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          }
+        ],
+        {
+          "canTakeNumber": true,
+          "nextTakeAt": 1700000010000
+        },
+        {
+          "supported": true
+        }
+      ],
+      "calls": [
+        {
+          "kind": "take",
+          "taskId": "t1"
+        },
+        {
+          "kind": "availability"
+        }
+      ],
+      "events": [
+        {
+          "kind": "changed"
+        }
+      ]
+    }
+  ]
+}

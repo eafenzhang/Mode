@@ -1,0 +1,20 @@
+[package]
+name = "provider-legacy-migration"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "已发布旧 Provider store（mode.model-providers v1）到 v2 的迁移，对应 services/src/model-provider/legacyModelProviderSerialized.ts"
+
+[lib]
+name = "provider_legacy_migration"
+path = "src/lib.rs"
+
+[dependencies]
+indexmap = { version = "2", features = ["serde"] }
+provider-config = { path = "../provider-config" }
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

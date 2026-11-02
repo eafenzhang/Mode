@@ -61,12 +61,19 @@ const inflightBalanceRequests = new WeakMap<
   Map<string, Promise<ZaiStartPlanBalanceEnvelope>>
 >();
 
-export function buildZaiStartPlanBalanceUrl(): string {
-  const url = new URL(ZAI_START_PLAN_BALANCE_URL);
+export function buildZaiStartPlanBalanceUrlFor(
+  baseUrl: string,
+  appVersion: string,
+): string {
+  const url = new URL(baseUrl);
   // Start Plan balance 接口按真实 app_version 判定能力；
   // 开发环境也不能固定 3.0.0，否则本地验证会绕过当前 App 版本的后端策略。
-  url.searchParams.set("app_version", MODE_VERSION);
+  url.searchParams.set("app_version", appVersion);
   return url.toString();
+}
+
+export function buildZaiStartPlanBalanceUrl(): string {
+  return buildZaiStartPlanBalanceUrlFor(ZAI_START_PLAN_BALANCE_URL, MODE_VERSION);
 }
 
 export async function fetchZaiStartPlanBalanceEnvelope(
@@ -159,7 +166,7 @@ export function resolveZaiStartPlanBalanceModelIds(payload: ZaiStartPlanBalanceE
 }
 
 /** HTTP Date 与本次响应配对，避免旧 JSON 时间让过期 active 记录继续提供权益。 */
-function normalizeStartPlanExpiry(
+export function normalizeStartPlanExpiry(
   payload: ZaiStartPlanBalanceEnvelope,
   responseTime?: number,
 ): ZaiStartPlanBalanceEnvelope {

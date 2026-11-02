@@ -1,0 +1,657 @@
+{
+  "cases": [
+    {
+      "name": "empty",
+      "providers": [],
+      "expected": {
+        "providers": [],
+        "models": []
+      }
+    },
+    {
+      "name": "builtin-templates-and-skipped-identities",
+      "providers": [
+        {
+          "id": "builtin:bigmodel",
+          "name": "Custom A",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "  sk-bigmodel  ",
+          "models": [
+            "ignored"
+          ],
+          "createdAt": 1,
+          "updatedAt": 2
+        },
+        {
+          "id": "builtin:zai",
+          "name": "Custom A",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "   ",
+          "models": [],
+          "createdAt": 1,
+          "updatedAt": 2
+        },
+        {
+          "id": " builtin:zai ",
+          "name": "Custom A",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": " sk-zai ",
+          "models": [],
+          "createdAt": 1,
+          "updatedAt": 2
+        },
+        {
+          "id": "builtin:other",
+          "name": "Custom A",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "sk-other",
+          "models": [],
+          "createdAt": 1,
+          "updatedAt": 2
+        },
+        {
+          "id": "account:zai-individual-coding-plan",
+          "name": "Custom A",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "sk-account",
+          "models": [],
+          "createdAt": 1,
+          "updatedAt": 2
+        }
+      ],
+      "expected": {
+        "providers": [
+          {
+            "providerId": "bigmodel-api",
+            "templateId": "bigmodel-api",
+            "config": {
+              "group": "standard-personal",
+              "access": {
+                "type": "api-key",
+                "apiKey": "sk-bigmodel"
+              }
+            }
+          },
+          {
+            "providerId": "zai-api",
+            "templateId": "zai-api",
+            "config": {
+              "group": "standard-personal",
+              "access": {
+                "type": "api-key",
+                "apiKey": "sk-zai"
+              }
+            }
+          }
+        ],
+        "models": []
+      }
+    },
+    {
+      "name": "custom-provider-and-model-members",
+      "providers": [
+        {
+          "id": "  custom-a  ",
+          "name": " Custom A ",
+          "endpoints": {
+            "baseURL": "https://api.example.com/v1/",
+            "paths": {}
+          },
+          "apiKey": "  sk-a  ",
+          "models": [
+            "m1",
+            {
+              "id": " m2 ",
+              "deleted": false,
+              "contextWindow": 64000
+            },
+            {
+              "id": "m3",
+              "deleted": true,
+              "contextWindow": 32000
+            },
+            {
+              "id": "m1",
+              "contextWindow": 1
+            },
+            {
+              "id": "   ",
+              "contextWindow": 2
+            },
+            " m4 ",
+            {
+              "id": "m5",
+              "contextWindow": 10.5
+            },
+            {
+              "id": "m6",
+              "contextWindow": 0
+            },
+            {
+              "id": "m7",
+              "contextWindow": -5
+            }
+          ],
+          "createdAt": 1,
+          "updatedAt": 2,
+          "source": "custom",
+          "enabled": false,
+          "apiKeyUrl": "",
+          "headers": {
+            "X-A": "1",
+            "": "ignored"
+          },
+          "apiFormat": "anthropic-messages",
+          "defaultKind": "anthropic"
+        }
+      ],
+      "expected": {
+        "providers": [
+          {
+            "providerId": "custom-a",
+            "enabled": false,
+            "providerName": "Custom A",
+            "config": {
+              "group": "standard-personal",
+              "access": {
+                "type": "api-key",
+                "apiKey": "sk-a",
+                "apiKeyManagementUrl": ""
+              },
+              "api": {
+                "type": "anthropic-messages",
+                "baseUrl": "https://api.example.com/v1",
+                "headers": {
+                  "X-A": "1",
+                  "": "ignored"
+                }
+              },
+              "personalModelIds": [
+                "m1",
+                "m2",
+                "m4",
+                "m5",
+                "m6",
+                "m7"
+              ],
+              "modelOrder": [
+                "m1",
+                "m2",
+                "m4",
+                "m5",
+                "m6",
+                "m7"
+              ]
+            }
+          }
+        ],
+        "models": [
+          {
+            "type": "provider-model",
+            "providerId": "custom-a",
+            "modelId": "m2",
+            "config": {
+              "properties": {
+                "contextWindow": 64000
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "source-filter-and-default-name",
+      "providers": [
+        {
+          "id": "custom-b",
+          "name": "custom-b",
+          "endpoints": {
+            "anthropic": "https://anthropic.example.com/v1"
+          },
+          "apiKey": "sk-test",
+          "models": [
+            "b1"
+          ],
+          "createdAt": 1,
+          "updatedAt": 2,
+          "enabled": true
+        },
+        {
+          "id": "custom-c",
+          "name": "Custom A",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "sk-test",
+          "models": [
+            "c1"
+          ],
+          "createdAt": 1,
+          "updatedAt": 2,
+          "source": "builtin"
+        },
+        {
+          "id": "custom-d",
+          "name": "Custom A",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "sk-test",
+          "models": [
+            "d1"
+          ],
+          "createdAt": 1,
+          "updatedAt": 2,
+          "source": "models-dev"
+        },
+        {
+          "id": "custom-e",
+          "name": "Custom A",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "sk-test",
+          "models": [
+            "e1"
+          ],
+          "createdAt": 1,
+          "updatedAt": 2,
+          "source": "workspace"
+        }
+      ],
+      "expected": {
+        "providers": [
+          {
+            "providerId": "custom-b",
+            "enabled": true,
+            "config": {
+              "group": "standard-personal",
+              "access": {
+                "type": "api-key",
+                "apiKey": "sk-test"
+              },
+              "api": {
+                "type": "anthropic-messages",
+                "baseUrl": ""
+              },
+              "personalModelIds": [
+                "b1"
+              ],
+              "modelOrder": [
+                "b1"
+              ]
+            }
+          }
+        ],
+        "models": []
+      }
+    },
+    {
+      "name": "empty-provider-id",
+      "providers": [
+        {
+          "id": "   ",
+          "name": "Ignored",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "sk-test",
+          "models": [
+            "m1"
+          ],
+          "createdAt": 1,
+          "updatedAt": 2
+        },
+        {
+          "id": "custom-f",
+          "name": "   ",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "sk-test",
+          "models": [],
+          "createdAt": 1,
+          "updatedAt": 2
+        }
+      ],
+      "expected": {
+        "providers": [
+          {
+            "providerId": "custom-f",
+            "config": {
+              "group": "standard-personal",
+              "access": {
+                "type": "api-key",
+                "apiKey": "sk-test"
+              },
+              "api": {
+                "type": "anthropic-messages",
+                "baseUrl": ""
+              }
+            }
+          }
+        ],
+        "models": []
+      }
+    },
+    {
+      "name": "duplicate-provider-rules-replace-in-place",
+      "providers": [
+        {
+          "id": "custom-dup",
+          "name": "First",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "sk-test",
+          "models": [
+            {
+              "id": "m1",
+              "contextWindow": 1
+            }
+          ],
+          "createdAt": 1,
+          "updatedAt": 2
+        },
+        {
+          "id": "custom-dup",
+          "name": "Second",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "sk-test",
+          "models": [
+            {
+              "id": "m1",
+              "contextWindow": 2
+            },
+            {
+              "id": "m2",
+              "contextWindow": 3
+            }
+          ],
+          "createdAt": 1,
+          "updatedAt": 2,
+          "enabled": false
+        }
+      ],
+      "expected": {
+        "providers": [
+          {
+            "providerId": "custom-dup",
+            "enabled": false,
+            "providerName": "Second",
+            "config": {
+              "group": "standard-personal",
+              "access": {
+                "type": "api-key",
+                "apiKey": "sk-test"
+              },
+              "api": {
+                "type": "anthropic-messages",
+                "baseUrl": ""
+              },
+              "personalModelIds": [
+                "m1",
+                "m2"
+              ],
+              "modelOrder": [
+                "m1",
+                "m2"
+              ]
+            }
+          }
+        ],
+        "models": [
+          {
+            "type": "provider-model",
+            "providerId": "custom-dup",
+            "modelId": "m1",
+            "config": {
+              "properties": {
+                "contextWindow": 2
+              }
+            }
+          },
+          {
+            "type": "provider-model",
+            "providerId": "custom-dup",
+            "modelId": "m2",
+            "config": {
+              "properties": {
+                "contextWindow": 3
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "api-base-url-fallbacks",
+      "providers": [
+        {
+          "id": "legacy-openai",
+          "name": "Custom A",
+          "endpoints": {
+            "openai": "https://openai.example.com/v1/"
+          },
+          "apiKey": "sk-test",
+          "models": [],
+          "createdAt": 1,
+          "updatedAt": 2,
+          "apiFormat": "openai-chat-completions"
+        },
+        {
+          "id": "legacy-anthropic",
+          "name": "Custom A",
+          "endpoints": {
+            "anthropic": "https://anthropic.example.com"
+          },
+          "apiKey": "sk-test",
+          "models": [],
+          "createdAt": 1,
+          "updatedAt": 2,
+          "apiFormat": "anthropic-messages"
+        },
+        {
+          "id": "legacy-empty",
+          "name": "Custom A",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "sk-test",
+          "models": [],
+          "createdAt": 1,
+          "updatedAt": 2,
+          "apiFormat": "openai-responses"
+        }
+      ],
+      "expected": {
+        "providers": [
+          {
+            "providerId": "legacy-openai",
+            "providerName": "Custom A",
+            "config": {
+              "group": "standard-personal",
+              "access": {
+                "type": "api-key",
+                "apiKey": "sk-test"
+              },
+              "api": {
+                "type": "openai-chat-completions",
+                "baseUrl": ""
+              }
+            }
+          },
+          {
+            "providerId": "legacy-anthropic",
+            "providerName": "Custom A",
+            "config": {
+              "group": "standard-personal",
+              "access": {
+                "type": "api-key",
+                "apiKey": "sk-test"
+              },
+              "api": {
+                "type": "anthropic-messages",
+                "baseUrl": ""
+              }
+            }
+          },
+          {
+            "providerId": "legacy-empty",
+            "providerName": "Custom A",
+            "config": {
+              "group": "standard-personal",
+              "access": {
+                "type": "api-key",
+                "apiKey": "sk-test"
+              },
+              "api": {
+                "type": "openai-responses",
+                "baseUrl": ""
+              }
+            }
+          }
+        ],
+        "models": []
+      }
+    },
+    {
+      "name": "empty-secrets-and-headers",
+      "providers": [
+        {
+          "id": "custom-empty-key",
+          "name": "Empty Key",
+          "endpoints": {
+            "anthropic": "",
+            "openai": "",
+            "gemini": ""
+          },
+          "apiKey": "   ",
+          "models": [
+            {
+              "id": "m1",
+              "contextWindow": 100
+            }
+          ],
+          "createdAt": 1,
+          "updatedAt": 2,
+          "apiKeyUrl": "  https://example.com/key  ",
+          "headers": {}
+        }
+      ],
+      "expected": {
+        "providers": [
+          {
+            "providerId": "custom-empty-key",
+            "providerName": "Empty Key",
+            "config": {
+              "group": "standard-personal",
+              "access": {
+                "type": "api-key",
+                "apiKeyManagementUrl": "  https://example.com/key  "
+              },
+              "api": {
+                "type": "anthropic-messages",
+                "baseUrl": "",
+                "headers": {}
+              },
+              "personalModelIds": [
+                "m1"
+              ],
+              "modelOrder": [
+                "m1"
+              ]
+            }
+          }
+        ],
+        "models": [
+          {
+            "type": "provider-model",
+            "providerId": "custom-empty-key",
+            "modelId": "m1",
+            "config": {
+              "properties": {
+                "contextWindow": 100
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "raw-base-url-preserved-when-runtime-is-empty",
+      "providers": [
+        {
+          "id": "custom-space-url",
+          "name": "Custom A",
+          "endpoints": {
+            "baseURL": "   "
+          },
+          "apiKey": "sk-test",
+          "models": [],
+          "createdAt": 1,
+          "updatedAt": 2,
+          "apiFormat": "anthropic-messages"
+        }
+      ],
+      "expected": {
+        "providers": [
+          {
+            "providerId": "custom-space-url",
+            "providerName": "Custom A",
+            "config": {
+              "group": "standard-personal",
+              "access": {
+                "type": "api-key",
+                "apiKey": "sk-test"
+              },
+              "api": {
+                "type": "anthropic-messages",
+                "baseUrl": ""
+              }
+            }
+          }
+        ],
+        "models": []
+      }
+    }
+  ]
+}

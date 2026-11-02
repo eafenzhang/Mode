@@ -1,0 +1,3252 @@
+{
+  "categoryIds": [
+    "sessionStore",
+    "subagentTranscripts",
+    "toolOutputs",
+    "modelTrajectory",
+    "devTraces",
+    "logs",
+    "backups",
+    "exports",
+    "runtimes",
+    "config",
+    "other"
+  ],
+  "cleanability": {
+    "sessionStore": "none",
+    "subagentTranscripts": "safe",
+    "toolOutputs": "none",
+    "modelTrajectory": "safe",
+    "devTraces": "safe",
+    "logs": "safe",
+    "backups": "confirm",
+    "exports": "safe",
+    "runtimes": "none",
+    "config": "none",
+    "other": "none"
+  },
+  "cleanScopes": {
+    "sessionStore": [],
+    "subagentTranscripts": [
+      {
+        "prefix": "cli/agents",
+        "recursive": true
+      }
+    ],
+    "toolOutputs": [],
+    "modelTrajectory": [
+      {
+        "prefix": "cli/debug",
+        "recursive": true
+      },
+      {
+        "prefix": "cli/rollout",
+        "recursive": true
+      }
+    ],
+    "devTraces": [
+      {
+        "prefix": "v2/dev",
+        "recursive": true
+      },
+      {
+        "prefix": "v2/acp-traffic-proxy",
+        "recursive": true
+      },
+      {
+        "prefix": "v2/acp-stream-diagnostics",
+        "recursive": true
+      }
+    ],
+    "logs": [
+      {
+        "prefix": "v2/logs",
+        "recursive": true
+      },
+      {
+        "prefix": "cli/log",
+        "recursive": true
+      },
+      {
+        "prefix": "logs",
+        "recursive": true
+      },
+      {
+        "prefix": "v2/crash",
+        "recursive": true
+      },
+      {
+        "prefix": "v2/perf",
+        "recursive": true
+      },
+      {
+        "prefix": "computer-use/run",
+        "recursive": false
+      }
+    ],
+    "backups": [
+      {
+        "prefix": "backup",
+        "recursive": true
+      },
+      {
+        "prefix": "v2/backup",
+        "recursive": true
+      },
+      {
+        "prefix": "v2/migrations",
+        "recursive": true
+      },
+      {
+        "prefix": "cli/db/backup",
+        "recursive": true
+      },
+      {
+        "prefix": "cli/db/backups",
+        "recursive": true
+      },
+      {
+        "prefix": "cli/db",
+        "recursive": false
+      },
+      {
+        "prefix": "cli",
+        "recursive": false
+      },
+      {
+        "prefix": "v2",
+        "recursive": false
+      }
+    ],
+    "exports": [
+      {
+        "prefix": "export-log",
+        "recursive": true
+      },
+      {
+        "prefix": "export-log-stage",
+        "recursive": true
+      }
+    ],
+    "runtimes": [],
+    "config": [],
+    "other": []
+  },
+  "classifications": [
+    {
+      "rawPath": "",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "other",
+        "entryKey": ""
+      }
+    },
+    {
+      "rawPath": "/",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "other",
+        "entryKey": ""
+      }
+    },
+    {
+      "rawPath": "\\v2\\logs\\a.log",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "logs",
+        "entryKey": "v2/logs/a.log"
+      }
+    },
+    {
+      "rawPath": "v2/sessions",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "sessionStore",
+        "entryKey": "v2/sessions"
+      }
+    },
+    {
+      "rawPath": "v2/sessions/abc/session.json",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "sessionStore",
+        "entryKey": "v2/sessions/abc"
+      }
+    },
+    {
+      "rawPath": "v2/session-bindings/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "sessionStore",
+        "entryKey": "v2/session-bindings/x"
+      }
+    },
+    {
+      "rawPath": "v2/checkpoints/abc/pending/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "v2/checkpoints/abc/pending/x"
+      }
+    },
+    {
+      "rawPath": "v2/checkpoints/abc/tmp/y",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "v2/checkpoints/abc/tmp/y"
+      }
+    },
+    {
+      "rawPath": "v2/checkpoints/abc/committed/z",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "sessionStore",
+        "entryKey": "v2/checkpoints/abc"
+      }
+    },
+    {
+      "rawPath": "cli/agents/a/b/transcript.jsonl",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "subagentTranscripts",
+        "entryKey": "cli/agents/a"
+      }
+    },
+    {
+      "rawPath": "cli/agents/a/b/other.jsonl",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "cli/agents/a"
+      }
+    },
+    {
+      "rawPath": "cli/agents/a/b/transcript.jsonl.bak",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "cli/agents/a"
+      }
+    },
+    {
+      "rawPath": "v2/session.sqlite",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "sessionStore",
+        "entryKey": "v2/session.sqlite"
+      }
+    },
+    {
+      "rawPath": "v2/session.sqlite-wal",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "sessionStore",
+        "entryKey": "v2/session.sqlite-wal"
+      }
+    },
+    {
+      "rawPath": "v2/session.sqlite-shm",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "sessionStore",
+        "entryKey": "v2/session.sqlite-shm"
+      }
+    },
+    {
+      "rawPath": "cli/db/db.sqlite",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "sessionStore",
+        "entryKey": "cli/db/db.sqlite"
+      }
+    },
+    {
+      "rawPath": "cli/db/db.sqlite-wal",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "sessionStore",
+        "entryKey": "cli/db/db.sqlite-wal"
+      }
+    },
+    {
+      "rawPath": "cli/db/db.sqlite.backup",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "cli/db/db.sqlite.backup"
+      }
+    },
+    {
+      "rawPath": "cli/config.json.bak",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "cli/config.json.bak"
+      }
+    },
+    {
+      "rawPath": "cli/config.json.bak.1",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "cli/config.json.bak.1"
+      }
+    },
+    {
+      "rawPath": "v2/x.bak",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "v2/x.bak"
+      }
+    },
+    {
+      "rawPath": "v2/x.backup.json",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "v2/x.backup.json"
+      }
+    },
+    {
+      "rawPath": "v2/setting.json.corrupt-1",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "v2/setting.json.corrupt-1"
+      }
+    },
+    {
+      "rawPath": "v2/setting.json.foo-backup-bar",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "v2/setting.json.foo-backup-bar"
+      }
+    },
+    {
+      "rawPath": "v2/config.json.pre-abc",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "v2/config.json.pre-abc"
+      }
+    },
+    {
+      "rawPath": "v2/coding-plan-cache.json",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "v2/coding-plan-cache.json"
+      }
+    },
+    {
+      "rawPath": "v2/bots-model-cache.json",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "v2/bots-model-cache.json"
+      }
+    },
+    {
+      "rawPath": "v2/bots-model-cache-v2.json",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "v2/bots-model-cache-v2.json"
+      }
+    },
+    {
+      "rawPath": "computer-use/run/x.log",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "logs",
+        "entryKey": "computer-use/run/x.log"
+      }
+    },
+    {
+      "rawPath": "computer-use/run/x.txt",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "runtimes",
+        "entryKey": "computer-use/run"
+      }
+    },
+    {
+      "rawPath": "v2/foo.json",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "v2/foo.json"
+      }
+    },
+    {
+      "rawPath": "v2/config.json",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "v2/config.json"
+      }
+    },
+    {
+      "rawPath": "cli/config.json",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "cli/config.json"
+      }
+    },
+    {
+      "rawPath": "agents/x.md",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "agents/x.md"
+      }
+    },
+    {
+      "rawPath": "AGENTS.md",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "AGENTS.md"
+      }
+    },
+    {
+      "rawPath": "agent/foo",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "other",
+        "entryKey": "agent"
+      }
+    },
+    {
+      "rawPath": "agentic",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "other",
+        "entryKey": "agentic"
+      }
+    },
+    {
+      "rawPath": "backup/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "backup/x"
+      }
+    },
+    {
+      "rawPath": "v2/backup/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "v2/backup/x"
+      }
+    },
+    {
+      "rawPath": "v2/migrations/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "v2/migrations/x"
+      }
+    },
+    {
+      "rawPath": "cli/db/backup/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "cli/db/backup/x"
+      }
+    },
+    {
+      "rawPath": "cli/db/backups/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "backups",
+        "entryKey": "cli/db/backups/x"
+      }
+    },
+    {
+      "rawPath": "export-log/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "exports",
+        "entryKey": "export-log/x"
+      }
+    },
+    {
+      "rawPath": "export-log-stage/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "exports",
+        "entryKey": "export-log-stage/x"
+      }
+    },
+    {
+      "rawPath": "logs/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "logs",
+        "entryKey": "logs/x"
+      }
+    },
+    {
+      "rawPath": "v2/logs/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "logs",
+        "entryKey": "v2/logs/x"
+      }
+    },
+    {
+      "rawPath": "cli/log/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "logs",
+        "entryKey": "cli/log/x"
+      }
+    },
+    {
+      "rawPath": "v2/crash/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "logs",
+        "entryKey": "v2/crash/x"
+      }
+    },
+    {
+      "rawPath": "v2/crash/live/core.bin",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "logs",
+        "entryKey": "v2/crash/live"
+      }
+    },
+    {
+      "rawPath": "v2/perf/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "logs",
+        "entryKey": "v2/perf/x"
+      }
+    },
+    {
+      "rawPath": "cli/debug/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "modelTrajectory",
+        "entryKey": "cli/debug/x"
+      }
+    },
+    {
+      "rawPath": "cli/rollout/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "modelTrajectory",
+        "entryKey": "cli/rollout/x"
+      }
+    },
+    {
+      "rawPath": "v2/dev/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "devTraces",
+        "entryKey": "v2/dev/x"
+      }
+    },
+    {
+      "rawPath": "v2/acp-traffic-proxy/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "devTraces",
+        "entryKey": "v2/acp-traffic-proxy/x"
+      }
+    },
+    {
+      "rawPath": "v2/acp-stream-diagnostics/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "devTraces",
+        "entryKey": "v2/acp-stream-diagnostics/x"
+      }
+    },
+    {
+      "rawPath": "cli/artifacts/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "cli/artifacts/x"
+      }
+    },
+    {
+      "rawPath": "clipboard/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "clipboard/x"
+      }
+    },
+    {
+      "rawPath": "git-checkpoint-index/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "git-checkpoint-index/x"
+      }
+    },
+    {
+      "rawPath": "editor-icon/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "editor-icon/x"
+      }
+    },
+    {
+      "rawPath": "tmp/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "tmp/x"
+      }
+    },
+    {
+      "rawPath": "cache/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "toolOutputs",
+        "entryKey": "cache/x"
+      }
+    },
+    {
+      "rawPath": "agents/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "runtimes",
+        "entryKey": "agents/x"
+      }
+    },
+    {
+      "rawPath": "bundled-agents/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "runtimes",
+        "entryKey": "bundled-agents/x"
+      }
+    },
+    {
+      "rawPath": "lite/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "runtimes",
+        "entryKey": "lite/x"
+      }
+    },
+    {
+      "rawPath": "computer-use/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "runtimes",
+        "entryKey": "computer-use/x"
+      }
+    },
+    {
+      "rawPath": "cli/plugins/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "runtimes",
+        "entryKey": "cli/plugins/x"
+      }
+    },
+    {
+      "rawPath": "cli/plugins/cache/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "runtimes",
+        "entryKey": "cli/plugins/cache"
+      }
+    },
+    {
+      "rawPath": "v2/agent-config/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "v2/agent-config/x"
+      }
+    },
+    {
+      "rawPath": "v2/bots-runtime-locks/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "v2/bots-runtime-locks/x"
+      }
+    },
+    {
+      "rawPath": "v2/bot-attachments/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "v2/bot-attachments/x"
+      }
+    },
+    {
+      "rawPath": "v2/certs/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "v2/certs/x"
+      }
+    },
+    {
+      "rawPath": "v2/acp-auth/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "v2/acp-auth/x"
+      }
+    },
+    {
+      "rawPath": "v2/acp-config/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "v2/acp-config/x"
+      }
+    },
+    {
+      "rawPath": "v2/provider/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "v2/provider/x"
+      }
+    },
+    {
+      "rawPath": "cli/models/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "cli/models/x"
+      }
+    },
+    {
+      "rawPath": "cli/memories/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "cli/memories/x"
+      }
+    },
+    {
+      "rawPath": "cli/workflows/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "cli/workflows/x"
+      }
+    },
+    {
+      "rawPath": "security/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "security/x"
+      }
+    },
+    {
+      "rawPath": "commands/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "commands/x"
+      }
+    },
+    {
+      "rawPath": "skills/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "skills/x"
+      }
+    },
+    {
+      "rawPath": "workflows/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "workflows/x"
+      }
+    },
+    {
+      "rawPath": "workspace/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "workspace/x"
+      }
+    },
+    {
+      "rawPath": "mailbox/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "mailbox/x"
+      }
+    },
+    {
+      "rawPath": "server/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "server/x"
+      }
+    },
+    {
+      "rawPath": "controller/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "controller/x"
+      }
+    },
+    {
+      "rawPath": "launcher/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "launcher/x"
+      }
+    },
+    {
+      "rawPath": "dev-signing/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "dev-signing/x"
+      }
+    },
+    {
+      "rawPath": "cua-helper-dev-identity/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "cua-helper-dev-identity/x"
+      }
+    },
+    {
+      "rawPath": "perf-task-manifests/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "perf-task-manifests/x"
+      }
+    },
+    {
+      "rawPath": "plugin-workspace/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "plugin-workspace/x"
+      }
+    },
+    {
+      "rawPath": "projects/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "projects/x"
+      }
+    },
+    {
+      "rawPath": "unknown/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "other",
+        "entryKey": "unknown"
+      }
+    },
+    {
+      "rawPath": "v2/unknown/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "other",
+        "entryKey": "v2"
+      }
+    },
+    {
+      "rawPath": "v2/sessions/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": true
+      },
+      "expected": {
+        "categoryId": "other",
+        "entryKey": "v2"
+      }
+    },
+    {
+      "rawPath": "v2/provider/x",
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": true
+      },
+      "expected": {
+        "categoryId": "other",
+        "entryKey": "v2"
+      }
+    },
+    {
+      "rawPath": "v2/provider/x",
+      "context": {
+        "rootId": "dataBaseDir",
+        "hasCustomDataBaseDir": true
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "v2/provider/x"
+      }
+    },
+    {
+      "rawPath": "v2/certs/x",
+      "context": {
+        "rootId": "dataBaseDir",
+        "hasCustomDataBaseDir": false
+      },
+      "expected": {
+        "categoryId": "config",
+        "entryKey": "v2/certs/x"
+      }
+    }
+  ],
+  "protected": [
+    {
+      "rawPath": "setting.json",
+      "expected": true
+    },
+    {
+      "rawPath": "nested/setting.json",
+      "expected": true
+    },
+    {
+      "rawPath": "setting.json.lock",
+      "expected": true
+    },
+    {
+      "rawPath": "credentials.json",
+      "expected": true
+    },
+    {
+      "rawPath": "nested/.credentials.json",
+      "expected": true
+    },
+    {
+      "rawPath": ".tokens",
+      "expected": true
+    },
+    {
+      "rawPath": "mode-stdio-tap.json",
+      "expected": true
+    },
+    {
+      "rawPath": "v2/crash/live",
+      "expected": true
+    },
+    {
+      "rawPath": "v2/crash/live/core.bin",
+      "expected": true
+    },
+    {
+      "rawPath": "v2/crash/live2/core.bin",
+      "expected": false
+    },
+    {
+      "rawPath": "v2\\crash\\live\\core.bin",
+      "expected": true
+    },
+    {
+      "rawPath": "v2/setting.json",
+      "expected": true
+    },
+    {
+      "rawPath": "v2/credentials.json.bak",
+      "expected": false
+    },
+    {
+      "rawPath": "",
+      "expected": false
+    }
+  ],
+  "snapshots": [
+    {
+      "spec": {
+        "id": "home",
+        "path": "/home/user/.mode",
+        "hasCustomDataBaseDir": false
+      },
+      "maxEntriesPerCategory": 2,
+      "volume": {
+        "deviceId": "dev-1",
+        "mountPoint": "/",
+        "totalBytes": 1000000,
+        "freeBytes": 250000
+      },
+      "entries": [
+        {
+          "relativePath": "v2/sessions/a/s1.json",
+          "bytes": 10,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "v2/sessions/a/s2.json",
+          "bytes": 5,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "v2/session-bindings/a/b",
+          "bytes": 3,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "v2/session-bindings/a/c",
+          "bytes": 4,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "v2/session-bindings/b/d",
+          "bytes": 1,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "v2/checkpoints/x/committed/y",
+          "bytes": 7,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "v2/logs/a.log",
+          "bytes": 3,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "v2/logs/b.log",
+          "bytes": 3,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "v2/logs/c.log",
+          "bytes": 1,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "v2/logs/d.log",
+          "bytes": 2,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "cache/a",
+          "bytes": 8,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "tmp/b",
+          "bytes": 9,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "cli/agents/a/b/transcript.jsonl",
+          "bytes": 20,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "cli/agents/a/c/transcript.jsonl",
+          "bytes": 15,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "v2/other/data",
+          "bytes": 6,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "unknown/x",
+          "bytes": 2,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "v2/sessions",
+          "bytes": 1,
+          "mtimeMs": 0
+        }
+      ],
+      "expected": {
+        "id": "home",
+        "path": "/home/user/.mode",
+        "volume": {
+          "deviceId": "dev-1",
+          "mountPoint": "/",
+          "totalBytes": 1000000,
+          "freeBytes": 250000
+        },
+        "bytes": 100,
+        "fileCount": 17,
+        "categories": [
+          {
+            "id": "sessionStore",
+            "bytes": 31,
+            "fileCount": 7,
+            "cleanability": "none",
+            "entries": [
+              {
+                "relativePath": "v2/sessions/a",
+                "bytes": 15,
+                "fileCount": 2
+              },
+              {
+                "relativePath": "v2/checkpoints/x",
+                "bytes": 7,
+                "fileCount": 1
+              },
+              {
+                "relativePath": "…",
+                "bytes": 9,
+                "fileCount": 4
+              }
+            ]
+          },
+          {
+            "id": "subagentTranscripts",
+            "bytes": 35,
+            "fileCount": 2,
+            "cleanability": "safe",
+            "entries": [
+              {
+                "relativePath": "cli/agents/a",
+                "bytes": 35,
+                "fileCount": 2
+              }
+            ]
+          },
+          {
+            "id": "toolOutputs",
+            "bytes": 17,
+            "fileCount": 2,
+            "cleanability": "none",
+            "entries": [
+              {
+                "relativePath": "tmp/b",
+                "bytes": 9,
+                "fileCount": 1
+              },
+              {
+                "relativePath": "cache/a",
+                "bytes": 8,
+                "fileCount": 1
+              }
+            ]
+          },
+          {
+            "id": "modelTrajectory",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "safe",
+            "entries": []
+          },
+          {
+            "id": "devTraces",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "safe",
+            "entries": []
+          },
+          {
+            "id": "logs",
+            "bytes": 9,
+            "fileCount": 4,
+            "cleanability": "safe",
+            "entries": [
+              {
+                "relativePath": "v2/logs/a.log",
+                "bytes": 3,
+                "fileCount": 1
+              },
+              {
+                "relativePath": "v2/logs/b.log",
+                "bytes": 3,
+                "fileCount": 1
+              },
+              {
+                "relativePath": "…",
+                "bytes": 3,
+                "fileCount": 2
+              }
+            ]
+          },
+          {
+            "id": "backups",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "confirm",
+            "entries": []
+          },
+          {
+            "id": "exports",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "safe",
+            "entries": []
+          },
+          {
+            "id": "runtimes",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "none",
+            "entries": []
+          },
+          {
+            "id": "config",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "none",
+            "entries": []
+          },
+          {
+            "id": "other",
+            "bytes": 8,
+            "fileCount": 2,
+            "cleanability": "none",
+            "entries": [
+              {
+                "relativePath": "v2",
+                "bytes": 6,
+                "fileCount": 1
+              },
+              {
+                "relativePath": "unknown",
+                "bytes": 2,
+                "fileCount": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "spec": {
+        "id": "dataBaseDir",
+        "path": "D:/ModeData/.mode",
+        "hasCustomDataBaseDir": false
+      },
+      "maxEntriesPerCategory": 0,
+      "volume": null,
+      "entries": [
+        {
+          "relativePath": "v2/logs/a.log",
+          "bytes": 3,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "backup/x",
+          "bytes": 4,
+          "mtimeMs": 0
+        }
+      ],
+      "expected": {
+        "id": "dataBaseDir",
+        "path": "D:/ModeData/.mode",
+        "volume": null,
+        "bytes": 7,
+        "fileCount": 2,
+        "categories": [
+          {
+            "id": "sessionStore",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "none",
+            "entries": []
+          },
+          {
+            "id": "subagentTranscripts",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "safe",
+            "entries": []
+          },
+          {
+            "id": "toolOutputs",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "none",
+            "entries": []
+          },
+          {
+            "id": "modelTrajectory",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "safe",
+            "entries": []
+          },
+          {
+            "id": "devTraces",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "safe",
+            "entries": []
+          },
+          {
+            "id": "logs",
+            "bytes": 3,
+            "fileCount": 1,
+            "cleanability": "safe",
+            "entries": [
+              {
+                "relativePath": "…",
+                "bytes": 3,
+                "fileCount": 1
+              }
+            ]
+          },
+          {
+            "id": "backups",
+            "bytes": 4,
+            "fileCount": 1,
+            "cleanability": "confirm",
+            "entries": [
+              {
+                "relativePath": "…",
+                "bytes": 4,
+                "fileCount": 1
+              }
+            ]
+          },
+          {
+            "id": "exports",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "safe",
+            "entries": []
+          },
+          {
+            "id": "runtimes",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "none",
+            "entries": []
+          },
+          {
+            "id": "config",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "none",
+            "entries": []
+          },
+          {
+            "id": "other",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "none",
+            "entries": []
+          }
+        ]
+      }
+    },
+    {
+      "spec": {
+        "id": "home",
+        "path": "/home/user/.mode",
+        "hasCustomDataBaseDir": true
+      },
+      "maxEntriesPerCategory": null,
+      "volume": null,
+      "entries": [
+        {
+          "relativePath": "v2/sessions/x",
+          "bytes": 5,
+          "mtimeMs": 0
+        },
+        {
+          "relativePath": "v2/certs/x",
+          "bytes": 6,
+          "mtimeMs": 0
+        }
+      ],
+      "expected": {
+        "id": "home",
+        "path": "/home/user/.mode",
+        "volume": null,
+        "bytes": 11,
+        "fileCount": 2,
+        "categories": [
+          {
+            "id": "sessionStore",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "none",
+            "entries": []
+          },
+          {
+            "id": "subagentTranscripts",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "safe",
+            "entries": []
+          },
+          {
+            "id": "toolOutputs",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "none",
+            "entries": []
+          },
+          {
+            "id": "modelTrajectory",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "safe",
+            "entries": []
+          },
+          {
+            "id": "devTraces",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "safe",
+            "entries": []
+          },
+          {
+            "id": "logs",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "safe",
+            "entries": []
+          },
+          {
+            "id": "backups",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "confirm",
+            "entries": []
+          },
+          {
+            "id": "exports",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "safe",
+            "entries": []
+          },
+          {
+            "id": "runtimes",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "none",
+            "entries": []
+          },
+          {
+            "id": "config",
+            "bytes": 0,
+            "fileCount": 0,
+            "cleanability": "none",
+            "entries": []
+          },
+          {
+            "id": "other",
+            "bytes": 11,
+            "fileCount": 2,
+            "cleanability": "none",
+            "entries": [
+              {
+                "relativePath": "v2",
+                "bytes": 11,
+                "fileCount": 2
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "cleanPlans": [
+    {
+      "name": "non-cleanable-category",
+      "categoryId": "config",
+      "candidates": [
+        {
+          "relativePath": "v2/config.json",
+          "bytes": 1,
+          "mtimeMs": 1767355200000
+        },
+        {
+          "relativePath": "v2/certs/x",
+          "bytes": 1,
+          "mtimeMs": 1767355200000
+        }
+      ],
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "now": 1767355200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "expected": {
+        "targets": [],
+        "skippedCount": 2
+      }
+    },
+    {
+      "name": "logs-filter-same-day-and-scope",
+      "categoryId": "logs",
+      "candidates": [
+        {
+          "relativePath": "logs/a.log",
+          "bytes": 1,
+          "mtimeMs": 1767312000000
+        },
+        {
+          "relativePath": "logs/b.log",
+          "bytes": 1,
+          "mtimeMs": 1767355199000
+        },
+        {
+          "relativePath": "logs/c.log",
+          "bytes": 1,
+          "mtimeMs": 1767311999000
+        },
+        {
+          "relativePath": "cli/plugins/cache/x",
+          "bytes": 1,
+          "mtimeMs": 1767139200000
+        },
+        {
+          "relativePath": "v2/logs/setting.json",
+          "bytes": 1,
+          "mtimeMs": 1767139200000
+        }
+      ],
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "now": 1767355200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "expected": {
+        "targets": [
+          {
+            "relativePath": "logs/c.log",
+            "bytes": 1,
+            "mtimeMs": 1767311999000
+          }
+        ],
+        "skippedCount": 4
+      }
+    },
+    {
+      "name": "logs-local-day-positive-offset",
+      "categoryId": "logs",
+      "candidates": [
+        {
+          "relativePath": "logs/a.log",
+          "bytes": 1,
+          "mtimeMs": 1767281400000
+        },
+        {
+          "relativePath": "logs/b.log",
+          "bytes": 1,
+          "mtimeMs": 1767285000000
+        },
+        {
+          "relativePath": "logs/c.log",
+          "bytes": 1,
+          "mtimeMs": 1767283200000
+        }
+      ],
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "now": 1767313800000,
+      "offsetSecs": 28800,
+      "timeZone": "Asia/Shanghai",
+      "expected": {
+        "targets": [
+          {
+            "relativePath": "logs/a.log",
+            "bytes": 1,
+            "mtimeMs": 1767281400000
+          }
+        ],
+        "skippedCount": 2
+      }
+    },
+    {
+      "name": "logs-local-day-negative-offset",
+      "categoryId": "logs",
+      "candidates": [
+        {
+          "relativePath": "logs/a.log",
+          "bytes": 1,
+          "mtimeMs": 1767328200000
+        },
+        {
+          "relativePath": "logs/b.log",
+          "bytes": 1,
+          "mtimeMs": 1767331800000
+        }
+      ],
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "now": 1767322800000,
+      "offsetSecs": -18000,
+      "timeZone": "Etc/GMT+5",
+      "expected": {
+        "targets": [
+          {
+            "relativePath": "logs/b.log",
+            "bytes": 1,
+            "mtimeMs": 1767331800000
+          }
+        ],
+        "skippedCount": 1
+      }
+    },
+    {
+      "name": "subagent-activity-uses-all-candidates",
+      "categoryId": "subagentTranscripts",
+      "candidates": [
+        {
+          "relativePath": "cli/agents/s1/x/transcript.jsonl",
+          "bytes": 1,
+          "mtimeMs": 1767096000000
+        },
+        {
+          "relativePath": "cli/agents/s1/x/metadata.json",
+          "bytes": 1,
+          "mtimeMs": 1767355200000
+        },
+        {
+          "relativePath": "cli/agents/s2/x/transcript.jsonl",
+          "bytes": 1,
+          "mtimeMs": 1767265200000
+        },
+        {
+          "relativePath": "cli/agents/s2/x/output.json",
+          "bytes": 1,
+          "mtimeMs": 1767247200000
+        },
+        {
+          "relativePath": "cli/agents/s3/x/transcript.jsonl",
+          "bytes": 1,
+          "mtimeMs": 1767268800000
+        },
+        {
+          "relativePath": "logs/a.log",
+          "bytes": 1,
+          "mtimeMs": 1767096000000
+        }
+      ],
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "now": 1767355200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "expected": {
+        "targets": [
+          {
+            "relativePath": "cli/agents/s2/x/transcript.jsonl",
+            "bytes": 1,
+            "mtimeMs": 1767265200000
+          }
+        ],
+        "skippedCount": 5
+      }
+    },
+    {
+      "name": "subagent-all-inactive",
+      "categoryId": "subagentTranscripts",
+      "candidates": [
+        {
+          "relativePath": "cli/agents/s1/x/transcript.jsonl",
+          "bytes": 1,
+          "mtimeMs": 1767182400000
+        },
+        {
+          "relativePath": "cli/agents/s1/x/metadata.json",
+          "bytes": 1,
+          "mtimeMs": 1767182400000
+        },
+        {
+          "relativePath": "cli/agents/s2/x/transcript.jsonl",
+          "bytes": 1,
+          "mtimeMs": 1767268799999
+        }
+      ],
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "now": 1767355200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "expected": {
+        "targets": [
+          {
+            "relativePath": "cli/agents/s1/x/transcript.jsonl",
+            "bytes": 1,
+            "mtimeMs": 1767182400000
+          },
+          {
+            "relativePath": "cli/agents/s2/x/transcript.jsonl",
+            "bytes": 1,
+            "mtimeMs": 1767268799999
+          }
+        ],
+        "skippedCount": 1
+      }
+    },
+    {
+      "name": "empty-candidates",
+      "categoryId": "backups",
+      "candidates": [],
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "now": 1767355200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "expected": {
+        "targets": [],
+        "skippedCount": 0
+      }
+    },
+    {
+      "name": "backups-filter-other-categories-and-protected",
+      "categoryId": "backups",
+      "candidates": [
+        {
+          "relativePath": "cli/db/db.sqlite.backup",
+          "bytes": 1,
+          "mtimeMs": 1766491200000
+        },
+        {
+          "relativePath": "cli/db/db.sqlite",
+          "bytes": 1,
+          "mtimeMs": 1766491200000
+        },
+        {
+          "relativePath": "v2/config.json.pre-x",
+          "bytes": 1,
+          "mtimeMs": 1766491200000
+        },
+        {
+          "relativePath": "v2/config.json",
+          "bytes": 1,
+          "mtimeMs": 1766491200000
+        },
+        {
+          "relativePath": "v2/crash/live/x",
+          "bytes": 1,
+          "mtimeMs": 1766491200000
+        }
+      ],
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "now": 1767355200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "expected": {
+        "targets": [
+          {
+            "relativePath": "cli/db/db.sqlite.backup",
+            "bytes": 1,
+            "mtimeMs": 1766491200000
+          },
+          {
+            "relativePath": "v2/config.json.pre-x",
+            "bytes": 1,
+            "mtimeMs": 1766491200000
+          }
+        ],
+        "skippedCount": 3
+      }
+    },
+    {
+      "name": "exports-scope",
+      "categoryId": "exports",
+      "candidates": [
+        {
+          "relativePath": "export-log/a",
+          "bytes": 1,
+          "mtimeMs": 1766491200000
+        },
+        {
+          "relativePath": "logs/a.log",
+          "bytes": 1,
+          "mtimeMs": 1766491200000
+        },
+        {
+          "relativePath": "export-log-stage/b",
+          "bytes": 1,
+          "mtimeMs": 1766491200000
+        }
+      ],
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": false
+      },
+      "now": 1767355200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "expected": {
+        "targets": [
+          {
+            "relativePath": "export-log/a",
+            "bytes": 1,
+            "mtimeMs": 1766491200000
+          },
+          {
+            "relativePath": "export-log-stage/b",
+            "bytes": 1,
+            "mtimeMs": 1766491200000
+          }
+        ],
+        "skippedCount": 1
+      }
+    },
+    {
+      "name": "custom-data-root-moves-v2-to-other",
+      "categoryId": "logs",
+      "candidates": [
+        {
+          "relativePath": "v2/logs/a.log",
+          "bytes": 1,
+          "mtimeMs": 1766491200000
+        }
+      ],
+      "context": {
+        "rootId": "home",
+        "hasCustomDataBaseDir": true
+      },
+      "now": 1767355200000,
+      "offsetSecs": 0,
+      "timeZone": "UTC",
+      "expected": {
+        "targets": [],
+        "skippedCount": 1
+      }
+    }
+  ],
+  "scanJobs": [
+    {
+      "name": "throttle-basic",
+      "roots": [
+        {
+          "id": "home",
+          "path": "/home/u/.mode",
+          "hasCustomDataBaseDir": false
+        }
+      ],
+      "startNow": 1000,
+      "throttleMs": 300,
+      "steps": [
+        {
+          "type": "progress",
+          "now": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 1,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        },
+        {
+          "type": "progress",
+          "now": 1100,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 2,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        },
+        {
+          "type": "progress",
+          "now": 1200,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 3,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        },
+        {
+          "type": "timer",
+          "now": 1300
+        },
+        {
+          "type": "finish",
+          "now": 1400,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 4,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        }
+      ],
+      "expected": {
+        "emissions": [
+          {
+            "jobId": "scan-fixture",
+            "status": "scanning",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 1,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": []
+          },
+          {
+            "jobId": "scan-fixture",
+            "status": "scanning",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 3,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": []
+          },
+          {
+            "jobId": "scan-fixture",
+            "status": "complete",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 4,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": [],
+            "finishedAt": 1400
+          }
+        ],
+        "final": {
+          "jobId": "scan-fixture",
+          "status": "complete",
+          "startedAt": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 4,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": [],
+          "finishedAt": 1400
+        },
+        "timerDelays": [
+          200
+        ],
+        "timerCount": 1
+      }
+    },
+    {
+      "name": "throttle-second-window",
+      "roots": [
+        {
+          "id": "home",
+          "path": "/home/u/.mode",
+          "hasCustomDataBaseDir": false
+        }
+      ],
+      "startNow": 1000,
+      "throttleMs": 300,
+      "steps": [
+        {
+          "type": "progress",
+          "now": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 1,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        },
+        {
+          "type": "progress",
+          "now": 1050,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 2,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        },
+        {
+          "type": "timer",
+          "now": 1300
+        },
+        {
+          "type": "progress",
+          "now": 1400,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 3,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        },
+        {
+          "type": "progress",
+          "now": 1450,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 4,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        },
+        {
+          "type": "timer",
+          "now": 1600
+        },
+        {
+          "type": "finish",
+          "now": 1700,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 5,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        }
+      ],
+      "expected": {
+        "emissions": [
+          {
+            "jobId": "scan-fixture",
+            "status": "scanning",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 1,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": []
+          },
+          {
+            "jobId": "scan-fixture",
+            "status": "scanning",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 2,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": []
+          },
+          {
+            "jobId": "scan-fixture",
+            "status": "scanning",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 4,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": []
+          },
+          {
+            "jobId": "scan-fixture",
+            "status": "complete",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 5,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": [],
+            "finishedAt": 1700
+          }
+        ],
+        "final": {
+          "jobId": "scan-fixture",
+          "status": "complete",
+          "startedAt": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 5,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": [],
+          "finishedAt": 1700
+        },
+        "timerDelays": [
+          250,
+          200
+        ],
+        "timerCount": 2
+      }
+    },
+    {
+      "name": "finish-without-progress",
+      "roots": [
+        {
+          "id": "home",
+          "path": "/home/u/.mode",
+          "hasCustomDataBaseDir": false
+        }
+      ],
+      "startNow": 2000,
+      "throttleMs": 300,
+      "steps": [
+        {
+          "type": "finish",
+          "now": 2100,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 7,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        }
+      ],
+      "expected": {
+        "emissions": [
+          {
+            "jobId": "scan-fixture",
+            "status": "complete",
+            "startedAt": 2000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 7,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": [],
+            "finishedAt": 2100
+          }
+        ],
+        "final": {
+          "jobId": "scan-fixture",
+          "status": "complete",
+          "startedAt": 2000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 7,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": [],
+          "finishedAt": 2100
+        },
+        "timerDelays": [],
+        "timerCount": 0
+      }
+    },
+    {
+      "name": "failure-code",
+      "roots": [
+        {
+          "id": "home",
+          "path": "/home/u/.mode",
+          "hasCustomDataBaseDir": false
+        }
+      ],
+      "startNow": 1000,
+      "throttleMs": 300,
+      "steps": [
+        {
+          "type": "progress",
+          "now": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 1,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        },
+        {
+          "type": "fail",
+          "now": 1200,
+          "code": "EACCES"
+        }
+      ],
+      "expected": {
+        "emissions": [
+          {
+            "jobId": "scan-fixture",
+            "status": "scanning",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 1,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": []
+          },
+          {
+            "jobId": "scan-fixture",
+            "status": "failed",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 1,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": [
+              {
+                "path": "",
+                "code": "EACCES"
+              }
+            ],
+            "finishedAt": 1200
+          }
+        ],
+        "final": {
+          "jobId": "scan-fixture",
+          "status": "failed",
+          "startedAt": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 1,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": [
+            {
+              "path": "",
+              "code": "EACCES"
+            }
+          ],
+          "finishedAt": 1200
+        },
+        "timerDelays": [],
+        "timerCount": 0
+      }
+    },
+    {
+      "name": "cancel-preserves-latest",
+      "roots": [
+        {
+          "id": "home",
+          "path": "/home/u/.mode",
+          "hasCustomDataBaseDir": false
+        }
+      ],
+      "startNow": 1000,
+      "throttleMs": 300,
+      "steps": [
+        {
+          "type": "progress",
+          "now": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 1,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": [
+            {
+              "path": "a",
+              "code": "EIO"
+            }
+          ]
+        },
+        {
+          "type": "cancel",
+          "now": 1100
+        }
+      ],
+      "expected": {
+        "emissions": [
+          {
+            "jobId": "scan-fixture",
+            "status": "scanning",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 1,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": [
+              {
+                "path": "a",
+                "code": "EIO"
+              }
+            ]
+          },
+          {
+            "jobId": "scan-fixture",
+            "status": "cancelled",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 1,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": [
+              {
+                "path": "a",
+                "code": "EIO"
+              }
+            ],
+            "finishedAt": 1100
+          }
+        ],
+        "final": {
+          "jobId": "scan-fixture",
+          "status": "cancelled",
+          "startedAt": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 1,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": [
+            {
+              "path": "a",
+              "code": "EIO"
+            }
+          ],
+          "finishedAt": 1100
+        },
+        "timerDelays": [],
+        "timerCount": 0
+      }
+    },
+    {
+      "name": "abort-error-without-cancel",
+      "roots": [
+        {
+          "id": "home",
+          "path": "/home/u/.mode",
+          "hasCustomDataBaseDir": false
+        }
+      ],
+      "startNow": 1000,
+      "throttleMs": 300,
+      "steps": [
+        {
+          "type": "progress",
+          "now": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 1,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": [
+            {
+              "path": "a",
+              "code": "EIO"
+            }
+          ]
+        },
+        {
+          "type": "fail",
+          "now": 1250,
+          "code": "AbortError",
+          "abort": true
+        }
+      ],
+      "expected": {
+        "emissions": [
+          {
+            "jobId": "scan-fixture",
+            "status": "scanning",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 1,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": [
+              {
+                "path": "a",
+                "code": "EIO"
+              }
+            ]
+          },
+          {
+            "jobId": "scan-fixture",
+            "status": "cancelled",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 1,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": [
+              {
+                "path": "a",
+                "code": "EIO"
+              }
+            ],
+            "finishedAt": 1250
+          }
+        ],
+        "final": {
+          "jobId": "scan-fixture",
+          "status": "cancelled",
+          "startedAt": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 1,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": [
+            {
+              "path": "a",
+              "code": "EIO"
+            }
+          ],
+          "finishedAt": 1250
+        },
+        "timerDelays": [],
+        "timerCount": 0
+      }
+    },
+    {
+      "name": "timer-cleared-on-finish",
+      "roots": [
+        {
+          "id": "home",
+          "path": "/home/u/.mode",
+          "hasCustomDataBaseDir": false
+        }
+      ],
+      "startNow": 1000,
+      "throttleMs": 300,
+      "steps": [
+        {
+          "type": "progress",
+          "now": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 1,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        },
+        {
+          "type": "progress",
+          "now": 1100,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 2,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        },
+        {
+          "type": "finish",
+          "now": 1150,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 3,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": []
+        }
+      ],
+      "expected": {
+        "emissions": [
+          {
+            "jobId": "scan-fixture",
+            "status": "scanning",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 1,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": []
+          },
+          {
+            "jobId": "scan-fixture",
+            "status": "complete",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 3,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": [],
+            "finishedAt": 1150
+          }
+        ],
+        "final": {
+          "jobId": "scan-fixture",
+          "status": "complete",
+          "startedAt": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 3,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": [],
+          "finishedAt": 1150
+        },
+        "timerDelays": [
+          200
+        ],
+        "timerCount": 1
+      }
+    },
+    {
+      "name": "failure-appends-error",
+      "roots": [
+        {
+          "id": "home",
+          "path": "/home/u/.mode",
+          "hasCustomDataBaseDir": false
+        }
+      ],
+      "startNow": 1000,
+      "throttleMs": 300,
+      "steps": [
+        {
+          "type": "progress",
+          "now": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 1,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": [
+            {
+              "path": "x",
+              "code": "EIO"
+            }
+          ]
+        },
+        {
+          "type": "fail",
+          "now": 1300,
+          "code": "ENOSPC"
+        }
+      ],
+      "expected": {
+        "emissions": [
+          {
+            "jobId": "scan-fixture",
+            "status": "scanning",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 1,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": [
+              {
+                "path": "x",
+                "code": "EIO"
+              }
+            ]
+          },
+          {
+            "jobId": "scan-fixture",
+            "status": "failed",
+            "startedAt": 1000,
+            "roots": [
+              {
+                "id": "home",
+                "path": "/home/u/.mode",
+                "volume": null,
+                "bytes": 1,
+                "fileCount": 1,
+                "categories": []
+              }
+            ],
+            "errors": [
+              {
+                "path": "x",
+                "code": "EIO"
+              },
+              {
+                "path": "",
+                "code": "ENOSPC"
+              }
+            ],
+            "finishedAt": 1300
+          }
+        ],
+        "final": {
+          "jobId": "scan-fixture",
+          "status": "failed",
+          "startedAt": 1000,
+          "roots": [
+            {
+              "id": "home",
+              "path": "/home/u/.mode",
+              "volume": null,
+              "bytes": 1,
+              "fileCount": 1,
+              "categories": []
+            }
+          ],
+          "errors": [
+            {
+              "path": "x",
+              "code": "EIO"
+            },
+            {
+              "path": "",
+              "code": "ENOSPC"
+            }
+          ],
+          "finishedAt": 1300
+        },
+        "timerDelays": [],
+        "timerCount": 0
+      }
+    }
+  ],
+  "volumeGroups": [
+    {
+      "roots": [],
+      "expected": []
+    },
+    {
+      "roots": [
+        {
+          "id": "home",
+          "path": "/a",
+          "volume": {
+            "deviceId": "1",
+            "mountPoint": "/",
+            "totalBytes": 1000000,
+            "freeBytes": 250000
+          },
+          "bytes": 10,
+          "fileCount": 1,
+          "categories": []
+        },
+        {
+          "id": "dataBaseDir",
+          "path": "/b",
+          "volume": null,
+          "bytes": 30,
+          "fileCount": 2,
+          "categories": []
+        },
+        {
+          "id": "home",
+          "path": "/c",
+          "volume": {
+            "deviceId": "1",
+            "mountPoint": "/",
+            "totalBytes": 1000000,
+            "freeBytes": 250000
+          },
+          "bytes": 20,
+          "fileCount": 3,
+          "categories": []
+        },
+        {
+          "id": "dataBaseDir",
+          "path": "/d",
+          "volume": null,
+          "bytes": 30,
+          "fileCount": 4,
+          "categories": []
+        },
+        {
+          "id": "home",
+          "path": "/e",
+          "volume": {
+            "deviceId": "2",
+            "mountPoint": "/",
+            "totalBytes": 1000000,
+            "freeBytes": 250000
+          },
+          "bytes": 5,
+          "fileCount": 5,
+          "categories": []
+        }
+      ],
+      "expected": [
+        {
+          "key": "dev:1",
+          "volume": {
+            "deviceId": "1",
+            "mountPoint": "/",
+            "totalBytes": 1000000,
+            "freeBytes": 250000
+          },
+          "roots": [
+            {
+              "id": "home",
+              "path": "/a",
+              "volume": {
+                "deviceId": "1",
+                "mountPoint": "/",
+                "totalBytes": 1000000,
+                "freeBytes": 250000
+              },
+              "bytes": 10,
+              "fileCount": 1,
+              "categories": []
+            },
+            {
+              "id": "home",
+              "path": "/c",
+              "volume": {
+                "deviceId": "1",
+                "mountPoint": "/",
+                "totalBytes": 1000000,
+                "freeBytes": 250000
+              },
+              "bytes": 20,
+              "fileCount": 3,
+              "categories": []
+            }
+          ],
+          "bytes": 30
+        },
+        {
+          "key": "path:/b",
+          "volume": null,
+          "roots": [
+            {
+              "id": "dataBaseDir",
+              "path": "/b",
+              "volume": null,
+              "bytes": 30,
+              "fileCount": 2,
+              "categories": []
+            }
+          ],
+          "bytes": 30
+        },
+        {
+          "key": "path:/d",
+          "volume": null,
+          "roots": [
+            {
+              "id": "dataBaseDir",
+              "path": "/d",
+              "volume": null,
+              "bytes": 30,
+              "fileCount": 4,
+              "categories": []
+            }
+          ],
+          "bytes": 30
+        },
+        {
+          "key": "dev:2",
+          "volume": {
+            "deviceId": "2",
+            "mountPoint": "/",
+            "totalBytes": 1000000,
+            "freeBytes": 250000
+          },
+          "roots": [
+            {
+              "id": "home",
+              "path": "/e",
+              "volume": {
+                "deviceId": "2",
+                "mountPoint": "/",
+                "totalBytes": 1000000,
+                "freeBytes": 250000
+              },
+              "bytes": 5,
+              "fileCount": 5,
+              "categories": []
+            }
+          ],
+          "bytes": 5
+        }
+      ]
+    }
+  ]
+}

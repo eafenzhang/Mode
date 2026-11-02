@@ -1,0 +1,711 @@
+{
+  "platform": "win32",
+  "arch": "x64",
+  "cases": [
+    {
+      "name": "runtime-root",
+      "cwd": "ws",
+      "toolIds": [
+        "ripgrep"
+      ],
+      "env": {
+        "MODE_SERVER_RUNTIME_ROOT": "<root>/runtime"
+      },
+      "setup": [
+        "runtime/tools/ripgrep/rg.exe"
+      ],
+      "expected": {
+        "MODE_RG_BINARY": "<root>\\runtime\\tools\\ripgrep\\rg.exe",
+        "PATH": "<root>\\runtime\\tools\\ripgrep"
+      }
+    },
+    {
+      "name": "cwd-bundled-tools",
+      "cwd": "ws",
+      "toolIds": [
+        "bfs"
+      ],
+      "env": {},
+      "setup": [
+        "ws/bundled-tools/win32-x64/bfs/bfs.exe"
+      ],
+      "expected": {
+        "MODE_BFS_BINARY": "<root>\\ws\\bundled-tools\\win32-x64\\bfs\\bfs.exe",
+        "PATH": "<root>\\ws\\bundled-tools\\win32-x64\\bfs"
+      }
+    },
+    {
+      "name": "packages-desktop-bundled-tools",
+      "cwd": "ws",
+      "toolIds": [
+        "ugrep"
+      ],
+      "env": {},
+      "setup": [
+        "ws/packages/desktop/bundled-tools/win32-x64/ugrep/ugrep.exe"
+      ],
+      "expected": {
+        "MODE_UGREP_BINARY": "<root>\\ws\\packages\\desktop\\bundled-tools\\win32-x64\\ugrep\\ugrep.exe",
+        "PATH": "<root>\\ws\\packages\\desktop\\bundled-tools\\win32-x64\\ugrep"
+      }
+    },
+    {
+      "name": "sibling-desktop-bundled-tools",
+      "cwd": "ws",
+      "toolIds": [
+        "ripgrep"
+      ],
+      "env": {},
+      "setup": [
+        "desktop/bundled-tools/win32-x64/ripgrep/rg.exe"
+      ],
+      "expected": {
+        "MODE_RG_BINARY": "<root>\\desktop\\bundled-tools\\win32-x64\\ripgrep\\rg.exe",
+        "PATH": "<root>\\desktop\\bundled-tools\\win32-x64\\ripgrep"
+      }
+    },
+    {
+      "name": "binary-env-override",
+      "cwd": "ws",
+      "toolIds": [
+        "bfs"
+      ],
+      "env": {
+        "MODE_BFS_BINARY": " <root>/ws/custom/bfs-bin.exe "
+      },
+      "setup": [
+        "ws/custom/bfs-bin.exe"
+      ],
+      "expected": {
+        "MODE_BFS_BINARY": "<root>/ws/custom/bfs-bin.exe",
+        "PATH": "<root>/ws/custom"
+      }
+    },
+    {
+      "name": "invalid-env-falls-back",
+      "cwd": "ws",
+      "toolIds": [
+        "bfs"
+      ],
+      "env": {
+        "MODE_BFS_BINARY": "<root>/missing/bfs.exe"
+      },
+      "setup": [
+        "ws/bundled-tools/win32-x64/bfs/bfs.exe"
+      ],
+      "expected": {
+        "MODE_BFS_BINARY": "<root>\\ws\\bundled-tools\\win32-x64\\bfs\\bfs.exe",
+        "PATH": "<root>\\ws\\bundled-tools\\win32-x64\\bfs"
+      }
+    },
+    {
+      "name": "path-fallback-default-ext",
+      "cwd": "ws",
+      "toolIds": [
+        "bfs"
+      ],
+      "env": {
+        "PATH": "<root>/ws/bin"
+      },
+      "setup": [
+        "ws/bin/bfs.EXE"
+      ],
+      "expected": {
+        "MODE_BFS_BINARY": "<root>\\ws\\bin\\bfs.EXE",
+        "PATH": "<root>/ws/bin;<root>\\ws\\bin"
+      }
+    },
+    {
+      "name": "path-fallback-pathext",
+      "cwd": "ws",
+      "toolIds": [
+        "bfs"
+      ],
+      "env": {
+        "PATH": "<root>/ws/bin",
+        "PATHEXT": ".CMD"
+      },
+      "setup": [
+        "ws/bin/bfs.CMD"
+      ],
+      "expected": {
+        "MODE_BFS_BINARY": "<root>\\ws\\bin\\bfs.CMD",
+        "PATH": "<root>/ws/bin;<root>\\ws\\bin"
+      }
+    },
+    {
+      "name": "path-dedupe",
+      "cwd": "ws",
+      "toolIds": [
+        "bfs"
+      ],
+      "env": {
+        "PATH": "<root>/ws/bin;<root>/ws/bundled-tools/win32-x64/bfs"
+      },
+      "setup": [
+        "ws/bundled-tools/win32-x64/bfs/bfs.exe"
+      ],
+      "expected": {
+        "MODE_BFS_BINARY": "<root>\\ws\\bundled-tools\\win32-x64\\bfs\\bfs.exe",
+        "PATH": "<root>/ws/bin;<root>/ws/bundled-tools/win32-x64/bfs;<root>\\ws\\bundled-tools\\win32-x64\\bfs"
+      }
+    },
+    {
+      "name": "multi-tools",
+      "cwd": "ws",
+      "toolIds": [
+        "bfs",
+        "ripgrep",
+        "ugrep"
+      ],
+      "env": {
+        "MODE_SERVER_RUNTIME_ROOT": "<root>/runtime"
+      },
+      "setup": [
+        "runtime/tools/bfs/bfs.exe",
+        "runtime/tools/ripgrep/rg.exe",
+        "runtime/tools/ugrep/ugrep.exe"
+      ],
+      "expected": {
+        "MODE_BFS_BINARY": "<root>\\runtime\\tools\\bfs\\bfs.exe",
+        "MODE_RG_BINARY": "<root>\\runtime\\tools\\ripgrep\\rg.exe",
+        "MODE_UGREP_BINARY": "<root>\\runtime\\tools\\ugrep\\ugrep.exe",
+        "PATH": "<root>\\runtime\\tools\\bfs;<root>\\runtime\\tools\\ripgrep;<root>\\runtime\\tools\\ugrep"
+      }
+    },
+    {
+      "name": "none-found",
+      "cwd": "ws",
+      "toolIds": [
+        "bfs"
+      ],
+      "env": {
+        "PATH": "<root>/empty"
+      },
+      "setup": [],
+      "expected": {}
+    }
+  ],
+  "bootstrap": [
+    {
+      "currentPath": null,
+      "expected": "/usr/local/sbin;/usr/local/bin;/usr/sbin;/usr/bin;/sbin;/bin"
+    },
+    {
+      "currentPath": "/usr/bin:/bin",
+      "expected": "/usr/local/sbin;/usr/local/bin;/usr/sbin;/usr/bin;/sbin;/bin;/usr/bin:/bin"
+    },
+    {
+      "currentPath": "/usr/bin:/bin:/usr/bin",
+      "expected": "/usr/local/sbin;/usr/local/bin;/usr/sbin;/usr/bin;/sbin;/bin;/usr/bin:/bin:/usr/bin"
+    },
+    {
+      "currentPath": "",
+      "expected": "/usr/local/sbin;/usr/local/bin;/usr/sbin;/usr/bin;/sbin;/bin"
+    }
+  ],
+  "login": [
+    {
+      "name": "explicit-zsh",
+      "baseEnv": {
+        "PATH": "/custom/bin",
+        "TERM": "xterm",
+        "FOO": "a=b"
+      },
+      "shellPath": "/bin/zsh",
+      "shellFile": null,
+      "timeoutMs": null,
+      "output": "noise\u0000__MODE_LOGIN_ENV_START__\u0000PATH=/home/user/.local/bin:/usr/bin\u0000TERM=xterm-256color\u0000EMPTY=\u0000WITH_EQUALS=a=b=c\u0000__MODE_LOGIN_ENV_END__\u0000",
+      "expected": {
+        "resolvedShell": "/bin/zsh",
+        "args": [
+          "-ilc",
+          "printf '%s\\0' '__MODE_LOGIN_ENV_START__'; env -0; printf '%s\\0' '__MODE_LOGIN_ENV_END__'"
+        ],
+        "options": {
+          "timeout": 4000,
+          "maxBuffer": 2097152,
+          "env": {
+            "PATH": "/usr/local/sbin;/usr/local/bin;/usr/sbin;/usr/bin;/sbin;/bin;/custom/bin",
+            "TERM": "dumb",
+            "FOO": "a=b",
+            "CI": "1"
+          }
+        },
+        "captured": {
+          "PATH": "/home/user/.local/bin:/usr/bin",
+          "TERM": "xterm-256color",
+          "EMPTY": "",
+          "WITH_EQUALS": "a=b=c"
+        }
+      }
+    },
+    {
+      "name": "explicit-sh-invalid-keys",
+      "baseEnv": {},
+      "shellPath": "/bin/sh",
+      "shellFile": null,
+      "timeoutMs": null,
+      "output": "noise\u0000__MODE_LOGIN_ENV_START__\u00001BAD=x\u0000 BAD=x\u0000=v=x\u0000OK_KEY=1\u0000__MODE_LOGIN_ENV_END__\u0000",
+      "expected": {
+        "resolvedShell": "/bin/sh",
+        "args": [
+          "-lc",
+          "printf '%s\\0' '__MODE_LOGIN_ENV_START__'; env -0; printf '%s\\0' '__MODE_LOGIN_ENV_END__'"
+        ],
+        "options": {
+          "timeout": 4000,
+          "maxBuffer": 2097152,
+          "env": {
+            "PATH": "/usr/local/sbin;/usr/local/bin;/usr/sbin;/usr/bin;/sbin;/bin",
+            "TERM": "dumb",
+            "CI": "1"
+          }
+        },
+        "captured": {
+          "BAD": "x",
+          "OK_KEY": "1"
+        }
+      }
+    },
+    {
+      "name": "resolved-zsh",
+      "baseEnv": {
+        "SHELL": "<root>/shell/zsh"
+      },
+      "shellFile": "shell/zsh",
+      "timeoutMs": null,
+      "output": "noise\u0000__MODE_LOGIN_ENV_START__\u0000FROM_SHELL=1\u0000__MODE_LOGIN_ENV_END__\u0000",
+      "expected": {
+        "resolvedShell": "<root>/shell/zsh",
+        "args": [
+          "-ilc",
+          "printf '%s\\0' '__MODE_LOGIN_ENV_START__'; env -0; printf '%s\\0' '__MODE_LOGIN_ENV_END__'"
+        ],
+        "options": {
+          "timeout": 4000,
+          "maxBuffer": 2097152,
+          "env": {
+            "SHELL": "<root>/shell/zsh",
+            "PATH": "/usr/local/sbin;/usr/local/bin;/usr/sbin;/usr/bin;/sbin;/bin",
+            "TERM": "dumb",
+            "CI": "1"
+          }
+        },
+        "captured": {
+          "FROM_SHELL": "1"
+        }
+      }
+    },
+    {
+      "name": "resolved-custom-shell",
+      "baseEnv": {
+        "SHELL": "<root>/shell/myshell"
+      },
+      "shellFile": "shell/myshell",
+      "timeoutMs": null,
+      "output": "noise\u0000__MODE_LOGIN_ENV_START__\u0000FROM_SHELL=2\u0000__MODE_LOGIN_ENV_END__\u0000",
+      "expected": {
+        "resolvedShell": "<root>/shell/myshell",
+        "args": [
+          "-lc",
+          "printf '%s\\0' '__MODE_LOGIN_ENV_START__'; env -0; printf '%s\\0' '__MODE_LOGIN_ENV_END__'"
+        ],
+        "options": {
+          "timeout": 4000,
+          "maxBuffer": 2097152,
+          "env": {
+            "SHELL": "<root>/shell/myshell",
+            "PATH": "/usr/local/sbin;/usr/local/bin;/usr/sbin;/usr/bin;/sbin;/bin",
+            "TERM": "dumb",
+            "CI": "1"
+          }
+        },
+        "captured": {
+          "FROM_SHELL": "2"
+        }
+      }
+    },
+    {
+      "name": "explicit-null",
+      "baseEnv": {},
+      "shellPath": null,
+      "shellFile": null,
+      "timeoutMs": null,
+      "output": "",
+      "expected": {
+        "resolvedShell": null,
+        "args": null,
+        "options": null,
+        "captured": null
+      }
+    },
+    {
+      "name": "no-markers",
+      "baseEnv": {},
+      "shellPath": "/bin/sh",
+      "shellFile": null,
+      "timeoutMs": null,
+      "output": "plain output without markers",
+      "expected": {
+        "resolvedShell": "/bin/sh",
+        "args": [
+          "-lc",
+          "printf '%s\\0' '__MODE_LOGIN_ENV_START__'; env -0; printf '%s\\0' '__MODE_LOGIN_ENV_END__'"
+        ],
+        "options": {
+          "timeout": 4000,
+          "maxBuffer": 2097152,
+          "env": {
+            "PATH": "/usr/local/sbin;/usr/local/bin;/usr/sbin;/usr/bin;/sbin;/bin",
+            "TERM": "dumb",
+            "CI": "1"
+          }
+        },
+        "captured": null
+      }
+    },
+    {
+      "name": "last-marker-pair",
+      "baseEnv": {},
+      "shellPath": "/bin/bash",
+      "shellFile": null,
+      "timeoutMs": null,
+      "output": "noise\u0000__MODE_LOGIN_ENV_START__\u0000OLD=1\u0000__MODE_LOGIN_ENV_END__\u0000noise\u0000__MODE_LOGIN_ENV_START__\u0000NEW=2\u0000SECOND=yes\u0000__MODE_LOGIN_ENV_END__\u0000",
+      "expected": {
+        "resolvedShell": "/bin/bash",
+        "args": [
+          "-ilc",
+          "printf '%s\\0' '__MODE_LOGIN_ENV_START__'; env -0; printf '%s\\0' '__MODE_LOGIN_ENV_END__'"
+        ],
+        "options": {
+          "timeout": 4000,
+          "maxBuffer": 2097152,
+          "env": {
+            "PATH": "/usr/local/sbin;/usr/local/bin;/usr/sbin;/usr/bin;/sbin;/bin",
+            "TERM": "dumb",
+            "CI": "1"
+          }
+        },
+        "captured": {
+          "NEW": "2",
+          "SECOND": "yes"
+        }
+      }
+    },
+    {
+      "name": "custom-timeout",
+      "baseEnv": {
+        "PATH": "/bin"
+      },
+      "shellPath": "/bin/zsh",
+      "shellFile": null,
+      "timeoutMs": 1234,
+      "output": "noise\u0000__MODE_LOGIN_ENV_START__\u0000\u0000__MODE_LOGIN_ENV_END__\u0000",
+      "expected": {
+        "resolvedShell": "/bin/zsh",
+        "args": [
+          "-ilc",
+          "printf '%s\\0' '__MODE_LOGIN_ENV_START__'; env -0; printf '%s\\0' '__MODE_LOGIN_ENV_END__'"
+        ],
+        "options": {
+          "timeout": 1234,
+          "maxBuffer": 2097152,
+          "env": {
+            "PATH": "/usr/local/sbin;/usr/local/bin;/usr/sbin;/usr/bin;/sbin;/bin",
+            "TERM": "dumb",
+            "CI": "1"
+          }
+        },
+        "captured": {}
+      }
+    }
+  ],
+  "agentRuntime": [
+    {
+      "name": "binary-env-override",
+      "cwd": "ws",
+      "env": {
+        "GLM_BINARY_PATH": "<root>/bin/mode-agent.exe"
+      },
+      "setup": [
+        "bin/mode-agent.exe"
+      ],
+      "expected": {
+        "binary": "<root>/bin/mode-agent.exe",
+        "nodeBundle": null
+      }
+    },
+    {
+      "name": "cwd-bundled-agents",
+      "cwd": "ws",
+      "env": {},
+      "setup": [
+        "ws/bundled-agents/win32-x64/glm/mode-agent.exe"
+      ],
+      "expected": {
+        "binary": "<root>\\ws\\bundled-agents\\win32-x64\\glm\\mode-agent.exe",
+        "nodeBundle": null
+      }
+    },
+    {
+      "name": "packages-desktop-bundled-agents",
+      "cwd": "ws",
+      "env": {},
+      "setup": [
+        "ws/packages/desktop/bundled-agents/win32-x64/glm/mode-agent.exe"
+      ],
+      "expected": {
+        "binary": "<root>\\ws\\packages\\desktop\\bundled-agents\\win32-x64\\glm\\mode-agent.exe",
+        "nodeBundle": null
+      }
+    },
+    {
+      "name": "sibling-desktop-bundled-agents",
+      "cwd": "ws",
+      "env": {},
+      "setup": [
+        "desktop/bundled-agents/win32-x64/glm/mode-agent.exe"
+      ],
+      "expected": {
+        "binary": "<root>\\desktop\\bundled-agents\\win32-x64\\glm\\mode-agent.exe",
+        "nodeBundle": null
+      }
+    },
+    {
+      "name": "legacy-cwd-bundled-resources",
+      "cwd": "ws",
+      "env": {},
+      "setup": [
+        "ws/bundled-resources/glm/mode-agent.exe"
+      ],
+      "expected": {
+        "binary": "<root>\\ws\\bundled-resources\\glm\\mode-agent.exe",
+        "nodeBundle": null
+      }
+    },
+    {
+      "name": "node-bundle-legacy-cwd",
+      "cwd": "ws",
+      "env": {},
+      "setup": [
+        "ws/bundled-resources/glm/mode.cjs"
+      ],
+      "expected": {
+        "binary": null,
+        "nodeBundle": "<root>\\ws\\bundled-resources\\glm\\mode.cjs"
+      }
+    },
+    {
+      "name": "node-bundle-bundled-agents",
+      "cwd": "ws",
+      "env": {},
+      "setup": [
+        "ws/bundled-agents/win32-x64/glm/mode.cjs"
+      ],
+      "expected": {
+        "binary": null,
+        "nodeBundle": "<root>\\ws\\bundled-agents\\win32-x64\\glm\\mode.cjs"
+      }
+    },
+    {
+      "name": "empty-env-falls-back",
+      "cwd": "ws",
+      "env": {
+        "GLM_BINARY_PATH": ""
+      },
+      "setup": [
+        "ws/bundled-resources/glm/mode-agent.exe"
+      ],
+      "expected": {
+        "binary": "<root>\\ws\\bundled-resources\\glm\\mode-agent.exe",
+        "nodeBundle": null
+      }
+    },
+    {
+      "name": "both-present",
+      "cwd": "ws",
+      "env": {},
+      "setup": [
+        "ws/bundled-agents/win32-x64/glm/mode-agent.exe",
+        "ws/bundled-agents/win32-x64/glm/mode.cjs"
+      ],
+      "expected": {
+        "binary": "<root>\\ws\\bundled-agents\\win32-x64\\glm\\mode-agent.exe",
+        "nodeBundle": "<root>\\ws\\bundled-agents\\win32-x64\\glm\\mode.cjs"
+      }
+    },
+    {
+      "name": "not-found",
+      "cwd": "ws",
+      "env": {},
+      "setup": [],
+      "expected": {
+        "binary": null,
+        "nodeBundle": null
+      }
+    }
+  ],
+  "capture": [
+    {
+      "name": "success",
+      "baseEnv": {},
+      "platform": "linux",
+      "shellPath": "/bin/sh",
+      "timeoutMs": 4000,
+      "behavior": "output",
+      "delayMs": null,
+      "output": "noise\u0000__MODE_LOGIN_ENV_START__\u0000CAPTURED=1\u0000__MODE_LOGIN_ENV_END__\u0000",
+      "expected": {
+        "captured": {
+          "CAPTURED": "1"
+        },
+        "called": true
+      }
+    },
+    {
+      "name": "win32-short-circuit",
+      "baseEnv": {},
+      "platform": "win32",
+      "shellPath": "/bin/sh",
+      "timeoutMs": 4000,
+      "behavior": "output",
+      "delayMs": null,
+      "output": "noise\u0000__MODE_LOGIN_ENV_START__\u0000SHOULD_NOT_RUN=1\u0000__MODE_LOGIN_ENV_END__\u0000",
+      "expected": {
+        "captured": null,
+        "called": false
+      }
+    },
+    {
+      "name": "vitest-short-circuit",
+      "baseEnv": {
+        "VITEST": "1"
+      },
+      "platform": "linux",
+      "shellPath": "/bin/sh",
+      "timeoutMs": 4000,
+      "behavior": "output",
+      "delayMs": null,
+      "output": "noise\u0000__MODE_LOGIN_ENV_START__\u0000SHOULD_NOT_RUN=1\u0000__MODE_LOGIN_ENV_END__\u0000",
+      "expected": {
+        "captured": null,
+        "called": false
+      }
+    },
+    {
+      "name": "sql-null",
+      "baseEnv": {},
+      "platform": "linux",
+      "shellPath": null,
+      "timeoutMs": 4000,
+      "behavior": "output",
+      "delayMs": null,
+      "output": "noise\u0000__MODE_LOGIN_ENV_START__\u0000SHOULD_NOT_RUN=1\u0000__MODE_LOGIN_ENV_END__\u0000",
+      "expected": {
+        "captured": null,
+        "called": false
+      }
+    },
+    {
+      "name": "executor-throws",
+      "baseEnv": {},
+      "platform": "linux",
+      "shellPath": "/bin/sh",
+      "timeoutMs": 4000,
+      "behavior": "throw",
+      "delayMs": null,
+      "output": "",
+      "expected": {
+        "captured": null,
+        "called": true
+      }
+    },
+    {
+      "name": "no-markers",
+      "baseEnv": {},
+      "platform": "linux",
+      "shellPath": "/bin/sh",
+      "timeoutMs": 4000,
+      "behavior": "output",
+      "delayMs": null,
+      "output": "plain",
+      "expected": {
+        "captured": null,
+        "called": true
+      }
+    },
+    {
+      "name": "timeout",
+      "baseEnv": {},
+      "platform": "linux",
+      "shellPath": "/bin/sh",
+      "timeoutMs": 5,
+      "behavior": "delay",
+      "delayMs": 50,
+      "output": "noise\u0000__MODE_LOGIN_ENV_START__\u0000TOO_LATE=1\u0000__MODE_LOGIN_ENV_END__\u0000",
+      "expected": {
+        "captured": null,
+        "called": true
+      }
+    }
+  ],
+  "clientPlatform": [
+    {
+      "platform": "win32",
+      "arch": "x64",
+      "env": {},
+      "expected": "windows-x86_64"
+    },
+    {
+      "platform": "darwin",
+      "arch": "arm64",
+      "env": {},
+      "expected": "darwin-aarch64"
+    },
+    {
+      "platform": "linux",
+      "arch": "x64",
+      "env": {},
+      "expected": "linux-x86_64"
+    },
+    {
+      "platform": "freebsd",
+      "arch": "riscv64",
+      "env": {},
+      "expected": "freebsd-riscv64"
+    },
+    {
+      "platform": "win32",
+      "arch": "x64",
+      "env": {
+        "MODE_TEST_RELEASE_TARGET": " linux "
+      },
+      "expected": "linux-x86_64"
+    },
+    {
+      "platform": "win32",
+      "arch": "x64",
+      "env": {
+        "MODE_TEST_RELEASE_ARCH": " arm64 "
+      },
+      "expected": "windows-arm64"
+    },
+    {
+      "platform": "win32",
+      "arch": "x64",
+      "env": {
+        "MODE_TEST_CLIENT_CONFIG_PLATFORM": " custom "
+      },
+      "expected": "custom"
+    },
+    {
+      "platform": "win32",
+      "arch": "x64",
+      "env": {
+        "MODE_TEST_CLIENT_CONFIG_PLATFORM": "   "
+      },
+      "expected": "windows-x86_64"
+    }
+  ]
+}

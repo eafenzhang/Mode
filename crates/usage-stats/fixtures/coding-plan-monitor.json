@@ -1,0 +1,1153 @@
+{
+  "now": 1700000000000,
+  "cases": [
+    {
+      "name": "legacy-model-and-tool-data",
+      "params": {
+        "request": {
+          "range": "7d"
+        },
+        "provider": {
+          "id": "account:bigmodel-individual-coding-plan",
+          "name": "BigModel Coding Plan"
+        },
+        "quota": {
+          "level": "pro",
+          "limits": []
+        },
+        "granularity": "day",
+        "xTime": [
+          "2026-01-02",
+          "2026-01-01"
+        ],
+        "startDateKey": "2026-01-01",
+        "endDateKey": "2026-01-02",
+        "modelData": {
+          "x_time": [
+            "2026-01-01",
+            "2026-01-02"
+          ],
+          "modelDataList": [
+            {
+              "modelName": " A ",
+              "sortOrder": 2,
+              "tokensUsage": [
+                1,
+                2
+              ],
+              "totalTokens": 3
+            },
+            {
+              "modelName": "B",
+              "tokensUsage": [
+                3,
+                4
+              ]
+            }
+          ],
+          "modelSummaryList": [
+            {
+              "modelName": " A ",
+              "totalTokens": 3,
+              "sortOrder": 2
+            },
+            {
+              "modelName": "B",
+              "totalTokens": 7,
+              "sortOrder": 1
+            }
+          ],
+          "totalUsage": {
+            "totalTokensUsage": 10,
+            "totalModelCallCount": 5
+          }
+        },
+        "toolData": {
+          "x_time": [
+            "2026-01-01",
+            "2026-01-02"
+          ],
+          "toolDataList": [
+            {
+              "toolName": " Web ",
+              "usageCount": [
+                4,
+                5
+              ],
+              "totalUsageCount": 9
+            }
+          ],
+          "totalUsage": {}
+        },
+        "activityData": {
+          "summary": {
+            "totalTokens": 10,
+            "peakDailyTokens": 7,
+            "peakDailyTokensDate": " 2026-01-02 ",
+            "totalUsageDurationMs": 1234,
+            "currentStreakDays": 2,
+            "longestStreakDays": 3
+          },
+          "series": [
+            {
+              "date": "2026-01-01",
+              "totalTokens": 3,
+              "modelCallCount": 1,
+              "mcpCalls": 0
+            },
+            {
+              "date": "2026-01-02",
+              "totalTokens": 7,
+              "modelCallCount": 2,
+              "mcpCalls": 4
+            }
+          ]
+        },
+        "modelDetailData": {
+          "summary": {
+            "totalCredits": {
+              "value": 2,
+              "trend": 0.5
+            }
+          }
+        },
+        "toolDetailData": {
+          "summary": {
+            "cacheHitRate": {
+              "value": "0.25"
+            }
+          }
+        },
+        "healthData": {
+          "xTime": [
+            "t1",
+            "t2"
+          ],
+          "proMaxDecodeSpeed": [
+            1,
+            "bad",
+            3
+          ],
+          "liteDecodeSpeed": [
+            0
+          ]
+        }
+      },
+      "expected": {
+        "range": "7d",
+        "rangeStartDate": "2026-01-01",
+        "rangeEndDate": "2026-01-02",
+        "generatedAt": 1700000000000,
+        "sourceProvider": {
+          "id": "account:bigmodel-individual-coding-plan",
+          "name": "BigModel Coding Plan"
+        },
+        "quota": {
+          "level": "pro",
+          "limits": []
+        },
+        "activity": {
+          "summary": {
+            "totalTokens": 10,
+            "peakDailyTokens": 7,
+            "peakDailyTokensDate": "2026-01-02",
+            "totalUsageDurationMs": 1234,
+            "currentStreakDays": 2,
+            "longestStreakDays": 3,
+            "favoriteModelName": "B"
+          },
+          "heatmap": {
+            "startDate": "2026-01-01",
+            "endDate": "2026-01-02",
+            "maxTokens": 7,
+            "weeks": [
+              {
+                "weekIndex": 0,
+                "days": [
+                  null,
+                  null,
+                  null,
+                  null,
+                  {
+                    "date": "2026-01-01",
+                    "totalTokens": 3,
+                    "turnCount": 1,
+                    "toolCallCount": 0,
+                    "level": 2
+                  },
+                  {
+                    "date": "2026-01-02",
+                    "totalTokens": 7,
+                    "turnCount": 2,
+                    "toolCallCount": 4,
+                    "level": 4
+                  },
+                  null
+                ]
+              }
+            ]
+          }
+        },
+        "detail": {
+          "model": {
+            "cacheHitRate": null,
+            "cacheHitRateTrend": null,
+            "totalCredits": 2,
+            "totalCreditsTrend": 0.5,
+            "averageDailyCredits": 0,
+            "averageDailyCreditsTrend": null
+          },
+          "tool": {
+            "cacheHitRate": 0.25,
+            "cacheHitRateTrend": null,
+            "totalCredits": 0,
+            "totalCreditsTrend": null,
+            "averageDailyCredits": 0,
+            "averageDailyCreditsTrend": null
+          }
+        },
+        "modelUsage": {
+          "xTime": [
+            "2026-01-02",
+            "2026-01-01"
+          ],
+          "granularity": "day",
+          "totalModelCallCount": 5,
+          "totalTokensUsage": 10,
+          "modelDataList": [
+            {
+              "modelName": "B",
+              "sortOrder": 1,
+              "tokensUsage": [
+                4,
+                3
+              ],
+              "totalTokens": 0
+            },
+            {
+              "modelName": "A",
+              "sortOrder": 2,
+              "tokensUsage": [
+                2,
+                1
+              ],
+              "totalTokens": 3
+            }
+          ],
+          "modelSummaryList": [
+            {
+              "modelName": "B",
+              "totalTokens": 7,
+              "sortOrder": 1
+            },
+            {
+              "modelName": "A",
+              "totalTokens": 3,
+              "sortOrder": 2
+            }
+          ]
+        },
+        "toolUsage": {
+          "xTime": [
+            "2026-01-02",
+            "2026-01-01"
+          ],
+          "granularity": "day",
+          "toolDataList": [
+            {
+              "toolCode": "Web",
+              "toolName": "Web",
+              "sortOrder": 0,
+              "usageCount": [
+                5,
+                4
+              ],
+              "totalUsageCount": 9
+            }
+          ],
+          "toolSummaryList": []
+        },
+        "health": {
+          "xTime": [
+            "t1",
+            "t2"
+          ],
+          "proMaxDecodeSpeed": [
+            1,
+            0,
+            3
+          ],
+          "liteDecodeSpeed": [
+            0
+          ]
+        }
+      }
+    },
+    {
+      "name": "credit-usage-with-breakdowns",
+      "params": {
+        "request": {
+          "range": "30d"
+        },
+        "provider": {
+          "id": "account:bigmodel-individual-coding-plan",
+          "name": "BigModel Coding Plan"
+        },
+        "quota": null,
+        "granularity": "day",
+        "xTime": [
+          "2026-01-02",
+          "2026-01-01"
+        ],
+        "startDateKey": "2026-01-01",
+        "endDateKey": "2026-01-02",
+        "activityData": {
+          "summary": {
+            "totalTokens": 25,
+            "peakDailyTokens": 20,
+            "peakDailyTokensDate": "2026-01-02"
+          },
+          "series": [
+            {
+              "date": "2026-01-04",
+              "totalTokens": 5,
+              "modelCallCount": 1,
+              "mcpCalls": 2
+            },
+            {
+              "date": "2026-01-01",
+              "totalTokens": 20,
+              "modelCallCount": 2,
+              "mcpCalls": 1
+            },
+            {
+              "date": "2026-01-03",
+              "totalTokens": 0,
+              "modelCallCount": 0,
+              "mcpCalls": 0
+            },
+            {
+              "date": "bad",
+              "totalTokens": 99
+            }
+          ]
+        },
+        "modelDetailData": {
+          "summary": {
+            "cacheHitRate": {
+              "value": "0.5",
+              "trend": -0.1
+            },
+            "totalCredits": {
+              "value": 12,
+              "trend": "3"
+            },
+            "averageDailyCredits": {
+              "value": 4
+            }
+          },
+          "modelUsage": {
+            "xTime": [
+              "2026-01-01",
+              "2026-01-02"
+            ],
+            "modelDataList": [
+              {
+                "modelName": " GLM 5 ",
+                "modelCode": "glm-5",
+                "sortOrder": 1,
+                "totalTokens": 10,
+                "totalCredits": 2,
+                "totalTokensUsage": [
+                  1,
+                  2
+                ],
+                "totalCreditsUsage": [
+                  0.5,
+                  1
+                ],
+                "cachedInputTokensUsage": [
+                  1
+                ],
+                "uncachedInputTokensUsage": [
+                  2
+                ],
+                "outputTokensUsage": [
+                  3
+                ],
+                "cachedInputCreditsUsage": [
+                  1
+                ],
+                "uncachedInputCreditsUsage": [
+                  2
+                ],
+                "outputCreditsUsage": [
+                  3
+                ]
+              },
+              {
+                "modelCode": "cached_input",
+                "totalTokens": 99
+              },
+              {
+                "modelName": "bucket",
+                "modelCode": "output",
+                "totalTokens": 88
+              },
+              {
+                "modelName": "split",
+                "tokensUsage": [
+                  4,
+                  5
+                ],
+                "cachedInputTokensUsage": [
+                  1,
+                  2
+                ],
+                "uncachedInputTokensUsage": [
+                  3,
+                  4
+                ],
+                "outputTokensUsage": [
+                  5,
+                  6
+                ],
+                "totalTokens": 15
+              }
+            ]
+          }
+        },
+        "toolDetailData": {
+          "summary": {
+            "totalCredits": {
+              "value": 1
+            },
+            "averageDailyCredits": {
+              "value": "0.5"
+            }
+          },
+          "mcpUsage": {
+            "xTime": [
+              "2026-01-01",
+              "2026-01-02"
+            ],
+            "mcpDataList": [
+              {
+                "mcpName": " Web ",
+                "mcpCode": "web",
+                "sortOrder": 2,
+                "mcpCallCount": [
+                  1,
+                  2
+                ],
+                "creditsUsage": [
+                  0.5,
+                  1
+                ],
+                "totalCredits": 3
+              },
+              {
+                "toolCode": "tool-only",
+                "usageCount": [
+                  5
+                ]
+              },
+              {
+                "mcpName": "no-code",
+                "usageCount": [
+                  7,
+                  8
+                ],
+                "totalUsageCount": 20
+              }
+            ]
+          }
+        },
+        "healthData": {
+          "x_time": [
+            "a"
+          ],
+          "proMaxDecodeSpeed": [
+            "2"
+          ],
+          "liteDecodeSpeed": []
+        }
+      },
+      "expected": {
+        "range": "30d",
+        "rangeStartDate": "2026-01-01",
+        "rangeEndDate": "2026-01-02",
+        "generatedAt": 1700000000000,
+        "sourceProvider": {
+          "id": "account:bigmodel-individual-coding-plan",
+          "name": "BigModel Coding Plan"
+        },
+        "quota": null,
+        "activity": {
+          "summary": {
+            "totalTokens": 25,
+            "peakDailyTokens": 20,
+            "peakDailyTokensDate": "2026-01-02",
+            "totalUsageDurationMs": 0,
+            "currentStreakDays": 0,
+            "longestStreakDays": 0,
+            "favoriteModelName": "GLM 5"
+          },
+          "heatmap": {
+            "startDate": "2026-01-01",
+            "endDate": "2026-01-04",
+            "maxTokens": 20,
+            "weeks": [
+              {
+                "weekIndex": 0,
+                "days": [
+                  null,
+                  null,
+                  null,
+                  null,
+                  {
+                    "date": "2026-01-01",
+                    "totalTokens": 20,
+                    "turnCount": 2,
+                    "toolCallCount": 1,
+                    "level": 4
+                  },
+                  null,
+                  {
+                    "date": "2026-01-03",
+                    "totalTokens": 0,
+                    "turnCount": 0,
+                    "toolCallCount": 0,
+                    "level": 0
+                  }
+                ]
+              },
+              {
+                "weekIndex": 1,
+                "days": [
+                  {
+                    "date": "2026-01-04",
+                    "totalTokens": 5,
+                    "turnCount": 1,
+                    "toolCallCount": 2,
+                    "level": 1
+                  },
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              }
+            ]
+          }
+        },
+        "detail": {
+          "model": {
+            "cacheHitRate": 0.5,
+            "cacheHitRateTrend": -0.1,
+            "totalCredits": 12,
+            "totalCreditsTrend": 3,
+            "averageDailyCredits": 4,
+            "averageDailyCreditsTrend": null
+          },
+          "tool": {
+            "cacheHitRate": null,
+            "cacheHitRateTrend": null,
+            "totalCredits": 1,
+            "totalCreditsTrend": null,
+            "averageDailyCredits": 0.5,
+            "averageDailyCreditsTrend": null
+          }
+        },
+        "modelUsage": {
+          "xTime": [
+            "2026-01-02",
+            "2026-01-01"
+          ],
+          "granularity": "day",
+          "totalModelCallCount": 4,
+          "totalTokensUsage": 25,
+          "modelDataList": [
+            {
+              "modelName": "GLM 5",
+              "sortOrder": 1,
+              "tokensUsage": [
+                2,
+                1
+              ],
+              "creditsUsage": [
+                1,
+                0.5
+              ],
+              "cachedInputTokensUsage": [
+                0,
+                1
+              ],
+              "uncachedInputTokensUsage": [
+                0,
+                2
+              ],
+              "outputTokensUsage": [
+                0,
+                3
+              ],
+              "cachedInputCreditsUsage": [
+                0,
+                1
+              ],
+              "uncachedInputCreditsUsage": [
+                0,
+                2
+              ],
+              "outputCreditsUsage": [
+                0,
+                3
+              ],
+              "totalTokens": 10,
+              "totalCredits": 2
+            },
+            {
+              "modelName": "split",
+              "sortOrder": 1,
+              "tokensUsage": [
+                5,
+                4
+              ],
+              "creditsUsage": [
+                0,
+                0
+              ],
+              "cachedInputTokensUsage": [
+                2,
+                1
+              ],
+              "uncachedInputTokensUsage": [
+                4,
+                3
+              ],
+              "outputTokensUsage": [
+                6,
+                5
+              ],
+              "cachedInputCreditsUsage": [
+                0,
+                0
+              ],
+              "uncachedInputCreditsUsage": [
+                0,
+                0
+              ],
+              "outputCreditsUsage": [
+                0,
+                0
+              ],
+              "totalTokens": 15,
+              "totalCredits": 0
+            }
+          ],
+          "modelSummaryList": [
+            {
+              "modelName": "GLM 5",
+              "totalTokens": 10,
+              "totalCredits": 2,
+              "sortOrder": 1
+            },
+            {
+              "modelName": "split",
+              "totalTokens": 15,
+              "totalCredits": 0,
+              "sortOrder": 1
+            }
+          ]
+        },
+        "toolUsage": {
+          "xTime": [
+            "2026-01-02",
+            "2026-01-01"
+          ],
+          "granularity": "day",
+          "toolDataList": [
+            {
+              "toolCode": "tool-only",
+              "toolName": "tool-only",
+              "sortOrder": 1,
+              "usageCount": [
+                0,
+                5
+              ],
+              "creditsUsage": [
+                0,
+                0
+              ],
+              "totalUsageCount": 5,
+              "totalCredits": 0
+            },
+            {
+              "toolCode": "web",
+              "toolName": "Web",
+              "sortOrder": 2,
+              "usageCount": [
+                2,
+                1
+              ],
+              "creditsUsage": [
+                1,
+                0.5
+              ],
+              "totalUsageCount": 3,
+              "totalCredits": 3
+            },
+            {
+              "toolCode": "no-code",
+              "toolName": "no-code",
+              "sortOrder": 2,
+              "usageCount": [
+                8,
+                7
+              ],
+              "creditsUsage": [
+                0,
+                0
+              ],
+              "totalUsageCount": 20,
+              "totalCredits": 0
+            }
+          ],
+          "toolSummaryList": [
+            {
+              "toolCode": "tool-only",
+              "toolName": "tool-only",
+              "totalUsageCount": 5,
+              "totalCredits": 0,
+              "sortOrder": 1
+            },
+            {
+              "toolCode": "web",
+              "toolName": "Web",
+              "totalUsageCount": 3,
+              "totalCredits": 3,
+              "sortOrder": 2
+            },
+            {
+              "toolCode": "no-code",
+              "toolName": "no-code",
+              "totalUsageCount": 20,
+              "totalCredits": 0,
+              "sortOrder": 2
+            }
+          ]
+        },
+        "health": {
+          "xTime": [
+            "a"
+          ],
+          "proMaxDecodeSpeed": [
+            2
+          ],
+          "liteDecodeSpeed": []
+        }
+      }
+    },
+    {
+      "name": "credit-breakdown-only",
+      "params": {
+        "request": {
+          "range": "today"
+        },
+        "provider": {
+          "id": "account:bigmodel-individual-coding-plan",
+          "name": "BigModel Coding Plan"
+        },
+        "quota": null,
+        "granularity": "day",
+        "xTime": [
+          "2026-01-01"
+        ],
+        "startDateKey": "2026-01-01",
+        "endDateKey": "2026-01-01",
+        "activityData": {
+          "summary": null,
+          "series": []
+        },
+        "modelDetailData": {
+          "summary": null,
+          "modelUsage": {
+            "xTime": [
+              "2026-01-01"
+            ],
+            "modelDataList": [
+              {
+                "modelCode": "cached_input",
+                "totalTokens": 3
+              },
+              {
+                "modelName": "缓存",
+                "totalTokens": 4
+              },
+              {
+                "modelCode": "output_tokens",
+                "totalTokens": 5
+              }
+            ]
+          }
+        },
+        "toolDetailData": {
+          "summary": null,
+          "mcpUsage": null
+        },
+        "healthData": {}
+      },
+      "expected": {
+        "range": "today",
+        "rangeStartDate": "2026-01-01",
+        "rangeEndDate": "2026-01-01",
+        "generatedAt": 1700000000000,
+        "sourceProvider": {
+          "id": "account:bigmodel-individual-coding-plan",
+          "name": "BigModel Coding Plan"
+        },
+        "quota": null,
+        "activity": {
+          "summary": {
+            "totalTokens": 0,
+            "peakDailyTokens": 0,
+            "peakDailyTokensDate": null,
+            "totalUsageDurationMs": 0,
+            "currentStreakDays": 0,
+            "longestStreakDays": 0,
+            "favoriteModelName": null
+          },
+          "heatmap": {
+            "startDate": null,
+            "endDate": null,
+            "maxTokens": 0,
+            "weeks": []
+          }
+        },
+        "detail": {
+          "model": {
+            "cacheHitRate": null,
+            "cacheHitRateTrend": null,
+            "totalCredits": 0,
+            "totalCreditsTrend": null,
+            "averageDailyCredits": 0,
+            "averageDailyCreditsTrend": null
+          },
+          "tool": {
+            "cacheHitRate": null,
+            "cacheHitRateTrend": null,
+            "totalCredits": 0,
+            "totalCreditsTrend": null,
+            "averageDailyCredits": 0,
+            "averageDailyCreditsTrend": null
+          }
+        },
+        "modelUsage": {
+          "xTime": [
+            "2026-01-01"
+          ],
+          "granularity": "day",
+          "totalModelCallCount": 3,
+          "totalTokensUsage": 12,
+          "modelDataList": [],
+          "modelSummaryList": []
+        },
+        "toolUsage": {
+          "xTime": [
+            "2026-01-01"
+          ],
+          "granularity": "day",
+          "toolDataList": [],
+          "toolSummaryList": []
+        },
+        "health": {
+          "xTime": [],
+          "proMaxDecodeSpeed": [],
+          "liteDecodeSpeed": []
+        }
+      }
+    },
+    {
+      "name": "empty-params",
+      "params": {
+        "request": {
+          "range": "today"
+        },
+        "provider": {
+          "id": "account:bigmodel-individual-coding-plan",
+          "name": "BigModel Coding Plan"
+        },
+        "quota": null,
+        "granularity": "day",
+        "xTime": [],
+        "startDateKey": "2026-01-01",
+        "endDateKey": "2026-01-01"
+      },
+      "expected": {
+        "range": "today",
+        "rangeStartDate": "2026-01-01",
+        "rangeEndDate": "2026-01-01",
+        "generatedAt": 1700000000000,
+        "sourceProvider": {
+          "id": "account:bigmodel-individual-coding-plan",
+          "name": "BigModel Coding Plan"
+        },
+        "quota": null,
+        "activity": {
+          "summary": {
+            "totalTokens": 0,
+            "peakDailyTokens": 0,
+            "peakDailyTokensDate": null,
+            "totalUsageDurationMs": 0,
+            "currentStreakDays": 0,
+            "longestStreakDays": 0,
+            "favoriteModelName": null
+          },
+          "heatmap": {
+            "startDate": null,
+            "endDate": null,
+            "maxTokens": 0,
+            "weeks": []
+          }
+        },
+        "detail": {
+          "model": {
+            "cacheHitRate": null,
+            "cacheHitRateTrend": null,
+            "totalCredits": 0,
+            "totalCreditsTrend": null,
+            "averageDailyCredits": 0,
+            "averageDailyCreditsTrend": null
+          },
+          "tool": {
+            "cacheHitRate": null,
+            "cacheHitRateTrend": null,
+            "totalCredits": 0,
+            "totalCreditsTrend": null,
+            "averageDailyCredits": 0,
+            "averageDailyCreditsTrend": null
+          }
+        },
+        "modelUsage": {
+          "xTime": [],
+          "granularity": "day",
+          "totalModelCallCount": 0,
+          "totalTokensUsage": 0,
+          "modelDataList": [],
+          "modelSummaryList": []
+        },
+        "toolUsage": {
+          "xTime": [],
+          "granularity": "day",
+          "toolDataList": [],
+          "toolSummaryList": []
+        },
+        "health": {
+          "xTime": [],
+          "proMaxDecodeSpeed": [],
+          "liteDecodeSpeed": []
+        }
+      }
+    },
+    {
+      "name": "hourly-axis-alignment",
+      "params": {
+        "request": {
+          "range": "today"
+        },
+        "provider": {
+          "id": "account:bigmodel-individual-coding-plan",
+          "name": "BigModel Coding Plan"
+        },
+        "quota": null,
+        "granularity": "hour",
+        "xTime": [
+          "00:00:00",
+          "01:00:00"
+        ],
+        "startDateKey": "2026-01-01",
+        "endDateKey": "2026-01-01",
+        "modelData": {
+          "x_time": [
+            "2026-01-01 01:00",
+            "2026-01-01 00:00"
+          ],
+          "modelDataList": [
+            {
+              "modelName": "A",
+              "tokensUsage": [
+                9,
+                8
+              ],
+              "totalTokens": 17
+            }
+          ],
+          "modelSummaryList": [
+            {
+              "modelName": "A",
+              "totalTokens": 17
+            }
+          ]
+        },
+        "toolData": {
+          "x_time": [
+            "2026-01-01 00:00",
+            "2026-01-01 01:00"
+          ],
+          "toolDataList": [
+            {
+              "toolCode": "t",
+              "usageCount": [
+                1,
+                2
+              ]
+            }
+          ]
+        },
+        "activityData": {
+          "series": [
+            {
+              "date": "2026-02-31",
+              "totalTokens": 6,
+              "modelCallCount": 1,
+              "mcpCalls": 0
+            },
+            {
+              "date": "2026-13-01",
+              "totalTokens": 99
+            },
+            {
+              "date": "2026-03-01",
+              "totalTokens": 1,
+              "modelCallCount": 0,
+              "mcpCalls": 0
+            }
+          ]
+        },
+        "healthData": {
+          "x_time": [],
+          "liteDecodeSpeed": []
+        }
+      },
+      "expected": {
+        "range": "today",
+        "rangeStartDate": "2026-01-01",
+        "rangeEndDate": "2026-01-01",
+        "generatedAt": 1700000000000,
+        "sourceProvider": {
+          "id": "account:bigmodel-individual-coding-plan",
+          "name": "BigModel Coding Plan"
+        },
+        "quota": null,
+        "activity": {
+          "summary": {
+            "totalTokens": 0,
+            "peakDailyTokens": 0,
+            "peakDailyTokensDate": null,
+            "totalUsageDurationMs": 0,
+            "currentStreakDays": 0,
+            "longestStreakDays": 0,
+            "favoriteModelName": "A"
+          },
+          "heatmap": {
+            "startDate": "2026-02-31",
+            "endDate": "2026-13-01",
+            "maxTokens": 99,
+            "weeks": [
+              {
+                "weekIndex": 0,
+                "days": [
+                  {
+                    "date": "2026-03-01",
+                    "totalTokens": 1,
+                    "turnCount": 0,
+                    "toolCallCount": 0,
+                    "level": 1
+                  },
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              }
+            ]
+          }
+        },
+        "detail": {
+          "model": {
+            "cacheHitRate": null,
+            "cacheHitRateTrend": null,
+            "totalCredits": 0,
+            "totalCreditsTrend": null,
+            "averageDailyCredits": 0,
+            "averageDailyCreditsTrend": null
+          },
+          "tool": {
+            "cacheHitRate": null,
+            "cacheHitRateTrend": null,
+            "totalCredits": 0,
+            "totalCreditsTrend": null,
+            "averageDailyCredits": 0,
+            "averageDailyCreditsTrend": null
+          }
+        },
+        "modelUsage": {
+          "xTime": [
+            "00:00:00",
+            "01:00:00"
+          ],
+          "granularity": "hour",
+          "totalModelCallCount": 0,
+          "totalTokensUsage": 0,
+          "modelDataList": [
+            {
+              "modelName": "A",
+              "sortOrder": 0,
+              "tokensUsage": [
+                8,
+                9
+              ],
+              "totalTokens": 17
+            }
+          ],
+          "modelSummaryList": [
+            {
+              "modelName": "A",
+              "totalTokens": 17,
+              "sortOrder": 0
+            }
+          ]
+        },
+        "toolUsage": {
+          "xTime": [
+            "00:00:00",
+            "01:00:00"
+          ],
+          "granularity": "hour",
+          "toolDataList": [
+            {
+              "toolCode": "t",
+              "toolName": "t",
+              "sortOrder": 0,
+              "usageCount": [
+                1,
+                2
+              ],
+              "totalUsageCount": 0
+            }
+          ],
+          "toolSummaryList": []
+        },
+        "health": {
+          "xTime": [],
+          "proMaxDecodeSpeed": [],
+          "liteDecodeSpeed": []
+        }
+      }
+    }
+  ]
+}

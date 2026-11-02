@@ -1,0 +1,585 @@
+{
+  "normalized": [
+    {
+      "value": "development",
+      "expected": "development"
+    },
+    {
+      "value": " PRODUCTION ",
+      "expected": "production"
+    },
+    {
+      "value": "test",
+      "expected": "test"
+    },
+    {
+      "value": "staging",
+      "expected": null
+    },
+    {
+      "value": null,
+      "expected": null
+    }
+  ],
+  "resolved": [
+    {
+      "env": {
+        "MODE_RUNTIME_ENV": "development"
+      },
+      "fallback": null,
+      "expected": "development"
+    },
+    {
+      "env": {
+        "MODE_RUNTIME_ENV": "TEST"
+      },
+      "fallback": null,
+      "expected": "test"
+    },
+    {
+      "env": {
+        "MODE_RUNTIME_ENV": "staging"
+      },
+      "fallback": null,
+      "expected": "production"
+    },
+    {
+      "env": {},
+      "fallback": null,
+      "expected": "production"
+    },
+    {
+      "env": {},
+      "fallback": "test",
+      "expected": "test"
+    }
+  ],
+  "cua": [
+    {
+      "env": {
+        "MODE_CUA_DEV_MODE": "1"
+      },
+      "devMode": true,
+      "internalEnabled": true
+    },
+    {
+      "env": {
+        "MODE_CUA_DEV_MODE": " TRUE "
+      },
+      "devMode": true,
+      "internalEnabled": true
+    },
+    {
+      "env": {
+        "MODE_CUA_DEV_MODE": "on"
+      },
+      "devMode": true,
+      "internalEnabled": true
+    },
+    {
+      "env": {
+        "MODE_CUA_DEV_MODE": "yes"
+      },
+      "devMode": false,
+      "internalEnabled": true
+    },
+    {
+      "env": {
+        "MODE_CUA_PRODUCT_HELPER": "off"
+      },
+      "devMode": false,
+      "internalEnabled": false
+    },
+    {
+      "env": {
+        "MODE_CUA_PRODUCT_HELPER": "0"
+      },
+      "devMode": false,
+      "internalEnabled": false
+    },
+    {
+      "env": {
+        "MODE_CUA_PRODUCT_HELPER": "1"
+      },
+      "devMode": false,
+      "internalEnabled": true
+    },
+    {
+      "env": {},
+      "devMode": false,
+      "internalEnabled": true
+    },
+    {
+      "env": {
+        "MODE_CUA_DEV_MODE": "1",
+        "MODE_CUA_PRODUCT_HELPER": "off"
+      },
+      "devMode": true,
+      "internalEnabled": true
+    }
+  ],
+  "sanitize": [
+    {
+      "name": "filters-proxy-and-telemetry",
+      "env": {
+        "PATH": "/usr/bin",
+        "NODE_ENV": "production",
+        "HTTP_PROXY": "http://proxy",
+        "https_proxy": "http://proxy",
+        "NPM_CONFIG_HTTP_PROXY": "http://proxy",
+        "NPM_CONFIG_USERCONFIG": "/home/.npmrc",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://otel",
+        "MODE_TELEMETRY_USER_ID": "user",
+        "MODE_RUNTIME_ENV": "development",
+        "MODE_AGENT_CA_CERT": "/ca.pem",
+        "YARN_CA": "/ca.pem",
+        "PNPM_CAFILE": "/ca.pem",
+        "YARN_REGISTRY": "https://registry"
+      },
+      "expected": {
+        "PATH": "/usr/bin",
+        "NPM_CONFIG_USERCONFIG": "/home/.npmrc",
+        "MODE_RUNTIME_ENV": "development",
+        "MODE_AGENT_CA_CERT": "/ca.pem",
+        "YARN_REGISTRY": "https://registry"
+      },
+      "inPlace": {
+        "PATH": "/usr/bin",
+        "NPM_CONFIG_USERCONFIG": "/home/.npmrc",
+        "MODE_RUNTIME_ENV": "development",
+        "MODE_AGENT_CA_CERT": "/ca.pem",
+        "YARN_REGISTRY": "https://registry"
+      },
+      "captured": {}
+    },
+    {
+      "name": "captures-broker-credentials",
+      "env": {
+        "MODE_CUA_PERMISSION_BROKER_SOCKET": " /tmp/broker.sock ",
+        "MODE_CUA_PLUGIN_AUTHORITY": " authority-1 ",
+        "MODE_CUA_PERMISSION_BROKER_REFRESH_MARKER": " marker ",
+        "KEEP": "1"
+      },
+      "expected": {
+        "KEEP": "1"
+      },
+      "inPlace": {
+        "KEEP": "1"
+      },
+      "captured": {
+        "socket": "/tmp/broker.sock",
+        "pluginAuthority": "authority-1",
+        "refreshMarker": "marker"
+      }
+    },
+    {
+      "name": "ignores-half-credentials",
+      "env": {
+        "MODE_CUA_PERMISSION_BROKER_SOCKET": "/tmp/broker.sock"
+      },
+      "expected": {},
+      "inPlace": {},
+      "captured": {}
+    },
+    {
+      "name": "empty-broker-values",
+      "env": {
+        "MODE_CUA_PERMISSION_BROKER_SOCKET": "   ",
+        "MODE_CUA_PLUGIN_AUTHORITY": ""
+      },
+      "expected": {},
+      "inPlace": {},
+      "captured": {}
+    }
+  ],
+  "sequences": [
+    {
+      "name": "capture-then-clear-half",
+      "steps": [
+        {
+          "env": {
+            "MODE_CUA_PERMISSION_BROKER_SOCKET": "/tmp/a.sock",
+            "MODE_CUA_PLUGIN_AUTHORITY": "auth-a"
+          },
+          "expected": {},
+          "captured": {
+            "socket": "/tmp/a.sock",
+            "pluginAuthority": "auth-a"
+          }
+        },
+        {
+          "env": {
+            "MODE_CUA_PLUGIN_AUTHORITY": "auth-b"
+          },
+          "expected": {},
+          "captured": {}
+        }
+      ]
+    },
+    {
+      "name": "unrelated-env-keeps-capture",
+      "steps": [
+        {
+          "env": {
+            "MODE_CUA_PERMISSION_BROKER_SOCKET": "/tmp/a.sock",
+            "MODE_CUA_PLUGIN_AUTHORITY": "auth-a",
+            "MODE_CUA_PERMISSION_BROKER_REFRESH_MARKER": "m1"
+          },
+          "expected": {},
+          "captured": {
+            "socket": "/tmp/a.sock",
+            "pluginAuthority": "auth-a",
+            "refreshMarker": "m1"
+          }
+        },
+        {
+          "env": {
+            "PATH": "/bin"
+          },
+          "expected": {
+            "PATH": "/bin"
+          },
+          "captured": {
+            "socket": "/tmp/a.sock",
+            "pluginAuthority": "auth-a",
+            "refreshMarker": "m1"
+          }
+        }
+      ]
+    }
+  ],
+  "keys": [
+    {
+      "key": "PATH",
+      "sanitize": false,
+      "capture": false
+    },
+    {
+      "key": "NODE_ENV",
+      "sanitize": true,
+      "capture": false
+    },
+    {
+      "key": "HTTP_PROXY",
+      "sanitize": true,
+      "capture": true
+    },
+    {
+      "key": "http_proxy",
+      "sanitize": true,
+      "capture": true
+    },
+    {
+      "key": "NPM_CONFIG_HTTPS_PROXY",
+      "sanitize": true,
+      "capture": true
+    },
+    {
+      "key": "npm_config_cafile",
+      "sanitize": true,
+      "capture": true
+    },
+    {
+      "key": "YARN_PROXY",
+      "sanitize": true,
+      "capture": true
+    },
+    {
+      "key": "pnpm_no_proxy",
+      "sanitize": true,
+      "capture": true
+    },
+    {
+      "key": "YARN_REGISTRY",
+      "sanitize": false,
+      "capture": false
+    },
+    {
+      "key": "OTEL_EXPORTER_OTLP_HEADERS",
+      "sanitize": true,
+      "capture": false
+    },
+    {
+      "key": "MODE_TELEMETRY_DEVICE_MID",
+      "sanitize": true,
+      "capture": false
+    },
+    {
+      "key": "MODE_TELEMETRY_USER_ID",
+      "sanitize": true,
+      "capture": false
+    },
+    {
+      "key": "MODE_MODEL_TELEMETRY_ENABLED",
+      "sanitize": true,
+      "capture": false
+    },
+    {
+      "key": "MODE_CUA_PERMISSION_BROKER_SOCKET",
+      "sanitize": true,
+      "capture": false
+    },
+    {
+      "key": "MODE_CUA_PERMISSION_BROKER_REFRESH_MARKER",
+      "sanitize": true,
+      "capture": false
+    },
+    {
+      "key": "MODE_CUA_PLUGIN_AUTHORITY",
+      "sanitize": true,
+      "capture": false
+    },
+    {
+      "key": "MODE_REMOTE_HTTP_PROXY",
+      "sanitize": true,
+      "capture": false
+    },
+    {
+      "key": "MODE_REMOTE_NO_PROXY",
+      "sanitize": true,
+      "capture": false
+    },
+    {
+      "key": "MODE_AGENT_CA_CERT",
+      "sanitize": false,
+      "capture": false
+    }
+  ],
+  "readPassthrough": [
+    {
+      "name": "valid",
+      "env": {
+        "MODE_TOOL_ENV_PASSTHROUGH_JSON": "{\"HTTP_PROXY\":\"http://proxy\",\"NODE_ENV\":\"production\",\"BAD-KEY\":\"x\",\"OTEL_HEADERS\":\"x\",\"MODE_AGENT_CA_CERT\":\"/ca.pem\",\"NUM\":1}"
+      },
+      "expected": {
+        "HTTP_PROXY": "http://proxy"
+      }
+    },
+    {
+      "name": "invalid-json",
+      "env": {
+        "MODE_TOOL_ENV_PASSTHROUGH_JSON": "not json"
+      },
+      "expected": {}
+    },
+    {
+      "name": "array",
+      "env": {
+        "MODE_TOOL_ENV_PASSTHROUGH_JSON": "[1,2]"
+      },
+      "expected": {}
+    },
+    {
+      "name": "empty",
+      "env": {
+        "MODE_TOOL_ENV_PASSTHROUGH_JSON": ""
+      },
+      "expected": {}
+    },
+    {
+      "name": "missing",
+      "env": {
+        "PATH": "/bin"
+      },
+      "expected": {}
+    }
+  ],
+  "buildPassthrough": [
+    {
+      "name": "merges-existing-and-env",
+      "env": {
+        "MODE_TOOL_ENV_PASSTHROUGH_JSON": "{\"HTTP_PROXY\":\"old\",\"IGNORED\":\"x\"}",
+        "HTTPS_PROXY": "new",
+        "NODE_ENV": "production",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://otel",
+        "PATH": "/bin"
+      },
+      "expected": {
+        "MODE_TOOL_ENV_PASSTHROUGH_JSON": "{\"HTTP_PROXY\":\"old\",\"HTTPS_PROXY\":\"new\"}"
+      }
+    },
+    {
+      "name": "only-telemetry",
+      "env": {
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://otel",
+        "PATH": "/bin"
+      },
+      "expected": {}
+    },
+    {
+      "name": "empty",
+      "env": {},
+      "expected": {}
+    }
+  ],
+  "agentRuntime": [
+    {
+      "input": {},
+      "expected": {}
+    },
+    {
+      "input": {
+        "httpProxy": "proxy.local:8080"
+      },
+      "expected": {
+        "HTTP_PROXY": "http://proxy.local:8080",
+        "HTTPS_PROXY": "http://proxy.local:8080",
+        "ALL_PROXY": "http://proxy.local:8080",
+        "MODE_HTTP_PROXY": "http://proxy.local:8080"
+      }
+    },
+    {
+      "input": {
+        "httpProxy": " socks5://proxy:1080 "
+      },
+      "expected": {
+        "HTTP_PROXY": "socks5://proxy:1080",
+        "HTTPS_PROXY": "socks5://proxy:1080",
+        "ALL_PROXY": "socks5://proxy:1080",
+        "MODE_HTTP_PROXY": "socks5://proxy:1080"
+      }
+    },
+    {
+      "input": {
+        "httpProxy": "HTTP://Proxy:3128"
+      },
+      "expected": {
+        "HTTP_PROXY": "HTTP://Proxy:3128",
+        "HTTPS_PROXY": "HTTP://Proxy:3128",
+        "ALL_PROXY": "HTTP://Proxy:3128",
+        "MODE_HTTP_PROXY": "HTTP://Proxy:3128"
+      }
+    },
+    {
+      "input": {
+        "httpProxy": "   "
+      },
+      "expected": {}
+    },
+    {
+      "input": {
+        "httpProxy": "http://a",
+        "noProxy": " a, ,b , ",
+        "caCertPath": " /ca.pem "
+      },
+      "expected": {
+        "HTTP_PROXY": "http://a",
+        "HTTPS_PROXY": "http://a",
+        "ALL_PROXY": "http://a",
+        "MODE_HTTP_PROXY": "http://a",
+        "NO_PROXY": "a,b",
+        "no_proxy": "a,b",
+        "MODE_NO_PROXY": "a,b",
+        "NODE_EXTRA_CA_CERTS": "/ca.pem",
+        "MODE_AGENT_CA_CERT": "/ca.pem"
+      }
+    },
+    {
+      "input": {
+        "noProxy": ", ,"
+      },
+      "expected": {}
+    },
+    {
+      "input": {
+        "caCertPath": "   "
+      },
+      "expected": {}
+    },
+    {
+      "input": {
+        "httpProxy": "://bad"
+      },
+      "expected": {
+        "HTTP_PROXY": "http://://bad",
+        "HTTPS_PROXY": "http://://bad",
+        "ALL_PROXY": "http://://bad",
+        "MODE_HTTP_PROXY": "http://://bad"
+      }
+    }
+  ],
+  "agentEndpoint": [
+    {
+      "input": null,
+      "expected": {}
+    },
+    {
+      "input": "",
+      "expected": {}
+    },
+    {
+      "input": "  ",
+      "expected": {}
+    },
+    {
+      "input": "https://api.example.com",
+      "expected": {
+        "MODE_BASE_URL": "https://api.example.com"
+      }
+    },
+    {
+      "input": " https://x ",
+      "expected": {
+        "MODE_BASE_URL": "https://x"
+      }
+    }
+  ],
+  "agentWorkspace": [
+    {
+      "input": null,
+      "expected": {}
+    },
+    {
+      "input": "",
+      "expected": {}
+    },
+    {
+      "input": " remote-ws ",
+      "expected": {
+        "MODE_WORKSPACE_IDENTITY": "remote-ws"
+      }
+    },
+    {
+      "input": "local",
+      "expected": {
+        "MODE_WORKSPACE_IDENTITY": "local"
+      }
+    }
+  ],
+  "nodeEnv": [
+    {
+      "env": {},
+      "expected": false
+    },
+    {
+      "env": {
+        "MODE_RUNTIME_ENV": "development"
+      },
+      "expected": true
+    },
+    {
+      "env": {
+        "MODE_RUNTIME_ENV": " TEST "
+      },
+      "expected": false
+    },
+    {
+      "env": {
+        "MODE_RUNTIME_ENV": "production"
+      },
+      "expected": false
+    },
+    {
+      "env": {
+        "MODE_RUNTIME_ENV": "staging"
+      },
+      "expected": false
+    },
+    {
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "expected": false
+    }
+  ]
+}

@@ -1,0 +1,1766 @@
+{
+  "cases": [
+    {
+      "name": "minimal-anthropic",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "anthropic": ""
+          }
+        },
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [
+              "anthropic"
+            ],
+            "defaultKind": "anthropic",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "openai-chat-completions",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "openai": "https://api.example.com/v1/chat/completions"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "gpt-a"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001,
+        "apiFormat": "openai-chat-completions"
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "openai-compatible": "/v1"
+          }
+        },
+        "apiFormat": "openai-chat-completions",
+        "apiKey": "sk-test",
+        "defaultKind": "openai-compatible",
+        "models": [
+          {
+            "id": "gpt-a",
+            "kinds": [
+              "openai-compatible"
+            ],
+            "defaultKind": "openai-compatible",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "both-endpoints-anthropic-default",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com/v1/messages",
+          "openai": "https://api.example.com/v1/chat/completions"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "anthropic": "",
+            "openai-compatible": "/v1"
+          }
+        },
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [
+              "anthropic",
+              "openai-compatible"
+            ],
+            "defaultKind": "anthropic",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "both-endpoints-openai-responses",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com/v1/messages",
+          "openai": "https://api.example.com/v1/responses"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001,
+        "apiFormat": "openai-responses"
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "anthropic": "",
+            "openai": "/v1"
+          }
+        },
+        "apiFormat": "openai-responses",
+        "apiKey": "sk-test",
+        "defaultKind": "openai",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [
+              "openai"
+            ],
+            "defaultKind": "openai",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "duplicate-absolute-url-collapsed",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com/v1/messages/https://api.example.com/v1/messages"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "anthropic": ""
+          }
+        },
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [
+              "anthropic"
+            ],
+            "defaultKind": "anthropic",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "uppercase-scheme-not-collapsed",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "HTTPS://api.example.com/v1/messages"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "anthropic": ""
+          }
+        },
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [
+              "anthropic"
+            ],
+            "defaultKind": "anthropic",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "different-origins",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://anthropic.example.com/v1/messages",
+          "openai": "https://openai.example.com/v1/chat/completions"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "paths": {
+            "anthropic": "https://anthropic.example.com",
+            "openai-compatible": "https://openai.example.com/v1"
+          }
+        },
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [
+              "anthropic",
+              "openai-compatible"
+            ],
+            "defaultKind": "anthropic",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "invalid-url-string",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "not a url"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "paths": {
+            "anthropic": "not a url"
+          }
+        },
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [
+              "anthropic"
+            ],
+            "defaultKind": "anthropic",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "openai-only-no-format",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "openai": "https://api.example.com/v1"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "openai-compatible": "/v1"
+          }
+        },
+        "apiKey": "sk-test",
+        "defaultKind": "openai-compatible",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [
+              "openai-compatible"
+            ],
+            "defaultKind": "openai-compatible",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "gemini-only",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "gemini": "https://gemini.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {},
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [],
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "gemini-supported-format-disabled",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "gemini": "https://gemini.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001,
+        "modelSupportedFormats": {
+          "model-1": [
+            "gemini"
+          ]
+        }
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {},
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [],
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000,
+            "disabledReason": "legacy gemini format is not supported by mode.model-providers.v2"
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "mixed-formats-drop-gemini",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001,
+        "modelSupportedFormats": {
+          "model-1": [
+            "anthropic",
+            "gemini"
+          ]
+        }
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "anthropic": ""
+          }
+        },
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [
+              "anthropic"
+            ],
+            "defaultKind": "anthropic",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "supported-format-overrides",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1",
+          "model-2"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001,
+        "modelSupportedFormats": {
+          "model-1": [
+            "openai",
+            "responses"
+          ],
+          "model-2": []
+        }
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "anthropic": ""
+          }
+        },
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [
+              "openai-compatible",
+              "openai"
+            ],
+            "defaultKind": "openai-compatible",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          },
+          {
+            "id": "model-2",
+            "kinds": [],
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "display-names-and-trim",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "  model-1  ",
+          "model-2"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001,
+        "modelDisplayNames": {
+          "  model-1  ": "  Model One  ",
+          "model-2": "   "
+        }
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "anthropic": ""
+          }
+        },
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "name": "Model One",
+            "kinds": [
+              "anthropic"
+            ],
+            "defaultKind": "anthropic",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          },
+          {
+            "id": "model-2",
+            "kinds": [
+              "anthropic"
+            ],
+            "defaultKind": "anthropic",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "optional-fields",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001,
+        "enabled": false,
+        "systemDisabledReason": "oauth_provider_inactive",
+        "source": "custom",
+        "modelsDevProviderId": "vendor-x",
+        "apiKeyRequired": false,
+        "headers": {
+          "X-Test": "1"
+        },
+        "logoUrl": "",
+        "apiKeyUrl": "https://example.com/key",
+        "providerMappings": {
+          "claude": {
+            "haiku": "h",
+            "sonnet": "s",
+            "opus": "o",
+            "reasoning": "r"
+          },
+          "other": {
+            "nested": [
+              1,
+              2
+            ]
+          }
+        }
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "enabled": false,
+        "systemDisabledReason": "oauth_provider_inactive",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "anthropic": ""
+          }
+        },
+        "source": "custom",
+        "modelsDevProviderId": "vendor-x",
+        "apiKeyRequired": false,
+        "headers": {
+          "X-Test": "1"
+        },
+        "logoUrl": "",
+        "apiKey": "sk-test",
+        "apiKeyUrl": "https://example.com/key",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [
+              "anthropic"
+            ],
+            "defaultKind": "anthropic",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "providerMappings": {
+          "other": {
+            "nested": [
+              1,
+              2
+            ]
+          }
+        },
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "empty-provider-mappings",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001,
+        "providerMappings": {}
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "anthropic": ""
+          }
+        },
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [
+          {
+            "id": "model-1",
+            "kinds": [
+              "anthropic"
+            ],
+            "defaultKind": "anthropic",
+            "modalities": {
+              "input": [
+                "text"
+              ],
+              "output": [
+                "text"
+              ]
+            },
+            "contextWindow": 200000
+          }
+        ],
+        "providerMappings": {},
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "missing-models-defaults",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com"
+        },
+        "apiKey": "sk-test",
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "valid": true,
+      "migrated": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "baseURL": "https://api.example.com",
+          "paths": {
+            "anthropic": ""
+          }
+        },
+        "apiKey": "sk-test",
+        "defaultKind": "anthropic",
+        "models": [],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "empty-strings-preserved",
+      "input": {
+        "id": "",
+        "name": "",
+        "endpoints": {
+          "anthropic": "",
+          "openai": "",
+          "gemini": ""
+        },
+        "apiKey": "",
+        "models": [],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "valid": true,
+      "migrated": {
+        "id": "",
+        "name": "",
+        "endpoints": {},
+        "apiKey": "",
+        "defaultKind": "anthropic",
+        "models": [],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      }
+    },
+    {
+      "name": "invalid-endpoints-missing",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid-api-format",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001,
+        "apiFormat": "gemini-native"
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid-supported-format",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001,
+        "modelSupportedFormats": {
+          "model-1": [
+            "grpc"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid-claude-mapping",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001,
+        "providerMappings": {
+          "claude": {
+            "haiku": "h"
+          }
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid-models",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": "model-1",
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid-enabled",
+      "input": {
+        "id": "provider-a",
+        "name": "Provider A",
+        "endpoints": {
+          "anthropic": "https://api.example.com"
+        },
+        "apiKey": "sk-test",
+        "models": [
+          "model-1"
+        ],
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000001,
+        "enabled": "yes"
+      },
+      "valid": false
+    }
+  ],
+  "helpers": {
+    "apiFormat": [
+      {
+        "input": {
+          "apiFormat": "openai-responses",
+          "endpoints": {}
+        },
+        "expected": "openai-responses"
+      },
+      {
+        "input": {
+          "defaultKind": "openai-compatible",
+          "endpoints": {}
+        },
+        "expected": "openai-chat-completions"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "paths": {
+              "openai-compatible": "/chat"
+            }
+          }
+        },
+        "expected": "openai-chat-completions"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "paths": {
+              "openai": "/responses"
+            }
+          }
+        },
+        "expected": "openai-responses"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "paths": {
+              "anthropic": "/messages"
+            }
+          }
+        },
+        "expected": "anthropic-messages"
+      },
+      {
+        "input": {
+          "endpoints": {}
+        },
+        "expected": "anthropic-messages"
+      },
+      {
+        "input": {
+          "apiFormat": "openai-chat-completions",
+          "defaultKind": "anthropic",
+          "endpoints": {
+            "paths": {
+              "anthropic": "/messages",
+              "openai": "/responses"
+            }
+          }
+        },
+        "expected": "openai-chat-completions"
+      }
+    ],
+    "defaultKind": [
+      {
+        "input": {
+          "apiFormat": "openai-responses",
+          "endpoints": {}
+        },
+        "expected": "openai"
+      },
+      {
+        "input": {
+          "defaultKind": "openai-compatible",
+          "endpoints": {}
+        },
+        "expected": "openai-compatible"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "paths": {
+              "openai-compatible": "/chat"
+            }
+          }
+        },
+        "expected": "openai-compatible"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "paths": {
+              "openai": "/responses"
+            }
+          }
+        },
+        "expected": "openai"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "paths": {
+              "anthropic": "/messages"
+            }
+          }
+        },
+        "expected": "anthropic"
+      },
+      {
+        "input": {
+          "endpoints": {}
+        },
+        "expected": "anthropic"
+      },
+      {
+        "input": {
+          "apiFormat": "openai-chat-completions",
+          "defaultKind": "anthropic",
+          "endpoints": {
+            "paths": {
+              "anthropic": "/messages",
+              "openai": "/responses"
+            }
+          }
+        },
+        "expected": "anthropic"
+      }
+    ],
+    "runtimeBaseUrl": [
+      {
+        "input": {
+          "endpoints": {
+            "baseURL": "https://host",
+            "paths": {
+              "anthropic": "/v1/messages"
+            }
+          }
+        },
+        "expected": "https://host"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "baseURL": "https://host",
+            "paths": {
+              "anthropic": "/v1/messages"
+            }
+          }
+        },
+        "kind": "openai",
+        "expected": ""
+      },
+      {
+        "input": {
+          "endpoints": {
+            "baseURL": "https://host/",
+            "paths": {
+              "openai": "/responses"
+            }
+          }
+        },
+        "expected": "https://host"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "baseURL": "https://host/",
+            "paths": {
+              "openai": "/responses"
+            }
+          }
+        },
+        "kind": "openai",
+        "expected": "https://host"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "paths": {
+              "anthropic": "https://other/v1/messages"
+            }
+          }
+        },
+        "expected": "https://other"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "paths": {
+              "anthropic": "https://other/v1/messages"
+            }
+          }
+        },
+        "kind": "openai",
+        "expected": ""
+      },
+      {
+        "input": {
+          "endpoints": {
+            "baseURL": "https://host/v1",
+            "paths": {
+              "openai-compatible": "chat/completions"
+            }
+          }
+        },
+        "expected": "https://host/v1"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "baseURL": "https://host/v1",
+            "paths": {
+              "openai-compatible": "chat/completions"
+            }
+          }
+        },
+        "kind": "openai",
+        "expected": ""
+      },
+      {
+        "input": {
+          "endpoints": {
+            "baseURL": "https://host/v1",
+            "paths": {
+              "openai": "/responses"
+            }
+          }
+        },
+        "expected": "https://host/v1"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "baseURL": "https://host/v1",
+            "paths": {
+              "openai": "/responses"
+            }
+          }
+        },
+        "kind": "openai",
+        "expected": "https://host/v1"
+      },
+      {
+        "input": {
+          "endpoints": {
+            "baseURL": "https://host",
+            "paths": {}
+          }
+        },
+        "expected": ""
+      },
+      {
+        "input": {
+          "endpoints": {
+            "baseURL": "https://host",
+            "paths": {}
+          }
+        },
+        "kind": "openai",
+        "expected": ""
+      },
+      {
+        "input": {
+          "endpoints": {
+            "baseURL": "",
+            "paths": {
+              "anthropic": "/v1/messages"
+            }
+          }
+        },
+        "expected": ""
+      },
+      {
+        "input": {
+          "endpoints": {
+            "baseURL": "",
+            "paths": {
+              "anthropic": "/v1/messages"
+            }
+          }
+        },
+        "kind": "openai",
+        "expected": ""
+      },
+      {
+        "input": {
+          "endpoints": {}
+        },
+        "expected": ""
+      },
+      {
+        "input": {
+          "endpoints": {}
+        },
+        "kind": "openai",
+        "expected": ""
+      },
+      {
+        "input": {
+          "endpoints": {
+            "paths": {}
+          }
+        },
+        "expected": ""
+      },
+      {
+        "input": {
+          "endpoints": {
+            "paths": {}
+          }
+        },
+        "kind": "openai",
+        "expected": ""
+      }
+    ],
+    "configuredBaseUrl": [
+      {
+        "input": "https://host/path/",
+        "expected": "https://host/path"
+      },
+      {
+        "input": "  https://host/path//  ",
+        "expected": "https://host/path"
+      },
+      {
+        "input": "https://host/path/https://host/path",
+        "expected": "https://host/path"
+      },
+      {
+        "input": "not a url/",
+        "expected": "not a url"
+      },
+      {
+        "input": "",
+        "expected": ""
+      }
+    ],
+    "modelIds": [
+      {
+        "models": [
+          " a ",
+          "b",
+          {
+            "id": " c ",
+            "deleted": false
+          },
+          {
+            "id": "d",
+            "deleted": true
+          },
+          "",
+          {
+            "id": ""
+          }
+        ],
+        "expected": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      {
+        "models": [],
+        "expected": []
+      }
+    ],
+    "createModelConfig": [
+      {
+        "params": {
+          "id": " m "
+        },
+        "expected": {
+          "id": "m",
+          "kinds": [],
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "contextWindow": 200000
+        }
+      },
+      {
+        "params": {
+          "id": "full",
+          "name": "  Full  ",
+          "kinds": [
+            "anthropic",
+            "anthropic",
+            "openai"
+          ],
+          "defaultKind": "openai",
+          "contextWindow": 1000.9
+        },
+        "expected": {
+          "id": "full",
+          "name": "Full",
+          "kinds": [
+            "anthropic",
+            "openai"
+          ],
+          "defaultKind": "openai",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "contextWindow": 1000
+        }
+      },
+      {
+        "params": {
+          "id": "zero",
+          "contextWindow": 0
+        },
+        "expected": {
+          "id": "zero",
+          "kinds": [],
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "contextWindow": 200000
+        }
+      },
+      {
+        "params": {
+          "id": "negative",
+          "contextWindow": -5,
+          "maxOutputTokens": 0
+        },
+        "expected": {
+          "id": "negative",
+          "kinds": [],
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "contextWindow": 200000
+        }
+      },
+      {
+        "params": {
+          "id": "all",
+          "name": "   ",
+          "kinds": [],
+          "defaultKind": "openai",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "text"
+            ],
+            "output": [
+              "pdf"
+            ]
+          },
+          "reasoning": {
+            "defaultLevel": "high",
+            "levels": {
+              "high": {}
+            }
+          },
+          "priority": 1.5,
+          "disabledReason": "",
+          "supportsTools": false,
+          "supportsStructuredOutput": true,
+          "modified": false,
+          "deleted": false
+        },
+        "expected": {
+          "id": "all",
+          "kinds": [],
+          "defaultKind": "openai",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "pdf"
+            ]
+          },
+          "contextWindow": 200000,
+          "reasoning": {
+            "defaultLevel": "high",
+            "levels": {
+              "high": {}
+            }
+          },
+          "priority": 1.5,
+          "supportsTools": false,
+          "supportsStructuredOutput": true,
+          "modified": false,
+          "deleted": false
+        }
+      },
+      {
+        "params": {
+          "id": "max",
+          "maxOutputTokens": 128,
+          "priority": 0
+        },
+        "expected": {
+          "id": "max",
+          "kinds": [],
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "contextWindow": 200000,
+          "maxOutputTokens": 128,
+          "priority": 0
+        }
+      }
+    ],
+    "stripReasoning": [
+      {
+        "reasoning": {
+          "defaultLevel": "high",
+          "levels": {
+            "low": {
+              "anthropic": {
+                "set": [
+                  {
+                    "path": [
+                      "thinking"
+                    ],
+                    "value": true
+                  }
+                ]
+              }
+            },
+            "high": {}
+          }
+        },
+        "expected": {
+          "defaultLevel": "high",
+          "levels": {
+            "low": {},
+            "high": {}
+          }
+        }
+      },
+      {
+        "reasoning": {
+          "defaultLevel": "",
+          "levels": {}
+        },
+        "expected": {
+          "levels": {}
+        }
+      },
+      {
+        "reasoning": {
+          "levels": {
+            "only": {
+              "openai": {
+                "unset": [
+                  {
+                    "path": [
+                      "x"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "expected": {
+          "levels": {
+            "only": {}
+          }
+        }
+      }
+    ],
+    "stripClaude": [
+      {
+        "mappings": null,
+        "expected": null
+      },
+      {
+        "mappings": {},
+        "expected": {}
+      },
+      {
+        "mappings": {
+          "claude": {
+            "haiku": "h",
+            "sonnet": "s",
+            "opus": "o",
+            "reasoning": "r"
+          },
+          "other": 1
+        },
+        "expected": {
+          "other": 1
+        }
+      }
+    ],
+    "endpointPaths": [
+      {
+        "kind": "anthropic",
+        "expected": "/v1/messages"
+      },
+      {
+        "kind": "openai",
+        "expected": "/responses"
+      },
+      {
+        "kind": "openai-compatible",
+        "expected": "/chat/completions"
+      }
+    ],
+    "kindApiFormat": [
+      {
+        "kind": "anthropic",
+        "expected": "anthropic-messages"
+      },
+      {
+        "kind": "openai",
+        "expected": "openai-responses"
+      },
+      {
+        "kind": "openai-compatible",
+        "expected": "openai-chat-completions"
+      }
+    ],
+    "defaultFormatsApiFormat": [
+      {
+        "apiFormat": "anthropic-messages",
+        "expected": [
+          "anthropic"
+        ]
+      },
+      {
+        "apiFormat": "openai-responses",
+        "expected": [
+          "responses"
+        ]
+      },
+      {
+        "apiFormat": "openai-chat-completions",
+        "expected": [
+          "openai"
+        ]
+      }
+    ],
+    "defaultFormatsEndpoints": [
+      {
+        "input": {
+          "baseURL": "https://x",
+          "paths": {
+            "anthropic": "/a",
+            "openai-compatible": "/b",
+            "openai": "/c"
+          }
+        },
+        "expected": [
+          "anthropic",
+          "openai",
+          "responses"
+        ]
+      },
+      {
+        "input": {
+          "paths": {
+            "anthropic": "/a"
+          }
+        },
+        "expected": [
+          "anthropic"
+        ]
+      },
+      {
+        "input": {},
+        "expected": []
+      },
+      {
+        "input": {
+          "baseURL": "  "
+        },
+        "expected": []
+      },
+      {
+        "input": {
+          "paths": {}
+        },
+        "expected": []
+      },
+      {
+        "input": {
+          "baseURL": "https://x"
+        },
+        "expected": []
+      }
+    ]
+  }
+}

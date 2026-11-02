@@ -1,0 +1,871 @@
+{
+  "now": 1700000000000,
+  "cases": [
+    {
+      "name": "list-projection",
+      "seeds": [
+        {
+          "id": "t1",
+          "title": "One",
+          "prompt": "p1",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "runState": "queued"
+        },
+        {
+          "id": "t2",
+          "title": "Two",
+          "prompt": "p2",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "bad-model",
+            "options": {
+              "reasoningLevel": "low"
+            }
+          },
+          "runState": "queued"
+        },
+        {
+          "id": "t3",
+          "title": "Three",
+          "prompt": "p3",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "bad-model",
+            "options": {
+              "reasoningLevel": "low"
+            }
+          },
+          "runState": "completed"
+        },
+        {
+          "id": "t4",
+          "title": "Four",
+          "prompt": "p4",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          },
+          "runState": "paused"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "list"
+        },
+        {
+          "kind": "get",
+          "id": "t2"
+        },
+        {
+          "kind": "get",
+          "id": "t4"
+        }
+      ],
+      "expected": [
+        [
+          {
+            "offPeakTaskId": "t1",
+            "title": "One",
+            "prompt": "p1",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t2",
+            "title": "Two",
+            "prompt": "p2",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "bad-model",
+              "options": {
+                "reasoningLevel": "low"
+              }
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000,
+            "modelSelectionIssue": {
+              "code": "repair-required",
+              "legacyModelId": "bad-model",
+              "legacyReasoningLevel": "low"
+            }
+          },
+          {
+            "offPeakTaskId": "t3",
+            "title": "Three",
+            "prompt": "p3",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "bad-model",
+              "options": {
+                "reasoningLevel": "low"
+              }
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "completed",
+            "queuedAt": 1700000000000,
+            "endedAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t4",
+            "title": "Four",
+            "prompt": "p4",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1",
+              "options": {
+                "reasoningLevel": "high"
+              }
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "paused",
+            "queuedAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          }
+        ],
+        {
+          "offPeakTaskId": "t2",
+          "title": "Two",
+          "prompt": "p2",
+          "permissionMode": "edit",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "bad-model",
+            "options": {
+              "reasoningLevel": "low"
+            }
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "queued",
+          "queuedAt": 1700000000000,
+          "schedulable": false,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000,
+          "modelSelectionIssue": {
+            "code": "repair-required",
+            "legacyModelId": "bad-model",
+            "legacyReasoningLevel": "low"
+          }
+        },
+        {
+          "offPeakTaskId": "t4",
+          "title": "Four",
+          "prompt": "p4",
+          "permissionMode": "edit",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "paused",
+          "queuedAt": 1700000000000,
+          "schedulable": false,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        }
+      ],
+      "events": []
+    },
+    {
+      "name": "pause-and-history",
+      "seeds": [
+        {
+          "id": "t1",
+          "title": "One",
+          "prompt": "p1",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "runState": "queued"
+        },
+        {
+          "id": "t2",
+          "title": "Two",
+          "prompt": "p2",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "runState": "running",
+          "conversationId": "conv-2"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "pause",
+          "id": "t1"
+        },
+        {
+          "kind": "pause",
+          "id": "t1"
+        },
+        {
+          "kind": "deleteHistory",
+          "id": "t2"
+        },
+        {
+          "kind": "get",
+          "id": "t1"
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "offPeakTaskId": "t1",
+          "title": "One",
+          "prompt": "p1",
+          "permissionMode": "edit",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "paused",
+          "queuedAt": 1700000000000,
+          "schedulable": false,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        null,
+        {
+          "offPeakTaskId": "t2",
+          "title": "Two",
+          "conversationId": "conv-2",
+          "prompt": "p2",
+          "permissionMode": "edit",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "running",
+          "queuedAt": 1700000000000,
+          "startedAt": 1700000000000,
+          "historyDeletedAt": 1700000000000,
+          "schedulable": false,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "offPeakTaskId": "t1",
+          "title": "One",
+          "prompt": "p1",
+          "permissionMode": "edit",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "paused",
+          "queuedAt": 1700000000000,
+          "schedulable": false,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        [
+          {
+            "offPeakTaskId": "t1",
+            "title": "One",
+            "prompt": "p1",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "paused",
+            "queuedAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t2",
+            "title": "Two",
+            "conversationId": "conv-2",
+            "prompt": "p2",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "running",
+            "queuedAt": 1700000000000,
+            "startedAt": 1700000000000,
+            "historyDeletedAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          }
+        ]
+      ],
+      "events": [
+        {
+          "kind": "changed"
+        },
+        {
+          "kind": "changed"
+        }
+      ]
+    },
+    {
+      "name": "cancel",
+      "seeds": [
+        {
+          "id": "t1",
+          "title": "One",
+          "prompt": "p1",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "runState": "running",
+          "conversationId": "conv-1"
+        },
+        {
+          "id": "t2",
+          "title": "Two",
+          "prompt": "p2",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "runState": "completed"
+        },
+        {
+          "id": "t3",
+          "title": "Three",
+          "prompt": "p3",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "runState": "queued"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "cancel",
+          "id": "t1"
+        },
+        {
+          "kind": "cancel",
+          "id": "t2"
+        },
+        {
+          "kind": "cancel",
+          "id": "missing"
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "offPeakTaskId": "t1",
+          "title": "One",
+          "conversationId": "conv-1",
+          "prompt": "p1",
+          "permissionMode": "edit",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "cancelled",
+          "queuedAt": 1700000000000,
+          "startedAt": 1700000000000,
+          "endedAt": 1700000000000,
+          "schedulable": false,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "offPeakTaskId": "t2",
+          "title": "Two",
+          "prompt": "p2",
+          "permissionMode": "edit",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "completed",
+          "queuedAt": 1700000000000,
+          "endedAt": 1700000000000,
+          "schedulable": false,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        null,
+        [
+          {
+            "offPeakTaskId": "t1",
+            "title": "One",
+            "conversationId": "conv-1",
+            "prompt": "p1",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "cancelled",
+            "queuedAt": 1700000000000,
+            "startedAt": 1700000000000,
+            "endedAt": 1700000000000,
+            "settledAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t2",
+            "title": "Two",
+            "prompt": "p2",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "completed",
+            "queuedAt": 1700000000000,
+            "endedAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t3",
+            "title": "Three",
+            "prompt": "p3",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          }
+        ]
+      ],
+      "events": [
+        {
+          "kind": "stop",
+          "conversationId": "conv-1",
+          "workspacePath": "/ws/demo"
+        },
+        {
+          "kind": "changed"
+        }
+      ]
+    },
+    {
+      "name": "delete",
+      "seeds": [
+        {
+          "id": "t1",
+          "title": "One",
+          "prompt": "p1",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "runState": "queued"
+        },
+        {
+          "id": "t2",
+          "title": "Two",
+          "prompt": "p2",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "runState": "completed"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "delete",
+          "id": "t1"
+        },
+        {
+          "kind": "delete",
+          "id": "t2"
+        },
+        {
+          "kind": "delete",
+          "id": "missing"
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        null,
+        null,
+        null,
+        []
+      ],
+      "events": [
+        {
+          "kind": "changed"
+        },
+        {
+          "kind": "changed"
+        },
+        {
+          "kind": "changed"
+        }
+      ]
+    },
+    {
+      "name": "update",
+      "seeds": [
+        {
+          "id": "t1",
+          "title": "One",
+          "prompt": "p1",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1",
+            "options": {
+              "reasoningLevel": "high"
+            }
+          },
+          "runState": "queued"
+        },
+        {
+          "id": "t2",
+          "title": "Two",
+          "prompt": "p2",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "runState": "paused"
+        },
+        {
+          "id": "t3",
+          "title": "Three",
+          "prompt": "p3",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "runState": "running",
+          "conversationId": "conv-3"
+        },
+        {
+          "id": "t4",
+          "title": "Four",
+          "prompt": "p4",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "runState": "completed"
+        }
+      ],
+      "ops": [
+        {
+          "kind": "update",
+          "id": "t1",
+          "params": {
+            "title": "New",
+            "prompt": "p2",
+            "permissionMode": "plan",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m2"
+            }
+          }
+        },
+        {
+          "kind": "update",
+          "id": "t2",
+          "params": {
+            "title": "Renamed"
+          }
+        },
+        {
+          "kind": "update",
+          "id": "t3",
+          "params": {
+            "title": "X"
+          }
+        },
+        {
+          "kind": "update",
+          "id": "t4",
+          "params": {
+            "title": "X"
+          }
+        },
+        {
+          "kind": "update",
+          "id": "t1",
+          "params": {
+            "modelSelection": null
+          }
+        },
+        {
+          "kind": "update",
+          "id": "t1",
+          "params": {
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "bad-model",
+              "options": {
+                "reasoningLevel": "low"
+              }
+            }
+          }
+        },
+        {
+          "kind": "update",
+          "id": "missing",
+          "params": {
+            "title": "X"
+          }
+        },
+        {
+          "kind": "get",
+          "id": "t1"
+        },
+        {
+          "kind": "list"
+        }
+      ],
+      "expected": [
+        {
+          "offPeakTaskId": "t1",
+          "title": "New",
+          "prompt": "p2",
+          "permissionMode": "plan",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m2"
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "queued",
+          "queuedAt": 1700000000000,
+          "schedulable": false,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "offPeakTaskId": "t2",
+          "title": "Renamed",
+          "prompt": "p2",
+          "permissionMode": "edit",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "paused",
+          "queuedAt": 1700000000000,
+          "schedulable": false,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "offPeakTaskId": "t1",
+          "title": "New",
+          "prompt": "p2",
+          "permissionMode": "plan",
+          "modelSelection": {
+            "providerId": "provider-1",
+            "modelId": "m2"
+          },
+          "workspaceKey": "/ws/demo",
+          "workspacePath": "/ws/demo",
+          "status": "queued",
+          "queuedAt": 1700000000000,
+          "schedulable": false,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        [
+          {
+            "offPeakTaskId": "t1",
+            "title": "New",
+            "prompt": "p2",
+            "permissionMode": "plan",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m2"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "queued",
+            "queuedAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t2",
+            "title": "Renamed",
+            "prompt": "p2",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "paused",
+            "queuedAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t3",
+            "title": "Three",
+            "conversationId": "conv-3",
+            "prompt": "p3",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "running",
+            "queuedAt": 1700000000000,
+            "startedAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          },
+          {
+            "offPeakTaskId": "t4",
+            "title": "Four",
+            "prompt": "p4",
+            "permissionMode": "edit",
+            "modelSelection": {
+              "providerId": "provider-1",
+              "modelId": "m1"
+            },
+            "workspaceKey": "/ws/demo",
+            "workspacePath": "/ws/demo",
+            "status": "completed",
+            "queuedAt": 1700000000000,
+            "endedAt": 1700000000000,
+            "schedulable": false,
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000000000
+          }
+        ]
+      ],
+      "events": [
+        {
+          "kind": "changed"
+        },
+        {
+          "kind": "changed"
+        }
+      ]
+    },
+    {
+      "name": "validate",
+      "seeds": [],
+      "ops": [
+        {
+          "kind": "validate",
+          "selection": {
+            "providerId": "provider-1",
+            "modelId": "m1"
+          }
+        },
+        {
+          "kind": "validate",
+          "selection": {
+            "providerId": "provider-1",
+            "modelId": "bad-model",
+            "options": {
+              "reasoningLevel": "low"
+            }
+          }
+        },
+        {
+          "kind": "validate",
+          "selection": {
+            "providerId": "provider-2",
+            "modelId": "m1"
+          }
+        }
+      ],
+      "expected": [
+        true,
+        false,
+        false
+      ],
+      "events": []
+    }
+  ]
+}

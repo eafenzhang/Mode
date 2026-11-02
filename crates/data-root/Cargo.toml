@@ -1,0 +1,18 @@
+[package]
+name = "data-root"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "数据根归属文件（.mode-root.json）读写、状态判定与冲突目录备份，对应 services/src/data-root/ownership.ts 与 shared/src/data-root.ts"
+
+[lib]
+name = "data_root"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true

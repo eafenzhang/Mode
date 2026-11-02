@@ -1,0 +1,448 @@
+{
+  "urls": [
+    {
+      "name": "adds-app-version",
+      "baseUrl": "https://example.com/api/billing/balance",
+      "appVersion": "2.0.0",
+      "expected": "https://example.com/api/billing/balance?app_version=2.0.0"
+    },
+    {
+      "name": "replaces-existing-app-version",
+      "baseUrl": "https://example.com/api/billing?x=1&app_version=old&y=2",
+      "appVersion": "1.2.3",
+      "expected": "https://example.com/api/billing?x=1&app_version=1.2.3&y=2"
+    },
+    {
+      "name": "keeps-no-query-slash",
+      "baseUrl": "https://example.com",
+      "appVersion": "3.0.0",
+      "expected": "https://example.com/?app_version=3.0.0"
+    }
+  ],
+  "modelIds": [
+    {
+      "name": "capabilities-and-fallback",
+      "payload": {
+        "data": {
+          "balances": [
+            {
+              "capabilities": [
+                "model:glm-5",
+                "model:GLM-5",
+                " other"
+              ]
+            },
+            {
+              "capabilities": [],
+              "show_name": "glm-4.7"
+            },
+            {
+              "capabilities": [
+                "MODEL: GLM-4.5 "
+              ]
+            },
+            {
+              "show_name": "unknown-model"
+            },
+            {
+              "capabilities": [
+                ""
+              ],
+              "show_name": ""
+            }
+          ]
+        }
+      },
+      "expected": [
+        "GLM-5",
+        "GLM-4.7",
+        "GLM-4.5",
+        "unknown-model"
+      ]
+    },
+    {
+      "name": "missing-data",
+      "payload": {},
+      "expected": []
+    }
+  ],
+  "expiry": [
+    {
+      "name": "response-time-expires-active",
+      "payload": {
+        "data": {
+          "plans": [
+            {
+              "plan_id": "p",
+              "user_plan_id": "u",
+              "status": " ACTIVE ",
+              "ends_at": 100
+            }
+          ],
+          "balances": [
+            {
+              "plan_id": "p",
+              "remaining_units": 1
+            }
+          ]
+        }
+      },
+      "responseTime": 100,
+      "now": 0,
+      "expected": {
+        "data": {
+          "plans": [
+            {
+              "plan_id": "p",
+              "user_plan_id": "u",
+              "status": "expired",
+              "ends_at": 100
+            }
+          ],
+          "balances": []
+        }
+      }
+    },
+    {
+      "name": "server-time-used-when-no-response-time",
+      "payload": {
+        "data": {
+          "server_time": 50,
+          "plans": [
+            {
+              "plan_id": "p",
+              "status": "active",
+              "ends_at": "49"
+            }
+          ],
+          "balances": [
+            {
+              "plan_id": "p"
+            }
+          ]
+        }
+      },
+      "responseTime": null,
+      "now": 0,
+      "expected": {
+        "data": {
+          "server_time": 50,
+          "plans": [
+            {
+              "plan_id": "p",
+              "status": "expired",
+              "ends_at": "49"
+            }
+          ],
+          "balances": []
+        }
+      }
+    },
+    {
+      "name": "now-used-when-no-server-time",
+      "payload": {
+        "data": {
+          "plans": [
+            {
+              "plan_id": "p",
+              "status": "active",
+              "ends_at": 200
+            }
+          ],
+          "balances": [
+            {
+              "plan_id": "p"
+            }
+          ]
+        }
+      },
+      "responseTime": null,
+      "now": 200,
+      "expected": {
+        "data": {
+          "plans": [
+            {
+              "plan_id": "p",
+              "status": "expired",
+              "ends_at": 200
+            }
+          ],
+          "balances": []
+        }
+      }
+    },
+    {
+      "name": "string-end-and-boundary-equal",
+      "payload": {
+        "data": {
+          "plans": [
+            {
+              "plan_id": "p",
+              "status": "active",
+              "ends_at": "10"
+            }
+          ],
+          "balances": [
+            {
+              "plan_id": "p"
+            }
+          ]
+        }
+      },
+      "responseTime": null,
+      "now": 10,
+      "expected": {
+        "data": {
+          "plans": [
+            {
+              "plan_id": "p",
+              "status": "expired",
+              "ends_at": "10"
+            }
+          ],
+          "balances": []
+        }
+      }
+    },
+    {
+      "name": "non-expiring-values",
+      "payload": {
+        "data": {
+          "plans": [
+            {
+              "plan_id": "zero",
+              "status": "active",
+              "ends_at": 0
+            },
+            {
+              "plan_id": "null",
+              "status": "active",
+              "ends_at": null
+            },
+            {
+              "plan_id": "missing",
+              "status": "active"
+            },
+            {
+              "plan_id": "already",
+              "status": "expired",
+              "ends_at": 1
+            }
+          ],
+          "balances": [
+            {
+              "plan_id": "zero"
+            },
+            {
+              "plan_id": "null"
+            },
+            {
+              "plan_id": "missing"
+            }
+          ]
+        }
+      },
+      "responseTime": null,
+      "now": 100,
+      "expected": {
+        "data": {
+          "plans": [
+            {
+              "plan_id": "zero",
+              "status": "active",
+              "ends_at": 0
+            },
+            {
+              "plan_id": "null",
+              "status": "active",
+              "ends_at": null
+            },
+            {
+              "plan_id": "missing",
+              "status": "active"
+            },
+            {
+              "plan_id": "already",
+              "status": "expired",
+              "ends_at": 1
+            }
+          ],
+          "balances": [
+            {
+              "plan_id": "zero"
+            },
+            {
+              "plan_id": "null"
+            },
+            {
+              "plan_id": "missing"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "user-plan-ownership-and-filtering",
+      "payload": {
+        "data": {
+          "plans": [
+            {
+              "plan_id": "same",
+              "user_plan_id": "u1",
+              "status": "active",
+              "ends_at": 1
+            },
+            {
+              "plan_id": "same",
+              "user_plan_id": "u2",
+              "status": "active",
+              "ends_at": 999
+            },
+            {
+              "plan_id": "fallback",
+              "status": "expired",
+              "ends_at": 1
+            }
+          ],
+          "balances": [
+            {
+              "user_plan_id": "u1",
+              "plan_id": "same"
+            },
+            {
+              "user_plan_id": "u2",
+              "plan_id": "same"
+            },
+            {
+              "plan_id": "fallback"
+            },
+            {
+              "plan_id": "no-plan"
+            },
+            {}
+          ]
+        }
+      },
+      "responseTime": 100,
+      "now": 0,
+      "expected": {
+        "data": {
+          "plans": [
+            {
+              "plan_id": "same",
+              "user_plan_id": "u1",
+              "status": "expired",
+              "ends_at": 1
+            },
+            {
+              "plan_id": "same",
+              "user_plan_id": "u2",
+              "status": "active",
+              "ends_at": 999
+            },
+            {
+              "plan_id": "fallback",
+              "status": "expired",
+              "ends_at": 1
+            }
+          ],
+          "balances": [
+            {
+              "user_plan_id": "u2",
+              "plan_id": "same"
+            },
+            {
+              "plan_id": "no-plan"
+            },
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "name": "plans-missing-keeps-balances",
+      "payload": {
+        "data": {
+          "balances": [
+            {
+              "plan_id": "p"
+            }
+          ]
+        }
+      },
+      "responseTime": 100,
+      "now": 0,
+      "expected": {
+        "data": {
+          "balances": [
+            {
+              "plan_id": "p"
+            }
+          ],
+          "plans": []
+        }
+      }
+    },
+    {
+      "name": "no-data-unchanged",
+      "payload": {
+        "code": 0,
+        "msg": "ok"
+      },
+      "responseTime": 100,
+      "now": 0,
+      "expected": {
+        "code": 0,
+        "msg": "ok"
+      }
+    },
+    {
+      "name": "preserves-unknown-fields",
+      "payload": {
+        "code": 1,
+        "extra": {
+          "keep": true
+        },
+        "data": {
+          "server_time": 5,
+          "extraData": "keep",
+          "plans": [
+            {
+              "plan_id": "p",
+              "status": "active",
+              "ends_at": 1,
+              "extraPlan": 1
+            }
+          ],
+          "balances": [
+            {
+              "plan_id": "p",
+              "extraBalance": 2
+            }
+          ]
+        }
+      },
+      "responseTime": 100,
+      "now": 0,
+      "expected": {
+        "code": 1,
+        "extra": {
+          "keep": true
+        },
+        "data": {
+          "server_time": 5,
+          "extraData": "keep",
+          "plans": [
+            {
+              "plan_id": "p",
+              "status": "expired",
+              "ends_at": 1,
+              "extraPlan": 1
+            }
+          ],
+          "balances": []
+        }
+      }
+    }
+  ]
+}
