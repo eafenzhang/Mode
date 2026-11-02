@@ -167,7 +167,15 @@ function createHarness() {
 /** 帧处理 = 同步分派 → 异步解密 → 续体：等若干宏任务让 WebCrypto 的 promise 全部落定。 */
 async function settle(): Promise<void> {
   for (let i = 0; i < 5; i++) {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+/** 等待目标数量的解码结果落定；避免固定 tick 在慢 CI 上留下跨用例的迟到续体。 */
+async function waitForDecoded(count: number): Promise<void> {
+  const deadline = Date.now() + 1_000;
+  while (StubVideoDecoder.decoded.length < count && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
   }
 }
 
@@ -198,7 +206,7 @@ test("首关键帧建立 decoder 并以 SPS 推导的 codec 配置", async () =>
   const h = createHarness();
   h.ws.fireOpen();
   h.ws.deliver(frameBytes(1, true, [...SPS, ...KEY_NAL]));
-  await settle();
+  await waitForDecoded(1);
   assert.equal(StubVideoDecoder.instances.length, 1, "关键帧应建立 decoder");
   assert.deepEqual(StubVideoDecoder.instances[0]!.configs, [
     { codec: "avc1.42001f", optimizeForLatency: true },
@@ -214,7 +222,7 @@ test("关键帧 + delta：解码次数、chunk 类型与时间戳单调", async 
   h.ws.fireOpen();
   h.ws.deliver(frameBytes(1, true, [...SPS, ...KEY_NAL]));
   h.ws.deliver(frameBytes(2, false, DELTA_NAL));
-  await settle();
+  await waitForDecoded(2);
   assert.deepEqual(
     StubVideoDecoder.decoded.map((d) => d.type),
     ["key", "delta"],
