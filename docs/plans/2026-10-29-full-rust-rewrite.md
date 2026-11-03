@@ -57,7 +57,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | W4 Agent 运行时 | **协议/客户端镜像 91/115**；S0 健康快照与 S1 覆盖矩阵完成；会话级 api-retry tracker/draft registry 已迁移；频道所有权切换（S2）待决策 |
 | W5 / W6 | 未开始 |
 
-**服务层新增 crate（2026-11-01 ~ 11-02）**
+**服务层新增 crate（2026-11-01 ~ 11-03）**
 
 | crate | 覆盖 | TS 对拍 |
 | --- | --- | --- |
@@ -163,7 +163,7 @@ disposeAll + `onDynamicChange` 事件，150ms 防抖，见 `docs/specs/file-watc
 `commands`（6 个方法：list / 写 / 改 / 删 / 启停 / 主目录；目录优先级、enable override、
 插件命令，见 `docs/specs/commands-service.md`）。
 
-十八个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
+二十个频道都已注册进壳内 `MODE_HOST_INPROCESS_CHANNELS`（默认空=纯转发），并有频道名与
 TS `ServiceChannels` 的漂移守卫。**真机打开开关尚未验证**；控制帧与 `host` 频道仍归
 Node Host，scoped 帧已能本地接管（按 scope 复用服务面）。剩余域的障碍：`hooks` 的
 trust / config / digest 三件已就位，但 `grantWorkspaceHookTrust` 必须转发给 Agent
@@ -252,7 +252,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 
 按依赖与风险排序，每域独立完成、独立开关、独立回滚：
 
-| 序 | 域 | TS 行数 | Rust 目标 | 关键依赖 | 进度（2026-11-01） |
+| 序 | 域 | TS 行数 | Rust 目标 | 关键依赖 | 进度（2026-11-03） |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 设置 / 客户端配置 | ≈3.3k | 壳内 `settings` | W1 | `setting` / `client-config` / `client-scenes` 已接管 |
 | 2 | 文件 / fs / 监视 | ≈2.8k | `ignore` + `notify` + std | W1 | `file` / `file-watcher` 已接管 |

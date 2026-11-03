@@ -54,7 +54,7 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 
 ---
 
-## 进度快照（2026-10-29 更新）
+## 进度快照（2026-11-03 更新）
 
 > 证据：`docs/plans/2026-10-20-installed-0.0.61-acceptance.md`（已安装 0.0.61 自动化门禁与真机验收）、
 > `docs/plans/2026-10-20-runtime-ui-fixes.md`（0.0.61→0.0.63 运行态修复）、
@@ -160,6 +160,19 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > （`grant` 依赖 Agent authority，随 W4 接）、`onboarding-record`（注入依赖未移植）、
 > 任务域 Repo/频道/会话链路（schema 与迁移已 Rust 化，域本身未迁）、
 > `setting` 的写队列/账号 CAS/补丁类型校验。
+>
+> **2026-11-03 进度（W1/W3/W4，DR-08 波次）**：W0 完成；W1 基元补齐 data-root、
+> runtime-env、runtime-tools、mode-api-retry、storage-usage；W3 服务层新增
+> automation-service（10/10）、off-peak-service、onboarding-record-service（9/9）、
+> official-mcp-auth、provider-balance、provider legacy 迁移/读取/导入、
+> provider-config-file-codec、zai-start-plan-billing、usage-stats 投影、
+> integrated-terminal-shells、terminal-profile（Windows/macOS/Alacritty 探测）、
+> terminal-service-resolution、remote-desktop-streaming；壳内可接管频道仍为 20 个
+> （`MODE_HOST_INPROCESS_CHANNELS`，默认关闭；2026-10-31 做过 19 个频道的本地真人路径
+> 验收，`plugin-sync` 为后续第 20 个）。W4 协议/客户端镜像推进到 91/115，其余 24 个
+> `blocked`，S2 频道所有权切换待决策；W2 的默认切换与 W5/W6 未推进。最近发布仍是
+> v0.0.109（2026-10-31），今天的 terminal/remote-desktop 迁移尚未随版。明细见
+> `docs/plans/2026-10-29-full-rust-rewrite.md` §2.1。
 
 ## M0 地基与纪律（2–4 周）
 

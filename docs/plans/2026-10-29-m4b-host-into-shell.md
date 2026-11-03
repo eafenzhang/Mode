@@ -198,12 +198,15 @@ Rust 实现已完成（`crates/project-memory` + `docs/specs/project-memory-serv
 每域完成的定义（缺一不可）：该频道的 TS 实现保留为 oracle；对拍矩阵覆盖正常/错误/取消/
 事件四类；`MODE_HOST_INPROCESS_CHANNELS` 打开后该域的真机用例通过；关闭开关仍走 TS 路径。
 
-**截至 2026-11-01 的进度（20 个频道）**：`memory`、`prompt-attachment-transfer`、
+**截至 2026-11-03 的进度（20 个频道）**：`memory`、`prompt-attachment-transfer`、
 `client-config` / `client-scenes`、`media-preview`、`conversation-mirror`、`setting`、
 `credential`、`system`、`file`、`file-watcher`、`commands`、`skills`、`subagents`、
 `settings-sync`、`broadcast`、`skill-sync`、`git`、`git-checkpoint`、`plugin-sync`。
 `hooks` 的 trust store / 配置解析 / 摘要三件前置已就位，频道本体（discovery、写入、
-grant 转发）依赖 W4 ownership；`terminal`、`usage-stats`、`remote`、`bots` 等域未开始。
+grant 转发）依赖 W4 ownership。**已开始但未接频道**：`terminal`（shell 选项、profile
+组合/系统探测、启动纯解析已迁，PTY 生命周期未迁）、`usage-stats`（时间范围/quota/
+legacy+credit 投影已迁，编排与网络源未迁）、`remote-desktop`（自适应码率/画质降档
+状态机已迁，协调器与媒体 WS 未迁）；`remote`（SSH/WSL/Docker）与 `bots` 仍未开始。
 
 ### M4b-5 默认切换与删装配
 
