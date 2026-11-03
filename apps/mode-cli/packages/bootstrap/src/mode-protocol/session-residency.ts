@@ -5,7 +5,7 @@ import type {
   SessionDeactivationDecision,
   SessionResidentPoolHost,
 } from "./session-resident-pool.js";
-import type { ModeProtocolAgentServerContext } from "./server-types.js";
+import type { ModeProtocolAgentServerContext, ModeProtocolSessionRecord } from "./server-types.js";
 
 interface SessionResidencyFinalizationOwner {
   residencyFinalizationCount?: number;
@@ -65,6 +65,27 @@ async function deactivateSessionRecord(
   await record.app.close?.();
   // 去激活后内存 event store 必须与“从未加载”等价。
   await record.eventStore.deleteSession(sessionId as SessionId);
+}
+
+/**
+ * `session/create` 用同 id + importedHistory 顶替已有 record 时，回收被顶替的旧 runtime。
+ *
+ * 旧 record 一旦被新 record `set` 取代就从 resident registry 消失，常驻池的 high-water /
+ * idle-TTL 再也看不到它；不在这里关闭，旧 runtime 的 MCP stdio 子进程与连接没有第二个
+ * 回收点，会随每次重导累积（远程工作区镜像的 20 秒空转轮实测 50+ 进程 / 12GB）。
+ *
+ * 只释放 runtime 与事件订阅：持久 session/task 事实保留，v4 也不推移除通知——会话仍然存在，
+ * 新 record 的 runtime 会继续投影它。清理是 best-effort，失败不能让新 record 回滚。
+ */
+export async function closeReplacedSessionRecord(
+  record: Pick<ModeProtocolSessionRecord, "unsubscribe" | "app">,
+): Promise<void> {
+  record.unsubscribe?.();
+  try {
+    await record.app.close?.();
+  } catch {
+    // 旧 runtime 已从 registry 摘除；close 失败只影响本次回收，下一轮替换会继续收敛。
+  }
 }
 
 export function createSessionResidentPoolHost(

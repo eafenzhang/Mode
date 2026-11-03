@@ -15,6 +15,12 @@ import {
 } from "@mode/shared/conversation-mirror";
 import type { IModeSessionService, IModeTaskService, IServiceAccessor } from "@mode/services";
 import type { ConversationMirrorReadBackoff } from "@/lib/conversationMirrorReadBackoff.js";
+import {
+  MIRROR_SOURCE_DEEP_READ_LIMIT,
+  createTargetWatermarkLookup,
+  indexByTaskId,
+  readScopeTasks,
+} from "@/lib/conversationMirrorTaskScope.js";
 
 /**
  * 一轮远程工作区对话记录镜像同步（docs/specs/remote-workspace-conversation-mirror.md）。
@@ -157,6 +163,15 @@ export async function runConversationMirrorSync(
     ],
     selector: (tasks) => selectMirrorSourceTasks(tasks, windowSize),
     targetUpdatedAtById: indexByTaskId(viewTargets.items),
+    resolveTargetUpdatedAt: createTargetWatermarkLookup({
+      modeTaskService: params.viewServices.modeTaskService,
+      scope: {
+        workspacePath: params.workspacePath,
+        ...(params.viewWorkspaceIdentity ? { workspaceIdentity: params.viewWorkspaceIdentity } : {}),
+      },
+      base: indexByTaskId(viewTargets.items),
+      warn,
+    }),
     sessionService: params.viewServices.modeSessionService,
     importWorkspace: {
       workspacePath: params.workspacePath,
@@ -203,6 +218,12 @@ export async function runConversationMirrorSync(
       ],
       selector: (tasks) => selectOwnMirrorSourceTasks(tasks, windowSize),
       targetUpdatedAtById: indexByTaskId(peerLocal.items),
+      resolveTargetUpdatedAt: createTargetWatermarkLookup({
+        modeTaskService: params.viewServices.modeTaskService,
+        scope: { workspacePath: params.workspacePath },
+        base: indexByTaskId(peerLocal.items),
+        warn,
+      }),
       sessionService: params.viewServices.modeSessionService,
       importWorkspace: { workspacePath: params.workspacePath },
       ...(params.readBackoff ? { readBackoff: params.readBackoff } : {}),
@@ -265,12 +286,6 @@ function resolveSourceReadLimit(windowSize: number): number {
 }
 
 /**
- * 单次来源列表读取的深度上限。补页不能无界，否则「来源 scope 里全是镜像副本」会退化成把整张
- * 任务表拉回来。
- */
-const MIRROR_SOURCE_DEEP_READ_LIMIT = 200;
-
-/**
  * ①方向来源的可用性判据：只认对端本地 scope（无 identity）且非镜像副本。
  * 与 `selectMirrorSourceTasks` 取的是同一个谓词，这里只是在**取列表时**就要用它决定是否补页。
  */
@@ -312,41 +327,15 @@ async function readScopeTasksForWindow(
   }
 }
 
-function indexByTaskId(items: readonly ConversationMirrorSourceTask[]): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const item of items) {
-    map.set(item.taskId, item.updatedAt);
-  }
-  return map;
-}
-
-async function readScopeTasks(
-  modeTaskService: Pick<IModeTaskService, "listTaskList">,
-  scope: { workspacePath: string; workspaceIdentity?: string; limit: number },
-): Promise<{ items: ConversationMirrorSourceTask[] }> {
-  // 不带 identity 即「该机器在这个路径下的本地 scope 行」；任务列表查询是被动观察者，
-  // 不会因此拉起任何 workspace runtime。
-  const list = await modeTaskService.listTaskList({
-    kind: "timeline",
-    workspaceScopes: [{ workspacePath: scope.workspacePath, ...(scope.workspaceIdentity ? { workspaceIdentity: scope.workspaceIdentity } : {}) }],
-    sortBy: "updated",
-    limit: scope.limit,
-  });
-  return {
-    items: list.items.map((item) => ({
-      taskId: item.taskId,
-      title: item.title,
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
-      ...(item.workspaceIdentity ? { workspaceIdentity: item.workspaceIdentity } : {}),
-    })),
-  };
-}
-
 async function importScopeRecords(params: {
   sources: readonly MirrorSourceScope[];
   selector: (tasks: readonly ConversationMirrorSourceTask[]) => ConversationMirrorSourceTask[];
   targetUpdatedAtById: Map<string, number>;
+  /**
+   * 目标水位兜底：timeline 分区里没有该镜像副本时，由调用方补齐置顶 / 归档分区。
+   * 返回值 undefined 表示确实没有（或补读失败），按「目标端没有该会话」处理。
+   */
+  resolveTargetUpdatedAt?: (mirrorSessionId: string) => Promise<number | undefined>;
   sessionService: Pick<IModeSessionService, "createSession">;
   importWorkspace: { workspacePath: string; workspaceIdentity?: string };
   readBackoff?: ConversationMirrorReadBackoff;
@@ -371,7 +360,11 @@ async function importScopeRecords(params: {
   for (const task of selected) {
     const readMessages = readMessagesByTaskId.get(task.taskId);
     const mirrorSessionId = buildMirrorImportSessionId(task.taskId);
-    const targetUpdatedAt = params.targetUpdatedAtById.get(mirrorSessionId);
+    let targetUpdatedAt = params.targetUpdatedAtById.get(mirrorSessionId);
+    if (targetUpdatedAt === undefined && params.resolveTargetUpdatedAt) {
+      // timeline 分区看不到归档 / 置顶的镜像副本；水位必须覆盖这两个分区，否则每轮都重导。
+      targetUpdatedAt = await params.resolveTargetUpdatedAt(mirrorSessionId);
+    }
     // 水位在读取之前就已知：目标端已是最新版时连消息都不读。
     // 读消息是整轮最贵的一步，「先读后判」会让每轮空转都付出满负荷代价（spec 第四轮修复 成因 A）。
     if (!shouldReadMirrorSource({ task, targetUpdatedAt })) {

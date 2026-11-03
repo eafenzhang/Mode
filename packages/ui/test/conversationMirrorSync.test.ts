@@ -20,6 +20,11 @@ interface TaskRow {
   taskId: string;
   title?: string;
   updatedAt: number;
+  /**
+   * pinned / archived 分区按 scope 过滤：带 identity 的行只属于「视图 scope」，
+   * 不带 identity 的行只属于「本地 scope」。timeline 分区仍由 localScope / viewScope 区分。
+   */
+  workspaceIdentity?: string;
 }
 
 interface CreateCall {
@@ -35,6 +40,10 @@ interface MachineParams {
   localScope?: TaskRow[];
   /** 该机器上「带 identity」（视图 scope）的行。 */
   viewScope?: TaskRow[];
+  /** 该机器上 pinned=1 && archived=0 的行（timeline 分区看不到）。 */
+  pinnedScope?: TaskRow[];
+  /** 该机器上 archived=1 的行（timeline 分区看不到）。 */
+  archivedScope?: TaskRow[];
   readMessages?: (taskId: string) => Promise<unknown>;
   createSession?: (params: CreateCall) => Promise<unknown>;
 }
@@ -58,16 +67,30 @@ function createMachine(params: MachineParams) {
   const listScopes: Array<{ workspacePath: string; workspaceIdentity?: string }> = [];
   /** 每次来源列表读取请求的 limit，用来观测「一页装不下可用来源时逐级补页」。 */
   const requestedLimits: number[] = [];
+  /** 每次 listTaskList 的 kind，用来观测水位兜底是否真的补读了置顶 / 归档分区。 */
+  const listKinds: string[] = [];
 
   const modeTaskService = {
     async listTaskList(query: {
+      kind?: string;
       workspaceScopes: Array<{ workspacePath: string; workspaceIdentity?: string }>;
       limit?: number;
     }) {
       const scope = query.workspaceScopes[0] ?? { workspacePath: WORKSPACE_PATH };
+      const kind = query.kind ?? "timeline";
       listScopes.push(scope);
-      requestedLimits.push(query.limit ?? 0);
-      const rows = scope.workspaceIdentity ? (params.viewScope ?? []) : (params.localScope ?? []);
+      listKinds.push(kind);
+      if (kind === "timeline") {
+        requestedLimits.push(query.limit ?? 0);
+      }
+      const rows =
+        kind === "pinned" || kind === "archived"
+          ? (kind === "pinned" ? (params.pinnedScope ?? []) : (params.archivedScope ?? [])).filter(
+              (row) => (row.workspaceIdentity ?? undefined) === (scope.workspaceIdentity ?? undefined),
+            )
+          : scope.workspaceIdentity
+            ? (params.viewScope ?? [])
+            : (params.localScope ?? []);
       // 真实 listTaskList 按 updatedAt 取「最新 N 条」；夹具数组本身就是「新 → 旧」顺序，
       // 所以直接截前 N 条即可，让补页行为在测试里可观测。
       const page = typeof query.limit === "number" ? rows.slice(0, query.limit) : rows;
@@ -113,6 +136,7 @@ function createMachine(params: MachineParams) {
     createCalls,
     readCalls,
     listScopes,
+    listKinds,
     requestedLimits,
   };
 }
@@ -500,6 +524,85 @@ test("水位不前进时连消息都不读：空转轮不再按满负荷重读�
   // 「先读后判」会让每轮空转都付出满负荷代价，轮次因此永远跑不完。
   assert.deepEqual(remote.readCalls, []);
   assert.deepEqual(local.readCalls, []);
+});
+
+test("目标副本已被自动归档时水位仍能命中：不按 20 秒节拍反复重导", async () => {
+  // 镜像副本的 updatedAt 回填为来源的真实时间，超过自动归档阈值（默认 7 天）时会一导入就归档。
+  // listTaskList 的 timeline 分区含 archived=0 过滤，看不到这个副本；水位若只查 timeline，
+  // 每轮都会判「目标端没有该会话」→ 重读 + 重导（每轮 session/create 都新建一套 runtime）。
+  const remote = createMachine({
+    localScope: [],
+    archivedScope: [
+      { taskId: buildMirrorImportSessionId("mine-1"), title: "已归档的副本", updatedAt: 500 },
+    ],
+  });
+  const local = createMachine({
+    localScope: [{ taskId: "mine-1", title: "本机会话", updatedAt: 500 }],
+  });
+
+  const result = await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: remote.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: local.services,
+    isRemoteTarget: true,
+  });
+
+  assert.equal(result.status, "ready");
+  // ②方向：对端本地 scope 的副本在归档分区里，水位命中后不得再 create。
+  assert.deepEqual(peerLocalCalls(remote.createCalls), []);
+  // 兜底确实补读了归档分区（而不是碰巧跳过）。
+  assert.ok(remote.listKinds.includes("archived"));
+});
+
+test("目标副本被置顶时水位仍能命中：timeline 分区同样看不到 pinned 行", async () => {
+  const remote = createMachine({
+    localScope: [],
+    pinnedScope: [
+      { taskId: buildMirrorImportSessionId("mine-1"), title: "置顶的副本", updatedAt: 500 },
+    ],
+  });
+  const local = createMachine({
+    localScope: [{ taskId: "mine-1", title: "本机会话", updatedAt: 500 }],
+  });
+
+  const result = await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: remote.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: local.services,
+    isRemoteTarget: true,
+  });
+
+  assert.equal(result.status, "ready");
+  assert.deepEqual(peerLocalCalls(remote.createCalls), []);
+  assert.ok(remote.listKinds.includes("pinned"));
+});
+
+test("归档副本比来源旧时仍要重导：水位兜底不能把「有旧副本」当成「已同步」", async () => {
+  const remote = createMachine({
+    localScope: [],
+    archivedScope: [
+      { taskId: buildMirrorImportSessionId("mine-1"), title: "旧副本", updatedAt: 400 },
+    ],
+  });
+  const local = createMachine({
+    localScope: [{ taskId: "mine-1", title: "本机会话", updatedAt: 900 }],
+  });
+
+  const result = await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: remote.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: local.services,
+    isRemoteTarget: true,
+  });
+
+  assert.equal(result.status, "ready");
+  assert.deepEqual(
+    peerLocalCalls(remote.createCalls).map((call) => call.sessionId),
+    [buildMirrorImportSessionId("mine-1")],
+  );
 });
 
 test("读取失败的来源进入退避：下一轮不重读，但本轮仍如实报 degraded", async () => {

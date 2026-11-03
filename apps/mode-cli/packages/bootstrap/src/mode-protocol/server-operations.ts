@@ -123,7 +123,10 @@ import {
   projectSessionSubagents,
 } from "./subagent-session-query.js";
 import { runSessionModelConfigMutation } from "../mode-protocol-v4/model-config-mutation.js";
-import { runWithSessionResidencyFinalization } from "./session-residency.js";
+import {
+  closeReplacedSessionRecord,
+  runWithSessionResidencyFinalization,
+} from "./session-residency.js";
 
 const PLAN_MODE_GOAL_CONTINUATION_SKIPPED_MESSAGE = "Plan mode 下已记录 goal，但不会自动继续。";
 const SLOW_SNAPSHOT_LOG_THRESHOLD_MS = 1000;
@@ -1325,7 +1328,14 @@ async function createSessionWithProjection<T>(
   );
   const recordCreateDurationMs = Date.now() - recordStartedAt;
   context.assertServing?.();
+  // 同 id + importedHistory 重导（远程工作区镜像每轮 session/create）会用新 record 顶替旧 record。
+  // 旧 record 从这里起不再在 registry 里，常驻池看不到它——必须在替换点回收它的 runtime，
+  // 否则 MCP stdio 子进程没有人关闭（docs/specs/session-write-group.md §0a）。
+  const replacedRecord = context.sessions.get(sessionId);
   context.sessions.set(sessionId, record);
+  if (replacedRecord) {
+    await closeReplacedSessionRecord(replacedRecord);
+  }
   let setInitialModelDurationMs: number | undefined;
   let setInitialThoughtLevelDurationMs: number | undefined;
   let snapshotDurationMs = 0;

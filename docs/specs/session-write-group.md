@@ -26,6 +26,19 @@
 **与 TS 的差异**：TS 在 `getClient` 前先 `ensureAccountProviderConfigSynced` 并解析
 Off-Peak / 动态工作流灰度；本 facade 接收已解析的布尔值，provider 同步留给服务层。
 
+### 0a. 同 id 重导时回收被顶替的 runtime
+
+`{sessionId, importedHistory}` 是远程工作区对话镜像的固定导入形态（`mirror-<originSessionId>`）。
+对**已存在**的 active session 再次 `session/create` 时，语义是「用新的导入历史顶替当前 runtime」：
+
+- 新 record 物化成功并写入 `context.sessions` 之后，旧 record 必须 `unsubscribe()` 并
+  `app.close()`；清理是 best-effort，失败不回滚新 record。
+- 旧 record 一旦被 `set` 顶替就从 resident registry 消失，常驻池（high-water / idle-TTL）
+  再也不会看到它。不在这里关闭，MCP stdio 子进程与连接就没有第二个回收点，
+  会随每次重导累积到耗尽整机提交内存。
+- 只释放 runtime 与事件订阅：不删除持久 session/task 事实，也不向 sessions-index 推送
+  移除通知（会话仍然存在）。
+
 ## 0b. `session/send`
 
 请求（`modeSessionSendParamsSchema`，`.strict()` + `superRefine`）：
