@@ -8,7 +8,7 @@
 //! `subagents`（8 个 subagent 管理方法）、`settings-sync`（6 个外部配置同步方法）、
 //! `broadcast`（发送 + 5 个 claim 方法 + `onMessage`）、`skill-sync`（5 个归档同步方法）、
 //! `git`（18 个仓库操作；提交信息生成依赖 W4）、`git-checkpoint`（4 个 workspace 快照方法）、
-//! `plugin-sync`（7 个插件归档同步方法）。
+//! `plugin-sync`（7 个插件归档同步方法）、`terminal`（profile/会话 5 个方法与 2 个事件）。
 
 mod base64;
 mod params;
@@ -31,6 +31,7 @@ pub mod skill_sync;
 pub mod skills;
 pub mod subagents;
 pub mod system;
+pub mod terminal;
 pub mod memory_channel;
 
 pub use attachment_transfer::AttachmentTransferChannel;
@@ -51,6 +52,7 @@ pub use skill_sync::SkillSyncChannel;
 pub use skills::SkillsChannel;
 pub use subagents::SubagentsChannel;
 pub use system::SystemChannel;
+pub use terminal::TerminalChannel;
 pub use memory_channel::{MemoryChannel, LIST_MEMORIES, READ_MEMORY_FILE};
 
 pub const MEMORY_CHANNEL: &str = "memory";
@@ -73,3 +75,4 @@ pub const SKILL_SYNC_CHANNEL: &str = "skill-sync";
 pub const GIT_CHANNEL: &str = "git";
 pub const GIT_CHECKPOINT_CHANNEL: &str = "git-checkpoint";
 pub const PLUGIN_SYNC_CHANNEL: &str = "plugin-sync";
+pub const TERMINAL_CHANNEL: &str = "terminal";

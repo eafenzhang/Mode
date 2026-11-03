@@ -1951,6 +1951,7 @@ dependencies = [
  "skills-service",
  "subagents-service",
  "system-service",
+ "terminal-service",
  "tokio",
 ]
 
@@ -3477,7 +3478,6 @@ dependencies = [
  "deeplink",
  "futures-util",
  "png 0.18.1",
- "portable-pty",
  "protocol",
  "rcgen",
  "reqwest",
@@ -3490,6 +3490,7 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-test-manifest",
+ "terminal-session",
  "tokio",
  "windows-sys 0.61.2",
 ]
@@ -5436,12 +5437,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal-service"
+version = "0.1.0"
+dependencies = [
+ "indexmap 2.14.2",
+ "serde_json",
+ "terminal-profile",
+ "terminal-service-resolution",
+ "terminal-session",
+]
+
+[[package]]
 name = "terminal-service-resolution"
 version = "0.1.0"
 dependencies = [
  "indexmap 2.14.2",
  "regex",
  "serde_json",
+]
+
+[[package]]
+name = "terminal-session"
+version = "0.1.0"
+dependencies = [
+ "portable-pty",
 ]
 
 [[package]]

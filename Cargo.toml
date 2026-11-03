@@ -40,6 +40,8 @@ members = [
   "crates/integrated-terminal-shells",
   "crates/terminal-profile",
   "crates/terminal-service-resolution",
+  "crates/terminal-session",
+  "crates/terminal-service",
   "crates/remote-desktop-streaming",
   "crates/zai-start-plan-billing",
   "crates/provider-config-file-codec",

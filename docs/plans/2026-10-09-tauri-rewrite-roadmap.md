@@ -167,9 +167,10 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > official-mcp-auth、provider-balance、provider legacy 迁移/读取/导入、
 > provider-config-file-codec、zai-start-plan-billing、usage-stats 投影、
 > integrated-terminal-shells、terminal-profile（Windows/macOS/Alacritty 探测）、
-> terminal-service-resolution、remote-desktop-streaming；壳内可接管频道仍为 20 个
+> terminal-service-resolution、terminal-session/terminal-service（PTY 生命周期与频道）、
+> remote-desktop-streaming；壳内可接管频道增至 21 个
 > （`MODE_HOST_INPROCESS_CHANNELS`，默认关闭；2026-10-31 做过 19 个频道的本地真人路径
-> 验收，`plugin-sync` 为后续第 20 个）。W4 协议/客户端镜像推进到 91/115，其余 24 个
+> 验收，`plugin-sync` 与 `terminal` 未覆盖）。W4 协议/客户端镜像推进到 91/115，其余 24 个
 > `blocked`，S2 频道所有权切换待决策；W2 的默认切换与 W5/W6 未推进。最近发布仍是
 > v0.0.109（2026-10-31），今天的 terminal/remote-desktop 迁移尚未随版。明细见
 > `docs/plans/2026-10-29-full-rust-rewrite.md` §2.1。

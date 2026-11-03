@@ -21,12 +21,12 @@ use host_channels::{
     CommandsChannel, ConversationMirrorChannel, CredentialChannel, FileChannel, FileWatcherChannel,
     GitChannel, GitCheckpointChannel, MediaPreviewChannel, MemoryChannel, PluginSyncChannel,
     SettingChannel, SettingsSyncChannel, SkillSyncChannel, SkillsChannel, SubagentsChannel,
-    SystemChannel, ATTACHMENT_TRANSFER_CHANNEL,
+    SystemChannel, TerminalChannel, ATTACHMENT_TRANSFER_CHANNEL,
     BROADCAST_CHANNEL, CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL,
     CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL, FILE_CHANNEL, FILE_WATCHER_CHANNEL,
     GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
     PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL, SKILLS_CHANNEL,
-    SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL,
+    SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
@@ -88,7 +88,8 @@ impl InprocessState {
                 | SKILL_SYNC_CHANNEL
                 | GIT_CHANNEL
                 | GIT_CHECKPOINT_CHANNEL
-                | PLUGIN_SYNC_CHANNEL => owned.push(name),
+                | PLUGIN_SYNC_CHANNEL
+                | TERMINAL_CHANNEL => owned.push(name),
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
                 other => crate::host::shell_log(&format!("inprocess channel ignored (not ported yet): {other}")),
             }
@@ -415,6 +416,21 @@ fn build_server(
                     host_channels::plugin_sync::default_service(),
                 )),
             ),
+            TERMINAL_CHANNEL => {
+                let env = settings_store::HomeEnv::from_process();
+                let paths = settings_store::resolve_settings_paths(&env);
+                let current_base = data_root
+                    .parent()
+                    .map(std::path::Path::to_path_buf)
+                    .unwrap_or_else(|| paths.home.clone());
+                let settings = Arc::new(settings_store::SettingsService::new(paths, current_base));
+                server.register_channel(
+                    TERMINAL_CHANNEL,
+                    Arc::new(TerminalChannel::new(
+                        host_channels::terminal::default_service(settings),
+                    )),
+                );
+            }
             other => crate::host::shell_log(&format!("inprocess channel not constructible: {other}")),
         }
     }

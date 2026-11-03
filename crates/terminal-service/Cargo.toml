@@ -1,0 +1,17 @@
+[package]
+name = "terminal-service"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "终端服务编排：profile 组合 + PTY 会话（对应 services/terminal/terminalService.ts）"
+
+[lib]
+name = "terminal_service"
+path = "src/lib.rs"
+
+[dependencies]
+indexmap = "2"
+serde_json.workspace = true
+terminal-profile = { path = "../terminal-profile" }
+terminal-service-resolution = { path = "../terminal-service-resolution" }
+terminal-session = { path = "../terminal-session" }

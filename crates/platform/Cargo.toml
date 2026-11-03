@@ -45,4 +45,5 @@ windows-sys.workspace = true
 png.workspace = true
 base64.workspace = true
 # 终端 PTY 会话管理（spec `terminal-pty-in-shell.md`）：进程下沉到壳。
-portable-pty.workspace = true
+# 管理器在独立 crate 中，供壳命令面与 `terminal` 频道共用。
+terminal-session = { path = "../terminal-session" }

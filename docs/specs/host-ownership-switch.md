@@ -27,7 +27,7 @@
 
 | 组件                                                                   | 所有者                          | 状态                        |
 | ---------------------------------------------------------------------- | ------------------------------- | --------------------------- |
-| 帧路由 / scoped 解复用                                                 | Tauri 壳 `inprocess.rs`         | 已实现，19 个频道可本地接管 |
+| 帧路由 / scoped 解复用                                                 | Tauri 壳 `inprocess.rs`         | 已实现，21 个频道可本地接管 |
 | 45 个 Host 服务（含 `mode-agent` / `mode-task` / `window-controller`） | Node Host sidecar               | 现役                        |
 | `mode-agent` 子进程                                                    | Node Host（`modeAgentService`） | 现役                        |
 | agent 协议客户端、进程层、registry                                     | Rust `crates/agent-process`     | 已完成，未接线              |

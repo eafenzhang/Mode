@@ -1,0 +1,13 @@
+[package]
+name = "terminal-session"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "终端 PTY 会话管理（portable-pty）：spawn/write/resize/kill、输出泵、稳定 key 重挂接"
+
+[lib]
+name = "terminal_session"
+path = "src/lib.rs"
+
+[dependencies]
+portable-pty.workspace = true
