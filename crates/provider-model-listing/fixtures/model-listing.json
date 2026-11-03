@@ -1,0 +1,326 @@
+{
+  "build": [
+    {
+      "name": "openai-trailing-slash",
+      "input": {
+        "apiType": "openai-chat-completions",
+        "baseUrl": "https://api.example.com/v1/",
+        "apiKey": "sk-test",
+        "headers": null
+      },
+      "result": {
+        "url": "https://api.example.com/v1/models",
+        "headers": {
+          "Authorization": "Bearer sk-test"
+        }
+      }
+    },
+    {
+      "name": "openai-root-no-path",
+      "input": {
+        "apiType": "openai-chat-completions",
+        "baseUrl": "https://api.example.com",
+        "apiKey": "sk",
+        "headers": null
+      },
+      "result": {
+        "url": "https://api.example.com/models",
+        "headers": {
+          "Authorization": "Bearer sk"
+        }
+      }
+    },
+    {
+      "name": "openai-no-key",
+      "input": {
+        "apiType": "openai-chat-completions",
+        "baseUrl": "https://api.example.com/base",
+        "apiKey": null,
+        "headers": null
+      },
+      "result": {
+        "url": "https://api.example.com/base/models",
+        "headers": {}
+      }
+    },
+    {
+      "name": "openai-explicit-header-priority",
+      "input": {
+        "apiType": "openai-responses",
+        "baseUrl": "https://api.example.com",
+        "apiKey": "sk-test",
+        "headers": {
+          "authorization": "draft",
+          "X-Custom": "1"
+        }
+      },
+      "result": {
+        "url": "https://api.example.com/models",
+        "headers": {
+          "authorization": "draft",
+          "X-Custom": "1"
+        }
+      }
+    },
+    {
+      "name": "anthropic-adds-v1-and-limit",
+      "input": {
+        "apiType": "anthropic-messages",
+        "baseUrl": "https://gateway.example.com",
+        "apiKey": "sk-ant",
+        "headers": null
+      },
+      "result": {
+        "url": "https://gateway.example.com/v1/models?limit=1000",
+        "headers": {
+          "x-api-key": "sk-ant",
+          "anthropic-version": "2023-06-01",
+          "Authorization": "Bearer sk-ant"
+        }
+      }
+    },
+    {
+      "name": "anthropic-keeps-v1-case-insensitive",
+      "input": {
+        "apiType": "anthropic-messages",
+        "baseUrl": "https://gateway.example.com/V1/",
+        "apiKey": "sk-ant",
+        "headers": null
+      },
+      "result": {
+        "url": "https://gateway.example.com/V1/models?limit=1000",
+        "headers": {
+          "x-api-key": "sk-ant",
+          "anthropic-version": "2023-06-01",
+          "Authorization": "Bearer sk-ant"
+        }
+      }
+    },
+    {
+      "name": "anthropic-preserves-query-and-replaces-limit",
+      "input": {
+        "apiType": "anthropic-messages",
+        "baseUrl": "https://gateway.example.com/v1?team=a&limit=5",
+        "apiKey": "sk-ant",
+        "headers": null
+      },
+      "result": {
+        "url": "https://gateway.example.com/v1/models?team=a&limit=1000",
+        "headers": {
+          "x-api-key": "sk-ant",
+          "anthropic-version": "2023-06-01",
+          "Authorization": "Bearer sk-ant"
+        }
+      }
+    },
+    {
+      "name": "anthropic-explicit-headers-priority",
+      "input": {
+        "apiType": "anthropic-messages",
+        "baseUrl": "https://gateway.example.com",
+        "apiKey": "sk-ant",
+        "headers": {
+          "x-api-key": "draft",
+          "anthropic-version": "2030-01-01"
+        }
+      },
+      "result": {
+        "url": "https://gateway.example.com/v1/models?limit=1000",
+        "headers": {
+          "Authorization": "Bearer sk-ant",
+          "x-api-key": "draft",
+          "anthropic-version": "2030-01-01"
+        }
+      }
+    },
+    {
+      "name": "anthropic-no-key",
+      "input": {
+        "apiType": "anthropic-messages",
+        "baseUrl": "https://gateway.example.com/v1",
+        "apiKey": null,
+        "headers": null
+      },
+      "result": {
+        "url": "https://gateway.example.com/v1/models?limit=1000",
+        "headers": {
+          "anthropic-version": "2023-06-01"
+        }
+      }
+    },
+    {
+      "name": "error-empty-base-url",
+      "input": {
+        "apiType": "openai-chat-completions",
+        "baseUrl": "   ",
+        "apiKey": null,
+        "headers": null
+      },
+      "error": "Base URL 不能为空"
+    },
+    {
+      "name": "error-unsupported-protocol",
+      "input": {
+        "apiType": "openai-responses",
+        "baseUrl": "ftp://example.com/x",
+        "apiKey": null,
+        "headers": null
+      },
+      "error": "Base URL 协议不受支持: ftp:"
+    },
+    {
+      "name": "error-invalid-url",
+      "input": {
+        "apiType": "openai-chat-completions",
+        "baseUrl": "not a url",
+        "apiKey": null,
+        "headers": null
+      },
+      "error": "Invalid URL"
+    },
+    {
+      "name": "error-unsupported-api-type",
+      "input": {
+        "apiType": "websocket",
+        "baseUrl": "https://api.example.com",
+        "apiKey": null,
+        "headers": null
+      },
+      "error": "不支持的 Provider API 类型: websocket"
+    }
+  ],
+  "parse": [
+    {
+      "name": "openai-page-basic",
+      "payload": {
+        "data": [
+          {
+            "id": "a"
+          },
+          {
+            "id": " b "
+          },
+          {
+            "id": 123
+          },
+          {},
+          null,
+          {
+            "id": null
+          },
+          {
+            "id": "c"
+          }
+        ],
+        "has_more": false
+      },
+      "result": {
+        "modelIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "name": "anthropic-page-with-cursor",
+      "payload": {
+        "data": [
+          {
+            "id": "m1"
+          }
+        ],
+        "has_more": true,
+        "last_id": "cursor-9"
+      },
+      "result": {
+        "modelIds": [
+          "m1"
+        ],
+        "cursor": "cursor-9"
+      }
+    },
+    {
+      "name": "has-more-without-last-id",
+      "payload": {
+        "data": [
+          {
+            "id": "m1"
+          }
+        ],
+        "has_more": true
+      },
+      "result": {
+        "modelIds": [
+          "m1"
+        ]
+      }
+    },
+    {
+      "name": "empty-last-id-no-cursor",
+      "payload": {
+        "data": [
+          {
+            "id": "m1"
+          }
+        ],
+        "has_more": true,
+        "last_id": ""
+      },
+      "result": {
+        "modelIds": [
+          "m1"
+        ]
+      }
+    },
+    {
+      "name": "has-more-false-with-last-id",
+      "payload": {
+        "data": [
+          {
+            "id": "m1"
+          }
+        ],
+        "has_more": false,
+        "last_id": "ignored"
+      },
+      "result": {
+        "modelIds": [
+          "m1"
+        ]
+      }
+    },
+    {
+      "name": "error-missing-data",
+      "payload": {
+        "nope": true
+      },
+      "error": "Provider 模型列表响应缺少 data 数组"
+    },
+    {
+      "name": "error-data-not-array",
+      "payload": {
+        "data": "x"
+      },
+      "error": "Provider 模型列表响应缺少 data 数组"
+    },
+    {
+      "name": "error-payload-array",
+      "payload": [
+        1,
+        2
+      ],
+      "error": "Provider 模型列表响应格式无法识别"
+    },
+    {
+      "name": "error-payload-null",
+      "payload": null,
+      "error": "Provider 模型列表响应格式无法识别"
+    },
+    {
+      "name": "error-payload-string",
+      "payload": "x",
+      "error": "Provider 模型列表响应格式无法识别"
+    }
+  ]
+}

@@ -3813,6 +3813,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "provider-model-listing"
+version = "0.1.0"
+dependencies = [
+ "provider-config",
+ "serde",
+ "serde_json",
+ "url",
+]
+
+[[package]]
 name = "provider-source-chain"
 version = "0.1.0"
 dependencies = [

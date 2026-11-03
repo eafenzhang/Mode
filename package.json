@@ -59,6 +59,7 @@
     "zai-start-plan-billing:fixtures": "tsx scripts/generate-zai-start-plan-billing-fixtures.ts",
     "zai-start-plan-quota:fixtures": "tsx scripts/generate-zai-start-plan-quota-fixtures.ts",
     "provider-balance:fixtures": "tsx scripts/generate-provider-balance-fixtures.ts",
+    "provider-model-listing:fixtures": "tsx scripts/generate-provider-model-listing-fixtures.ts",
     "data-root:fixtures": "tsx scripts/generate-data-root-fixtures.ts",
     "data-root-initializer:fixtures": "tsx scripts/generate-data-root-initializer-fixtures.ts",
     "mode-api-retry:fixtures": "tsx scripts/generate-mode-api-retry-fixtures.ts",

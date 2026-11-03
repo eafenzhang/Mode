@@ -1,0 +1,16 @@
+[package]
+name = "provider-model-listing"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Provider「检测可用模型」的请求构造与响应分页解析（对应 packages/provider/src/model-listing.ts）"
+
+[lib]
+name = "provider_model_listing"
+path = "src/lib.rs"
+
+[dependencies]
+provider-config = { path = "../provider-config" }
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true

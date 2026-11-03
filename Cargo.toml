@@ -28,6 +28,7 @@ members = [
   "crates/provider-config-repository",
   "crates/provider-legacy-migration",
   "crates/provider-balance",
+  "crates/provider-model-listing",
   "crates/provider-source-chain",
   "crates/commands-service",
   "crates/mode-protocol-client",
