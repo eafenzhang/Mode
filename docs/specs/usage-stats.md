@@ -101,14 +101,29 @@
   null。health 的 xTime 优先 `x_time`，速度序列逐项转数字，非法值补 0。
 - quota/provider/xTime/granularity/range 原样透传；`generatedAt` 注入。
 
+## 6.1 MCP quota 投影（Rust，2026-11-03）
+
+> 真源：`packages/services/src/usage-stats/providers/modeMcpQuotaProvider.ts`。
+> 网络请求、凭证读取、日志与 TTL 缓存在宿主编排层。
+
+| Rust 入口 | TS 对应 | 说明 |
+| --- | --- | --- |
+| `matches_mcp_quota_scope` | `matchesMcpQuotaScope` | family 一致；个人要求 `PERSONAL`；Team 要求 org/project trim 后精确匹配 |
+| `build_mcp_quota_aggregate_limit` | `buildMcpQuotaAggregateLimit` | `limit<=0` 不产出；remaining/used 夹紧；percentage 为已使用占比 |
+| `parse_mcp_usage_envelope` | `fetchMcpQuotaSnapshot` 的信封段 | `code=0`、data/server_time、可选 next_refresh_at/level、`total_usage` 必填；秒→毫秒；任何 schema/业务失败返回 `None` |
+
+- `MCP_USAGE_QUOTA_LIMIT_TYPE = "MCP_USAGE_LIMIT"`；`usageDetails` 恒为空数组。
+- `level` trim 后为空按 `None`；`next_refresh_at` 与服务端 `server_time` 都乘 1000。
+- 归属 scope 来自凭证快照（`readScopeFromCredentialSnapshot`）不在本 crate；宿主解析后传入。
+
 ## 7. 已知差异
 
 1. TS 使用系统本地时区或 `Intl` 的 IANA 时区；Rust 使用调用方传入的固定偏移。
    跨夏令时跃迁的日期/范围可能不同，与 `automation-schedule` 的口径一致。
 2. `^\d{4}-\d{2}-\d{2}$` 只校验形状，不校验真实日历；非法月份/日期按 JS
    `Date.UTC` 归一化，夹具已覆盖月/日溢出。
-3. 本 crate 只覆盖时间范围与 quota 投影；monitor mapper、service 编排、缓存和网络
-   数据源仍在 Host。
+3. 本 crate 覆盖时间范围、BigModel/MCP quota 投影与 monitor mapper；service 编排、
+   缓存和网络数据源仍在 Host。
 4. 服务端返回 `null` limit/usageDetail 时 TS 会抛 TypeError；Rust 跳过非对象项。
    夹具不覆盖该非法输入，正常对象/原始值行为一致。
 5. legacy monitor 与 Coding Plan credit-usage 快照的 `generatedAt` 由调用方注入；
@@ -130,5 +145,6 @@
     与稳定排序、空 payload、长短不齐序列）；
   - 5 组 Coding Plan credit-usage 快照（legacy 对齐、credit 分段/拆分桶、仅拆分桶、
     空参数、hour 轴与非法/溢出日期 heatmap）。
-- `cargo test -p usage-stats`（2 条 TS 深比较回放 + 4 条 Rust 单测）。
+- `cargo test -p usage-stats`（2 条 TS 深比较回放 + 4 条 Rust 单测 +
+  7 条 MCP quota 用例：归属匹配、总额度夹紧/百分比、信封 schema/业务失败、秒→毫秒）。
 - `cargo clippy -p usage-stats --all-targets -- -D warnings`。

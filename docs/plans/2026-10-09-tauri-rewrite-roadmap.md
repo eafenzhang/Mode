@@ -166,7 +166,7 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > automation-service（10/10）、off-peak-service、onboarding-record-service（9/9）、
 > official-mcp-auth、provider-balance、provider legacy 迁移/读取/导入、
 > provider-config-file-codec、provider-config-repository（读写/锁/legacy 导入/轮询/
-> Built-in 缓存物化/Remote 控制与编排）、zai-start-plan-billing、usage-stats 投影、
+> Built-in 缓存物化/Remote 控制与编排）、zai-start-plan-billing、usage-stats 投影（含 MCP quota）、
 > lan-discovery（发现纯逻辑与公告契约）、
 > cua-raw-input（解析与注入）、
 > integrated-terminal-shells、terminal-profile（Windows/macOS/Alacritty 探测）、

@@ -3,12 +3,18 @@
 //! 真源：`packages/services/src/usage-stats/providers/bigmodelUsageMonitorRange.ts`。
 //! 不读系统时钟或 IANA 时区；调用方注入 `now` 与固定本地偏移秒数。
 
+mod mcp_quota;
 mod monitor;
 mod monitor_credit;
 mod quota;
 
 use serde_json::{json, Value};
 
+pub use mcp_quota::{
+    build_mcp_quota_aggregate_limit, matches_mcp_quota_scope, parse_mcp_usage_envelope,
+    McpQuotaRequestScope, McpUsageSnapshot, McpUsageTotal, UsageMcpQuotaScope,
+    MCP_USAGE_QUOTA_LIMIT_TYPE,
+};
 pub use monitor::build_usage_stats_snapshot_from_monitor;
 pub use monitor_credit::build_coding_plan_usage_snapshot_from_monitor;
 pub use quota::{
