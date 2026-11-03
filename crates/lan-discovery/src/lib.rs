@@ -9,6 +9,15 @@ use std::collections::{HashMap, HashSet};
 use indexmap::IndexMap;
 use serde_json::Value;
 
+pub mod announcement;
+
+pub use announcement::{
+    build_lan_announcement_payload, build_lan_probe_payload, parse_lan_announcement,
+    LanPeerAnnouncement, LanPeerAnnouncementInput, DEFAULT_PUBLIC_RELAY_BASE_URL,
+    LAN_ACCESS_DEFAULT_PORT, LAN_ACCESS_DISCOVERY_PORT, LAN_ACCESS_PAIR_CODE_TTL_MS,
+    LAN_ACCESS_PROBE, LAN_ACCESS_PROTOCOL_VERSION, LAN_ACCESS_RELAY_TUNNEL_ID_CREDENTIAL_KEY,
+};
+
 /// 发现结果：声明字段只保留合并所需部分；magic/protocol 校验仍由公告解析层负责。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LanDiscoveredPeer {
