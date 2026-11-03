@@ -16,13 +16,14 @@ pub(crate) fn is_js_whitespace(value: char) -> bool {
             | '\u{0020}'
             | '\u{00A0}'
             | '\u{1680}'
-            | '\u{2000}'..='\u{200A}'
-            | '\u{2028}'
-            | '\u{2029}'
-            | '\u{202F}'
-            | '\u{205F}'
-            | '\u{3000}'
-            | '\u{FEFF}'
+            | '\u{2000}'
+            ..='\u{200A}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202F}'
+                | '\u{205F}'
+                | '\u{3000}'
+                | '\u{FEFF}'
     )
 }
 
@@ -67,7 +68,8 @@ fn index_of_utf16(haystack: &[u16], needle: &[u16], from: usize) -> Option<usize
     if from > haystack.len() || needle.len() > haystack.len() - from {
         return None;
     }
-    (from..=haystack.len() - needle.len()).find(|&index| &haystack[index..index + needle.len()] == needle)
+    (from..=haystack.len() - needle.len())
+        .find(|&index| &haystack[index..index + needle.len()] == needle)
 }
 
 const TASK_SEARCH_SNIPPET_MAX_CHARS: usize = 140;
@@ -118,14 +120,18 @@ pub(crate) fn build_search_snippets(searchable_text: &str, search: Option<&str>)
         };
 
         let start = match_index.saturating_sub(TASK_SEARCH_SNIPPET_PREFIX_RADIUS);
-        let end = (match_index + search_units.len() + TASK_SEARCH_SNIPPET_SUFFIX_RADIUS).min(original_len);
+        let end = (match_index + search_units.len() + TASK_SEARCH_SNIPPET_SUFFIX_RADIUS)
+            .min(original_len);
         let prefix = if start > 0 { "..." } else { "" };
         let suffix = if end < original_len { "..." } else { "" };
-        let raw = format!("{prefix}{}{suffix}", slice_utf16(searchable_text, start, end));
+        let raw = format!(
+            "{prefix}{}{suffix}",
+            slice_utf16(searchable_text, start, end)
+        );
         let snippet = normalize_search_snippet_text(&raw);
-        let overlaps = ranges
-            .iter()
-            .any(|&(existing_start, existing_end)| existing_end.min(end) > existing_start.max(start));
+        let overlaps = ranges.iter().any(|&(existing_start, existing_end)| {
+            existing_end.min(end) > existing_start.max(start)
+        });
         if !snippet.is_empty() && !overlaps {
             snippets.push(snippet);
             ranges.push((start, end));
@@ -145,7 +151,10 @@ pub(crate) fn build_search_snippets(searchable_text: &str, search: Option<&str>)
 }
 
 /// `resolveWorkspaceKey`：identity 去空白后非空则取 identity，否则取路径。
-pub(crate) fn resolve_workspace_key(workspace_path: &str, workspace_identity: Option<&str>) -> String {
+pub(crate) fn resolve_workspace_key(
+    workspace_path: &str,
+    workspace_identity: Option<&str>,
+) -> String {
     match workspace_identity.map(js_trim) {
         Some(identity) if !identity.is_empty() => identity.to_owned(),
         _ => workspace_path.to_owned(),
