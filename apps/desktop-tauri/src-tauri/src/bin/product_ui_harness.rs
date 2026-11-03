@@ -50,7 +50,10 @@ fn force_decorations() -> bool {
 
 /// 是否跑窗口控制序列（见 `PROBE_SCRIPT` 的 `WINDOW_CONTROLS`）。
 fn window_controls() -> bool {
-    matches!(std::env::var("MODE_PRODUCT_UI_WINDOW_CONTROLS").as_deref(), Ok("1"))
+    matches!(
+        std::env::var("MODE_PRODUCT_UI_WINDOW_CONTROLS").as_deref(),
+        Ok("1")
+    )
 }
 
 fn watchdog_ms() -> u64 {

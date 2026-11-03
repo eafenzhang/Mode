@@ -77,9 +77,19 @@ fn main() {
         );
         // 壳内频道（M4b）：开关 `MODE_HOST_INPROCESS_CHANNELS` 为空时整条链路不介入，
         // 帧仍逐字节转发给 Node Host。数据根与 Host 同口径（含 setting.json 的自定义指针）。
+        // S0（host-ownership-switch §5）：Agent 运行时装配 + agent-health 只读频道。
+        // owner 仍是 Node Host；这里只提供健康面（不 spawn、不影响行为）。
+        let agent_control = mode_tauri::agent_runtime::build_control_client(
+            &mode_tauri::agent_runtime::AgentRuntimeConfig {
+                resources_dir: handle.path().resource_dir().ok(),
+                data_root: mode_tauri::host::resolve_data_root(&handle),
+            },
+        );
+        eprintln!("[mode-tauri] agent owner=node (S0: agent-health read-only)");
         let inprocess = mode_tauri::inprocess::InprocessState::from_env(
             std::sync::Arc::clone(&supervisor),
             mode_tauri::host::resolve_data_root(&handle),
+            agent_control,
         );
         app.manage(supervisor);
         app.manage(inprocess);

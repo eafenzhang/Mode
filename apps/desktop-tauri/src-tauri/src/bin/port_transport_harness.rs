@@ -98,7 +98,10 @@ fn read_frame(stdout: &mut ChildStdout) -> std::io::Result<Vec<u8>> {
 
 /// 页面 → 壳：整包 raw 字节（页面侧 `invoke(cmd, ArrayBuffer|TypedArray)` → `octet-stream`）。
 #[tauri::command]
-fn spike_host_send(handle: State<'_, HostHandle>, request: tauri::ipc::Request<'_>) -> Result<(), String> {
+fn spike_host_send(
+    handle: State<'_, HostHandle>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), String> {
     let bytes = match request.body() {
         tauri::ipc::InvokeBody::Raw(bytes) => bytes.clone(),
         other => return Err(format!("spike_host_send 期望 raw body，实收 {other:?}")),
@@ -134,7 +137,11 @@ fn spike_report(app: tauri::AppHandle, reported: State<'_, Watchdog>, line: Stri
         return;
     }
     reported.0.store(true, Ordering::SeqCst);
-    let code = if line.contains("\"status\":\"ok\"") { 0 } else { 3 };
+    let code = if line.contains("\"status\":\"ok\"") {
+        0
+    } else {
+        3
+    };
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(300));
         app.exit(code);
@@ -172,11 +179,15 @@ fn main() {
     let reported = Arc::new(AtomicBool::new(false));
     let script: String =
         include_str!("../../../test/harness/port-transport/frontend/injected-bridge.ts")
-        .replace("__SPIKE_STARTUP_ID__", STARTUP_ID)
-        .replace(
-            "__SPIKE_WRAP_PORT_MESSAGE__",
-            if mode.wrap_port_message() { "true" } else { "false" },
-        );
+            .replace("__SPIKE_STARTUP_ID__", STARTUP_ID)
+            .replace(
+                "__SPIKE_WRAP_PORT_MESSAGE__",
+                if mode.wrap_port_message() {
+                    "true"
+                } else {
+                    "false"
+                },
+            );
 
     let watchdog_flag = reported.clone();
     let watchdog_handle = handle.clone();

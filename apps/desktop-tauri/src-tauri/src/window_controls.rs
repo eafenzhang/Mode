@@ -56,10 +56,7 @@ fn started_at() -> &'static std::time::Instant {
 /// 守它的是 `apps/desktop-tauri/test/windowModeInjection.test.mts` 的
 /// 「壳侧窗口控制面的 rename 字面量必须与注入名一致」：它读本文件与
 /// `crates/sidecar-host/src/bridge.rs` 的 `CMD_*` 常量逐个对拍（两个方向都查）。
-pub const COMMAND_NAMES: &[&str] = &[
-    CMD_EXECUTE_DESKTOP_COMMAND,
-    CMD_WINDOW_CHROME_STATE,
-];
+pub const COMMAND_NAMES: &[&str] = &[CMD_EXECUTE_DESKTOP_COMMAND, CMD_WINDOW_CHROME_STATE];
 
 /// `executeDesktopCommand` 的 wire 名（注入层按它 `invoke`）。
 pub const CMD_EXECUTE_DESKTOP_COMMAND: &str = "executeDesktopCommand";
@@ -71,10 +68,7 @@ pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + 
     // 恒是 `at_ms=0`**（那正是最需要看清「是谁在什么时候调的」的那一条）。handler 在 app 构建期
     // 就被调用，所以这里初始化得到的起点≈进程启动。
     let _ = started_at();
-    tauri::generate_handler![
-        execute_desktop_command,
-        get_desktop_window_chrome_state
-    ]
+    tauri::generate_handler![execute_desktop_command, get_desktop_window_chrome_state]
 }
 
 /// `IPlatformService.executeDesktopCommand(command)`。
@@ -162,7 +156,10 @@ fn show_about_window<R: Runtime>(parent: &WebviewWindow<R>) -> Result<(), String
 }
 
 /// 把窗口级命令落到窗口上。
-fn apply_window_command<R: Runtime>(window: &WebviewWindow<R>, command: &str) -> Result<(), String> {
+fn apply_window_command<R: Runtime>(
+    window: &WebviewWindow<R>,
+    command: &str,
+) -> Result<(), String> {
     let io = |error: tauri::Error| error.to_string();
     match command {
         "closeWindow" => window.close().map_err(io),

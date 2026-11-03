@@ -19,13 +19,13 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use settings_store::paths::MODE_DATA_ROOT_DIR_NAME;
+use settings_store::{resolve_home, resolve_settings_paths, HomeEnv};
 use sidecar_host::bridge::{
     CMD_PLATFORM_REPORT, CMD_RECV, CMD_SEND, CMD_STARTUP_CONTROL, CMD_STARTUP_ID, CMD_STATE,
 };
 use sidecar_host::respawn::{RespawnHistory, MAX_QUICK_CRASHES};
 use sidecar_host::{HostConfig, HostHandle};
-use settings_store::paths::MODE_DATA_ROOT_DIR_NAME;
-use settings_store::{resolve_home, resolve_settings_paths, HomeEnv};
 use tauri::{AppHandle, Manager, Runtime, State};
 
 use crate::inprocess::{InprocessState, RouteDecision};
@@ -373,16 +373,12 @@ fn watch_loop<R: Runtime>(app: AppHandle<R>, supervisor: Arc<HostSupervisor>) {
         }
         let next_startup_id = next.startup_id().to_string();
         let next_pid = next.pid();
-        eprintln!(
-            "[mode-tauri] Host 重生：startupId={next_startup_id} pid={next_pid}"
-        );
+        eprintln!("[mode-tauri] Host 重生：startupId={next_startup_id} pid={next_pid}");
         supervisor.replace(next);
         shell_log(&format!(
             "host_respawn startupId={next_startup_id} pid={next_pid}"
         ));
-        shell_log(&format!(
-            "reload_main_window startupId={next_startup_id}"
-        ));
+        shell_log(&format!("reload_main_window startupId={next_startup_id}"));
         reload_main_window(&app);
     }
 }
@@ -394,10 +390,7 @@ fn watch_loop<R: Runtime>(app: AppHandle<R>, supervisor: Arc<HostSupervisor>) {
 /// `setting.json` 里的 `dataBaseDir` 指针（用户改过数据目录时 Host 也走这条）。
 /// 指针读取失败/缺失都回落 `{home}/.mode`，不阻断启动。
 pub fn resolve_data_root<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
-    let home = app
-        .path()
-        .home_dir()
-        .unwrap_or_else(|_| PathBuf::from("."));
+    let home = app.path().home_dir().unwrap_or_else(|_| PathBuf::from("."));
     data_base_for_home(&home).join(MODE_DATA_ROOT_DIR_NAME)
 }
 

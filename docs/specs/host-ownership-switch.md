@@ -143,7 +143,7 @@ sequenceDiagram
 
 | 阶段 | 内容                                                      | 出口                                   |
 | ---- | --------------------------------------------------------- | -------------------------------------- |
-| S0   | 健康状态面（只读，Host 提供）                             | UI/日志可见 owner 与 state，不影响行为 |
+| S0   | 健康状态面（只读，Host 提供） **已落地（2026-11-04）**：壳装配 `AgentRuntimeRegistry`+`AgentControlClient`（`agent_runtime.rs`，工厂完整实现启动规格解析），`agent-health` 频道进 inprocess 接管清单，启动日志 `agent owner=node (S0: agent-health read-only)` | UI/日志可见 owner 与 state，不影响行为 |
 | S1   | 方法覆盖矩阵与 `blocked` 清零；未实现方法返回 TS 同款错误 | 矩阵检查脚本绿                         |
 | S2   | `mode-agent` 频道适配器（默认不注册）+ 启动期开关         | 打开开关后 20 个真实任务通过           |
 | S3   | Host 侧删除 `mode-agent` 所有权路径（保留回滚开关）       | 关闭开关仍全绿；无孤儿进程             |

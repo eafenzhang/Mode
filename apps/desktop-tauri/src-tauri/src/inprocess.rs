@@ -16,20 +16,24 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+use agent_process::AgentControlClient;
+use host_channels::AgentHealthChannel;
 use host_channels::{
     AttachmentTransferChannel, BroadcastChannel, ClientConfigChannel, ClientScenesChannel,
     CommandsChannel, ConversationMirrorChannel, CredentialChannel, FileChannel, FileWatcherChannel,
     GitChannel, GitCheckpointChannel, MediaPreviewChannel, MemoryChannel, PluginSyncChannel,
     SettingChannel, SettingsSyncChannel, SkillSyncChannel, SkillsChannel, SubagentsChannel,
-    SystemChannel, TerminalChannel, ATTACHMENT_TRANSFER_CHANNEL,
+    SystemChannel, TerminalChannel, AGENT_HEALTH_CHANNEL, ATTACHMENT_TRANSFER_CHANNEL,
     BROADCAST_CHANNEL, CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL,
     CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL, FILE_CHANNEL, FILE_WATCHER_CHANNEL,
     GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
-    PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL, SKILLS_CHANNEL,
+    PLUGIN_SYNC_CHANNEL, SETTINGS_SYNC_CHANNEL, SETTING_CHANNEL, SKILLS_CHANNEL,
     SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
+use std::sync::Arc as StdArc;
+
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 use crate::host::HostSupervisor;
@@ -39,7 +43,10 @@ const ENV_CHANNELS: &str = "MODE_HOST_INPROCESS_CHANNELS";
 /// 一帧的去向。
 pub enum RouteDecision {
     /// 本地服务面处理；带上剥掉 scope 前缀后的原始 payload 与所属 scope。
-    Local { scope_id: Option<u32>, payload: Vec<u8> },
+    Local {
+        scope_id: Option<u32>,
+        payload: Vec<u8>,
+    },
     /// 已判定为不可处理（畸形帧/非请求）：丢弃，不回帧也不转发。
     Dropped,
     /// 交给遗留 Node Host（逐字节转发）。
@@ -57,7 +64,11 @@ pub struct InprocessState {
 
 impl InprocessState {
     /// 读开关并起消费/回帧两条任务。开关为空时不注册任何频道，链路退化为纯转发。
-    pub fn from_env(supervisor: Arc<HostSupervisor>, data_root: PathBuf) -> Arc<Self> {
+    pub fn from_env(
+        supervisor: Arc<HostSupervisor>,
+        data_root: PathBuf,
+        agent_control: Arc<AgentControlClient>,
+    ) -> Arc<Self> {
         let requested: Vec<String> = std::env::var(ENV_CHANNELS)
             .unwrap_or_default()
             .split(',')
@@ -91,7 +102,9 @@ impl InprocessState {
                 | PLUGIN_SYNC_CHANNEL
                 | TERMINAL_CHANNEL => owned.push(name),
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
-                other => crate::host::shell_log(&format!("inprocess channel ignored (not ported yet): {other}")),
+                other => crate::host::shell_log(&format!(
+                    "inprocess channel ignored (not ported yet): {other}"
+                )),
             }
         }
         let enabled = !owned.is_empty();
@@ -104,6 +117,7 @@ impl InprocessState {
                 Arc::clone(&supervisor),
                 owned.clone(),
                 data_root,
+                Arc::clone(&agent_control),
                 local_rx,
                 out_tx,
             ));
@@ -120,18 +134,15 @@ impl InprocessState {
                         Ok(Err(error)) => {
                             crate::host::shell_log(&format!("inprocess frame dropped: {error}"))
                         }
-                        Err(error) => {
-                            crate::host::shell_log(&format!("inprocess forward task failed: {error}"))
-                        }
+                        Err(error) => crate::host::shell_log(&format!(
+                            "inprocess forward task failed: {error}"
+                        )),
                     }
                 }
             });
             // release 是 windows_subsystem="windows"：eprintln 没有 stderr 落地，
             // 这条诊断必须走壳侧结构化日志，否则「开没开、丢了帧」都不可观察。
-            crate::host::shell_log(&format!(
-                "inprocess channels enabled: {}",
-                owned.join(",")
-            ));
+            crate::host::shell_log(&format!("inprocess channels enabled: {}", owned.join(",")));
         }
 
         Arc::new(Self {
@@ -181,12 +192,14 @@ async fn run_consumer(
     supervisor: Arc<HostSupervisor>,
     owned: Vec<String>,
     data_root: PathBuf,
+    agent_control: StdArc<AgentControlClient>,
     mut rx: UnboundedReceiver<(Option<u32>, Vec<u8>)>,
     out_tx: UnboundedSender<Vec<u8>>,
 ) {
     let mut generation = supervisor.current().startup_id().to_string();
-    let mut base = build_server(out_tx.clone(), &owned, &data_root);
-    let mut scoped: std::collections::HashMap<u32, ChannelServer> = std::collections::HashMap::new();
+    let mut base = build_server(out_tx.clone(), &owned, &data_root, &agent_control);
+    let mut scoped: std::collections::HashMap<u32, ChannelServer> =
+        std::collections::HashMap::new();
     while let Some((scope_id, payload)) = rx.recv().await {
         let current = supervisor.current().startup_id().to_string();
         if current != generation {
@@ -195,15 +208,20 @@ async fn run_consumer(
             for (_, mut server) in scoped.drain() {
                 server.dispose();
             }
-            base = build_server(out_tx.clone(), &owned, &data_root);
+            base = build_server(out_tx.clone(), &owned, &data_root, &agent_control);
             generation = current;
         }
         match scope_id {
             None => base.handle_frame(&payload),
             Some(scope) => {
-                let server = scoped
-                    .entry(scope)
-                    .or_insert_with(|| build_server(scoped_out(&out_tx, scope), &owned, &data_root));
+                let server = scoped.entry(scope).or_insert_with(|| {
+                    build_server(
+                        scoped_out(&out_tx, scope),
+                        &owned,
+                        &data_root,
+                        &agent_control,
+                    )
+                });
                 server.handle_frame(&payload);
             }
         }
@@ -238,8 +256,14 @@ fn build_server(
     out_tx: UnboundedSender<Vec<u8>>,
     owned: &[String],
     data_root: &Path,
+    agent_control: &StdArc<AgentControlClient>,
 ) -> ChannelServer {
-    let mut server = ChannelServer::new(out_tx, "mode-host-sidecar", Duration::from_millis(1000), true);
+    let mut server = ChannelServer::new(
+        out_tx,
+        "mode-host-sidecar",
+        Duration::from_millis(1000),
+        true,
+    );
     for name in owned {
         match name.as_str() {
             MEMORY_CHANNEL => server.register_channel(
@@ -258,18 +282,15 @@ fn build_server(
                 ATTACHMENT_TRANSFER_CHANNEL,
                 Arc::new(AttachmentTransferChannel),
             ),
-            CLIENT_CONFIG_CHANNEL => server.register_channel(
-                CLIENT_CONFIG_CHANNEL,
-                Arc::new(ClientConfigChannel),
-            ),
-            CLIENT_SCENES_CHANNEL => server.register_channel(
-                CLIENT_SCENES_CHANNEL,
-                Arc::new(ClientScenesChannel),
-            ),
-            MEDIA_PREVIEW_CHANNEL => server.register_channel(
-                MEDIA_PREVIEW_CHANNEL,
-                Arc::new(MediaPreviewChannel),
-            ),
+            CLIENT_CONFIG_CHANNEL => {
+                server.register_channel(CLIENT_CONFIG_CHANNEL, Arc::new(ClientConfigChannel))
+            }
+            CLIENT_SCENES_CHANNEL => {
+                server.register_channel(CLIENT_SCENES_CHANNEL, Arc::new(ClientScenesChannel))
+            }
+            MEDIA_PREVIEW_CHANNEL => {
+                server.register_channel(MEDIA_PREVIEW_CHANNEL, Arc::new(MediaPreviewChannel))
+            }
             CONVERSATION_MIRROR_CHANNEL => server.register_channel(
                 CONVERSATION_MIRROR_CHANNEL,
                 Arc::new(ConversationMirrorChannel::new(
@@ -312,7 +333,9 @@ fn build_server(
             }
             SYSTEM_CHANNEL => server.register_channel(
                 SYSTEM_CHANNEL,
-                Arc::new(SystemChannel::new(Arc::new(system_service::SystemService::new()))),
+                Arc::new(SystemChannel::new(Arc::new(
+                    system_service::SystemService::new(),
+                ))),
             ),
             FILE_CHANNEL => {
                 // 索引降级（规则文件不可用/解析失败）必须可观察；日志只带原因，不带文件内容。
@@ -416,6 +439,12 @@ fn build_server(
                     host_channels::plugin_sync::default_service(),
                 )),
             ),
+            AGENT_HEALTH_CHANNEL => {
+                server.register_channel(
+                    AGENT_HEALTH_CHANNEL,
+                    Arc::new(AgentHealthChannel::new(Arc::clone(agent_control))),
+                );
+            }
             TERMINAL_CHANNEL => {
                 let env = settings_store::HomeEnv::from_process();
                 let paths = settings_store::resolve_settings_paths(&env);
@@ -431,7 +460,9 @@ fn build_server(
                     )),
                 );
             }
-            other => crate::host::shell_log(&format!("inprocess channel not constructible: {other}")),
+            other => {
+                crate::host::shell_log(&format!("inprocess channel not constructible: {other}"))
+            }
         }
     }
     server
