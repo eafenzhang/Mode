@@ -35,10 +35,7 @@ fn string_at(value: &Value, key: &str) -> String {
 }
 
 fn optional_string_at(value: &Value, key: &str) -> Option<String> {
-    value
-        .get(key)
-        .and_then(Value::as_str)
-        .map(str::to_owned)
+    value.get(key).and_then(Value::as_str).map(str::to_owned)
 }
 
 fn int_at(value: &Value, key: &str) -> i64 {
@@ -68,10 +65,8 @@ fn temp_dir() -> TempDir {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
-    let path = std::env::temp_dir().join(format!(
-        "task-index-parity-{}-{nanos}",
-        std::process::id()
-    ));
+    let path =
+        std::env::temp_dir().join(format!("task-index-parity-{}-{nanos}", std::process::id()));
     std::fs::create_dir_all(&path).expect("创建临时目录");
     TempDir(path)
 }
@@ -606,11 +601,7 @@ fn first_difference(expected: &Value, actual: &Value, path: &str) -> Option<Stri
                             return Some(difference);
                         }
                     }
-                    (l, r) => {
-                        return Some(format!(
-                            "{next}: ts={l:?} rust={r:?}"
-                        ))
-                    }
+                    (l, r) => return Some(format!("{next}: ts={l:?} rust={r:?}")),
                 }
             }
             None
@@ -747,24 +738,20 @@ fn agent_patch(input: &Value) -> AgentPatch {
     }
 }
 
-fn dispatch(
-    repo: &TaskIndexRepo,
-    op: &str,
-    input: &Value,
-) -> task_index_repo::Result<Value> {
+fn dispatch(repo: &TaskIndexRepo, op: &str, input: &Value) -> task_index_repo::Result<Value> {
     Ok(match op {
         "listTaskMetas" => serde_json::to_value(repo.list_task_metas(&list_metas_params(input))?)?,
         "getTaskMeta" => serde_json::to_value(repo.get_task_meta(&task_ref(input))?)?,
-        "listDeletedTaskIds" => serde_json::to_value(repo.list_deleted_task_ids(
-            &ListDeletedTaskIdsParams {
+        "listDeletedTaskIds" => {
+            serde_json::to_value(repo.list_deleted_task_ids(&ListDeletedTaskIdsParams {
                 workspace_path: string_at(input, "workspacePath"),
                 workspace_identity: optional_string_at(input, "workspaceIdentity"),
                 provider: optional_string_at(input, "provider"),
-            },
-        )?)?,
-        "listSessionsByAutomation" => {
-            serde_json::to_value(repo.list_sessions_by_automation(&string_at(input, "automationId"))?)?
+            })?)?
         }
+        "listSessionsByAutomation" => serde_json::to_value(
+            repo.list_sessions_by_automation(&string_at(input, "automationId"))?,
+        )?,
         "queryTaskList" => serde_json::to_value(repo.query_task_list(&list_query(input))?)?,
         "seedTaskMetaIfMissing" => {
             serde_json::to_value(repo.seed_task_meta_if_missing(&parse_meta(input, "meta"))?)?
@@ -787,8 +774,8 @@ fn dispatch(
         "applyAgentPatch" => serde_json::to_value(
             repo.apply_agent_patch(&task_ref(input), &agent_patch(&input["patch"]))?,
         )?,
-        "archiveStaleTasks" => serde_json::to_value(repo.archive_stale_tasks(
-            &ArchiveStaleTasksParams {
+        "archiveStaleTasks" => serde_json::to_value(
+            repo.archive_stale_tasks(&ArchiveStaleTasksParams {
                 workspace_path: string_at(input, "workspacePath"),
                 workspace_identity: optional_string_at(input, "workspaceIdentity"),
                 older_than_days: input
@@ -796,8 +783,8 @@ fn dispatch(
                     .and_then(Value::as_f64)
                     .expect("olderThanDays"),
                 provider: optional_string_at(input, "provider"),
-            },
-        )?)?,
+            })?,
+        )?,
         "hasGroupedWorkspaceBootstrapRun" => {
             serde_json::to_value(repo.has_grouped_workspace_bootstrap_run()?)?
         }
@@ -811,14 +798,12 @@ fn dispatch(
             input.get("title").and_then(Value::as_str),
             input.get("color").and_then(Value::as_str),
         )?)?,
-        "renameTaskGroup" => serde_json::to_value(repo.rename_task_group(
-            &string_at(input, "groupId"),
-            &string_at(input, "title"),
-        )?)?,
-        "updateTaskGroupColor" => serde_json::to_value(repo.update_task_group_color(
-            &string_at(input, "groupId"),
-            &string_at(input, "color"),
-        )?)?,
+        "renameTaskGroup" => serde_json::to_value(
+            repo.rename_task_group(&string_at(input, "groupId"), &string_at(input, "title"))?,
+        )?,
+        "updateTaskGroupColor" => serde_json::to_value(
+            repo.update_task_group_color(&string_at(input, "groupId"), &string_at(input, "color"))?,
+        )?,
         "deleteTaskGroup" => {
             repo.delete_task_group(&string_at(input, "groupId"))?;
             Value::Null
@@ -826,19 +811,19 @@ fn dispatch(
         "initializeGroupedTaskAtTop" => {
             Value::Bool(repo.initialize_grouped_task_at_top(&grouped_ref(input))?)
         }
-        "applyGroupedTaskViewOrder" => serde_json::to_value(
-            repo.apply_grouped_task_view_order(&grouped_order_input(input))?,
-        )?,
-        "syncTaskMetaAtGroupedTop" => serde_json::to_value(repo.sync_task_meta_at_grouped_top(
-            SyncTaskMetaParams {
+        "applyGroupedTaskViewOrder" => {
+            serde_json::to_value(repo.apply_grouped_task_view_order(&grouped_order_input(input))?)?
+        }
+        "syncTaskMetaAtGroupedTop" => {
+            serde_json::to_value(repo.sync_task_meta_at_grouped_top(SyncTaskMetaParams {
                 meta: parse_meta(input, "meta"),
                 pinned: input.get("pinned").and_then(Value::as_bool),
                 archived: input.get("archived").and_then(Value::as_bool),
                 deleted: input.get("deleted").and_then(Value::as_bool),
                 title_overridden: input.get("titleOverridden").and_then(Value::as_bool),
                 searchable_text: optional_string_at(input, "searchableText"),
-            },
-        )?)?,
+            })?)?
+        }
         "close" => {
             repo.close();
             Value::Null
@@ -859,19 +844,12 @@ fn run_steps(repo: &TaskIndexRepo, db_path: &Path, steps: &[Value]) {
                     Ok(_) => panic!("{id}: 期望错误但成功了"),
                     Err(error) => error,
                 };
-                assert_eq!(
-                    error.to_string(),
-                    *expected,
-                    "{id}: 错误文案必须与 TS 一致"
-                );
+                assert_eq!(error.to_string(), *expected, "{id}: 错误文案必须与 TS 一致");
             }
             _ => {
                 let output = result.unwrap_or_else(|error| panic!("{id}: 意外错误 {error}"));
                 let output = normalize_dispatch_output(op, output);
-                assert_eq!(
-                    output, step["output"],
-                    "{id}: 方法返回值必须与 TS 深度相等"
-                );
+                assert_eq!(output, step["output"], "{id}: 方法返回值必须与 TS 深度相等");
             }
         }
         let actual = snapshot(db_path);
@@ -898,11 +876,7 @@ fn ts_fixture_steps_match() {
     let clock = fixture["clockMs"].as_i64().expect("clockMs");
     let repo = TaskIndexRepo::with_clock(&db_path, move || clock);
 
-    run_steps(
-        &repo,
-        &db_path,
-        fixture["steps"].as_array().expect("steps"),
-    );
+    run_steps(&repo, &db_path, fixture["steps"].as_array().expect("steps"));
     repo.close();
 }
 

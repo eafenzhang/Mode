@@ -101,9 +101,13 @@ mod tests {
 
     #[test]
     fn accepts_documented_shapes() {
-        assert!(is_remote_workspace_identity("remote:ssh:host:22:user:/srv/ws"));
+        assert!(is_remote_workspace_identity(
+            "remote:ssh:host:22:user:/srv/ws"
+        ));
         assert!(is_remote_workspace_identity("remote:wsl:Ubuntu:/home/u/ws"));
-        assert!(is_remote_workspace_identity("remote:wsl:Ubuntu:alice:/home/u/ws"));
+        assert!(is_remote_workspace_identity(
+            "remote:wsl:Ubuntu:alice:/home/u/ws"
+        ));
         assert!(is_remote_workspace_identity("remote:docker:ctr:/srv/ws"));
         assert!(is_remote_workspace_identity("remote:lan:host:9000:/srv/ws"));
         assert!(is_remote_workspace_identity("remote:lan:host:9000/D:/ws"));
@@ -113,7 +117,9 @@ mod tests {
     fn rejects_malformed_shapes() {
         assert!(!is_remote_workspace_identity("D:/ws"));
         assert!(!is_remote_workspace_identity("remote:"));
-        assert!(!is_remote_workspace_identity("remote:ssh:host:22:user:relative"));
+        assert!(!is_remote_workspace_identity(
+            "remote:ssh:host:22:user:relative"
+        ));
         assert!(!is_remote_workspace_identity("remote:wsl::/home"));
         assert!(!is_remote_workspace_identity("remote:lan:host:9000"));
     }

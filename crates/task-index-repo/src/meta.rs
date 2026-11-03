@@ -296,12 +296,14 @@ fn parse_error_attribution(value: &Value) -> Parse<ErrorAttribution> {
             return Err(());
         }
     }
-    let source = optional_enum(object, "source", &["provider", "runtime", "tool", "network"])?;
+    let source = optional_enum(
+        object,
+        "source",
+        &["provider", "runtime", "tool", "network"],
+    )?;
     let reason = match object.get("reason") {
         None => None,
-        Some(Value::String(value)) if (1..=160).contains(&utf16_len(value)) => {
-            Some(value.clone())
-        }
+        Some(Value::String(value)) if (1..=160).contains(&utf16_len(value)) => Some(value.clone()),
         Some(_) => return Err(()),
     };
     let error_phase = optional_enum(
@@ -438,9 +440,7 @@ fn parse_goal(value: &Value) -> Parse<ModeTaskGoal> {
         Some(_) => return Err(()),
     };
     let status = match object.get("status") {
-        Some(Value::String(value)) if GOAL_STATUS_VALUES.contains(&value.as_str()) => {
-            value.clone()
-        }
+        Some(Value::String(value)) if GOAL_STATUS_VALUES.contains(&value.as_str()) => value.clone(),
         _ => return Err(()),
     };
     let token_budget = match object.get("tokenBudget") {
@@ -529,8 +529,7 @@ fn parse_mode_task_meta_inner(value: &Value) -> Parse<ModeTaskMeta> {
     let title_overridden = optional_bool(object, "titleOverridden")?;
     let workspace_path = required_non_empty(object, "workspacePath")?;
     let workspace_identity = optional_non_empty(object, "workspaceIdentity")?;
-    let workspace_purpose =
-        optional_enum(object, "workspacePurpose", WORKSPACE_PURPOSE_VALUES)?;
+    let workspace_purpose = optional_enum(object, "workspacePurpose", WORKSPACE_PURPOSE_VALUES)?;
     let created_at = required_non_negative_int(object, "createdAt")?;
     let updated_at = required_non_negative_int(object, "updatedAt")?;
     let mode = match object.get("mode") {

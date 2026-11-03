@@ -28,13 +28,13 @@ pub use grouped::{
     GroupedTaskViewTopLevelNodeRef, TaskGroup,
 };
 pub use meta::{
-    parse_last_error_value, parse_mode_task_meta, parse_task_goal_value, ErrorAttribution, ModeTaskChangeSummary, ModeTaskChangedFile,
-    ModeTaskGoal, ModeTaskGoalTime, ModeTaskLastError, ModeTaskMeta, CRON_DEFAULT_GROUP_ID,
-    MODE_AGENT_PROVIDER, OFF_PEAK_DEFAULT_GROUP_ID,
+    parse_last_error_value, parse_mode_task_meta, parse_task_goal_value, ErrorAttribution,
+    ModeTaskChangeSummary, ModeTaskChangedFile, ModeTaskGoal, ModeTaskGoalTime, ModeTaskLastError,
+    ModeTaskMeta, CRON_DEFAULT_GROUP_ID, MODE_AGENT_PROVIDER, OFF_PEAK_DEFAULT_GROUP_ID,
 };
 pub use repo::{
     mark_tasks_storage_migrated, mark_tasks_storage_prepared, AgentPatch, ArchiveStaleTasksParams,
     ClearUnreadResult, ListDeletedTaskIdsParams, ListTaskMetasParams, SyncTaskMetaAtGroupedTop,
-    SyncTaskMetaParams, TaskIndexRepo, TaskIndexStatePatch, TaskListItem, TaskListKind, TaskListQuery,
-    TaskListResult, TaskListSortBy, TaskListWorkspaceScope, TaskRef,
+    SyncTaskMetaParams, TaskIndexRepo, TaskIndexStatePatch, TaskListItem, TaskListKind,
+    TaskListQuery, TaskListResult, TaskListSortBy, TaskListWorkspaceScope, TaskRef,
 };
