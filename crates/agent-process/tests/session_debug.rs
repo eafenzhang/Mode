@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use agent_process::{
-    AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, AgentWorkspaceTarget,
-    ControlError, ListSessionsOptions, SpecFactory,
+    AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, AgentWorkspaceTarget, ControlError,
+    ListSessionsOptions, SpecFactory,
 };
 
 const FIXTURE: &str = env!("CARGO_BIN_EXE_agent-process-fixture");

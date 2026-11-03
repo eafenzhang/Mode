@@ -37,7 +37,11 @@ impl FrameLog {
                 let params: Vec<Option<Value>> = text
                     .lines()
                     .filter(|line| line.starts_with(&marker))
-                    .map(|line| line.splitn(3, '\t').nth(2).and_then(|p| serde_json::from_str(p).ok()))
+                    .map(|line| {
+                        line.splitn(3, '\t')
+                            .nth(2)
+                            .and_then(|p| serde_json::from_str(p).ok())
+                    })
                     .collect();
                 if !params.is_empty() {
                     return (params.len(), params.into_iter().next().flatten());
@@ -87,7 +91,10 @@ async fn reads_workspace_presentation_with_trimmed_key() {
     assert_eq!(count, 1);
     let params = params.expect("请求必须带 workspace");
     assert_eq!(params["workspace"]["workspacePath"], "/ws/demo");
-    assert_eq!(params["workspace"]["workspaceIdentity"], " ssh://host/ws/demo ");
+    assert_eq!(
+        params["workspace"]["workspaceIdentity"],
+        " ssh://host/ws/demo "
+    );
     assert_eq!(params["workspace"]["workspaceKey"], "ssh://host/ws/demo");
 }
 

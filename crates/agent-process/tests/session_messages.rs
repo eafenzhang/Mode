@@ -86,7 +86,9 @@ async fn reads_messages_with_cursor_and_parses_parts() {
     assert!(matches!(messages[0].info, MessageInfo::User(_)));
     assert!(matches!(messages[0].parts[0], MessagePart::Text(_)));
 
-    let params = log.frame_params("session/messages").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("session/messages")
+        .expect("必须记录到请求帧");
     assert_eq!(params["sessionId"], "sess-1");
     assert_eq!(params["afterMessageId"], "msg-0");
     assert_eq!(params["limit"], 25);
@@ -103,7 +105,9 @@ async fn omitted_cursor_and_limit_are_not_serialized() {
         .await
         .unwrap();
 
-    let params = log.frame_params("session/messages").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("session/messages")
+        .expect("必须记录到请求帧");
     assert_eq!(params["sessionId"], "sess-1");
     assert!(
         params.get("afterMessageId").is_none(),

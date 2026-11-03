@@ -6,9 +6,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use agent_process::{
-    AccountProviderConfigSnapshot, AgentControlClient, AgentProcessSpec,
-    AgentRuntimeRegistry, ControlError, ProviderReadFuture, ProviderSource, ProviderSyncStatus,
-    SpecFactory,
+    AccountProviderConfigSnapshot, AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry,
+    ControlError, ProviderReadFuture, ProviderSource, ProviderSyncStatus, SpecFactory,
 };
 use serde_json::{json, Value};
 
@@ -59,7 +58,10 @@ impl FakeSource {
             revision: Mutex::new(revision.to_string()),
             based_on: "builtin-rev-1".into(),
             providers: BTreeMap::from([
-                ("provider-a".to_string(), json!({ "access": { "entitled": true } })),
+                (
+                    "provider-a".to_string(),
+                    json!({ "access": { "entitled": true } }),
+                ),
                 ("provider-b".to_string(), json!({ "enabled": false })),
             ]),
             states: BTreeMap::from([("provider-a".to_string(), json!({ "connected": true }))]),
@@ -88,11 +90,7 @@ impl ProviderSource for FakeSource {
     }
 }
 
-fn control(
-    mode: &str,
-    log: &FrameLog,
-    spawns: Arc<AtomicUsize>,
-) -> AgentControlClient {
+fn control(mode: &str, log: &FrameLog, spawns: Arc<AtomicUsize>) -> AgentControlClient {
     let mode = mode.to_string();
     let log_path = log.0.to_string_lossy().into_owned();
     let factory: SpecFactory = Arc::new(move |_target| {
@@ -134,7 +132,10 @@ async fn syncs_payload_and_dedupes_by_revision() {
     let params: Value = serde_json::from_str(parts.next().unwrap()).unwrap();
     assert_eq!(params["revision"], "rev-1");
     assert_eq!(params["basedOnModeBuiltinRevision"], "builtin-rev-1");
-    assert_eq!(params["providers"]["provider-a"]["access"]["entitled"], true);
+    assert_eq!(
+        params["providers"]["provider-a"]["access"]["entitled"],
+        true
+    );
     assert_eq!(params["providers"]["provider-b"]["enabled"], false);
     assert_eq!(params["states"]["provider-a"]["connected"], true);
 

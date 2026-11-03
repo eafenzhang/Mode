@@ -84,7 +84,9 @@ async fn defaults_ended_limit_and_parses_result() {
     assert_eq!(result.ended.total, 0);
     assert!(result.ended.items.is_empty());
 
-    let params = log.frame_params("session/subagents").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("session/subagents")
+        .expect("必须记录到请求帧");
     assert_eq!(params["sessionId"], "sess-1");
     assert_eq!(params["endedLimit"], 20, "缺省分页必须是 20");
     assert!(
@@ -109,7 +111,9 @@ async fn explicit_cursor_and_limit_are_sent() {
         .await
         .unwrap();
 
-    let params = log.frame_params("session/subagents").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("session/subagents")
+        .expect("必须记录到请求帧");
     assert_eq!(params["endedCursor"], "cursor-1");
     assert_eq!(params["endedLimit"], 50);
 }

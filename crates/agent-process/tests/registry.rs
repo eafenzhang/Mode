@@ -54,7 +54,10 @@ async fn identity_wins_over_path_for_the_key() {
 
     let first = registry.get_or_spawn(&local).await.unwrap();
     let second = registry.get_or_spawn(&remote).await.unwrap();
-    assert!(!Arc::ptr_eq(&first, &second), "不同 identity 必须是不同进程");
+    assert!(
+        !Arc::ptr_eq(&first, &second),
+        "不同 identity 必须是不同进程"
+    );
     assert_eq!(spawns.load(Ordering::SeqCst), 2);
     registry.shutdown_all(Duration::from_secs(3)).await;
 }
@@ -95,9 +98,7 @@ async fn invalidate_and_reap_idle_remove_entries() {
     let spawns = Arc::new(AtomicUsize::new(0));
     let registry = registry(Arc::clone(&spawns));
     registry.get_or_spawn(&target("D:/ws/e")).await.unwrap();
-    registry
-        .invalidate("D:/ws/e", Duration::from_secs(3))
-        .await;
+    registry.invalidate("D:/ws/e", Duration::from_secs(3)).await;
     assert_eq!(registry.len(), 0);
 
     registry.get_or_spawn(&target("D:/ws/f")).await.unwrap();
@@ -125,13 +126,23 @@ async fn reap_idle_skips_process_while_request_is_in_flight() {
     assert_eq!(process.client().pending_count(), 1, "请求应在飞");
 
     // 在飞期间即使阈值为 0 也不能回收。
-    assert_eq!(registry.reap_idle(Duration::ZERO, Duration::from_secs(3)).await, 0);
+    assert_eq!(
+        registry
+            .reap_idle(Duration::ZERO, Duration::from_secs(3))
+            .await,
+        0
+    );
     assert_eq!(registry.len(), 1);
 
     request.await.unwrap().unwrap();
     assert_eq!(process.client().pending_count(), 0);
     // 请求结束后计时归零；阈值为 0 时下一轮回收。
-    assert_eq!(registry.reap_idle(Duration::ZERO, Duration::from_secs(3)).await, 1);
+    assert_eq!(
+        registry
+            .reap_idle(Duration::ZERO, Duration::from_secs(3))
+            .await,
+        1
+    );
     assert_eq!(registry.len(), 0);
 }
 

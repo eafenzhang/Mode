@@ -18,7 +18,8 @@ fn spec(mode: &str) -> AgentProcessSpec {
 #[tokio::test]
 async fn round_trip_and_stderr_lines_over_real_stdio() {
     let spawned = spawn(spec("")).await.expect("fixture 必须能启动");
-    let mut stderr = spawned.stderr.resubscribe();    let result = spawned
+    let mut stderr = spawned.stderr.resubscribe();
+    let result = spawned
         .process
         .client()
         .request("ping", Some(serde_json::json!({ "n": 1 })))
@@ -66,10 +67,7 @@ async fn stubborn_child_is_killed_after_grace() {
     assert_eq!(result.unwrap()["method"], "hello");
 
     let started = Instant::now();
-    spawned
-        .process
-        .shutdown(Duration::from_millis(150))
-        .await;
+    spawned.process.shutdown(Duration::from_millis(150)).await;
     assert!(
         started.elapsed() < Duration::from_secs(5),
         "强杀必须在有界时间内完成"

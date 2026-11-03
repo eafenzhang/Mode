@@ -42,9 +42,7 @@ pub use control::{
     ControlError, GrantTrustReasonCode, GrantTrustResult, RuntimePolicy,
     MODE_AGENT_RUNTIME_UNAVAILABLE_CODE, WORKSPACE_HOOK_TRUST_GRANT_METHOD,
 };
-pub use initialize::{
-    AgentInitializeResult, MODE_PROTOCOL_NAME, MODE_PROTOCOL_VERSION,
-};
+pub use initialize::{AgentInitializeResult, MODE_PROTOCOL_NAME, MODE_PROTOCOL_VERSION};
 pub use mcp::ListMcpServersOptions;
 pub use provider_sync::{
     AccountProviderConfigSnapshot, ProviderConfigSync, ProviderReadFuture, ProviderSource,

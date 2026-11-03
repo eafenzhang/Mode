@@ -105,7 +105,9 @@ async fn subscribes_with_replay_and_filters_live_events() {
         "不应再有事件（重复与其它会话都被过滤）"
     );
 
-    let params = log.frame_params("session/subscribe").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("session/subscribe")
+        .expect("必须记录到请求帧");
     assert_eq!(params["sessionId"], "sess-1");
     assert_eq!(params["deliveryKind"], "desktop-continuous");
     assert_eq!(params["afterSeq"], 0);

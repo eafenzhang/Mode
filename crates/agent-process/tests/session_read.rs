@@ -102,7 +102,13 @@ async fn omitted_params_are_not_serialized() {
     let client = control("", &log, spawns);
 
     client
-        .read_session(&AgentWorkspaceTarget::new("/ws/demo"), "sess-1", None, None, None)
+        .read_session(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            "sess-1",
+            None,
+            None,
+            None,
+        )
         .await
         .unwrap();
 
@@ -120,7 +126,13 @@ async fn unknown_snapshot_fields_are_rejected() {
     let client = control("bad-session-read", &log, spawns);
 
     let error = client
-        .read_session(&AgentWorkspaceTarget::new("/ws/demo"), "sess-1", None, None, None)
+        .read_session(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            "sess-1",
+            None,
+            None,
+            None,
+        )
         .await
         .unwrap_err();
     match error {

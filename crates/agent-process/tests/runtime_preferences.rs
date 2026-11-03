@@ -129,7 +129,11 @@ async fn responds_to_reverse_request_sent_on_startup() {
 async fn invalid_scope_returns_invalid_params_error() {
     let log = FrameLog::new("invalid");
     let spawns = Arc::new(AtomicUsize::new(0));
-    let registry = Arc::new(registry("reverse-runtime-preferences-invalid", &log, spawns));
+    let registry = Arc::new(registry(
+        "reverse-runtime-preferences-invalid",
+        &log,
+        spawns,
+    ));
     registry.set_request_handler(Some(default_runtime_preferences_handler()));
     let control = AgentControlClient::new(Arc::clone(&registry));
 
@@ -157,7 +161,11 @@ async fn handler_set_after_spawn_applies_to_existing_process() {
         .unwrap();
 
     registry.set_request_handler(Some(default_runtime_preferences_handler()));
-    process.client().request("test/trigger", None).await.unwrap();
+    process
+        .client()
+        .request("test/trigger", None)
+        .await
+        .unwrap();
 
     let reply = log.reply().expect("已有进程也必须挂上新处理器");
     assert_eq!(reply["result"]["nativeSearchEnhancementsEnabled"], true);

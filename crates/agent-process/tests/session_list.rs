@@ -49,11 +49,7 @@ impl Drop for FrameLog {
     }
 }
 
-fn control(
-    mode: &str,
-    log: &FrameLog,
-    spawns: Arc<AtomicUsize>,
-) -> AgentControlClient {
+fn control(mode: &str, log: &FrameLog, spawns: Arc<AtomicUsize>) -> AgentControlClient {
     let mode = mode.to_string();
     let log = log.0.to_string_lossy().into_owned();
     let factory: SpecFactory = Arc::new(move |_target| {
@@ -108,7 +104,10 @@ async fn list_sessions_sends_workspace_ref_and_parses_strictly() {
     let params: Value = serde_json::from_str(parts.next().unwrap()).unwrap();
     assert_eq!(params["workspace"]["workspacePath"], "/ws/demo");
     // buildWorkspaceRef 保留原始 identity（含空白），key 已 trim。
-    assert_eq!(params["workspace"]["workspaceIdentity"], "  ssh://host/ws/demo  ");
+    assert_eq!(
+        params["workspace"]["workspaceIdentity"],
+        "  ssh://host/ws/demo  "
+    );
     assert_eq!(params["workspace"]["workspaceKey"], "ssh://host/ws/demo");
     assert_eq!(params["includeArchived"], true);
     assert_eq!(params["limit"], 10);
@@ -134,7 +133,10 @@ async fn omitted_options_are_not_serialized() {
     let params: Value = serde_json::from_str(frame.splitn(3, '\t').nth(2).unwrap()).unwrap();
     assert_eq!(params["includeArchived"], false);
     assert!(params.get("limit").is_none(), "limit 缺省时不能出现键");
-    assert!(params.get("sessionIds").is_none(), "sessionIds 缺省时不能出现键");
+    assert!(
+        params.get("sessionIds").is_none(),
+        "sessionIds 缺省时不能出现键"
+    );
 }
 
 #[tokio::test]

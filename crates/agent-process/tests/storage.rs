@@ -34,9 +34,15 @@ fn target(path: &str) -> WorkspaceTarget {
 async fn prepare_waits_for_ready_and_exposes_snapshot() {
     let (registry, _spawns) = registry("storage-ready", true);
     let target = target("D:/ws/storage-ready");
-    assert!(registry.storage_startup_state(&target).is_none(), "未启动时无快照");
+    assert!(
+        registry.storage_startup_state(&target).is_none(),
+        "未启动时无快照"
+    );
 
-    registry.prepare_storage(&target).await.expect("ready 必须放行");
+    registry
+        .prepare_storage(&target)
+        .await
+        .expect("ready 必须放行");
 
     let snapshot = registry
         .storage_startup_state(&target)
@@ -72,7 +78,10 @@ async fn failed_state_rejects_prepare_with_ts_message() {
 async fn non_storage_entry_does_not_wait() {
     let (registry, spawns) = registry("", false);
     let target = target("D:/ws/plain");
-    registry.prepare_storage(&target).await.expect("非 storage 入口立即返回");
+    registry
+        .prepare_storage(&target)
+        .await
+        .expect("非 storage 入口立即返回");
     assert_eq!(spawns.load(Ordering::SeqCst), 1);
     let snapshot = registry.storage_startup_state(&target).expect("进程存在");
     assert!(snapshot.state.is_none(), "没有通知时状态为 None");
@@ -85,7 +94,9 @@ async fn generation_increments_after_restart() {
     let target = target("D:/ws/gen");
     registry.prepare_storage(&target).await.unwrap();
     let first = registry.storage_startup_state(&target).unwrap().generation;
-    registry.invalidate(&target.key(), Duration::from_secs(3)).await;
+    registry
+        .invalidate(&target.key(), Duration::from_secs(3))
+        .await;
     assert!(registry.storage_startup_state(&target).is_none());
     registry.prepare_storage(&target).await.unwrap();
     let second = registry.storage_startup_state(&target).unwrap().generation;

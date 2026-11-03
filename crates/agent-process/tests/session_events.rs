@@ -88,7 +88,9 @@ async fn read_session_events_sends_cursors_and_parses_envelope() {
     assert_eq!(events[0].payload, Some(serde_json::json!({})));
     assert_eq!(spawns.load(Ordering::SeqCst), 1);
 
-    let params = log.frame_params("session/events").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("session/events")
+        .expect("必须记录到请求帧");
     assert_eq!(params["sessionId"], "sess-1");
     assert_eq!(params["afterSeq"], 10);
     assert_eq!(params["limit"], 20);
@@ -105,9 +107,14 @@ async fn omitted_cursors_are_not_serialized() {
         .await
         .unwrap();
 
-    let params = log.frame_params("session/events").expect("必须记录到请求帧");
+    let params = log
+        .frame_params("session/events")
+        .expect("必须记录到请求帧");
     assert_eq!(params["sessionId"], "sess-1");
-    assert!(params.get("afterSeq").is_none(), "afterSeq 缺省时不能出现键");
+    assert!(
+        params.get("afterSeq").is_none(),
+        "afterSeq 缺省时不能出现键"
+    );
     assert!(params.get("limit").is_none(), "limit 缺省时不能出现键");
 }
 

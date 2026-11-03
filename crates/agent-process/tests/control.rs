@@ -105,11 +105,13 @@ async fn grant_sends_workspace_ref_and_parses_result() {
     assert_eq!(params["bundleDigest"], bundle);
     assert_eq!(params["hookDeclarationDigest"], declaration);
     assert_eq!(params["workspace"]["workspacePath"], "D:/ws/a");
-    assert_eq!(params["workspace"]["workspaceIdentity"], " ssh://host/D:/ws/a ");
+    assert_eq!(
+        params["workspace"]["workspaceIdentity"],
+        " ssh://host/D:/ws/a "
+    );
     assert_eq!(params["workspace"]["remoteSessionId"], "s-1");
     assert_eq!(
-        params["workspace"]["workspaceKey"],
-        "ssh://host/D:/ws/a",
+        params["workspace"]["workspaceKey"], "ssh://host/D:/ws/a",
         "workspaceKey 必须 trim identity"
     );
 }
@@ -284,7 +286,10 @@ async fn facade_prepares_storage_and_exposes_snapshot() {
     };
     let control = AgentControlClient::new(Arc::new(AgentRuntimeRegistry::new(factory)));
     let target = agent_process::AgentWorkspaceTarget::new("D:/ws/storage");
-    control.prepare_storage(&target).await.expect("ready 必须放行");
+    control
+        .prepare_storage(&target)
+        .await
+        .expect("ready 必须放行");
     let snapshot = control.storage_startup_state(&target).expect("必须有快照");
     assert_eq!(
         snapshot.state.expect("必须收到状态").phase,

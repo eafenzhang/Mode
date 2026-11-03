@@ -99,7 +99,9 @@ async fn resolve_interaction_sends_envelope_and_returns_accepted_ack() {
     assert_eq!(params["payload"]["interactionId"], "perm-1");
     assert_eq!(params["payload"]["answer"]["optionId"], "allow_once");
     assert!(
-        params["commandId"].as_str().is_some_and(|id| !id.is_empty()),
+        params["commandId"]
+            .as_str()
+            .is_some_and(|id| !id.is_empty()),
         "commandId 必须非空"
     );
     assert!(
@@ -119,7 +121,8 @@ async fn resolve_interaction_sends_envelope_and_returns_accepted_ack() {
 }
 
 #[tokio::test]
-async fn rejected_ack_maps_to_command_rejected() {    let log = FrameLog::new("rejected");
+async fn rejected_ack_maps_to_command_rejected() {
+    let log = FrameLog::new("rejected");
     let spawns = Arc::new(AtomicUsize::new(0));
     let client = control("v4-command-rejected", &log, spawns);
 
@@ -149,7 +152,10 @@ fn host_hello_matches_ts_capabilities_and_round_trips() {
     let hello = agent_process::build_host_hello("conn-1");
     hello.validate().unwrap();
     assert_eq!(hello.protocol_version, 3);
-    assert_eq!(hello.client_mode, agent_protocol::v4_transport::V4ClientMode::DesktopContinuous);
+    assert_eq!(
+        hello.client_mode,
+        agent_protocol::v4_transport::V4ClientMode::DesktopContinuous
+    );
     assert_eq!(hello.delivery_profile, DeliveryProfile::Continuous);
     assert_eq!(hello.capabilities.workflow_run_deltas, Some(true));
     assert!(!hello.capabilities.binary_frames);
