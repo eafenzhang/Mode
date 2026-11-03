@@ -25,6 +25,7 @@ use provider_config_source::{decode_personal_document, empty_personal_layer, Per
 
 pub mod cache_paths;
 pub mod materializer;
+pub mod remote_sync;
 pub mod runtime_paths;
 
 pub use cache_paths::{
@@ -35,6 +36,10 @@ pub use cache_paths::{
 };
 pub use materializer::{
     materialize_mode_builtin_provider_config, MaterializeModeBuiltinProviderConfigOptions,
+};
+pub use remote_sync::{
+    acquire_refresh_lease, finish_refresh_lease, read_refresh_control, write_refresh_control,
+    AcquireOptions, AcquireOutcome, FinishOptions, LeaseFinish, RefreshControl,
 };
 pub use runtime_paths::{
     create_node_provider_runtime_path_env, resolve_node_provider_runtime_paths,
