@@ -6,7 +6,7 @@ use remote_desktop_streaming::{
     adaptive_bitrate_state_to_json, adaptive_bitrate_step_to_json, initial_adaptive_bitrate_state,
     next_lower_quality, quality_downshift_step_to_json, step_adaptive_bitrate,
     step_quality_downshift, AdaptiveBitrateSample, AdaptiveBitrateState, QualityDownshiftState,
-    RemoteDesktopQuality,
+    RemoteDesktopQuality, SessionStatsCollector,
 };
 use serde_json::Value;
 
@@ -47,6 +47,50 @@ fn quality_state_from_json(value: &Value) -> QualityDownshiftState {
 
 fn quality_from_str(value: &str) -> RemoteDesktopQuality {
     RemoteDesktopQuality::parse(value).expect("合法画质档位")
+}
+
+/// 会话状态条统计采集器：按夹具里的事件序列重放，逐次采样与 TS 输出对拍。
+#[test]
+fn matches_typescript_session_stats() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("fixtures")
+        .join("session-stats.json");
+    let text = std::fs::read_to_string(&path).expect("读取 session-stats.json");
+    let fixture: Value = serde_json::from_str(&text).expect("解析 fixture");
+    for (index, case) in fixture["cases"]
+        .as_array()
+        .expect("cases")
+        .iter()
+        .enumerate()
+    {
+        let name = case["name"].as_str().expect("case name");
+        let mut collector = SessionStatsCollector::new();
+        for (op_index, op) in case["ops"].as_array().expect("ops").iter().enumerate() {
+            let context = format!("cases[{index}].{name}.ops[{op_index}]");
+            match op["op"].as_str().expect("op") {
+                "onDecoded" => collector.on_decoded(),
+                "onPong" => collector.on_pong(op["rttMs"].as_f64().expect("rttMs")),
+                "onFrameAge" => collector.on_frame_age(op["ageMs"].as_f64().expect("ageMs")),
+                "onConfigured" => collector.on_configured(
+                    op["width"].as_i64().expect("width"),
+                    op["height"].as_i64().expect("height"),
+                ),
+                "onBytesReceived" => {
+                    collector.on_bytes_received(op["bytes"].as_f64().expect("bytes"))
+                }
+                "onFrameDropped" => collector.on_frame_dropped(),
+                "onDecodeQueue" => collector.on_decode_queue(op["size"].as_f64().expect("size")),
+                "onFrozen" => collector.on_frozen(),
+                "sample" => {
+                    let actual = collector
+                        .sample(op["nowMs"].as_f64().expect("nowMs"))
+                        .to_json();
+                    assert_eq!(actual, op["expected"].clone(), "{context}");
+                }
+                other => panic!("{context}: 未知 op {other}"),
+            }
+        }
+    }
 }
 
 #[test]

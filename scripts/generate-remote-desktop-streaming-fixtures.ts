@@ -1,8 +1,9 @@
-/* oxlint-disable eslint(max-lines) -- 对拍脚本集中声明自适应码率与画质降档矩阵。 */
+/* oxlint-disable eslint(max-lines) -- 对拍脚本集中声明自适应码率、画质降档与会话统计矩阵。 */
 /**
  * 生成 `remote-desktop-streaming` 的 TS 对拍数据。
  *
- * 真源：`packages/ui/src/remote-desktop/adaptiveBitrate.ts`。
+ * 真源：`packages/ui/src/remote-desktop/adaptiveBitrate.ts` 与
+ * `packages/ui/src/remote-desktop/sessionStats.ts`。
  * 所有时钟与采样显式注入，fixture 可重复生成。
  *
  * ```bash
@@ -25,6 +26,7 @@ import {
   type AdaptiveBitrateState,
   type QualityDownshiftState,
 } from "../packages/ui/src/remote-desktop/adaptiveBitrate.js";
+import { createNativeSessionStatsCollector } from "../packages/ui/src/remote-desktop/sessionStats.js";
 import type { RemoteDesktopQuality } from "../packages/shared/src/remote-desktop.js";
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -34,6 +36,13 @@ const OUTPUT = path.join(
   "remote-desktop-streaming",
   "fixtures",
   "adaptive.json",
+);
+const SESSION_STATS_OUTPUT = path.join(
+  ROOT_DIR,
+  "crates",
+  "remote-desktop-streaming",
+  "fixtures",
+  "session-stats.json",
 );
 
 type Step = AdaptiveBitrateSample & { nowMs: number };
@@ -187,6 +196,150 @@ const fixture = {
   ],
 };
 
+// ---- 会话状态条统计采集器（真源 sessionStats.ts）----
+
+type StatsOp =
+  | { op: "onDecoded" }
+  | { op: "onPong"; rttMs: number }
+  | { op: "onFrameAge"; ageMs: number }
+  | { op: "onConfigured"; width: number; height: number }
+  | { op: "onBytesReceived"; bytes: number }
+  | { op: "onFrameDropped" }
+  | { op: "onDecodeQueue"; size: number }
+  | { op: "onFrozen" }
+  | { op: "sample"; nowMs: number; expected: Record<string, unknown> };
+
+function sessionStatsCase(name: string, ops: StatsOp[]) {
+  let nowMs = 0;
+  const collector = createNativeSessionStatsCollector({ now: () => nowMs });
+  const recorded: StatsOp[] = [];
+  for (const op of ops) {
+    if (op.op === "sample") {
+      nowMs = op.nowMs;
+      const expected = collector.sample();
+      recorded.push({ op: "sample", nowMs, expected });
+    } else {
+      switch (op.op) {
+        case "onDecoded":
+          collector.onDecoded();
+          break;
+        case "onPong":
+          collector.onPong(op.rttMs);
+          break;
+        case "onFrameAge":
+          collector.onFrameAge(op.ageMs);
+          break;
+        case "onConfigured":
+          collector.onConfigured(op.width, op.height);
+          break;
+        case "onBytesReceived":
+          collector.onBytesReceived(op.bytes);
+          break;
+        case "onFrameDropped":
+          collector.onFrameDropped();
+          break;
+        case "onDecodeQueue":
+          collector.onDecodeQueue(op.size);
+          break;
+        case "onFrozen":
+          collector.onFrozen();
+          break;
+      }
+      recorded.push(op);
+    }
+  }
+  return { name, ops: recorded };
+}
+
+const sessionStatsFixture = {
+  cases: [
+    sessionStatsCase("fps-resets-between-samples", [
+      ...Array.from({ length: 60 }, () => ({ op: "onDecoded" as const })),
+      { op: "sample", nowMs: 0, expected: {} },
+      { op: "sample", nowMs: 0, expected: {} },
+    ]),
+    sessionStatsCase("fps-zero-before-any-decode", [
+      { op: "sample", nowMs: 0, expected: {} },
+    ]),
+    sessionStatsCase("rtt-and-resolution-track-latest", [
+      { op: "onPong", rttMs: 17 },
+      { op: "onPong", rttMs: 19 },
+      { op: "onConfigured", width: 1920, height: 1080 },
+      { op: "sample", nowMs: 0, expected: {} },
+    ]),
+    sessionStatsCase("empty-before-events", [
+      { op: "sample", nowMs: 0, expected: {} },
+    ]),
+    sessionStatsCase("frame-age-median-odd-even-clears", [
+      { op: "sample", nowMs: 0, expected: {} },
+      { op: "onFrameAge", ageMs: 30 },
+      { op: "onFrameAge", ageMs: 90 },
+      { op: "onFrameAge", ageMs: 20 },
+      { op: "sample", nowMs: 0, expected: {} },
+      { op: "onFrameAge", ageMs: 10 },
+      { op: "onFrameAge", ageMs: 21 },
+      { op: "sample", nowMs: 0, expected: {} },
+      { op: "sample", nowMs: 0, expected: {} },
+    ]),
+    sessionStatsCase("resolution-follows-latest-config", [
+      { op: "onConfigured", width: 1280, height: 720 },
+      { op: "onConfigured", width: 2560, height: 1440 },
+      { op: "sample", nowMs: 0, expected: {} },
+    ]),
+    sessionStatsCase("bitrate-first-null-then-8000-then-0", [
+      { op: "onBytesReceived", bytes: 999 },
+      { op: "sample", nowMs: 1_000_000, expected: {} },
+      { op: "onBytesReceived", bytes: 3_000_000 },
+      { op: "sample", nowMs: 1_003_000, expected: {} },
+      { op: "sample", nowMs: 1_006_000, expected: {} },
+    ]),
+    sessionStatsCase("decode-drops-reset-per-sample", [
+      { op: "onFrameDropped" },
+      { op: "onFrameDropped" },
+      { op: "onFrameDropped" },
+      { op: "sample", nowMs: 0, expected: {} },
+      { op: "sample", nowMs: 0, expected: {} },
+    ]),
+    sessionStatsCase("decode-queue-latest-or-null", [
+      { op: "sample", nowMs: 0, expected: {} },
+      { op: "onDecodeQueue", size: 1 },
+      { op: "onDecodeQueue", size: 4 },
+      { op: "sample", nowMs: 0, expected: {} },
+    ]),
+    sessionStatsCase("freeze-count-accumulates", [
+      { op: "onFrozen" },
+      { op: "sample", nowMs: 0, expected: {} },
+      { op: "onFrozen" },
+      { op: "sample", nowMs: 0, expected: {} },
+      { op: "sample", nowMs: 0, expected: {} },
+    ]),
+    sessionStatsCase("mixed-window-with-rounding-edges", [
+      { op: "onPong", rttMs: 30.5 },
+      { op: "onConfigured", width: 2560, height: 1440 },
+      { op: "onFrameAge", ageMs: 15 },
+      { op: "onFrameAge", ageMs: 16 },
+      { op: "onFrameAge", ageMs: 90 },
+      { op: "onBytesReceived", bytes: 3 },
+      { op: "onDecodeQueue", size: 1.5 },
+      { op: "onFrameDropped" },
+      { op: "onFrozen" },
+      { op: "sample", nowMs: 1_000, expected: {} },
+      { op: "onDecoded" },
+      { op: "onFrameAge", ageMs: 10 },
+      { op: "onFrameAge", ageMs: 21 },
+      { op: "onBytesReceived", bytes: 9 },
+      { op: "sample", nowMs: 1_016, expected: {} },
+      { op: "sample", nowMs: 1_100, expected: {} },
+    ]),
+  ],
+};
+
 mkdirSync(path.dirname(OUTPUT), { recursive: true });
 writeFileSync(OUTPUT, `${JSON.stringify(fixture, null, 2)}\n`);
+mkdirSync(path.dirname(SESSION_STATS_OUTPUT), { recursive: true });
+writeFileSync(
+  SESSION_STATS_OUTPUT,
+  `${JSON.stringify(sessionStatsFixture, null, 2)}\n`,
+);
 console.log(`wrote ${OUTPUT}`);
+console.log(`wrote ${SESSION_STATS_OUTPUT}`);

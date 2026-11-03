@@ -3,6 +3,10 @@
 //! 真源：`packages/ui/src/remote-desktop/adaptiveBitrate.ts`。
 //! 不发网络、不读时钟：`nowMs` 与采样由调用方注入。
 
+pub mod session_stats;
+
+pub use session_stats::{SessionStats, SessionStatsCollector};
+
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 

@@ -1,0 +1,708 @@
+{
+  "cases": [
+    {
+      "name": "fps-resets-between-samples",
+      "ops": [
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 60,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "fps-zero-before-any-decode",
+      "ops": [
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "rtt-and-resolution-track-latest",
+      "ops": [
+        {
+          "op": "onPong",
+          "rttMs": 17
+        },
+        {
+          "op": "onPong",
+          "rttMs": 19
+        },
+        {
+          "op": "onConfigured",
+          "width": 1920,
+          "height": 1080
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": 19,
+            "frameAgeMs": null,
+            "width": 1920,
+            "height": 1080,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "empty-before-events",
+      "ops": [
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "frame-age-median-odd-even-clears",
+      "ops": [
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        },
+        {
+          "op": "onFrameAge",
+          "ageMs": 30
+        },
+        {
+          "op": "onFrameAge",
+          "ageMs": 90
+        },
+        {
+          "op": "onFrameAge",
+          "ageMs": 20
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": 30,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        },
+        {
+          "op": "onFrameAge",
+          "ageMs": 10
+        },
+        {
+          "op": "onFrameAge",
+          "ageMs": 21
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": 16,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "resolution-follows-latest-config",
+      "ops": [
+        {
+          "op": "onConfigured",
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "op": "onConfigured",
+          "width": 2560,
+          "height": 1440
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": 2560,
+            "height": 1440,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "bitrate-first-null-then-8000-then-0",
+      "ops": [
+        {
+          "op": "onBytesReceived",
+          "bytes": 999
+        },
+        {
+          "op": "sample",
+          "nowMs": 1000000,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        },
+        {
+          "op": "onBytesReceived",
+          "bytes": 3000000
+        },
+        {
+          "op": "sample",
+          "nowMs": 1003000,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": 8000,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        },
+        {
+          "op": "sample",
+          "nowMs": 1006000,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": 0,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "decode-drops-reset-per-sample",
+      "ops": [
+        {
+          "op": "onFrameDropped"
+        },
+        {
+          "op": "onFrameDropped"
+        },
+        {
+          "op": "onFrameDropped"
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 3,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "decode-queue-latest-or-null",
+      "ops": [
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 0
+          }
+        },
+        {
+          "op": "onDecodeQueue",
+          "size": 1
+        },
+        {
+          "op": "onDecodeQueue",
+          "size": 4
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": 4,
+            "freezeCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "freeze-count-accumulates",
+      "ops": [
+        {
+          "op": "onFrozen"
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 1
+          }
+        },
+        {
+          "op": "onFrozen"
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 2
+          }
+        },
+        {
+          "op": "sample",
+          "nowMs": 0,
+          "expected": {
+            "fps": 0,
+            "rttMs": null,
+            "frameAgeMs": null,
+            "width": null,
+            "height": null,
+            "bitrateKbps": null,
+            "decodeDrops": 0,
+            "decodeQueue": null,
+            "freezeCount": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "mixed-window-with-rounding-edges",
+      "ops": [
+        {
+          "op": "onPong",
+          "rttMs": 30.5
+        },
+        {
+          "op": "onConfigured",
+          "width": 2560,
+          "height": 1440
+        },
+        {
+          "op": "onFrameAge",
+          "ageMs": 15
+        },
+        {
+          "op": "onFrameAge",
+          "ageMs": 16
+        },
+        {
+          "op": "onFrameAge",
+          "ageMs": 90
+        },
+        {
+          "op": "onBytesReceived",
+          "bytes": 3
+        },
+        {
+          "op": "onDecodeQueue",
+          "size": 1.5
+        },
+        {
+          "op": "onFrameDropped"
+        },
+        {
+          "op": "onFrozen"
+        },
+        {
+          "op": "sample",
+          "nowMs": 1000,
+          "expected": {
+            "fps": 0,
+            "rttMs": 30.5,
+            "frameAgeMs": 16,
+            "width": 2560,
+            "height": 1440,
+            "bitrateKbps": null,
+            "decodeDrops": 1,
+            "decodeQueue": 1.5,
+            "freezeCount": 1
+          }
+        },
+        {
+          "op": "onDecoded"
+        },
+        {
+          "op": "onFrameAge",
+          "ageMs": 10
+        },
+        {
+          "op": "onFrameAge",
+          "ageMs": 21
+        },
+        {
+          "op": "onBytesReceived",
+          "bytes": 9
+        },
+        {
+          "op": "sample",
+          "nowMs": 1016,
+          "expected": {
+            "fps": 1,
+            "rttMs": 30.5,
+            "frameAgeMs": 16,
+            "width": 2560,
+            "height": 1440,
+            "bitrateKbps": 5,
+            "decodeDrops": 0,
+            "decodeQueue": 1.5,
+            "freezeCount": 1
+          }
+        },
+        {
+          "op": "sample",
+          "nowMs": 1100,
+          "expected": {
+            "fps": 0,
+            "rttMs": 30.5,
+            "frameAgeMs": null,
+            "width": 2560,
+            "height": 1440,
+            "bitrateKbps": 0,
+            "decodeDrops": 0,
+            "decodeQueue": 1.5,
+            "freezeCount": 1
+          }
+        }
+      ]
+    }
+  ]
+}
