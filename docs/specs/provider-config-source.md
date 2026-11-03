@@ -233,7 +233,8 @@ personalProviderOrder          // 缺省为 []
 ## 7. 下一片
 
 1. `ProviderSource` 抽象 + `onDidChange` + 轮询/revision 去重。
-2. 写路径：`update`、`replace`、`importLegacy` 与规范写盘、文件锁。
+2. 写路径：`update`/`importLegacy` 与规范写盘、文件锁已完成（见
+   `docs/specs/provider-config-repository.md`）；轮询/`onDidChange` 与 `replace` 仍待补。
 3. Active 缓存物化与 Remote Release 同步（LKG、Endpoint 隔离）。
 4. Account overlay / `createAccountProviderConfigSnapshot` 与 Provider 事实源接管。
 5. registry/resolver/model listing 的 Rust 侧实现或桥接。

@@ -1,0 +1,17 @@
+[package]
+name = "provider-config-repository"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Personal Provider Config 仓库：读/写/锁/原子写/legacy 导入与运行时路径"
+
+[lib]
+name = "provider_config_repository"
+path = "src/lib.rs"
+
+[dependencies]
+atomic-file = { path = "../atomic-file" }
+provider-config = { path = "../provider-config" }
+provider-config-file-codec = { path = "../provider-config-file-codec" }
+provider-config-source = { path = "../provider-config-source" }
+serde_json.workspace = true

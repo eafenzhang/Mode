@@ -3763,6 +3763,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "provider-config-repository"
+version = "0.1.0"
+dependencies = [
+ "atomic-file",
+ "provider-config",
+ "provider-config-file-codec",
+ "provider-config-source",
+ "serde_json",
+]
+
+[[package]]
 name = "provider-config-source"
 version = "0.1.0"
 dependencies = [
