@@ -1,17 +1,26 @@
-//! CUA raw input socket 解析策略。
+//! CUA raw input socket 解析策略与 broker 行协议装帧。
 //!
 //! 真源：`packages/services/src/cua-permission-broker/cuaRawInput.ts` 的
-//! `createCuaRawInputSocketResolver`。该层只发现/触发创建，不 fork、不写 helper 状态；
-//! broker 调用与真实 socket 解析留在宿主装配层。
+//! `createCuaRawInputSocketResolver` 与 `packages/mode-cua/broker.js` 的
+//! 协议装帧/方法表/socket 路径铸造与 env 发现。该层只发现/触发创建，不 fork、
+//! 不写 helper 状态；socket 传输（net.connect + 超时）与 helper host 进程留在
+//! 宿主装配层。
 //!
 //! 与 TS 的差异：Rust 同步 `&mut self` 串行化调用，不共享 async in-flight promise；
-//! 并发调用方由宿主用锁串行化并复用同一结果。
+//! 并发调用方由宿主用锁串行化并复用同一结果。broker 装帧的随机源与平台由调用方注入。
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub mod broker_protocol;
 pub mod injector;
 
+pub use broker_protocol::{
+    dispatch_request, error_response, error_response_from_failure, handle_request_line,
+    is_broker_method, is_read_only_broker_method, mint_broker_socket_path, ok_response,
+    parse_request_line, resolve_broker_socket_path, serialize_response, BackendOutcome,
+    BrokerRequest, BROKER_METHODS, BROKER_SOCKET_ENV, BROKER_UNAVAILABLE_ENV, READONLY_METHODS,
+};
 pub use injector::{
     BrokerCall, BrokerCallError, CuaHelperError, RawInputBrokerResult, RawInputDispatch,
     RawInputInjector, RawInputInjectorOptions, SocketPathResolver, DEFAULT_RAW_INPUT_TIMEOUT_MS,
