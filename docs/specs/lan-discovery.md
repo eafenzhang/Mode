@@ -40,3 +40,42 @@
 - ping 扫描 `100.64.0.0/10`；Tailscale API / auth key 集成。
 - 按可达性自动选路（主地址规则覆盖）。
 - 发现列表里的本机徽标（本机不进该列表）。
+
+---
+
+## Rust 迁移（2026-11-03，纯逻辑片）
+
+> crate：`crates/lan-discovery`。真源仍为
+> `packages/server/src/remote/lanDiscovery.ts`；本片只迁可注入的纯计算。
+
+### 已迁
+
+| Rust 入口 | TS 对应 | 说明 |
+| --- | --- | --- |
+| `parse_tailscale_status_ips` | `parseTailscaleStatusIps` | Self+Peer 的 IPv4 去重、滤 IPv6、离线 peer 保留、解析失败返回空 |
+| `merge_lan_discovered_peers` | `mergeLanDiscoveredPeers` | 同 `serverId|port` 合并、主地址优先物理局域网、`extraHosts`、端口不同分卡、同 host 后者胜 |
+| `compute_broadcast_address` | `computeBroadcastAddress` | 地址与掩码推导定向广播 |
+| `collect_broadcast_targets` | `collectBroadcastTargets` | 固定 `255.255.255.255` + 非 internal IPv4 网卡的定向广播，去重 |
+| `is_ipv4_address` / `is_tailscale_range_address` | 同名 helper | 严格四段 IPv4；`100.64.0.0/10` |
+
+### 未迁（宿主装配层）
+
+- UDP socket 的 bind/send、1.5s 收集窗口、本机地址过滤、应答去重键与最终排序。
+- `tailscale` CLI 候选路径、800ms 超时与 runner 降级；由宿主注入 `tailscaleStatusRunner`。
+- 网卡枚举（`networkInterfaces`）与公告解析（`parseLanAnnouncement`，在 shared 契约层）。
+- 发现结果最终按 `name ?? serverId` 排序。
+
+### 已知差异
+
+| 差异 | 说明 |
+| --- | --- |
+| 字符串排序 | TS 用 `localeCompare`；Rust 用字节序。IP/ASCII serverId 一致，非 ASCII 名称可能不同。 |
+| 结构体字段 | Rust `LanDiscoveredPeer` 只保留合并所需字段；`magic`/`protocolVersion` 由公告解析层校验。 |
+| 端口类型 | Rust 用 `u16`；TS 在公告 schema 已限制 1..=65535。 |
+
+### 验收
+
+- `cargo test -p lan-discovery`：8 条用例覆盖 Tailscale 解析/降级、单卡合并（LAN 优先、
+  tailnet 副地址、端口分卡、同 host 覆盖、排序）、IPv4 严格校验、CGNAT 边界、
+  定向广播与目标去重。
+- UDP 端到端与实机双机验收未开始；Node 实现仍是 oracle。

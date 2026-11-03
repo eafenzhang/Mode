@@ -1,0 +1,14 @@
+[package]
+name = "lan-discovery"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "局域网发现纯逻辑：Tailscale 状态解析、单卡合并、广播目标推导"
+
+[lib]
+name = "lan_discovery"
+path = "src/lib.rs"
+
+[dependencies]
+indexmap = "2"
+serde_json.workspace = true

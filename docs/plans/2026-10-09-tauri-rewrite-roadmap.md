@@ -165,8 +165,8 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > runtime-env、runtime-tools、mode-api-retry、storage-usage；W3 服务层新增
 > automation-service（10/10）、off-peak-service、onboarding-record-service（9/9）、
 > official-mcp-auth、provider-balance、provider legacy 迁移/读取/导入、
-> provider-config-file-codec、provider-config-repository（读写/锁/legacy 导入）、
-> zai-start-plan-billing、usage-stats 投影、
+> provider-config-file-codec、provider-config-repository（读写/锁/legacy 导入/轮询/
+> Built-in 缓存物化）、zai-start-plan-billing、usage-stats 投影、lan-discovery（纯逻辑）、
 > integrated-terminal-shells、terminal-profile（Windows/macOS/Alacritty 探测）、
 > terminal-service-resolution、terminal-session/terminal-service（PTY 生命周期与频道）、
 > remote-desktop-streaming；壳内可接管频道增至 21 个
