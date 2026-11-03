@@ -3771,6 +3771,8 @@ dependencies = [
  "provider-config-file-codec",
  "provider-config-source",
  "serde_json",
+ "sha2",
+ "url",
 ]
 
 [[package]]

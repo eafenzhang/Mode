@@ -23,8 +23,19 @@ use provider_config_file_codec::{
 };
 use provider_config_source::{decode_personal_document, empty_personal_layer, PersonalLayer};
 
+pub mod cache_paths;
+pub mod materializer;
 pub mod runtime_paths;
 
+pub use cache_paths::{
+    create_mode_builtin_endpoint_key, normalize_mode_builtin_endpoint_origin,
+    resolve_mode_builtin_cache_paths, resolve_mode_builtin_client_platform,
+    resolve_mode_builtin_client_platform_from_process, ModeBuiltinCachePathOptions,
+    ModeBuiltinCachePaths,
+};
+pub use materializer::{
+    materialize_mode_builtin_provider_config, MaterializeModeBuiltinProviderConfigOptions,
+};
 pub use runtime_paths::{
     create_node_provider_runtime_path_env, resolve_node_provider_runtime_paths,
     ProviderRuntimePaths, RuntimePathError, MODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV,

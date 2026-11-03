@@ -223,7 +223,7 @@ personalProviderOrder          // 缺省为 []
 | 差异 | 说明 |
 | --- | --- |
 | 不做规范化写盘 | TS 在文件非规范时加锁重写；本切片只返回规范快照，不写文件。读结果相同，写失败导致的降级不复现。 |
-| 不建目录 / 不写 Active | TS `read()` 会 `mkdir` 并在需要时物化 Active；本切片只读。目录不可创建导致的 Bundled-only 回落不复现。 |
+| 不建目录 / 不写 Active | TS `read()` 会 `mkdir` 并在需要时物化 Active；本切片只读。物化已由 `provider-config-repository` 的 `materializer` 承担（见 `provider-config-builtin-cache.md`）。 |
 | 无锁 | 不调用 `withFileLock`；依赖原子替换的可观察语义。 |
 | 无轮询/watch | `onDidChange`、`#ensurePolling`、`fs.watch` 不在本切片。 |
 | 无 remote/LKG | `applyRemoteRelease` 与 Endpoint 隔离来源不在本切片。 |
@@ -232,9 +232,10 @@ personalProviderOrder          // 缺省为 []
 
 ## 7. 下一片
 
-1. `ProviderSource` 抽象 + `onDidChange` + 轮询/revision 去重。
-2. 写路径：`update`/`importLegacy`、规范写盘、文件锁、轮询/`onDidChange` 已完成（见
-   `docs/specs/provider-config-repository.md`）；`replace` 仍待补。
-3. Active 缓存物化与 Remote Release 同步（LKG、Endpoint 隔离）。
+1. `ProviderSource` 抽象；`onDidChange` 与轮询/revision 去重已完成（见
+   `provider-config-repository.md`）。
+2. 写路径：`update`/`importLegacy`、规范写盘、文件锁已完成；`replace` 仍待补。
+3. Active 缓存路径与随包基线物化已完成（见 `provider-config-builtin-cache.md`）；
+   Remote Release 同步（LKG、Endpoint 隔离）仍待补。
 4. Account overlay / `createAccountProviderConfigSnapshot` 与 Provider 事实源接管。
 5. registry/resolver/model listing 的 Rust 侧实现或桥接。

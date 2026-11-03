@@ -15,3 +15,5 @@ provider-config = { path = "../provider-config" }
 provider-config-file-codec = { path = "../provider-config-file-codec" }
 provider-config-source = { path = "../provider-config-source" }
 serde_json.workspace = true
+sha2.workspace = true
+url.workspace = true
