@@ -34,7 +34,7 @@
 | `list_deleted_task_ids` | `listDeletedTaskIds` | tombstone 列表，`ORDER BY task_id` |
 | `list_sessions_by_automation` | `listSessionsByAutomation` | `deleted=0`，按 `created_at DESC, task_id DESC` |
 | `query_task_list` | `queryTaskList` | workspace 集合、kind、provider、搜索、limit、snippet |
-| `archive_stale_tasks` | `archiveStaleTasks` | `olderThanDays` 至少 1 天；只归档未删/未归档/未置顶/无未读的 completed 行 |
+| `archive_stale_tasks` | `archiveStaleTasks` | `olderThanDays` 至少 1 天；只归档未删/未归档/未置顶/无未读的 completed 行；**排除 `task_id` 以 `mirror-` 开头的镜像副本（2026-11-04 产品口径：镜像副本不参与自动归档）** |
 | `has_grouped_workspace_bootstrap_run` | `hasGroupedWorkspaceBootstrapRun` | `task_group_workspace_bootstraps` 是否有任意行 |
 | `create_task_group` | `createTaskGroup` | id = `task-group-<uuid v4>`；标题 trim 后空则 `New Group`；颜色缺省 `gray`；同时分配顶层排序 |
 | `rename_task_group` | `renameTaskGroup` | 标题 trim 后空则 `New Group`；不存在/读回失败按 TS 文案报错 |

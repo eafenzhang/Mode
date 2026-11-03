@@ -249,7 +249,11 @@ fn crud_flow_matches_expected_state_transitions() {
             },
         )
         .unwrap();
-    assert_eq!(unread.unread_at, Some(100), "未读 marker 从持久 watermark 起算");
+    assert_eq!(
+        unread.unread_at,
+        Some(100),
+        "未读 marker 从持久 watermark 起算"
+    );
 
     let cleared = repo
         .clear_task_unread_if_matches(&task_ref("D:/ws", "t1"), 100)
@@ -353,7 +357,10 @@ fn sync_preserves_monotonic_time_terminal_status_and_user_title() {
     assert_eq!(merged.updated_at, 100, "updatedAt 单调不回退");
     assert_eq!(merged.status.as_deref(), Some("completed"), "保留更晚终态");
     assert_eq!(
-        merged.last_error.as_ref().map(|error| error.message.as_str()),
+        merged
+            .last_error
+            .as_ref()
+            .map(|error| error.message.as_str()),
         Some("boom")
     );
     assert_eq!(merged.title, "done", "titleOverridden 时保留用户标题");
@@ -442,7 +449,11 @@ fn list_and_search_cover_filters_limits_and_snippets() {
     assert_eq!(searched.total, 1);
     let item = &searched.items[0];
     assert_eq!(item.meta.task_id, "b");
-    assert!(item.search_snippet.as_deref().unwrap_or("").contains("deploy"));
+    assert!(item
+        .search_snippet
+        .as_deref()
+        .unwrap_or("")
+        .contains("deploy"));
     assert_eq!(item.search_snippets.as_ref().map(Vec::len), Some(1));
 
     let limited = repo
@@ -517,9 +528,16 @@ fn write_serialization_prevents_lost_unread_updates() {
             .expect("分配后必然有 unreadAt")
         }));
     }
-    let markers: Vec<i64> = handles.into_iter().map(|handle| handle.join().unwrap()).collect();
+    let markers: Vec<i64> = handles
+        .into_iter()
+        .map(|handle| handle.join().unwrap())
+        .collect();
     let unique: HashSet<i64> = markers.iter().copied().collect();
-    assert_eq!(unique.len(), markers.len(), "同一 key 的写入不得交错复用 marker");
+    assert_eq!(
+        unique.len(),
+        markers.len(),
+        "同一 key 的写入不得交错复用 marker"
+    );
     assert!(
         markers.iter().copied().max().unwrap() >= 8,
         "每次都必须在持久 watermark 上严格递增"
@@ -529,7 +547,10 @@ fn write_serialization_prevents_lost_unread_updates() {
         .get_task_meta(&task_ref("D:/ws", "t1"))
         .unwrap()
         .unwrap();
-    assert_eq!(final_meta.unread_at, Some(markers.iter().copied().max().unwrap()));
+    assert_eq!(
+        final_meta.unread_at,
+        Some(markers.iter().copied().max().unwrap())
+    );
 }
 
 #[test]
@@ -593,6 +614,56 @@ fn archive_stale_and_delete_archived_clean_grouping_rows() {
     assert_eq!(archived_only.len(), 1);
     assert_eq!(archived_only[0].task_id, "stale");
 
+    // 镜像副本（task_id 以 mirror- 开头）不参与自动归档（2026-11-04 产品口径）。
+    let mut mirror = meta("mirror-sess_x", "D:/ws", "mirror", 50);
+    mirror.status = Some("completed".to_owned());
+    repo.sync_task_meta(SyncTaskMetaParams {
+        meta: mirror,
+        pinned: None,
+        archived: None,
+        deleted: None,
+        title_overridden: None,
+        searchable_text: None,
+    })
+    .unwrap();
+    let archived_with_mirror = repo
+        .archive_stale_tasks(&task_index_repo::ArchiveStaleTasksParams {
+            workspace_path: "D:/ws".to_owned(),
+            workspace_identity: None,
+            older_than_days: 1.0,
+            provider: Some("glm".to_owned()),
+        })
+        .unwrap();
+    assert!(
+        archived_with_mirror
+            .iter()
+            .all(|meta| meta.task_id != "mirror-sess_x"),
+        "镜像副本不得进入自动归档结果"
+    );
+    let archived_only_after = repo
+        .list_task_metas(&ListTaskMetasParams {
+            workspace_path: Some("D:/ws".to_owned()),
+            archived: Some(true),
+            ..ListTaskMetasParams::default()
+        })
+        .unwrap();
+    assert!(
+        archived_only_after
+            .iter()
+            .all(|meta| meta.task_id != "mirror-sess_x"),
+        "镜像副本未写入归档分区"
+    );
+    assert!(
+        repo.list_task_metas(&ListTaskMetasParams {
+            workspace_path: Some("D:/ws".to_owned()),
+            ..ListTaskMetasParams::default()
+        })
+        .unwrap()
+        .iter()
+        .any(|meta| meta.task_id == "mirror-sess_x"),
+        "镜像副本仍在 timeline"
+    );
+
     // 给归档行造一个 cron 分组归属，删除时必须清理。
     let mut cron = meta("cron-archived", "D:/ws", "cron", 5_000);
     cron.status = Some("completed".to_owned());
@@ -616,10 +687,12 @@ fn archive_stale_and_delete_archived_clean_grouping_rows() {
         .delete_archived_task(&task_ref("D:/ws", "cron-archived"))
         .unwrap()
         .is_none());
-    assert!(repo
-        .delete_archived_task(&task_ref("D:/ws", "fresh"))
-        .unwrap()
-        .is_none(), "未归档行不得删除");
+    assert!(
+        repo.delete_archived_task(&task_ref("D:/ws", "fresh"))
+            .unwrap()
+            .is_none(),
+        "未归档行不得删除"
+    );
 
     let connection = Connection::open(&path).unwrap();
     let members: i64 = connection
@@ -698,7 +771,14 @@ fn workspace_identity_projection_follows_workspace_key() {
             ])
             .unwrap();
         insert
-            .execute(params![remote, "/srv/ws", "D:/stale", "remote-row", "remote", "{}"])
+            .execute(params![
+                remote,
+                "/srv/ws",
+                "D:/stale",
+                "remote-row",
+                "remote",
+                "{}"
+            ])
             .unwrap();
     }
     let repo = TaskIndexRepo::new(&path);
@@ -732,7 +812,11 @@ fn sessions_by_automation_filters_deleted_and_orders_by_created() {
     drop(migrated_db(&path));
     let repo = TaskIndexRepo::new(&path);
 
-    for (task_id, created, deleted) in [("older", 10, false), ("newer", 20, false), ("gone", 30, true)] {
+    for (task_id, created, deleted) in [
+        ("older", 10, false),
+        ("newer", 20, false),
+        ("gone", 30, true),
+    ] {
         let mut value = meta(task_id, "D:/ws", task_id, created);
         value.created_at = created;
         value.cron_automation_id = Some("auto-1".to_owned());
@@ -805,7 +889,10 @@ fn grouped_crud_validates_titles_colors_and_cleans_orders() {
     assert_eq!(first_group.color, "green");
 
     let connection = Connection::open(&path).unwrap();
-    assert_eq!(top_order(&connection, "group", &default_group.id), Some(1000));
+    assert_eq!(
+        top_order(&connection, "group", &default_group.id),
+        Some(1000)
+    );
     assert_eq!(top_order(&connection, "group", &first_group.id), Some(0));
 
     // createTaskGroup 本身不校验颜色（与 TS 一致）；读取投影时才回落 gray。
@@ -826,14 +913,15 @@ fn grouped_crud_validates_titles_colors_and_cleans_orders() {
     let renamed = repo.rename_task_group(&first_group.id, "   ").unwrap();
     assert_eq!(renamed.title, "New Group");
 
-    let color_invalid = repo.update_task_group_color(&first_group.id, "chartreuse").unwrap_err();
+    let color_invalid = repo
+        .update_task_group_color(&first_group.id, "chartreuse")
+        .unwrap_err();
     assert_eq!(color_invalid.to_string(), "Task group 颜色无效");
     let color_missing = repo.update_task_group_color("nope", "blue").unwrap_err();
-    assert_eq!(
-        color_missing.to_string(),
-        "Task group 不存在，无法更新颜色"
-    );
-    let recolored = repo.update_task_group_color(&first_group.id, "purple").unwrap();
+    assert_eq!(color_missing.to_string(), "Task group 不存在，无法更新颜色");
+    let recolored = repo
+        .update_task_group_color(&first_group.id, "purple")
+        .unwrap();
     assert_eq!(recolored.color, "purple");
 
     let delete_missing = repo.delete_task_group("nope").unwrap_err();
@@ -995,9 +1083,10 @@ fn grouped_view_bootstraps_workspace_group_and_filters_invisible_tasks() {
         vec!["newest", "middle", "oldest"],
         "bootstrap 按 updated_at 倒序建成员顺序"
     );
-    assert!(tasks
-        .iter()
-        .all(|task| !matches!(task.meta.task_id.as_str(), "pinned" | "archived" | "deleted")));
+    assert!(tasks.iter().all(|task| !matches!(
+        task.meta.task_id.as_str(),
+        "pinned" | "archived" | "deleted"
+    )));
 
     // 第二次查询不得重建分组或重复成员。
     let again = repo
@@ -1106,9 +1195,7 @@ fn grouped_apply_order_normalizes_orders_and_is_idempotent() {
     repo.apply_grouped_task_view_order(&GroupedTaskViewOrderInput {
         workspace_scopes: vec![scope("D:/ws"), remote_scope.clone()],
         top_level_nodes: vec![
-            GroupedTaskViewTopLevelNodeRef::Task {
-                task: remote_ref,
-            },
+            GroupedTaskViewTopLevelNodeRef::Task { task: remote_ref },
             GroupedTaskViewTopLevelNodeRef::Group {
                 group_id: group.id.clone(),
             },
@@ -1185,10 +1272,7 @@ fn grouped_apply_order_normalizes_orders_and_is_idempotent() {
             provider: None,
         })
         .unwrap_err();
-    assert_eq!(
-        invisible.to_string(),
-        "Grouped task order 包含不可见 task"
-    );
+    assert_eq!(invisible.to_string(), "Grouped task order 包含不可见 task");
 
     let second_group = create_group(&repo, "Other", "gray");
     let duplicate = repo
@@ -1229,16 +1313,17 @@ fn sync_task_meta_at_grouped_top_initializes_once_and_respects_visibility() {
     drop(migrated_db(&path));
     let repo = TaskIndexRepo::with_clock(&path, || 13_000);
 
-    let params = |task_id: &str, pinned: Option<bool>, archived: Option<bool>, deleted: Option<bool>| {
-        SyncTaskMetaParams {
-            meta: meta(task_id, "D:/ws", task_id, 100),
-            pinned,
-            archived,
-            deleted,
-            title_overridden: None,
-            searchable_text: None,
-        }
-    };
+    let params =
+        |task_id: &str, pinned: Option<bool>, archived: Option<bool>, deleted: Option<bool>| {
+            SyncTaskMetaParams {
+                meta: meta(task_id, "D:/ws", task_id, 100),
+                pinned,
+                archived,
+                deleted,
+                title_overridden: None,
+                searchable_text: None,
+            }
+        };
 
     let first = repo
         .sync_task_meta_at_grouped_top(params("fresh", None, None, None))
@@ -1247,36 +1332,36 @@ fn sync_task_meta_at_grouped_top_initializes_once_and_respects_visibility() {
     let again = repo
         .sync_task_meta_at_grouped_top(params("fresh", None, None, None))
         .unwrap();
-    assert!(!again.initialized_grouped_order, "已存在顶层顺序时不得重复分配");
+    assert!(
+        !again.initialized_grouped_order,
+        "已存在顶层顺序时不得重复分配"
+    );
 
-    assert!(!repo
-        .sync_task_meta_at_grouped_top(params("pinned", Some(true), None, None))
-        .unwrap()
-        .initialized_grouped_order);
-    assert!(!repo
-        .sync_task_meta_at_grouped_top(params("archived", None, Some(true), None))
-        .unwrap()
-        .initialized_grouped_order);
-    assert!(!repo
-        .sync_task_meta_at_grouped_top(params("deleted", None, None, Some(true)))
-        .unwrap()
-        .initialized_grouped_order);
+    assert!(
+        !repo
+            .sync_task_meta_at_grouped_top(params("pinned", Some(true), None, None))
+            .unwrap()
+            .initialized_grouped_order
+    );
+    assert!(
+        !repo
+            .sync_task_meta_at_grouped_top(params("archived", None, Some(true), None))
+            .unwrap()
+            .initialized_grouped_order
+    );
+    assert!(
+        !repo
+            .sync_task_meta_at_grouped_top(params("deleted", None, None, Some(true)))
+            .unwrap()
+            .initialized_grouped_order
+    );
 
     // 普通 syncTaskMeta 不会初始化顶层顺序。
     sync_task(&repo, "plain", 50, "running");
     let connection = Connection::open(&path).unwrap();
-    assert!(top_order(
-        &connection,
-        "task",
-        &json!(["D:/ws", "fresh"]).to_string()
-    )
-    .is_some());
+    assert!(top_order(&connection, "task", &json!(["D:/ws", "fresh"]).to_string()).is_some());
     assert_eq!(
-        top_order(
-            &connection,
-            "task",
-            &json!(["D:/ws", "plain"]).to_string()
-        ),
+        top_order(&connection, "task", &json!(["D:/ws", "plain"]).to_string()),
         None
     );
 }

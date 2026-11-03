@@ -886,6 +886,12 @@ export class TaskIndexRepo {
       "unread_at IS NULL",
       "updated_at < ?",
       "task_status = 'completed'",
+      // 镜像副本（远程工作区对话镜像，task_id 以 mirror- 开头，见 shared
+      // `CONVERSATION_MIRROR_SESSION_ID_PREFIX`）不参与自动归档：镜像同步的水位
+      // 记账依赖副本保留 updatedAt 保真（mirror spec 第六轮修复）；副本一旦被归档
+      // 就从 timeline 分区消失，置顶/归档分区兜底虽能命中，但产品口径拍板
+      // 「镜像副本不参与自动归档」（2026-11-04），侧栏可见性由用户手动管理。
+      "task_id NOT LIKE 'mirror-%'",
     ];
     const args: Array<string | number> = [workspaceKey(params), cutoff];
     if (params.provider) {

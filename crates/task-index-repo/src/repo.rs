@@ -15,9 +15,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::error::{Result, TaskIndexRepoError};
-use crate::js::{
-    build_search_snippets, js_trim, resolve_workspace_key, truncate_utf16,
-};
+use crate::js::{build_search_snippets, js_trim, resolve_workspace_key, truncate_utf16};
 use crate::meta::{
     is_terminal_status, parse_mode_task_meta, ModeTaskGoal, ModeTaskLastError, ModeTaskMeta,
     CRON_DEFAULT_GROUP_ID, MODE_AGENT_PROVIDER, OFF_PEAK_DEFAULT_GROUP_ID,
@@ -28,7 +26,8 @@ const TASK_SEARCH_TEXT_MAX_CHARS: usize = 200_000;
 pub(crate) const GROUPED_TASK_ORDER_STEP: i64 = 1000;
 const PROVIDER_COLUMN: &str = "provider";
 
-pub(crate) const ROW_COLUMNS: &str = "workspace_key, workspace_path, workspace_identity, task_id, title, \
+pub(crate) const ROW_COLUMNS: &str =
+    "workspace_key, workspace_path, workspace_identity, task_id, title, \
 task_status, provider, mode, model, migration_source, forked_from_task_id, cron_automation_id, \
 off_peak_task_id, created_at, updated_at, unread_at, last_unread_at, pinned, archived, deleted, \
 title_overridden, searchable_text, meta_json";
@@ -72,10 +71,7 @@ pub fn mark_tasks_storage_prepared(path: impl AsRef<Path>) {
 }
 
 fn registry_contains(registry: &'static Mutex<HashSet<PathBuf>>, path: &Path) -> bool {
-    registry
-        .lock()
-        .expect("registry poisoned")
-        .contains(path)
+    registry.lock().expect("registry poisoned").contains(path)
 }
 
 #[derive(Clone, Debug, Default)]
@@ -387,7 +383,10 @@ impl TaskIndexRepo {
             .clear();
     }
 
-    pub(crate) fn with_conn<T>(&self, operation: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
+    pub(crate) fn with_conn<T>(
+        &self,
+        operation: impl FnOnce(&Connection) -> Result<T>,
+    ) -> Result<T> {
         let state = self.state.lock().expect("task index state poisoned");
         let connection = state
             .db
@@ -588,7 +587,12 @@ impl TaskIndexRepo {
             "INSERT OR IGNORE INTO task_group_view_node_orders
                (node_type, node_key, sort_order, created_at, updated_at)
              VALUES ('group', ?, ?, ?, ?)",
-            params![group_id, self.next_grouped_top_sort_order(connection)?, now, now],
+            params![
+                group_id,
+                self.next_grouped_top_sort_order(connection)?,
+                now,
+                now
+            ],
         )?;
         connection.execute(
             "INSERT OR IGNORE INTO task_group_members (
@@ -639,8 +643,10 @@ impl TaskIndexRepo {
     }
 
     fn write_record(&self, connection: &Connection, record: WriteRecord) -> Result<ModeTaskMeta> {
-        let workspace_key =
-            resolve_workspace_key(&record.meta.workspace_path, record.meta.workspace_identity.as_deref());
+        let workspace_key = resolve_workspace_key(
+            &record.meta.workspace_path,
+            record.meta.workspace_identity.as_deref(),
+        );
         let existing = if record.searchable_text.is_none() {
             self.get_task_row(connection, &workspace_key, &record.meta.task_id)?
         } else {
@@ -742,15 +748,18 @@ impl TaskIndexRepo {
             resolve_workspace_key(&params.workspace_path, params.workspace_identity.as_deref());
         self.with_conn(|connection| {
             let row = self.get_task_row(connection, &workspace_key, &params.task_id)?;
-            Ok(row.filter(|row| row.deleted != 1).map(|row| row_to_meta(&row)))
+            Ok(row
+                .filter(|row| row.deleted != 1)
+                .map(|row| row_to_meta(&row)))
         })
     }
 
     pub fn list_task_metas(&self, params: &ListTaskMetasParams) -> Result<Vec<ModeTaskMeta>> {
         self.ensure_ready()?;
-        let target_key = params.workspace_path.as_deref().map(|path| {
-            resolve_workspace_key(path, params.workspace_identity.as_deref())
-        });
+        let target_key = params
+            .workspace_path
+            .as_deref()
+            .map(|path| resolve_workspace_key(path, params.workspace_identity.as_deref()));
         self.with_conn(|connection| {
             let mut statement = connection.prepare(&format!(
                 "SELECT {ROW_COLUMNS} FROM tasks
@@ -1000,17 +1009,19 @@ impl TaskIndexRepo {
         {
             let existing = self.get_task_row(connection, &workspace_key, &params.meta.task_id)?;
             let existing_meta = existing.as_ref().map(row_to_meta);
-            let title_overridden = params
-                .title_overridden
-                .unwrap_or_else(|| existing.as_ref().is_some_and(|row| row.title_overridden == 1));
-            let updated_at = params
-                .meta
-                .updated_at
-                .max(existing_meta.as_ref().map(|meta| meta.updated_at).unwrap_or(0));
-            let preserve_terminal = should_preserve_newer_terminal_status(
-                existing_meta.as_ref(),
-                &params.meta,
+            let title_overridden = params.title_overridden.unwrap_or_else(|| {
+                existing
+                    .as_ref()
+                    .is_some_and(|row| row.title_overridden == 1)
+            });
+            let updated_at = params.meta.updated_at.max(
+                existing_meta
+                    .as_ref()
+                    .map(|meta| meta.updated_at)
+                    .unwrap_or(0),
             );
+            let preserve_terminal =
+                should_preserve_newer_terminal_status(existing_meta.as_ref(), &params.meta);
 
             let mut meta = params.meta.clone();
             meta.title = if title_overridden && existing_meta.is_some() {
@@ -1033,29 +1044,21 @@ impl TaskIndexRepo {
             } else {
                 existing_meta.as_ref().and_then(|meta| meta.target.clone())
             };
-            meta.migration_source = params
-                .meta
-                .migration_source
-                .clone()
-                .or_else(|| existing_meta.as_ref().and_then(|meta| meta.migration_source.clone()));
-            meta.cron_automation_id = params
-                .meta
-                .cron_automation_id
-                .clone()
-                .or_else(|| {
-                    existing_meta
-                        .as_ref()
-                        .and_then(|meta| meta.cron_automation_id.clone())
-                });
-            meta.off_peak_task_id = params
-                .meta
-                .off_peak_task_id
-                .clone()
-                .or_else(|| {
-                    existing_meta
-                        .as_ref()
-                        .and_then(|meta| meta.off_peak_task_id.clone())
-                });
+            meta.migration_source = params.meta.migration_source.clone().or_else(|| {
+                existing_meta
+                    .as_ref()
+                    .and_then(|meta| meta.migration_source.clone())
+            });
+            meta.cron_automation_id = params.meta.cron_automation_id.clone().or_else(|| {
+                existing_meta
+                    .as_ref()
+                    .and_then(|meta| meta.cron_automation_id.clone())
+            });
+            meta.off_peak_task_id = params.meta.off_peak_task_id.clone().or_else(|| {
+                existing_meta
+                    .as_ref()
+                    .and_then(|meta| meta.off_peak_task_id.clone())
+            });
             meta.unread_at = params
                 .meta
                 .unread_at
@@ -1093,10 +1096,8 @@ impl TaskIndexRepo {
                 .and_then(|meta| meta.off_peak_task_id.as_ref())
                 .is_some();
             if meta.off_peak_task_id.is_some() && !had_off_peak {
-                let meta_key = resolve_workspace_key(
-                    &meta.workspace_path,
-                    meta.workspace_identity.as_deref(),
-                );
+                let meta_key =
+                    resolve_workspace_key(&meta.workspace_path, meta.workspace_identity.as_deref());
                 self.ensure_off_peak_group_membership(
                     connection,
                     MembershipTarget {
@@ -1215,11 +1216,7 @@ impl TaskIndexRepo {
                         searchable_text: None,
                     },
                 )?;
-                self.delete_task_grouping_references(
-                    connection,
-                    &row.workspace_key,
-                    &row.task_id,
-                )?;
+                self.delete_task_grouping_references(connection, &row.workspace_key, &row.task_id)?;
                 connection.execute_batch("COMMIT")?;
                 Ok(Some(meta))
             })();
@@ -1370,10 +1367,15 @@ impl TaskIndexRepo {
         })
     }
 
-    pub fn archive_stale_tasks(&self, params: &ArchiveStaleTasksParams) -> Result<Vec<ModeTaskMeta>> {
+    pub fn archive_stale_tasks(
+        &self,
+        params: &ArchiveStaleTasksParams,
+    ) -> Result<Vec<ModeTaskMeta>> {
         self.ensure_ready()?;
         let days = params.older_than_days.floor().max(1.0) as i64;
-        let cutoff = self.now().saturating_sub(days.saturating_mul(24 * 60 * 60 * 1000));
+        let cutoff = self
+            .now()
+            .saturating_sub(days.saturating_mul(24 * 60 * 60 * 1000));
         let workspace_key =
             resolve_workspace_key(&params.workspace_path, params.workspace_identity.as_deref());
         let mut where_clause = vec![
@@ -1384,11 +1386,13 @@ impl TaskIndexRepo {
             "unread_at IS NULL".to_owned(),
             "updated_at < ?".to_owned(),
             "task_status = 'completed'".to_owned(),
+            // 镜像副本（task_id 以 mirror- 开头，shared `CONVERSATION_MIRROR_SESSION_ID_PREFIX`）
+            // 不参与自动归档：镜像水位记账依赖副本 updatedAt 保真；产品口径拍板
+            // 「镜像副本不参与自动归档」（2026-11-04），与 TS oracle 同步。
+            "task_id NOT LIKE 'mirror-%'".to_owned(),
         ];
-        let mut arguments: Vec<SqlValue> = vec![
-            SqlValue::Text(workspace_key),
-            SqlValue::Integer(cutoff),
-        ];
+        let mut arguments: Vec<SqlValue> =
+            vec![SqlValue::Text(workspace_key), SqlValue::Integer(cutoff)];
         if let Some(provider) = &params.provider {
             where_clause.push(format!("{PROVIDER_COLUMN} = ?"));
             arguments.push(SqlValue::Text(provider.clone()));
@@ -1482,8 +1486,12 @@ pub(crate) fn row_to_meta(row: &TaskIndexRow) -> ModeTaskMeta {
         meta.workspace_path = row.workspace_path.clone();
         meta.workspace_identity = workspace_identity;
         meta.unread_at = row.unread_at;
-        meta.cron_automation_id = meta.cron_automation_id.or_else(|| row.cron_automation_id.clone());
-        meta.off_peak_task_id = meta.off_peak_task_id.or_else(|| row.off_peak_task_id.clone());
+        meta.cron_automation_id = meta
+            .cron_automation_id
+            .or_else(|| row.cron_automation_id.clone());
+        meta.off_peak_task_id = meta
+            .off_peak_task_id
+            .or_else(|| row.off_peak_task_id.clone());
         meta.title_overridden = Some(row.title_overridden == 1);
         return meta;
     }

@@ -151,18 +151,25 @@ sequenceDiagram
 
 S2 的 20 个真实任务与 parity matrix 是硬门禁（DR-07），不能压缩。
 
-## 6. 待批准决策
+## 6. 待批准决策（2026-11-04 已批准，按「最彻底」口径）
 
-1. **方法清单的 `not-needed` 证据由谁确认**：需要 Renderer/Host 调用点审计；
-   建议在 S1 用脚本生成（方法名 → 调用文件/行），人工只审例外。
-2. **`blocked` 方法的降级语义**：provider/account 网络方法在 Rust 未实现前，
-   是返回 `unsupported` 还是继续委托 Host？本 spec 建议**不委托**（避免双 owner），
-   由调用方在切换前明确降级文案。
-3. **健康状态面的暴露位置**：新增 `host` 字段 / 独立只读频道 / 仅日志？建议先只写日志 +
-   `host.describe` 扩展，避免新频道。
-4. **Host 聚合面（`mode-task`）在 S2 之后如何读 agent 状态**：建议由 Renderer 分别调用
-   两个 owner，Host 不反向调用 Rust；需要确认现有 `modeTaskServiceAdapter` 的耦合点。
-5. **native binary 兜底**：是否在 S2 前补齐（当前只支持 `mode.cjs`）。建议 S2 后再做，
-   因为切换不依赖它；但远端部署可能需要。
+1. **方法清单的 `not-needed` 证据由谁确认** — **已批准**：脚本生成调用点证据
+   （`pnpm agent:callsites`）+ 人工只审例外；S1 收口时按脚本清单全量过一遍。
+2. **`blocked` 方法的降级语义** — **已批准：不委托 Host**。provider/account
+   网络方法在 Rust 未实现前返回显式 `unsupported` 语义（带降级文案），由调用方
+   在切换前知晓；不引入双 owner。
+3. **健康状态面的暴露位置** — **已批准：独立只读频道**（`host.health` 面），
+   而非仅日志：健康状态（含后续 `degraded` 请求失败计数）作为一等只读面暴露，
+   Renderer/诊断页可直接订阅；不引入定时 ping，状态仍由事件驱动计算。
+4. **Host 聚合面（`mode-task`）在 S2 之后如何读 agent 状态** — **已批准：由
+   Renderer 分别调用两个 owner，Host 不反向调用 Rust**；S2 接线时同步梳理
+   `modeTaskServiceAdapter` 的耦合点并拆到 Renderer 侧。
+5. **native binary 兜底** — **已批准：S2 前补齐**。`agent-process` 启动规格在
+   `mode.cjs` 之外先补 native binary 兜底与解析，再开始频道翻面，确保切换后
+   不依赖 Node 运行时（远端部署同时受益）。
+
+上述批准后：S2 按本 spec 的分阶段实施推进；automation 10 个 Host 聚合方法
+随决策 4 拆到 Renderer 侧后改判 `not-needed`/`rust`，宿主事件 12 个随 S2
+接线改判，provider/account 2 个网络方法按决策 2 给 `unsupported` 降级语义。
 
 在上述决策批准前，`mode-agent` 频道保持 Host 所有，Rust 侧只继续补协议与方法实现。

@@ -54,7 +54,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | W1 平台基元 | **完成**：settings/paths/credential/fs/file/file-watcher/SQLite/日志/进程/system/media-preview；近两轮新增数据根（归属/迁移/初始化完整）、子进程环境策略、bundled 工具解析、网络重试状态、存储分类与占用聚合。 |
 | W2 传输切换 | **部分**：壳内服务面与 scope 复用已就绪；Node Host 仍是默认所有者，`stdioFrames`/`stdoutGuard` 退场与流控对拍未做 |
 | W3 宿主域 | **已接管/迁移**：设置类、文件类、凭据、git/checkpoint、conversation-mirror、skills、skill-sync、plugin-sync、subagents、settings-sync、broadcast、system、automation-service（10/10）、onboarding-record-service（9/9）、provider 旧 store 迁移、provider 余额识别/编排/目标解析、official MCP 鉴权判定、远程桌面自适应码率/画质降档状态机；**部分**：任务/会话（Repos 已迁、频道未）、provider 写路径与运行时、plugins 管理面、hooks/onboarding、usage-stats（时间范围/quota/legacy+credit monitor 已迁）、terminal（服务面与频道已迁、真机未验收）、LAN（发现纯逻辑已迁、UDP/CLI 未迁）、CUA broker（raw input socket 解析策略已迁）；**未开始**：远程工作区、云账号 |
-| W4 Agent 运行时 | **协议/客户端镜像 91/115**；S0 健康快照与 S1 覆盖矩阵完成；会话级 api-retry tracker/draft registry 已迁移；频道所有权切换（S2）待决策 |
+| W4 Agent 运行时 | **协议/客户端镜像 91/115**；S0 健康快照与 S1 覆盖矩阵完成；会话级 api-retry tracker/draft registry 已迁移；频道所有权切换（S2）设计已批准（2026-11-04，按「最彻底」口径：native binary 兜底 S2 前补齐、网络方法不委托 Host、独立只读健康频道、Renderer 双 owner 调用） |
 | W5 / W6 | 未开始 |
 
 **服务层新增 crate（2026-11-01 ~ 11-03）**
@@ -435,7 +435,7 @@ protocolVersion 校验，5 条协议测试。**订阅 facade 已接**：`subscri
 `IModeAgentService` 方法与 `docs/specs/agent-method-coverage.json` 双向一致、
 `status=rust` 的函数存在；`pnpm agent:callsites` 生成调用点证据。基线 115 个方法
 （rust=91 / blocked=24 / todo=0 / not-needed=0），已接入 `verify:pre-push` 与
-release verify。矩阵以 `--strict` 运行（todo 必须为 0）；automation 10 个方法与宿主事件/网络方法计入 `blocked`，待决策。
+release verify。矩阵以 `--strict` 运行（todo 必须为 0）；automation 10 个方法与宿主事件/网络方法计入 `blocked`，2026-11-04 已批准收敛口径（决策 2/4 + S2 接线）。
 **S0 健康计算面已落（2026-11-01）**：`AgentRuntimeRegistry::health` /
 `AgentControlClient::runtime_health` 返回
 `{state, workspaceKey, runtimeIdentity, generation, processId, storageState, lastError}`；
