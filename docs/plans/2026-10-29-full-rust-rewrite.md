@@ -71,7 +71,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | `runtime-tools` | bfs/ripgrep/ugrep 解析与 PATH、login shell bootstrap/参数/执行选项/捕获、Agent 二进制/bundle 查找、clientPlatform | 48 用例（win32 夹具） |
 | `mode-api-retry` | 网络重试归一化、stream/model 事件映射、恢复进展、会话 tracker、draft registry | 58 用例 |
 | `off-peak-service` | 全部服务方法：管理面、create/continue、取号/批量轮询/settle outbox/3102 续跑 | 14 条 TS 对拍 + 6 条 Rust 单元测试 |
-| `storage-usage` | 存储分类目录、清理范围/保护、清理计划、扫描 job 状态/节流、占用累加/折叠、卷分组、storageService 同步编排核心（job 身份门控 + 清理管线） | 97 分类 + 14 保护 + 10 清理计划 + 8 扫描 job + 3 占用 + 2 卷组 + 6 编排 |
+| `storage-usage` | 存储分类目录、清理范围/保护、清理计划、扫描 job 状态/节流、占用累加/折叠、卷分组、storageService 同步编排核心（job 身份门控 + 清理管线）、数据根遍历与清理执行（真实 FS：不跟随符号链接、根缺失降级、取消探测、逃逸拒绝、keep 边界剪枝） | 97 分类 + 14 保护 + 10 清理计划 + 8 扫描 job + 3 占用 + 2 卷组 + 6 编排 + 8 fs |
 | `usage-stats` | App Usage / Coding Plan 时间范围、本地日期滚动、逐时/逐日坐标轴、自定义范围校验、BigModel quota limits/主额度/订阅摘要、legacy monitor 与 Coding Plan credit-usage 快照投影、MCP quota 归属/总额度/信封投影、usageStatsService 门控与委派 | 27 范围 + 31 Coding Plan + 5 limits + 4 主额度 + 11 订阅 + 6 monitor + 5 credit + 7 MCP + 6 service |
 | `integrated-terminal-shells` | Windows CMD/Git Bash 选项探测、PATHEXT/PATH 候选、win32 路径推导 | 11 用例 |
 | `terminal-profile` | 终端字体栈去重/fallback、detected profile 继承、JSONC 解析、Windows Terminal/VS Code/kitty 探测、macOS Terminal/iTerm2 plist 原始探测、Alacritty TOML/YAML 探测 | 12 组合 + 9 探测 + 10 macOS + 9 Alacritty |

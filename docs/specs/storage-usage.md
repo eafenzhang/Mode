@@ -85,10 +85,12 @@
 - 卷分组以 `dev:<deviceId>` 为 key；volume 缺失时用 `path:<rootPath>` 单独成组。
   组内根顺序保持输入顺序，组按 bytes 降序（并列保持首次出现顺序）。
 
-## 7. storageService 编排核心（2026-11-04 追加）
+## 7. storageService 编排核心与文件系统适配（2026-11-04 追加）
 
-真源：`packages/services/src/storage/app/storageService.ts`（app 层）。TS 的
-runner/文件系统/卷探测是异步 IO，仍归宿主装配；本 crate 承载可同步化的编排：
+真源：`packages/services/src/storage/app/storageService.ts` 与
+`packages/services/src/storage/adapters/fsWalker.ts`、`fsCleaner.ts`。
+TS 的异步扫描 runner、`volumeProbe`（statfs）与 `rootsResolver`（网卡/平台信息）
+是平台 IO，仍归宿主装配；本 crate 承载可同步化的编排与真实文件系统遍历/删除：
 
 ### 7.1 job 身份门控（`StorageServiceState`）
 
@@ -108,11 +110,30 @@ runner/文件系统/卷探测是异步 IO，仍归宿主装配；本 crate 承�
 `storage root not available: <rootId>`；端口错误原样透传。
 `offset_secs` 对应 TS 的系统本地时区（宿主注入）。
 
-### 7.3 已知差异
+### 7.3 数据根遍历与清理执行（`fs_ops`）
+
+| Rust 入口 | TS 对应 | 说明 |
+| --- | --- | --- |
+| `walk_storage_root` | `walkStorageRoot` | 不跟随符号链接；只产出常规文件；根缺失 → `missingRoot`；ENOENT 竞态静默；取消改为注入 `is_aborted` 探测（命中提前返回 `aborted` 旗标） |
+| `list_storage_candidates` | `createFsStorageCleaner().listCandidates` | 递归/浅层两种范围；重叠范围按归一化路径去重，值取后者、位置保持首次出现 |
+| `delete_storage_files` | `deleteFiles` | 归一化路径删除；逃逸判 `EOUTSIDE`；删除后自底向上 `rmdir` 变空父目录，keep 边界停止 |
+| 错误码映射 | libuv errno | `NotFound → ENOENT`、`PermissionDenied → EACCES`、其余 `UNKNOWN` |
+
+并发（walk 4 / delete 8）与 `setImmediate` 让出是宿主性能细节，不影响可观测
+结果（条目集合、错误码、计数）；条目产出顺序 TS 依赖目录枚举顺序，不属契约。
+
+### 7.4 已知差异
 
 TS app 层没有测试骨架；本节行为断言以 TS 源码语义为准，TS 完整对拍待补
 （同 `terminal-service` 的处理方式）。异步 runner 接线（AbortController、
 `done.then` 的 current 条件清理时序）由宿主用本模块 API 组合实现。
+文件系统用例为真实临时目录（不引测试依赖，同 `data-root` 做法）。
+
+`..` 逃逸判定按串：TS 先物理解析 `relative(root, join(root, rel))`，常规
+`a/../b` 重写会解析为合法子路径；Rust 直接拒绝含 `..` 段的串——候选来自根内
+遍历，不携带 `..`。Windows 盘符前缀（`C:/…`）Rust 显式拒绝（`Path::join` 遇
+盘符会整体替换，必须在 join 前挡住，与 TS 观测行为一致）。
+`mtimeMs` 统一取整到毫秒（TS 带亚毫秒精度）。
 
 ## 8. 已知差异
 
@@ -144,6 +165,8 @@ TS app 层没有测试骨架；本节行为断言以 TS 源码语义为准，TS 
     subagent 活跃目录与恰好 24h 边界、空候选、备份/导出类别、自定义数据根）；
   - 8 组扫描 job 脚本（首次进度立即 emit、双窗口节流、无进度完成、错误码、
     cancel、AbortError、完成时清理 timer、失败追加错误）。
-- `cargo test -p storage-usage`（1 条 TS 深比较回放 + 14 条 Rust 单测，
-  其中 6 条为 §7 编排核心）。
+- `cargo test -p storage-usage`（1 条 TS 深比较回放 + 22 条 Rust 单测；
+  §7 编排核心 6 条，§7.3 文件系统 8 条真实临时目录用例：遍历/符号链接跳过/
+  根缺失/取消旗标、范围去重、删除失败与逃逸、keep 边界剪枝、无关分支不受影响、
+  路径分隔符归一）。
 - `cargo clippy -p storage-usage --all-targets -- -D warnings`。
