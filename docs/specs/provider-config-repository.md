@@ -3,7 +3,7 @@
 > 范围：`packages/provider-node/src/personal-provider-config-repository.ts` 的
 > **读/写/锁/原子写/legacy 导入**，以及 `runtime-paths.ts` 的环境变量路径解析。
 > 只读文件层与两层组合快照见 `provider-config-source.md`；纯编解码见
-> `provider-config-file-codec.md`。本轮不做轮询/`onDidChange`。
+> `provider-config-file-codec.md`。本文件包含读/写与轮询/`onDidChange`。
 
 ## 1. 范围与所有者
 
@@ -26,10 +26,17 @@
 ## 2. API
 
 ```rust
+pub enum PollingInterval {
+    Disabled,      // 对应 TS pollingIntervalMs: false
+    Millis(u64),   // 缺省 1000
+}
+
 pub struct PersonalConfigRepositoryOptions {
     pub file_path: PathBuf,
     pub import_legacy: Option<Arc<dyn Fn() -> Option<ProviderConfigLayerUpdate> + Send + Sync>>,
     pub on_recovery: Option<Arc<dyn Fn(&RepositoryError) + Send + Sync>>,
+    pub on_polling_error: Option<Arc<dyn Fn(&RepositoryError) + Send + Sync>>,
+    pub polling_interval: PollingInterval,
 }
 
 impl PersonalConfigRepository {
@@ -37,14 +44,20 @@ impl PersonalConfigRepository {
     pub fn read(&self) -> PersonalLayer;
     pub fn update<F>(&self, transform: F) -> Result<PersonalLayer, RepositoryError>
     where F: FnOnce(&PersonalLayer) -> ProviderConfigLayerUpdate;
+    pub fn on_did_change(&self, listener: Arc<dyn Fn(&str) + Send + Sync>) -> ChangeSubscription;
+    pub fn dispose(&self);
 }
 ```
 
 - `read` 不返回错误：任何读取/解码失败都降级为空层并调用 `on_recovery`（TS 语义）。
 - `update` 返回错误；错误类型区分 IO / 非法内容 / 锁超时。
-- `file_path` 为空串在构造时拒绝：`Personal Provider Config filePath 不能为空`。
+- `file_path` 为空串在构造时拒绝：`Personal Provider Config filePath 不能为空`；
+  `polling_interval = Millis(0)` 拒绝：`Personal Provider Config pollingIntervalMs 必须大于 0`。
 - 快照 `PersonalLayer` 来自 `provider-config-source`，revision 为规范编码文本的
   sha256（与 TS `snapshotFromUpdate` 一致）。
+- 轮询在首次 `read`/`update` 后启动（与 TS `#ensurePolling` 一致），默认 1000 ms；
+  `Disabled` 不启动。`on_did_change` 订阅变更原因：`updated`、`poll-changed`、`poll-error`。
+  `dispose` 幂等：停止线程、清空订阅者；之后 `update` 返回已 dispose 错误。
 
 ## 3. 读路径
 
@@ -97,15 +110,14 @@ pub fn resolve_node_provider_runtime_paths(
 
 | 差异 | 说明 |
 | --- | --- |
-| 无轮询/`onDidChange` | 本轮不实现 `fs.watch`/polling、revision 去重与 poll-error；下一片补。 |
 | 同步 legacy 导入 | TS 为 async；Rust 注入同步闭包，调用方自行封装异步读取。 |
-| 无写代次防倒退 | 轮询未实现，`writeGeneration` 守卫随下一片一起加。 |
+| 定时线程而非 `setTimeout.unref` | Rust 用可停止的轮询线程；`dispose` 立即结束，不依赖运行时事件循环。 |
 | 原子写临时文件 | 复用 `atomic-file`（与 TS 同一套 rename 重试、锁语义、0600 私有写）。 |
 
 ## 7. 验收
 
-- `cargo test -p provider-config-repository`：缺失/无效/非规范/legacy 导入、update 往返、
-  锁与错误语义、运行时路径组合。
+- `cargo test -p provider-config-repository`：11 条用例覆盖缺失/无效/非规范/legacy 导入、
+  update 往返、锁与错误语义、运行时路径组合，以及轮询变更/单次错误上报/dispose 停止。
 - 对拍：读结果 revision 与 `provider-config-source` 的 `read_personal_layer` 一致；
   规范写回文本与 `serde_json::to_string_pretty(encodeProviderConfigFile(update))` 一致。
 - 真机/频道接管未开始；Node 仓库仍是 oracle。

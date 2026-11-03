@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use provider_config_file_codec::{encode_provider_config_file, ProviderConfigLayerUpdate};
 use provider_config_repository::runtime_paths::{
@@ -10,7 +11,7 @@ use provider_config_repository::runtime_paths::{
     MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
 };
 use provider_config_repository::{
-    PersonalConfigRepository, PersonalConfigRepositoryOptions, RepositoryError,
+    PersonalConfigRepository, PersonalConfigRepositoryOptions, PollingInterval, RepositoryError,
 };
 use provider_config_source::empty_personal_layer;
 
@@ -41,6 +42,8 @@ fn repository(path: &Path) -> PersonalConfigRepository {
         file_path: path.to_path_buf(),
         import_legacy: None,
         on_recovery: None,
+        on_polling_error: None,
+        polling_interval: PollingInterval::Disabled,
     })
     .expect("repository")
 }
@@ -71,6 +74,8 @@ fn invalid_file_degrades_and_is_preserved() {
         on_recovery: Some(Arc::new(move |error: &RepositoryError| {
             sink.lock().unwrap().push(error.to_string());
         })),
+        on_polling_error: None,
+        polling_interval: PollingInterval::Disabled,
     })
     .expect("repository");
 
@@ -118,6 +123,8 @@ fn legacy_import_writes_missing_file() {
         file_path: path.clone(),
         import_legacy: Some(import),
         on_recovery: None,
+        on_polling_error: None,
+        polling_interval: PollingInterval::Disabled,
     })
     .expect("repository");
 
@@ -165,6 +172,8 @@ fn empty_file_path_is_rejected() {
         file_path: PathBuf::from("  "),
         import_legacy: None,
         on_recovery: None,
+        on_polling_error: None,
+        polling_interval: PollingInterval::Disabled,
     }) {
         Ok(_) => panic!("空 filePath 必须拒绝"),
         Err(error) => error,
@@ -209,4 +218,108 @@ fn runtime_paths_require_both_or_neither() {
         env.get(MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV),
         Some(&"/tmp/personal.json".to_string())
     );
+}
+
+fn polling_repository(path: &Path, interval: PollingInterval) -> PersonalConfigRepository {
+    PersonalConfigRepository::new(PersonalConfigRepositoryOptions {
+        file_path: path.to_path_buf(),
+        import_legacy: None,
+        on_recovery: None,
+        on_polling_error: None,
+        polling_interval: interval,
+    })
+    .expect("polling repository")
+}
+
+fn wait_for(reason: &str, events: &Arc<Mutex<Vec<String>>>) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < deadline {
+        if events.lock().unwrap().iter().any(|item| item == reason) {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    events.lock().unwrap().iter().any(|item| item == reason)
+}
+
+#[test]
+fn polling_emits_on_external_change_and_dispose_stops() {
+    let dir = temp_dir();
+    let path = dir.join("provider_config.json");
+    let repo = polling_repository(&path, PollingInterval::Millis(30));
+    let events = Arc::new(Mutex::new(Vec::<String>::new()));
+    let sink = Arc::clone(&events);
+    let subscription = repo.on_did_change(Arc::new(move |reason: &str| {
+        sink.lock().unwrap().push(reason.to_string());
+    }));
+
+    let _ = repo.read();
+    std::fs::write(
+        &path,
+        r#"{"schemaVersion":1,"config":{"providerConfigRules":{"providerRules":[]},"modelConfigRules":{"providerModelRules":[],"manualProviderModelRules":[]},"defaultModelSelection":{"providerId":"p1","modelId":"m1"}}}"#,
+    )
+    .unwrap();
+    assert!(
+        wait_for("poll-changed", &events),
+        "外部写入应触发 poll-changed"
+    );
+
+    drop(subscription);
+    repo.dispose();
+    let count = events.lock().unwrap().len();
+    std::fs::write(
+        &path,
+        r#"{"schemaVersion":1,"config":{"providerConfigRules":{"providerRules":[]},"modelConfigRules":{"providerModelRules":[],"manualProviderModelRules":[]},"defaultModelSelection":{"providerId":"p2","modelId":"m2"}}}"#,
+    )
+    .unwrap();
+    std::thread::sleep(Duration::from_millis(150));
+    assert_eq!(events.lock().unwrap().len(), count, "dispose 后不应再通知");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn polling_reports_error_once() {
+    let dir = temp_dir();
+    let path = dir.join("provider_config.json");
+    let repo = polling_repository(&path, PollingInterval::Millis(30));
+    let events = Arc::new(Mutex::new(Vec::<String>::new()));
+    let sink = Arc::clone(&events);
+    let _subscription = repo.on_did_change(Arc::new(move |reason: &str| {
+        sink.lock().unwrap().push(reason.to_string());
+    }));
+
+    let _ = repo.read();
+    std::fs::write(&path, "{broken").unwrap();
+    assert!(wait_for("poll-error", &events), "损坏文件应触发 poll-error");
+    std::thread::sleep(Duration::from_millis(120));
+    assert_eq!(
+        events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|item| item.as_str() == "poll-error")
+            .count(),
+        1,
+        "同一故障只应上报一次"
+    );
+    repo.dispose();
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn zero_polling_interval_is_rejected() {
+    let dir = temp_dir();
+    let path = dir.join("provider_config.json");
+    let error = match PersonalConfigRepository::new(PersonalConfigRepositoryOptions {
+        file_path: path,
+        import_legacy: None,
+        on_recovery: None,
+        on_polling_error: None,
+        polling_interval: PollingInterval::Millis(0),
+    }) {
+        Ok(_) => panic!("0 轮询间隔必须拒绝"),
+        Err(error) => error,
+    };
+    assert!(error.to_string().contains("pollingIntervalMs"));
+    std::fs::remove_dir_all(&dir).ok();
 }
