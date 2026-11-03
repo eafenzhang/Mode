@@ -33,11 +33,12 @@ use crate::error::{Result, TaskIndexRepoError};
 use crate::js::{js_trim, resolve_workspace_key};
 use crate::meta::CRON_DEFAULT_GROUP_ID;
 use crate::repo::{
-    normalize_workspace_keys, row_to_task_list_item, TaskIndexRow, TaskIndexRepo, TaskListItem,
+    normalize_workspace_keys, row_to_task_list_item, TaskIndexRepo, TaskIndexRow, TaskListItem,
     TaskListWorkspaceScope, GROUPED_TASK_ORDER_STEP,
 };
 
-const GROUPED_WORKSPACE_BOOTSTRAP_ONCE_KEY: &str = "__mode_internal_grouped_workspace_bootstrap_once__";
+const GROUPED_WORKSPACE_BOOTSTRAP_ONCE_KEY: &str =
+    "__mode_internal_grouped_workspace_bootstrap_once__";
 const DEFAULT_TASK_GROUP_COLOR: &str = "gray";
 const WORKSPACE_BOOTSTRAP_TASK_GROUP_COLORS: [&str; 6] =
     ["red", "orange", "yellow", "green", "blue", "purple"];
@@ -89,7 +90,11 @@ pub struct GroupedTaskViewOrderInput {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum GroupedTaskViewNode {
     Group {
         group: TaskGroup,
@@ -123,9 +128,16 @@ pub struct GroupedTaskViewStructureMember {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum GroupedTaskViewStructureTopOrder {
-    Group { group_id: String, sort_order: i64 },
+    Group {
+        group_id: String,
+        sort_order: i64,
+    },
     Task {
         workspace_key: String,
         task_id: String,
@@ -395,9 +407,9 @@ fn compare_group_tasks(
         .get(&task_node_key(&item_ref(right)))
         .and_then(|member| member.sort_order)
         .unwrap_or(0);
-    left_order.cmp(&right_order).then_with(|| {
-        task_node_key(&item_ref(left)).cmp(&task_node_key(&item_ref(right)))
-    })
+    left_order
+        .cmp(&right_order)
+        .then_with(|| task_node_key(&item_ref(left)).cmp(&task_node_key(&item_ref(right))))
 }
 
 fn in_transaction<T>(connection: &Connection, operation: impl FnOnce() -> Result<T>) -> Result<T> {
@@ -671,10 +683,12 @@ impl TaskIndexRepo {
             };
             let groups: Vec<TaskGroup> = group_rows
                 .iter()
-                .filter(|row| match bootstrap_workspace_key_by_group.get(&row.group_id) {
-                    Some(key) => visible_workspace_keys.contains(key),
-                    None => true,
-                })
+                .filter(
+                    |row| match bootstrap_workspace_key_by_group.get(&row.group_id) {
+                        Some(key) => visible_workspace_keys.contains(key),
+                        None => true,
+                    },
+                )
                 .map(row_to_task_group)
                 .collect();
 
@@ -945,12 +959,7 @@ impl TaskIndexRepo {
         if missing.is_empty() {
             return Ok(());
         }
-        missing.sort_by(|left, right| {
-            right
-                .0
-                .cmp(&left.0)
-                .then_with(|| left.1.cmp(&right.1))
-        });
+        missing.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
         let max_sort_order: Option<i64> = connection
             .query_row(
                 "SELECT MAX(sort_order) FROM task_group_members WHERE group_id = ?",
@@ -986,7 +995,8 @@ impl TaskIndexRepo {
         if scopes.is_empty() || self.has_grouped_workspace_bootstrap_run_conn(connection)? {
             return Ok(());
         }
-        let mut candidate_rows_by_workspace_key: HashMap<String, Vec<TaskIndexRow>> = HashMap::new();
+        let mut candidate_rows_by_workspace_key: HashMap<String, Vec<TaskIndexRow>> =
+            HashMap::new();
         for row in active_tasks {
             candidate_rows_by_workspace_key
                 .entry(row.workspace_key.clone())
@@ -995,7 +1005,12 @@ impl TaskIndexRepo {
         }
         let now = self.now();
         if candidate_rows_by_workspace_key.is_empty() {
-            self.mark_workspace_bootstrap_run(connection, GROUPED_WORKSPACE_BOOTSTRAP_ONCE_KEY, None, now)?;
+            self.mark_workspace_bootstrap_run(
+                connection,
+                GROUPED_WORKSPACE_BOOTSTRAP_ONCE_KEY,
+                None,
+                now,
+            )?;
             return Ok(());
         }
         let mut existing_group_order_keys: HashSet<String> = {
@@ -1146,8 +1161,9 @@ impl TaskIndexRepo {
         workspace_scopes: &[TaskListWorkspaceScope],
     ) -> Result<GroupedTaskViewStructure> {
         self.ensure_ready()?;
-        let visible_workspace_keys: HashSet<String> =
-            normalize_workspace_keys(workspace_scopes).into_iter().collect();
+        let visible_workspace_keys: HashSet<String> = normalize_workspace_keys(workspace_scopes)
+            .into_iter()
+            .collect();
         self.with_conn(|connection| {
             let bootstrap_workspace_key_by_group: HashMap<String, String> = {
                 let mut statement = connection.prepare(
@@ -1172,10 +1188,12 @@ impl TaskIndexRepo {
             };
             let groups: Vec<TaskGroup> = group_rows
                 .iter()
-                .filter(|row| match bootstrap_workspace_key_by_group.get(&row.group_id) {
-                    Some(key) => visible_workspace_keys.contains(key),
-                    None => true,
-                })
+                .filter(
+                    |row| match bootstrap_workspace_key_by_group.get(&row.group_id) {
+                        Some(key) => visible_workspace_keys.contains(key),
+                        None => true,
+                    },
+                )
                 .map(row_to_task_group)
                 .collect();
             let member_rows = {
@@ -1236,8 +1254,7 @@ impl TaskIndexRepo {
                 if items.len() < 2 {
                     continue;
                 }
-                let (Some(workspace_key), Some(task_id)) =
-                    (items[0].as_str(), items[1].as_str())
+                let (Some(workspace_key), Some(task_id)) = (items[0].as_str(), items[1].as_str())
                 else {
                     continue;
                 };
@@ -1262,8 +1279,9 @@ impl TaskIndexRepo {
         input: &GroupedTaskViewOrderInput,
     ) -> Result<GroupedTaskView> {
         self.ensure_ready()?;
-        let workspace_keys: HashSet<String> =
-            normalize_workspace_keys(&input.workspace_scopes).into_iter().collect();
+        let workspace_keys: HashSet<String> = normalize_workspace_keys(&input.workspace_scopes)
+            .into_iter()
+            .collect();
         let now = self.now();
         self.with_conn(|connection| {
             self.write_grouped_task_view_order(connection, input, &workspace_keys, now)
@@ -1291,7 +1309,8 @@ impl TaskIndexRepo {
         };
 
         let validate_task_ref = |task: &GroupedTaskRef| -> Result<Option<String>> {
-            let key = resolve_workspace_key(&task.workspace_path, task.workspace_identity.as_deref());
+            let key =
+                resolve_workspace_key(&task.workspace_path, task.workspace_identity.as_deref());
             if !workspace_keys.contains(&key) {
                 return Err(group_message("Grouped task order 包含当前 scope 外的 task"));
             }
