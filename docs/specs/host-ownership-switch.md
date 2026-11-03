@@ -157,7 +157,11 @@ S2 的 20 个真实任务与 parity matrix 是硬门禁（DR-07），不能压�
    （`pnpm agent:callsites`）+ 人工只审例外；S1 收口时按脚本清单全量过一遍。
 2. **`blocked` 方法的降级语义** — **已批准：不委托 Host**。provider/account
    网络方法在 Rust 未实现前返回显式 `unsupported` 语义（带降级文案），由调用方
-   在切换前知晓；不引入双 owner。
+   在切换前知晓；不引入双 owner。具体契约（2026-11-04 补）：
+   `generateWorkspaceText` / `testModelConnectivity` 在 Rust 侧未实现前返回
+   错误码 `unsupported_method`，文案「该方法依赖真实模型/网络与 provider 凭据，
+   当前频道由 Rust 所有；如需使用，请把它从 `MODE_HOST_INPROCESS_CHANNELS`
+   移除以回滚到 Node Host」；覆盖矩阵两方法的 blocked 注记已同步。
 3. **健康状态面的暴露位置** — **已批准：独立只读频道**（`host.health` 面），
    而非仅日志：健康状态（含后续 `degraded` 请求失败计数）作为一等只读面暴露，
    Renderer/诊断页可直接订阅；不引入定时 ping，状态仍由事件驱动计算。

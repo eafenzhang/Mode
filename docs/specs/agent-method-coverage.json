@@ -172,7 +172,7 @@
   {
     "method": "generateWorkspaceText",
     "status": "blocked",
-    "note": "依赖真实模型/网络与 provider 凭据，降级语义待批准（spec §6 第 2 项）"
+    "note": "依赖真实模型/网络与 provider 凭据；降级语义已批准（2026-11-04，spec §6 决策 2）：S2 翻面后 Rust 侧返回显式 unsupported（错误码 unsupported_method，文案见 host-ownership-switch §6 决策 2），不委托 Host"
   },
   {
     "method": "getAppUsageStats",
@@ -527,7 +527,7 @@
   {
     "method": "testModelConnectivity",
     "status": "blocked",
-    "note": "依赖真实模型/网络与 provider 凭据，降级语义待批准（spec §6 第 2 项）"
+    "note": "依赖真实模型/网络与 provider 凭据；降级语义已批准（2026-11-04，spec §6 决策 2）：S2 翻面后 Rust 侧返回显式 unsupported（错误码 unsupported_method，文案见 host-ownership-switch §6 决策 2），不委托 Host"
   },
   {
     "method": "uninstallPlugin",
