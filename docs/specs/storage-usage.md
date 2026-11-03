@@ -85,7 +85,36 @@
 - 卷分组以 `dev:<deviceId>` 为 key；volume 缺失时用 `path:<rootPath>` 单独成组。
   组内根顺序保持输入顺序，组按 bytes 降序（并列保持首次出现顺序）。
 
-## 7. 已知差异
+## 7. storageService 编排核心（2026-11-04 追加）
+
+真源：`packages/services/src/storage/app/storageService.ts`（app 层）。TS 的
+runner/文件系统/卷探测是异步 IO，仍归宿主装配；本 crate 承载可同步化的编排：
+
+### 7.1 job 身份门控（`StorageServiceState`）
+
+- `start_scan` 先清 current（对旧 runner 的 abort 由宿主执行），生成 `scan-{n}`
+  并同时成为 current 与 emit 门控基准（latestJobId）。
+- emit 门控：`jobId === latestJobId` 才写入 latestSnapshot；被顶替的旧 job 尾包
+  对 emitter 仍可见（TS fire 不受门控），但不得覆盖快照——对应 TS 注释
+  「按最近一次启动的 job 判断」。
+- `cancel_scan(jobId)` 只命中 current；`finish_job` 只在 current 仍是该 job 时
+  清空；`clean`/`dispose` 前先 `cancel_current`（状态面）。
+
+### 7.2 清理管线（`clean_category`）
+
+顺序与 TS 一致：可清理判定（未知类别按 none 报错）→ 找根 → 作用域 → 列候选 →
+计划 → 删除（keepDirectories = 作用域前缀全集）→ 合并 `skippedCount`。
+错误文案与 TS 相同：`storage category is not cleanable: <id>`、
+`storage root not available: <rootId>`；端口错误原样透传。
+`offset_secs` 对应 TS 的系统本地时区（宿主注入）。
+
+### 7.3 已知差异
+
+TS app 层没有测试骨架；本节行为断言以 TS 源码语义为准，TS 完整对拍待补
+（同 `terminal-service` 的处理方式）。异步 runner 接线（AbortController、
+`done.then` 的 current 条件清理时序）由宿主用本模块 API 组合实现。
+
+## 8. 已知差异
 
 1. 明细并列排序：TS 使用 `String.prototype.localeCompare`，结果依赖 ICU/locale；
    Rust 使用确定性字节序。仅 bytes 相同的路径可能顺序不同，夹具只覆盖 ASCII
@@ -100,7 +129,7 @@
    回调不会产生重复快照。
 6. 扫描 job 不拥有 runner/timer/AbortController；异步执行与取消信号由适配层驱动。
 
-## 8. 验收
+## 9. 验收
 
 - `pnpm storage-usage:fixtures` →
   `crates/storage-usage/fixtures/storage-usage.json`
@@ -115,5 +144,6 @@
     subagent 活跃目录与恰好 24h 边界、空候选、备份/导出类别、自定义数据根）；
   - 8 组扫描 job 脚本（首次进度立即 emit、双窗口节流、无进度完成、错误码、
     cancel、AbortError、完成时清理 timer、失败追加错误）。
-- `cargo test -p storage-usage`（1 条 TS 深比较回放 + 8 条 Rust 单测）。
+- `cargo test -p storage-usage`（1 条 TS 深比较回放 + 14 条 Rust 单测，
+  其中 6 条为 §7 编排核心）。
 - `cargo clippy -p storage-usage --all-targets -- -D warnings`。

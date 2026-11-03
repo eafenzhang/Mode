@@ -1,12 +1,14 @@
-//! 存储分类目录、清理范围/保护、占用累加与卷分组。
+//! 存储分类目录、清理范围/保护、占用累加与卷分组；storageService 的同步编排核心。
 //!
 //! 真源：`packages/services/src/storage/domain/storageCatalog.ts`、
-//! `usageAggregate.ts` 与 `packages/shared/src/storage.ts`。
+//! `usageAggregate.ts`、`packages/shared/src/storage.ts` 与
+//! `packages/services/src/storage/app/storageService.ts`。
 //! 规范见 `docs/specs/storage-usage.md`。
 
 mod catalog;
 mod clean;
 mod scan_job;
+mod service;
 mod usage;
 
 pub use catalog::{
@@ -23,6 +25,7 @@ pub use scan_job::{
     ScanJobFailure, ScanJobProgressAction, StoragePathError, StorageScanJob, StorageScanProgress,
     StorageScanStatus, StorageUsageSnapshot,
 };
+pub use service::{clean_category, StorageCleanOutcome, StorageDeleteResult, StorageServiceState};
 pub use usage::{
     group_storage_roots_by_volume, StorageCategoryUsage, StorageEntryUsage, StorageRootSpec,
     StorageRootUsage, StorageScanEntry, StorageUsageAccumulator, StorageVolume, StorageVolumeGroup,
