@@ -1,4 +1,4 @@
-# Spec：Mode Built-in Remote Release 刷新控制面（Rust）
+# Spec：Mode Built-in Remote Release 刷新控制与编排（Rust）
 
 > 真源：`packages/provider-node/src/mode-builtin-remote-synchronizer.ts` 的
 > `RefreshControl` / `readControl` / `writeControl` 与 `#refresh` / `#finishLease`
@@ -81,4 +81,38 @@ finish(endpoint, leaseId, outcome, now):
 - `cargo test -p provider-config-repository --test remote_sync`：10 条用例覆盖首次租约、
   租约阻塞、成功窗口与 force、端点切换重置、失败退避翻倍、取消保留计数、租约不匹配、
   损坏控制文件、父目录创建与空 Endpoint。
-- 网络 fetch/apply 与真机远端刷新未开始；Node 编排仍是 oracle。
+- `cargo test -p provider-config-repository --test remote_refresh`：8 条用例覆盖租约跳过、
+  not-due/force、三种 apply 结果、missing、端点切换、fetch/apply/端点解析失败后的失败结算。
+- 真实 HTTP fetch/apply 与真机远端刷新未开始；Node 编排仍是 oracle。
+
+## 7. 刷新编排（2026-11-03）
+
+```rust
+pub fn refresh_mode_builtin_release<F, R, A>(
+    options: &RefreshOptions<'_>,
+    fetch_release: F,          // FnOnce(&endpoint) -> Result<Option<ModeBuiltinRelease>, String>
+    resolve_endpoint_key: R,   // FnOnce() -> Result<String, String>
+    apply_release: A,          // FnOnce(ModeBuiltinRelease) -> Result<ApplyOutcome, String>
+) -> Result<RefreshOutcome, String>;
+```
+
+顺序：
+
+```text
+acquire lease
+  ├─ LeaseHeld / NotDue → Skipped(reason)，不 fetch、不 finish
+  └─ Acquired
+       ├─ fetch(endpoint) 失败 → finish Failure → Err
+       ├─ 重新解析 endpoint 失败 → finish Failure → Err
+       ├─ endpoint 变化 → finish Success → Skipped(EndpointChanged)
+       ├─ release 缺失 → finish Success → Missing
+       └─ apply
+            ├─ 失败 → finish Failure → Err
+            └─ Updated / Unchanged / Stale → finish Success → 对应结果 + revision
+```
+
+- `RefreshOutcome` 携带 `result`、可选 `reason` 与可选 `revision`；`Missing` 无 revision。
+- 端点变化按 TS 口径结束为 **Success**（不是失败），避免把正常切换计入退避。
+- 取消/AbortSignal、in-flight 去重与 disposed 结果由宿主编排层处理；本函数只执行一次
+  同步状态转移，不读系统时钟。
+- fetch/apply 由宿主注入；真实网络、`applyRemoteRelease` 的物化与 LKG 选择仍在后续切片。
