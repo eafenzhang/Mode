@@ -282,7 +282,8 @@ fn prune_empty_parents(
         }
     }
     // TS 按段数降序（稳定排序）；Rust 同口径。
-    directories.sort_by(|left, right| right.split('/').count().cmp(&left.split('/').count()));
+    // sort_by_key + Reverse：clippy 把纯 key 比较的 sort_by 判成 lint（-D warnings）。
+    directories.sort_by_key(|path| std::cmp::Reverse(path.split('/').count()));
     for directory in directories {
         let _ = std::fs::remove_dir(root_path.join(&directory));
     }
