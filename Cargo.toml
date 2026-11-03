@@ -45,6 +45,7 @@ members = [
   "crates/terminal-service",
   "crates/remote-desktop-streaming",
   "crates/lan-discovery",
+  "crates/cua-raw-input",
   "crates/zai-start-plan-billing",
   "crates/provider-config-file-codec",
   "crates/tasks-db",

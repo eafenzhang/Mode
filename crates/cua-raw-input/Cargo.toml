@@ -1,0 +1,10 @@
+[package]
+name = "cua-raw-input"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "CUA raw input socket 解析策略：live peek → 稳定探测 → 按需创建 + 失败退避"
+
+[lib]
+name = "cua_raw_input"
+path = "src/lib.rs"
