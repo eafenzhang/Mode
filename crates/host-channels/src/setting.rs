@@ -40,7 +40,9 @@ impl ServerChannel for SettingChannel {
                 GET => {
                     let value = tokio::task::spawn_blocking(move || service.get())
                         .await
-                        .map_err(|error| ChannelError::error(format!("settings task failed: {error}")))?;
+                        .map_err(|error| {
+                            ChannelError::error(format!("settings task failed: {error}"))
+                        })?;
                     Ok(Value::Json(value.to_string()))
                 }
                 UPDATE => {
@@ -48,8 +50,12 @@ impl ServerChannel for SettingChannel {
                     let patch = serde_json::Value::Object(patch);
                     let result = tokio::task::spawn_blocking(move || service.update(&patch))
                         .await
-                        .map_err(|error| ChannelError::error(format!("settings task failed: {error}")))?;
-                    result.map(|_| Value::Undefined).map_err(|error| ChannelError::error(error.to_string()))
+                        .map_err(|error| {
+                            ChannelError::error(format!("settings task failed: {error}"))
+                        })?;
+                    result
+                        .map(|_| Value::Undefined)
+                        .map_err(|error| ChannelError::error(error.to_string()))
                 }
                 UPDATE_DATA_BASE_DIR => {
                     let new_dir = positional_string(&arg);
@@ -57,7 +63,9 @@ impl ServerChannel for SettingChannel {
                         service.update_data_base_dir(new_dir.as_deref())
                     })
                     .await
-                    .map_err(|error| ChannelError::error(format!("settings task failed: {error}")))?;
+                    .map_err(|error| {
+                        ChannelError::error(format!("settings task failed: {error}"))
+                    })?;
                     result
                         .map(|_| Value::Undefined)
                         .map_err(|error| ChannelError::error(error.to_string()))
@@ -68,7 +76,9 @@ impl ServerChannel for SettingChannel {
                         settings_store::ensure_default_project(&target)
                     })
                     .await
-                    .map_err(|error| ChannelError::error(format!("settings task failed: {error}")))?;
+                    .map_err(|error| {
+                        ChannelError::error(format!("settings task failed: {error}"))
+                    })?;
                     let project = result.map_err(|error| ChannelError::error(error.to_string()))?;
                     Ok(Value::Json(
                         serde_json::json!({
@@ -78,7 +88,9 @@ impl ServerChannel for SettingChannel {
                         .to_string(),
                     ))
                 }
-                other => Err(ChannelError::error(format!("setting: unknown command {other}"))),
+                other => Err(ChannelError::error(format!(
+                    "setting: unknown command {other}"
+                ))),
             }
         })
     }

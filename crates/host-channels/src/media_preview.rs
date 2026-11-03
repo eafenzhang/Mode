@@ -26,17 +26,61 @@ struct Format {
 }
 
 const FORMATS: &[Format] = &[
-    Format { extension: ".mp4", kind: "video", media_type: "video/mp4" },
-    Format { extension: ".mov", kind: "video", media_type: "video/quicktime" },
-    Format { extension: ".webm", kind: "video", media_type: "video/webm" },
-    Format { extension: ".m4v", kind: "video", media_type: "video/x-m4v" },
-    Format { extension: ".mp3", kind: "audio", media_type: "audio/mpeg" },
-    Format { extension: ".wav", kind: "audio", media_type: "audio/wav" },
-    Format { extension: ".m4a", kind: "audio", media_type: "audio/mp4" },
-    Format { extension: ".ogg", kind: "audio", media_type: "audio/ogg" },
-    Format { extension: ".opus", kind: "audio", media_type: "audio/opus" },
-    Format { extension: ".flac", kind: "audio", media_type: "audio/flac" },
-    Format { extension: ".weba", kind: "audio", media_type: "audio/webm" },
+    Format {
+        extension: ".mp4",
+        kind: "video",
+        media_type: "video/mp4",
+    },
+    Format {
+        extension: ".mov",
+        kind: "video",
+        media_type: "video/quicktime",
+    },
+    Format {
+        extension: ".webm",
+        kind: "video",
+        media_type: "video/webm",
+    },
+    Format {
+        extension: ".m4v",
+        kind: "video",
+        media_type: "video/x-m4v",
+    },
+    Format {
+        extension: ".mp3",
+        kind: "audio",
+        media_type: "audio/mpeg",
+    },
+    Format {
+        extension: ".wav",
+        kind: "audio",
+        media_type: "audio/wav",
+    },
+    Format {
+        extension: ".m4a",
+        kind: "audio",
+        media_type: "audio/mp4",
+    },
+    Format {
+        extension: ".ogg",
+        kind: "audio",
+        media_type: "audio/ogg",
+    },
+    Format {
+        extension: ".opus",
+        kind: "audio",
+        media_type: "audio/opus",
+    },
+    Format {
+        extension: ".flac",
+        kind: "audio",
+        media_type: "audio/flac",
+    },
+    Format {
+        extension: ".weba",
+        kind: "audio",
+        media_type: "audio/webm",
+    },
 ];
 
 /// 与 TS 一致：反斜杠归一成 `/`，整体转小写，再按后缀匹配。

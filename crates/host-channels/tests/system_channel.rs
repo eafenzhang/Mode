@@ -17,20 +17,33 @@ fn channel() -> SystemChannel {
         env: BTreeMap::from([("HOME".to_string(), "/home/test".to_string())]),
         platform: "linux".into(),
         is_executable: Arc::new(|_| false),
-        tcp_probe: Arc::new(|_params: TcpProbeParams| -> BoxProbeFuture<Result<u64, String>> {
-            Box::pin(async { Ok(9) })
-        }),
-        service_probe: Arc::new(|_params: ServiceProbeParams| -> BoxProbeFuture<
-            Result<ServiceProbeResult, String>,
-        > { Box::pin(async { Ok(ServiceProbeResult::default()) }) }),
+        tcp_probe: Arc::new(
+            |_params: TcpProbeParams| -> BoxProbeFuture<Result<u64, String>> {
+                Box::pin(async { Ok(9) })
+            },
+        ),
+        service_probe: Arc::new(
+            |_params: ServiceProbeParams| -> BoxProbeFuture<Result<ServiceProbeResult, String>> {
+                Box::pin(async { Ok(ServiceProbeResult::default()) })
+            },
+        ),
         now_ms: Arc::new(|| 7),
     };
     SystemChannel::new(Arc::new(SystemService::with_dependencies(deps)))
 }
 
-async fn call(channel: &SystemChannel, method: &str, arg: Value) -> Result<Value, rpc_host::ChannelError> {
+async fn call(
+    channel: &SystemChannel,
+    method: &str,
+    arg: Value,
+) -> Result<Value, rpc_host::ChannelError> {
     channel
-        .call("ctx".into(), method.into(), arg, CancellationToken::default())
+        .call(
+            "ctx".into(),
+            method.into(),
+            arg,
+            CancellationToken::default(),
+        )
         .await
 }
 
@@ -43,7 +56,11 @@ fn json(value: &Value) -> serde_json::Value {
 
 #[tokio::test]
 async fn info_returns_homedir_and_platform() {
-    let body = json(&call(&channel(), INFO, Value::Array(Vec::new())).await.unwrap());
+    let body = json(
+        &call(&channel(), INFO, Value::Array(Vec::new()))
+            .await
+            .unwrap(),
+    );
     assert_eq!(
         body,
         serde_json::json!({ "homedir": "/home/test", "platform": "linux" })

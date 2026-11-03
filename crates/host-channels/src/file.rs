@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use file_service::{
     CheckFilesExistParams, FileRangeParams, FileService, FileServiceError, IgnoreTransformParams,
-    PathParams, PreviewParams, ReaddirParams, ReadTextFileParams, RootParams, RootRangeParams,
+    PathParams, PreviewParams, ReadTextFileParams, ReaddirParams, RootParams, RootRangeParams,
     ScratchWorkspaceParams, WorkspaceFileSearchParams, WriteIgnoreParams,
 };
 use rpc_host::{BoxFuture, CancellationToken, ChannelError, ServerChannel};
@@ -80,10 +80,14 @@ impl ServerChannel for FileChannel {
                 ENSURE_CONVERSATION_WORKSPACE => {
                     Ok(json(&service.ensure_conversation_workspace().await.chan()?))
                 }
-                CREATE_DEFAULT_WORKSPACE => Ok(json(&service.create_default_workspace().await.chan()?)),
+                CREATE_DEFAULT_WORKSPACE => {
+                    Ok(json(&service.create_default_workspace().await.chan()?))
+                }
                 CREATE_SCRATCH_WORKSPACE => {
                     let params: ScratchWorkspaceParams = parse(&arg)?;
-                    Ok(json(&service.create_scratch_workspace(&params).await.chan()?))
+                    Ok(json(
+                        &service.create_scratch_workspace(&params).await.chan()?,
+                    ))
                 }
                 READ_TEXT_FILE => {
                     let params: ReadTextFileParams = parse(&arg)?;
@@ -120,21 +124,28 @@ impl ServerChannel for FileChannel {
                 }
                 READ_WORKSPACE_FILE_SEARCH_IGNORE => {
                     let params: RootParams = parse(&arg)?;
-                    Ok(json(&service.read_workspace_file_search_ignore(&params).await.chan()?))
+                    Ok(json(
+                        &service
+                            .read_workspace_file_search_ignore(&params)
+                            .await
+                            .chan()?,
+                    ))
                 }
                 APPLY_WORKSPACE_FILE_SEARCH_IGNORE_TRANSFORM => {
                     let params: IgnoreTransformParams = parse(&arg)?;
                     Ok(json(
                         &service
                             .apply_workspace_file_search_ignore_transform(&params)
-                            .await.chan()?,
+                            .await
+                            .chan()?,
                     ))
                 }
                 WRITE_WORKSPACE_FILE_SEARCH_IGNORE => {
                     let params: WriteIgnoreParams = parse(&arg)?;
                     service
                         .write_workspace_file_search_ignore(&params)
-                        .await.chan()?;
+                        .await
+                        .chan()?;
                     Ok(Value::Undefined)
                 }
                 other => Err(ChannelError::error(format!(

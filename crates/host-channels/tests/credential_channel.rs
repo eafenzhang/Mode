@@ -31,12 +31,26 @@ fn channel(dir: &std::path::Path) -> CredentialChannel {
 }
 
 fn strings(values: &[&str]) -> Value {
-    Value::Array(values.iter().map(|value| Value::Str((*value).into())).collect())
+    Value::Array(
+        values
+            .iter()
+            .map(|value| Value::Str((*value).into()))
+            .collect(),
+    )
 }
 
-async fn call(channel: &CredentialChannel, method: &str, arg: Value) -> Result<Value, ChannelError> {
+async fn call(
+    channel: &CredentialChannel,
+    method: &str,
+    arg: Value,
+) -> Result<Value, ChannelError> {
     channel
-        .call("ctx".into(), method.into(), arg, CancellationToken::default())
+        .call(
+            "ctx".into(),
+            method.into(),
+            arg,
+            CancellationToken::default(),
+        )
         .await
 }
 
@@ -94,9 +108,13 @@ async fn missing_arguments_are_rejected() {
     let dir = unique_dir("missing-args");
     let channel = channel(&dir);
 
-    assert!(call(&channel, LOAD, Value::Array(Vec::new())).await.is_err());
+    assert!(call(&channel, LOAD, Value::Array(Vec::new()))
+        .await
+        .is_err());
     assert!(call(&channel, SAVE, strings(&["only-key"])).await.is_err());
-    assert!(call(&channel, DELETE, Value::Array(Vec::new())).await.is_err());
+    assert!(call(&channel, DELETE, Value::Array(Vec::new()))
+        .await
+        .is_err());
 }
 
 #[tokio::test]
@@ -125,10 +143,15 @@ async fn corrupt_store_is_reported_without_overwriting() {
     fs::write(dir.join("credentials.json"), original).unwrap();
     let channel = channel(&dir);
 
-    let error = call(&channel, SAVE, strings(&["k", "v"])).await.unwrap_err();
+    let error = call(&channel, SAVE, strings(&["k", "v"]))
+        .await
+        .unwrap_err();
     match error {
         ChannelError::Error { message, .. } => {
-            assert!(message.contains("Mode credentials are corrupt"), "{message}");
+            assert!(
+                message.contains("Mode credentials are corrupt"),
+                "{message}"
+            );
             assert!(!message.contains("not json"), "错误消息不得回显文件内容");
         }
         other => panic!("应当是 Error 变体，实际 {other:?}"),
@@ -143,5 +166,7 @@ async fn corrupt_store_is_reported_without_overwriting() {
 async fn unknown_command_is_an_error() {
     let dir = unique_dir("unknown");
     let channel = channel(&dir);
-    assert!(call(&channel, "wipe", Value::Array(Vec::new())).await.is_err());
+    assert!(call(&channel, "wipe", Value::Array(Vec::new()))
+        .await
+        .is_err());
 }

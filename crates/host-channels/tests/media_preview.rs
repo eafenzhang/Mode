@@ -150,5 +150,8 @@ fn extension_matching_is_case_insensitive_and_handles_backslashes() {
         text.contains("Cannot stat") || text.contains("Unsupported"),
         "{text}"
     );
-    assert!(!text.contains("Unsupported"), "大写扩展名与反斜杠都应被识别：{text}");
+    assert!(
+        !text.contains("Unsupported"),
+        "大写扩展名与反斜杠都应被识别：{text}"
+    );
 }

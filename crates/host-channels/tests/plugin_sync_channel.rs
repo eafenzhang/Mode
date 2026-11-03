@@ -37,7 +37,11 @@ impl TempHome {
         )
         .unwrap();
         fs::create_dir_all(root.join("skills").join("demo")).unwrap();
-        fs::write(root.join("skills").join("demo").join("SKILL.md"), "# demo\n").unwrap();
+        fs::write(
+            root.join("skills").join("demo").join("SKILL.md"),
+            "# demo\n",
+        )
+        .unwrap();
         self.write_config(&[root.to_string_lossy().into_owned()], name);
         root
     }
@@ -100,9 +104,13 @@ async fn candidates_export_and_import_round_trip() {
     let source_channel = channel(&source_home.0);
 
     let candidates = json(
-        &call(&source_channel, LIST_LOCAL_USER_PLUGIN_CANDIDATES, object(json!({})))
-            .await
-            .unwrap(),
+        &call(
+            &source_channel,
+            LIST_LOCAL_USER_PLUGIN_CANDIDATES,
+            object(json!({})),
+        )
+        .await
+        .unwrap(),
     );
     assert_eq!(candidates["candidates"][0]["name"], "Plugin A");
     assert_eq!(candidates["candidates"][0]["enabled"], false);
@@ -209,7 +217,9 @@ async fn statuses_and_write_access_and_unknown_command() {
     );
     assert_eq!(access["ok"], true);
 
-    let error = call(&channel, "unknown", object(json!({}))).await.unwrap_err();
+    let error = call(&channel, "unknown", object(json!({})))
+        .await
+        .unwrap_err();
     match error {
         ChannelError::Error { message, .. } => {
             assert_eq!(message, "plugin-sync channel: unknown command unknown")

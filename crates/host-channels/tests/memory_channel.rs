@@ -23,7 +23,10 @@ fn unique_root(name: &str) -> PathBuf {
 }
 
 fn write_memory(root: &std::path::Path, workspace: &str, file: &str, content: &str) {
-    let dir = root.join("cli/memories/projects").join(workspace).join("memory");
+    let dir = root
+        .join("cli/memories/projects")
+        .join(workspace)
+        .join("memory");
     fs::create_dir_all(&dir).expect("建 memory 目录");
     fs::write(dir.join(file), content).expect("写文件");
 }
@@ -106,9 +109,8 @@ async fn maps_error_codes_to_channel_error_extras() {
     match error {
         ChannelError::Error { extra, .. } => {
             assert!(
-                extra
-                    .iter()
-                    .any(|(key, value)| key == "code" && value == &Value::Str("PROJECT_MEMORY_PREVIEW_LIMIT_EXCEEDED".into())),
+                extra.iter().any(|(key, value)| key == "code"
+                    && value == &Value::Str("PROJECT_MEMORY_PREVIEW_LIMIT_EXCEEDED".into())),
                 "必须带 TS 对齐的错误码：{extra:?}"
             );
         }

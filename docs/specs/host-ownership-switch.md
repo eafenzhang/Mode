@@ -125,7 +125,7 @@ sequenceDiagram
 `{state, workspaceKey, runtimeIdentity, generation, processId, storageState, lastError}`；
 没有条目时返回 `None`。判定：传输关闭或 storage gate 终态失败 → `dead`
 （`lastError` 带 gate 错误）；非 storage 入口 → `ready`；gate 未 ready → `starting`。
-`degraded` 需要请求失败计数，当前不产生。暴露位置（日志 / `host.describe`）仍待决策 3。
+`degraded` 需要请求失败计数，当前不产生。**决策 3 已落地（2026-11-04）**：健康面以独立只读频道 `agent-health` 暴露（`crates/host-channels/src/health.rs`，list/describe 两方法、只读不拉起），壳接线（inprocess 注册）随 S2 的 S0 翻面一起接。
 测试：`crates/agent-process/tests/health.rs`（3 条）。
 
 **不做定时 ping**：本地 stdio 的存活由进程/管道事件判定；合成请求会污染

@@ -61,7 +61,8 @@ pub struct StorageStartupSnapshot {
 }
 
 /// 健康状态（W4 所有权切换 S0，只读）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum RuntimeHealthState {
     Starting,
     Ready,
@@ -72,7 +73,8 @@ pub enum RuntimeHealthState {
 }
 
 /// 单个 workspace 的健康快照；`None` 表示当前没有该 workspace 的运行时条目。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RuntimeHealth {
     pub state: RuntimeHealthState,
     pub workspace_key: String,

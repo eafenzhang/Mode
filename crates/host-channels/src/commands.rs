@@ -44,7 +44,9 @@ impl ServerChannel for CommandsChannel {
         Box::pin(async move {
             let value = tokio::task::spawn_blocking(move || run(&service, &command, &arg))
                 .await
-                .map_err(|error| ChannelError::error(format!("commands channel task failed: {error}")))??;
+                .map_err(|error| {
+                    ChannelError::error(format!("commands channel task failed: {error}"))
+                })??;
             Ok(value)
         })
     }
@@ -76,7 +78,11 @@ fn run(service: &CommandsService, command: &str, arg: &Value) -> Result<Value, C
         }
         GET_PRIMARY_USER_COMMANDS_DIRECTORY => {
             let params: PrimaryDirectoryParams = parse(arg)?;
-            Ok(json(&service.get_primary_user_commands_directory(&params).chan()?))
+            Ok(json(
+                &service
+                    .get_primary_user_commands_directory(&params)
+                    .chan()?,
+            ))
         }
         other => Err(ChannelError::error(format!(
             "commands channel: unknown command {other}"

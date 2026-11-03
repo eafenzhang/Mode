@@ -10,6 +10,7 @@ name = "host_channels"
 path = "src/lib.rs"
 
 [dependencies]
+agent-process = { path = "../agent-process" }
 broadcast-service = { path = "../broadcast-service" }
 commands-service = { path = "../commands-service" }
 git-cli = { path = "../git-cli" }

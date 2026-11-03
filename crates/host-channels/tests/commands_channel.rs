@@ -48,7 +48,12 @@ fn channel(home: &Path) -> CommandsChannel {
 
 async fn call(channel: &CommandsChannel, method: &str, arg: Value) -> Result<Value, ChannelError> {
     channel
-        .call("ctx".into(), method.into(), arg, CancellationToken::default())
+        .call(
+            "ctx".into(),
+            method.into(),
+            arg,
+            CancellationToken::default(),
+        )
         .await
 }
 
@@ -96,7 +101,9 @@ async fn list_returns_camel_case_shape() {
     assert_eq!(user["prompt"], "hello body");
     assert_eq!(
         user["filePath"],
-        p(&home, ".mode/commands/hello.md").to_string_lossy().as_ref()
+        p(&home, ".mode/commands/hello.md")
+            .to_string_lossy()
+            .as_ref()
     );
     assert_eq!(user["agentSource"], "modeAgent");
     assert_eq!(user["source"], "user");
@@ -243,9 +250,13 @@ async fn primary_directory_is_created_and_returned() {
     let channel = channel(&home);
 
     let result = json(
-        &call(&channel, GET_PRIMARY_USER_COMMANDS_DIRECTORY, empty_object())
-            .await
-            .unwrap(),
+        &call(
+            &channel,
+            GET_PRIMARY_USER_COMMANDS_DIRECTORY,
+            empty_object(),
+        )
+        .await
+        .unwrap(),
     );
     assert_eq!(
         result["path"],
@@ -286,7 +297,9 @@ async fn invalid_and_unknown_calls_are_errors() {
     fs::create_dir_all(&home).unwrap();
     let channel = channel(&home);
 
-    let missing = call(&channel, LIST, Value::Array(Vec::new())).await.unwrap_err();
+    let missing = call(&channel, LIST, Value::Array(Vec::new()))
+        .await
+        .unwrap_err();
     match missing {
         ChannelError::Error { message, .. } => assert_eq!(message, "missing arguments"),
         other => panic!("期望 Error，实际 {other:?}"),

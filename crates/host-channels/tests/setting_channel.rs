@@ -52,7 +52,12 @@ async fn get_returns_defaults_and_update_persists_patch() {
 
     let initial = body(
         &channel
-            .call("ctx".into(), GET.into(), Value::Array(Vec::new()), CancellationToken::default())
+            .call(
+                "ctx".into(),
+                GET.into(),
+                Value::Array(Vec::new()),
+                CancellationToken::default(),
+            )
             .await
             .expect("读取"),
     );
@@ -60,13 +65,23 @@ async fn get_returns_defaults_and_update_persists_patch() {
 
     let patch = Value::Array(vec![Value::Json(r#"{"locale":"en-US"}"#.into())]);
     channel
-        .call("ctx".into(), UPDATE.into(), patch, CancellationToken::default())
+        .call(
+            "ctx".into(),
+            UPDATE.into(),
+            patch,
+            CancellationToken::default(),
+        )
         .await
         .expect("更新");
 
     let updated = body(
         &channel
-            .call("ctx".into(), GET.into(), Value::Array(Vec::new()), CancellationToken::default())
+            .call(
+                "ctx".into(),
+                GET.into(),
+                Value::Array(Vec::new()),
+                CancellationToken::default(),
+            )
             .await
             .expect("再读"),
     );
@@ -82,14 +97,24 @@ async fn ensure_default_project_reports_creation_once() {
 
     let first = body(
         &channel
-            .call("ctx".into(), ENSURE_DEFAULT_PROJECT.into(), arg.clone(), CancellationToken::default())
+            .call(
+                "ctx".into(),
+                ENSURE_DEFAULT_PROJECT.into(),
+                arg.clone(),
+                CancellationToken::default(),
+            )
             .await
             .expect("首次"),
     );
     assert_eq!(first["created"], true);
     let second = body(
         &channel
-            .call("ctx".into(), ENSURE_DEFAULT_PROJECT.into(), arg, CancellationToken::default())
+            .call(
+                "ctx".into(),
+                ENSURE_DEFAULT_PROJECT.into(),
+                arg,
+                CancellationToken::default(),
+            )
             .await
             .expect("再次"),
     );
@@ -104,12 +129,18 @@ async fn update_data_base_dir_writes_pointer() {
     let arg = Value::Array(vec![Value::Str(new_base.to_string_lossy().into_owned())]);
 
     channel
-        .call("ctx".into(), UPDATE_DATA_BASE_DIR.into(), arg, CancellationToken::default())
+        .call(
+            "ctx".into(),
+            UPDATE_DATA_BASE_DIR.into(),
+            arg,
+            CancellationToken::default(),
+        )
         .await
         .expect("更新数据目录");
 
-    let document: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(home.join(".mode/v2/setting.json")).expect("读 setting"))
-            .expect("JSON");
+    let document: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(home.join(".mode/v2/setting.json")).expect("读 setting"),
+    )
+    .expect("JSON");
     assert_eq!(document["dataBaseDir"], new_base.to_string_lossy().as_ref());
 }

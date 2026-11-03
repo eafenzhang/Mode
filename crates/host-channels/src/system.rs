@@ -39,14 +39,12 @@ impl ServerChannel for SystemChannel {
                 }
                 PROBE_INTRANET => {
                     let params = first_arg_object(&arg)?;
-                    let request: IntranetProbeRequest =
-                        serde_json::from_value(serde_json::Value::Object(params)).map_err(
-                            |error| {
-                                ChannelError::error(format!(
-                                    "invalid probeIntranet request: {error}"
-                                ))
-                            },
-                        )?;
+                    let request: IntranetProbeRequest = serde_json::from_value(
+                        serde_json::Value::Object(params),
+                    )
+                    .map_err(|error| {
+                        ChannelError::error(format!("invalid probeIntranet request: {error}"))
+                    })?;
                     Ok(json_value(&service.probe_intranet(&request).await))
                 }
                 other => Err(ChannelError::error(format!(

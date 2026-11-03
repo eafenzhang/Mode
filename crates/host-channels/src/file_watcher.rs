@@ -3,7 +3,9 @@
 use std::sync::Arc;
 
 use file_watcher::{FileWatchEvent, FileWatcherError, FileWatcherService};
-use rpc_host::{BoxFuture, CancellationToken, ChannelError, EventCallback, ServerChannel, Subscription};
+use rpc_host::{
+    BoxFuture, CancellationToken, ChannelError, EventCallback, ServerChannel, Subscription,
+};
 use rpc_wire::Value;
 use serde::Deserialize;
 

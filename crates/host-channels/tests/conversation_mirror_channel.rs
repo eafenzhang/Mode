@@ -85,16 +85,31 @@ async fn exposes_identity_and_enforces_origin_rules() {
     assert_eq!(identity_body["deviceId"], identity.device_id);
 
     let (method, args) = with_snapshot(PUBLISH, snapshot_value("other-device"));
-    let stored = body(&channel.call("ctx".into(), method, args, CancellationToken::default()).await.expect("发布"));
+    let stored = body(
+        &channel
+            .call("ctx".into(), method, args, CancellationToken::default())
+            .await
+            .expect("发布"),
+    );
     assert_eq!(stored["stored"], true);
     assert_eq!(stored["recordCount"], 1);
 
     let (method, args) = with_snapshot(WRITE_LOCAL, snapshot_value(&identity.device_id));
-    let local = body(&channel.call("ctx".into(), method, args, CancellationToken::default()).await.expect("本机写入"));
+    let local = body(
+        &channel
+            .call("ctx".into(), method, args, CancellationToken::default())
+            .await
+            .expect("本机写入"),
+    );
     assert_eq!(local["stored"], true);
 
     let (method, args) = with_snapshot(PUBLISH, snapshot_value(&identity.device_id));
-    let echo = body(&channel.call("ctx".into(), method, args, CancellationToken::default()).await.expect("回声"));
+    let echo = body(
+        &channel
+            .call("ctx".into(), method, args, CancellationToken::default())
+            .await
+            .expect("回声"),
+    );
     assert_eq!(echo["reason"], "self-origin");
 }
 

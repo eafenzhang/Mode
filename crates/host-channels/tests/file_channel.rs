@@ -48,13 +48,14 @@ fn channel(root: &Path) -> FileChannel {
     })))
 }
 
-async fn call(
-    channel: &FileChannel,
-    method: &str,
-    arg: Value,
-) -> Result<Value, ChannelError> {
+async fn call(channel: &FileChannel, method: &str, arg: Value) -> Result<Value, ChannelError> {
     channel
-        .call("ctx".into(), method.into(), arg, CancellationToken::default())
+        .call(
+            "ctx".into(),
+            method.into(),
+            arg,
+            CancellationToken::default(),
+        )
         .await
 }
 
@@ -156,7 +157,8 @@ async fn workspace_index_methods_return_int_and_string() {
     let root = TempRoot::new("index");
     fs::write(root.path().join("a.txt"), "").unwrap();
     fs::write(
-        root.path().join(file_service::WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME),
+        root.path()
+            .join(file_service::WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME),
         "",
     )
     .unwrap();
@@ -231,10 +233,14 @@ async fn ignore_read_and_write_round_trip() {
 async fn malformed_arguments_and_unknown_commands_are_errors() {
     let root = TempRoot::new("errors");
     let channel = channel(root.path());
-    assert!(call(&channel, READDIR, Value::Array(Vec::new())).await.is_err());
-    assert!(call(&channel, STAT, Value::Array(vec![Value::Json("{}".into())]))
+    assert!(call(&channel, READDIR, Value::Array(Vec::new()))
         .await
         .is_err());
+    assert!(
+        call(&channel, STAT, Value::Array(vec![Value::Json("{}".into())]))
+            .await
+            .is_err()
+    );
     let error = call(&channel, "truncateWorkspace", Value::Array(Vec::new()))
         .await
         .unwrap_err();

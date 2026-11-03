@@ -4,9 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use host_channels::attachment_transfer::{
-    ADOPT, CANCEL, CLEANUP, PROGRESS_EVENT, STAGE,
-};
+use host_channels::attachment_transfer::{ADOPT, CANCEL, CLEANUP, PROGRESS_EVENT, STAGE};
 use host_channels::AttachmentTransferChannel;
 use rpc_host::{CancellationToken, ServerChannel};
 use rpc_wire::Value;
@@ -124,11 +122,14 @@ async fn progress_event_has_a_subscription_but_never_fires() {
         .expect("订阅成功");
     subscription();
     assert!(!fired.load(std::sync::atomic::Ordering::SeqCst));
-    assert!(
-        channel
-            .listen("ctx".into(), "unknown".into(), Value::Undefined, std::sync::Arc::new(|_| {}))
-            .is_err()
-    );
+    assert!(channel
+        .listen(
+            "ctx".into(),
+            "unknown".into(),
+            Value::Undefined,
+            std::sync::Arc::new(|_| {})
+        )
+        .is_err());
 }
 
 #[tokio::test]

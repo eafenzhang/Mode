@@ -43,9 +43,18 @@ fn channel() -> (FileWatcherChannel, Arc<FileWatcherService>) {
     (FileWatcherChannel::new(Arc::clone(&service)), service)
 }
 
-async fn call(channel: &FileWatcherChannel, method: &str, arg: Value) -> Result<Value, rpc_host::ChannelError> {
+async fn call(
+    channel: &FileWatcherChannel,
+    method: &str,
+    arg: Value,
+) -> Result<Value, rpc_host::ChannelError> {
     channel
-        .call("ctx".into(), method.into(), arg, CancellationToken::default())
+        .call(
+            "ctx".into(),
+            method.into(),
+            arg,
+            CancellationToken::default(),
+        )
         .await
 }
 
@@ -113,7 +122,12 @@ async fn dynamic_change_emits_json_events() {
         let _ = tx.send(value);
     });
     let _subscription = channel
-        .listen("ctx".into(), ON_DYNAMIC_CHANGE.into(), Value::Str(id.clone()), emit)
+        .listen(
+            "ctx".into(),
+            ON_DYNAMIC_CHANGE.into(),
+            Value::Str(id.clone()),
+            emit,
+        )
         .expect("订阅必须成功");
 
     fs::write(root.path().join("a.txt"), "x").unwrap();

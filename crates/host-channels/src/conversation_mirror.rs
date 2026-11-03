@@ -60,10 +60,9 @@ impl ServerChannel for ConversationMirrorChannel {
                 READ_WORKSPACE => {
                     let params = first_arg_object(&arg)?;
                     let workspace_path = required_string(&params, "workspacePath")?;
-                    let snapshots = run_blocking(move || {
-                        service.read_workspace_snapshots(&workspace_path)
-                    })
-                    .await?;
+                    let snapshots =
+                        run_blocking(move || service.read_workspace_snapshots(&workspace_path))
+                            .await?;
                     let payload = serde_json::json!({ "snapshots": snapshots });
                     Ok(Value::Json(payload.to_string()))
                 }

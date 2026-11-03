@@ -42,8 +42,7 @@ fn list_frame(id: i32) -> Vec<u8> {
 #[tokio::test]
 async fn base_request_reaches_memory_and_returns_a_success_frame() {
     let root = unique_root("roundtrip");
-    let memory_dir = root
-        .join("cli/memories/projects/ws-0123456789abcdef/memory");
+    let memory_dir = root.join("cli/memories/projects/ws-0123456789abcdef/memory");
     fs::create_dir_all(&memory_dir).expect("建 memory 目录");
     fs::write(memory_dir.join("MEMORY.md"), "# index").expect("写文件");
 

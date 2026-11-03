@@ -55,16 +55,14 @@ async fn unknown_methods_are_rejected() {
         &ClientConfigChannel as &dyn ServerChannel,
         &ClientScenesChannel as &dyn ServerChannel,
     ] {
-        assert!(
-            channel
-                .call(
-                    "ctx".into(),
-                    "nope".into(),
-                    Value::Undefined,
-                    CancellationToken::default(),
-                )
-                .await
-                .is_err()
-        );
+        assert!(channel
+            .call(
+                "ctx".into(),
+                "nope".into(),
+                Value::Undefined,
+                CancellationToken::default(),
+            )
+            .await
+            .is_err());
     }
 }
