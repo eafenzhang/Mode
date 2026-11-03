@@ -5,11 +5,15 @@
 //!    cwd 取 `MODE_AGENT_SERVER_CWD`，缺省为 workspace）；
 //! 2. monorepo dev dist：向上找 `apps/mode-cli/packages/cli/dist/mode.cjs`；
 //! 3. monorepo dev 源码：`apps/mode-cli/packages/cli/src/main.ts` + `node_modules/.bin/tsx`；
-//! 4. 打包资源：`<resources>/agent/glm/mode.cjs`（Node 解释执行）。
+//! 4. 打包资源：`<resources>/agent/glm/mode.cjs`（Node 解释执行）；
+//! 5. 已部署 native binary 兜底（TS `resolveDeployedModeAgentBinaryCommand`：
+//!    `runtime-tools::find_mode_agent_runtime_binary` 的候选链——`GLM_BINARY_PATH`、
+//!    打包资源、`~/.mode/server/agents/glm`、bundled-agents 平台目录；宿主预解析后
+//!    经 `deployed_native_binary` 注入）。Electron Node runtime 分支不移植
+//!    （Tauri 壳没有 Electron；远端 SSH/WSL host 同样跳过该分支）。
 //!
-//! Electron runtime 与已部署 native binary 分支暂未移植（Tauri 壳没有 Electron；native
-//! binary 的候选链依赖远端部署，随所有权切换一起补）。`--surface desktop` 的参数改写
-//! 与 TS 一致。
+//! native binary 兜底不承诺 storage 启动上报（TS 只给 bundled 分支
+//! `supportsStorageStartup: true`）。`--surface desktop` 的参数改写与 TS 一致。
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -30,6 +34,7 @@ pub enum AgentCommandSource {
     DevDist,
     DevSource,
     Packaged,
+    NativeBinary,
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +49,9 @@ pub struct AgentResolveContext {
     pub node_candidates: Vec<PathBuf>,
     /// 没有随包 Node 时的 PATH 命令。
     pub node_fallback: String,
+    /// 已部署 native binary（宿主用 `runtime-tools::find_mode_agent_runtime_binary`
+    /// 预解析后注入；None = 候选链全空）。
+    pub deployed_native_binary: Option<String>,
     /// `desktop` 时追加 `--surface desktop`；其它值不修改参数。
     pub presentation_surface: Option<String>,
     pub request_timeout: Duration,
@@ -151,6 +159,24 @@ pub fn resolve_agent_command(
                 AgentCommandSource::Packaged,
             ));
         }
+    }
+
+    // 已部署 native binary 兜底：远端 SSH 把 mode-server/agents 部署到 ~/.mode 后
+    // cwd 不在仓库内、env 也不继承，只有这条候选链能命中（TS 同注释）。
+    if let Some(binary_path) = context
+        .deployed_native_binary
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(finish(
+            context,
+            binary_path.to_string(),
+            vec![DEFAULT_ARGS[0].into(), DEFAULT_ARGS[1].into()],
+            context.workspace_path.clone(),
+            None,
+            AgentCommandSource::NativeBinary,
+        ));
     }
 
     Err(AgentResolveError::NotConfigured {
@@ -310,6 +336,7 @@ mod tests {
             resources_dir: None,
             node_candidates: Vec::new(),
             node_fallback: "node".into(),
+            deployed_native_binary: None,
             presentation_surface: Some("desktop".into()),
             request_timeout: Duration::from_secs(60),
         }
@@ -429,6 +456,45 @@ mod tests {
         );
         std::fs::remove_dir_all(&workspace).ok();
         std::fs::remove_dir_all(&resources).ok();
+    }
+
+    #[test]
+    fn native_binary_fallback_when_no_bundled_sources() {
+        let workspace = temp_dir("native");
+        let mut ctx = context(&workspace);
+        ctx.deployed_native_binary = Some(" C:/deploy/glm/mode-agent.exe ".into());
+        let resolved = resolve_agent_command(&ctx).unwrap();
+        assert_eq!(resolved.source, AgentCommandSource::NativeBinary);
+        // 命令与参数 trim/改写与其它分支一致；cwd 回 workspace；不承诺 storage 上报。
+        assert_eq!(resolved.spec.command, "C:/deploy/glm/mode-agent.exe");
+        assert_eq!(
+            resolved.spec.args,
+            vec!["app-server", "--stdio", "--surface", "desktop"]
+        );
+        assert_eq!(resolved.spec.cwd, Some(workspace.clone()));
+        assert!(resolved.storage_preparation_entry.is_none());
+        assert!(!resolved.spec.supports_storage_startup);
+        std::fs::remove_dir_all(&workspace).ok();
+    }
+
+    #[test]
+    fn native_binary_fallback_loses_to_bundled_and_env() {
+        let workspace = temp_dir("native-order");
+        let entry = workspace.join(DEV_DIST_ENTRY);
+        std::fs::create_dir_all(entry.parent().unwrap()).unwrap();
+        std::fs::write(&entry, "").unwrap();
+        let mut ctx = context(&workspace);
+        ctx.deployed_native_binary = Some("C:/deploy/mode-agent".into());
+        let resolved = resolve_agent_command(&ctx).unwrap();
+        assert_eq!(resolved.source, AgentCommandSource::DevDist);
+
+        let mut ctx = context(&workspace);
+        ctx.env
+            .insert("MODE_AGENT_SERVER_COMMAND".into(), "node".into());
+        ctx.deployed_native_binary = Some("C:/deploy/mode-agent".into());
+        let resolved = resolve_agent_command(&ctx).unwrap();
+        assert_eq!(resolved.source, AgentCommandSource::Env);
+        std::fs::remove_dir_all(&workspace).ok();
     }
 
     #[test]

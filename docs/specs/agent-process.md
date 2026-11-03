@@ -37,7 +37,15 @@
 3. monorepo dev 源码：`apps/mode-cli/packages/cli/src/main.ts` + 向上找
    `node_modules/.bin/tsx`（Windows 优先 `tsx.cmd`）；
 4. 打包资源：`<resources>/agent/glm/mode.cjs` + 随包 Node/`node`；
-5. 都没有 → `AgentResolveError::NotConfigured`。
+5. 已部署 native binary 兜底（`AgentCommandSource::NativeBinary`，2026-11-04 补齐，
+   对齐 TS `resolveDeployedModeAgentBinaryCommand`）：宿主用
+   `runtime-tools::find_mode_agent_runtime_binary` 的候选链（`GLM_BINARY_PATH` env →
+   打包资源 → `~/.mode/server/agents/glm` → bundled-agents 平台目录）预解析出二进制，
+   经 `AgentResolveContext::deployed_native_binary` 注入；命令即二进制本体，
+   args 为 `["app-server","--stdio"]`，cwd 为 workspace，**不承诺 storage 启动上报**
+   （TS 只给 bundled 分支 `supportsStorageStartup: true`）。Electron Node runtime
+   分支不移植（Tauri 壳无 Electron；远端 SSH/WSL host 同样跳过）。
+6. 都没有 → `AgentResolveError::NotConfigured`。
 
 cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd。
 `presentation_surface == "desktop"` 时移除已有 `--surface`/`--surface=` 并追加
@@ -252,8 +260,9 @@ automation/workflow 等按方法组迁移。
 并发 `get_or_spawn` 只 spawn 一次、transport 关闭后重建、`invalidate`/`reap_idle` 回收、
 在飞请求期间不回收、`spawn_idle_reaper` 周期回收、spawn 失败不缓存、`shutdown_all` 关闭全部。
 
-`crates/agent-process` 启动规格单元测试（6 条）：env 覆盖（args/cwd）、非法 args JSON、
-dev dist 向上查找与 Node 选择、打包资源分支、全部缺失时 `NotConfigured`、
+`crates/agent-process` 启动规格单元测试（10 条）：env 覆盖（args/cwd）、非法 args JSON、
+dev dist 向上查找与 Node 选择、打包资源分支、native binary 兜底（trim/参数/cwd/
+不承诺 storage 上报；被 dev dist 与 env 压序）、全部缺失时 `NotConfigured`、
 `--surface desktop` 改写（含移除已有值、非 desktop 不修改）。
 
 `crates/agent-process/tests/control.rs`（9 条）：grant 请求的 workspace ref/摘要逐字段断言、
