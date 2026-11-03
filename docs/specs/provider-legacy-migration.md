@@ -13,6 +13,8 @@ Personal 层导入）。真源：`legacyModelProviderSerialized.ts`、
 | `migrate_legacy_model_provider_list`           | 解析 + 逐条迁移                                 |
 | `read_mode_config_providers`                   | `readLegacyModeConfigProviders`（纯转换部分）   |
 | `read_mode_config_providers_from_str`          | 同上，额外解析 JSON 文本                        |
+| `read_legacy_mode_config_providers`            | `readRawModeConfigFile` + `readModeConfigProviders` 的文件边界 |
+| `read_legacy_mode_config_providers_with`       | 同上，文件读取可注入                             |
 | `import_legacy_personal_provider_config`       | `importLegacyPersonalProviderConfig`           |
 | `normalize_model_provider_base_url_for_kind`   | `normalizeModelProviderBaseUrlForKind`         |
 | `normalize_model_provider_configured_base_url` | `normalizeModelProviderConfiguredBaseUrl`      |
@@ -115,10 +117,30 @@ Personal 层导入）。真源：`legacyModelProviderSerialized.ts`、
    Rust `url` 的 opaque origin 同为 `"null"`；合法 http(s) 输入行为一致，夹具未覆盖
    自定义 scheme 的共享 origin 形态。
 3. 迁移只产出配置对象，不做文件 IO；落盘/合并仍由 provider-node 运行时负责。
-4. `read_mode_config_providers` 只接收已解析的 config JSON，不读取文件、不写日志；
-   文件读取错误（ENOENT/IO/JSON/schema）仍由调用方按 TS 文案处理。读取端尚未复刻
-   zod 全量 schema 校验，非法字段目前按缺失/忽略处理，后续接入 Rust provider runtime
-   时需要补齐校验边界。
+4. `read_mode_config_providers` 只接收已解析的 config JSON；文件级入口自 2026-11-03 起
+   由 `read_legacy_mode_config_providers` 提供（下面 §4.1）。文件读取端目前校验顶层与
+   Provider 已知字段形状，完整的 zod 嵌套模型字段/枚举成员校验仍待补齐。
+
+### 4.1 旧 `config.json` 文件读取边界
+
+```text
+read_legacy_mode_config_providers(path, env, read?)
+  ├─ 读取失败：NotFound → None；其它 → stage=io path=<path> code=<code>
+  ├─ JSON 解析失败 → stage=json path=<path>（不回显输入值）
+  ├─ 顶层/provider/provider 条目形状校验 → stage=schema field=<path>
+  ├─ 无 provider 键 → None
+  └─ 有 provider → read_mode_config_providers → Some(list)
+```
+
+- IO 错误码：`PermissionDenied → EACCES`；其它优先用 `raw_os_error` 数字，缺省用
+  `ErrorKind` 的调试名（与 Node 字符串错误码存在差异）。
+- schema 校验覆盖：根对象、`$schema` 字符串、`provider` 对象、Provider 的
+  `api/name/id/npm/kind/...` 字符串字段、`enabled/apiKeyRequired` 布尔、
+  `createdAt/updatedAt` 数字、`env/whitelist/blacklist` 字符串数组、
+  `options/providerMappings/endpoints` 对象、`headers` 字符串字典、`models` 对象，
+  以及 `mode` 的 `enabled/headers/deletedModels` 形状。
+- 未覆盖：模型条目的嵌套字段类型、枚举成员（kind/apiFormat/source 等）、端点的
+  内部结构；这些仍以 `read_mode_config_providers` 的归一化结果为准，后续补齐。
 
 ## 5. 验收
 
@@ -142,5 +164,6 @@ Personal 层导入）。真源：`legacyModelProviderSerialized.ts`、
     过滤、空 Provider ID、重复规则原地替换、baseUrl 回退、空密钥/空 headers、
     空白 baseURL。
 - `cargo test -p provider-legacy-migration`（24 条迁移逐项深比较 + 全部 helper 对拍 +
-  10 条旧 config.json 读取对拍 + 9 条 Personal 导入对拍 + URL 折叠单测）。
+  10 条旧 config.json 读取对拍 + 9 条 Personal 导入对拍 + URL 折叠单测 +
+  7 条文件 IO/JSON/schema 边界用例）。
 - `cargo clippy -p provider-legacy-migration --all-targets -- -D warnings`。

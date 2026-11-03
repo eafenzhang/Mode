@@ -6,6 +6,7 @@
 //! 规范见 `docs/specs/provider-legacy-migration.md`。
 
 mod import;
+mod legacy_file;
 mod migrate;
 mod model;
 mod parse;
@@ -13,6 +14,10 @@ mod reader;
 mod types;
 
 pub use import::import_legacy_personal_provider_config;
+pub use legacy_file::{
+    read_legacy_mode_config_providers, read_legacy_mode_config_providers_with,
+    LegacyConfigFileError,
+};
 pub use migrate::{migrate_legacy_model_provider, normalize_model_provider_base_url_for_kind};
 pub use model::{
     create_model_provider_model_config, default_endpoint_path,
