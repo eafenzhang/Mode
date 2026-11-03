@@ -1,0 +1,775 @@
+{
+  "initial": [
+    {
+      "name": "default",
+      "highBps": 8000000,
+      "lowBps": 4000000,
+      "expected": {
+        "currentBps": 8000000,
+        "highBps": 8000000,
+        "lowBps": 4000000,
+        "lastSwitchAt": null,
+        "healthyStreak": 0
+      }
+    },
+    {
+      "name": "custom",
+      "highBps": 10000000,
+      "lowBps": 2000000,
+      "expected": {
+        "currentBps": 10000000,
+        "highBps": 10000000,
+        "lowBps": 2000000,
+        "lastSwitchAt": null,
+        "healthyStreak": 0
+      }
+    },
+    {
+      "name": "low-above-high",
+      "highBps": 4000000,
+      "lowBps": 8000000,
+      "expected": {
+        "currentBps": 4000000,
+        "highBps": 4000000,
+        "lowBps": 4000000,
+        "lastSwitchAt": null,
+        "healthyStreak": 0
+      }
+    }
+  ],
+  "adaptive": [
+    {
+      "name": "degrade-rtt-over-threshold",
+      "initialState": {
+        "currentBps": 8000000,
+        "highBps": 8000000,
+        "lowBps": 4000000,
+        "lastSwitchAt": null,
+        "healthyStreak": 0
+      },
+      "steps": [
+        {
+          "rttMs": 61,
+          "droppedFrames": 0,
+          "nowMs": 1000
+        }
+      ],
+      "states": [
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 1000,
+          "healthyStreak": 0
+        }
+      ],
+      "nextBps": [
+        4000000
+      ]
+    },
+    {
+      "name": "rtt-boundary-60-is-not-congested",
+      "initialState": {
+        "currentBps": 8000000,
+        "highBps": 8000000,
+        "lowBps": 4000000,
+        "lastSwitchAt": null,
+        "healthyStreak": 0
+      },
+      "steps": [
+        {
+          "rttMs": 60,
+          "droppedFrames": 0,
+          "nowMs": 1000
+        },
+        {
+          "rttMs": 30.5,
+          "droppedFrames": 0,
+          "nowMs": 2000
+        },
+        {
+          "rttMs": 30,
+          "droppedFrames": 0,
+          "nowMs": 3000
+        }
+      ],
+      "states": [
+        {
+          "currentBps": 8000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": null,
+          "healthyStreak": 0
+        },
+        {
+          "currentBps": 8000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": null,
+          "healthyStreak": 0
+        },
+        {
+          "currentBps": 8000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": null,
+          "healthyStreak": 1
+        }
+      ],
+      "nextBps": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "name": "degrade-dropped-frame",
+      "initialState": {
+        "currentBps": 8000000,
+        "highBps": 8000000,
+        "lowBps": 4000000,
+        "lastSwitchAt": null,
+        "healthyStreak": 0
+      },
+      "steps": [
+        {
+          "rttMs": null,
+          "droppedFrames": 1,
+          "nowMs": 500
+        }
+      ],
+      "states": [
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 500,
+          "healthyStreak": 0
+        }
+      ],
+      "nextBps": [
+        4000000
+      ]
+    },
+    {
+      "name": "low-already-does-not-reemit",
+      "initialState": {
+        "currentBps": 4000000,
+        "highBps": 8000000,
+        "lowBps": 4000000,
+        "lastSwitchAt": 1000,
+        "healthyStreak": 3
+      },
+      "steps": [
+        {
+          "rttMs": 500,
+          "droppedFrames": 0,
+          "nowMs": 9000
+        }
+      ],
+      "states": [
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 1000,
+          "healthyStreak": 0
+        }
+      ],
+      "nextBps": [
+        null
+      ]
+    },
+    {
+      "name": "recover-after-streak-and-dwell",
+      "initialState": {
+        "currentBps": 4000000,
+        "highBps": 8000000,
+        "lowBps": 4000000,
+        "lastSwitchAt": 1000,
+        "healthyStreak": 0
+      },
+      "steps": [
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 4000
+        },
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 7000
+        },
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 10000
+        },
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 13000
+        }
+      ],
+      "states": [
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 1000,
+          "healthyStreak": 1
+        },
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 1000,
+          "healthyStreak": 2
+        },
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 1000,
+          "healthyStreak": 3
+        },
+        {
+          "currentBps": 8000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 13000,
+          "healthyStreak": 0
+        }
+      ],
+      "nextBps": [
+        null,
+        null,
+        null,
+        8000000
+      ]
+    },
+    {
+      "name": "dwell-blocks-recovery-until-10s",
+      "initialState": {
+        "currentBps": 4000000,
+        "highBps": 8000000,
+        "lowBps": 4000000,
+        "lastSwitchAt": 1000,
+        "healthyStreak": 0
+      },
+      "steps": [
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 1000
+        },
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 2000
+        },
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 3000
+        },
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 4000
+        },
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 11000
+        }
+      ],
+      "states": [
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 1000,
+          "healthyStreak": 1
+        },
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 1000,
+          "healthyStreak": 2
+        },
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 1000,
+          "healthyStreak": 3
+        },
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 1000,
+          "healthyStreak": 4
+        },
+        {
+          "currentBps": 8000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 11000,
+          "healthyStreak": 0
+        }
+      ],
+      "nextBps": [
+        null,
+        null,
+        null,
+        null,
+        8000000
+      ]
+    },
+    {
+      "name": "null-rtt-breaks-streak",
+      "initialState": {
+        "currentBps": 4000000,
+        "highBps": 8000000,
+        "lowBps": 4000000,
+        "lastSwitchAt": null,
+        "healthyStreak": 2
+      },
+      "steps": [
+        {
+          "rttMs": null,
+          "droppedFrames": 0,
+          "nowMs": 1000
+        },
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 2000
+        },
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 3000
+        },
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 4000
+        },
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 5000
+        }
+      ],
+      "states": [
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": null,
+          "healthyStreak": 0
+        },
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": null,
+          "healthyStreak": 1
+        },
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": null,
+          "healthyStreak": 2
+        },
+        {
+          "currentBps": 4000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": null,
+          "healthyStreak": 3
+        },
+        {
+          "currentBps": 8000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 5000,
+          "healthyStreak": 0
+        }
+      ],
+      "nextBps": [
+        null,
+        null,
+        null,
+        null,
+        8000000
+      ]
+    },
+    {
+      "name": "recover-with-null-last-switch",
+      "initialState": {
+        "currentBps": 4000000,
+        "highBps": 8000000,
+        "lowBps": 4000000,
+        "lastSwitchAt": null,
+        "healthyStreak": 3
+      },
+      "steps": [
+        {
+          "rttMs": 15,
+          "droppedFrames": 0,
+          "nowMs": 1000
+        }
+      ],
+      "states": [
+        {
+          "currentBps": 8000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": 1000,
+          "healthyStreak": 0
+        }
+      ],
+      "nextBps": [
+        8000000
+      ]
+    },
+    {
+      "name": "high-does-not-recover-again",
+      "initialState": {
+        "currentBps": 8000000,
+        "highBps": 8000000,
+        "lowBps": 4000000,
+        "lastSwitchAt": null,
+        "healthyStreak": 0
+      },
+      "steps": [
+        {
+          "rttMs": 10,
+          "droppedFrames": 0,
+          "nowMs": 1000
+        },
+        {
+          "rttMs": 10,
+          "droppedFrames": 0,
+          "nowMs": 2000
+        },
+        {
+          "rttMs": 10,
+          "droppedFrames": 0,
+          "nowMs": 3000
+        },
+        {
+          "rttMs": 10,
+          "droppedFrames": 0,
+          "nowMs": 4000
+        },
+        {
+          "rttMs": 10,
+          "droppedFrames": 0,
+          "nowMs": 5000
+        }
+      ],
+      "states": [
+        {
+          "currentBps": 8000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": null,
+          "healthyStreak": 1
+        },
+        {
+          "currentBps": 8000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": null,
+          "healthyStreak": 2
+        },
+        {
+          "currentBps": 8000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": null,
+          "healthyStreak": 3
+        },
+        {
+          "currentBps": 8000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": null,
+          "healthyStreak": 4
+        },
+        {
+          "currentBps": 8000000,
+          "highBps": 8000000,
+          "lowBps": 4000000,
+          "lastSwitchAt": null,
+          "healthyStreak": 5
+        }
+      ],
+      "nextBps": [
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    }
+  ],
+  "lowerQuality": [
+    {
+      "quality": "sharp",
+      "expected": "balanced"
+    },
+    {
+      "quality": "balanced",
+      "expected": "smooth"
+    },
+    {
+      "quality": "smooth",
+      "expected": null
+    }
+  ],
+  "qualityDownshift": [
+    {
+      "name": "thresholds-must-both-hold",
+      "initialState": {
+        "congestedStreak": 0,
+        "lastDownshiftAt": null
+      },
+      "steps": [
+        {
+          "rttMs": 200,
+          "droppedFrames": 2,
+          "nowMs": 1000
+        },
+        {
+          "rttMs": 119,
+          "droppedFrames": 3,
+          "nowMs": 2000
+        },
+        {
+          "rttMs": null,
+          "droppedFrames": 5,
+          "nowMs": 3000
+        },
+        {
+          "rttMs": 120,
+          "droppedFrames": 3,
+          "nowMs": 4000
+        }
+      ],
+      "states": [
+        {
+          "congestedStreak": 0,
+          "lastDownshiftAt": null
+        },
+        {
+          "congestedStreak": 0,
+          "lastDownshiftAt": null
+        },
+        {
+          "congestedStreak": 0,
+          "lastDownshiftAt": null
+        },
+        {
+          "congestedStreak": 1,
+          "lastDownshiftAt": null
+        }
+      ],
+      "downshift": [
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "trigger-after-two-streak",
+      "initialState": {
+        "congestedStreak": 0,
+        "lastDownshiftAt": null
+      },
+      "steps": [
+        {
+          "rttMs": 150,
+          "droppedFrames": 4,
+          "nowMs": 1000
+        },
+        {
+          "rttMs": 150,
+          "droppedFrames": 4,
+          "nowMs": 4000
+        }
+      ],
+      "states": [
+        {
+          "congestedStreak": 1,
+          "lastDownshiftAt": null
+        },
+        {
+          "congestedStreak": 0,
+          "lastDownshiftAt": 4000
+        }
+      ],
+      "downshift": [
+        false,
+        true
+      ]
+    },
+    {
+      "name": "cooldown-blocks-then-allows",
+      "initialState": {
+        "congestedStreak": 0,
+        "lastDownshiftAt": null
+      },
+      "steps": [
+        {
+          "rttMs": 150,
+          "droppedFrames": 4,
+          "nowMs": 1000
+        },
+        {
+          "rttMs": 150,
+          "droppedFrames": 4,
+          "nowMs": 2000
+        },
+        {
+          "rttMs": 150,
+          "droppedFrames": 4,
+          "nowMs": 10000
+        },
+        {
+          "rttMs": 150,
+          "droppedFrames": 4,
+          "nowMs": 20000
+        },
+        {
+          "rttMs": 150,
+          "droppedFrames": 4,
+          "nowMs": 32000
+        }
+      ],
+      "states": [
+        {
+          "congestedStreak": 1,
+          "lastDownshiftAt": null
+        },
+        {
+          "congestedStreak": 0,
+          "lastDownshiftAt": 2000
+        },
+        {
+          "congestedStreak": 1,
+          "lastDownshiftAt": 2000
+        },
+        {
+          "congestedStreak": 2,
+          "lastDownshiftAt": 2000
+        },
+        {
+          "congestedStreak": 0,
+          "lastDownshiftAt": 32000
+        }
+      ],
+      "downshift": [
+        false,
+        true,
+        false,
+        false,
+        true
+      ]
+    },
+    {
+      "name": "healthy-window-resets-streak",
+      "initialState": {
+        "congestedStreak": 0,
+        "lastDownshiftAt": null
+      },
+      "steps": [
+        {
+          "rttMs": 150,
+          "droppedFrames": 4,
+          "nowMs": 1000
+        },
+        {
+          "rttMs": 20,
+          "droppedFrames": 0,
+          "nowMs": 2000
+        },
+        {
+          "rttMs": 150,
+          "droppedFrames": 4,
+          "nowMs": 3000
+        },
+        {
+          "rttMs": 150,
+          "droppedFrames": 4,
+          "nowMs": 4000
+        }
+      ],
+      "states": [
+        {
+          "congestedStreak": 1,
+          "lastDownshiftAt": null
+        },
+        {
+          "congestedStreak": 0,
+          "lastDownshiftAt": null
+        },
+        {
+          "congestedStreak": 1,
+          "lastDownshiftAt": null
+        },
+        {
+          "congestedStreak": 0,
+          "lastDownshiftAt": 4000
+        }
+      ],
+      "downshift": [
+        false,
+        false,
+        false,
+        true
+      ]
+    },
+    {
+      "name": "streak-kept-when-not-yet-triggered",
+      "initialState": {
+        "congestedStreak": 0,
+        "lastDownshiftAt": 1
+      },
+      "steps": [
+        {
+          "rttMs": 120,
+          "droppedFrames": 3,
+          "nowMs": 2000
+        },
+        {
+          "rttMs": 120,
+          "droppedFrames": 3,
+          "nowMs": 3000
+        }
+      ],
+      "states": [
+        {
+          "congestedStreak": 1,
+          "lastDownshiftAt": 1
+        },
+        {
+          "congestedStreak": 2,
+          "lastDownshiftAt": 1
+        }
+      ],
+      "downshift": [
+        false,
+        false
+      ]
+    }
+  ]
+}

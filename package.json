@@ -55,6 +55,7 @@
     "terminal-profile-macos:fixtures": "tsx scripts/generate-terminal-profile-macos-fixtures.ts",
     "terminal-profile-alacritty:fixtures": "tsx scripts/generate-terminal-profile-alacritty-fixtures.ts",
     "terminal-service-resolution:fixtures": "tsx scripts/generate-terminal-service-resolution-fixtures.ts",
+    "remote-desktop-streaming:fixtures": "tsx scripts/generate-remote-desktop-streaming-fixtures.ts",
     "zai-start-plan-billing:fixtures": "tsx scripts/generate-zai-start-plan-billing-fixtures.ts",
     "zai-start-plan-quota:fixtures": "tsx scripts/generate-zai-start-plan-quota-fixtures.ts",
     "provider-balance:fixtures": "tsx scripts/generate-provider-balance-fixtures.ts",

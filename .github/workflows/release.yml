@@ -527,6 +527,7 @@ jobs:
             -p zai-start-plan-billing \
             -p provider-config-file-codec \
             -p terminal-service-resolution \
+            -p remote-desktop-streaming \
             -p git-checkpoint-service \
             -p mode-tauri
           # `--all-targets` 覆盖 workspace 全部 crate 的 lib/bin/test/bench；

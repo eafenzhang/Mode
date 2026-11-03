@@ -46,14 +46,14 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 宿主服务面里最大的六个域：`bots` 20,644、`mode-agent` 19,729、`session` 12,175、
 `conversation-share` 5,495、`model-provider` 5,272、`git` 4,778。
 
-## 2.1 进度快照（2026-11-02）
+## 2.1 进度快照（2026-11-03）
 
 | 波次 | 状态 |
 | --- | --- |
 | W0 地基 | **完成**：线格式、协议、`rpc-host`、壳内路由；20 个频道可启动期接管（默认关闭） |
 | W1 平台基元 | **完成**：settings/paths/credential/fs/file/file-watcher/SQLite/日志/进程/system/media-preview；近两轮新增数据根（归属/迁移/初始化完整）、子进程环境策略、bundled 工具解析、网络重试状态、存储分类与占用聚合。 |
 | W2 传输切换 | **部分**：壳内服务面与 scope 复用已就绪；Node Host 仍是默认所有者，`stdioFrames`/`stdoutGuard` 退场与流控对拍未做 |
-| W3 宿主域 | **已接管/迁移**：设置类、文件类、凭据、git/checkpoint、conversation-mirror、skills、skill-sync、plugin-sync、subagents、settings-sync、broadcast、system、automation-service（10/10）、onboarding-record-service（9/9）、provider 旧 store 迁移、provider 余额识别/编排/目标解析、official MCP 鉴权判定；**部分**：任务/会话（Repos 已迁、频道未）、provider 写路径与运行时、plugins 管理面、hooks/onboarding、usage-stats（时间范围/quota/legacy+credit monitor 已迁）；**未开始**：终端、远程工作区、LAN、远程桌面、云账号、CUA broker |
+| W3 宿主域 | **已接管/迁移**：设置类、文件类、凭据、git/checkpoint、conversation-mirror、skills、skill-sync、plugin-sync、subagents、settings-sync、broadcast、system、automation-service（10/10）、onboarding-record-service（9/9）、provider 旧 store 迁移、provider 余额识别/编排/目标解析、official MCP 鉴权判定、远程桌面自适应码率/画质降档状态机；**部分**：任务/会话（Repos 已迁、频道未）、provider 写路径与运行时、plugins 管理面、hooks/onboarding、usage-stats（时间范围/quota/legacy+credit monitor 已迁）、terminal（纯解析/探测已迁、PTY 生命周期未迁）；**未开始**：远程工作区、LAN、云账号、CUA broker |
 | W4 Agent 运行时 | **协议/客户端镜像 91/115**；S0 健康快照与 S1 覆盖矩阵完成；会话级 api-retry tracker/draft registry 已迁移；频道所有权切换（S2）待决策 |
 | W5 / W6 | 未开始 |
 
@@ -76,6 +76,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | `integrated-terminal-shells` | Windows CMD/Git Bash 选项探测、PATHEXT/PATH 候选、win32 路径推导 | 11 用例 |
 | `terminal-profile` | 终端字体栈去重/fallback、detected profile 继承、JSONC 解析、Windows Terminal/VS Code/kitty 探测、macOS Terminal/iTerm2 plist 原始探测、Alacritty TOML/YAML 探测 | 12 组合 + 9 探测 + 10 macOS + 9 Alacritty |
 | `terminal-service-resolution` | 终端 shell/cwd/env/Windows PTY/ConPTY 回退纯解析 | 16 条对拍 |
+| `remote-desktop-streaming` | 远程桌面两档自适应码率、RTT/丢帧滞回、画质降档链与冷却状态机 | 3 初始 + 9 码率序列 + 3 档位链 + 5 降档序列 |
 | `zai-start-plan-billing` | Start Plan balance URL、modelIds、过期归一化、subscription/quota/remaining、plan 选择 | 3 URL + 2 modelIds + 9 过期 + subscription/quota 矩阵 |
 | `provider-config-file-codec` | Personal Provider Config v1 decode/encode、旧手动规则归一化 | 16 用例（4 成功 + 12 失败） |
 
@@ -263,7 +264,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 8 | usage-stats / coding-plan | ≈5.4k | 壳内聚合 | W1 | **时间范围、quota、legacy monitor 与 Coding Plan credit-usage 投影已迁（2026-11-02）**：`crates/usage-stats` 覆盖 App Usage 7d/30d/all 本地日范围、Coding Plan today/7d/30d/custom、逐时/逐日坐标轴与自定义范围错误，BigModel quota limits/主额度/订阅摘要（固定偏移日期解析），legacy monitor model/tool → Snapshot，以及 credit-usage 模型/工具序列对齐、拆分桶过滤、activity heatmap、detail/health，`pnpm usage-stats:fixtures` 27+31+5+4+11+6 与 `pnpm usage-stats-credit:fixtures` 5 条对拍全绿；**剩余**：ZAI monitor、usageStatsService 编排、缓存/网络源 |
 | 9 | 远程工作区 / SSH / WSL / Docker | 远程链路 | `russh` + 本地进程 | W2 | 未开始 |
 | 10 | LAN 配对 / 发现 | ≈1.5k | UDP + 壳内 HTTP | W2 | 未开始 |
-| 11 | 远程桌面 | 媒体面已有 Rust helper | 壳内协调器 | W2 | 未开始 |
+| 11 | 远程桌面 | 媒体面已有 Rust helper | 壳内协调器 | W2 | **自适应码率/画质降档状态机已迁（2026-11-03）**：`crates/remote-desktop-streaming` 覆盖两档码率（RTT 60/30 滞回、丢帧即降、4 次健康 + 10s 驻留回升）、`sharp→balanced→smooth` 降档链、丢帧 + RTT 双阈连续 2 窗触发与 30s 冷却，`pnpm remote-desktop-streaming:fixtures` 对拍全绿；**剩余**：ping/pong 采样、媒体 WS `set-bitrate` 下发、`switchQuality` 重建会话与壳内协调器 |
 | 12 | 云账号 / 设备目录 / OAuth | ≈4k | `reqwest` + 本地密钥 | W1 | 未开始 |
 | 13 | 对话共享 / 镜像 / 遥测 | ≈5.5k | 壳内 | W3-3 | `conversation-mirror` 已接管 |
 | 14 | skills / skill-sync / mcp-sync / plugin-sync / plugins | ≈4.5k | 壳内（素材仍是 JS） | W1 | **skills 服务面与频道已迁（2026-10-31）**：`crates/skills-service` 覆盖 `skillsService` 六方法（list / setEnabled / buildPromptContext / copyToCommon / removeFromCommon / deleteSkill），四类根扫描 + 插件技能根 + frontmatter 子集解析，`pnpm skills:fixtures` 生成 TS 真源用例、`tests/replay.rs` 逐项深比较结果与结束树（5 用例全绿，spec `docs/specs/skills-service.md`）；频道适配器已注册。**mcp-sync 本地面已迁（2026-10-31）**：`crates/mcp-sync-service` 覆盖 7 个本地方法（载入/保存/候选/远程状态/导出/写访问/导入 + filesystem 路径改写），`pnpm mcp-sync:fixtures` 8 用例回放全绿；`listWorkspaceMcpServerStatuses` 依赖 W4 Agent 控制面，频道暂不注册。**skill-sync 已迁（2026-10-31）**：`crates/skill-sync-service` 覆盖 5 个方法（候选扫描/远端状态/ustar+gzip 导出/写访问/导入），`pnpm skill-sync:fixtures` 3 用例回放全绿（含 TS 归档在 Rust 侧导入）；嵌套 `Uint8Array` 由 `rpc_wire::nested_bytes` 辅助在适配器内编解码，频道已注册（spec `docs/specs/skill-sync-service.md`）。**`skills/referenceCatalog` 协议镜像已落（2026-11-01）**：session/workspace 两种权威、条目 `enabled` 必须为 true，2 条控制面测试。**`plugin-sync` 七方法已全部迁移（2026-11-01）**：`crates/plugin-sync-service` 覆盖候选扫描/远端判重/写权限/归档导出导入/marketplace source 镜像与导入（含 TS 归档在 Rust 侧导入），`pnpm plugin-sync:fixtures` 3 用例回放全绿；频道适配器已注册（第 20 个）。真机开关验收未开始 |
