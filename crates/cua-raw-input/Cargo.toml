@@ -8,3 +8,6 @@ description = "CUA raw input socket 解析策略：live peek → 稳定探测 �
 [lib]
 name = "cua_raw_input"
 path = "src/lib.rs"
+
+[dependencies]
+serde_json.workspace = true

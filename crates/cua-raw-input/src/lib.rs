@@ -10,6 +10,13 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub mod injector;
+
+pub use injector::{
+    BrokerCall, BrokerCallError, CuaHelperError, RawInputBrokerResult, RawInputDispatch,
+    RawInputInjector, RawInputInjectorOptions, SocketPathResolver, DEFAULT_RAW_INPUT_TIMEOUT_MS,
+};
+
 pub type SocketResolver = Arc<dyn Fn() -> Option<String> + Send + Sync>;
 pub type EnabledCheck = Arc<dyn Fn() -> bool + Send + Sync>;
 pub type HelperEnsurer = Arc<dyn Fn() -> Option<String> + Send + Sync>;
