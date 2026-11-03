@@ -7,6 +7,7 @@ mod mcp_quota;
 mod monitor;
 mod monitor_credit;
 mod quota;
+mod service;
 
 use serde_json::{json, Value};
 
@@ -21,6 +22,10 @@ pub use quota::{
     normalize_limits, pick_current_subscription_from_list, pick_primary_limit,
     BigModelSubscriptionListItem, CurrentSubscriptionSummary, UsageQuotaLimit,
     UsageQuotaUsageDetail,
+};
+pub use service::{
+    is_coding_plan_model_provider_id, AppUsageStatsSource, CodingPlanQuotaSource,
+    ProviderBalanceSource, UsageStatsService, NO_BIGMODEL_API_KEY,
 };
 
 const MONITOR_MAX_RANGE_DAYS: i64 = 30;

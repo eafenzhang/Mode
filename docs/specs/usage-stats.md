@@ -116,6 +116,33 @@
 - `level` trim 后为空按 `None`；`next_refresh_at` 与服务端 `server_time` 都乘 1000。
 - 归属 scope 来自凭证快照（`readScopeFromCredentialSnapshot`）不在本 crate；宿主解析后传入。
 
+## 6.2 usageStatsService 编排（Rust，2026-11-03）
+
+> 真源：`packages/services/src/usage-stats/usageStatsService.ts`。
+> 请求/响应暂以 `serde_json::Value` 承接；Provider 实现由宿主注入。
+
+```rust
+pub struct UsageStatsService { app_usage, coding_plan_quota, provider_balance }
+
+pub trait AppUsageStatsSource { get_app_usage_stats(&Value) -> Result<Value, String>; }
+pub trait CodingPlanQuotaSource {
+  get_coding_plan_usage_snapshot / get_coding_plan_reset_status /
+  request_coding_plan_reset_opportunity / use_coding_plan_reset /
+  mark_coding_plan_reset_history_read / get_usage_stats_snapshot /
+  get_entitlement_snapshot
+}
+pub trait ProviderBalanceSource { get_provider_balance_snapshot(&Value) -> Result<Value, String>; }
+```
+
+- **Coding Plan 门控**：`getCodingPlanUsageSnapshot` / `getCodingPlanResetStatus` /
+  `requestCodingPlanResetOpportunity` / `useCodingPlanReset` /
+  `markCodingPlanResetHistoryRead` 先校验 `preferredProviderId` 是否属于 6 个 Coding Plan
+  账号 ID；否则返回 `no_bigmodel_api_key`，不调用 Provider。
+- **不门控**：`getSnapshot`、`getEntitlementSnapshot`、`getProviderBalanceSnapshot`、
+  `getAppUsageSnapshot` 直接委派；entitlement 缺省/`null` 请求按 `{}` 处理。
+- 错误串原样透传；编排层不吞错、不重试。
+- 真实凭证、HTTP、缓存、TTL 与 ZAI/BigModel Provider 实现仍在宿主编排层。
+
 ## 7. 已知差异
 
 1. TS 使用系统本地时区或 `Intl` 的 IANA 时区；Rust 使用调用方传入的固定偏移。
@@ -146,5 +173,5 @@
   - 5 组 Coding Plan credit-usage 快照（legacy 对齐、credit 分段/拆分桶、仅拆分桶、
     空参数、hour 轴与非法/溢出日期 heatmap）。
 - `cargo test -p usage-stats`（2 条 TS 深比较回放 + 4 条 Rust 单测 +
-  7 条 MCP quota 用例：归属匹配、总额度夹紧/百分比、信封 schema/业务失败、秒→毫秒）。
+  7 条 MCP quota 用例 + 6 条 service 编排用例：门控/委派/默认 entitlement/错误透传）。
 - `cargo clippy -p usage-stats --all-targets -- -D warnings`。
