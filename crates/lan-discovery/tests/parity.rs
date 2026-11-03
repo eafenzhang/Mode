@@ -1,7 +1,9 @@
+use std::collections::HashSet;
+
 use lan_discovery::{
-    collect_broadcast_targets, compute_broadcast_address, is_ipv4_address,
+    collect_broadcast_targets, compute_broadcast_address, filter_self_entries, is_ipv4_address,
     is_tailscale_range_address, merge_lan_discovered_peers, parse_tailscale_status_ips,
-    LanDiscoveredPeer,
+    sort_discovered_peers, LanDiscoveredPeer,
 };
 
 fn peer(server_id: &str, host: &str, port: u16) -> LanDiscoveredPeer {
@@ -132,5 +134,66 @@ fn broadcast_address_and_targets_match_interface_rules() {
     assert_eq!(
         targets,
         vec!["255.255.255.255".to_string(), "192.168.1.255".to_string()]
+    );
+}
+
+fn peer_named(server_id: &str, host: &str, name: Option<&str>) -> LanDiscoveredPeer {
+    LanDiscoveredPeer {
+        name: name.map(str::to_string),
+        ..peer(server_id, host, 45880)
+    }
+}
+
+#[test]
+fn self_entries_are_filtered_only_when_local_set_provided() {
+    let mut local = HashSet::new();
+    local.insert("127.0.0.1".to_string());
+    local.insert("192.168.1.5".to_string());
+    let entries = vec![
+        peer_named("self-lan", "192.168.1.5", Some("self-lan")),
+        peer_named("remote", "10.0.0.2", Some("remote")),
+        peer_named("self-loop", "127.0.0.1", Some("self-loop")),
+    ];
+    let filtered = filter_self_entries(entries.clone(), Some(&local));
+    assert_eq!(
+        filtered
+            .iter()
+            .map(|entry| entry.server_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["remote"]
+    );
+    // TS `includeSelf: true` 把本机地址集置空；Rust 侧 `None` 不过滤。
+    assert_eq!(filter_self_entries(entries.clone(), None).len(), 3);
+    // 空集同样不过滤（没有可命中的地址）。
+    assert_eq!(filter_self_entries(entries, Some(&HashSet::new())).len(), 3);
+}
+
+#[test]
+fn discovered_peers_sort_by_name_with_server_id_fallback() {
+    let sorted = sort_discovered_peers(vec![
+        peer_named("srv-fallback", "10.0.0.4", None),
+        peer_named("srv-b", "10.0.0.2", Some("Beta")),
+        peer_named("srv-a", "10.0.0.3", Some("ALPHA")),
+        peer_named("srv-c", "10.0.0.1", Some("alpha")),
+    ]);
+    // JS localeCompare 确定性口径：小写折叠 alpha < ALPHA < Beta < srv-fallback。
+    assert_eq!(
+        sorted
+            .iter()
+            .map(|entry| entry.server_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["srv-c", "srv-a", "srv-b", "srv-fallback"]
+    );
+    // 排序是稳定语义：同 key 的两条保持原相对顺序。
+    let stable = sort_discovered_peers(vec![
+        peer_named("first", "10.0.0.1", Some("same")),
+        peer_named("second", "10.0.0.2", Some("same")),
+    ]);
+    assert_eq!(
+        stable
+            .iter()
+            .map(|entry| entry.server_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["first", "second"]
     );
 }

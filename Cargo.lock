@@ -2563,6 +2563,7 @@ name = "lan-discovery"
 version = "0.1.0"
 dependencies = [
  "indexmap 2.14.2",
+ "plugin-discovery",
  "serde",
  "serde_json",
 ]

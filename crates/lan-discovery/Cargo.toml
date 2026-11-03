@@ -11,5 +11,6 @@ path = "src/lib.rs"
 
 [dependencies]
 indexmap = "2"
+plugin-discovery = { path = "../plugin-discovery" }
 serde.workspace = true
 serde_json.workspace = true

@@ -59,26 +59,28 @@
 | `is_ipv4_address` / `is_tailscale_range_address` | 同名 helper | 严格四段 IPv4；`100.64.0.0/10` |
 | `parse_lan_announcement` | `parseLanAnnouncement` | magic/协议版本、serverId/name trim 非空、version/port/requiresPairing/platform 类型校验，未知键忽略 |
 | `build_lan_announcement_payload` / `build_lan_probe_payload` | 同名 helper | 公告键序 `magic → protocolVersion → serverId → …`；探测报文常量 |
+| `filter_self_entries` | `discoverLanPeers` 的本机应答过滤 | host 命中宿主注入的本机地址集（含 127.0.0.1）即丢弃；`None` 对应 TS `includeSelf: true`（地址集置空不过滤），空集不过滤 |
+| `sort_discovered_peers` | `discoverLanPeers` 的最终排序 | `(name ?? serverId)` 键；沿用仓库确定性 localeCompare 口径（小写折叠 → 大小写次序），排序稳定 |
 | 常量 | `lanAccess.ts` | 发现端口 45879、默认端口 45880、协议版本、配对码 TTL、默认中继地址 |
 
 ### 未迁（宿主装配层）
 
-- UDP socket 的 bind/send、1.5s 收集窗口、本机地址过滤、应答去重键与最终排序。
+- UDP socket 的 bind/send、1.5s 收集窗口、应答去重键（`serverId@host:port`）。
 - `tailscale` CLI 候选路径、800ms 超时与 runner 降级；由宿主注入 `tailscaleStatusRunner`。
 - 网卡枚举（`networkInterfaces`）；公告解析已在 `lan-discovery::announcement`。
-- 发现结果最终按 `name ?? serverId` 排序。
 
 ### 已知差异
 
 | 差异 | 说明 |
 | --- | --- |
-| 字符串排序 | TS 用 `localeCompare`；Rust 用字节序。IP/ASCII serverId 一致，非 ASCII 名称可能不同。 |
+| 字符串排序 | TS 用运行环境 `localeCompare`；Rust 用确定性 ASCII 近似（小写折叠 → 大小写次序）。ASCII 名称/IP 一致，非 ASCII 名称在极端 locale 下可能不同。 |
 | 结构体字段 | Rust `LanDiscoveredPeer` 只保留合并所需字段；`LanPeerAnnouncement` 由公告解析层做 magic/协议版本校验。 |
 | 端口类型 | Rust 用 `u16`；TS 在公告 schema 已限制 1..=65535。 |
 
 ### 验收
 
-- `cargo test -p lan-discovery`：13 条用例覆盖 Tailscale 解析/降级、单卡合并（LAN 优先、
+- `cargo test -p lan-discovery`：15 条用例覆盖 Tailscale 解析/降级、单卡合并（LAN 优先、
   tailnet 副地址、端口分卡、同 host 覆盖、排序）、IPv4 严格校验、CGNAT 边界、
-  定向广播与目标去重，以及公告契约的键序、可选字段、trim/未知键与非法字段拒绝。
+  定向广播与目标去重、本机过滤（None/空集语义）、最终排序（回退键、大小写次序、
+  稳定序），以及公告契约的键序、可选字段、trim/未知键与非法字段拒绝。
 - UDP 端到端与实机双机验收未开始；Node 实现仍是 oracle。

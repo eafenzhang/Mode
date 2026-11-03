@@ -7,6 +7,7 @@
 use std::collections::{HashMap, HashSet};
 
 use indexmap::IndexMap;
+use plugin_discovery::js::locale_compare;
 use serde_json::Value;
 
 pub mod announcement;
@@ -188,4 +189,32 @@ pub fn collect_broadcast_targets(
         }
     }
     targets
+}
+
+/// 本机应答过滤（纯函数）：应答地址命中本机地址集（含 127.0.0.1，由宿主注入
+/// `collectLocalIPv4Addresses()` 的结果）一律丢弃——本机信息归「设置 → 局域网访问」。
+/// TS 的 `includeSelf: true` 会把本机地址集置空；Rust 侧以 `None` 表达同一语义。
+pub fn filter_self_entries(
+    entries: Vec<LanDiscoveredPeer>,
+    local_addresses: Option<&HashSet<String>>,
+) -> Vec<LanDiscoveredPeer> {
+    match local_addresses {
+        None => entries,
+        Some(local) => entries
+            .into_iter()
+            .filter(|entry| !local.contains(&entry.host))
+            .collect(),
+    }
+}
+
+/// 发现结果最终排序（纯函数）：TS 按 `(name ?? serverId).localeCompare(...)` 排。
+/// localeCompare 依赖运行环境 locale；沿用仓库确定性口径（plugin-discovery 的
+/// JS ASCII 近似：先小写折叠序列，再大小写次序）。
+pub fn sort_discovered_peers(mut entries: Vec<LanDiscoveredPeer>) -> Vec<LanDiscoveredPeer> {
+    entries.sort_by(|left, right| {
+        let left_key = left.name.as_deref().unwrap_or(left.server_id.as_str());
+        let right_key = right.name.as_deref().unwrap_or(right.server_id.as_str());
+        locale_compare(left_key, right_key)
+    });
+    entries
 }
