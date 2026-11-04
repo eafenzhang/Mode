@@ -914,3 +914,21 @@ async fn cancel_plugin_operation_requires_operation_id() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn plugin_operation_progress_listen_requires_operation_id() {
+    let channel = channel();
+    let error = channel
+        .listen(
+            "ctx".into(),
+            "onDynamicPluginOperationProgress".into(),
+            object_arg("{}"),
+            std::sync::Arc::new(|_| {}),
+        )
+        .map(|_| ())
+        .expect_err("缺 operationId");
+    assert!(
+        message(&error).contains("invalid onDynamicPluginOperationProgress request"),
+        "{error:?}"
+    );
+}

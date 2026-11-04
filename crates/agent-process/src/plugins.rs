@@ -7,7 +7,8 @@
 //! workspace runtime（与 mcp/list 同一取舍），超时使用协议默认值。
 
 use agent_protocol::plugin::{
-    PluginDeliveryKind, PluginReferenceCatalogParams, PluginScope, PluginsCancelOperationParams,
+    PluginDeliveryKind, PluginOperationProgressNotification, PluginReferenceCatalogParams,
+    PluginScope, PluginsCancelOperationParams,
     PluginsCancelOperationResult, PluginsConfigureParams, PluginsConfigureResult,
     PluginsDescribeParams, PluginsDescribeResult, PluginsInstallParams, PluginsInstallResult,
     PluginsListParams, PluginsListResult, PluginsMarketplaceAddParams,
@@ -24,12 +25,18 @@ use agent_protocol::plugin::{
     PLUGINS_REFERENCE_CATALOG_WITH_CATEGORY_METHOD, PLUGINS_RESET_CONFIG_METHOD,
     PLUGINS_RESOLVE_SUGGESTED_REFERENCE_METHOD, PLUGINS_RESTORE_BUILTIN_METHOD,
     PLUGINS_SET_ENABLED_METHOD, PLUGINS_UNINSTALL_METHOD, PLUGINS_UPDATE_METHOD,
-    PLUGINS_VALIDATE_METHOD,
+    PLUGINS_VALIDATE_METHOD, PLUGIN_OPERATION_PROGRESS_NOTIFICATION,
 };
 use mode_protocol_client::ClientError;
+use tokio::sync::mpsc;
 
 use crate::control::{AgentControlClient, AgentWorkspaceTarget, ControlError, RuntimePolicy};
 use crate::session_read::session_workspace_ref;
+
+/// 插件操作进度通知流；receiver 关闭即退订。
+pub struct PluginOperationProgressSubscription {
+    pub receiver: mpsc::Receiver<PluginOperationProgressNotification>,
+}
 
 impl AgentControlClient {
     /// `plugins/list`：本地插件元数据 + 诊断。
@@ -381,6 +388,53 @@ impl AgentControlClient {
             "plugins/install",
         )
         .await
+    }
+
+    /// `plugins/operationProgress` 通知订阅（按 operationId 过滤）。
+    ///
+    /// 先订阅通知广播再返回；receiver 被丢弃时转发任务自行退出。
+    pub async fn subscribe_plugin_operation_progress(
+        &self,
+        target: &AgentWorkspaceTarget,
+        operation_id: &str,
+    ) -> Result<PluginOperationProgressSubscription, ControlError> {
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
+        let mut notifications = process.client().subscribe_notifications();
+        let operation_id = operation_id.to_owned();
+        let (sender, receiver) = mpsc::channel(32);
+        tokio::spawn(async move {
+            loop {
+                match notifications.recv().await {
+                    Ok(value) => {
+                        if value.get("method").and_then(serde_json::Value::as_str)
+                            != Some(PLUGIN_OPERATION_PROGRESS_NOTIFICATION)
+                        {
+                            continue;
+                        }
+                        let Some(params) = value.get("params") else {
+                            continue;
+                        };
+                        let Ok(notification) =
+                            serde_json::from_value::<PluginOperationProgressNotification>(
+                                params.clone(),
+                            )
+                        else {
+                            continue;
+                        };
+                        if notification.operation_id != operation_id {
+                            continue;
+                        }
+                        if sender.send(notification).await.is_err() {
+                            return;
+                        }
+                    }
+                    Err(_) => return,
+                }
+            }
+        });
+        Ok(PluginOperationProgressSubscription { receiver })
     }
 
     /// `plugins/cancelOperation`：只带 operationId，不带 workspace。

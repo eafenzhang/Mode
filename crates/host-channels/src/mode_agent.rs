@@ -40,8 +40,8 @@
 //!   commit/abort/read/previewSource + conversationAttachmentRead/Stat）、
 //!   conversationFileChanges/FileRewindPreview、backgroundBashOutput、
 //!   queryConversationCommandsV4、getAppUsageStats/getTaskTokenUsage、
-//!   generateWorkspaceText/testModelConnectivity 与
-//!   collectLocalRuntimeChildProcesses 也已接线；
+//!   collectLocalRuntimeChildProcesses 也已接线；onDynamicPluginOperationProgress
+//!   订阅数据面已接（按 operationId 过滤）；
 //! - 事件订阅已桥 `session.event`/`snapshot` 与 onDynamicStorageStartupState
 //!   （generation 取订阅时快照，进程换代后 watch 结束即停止推送）；：TS 聚合的 `state.updated` /
 //!   `permission.request` / `userInput.*` 来自通知与反向请求，尚未接线；订阅建立失败
@@ -114,6 +114,9 @@ pub const UNSUPPORTED_METHOD_CODE: &str = "unsupported_method";
 
 /// 事件名（TS IModeAgentService.onDynamicSessionEvent）。
 pub const SESSION_EVENT_LISTEN: &str = "onDynamicSessionEvent";
+
+/// 事件名（TS `IModeAgentService.onDynamicPluginOperationProgress`）。
+pub const PLUGIN_OPERATION_PROGRESS_LISTEN: &str = "onDynamicPluginOperationProgress";
 
 /// 事件名（TS `IModeAgentService.onDynamicStorageStartupState`）。
 pub const STORAGE_STARTUP_LISTEN: &str = "onDynamicStorageStartupState";
@@ -1944,6 +1947,59 @@ impl ServerChannel for ModeAgentChannel {
                 stop.store(true, std::sync::atomic::Ordering::SeqCst);
             }));
         }
+        if event == PLUGIN_OPERATION_PROGRESS_LISTEN {
+            let params: PluginOperationProgressListenParams =
+                parse_params("onDynamicPluginOperationProgress", arg)?;
+            let control = Arc::clone(&self.control);
+            let management_workspace = self.management_workspace.clone();
+            let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let stop_flag = Arc::clone(&stop);
+            std::thread::spawn(move || {
+                let runtime = match tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                {
+                    Ok(runtime) => runtime,
+                    Err(_) => return,
+                };
+                runtime.block_on(async move {
+                    let _ = std::fs::create_dir_all(&management_workspace);
+                    let target = AgentWorkspaceTarget::new(
+                        management_workspace.to_string_lossy().into_owned(),
+                    );
+                    let mut subscription = match control
+                        .subscribe_plugin_operation_progress(&target, &params.operation_id)
+                        .await
+                    {
+                        Ok(subscription) => subscription,
+                        Err(_) => return,
+                    };
+                    loop {
+                        if stop_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                            return;
+                        }
+                        tokio::select! {
+                            _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {
+                                if stop_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                                    return;
+                                }
+                            }
+                            notification = subscription.receiver.recv() => match notification {
+                                Some(notification) => {
+                                    if let Ok(text) = serde_json::to_string(&notification) {
+                                        emit(Value::Json(text));
+                                    }
+                                }
+                                None => return,
+                            }
+                        }
+                    }
+                });
+            });
+            return Ok(Box::new(move || {
+                stop.store(true, std::sync::atomic::Ordering::SeqCst);
+            }));
+        }
         if event != SESSION_EVENT_LISTEN {
             return Err(ChannelError::error(format!(
                 "mode-agent channel: unknown event {event}"
@@ -2969,6 +3025,13 @@ struct TestModelConnectivityV4Params {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CancelPluginOperationParams {
+    operation_id: String,
+}
+
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PluginOperationProgressListenParams {
     operation_id: String,
 }
 
