@@ -51,9 +51,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use agent_process::{
-    build_workspace_ref, AgentControlClient, AgentWorkspaceTarget, AppRuntimePreferences,
-    ControlError, GrantTrustResult, ListSessionsOptions, RuntimeIdentity, RuntimePolicy,
-    StorageStartupSnapshot,
+    AgentControlClient, AgentWorkspaceTarget, AppRuntimePreferences, ControlError,
+    GrantTrustResult, ListSessionsOptions, RuntimeIdentity, RuntimePolicy, StorageStartupSnapshot,
 };
 use agent_protocol::mcp::{McpListMode, McpListResult};
 use agent_protocol::message::{MessageModel, MessageWithParts};
@@ -96,9 +95,6 @@ use agent_protocol::workflow::{
     WorkflowsListResult, WorkflowsMoveResult, WorkflowsRunsResult, WorkflowsUpdateMetaResult,
 };
 use agent_protocol::workspace::WorkspacePresentation;
-use agent_protocol::workspace_generate::{
-    GenerateTextParams, WorkspaceModelMessage, WorkspaceModelTool,
-};
 use rpc_host::{BoxFuture, CancellationToken, ChannelError, ServerChannel};
 use rpc_wire::Value;
 use serde::Deserialize;
@@ -1766,38 +1762,6 @@ impl ServerChannel for ModeAgentChannel {
                         .map_err(control_error)?;
                     json_value(&result)
                 }
-                "generateWorkspaceText" => {
-                    let params: GenerateWorkspaceTextV4Params =
-                        parse_params("generateWorkspaceText", arg)?;
-                    let target = params.workspace.target();
-                    let result = control
-                        .workspace_generate_text(
-                            &target,
-                            &GenerateTextParams {
-                                workspace: build_workspace_ref(&target),
-                                selection: params.selection,
-                                prompt: params.prompt,
-                                messages: params.messages,
-                                tools: params.tools,
-                                query_source: params.query_source,
-                                max_output_tokens: params.max_output_tokens,
-                                operation_id: params.operation_id,
-                            },
-                            params.request_timeout_ms,
-                        )
-                        .await
-                        .map_err(control_error)?;
-                    json_value(&result)
-                }
-                "testModelConnectivity" => {
-                    let params: TestModelConnectivityV4Params =
-                        parse_params("testModelConnectivity", arg)?;
-                    let result = control
-                        .test_model_connectivity(&params.workspace.target(), &params.selection)
-                        .await
-                        .map_err(control_error)?;
-                    json_value(&result)
-                }
                 "collectLocalRuntimeChildProcesses" => {
                     let result = control.collect_local_runtime_child_processes().await;
                     json_value(&result)
@@ -2992,34 +2956,6 @@ struct AppUsageV4Params {
 }
 
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GenerateWorkspaceTextV4Params {
-    #[serde(flatten)]
-    workspace: WorkspaceParams,
-    selection: agent_protocol::session::ModelSelection,
-    #[serde(default)]
-    prompt: Option<String>,
-    #[serde(default)]
-    messages: Option<Vec<WorkspaceModelMessage>>,
-    #[serde(default)]
-    tools: Option<Vec<WorkspaceModelTool>>,
-    query_source: String,
-    #[serde(default)]
-    max_output_tokens: Option<u64>,
-    #[serde(default)]
-    operation_id: Option<String>,
-    #[serde(default)]
-    request_timeout_ms: Option<u64>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct TestModelConnectivityV4Params {
-    #[serde(flatten)]
-    workspace: WorkspaceParams,
-    selection: agent_protocol::session::ModelSelection,
-}
 
 
 #[derive(Debug, Deserialize)]

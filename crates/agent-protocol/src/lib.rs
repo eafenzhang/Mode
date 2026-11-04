@@ -75,7 +75,6 @@ pub mod v4_workflow_runs;
 pub mod v4_workspace_config;
 pub mod workflow;
 pub mod workspace;
-pub mod workspace_generate;
 pub mod workspace_policy;
 
 pub use frame::{
