@@ -13,6 +13,7 @@ use serde_json::{json, Map, Value};
 
 use agent_protocol::session::ModelSelection;
 use agent_protocol::v4_queries::{AppUsageSnapshot, UsageStatsParams};
+use agent_protocol::workspace::{ChildProcess, ChildProcessesResult};
 use agent_protocol::workspace_generate::{
     CancelGenerateTextResult, GenerateTextParams, GenerateTextResult, TestModelConnectivityResult,
 };
@@ -31,6 +32,16 @@ pub enum RuntimePolicy {
     #[default]
     StartIfNeeded,
     ExistingOnly,
+}
+
+/// `ModeAgentLocalRuntimeChildProcesses`：宿主侧一个活 runtime 的子进程投影。
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalRuntimeChildProcesses {
+    pub pid: u32,
+    pub provider: String,
+    pub workspace_path: String,
+    pub children: Vec<ChildProcess>,
 }
 
 #[derive(Debug, Clone)]
@@ -228,6 +239,44 @@ impl AgentControlClient {
         }
         self.usage_stats_v4(&workspace, params, RuntimePolicy::ExistingOnly)
             .await
+    }
+
+    /// `collectLocalRuntimeChildProcesses`：本 Host 全部活 runtime 的 MCP 子进程清单。
+    ///
+    /// 观测语义：existing-only、每个 runtime 800ms 超时、失败按空 children 收敛；
+    /// storage gate 尚未收到首个状态的 runtime 跳过。
+    pub async fn collect_local_runtime_child_processes(
+        &self,
+    ) -> Vec<LocalRuntimeChildProcesses> {
+        const CHILD_PROCESSES_REQUEST_TIMEOUT_MS: u64 = 800;
+        let live = self.registry.live_processes();
+        let mut result = Vec::with_capacity(live.len());
+        for (target, process) in live {
+            if process.storage_gate().is_required() && process.storage_gate().snapshot().is_none() {
+                continue;
+            }
+            let children = process
+                .client()
+                .request_with_timeout(
+                    "process/childProcesses",
+                    None,
+                    std::time::Duration::from_millis(CHILD_PROCESSES_REQUEST_TIMEOUT_MS),
+                )
+                .await
+                .ok()
+                .and_then(|response| {
+                    serde_json::from_value::<ChildProcessesResult>(response).ok()
+                })
+                .map(|result| result.processes)
+                .unwrap_or_default();
+            result.push(LocalRuntimeChildProcesses {
+                pid: process.pid(),
+                provider: "mode-agent".to_owned(),
+                workspace_path: target.workspace_path,
+                children,
+            });
+        }
+        result
     }
 
     /// `workspace/generateText`：一次性文本生成；超时只在显式传入时覆盖。

@@ -201,6 +201,16 @@ impl AgentRuntimeRegistry {
         self.live_entry(&target.key())
     }
 
+    /// 全部活 runtime 的 target/process 快照（宿主进程观测用）。
+    pub fn live_processes(&self) -> Vec<(WorkspaceTarget, Arc<AgentProcess>)> {
+        let entries = self.entries.lock().expect("registry poisoned");
+        entries
+            .values()
+            .filter(|entry| !entry.process.client().is_closed())
+            .map(|entry| (entry.target.clone(), Arc::clone(&entry.process)))
+            .collect()
+    }
+
     /// 任意一个活 runtime 的 workspace target（对应 TS usage 全局库的「任一已连接 client」）。
     pub fn first_live_target(&self) -> Option<WorkspaceTarget> {
         let entries = self.entries.lock().expect("registry poisoned");

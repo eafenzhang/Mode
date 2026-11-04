@@ -888,3 +888,16 @@ async fn test_model_connectivity_requires_selection() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn collect_local_runtime_child_processes_without_runtime_is_empty() {
+    let channel = channel();
+    let value = call(
+        &channel,
+        "collectLocalRuntimeChildProcesses",
+        Value::Undefined,
+    )
+    .await
+    .expect("无 runtime 应返回空列表");
+    assert_eq!(value, Value::Json("[]".to_owned()));
+}

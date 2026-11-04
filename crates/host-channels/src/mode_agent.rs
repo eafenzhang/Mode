@@ -16,7 +16,7 @@
 //! - 已接：getStorageStartupState/getWorkspaceRuntimeIdentity/syncAppRuntimePreferences/
 //!   closeSession/grantWorkspaceHookTrust/resolveSuggestedPluginReference/
 //!   getSkillReferenceCatalog/readWorkspacePresentation/disposeAll；
-//! - 未接：collectLocalRuntimeChildProcesses（宿主进程面）、cancelPluginOperation
+//! - 未接：cancelPluginOperation
 //!   （无 workspace，需 operationId 路由）、hasActiveCuaOperationTurn（CUA 跟踪属
 //!   TS 服务层）、getAppUsageStats/getTaskTokenUsage（agent 数据库统计）、automation
 //!   十方法（按决策 4 由 Renderer 分别调用两个 owner）、setConnectionFlowStateV4
@@ -40,8 +40,9 @@
 //!   ArtifactRead/Workspace/NodeResult）均已接线；attachments（begin/chunk/
 //!   commit/abort/read/previewSource + conversationAttachmentRead/Stat）、
 //!   conversationFileChanges/FileRewindPreview、backgroundBashOutput、
-//!   queryConversationCommandsV4、getAppUsageStats/getTaskTokenUsage 与
-//!   generateWorkspaceText/testModelConnectivity 也已接线；
+//!   queryConversationCommandsV4、getAppUsageStats/getTaskTokenUsage、
+//!   generateWorkspaceText/testModelConnectivity 与
+//!   collectLocalRuntimeChildProcesses 也已接线；
 //! - 事件订阅已桥 `session.event`/`snapshot` 与 onDynamicStorageStartupState
 //!   （generation 取订阅时快照，进程换代后 watch 结束即停止推送）；：TS 聚合的 `state.updated` /
 //!   `permission.request` / `userInput.*` 来自通知与反向请求，尚未接线；订阅建立失败
@@ -1793,6 +1794,10 @@ impl ServerChannel for ModeAgentChannel {
                         .test_model_connectivity(&params.workspace.target(), &params.selection)
                         .await
                         .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "collectLocalRuntimeChildProcesses" => {
+                    let result = control.collect_local_runtime_child_processes().await;
                     json_value(&result)
                 }
                 other => Err(unsupported(other)),

@@ -39,8 +39,8 @@ mod workspace_policy;
 
 pub use control::{
     build_grant_params, build_workspace_ref, AgentControlClient, AgentWorkspaceTarget,
-    ControlError, GrantTrustReasonCode, GrantTrustResult, RuntimePolicy,
-    MODE_AGENT_RUNTIME_UNAVAILABLE_CODE, WORKSPACE_HOOK_TRUST_GRANT_METHOD,
+    ControlError, GrantTrustReasonCode, GrantTrustResult, LocalRuntimeChildProcesses,
+    RuntimePolicy, MODE_AGENT_RUNTIME_UNAVAILABLE_CODE, WORKSPACE_HOOK_TRUST_GRANT_METHOD,
 };
 pub use initialize::{AgentInitializeResult, MODE_PROTOCOL_NAME, MODE_PROTOCOL_VERSION};
 pub use mcp::ListMcpServersOptions;
