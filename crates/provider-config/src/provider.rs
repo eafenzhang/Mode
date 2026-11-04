@@ -1491,3 +1491,356 @@ fn push_field<T>(
         Field::Value(value) => entries.push((key, to_json(value))),
     }
 }
+
+fn overlay_field<T: Clone>(base: &Field<T>, next: &Field<T>) -> Field<T> {
+    match next {
+        Field::Absent => base.clone(),
+        other => other.clone(),
+    }
+}
+
+/// TS `overlayConfig`：next 缺席 → base；next 为 null（或 base 缺席/null）→ next；
+/// 其余按值合并。
+fn overlay_nested<T: Clone>(
+    base: &Field<T>,
+    next: &Field<T>,
+    merge: impl Fn(&T, &T) -> T,
+) -> Field<T> {
+    match (base, next) {
+        (_, Field::Absent) => base.clone(),
+        (_, Field::Null) => Field::Null,
+        (Field::Absent | Field::Null, Field::Value(_)) => next.clone(),
+        (Field::Value(current), Field::Value(incoming)) => {
+            Field::Value(merge(current, incoming))
+        }
+    }
+}
+
+impl ApiKeyAccess {
+    /// TS `ApiKeyAccessConfig.overlay`：同类型时字段级覆盖。
+    pub fn overlay(&self, next: &ApiKeyAccess) -> ApiKeyAccess {
+        ApiKeyAccess {
+            access_type: next.access_type,
+            api_key: overlay_field(&self.api_key, &next.api_key),
+            api_key_management_url: overlay_field(
+                &self.api_key_management_url,
+                &next.api_key_management_url,
+            ),
+        }
+    }
+}
+
+impl ZhipuAccountAccess {
+    pub fn overlay(&self, next: &ZhipuAccountAccess) -> ZhipuAccountAccess {
+        ZhipuAccountAccess {
+            account_type: overlay_field(&self.account_type, &next.account_type),
+            mode: overlay_field(&self.mode, &next.mode),
+            entitled: overlay_field(&self.entitled, &next.entitled),
+        }
+    }
+}
+
+impl ProviderApiConfig {
+    pub fn overlay(&self, next: &ProviderApiConfig) -> ProviderApiConfig {
+        ProviderApiConfig {
+            api_type: overlay_field(&self.api_type, &next.api_type),
+            base_url: overlay_field(&self.base_url, &next.base_url),
+            headers: overlay_field(&self.headers, &next.headers),
+        }
+    }
+}
+
+fn overlay_access(
+    base: &Field<ProviderAccess>,
+    next: &Field<ProviderAccess>,
+) -> Field<ProviderAccess> {
+    match (base, next) {
+        (_, Field::Absent) => base.clone(),
+        (_, Field::Null) => Field::Null,
+        (Field::Absent | Field::Null, Field::Value(_)) => next.clone(),
+        (Field::Value(current), Field::Value(incoming)) => match (current, incoming) {
+            (ProviderAccess::ApiKey(current), ProviderAccess::ApiKey(incoming)) => {
+                Field::Value(ProviderAccess::ApiKey(current.overlay(incoming)))
+            }
+            (ProviderAccess::ZhipuAccount(current), ProviderAccess::ZhipuAccount(incoming)) => {
+                Field::Value(ProviderAccess::ZhipuAccount(current.overlay(incoming)))
+            }
+            // 类型不同：整份替换（TS `overlayProviderAccess` 同语义）。
+            _ => next.clone(),
+        },
+    }
+}
+
+impl ProviderConfig {
+    /// TS `ProviderConfig.overlay`：字段级覆盖；access/api 走各自的合并规则。
+    pub fn overlay(&self, next: &ProviderConfig) -> ProviderConfig {
+        ProviderConfig {
+            group: overlay_field(&self.group, &next.group),
+            logo: overlay_field(&self.logo, &next.logo),
+            access: overlay_access(&self.access, &next.access),
+            api: overlay_nested(&self.api, &next.api, |current, incoming| {
+                current.overlay(incoming)
+            }),
+            builtin_model_ids: overlay_field(&self.builtin_model_ids, &next.builtin_model_ids),
+            personal_model_ids: overlay_field(&self.personal_model_ids, &next.personal_model_ids),
+            model_order: overlay_field(&self.model_order, &next.model_order),
+            visibility: overlay_field(&self.visibility, &next.visibility),
+        }
+    }
+
+    /// TS `withoutGroup`：去掉分组归属，其余字段原样。
+    pub fn without_group(&self) -> ProviderConfig {
+        ProviderConfig {
+            group: Field::Absent,
+            ..self.clone()
+        }
+    }
+}
+
+impl ProviderConfigMap {
+    /// TS `ProviderConfigMap.overlay`：同名规则字段级合并，新 key 追加在尾部。
+    pub fn overlay(&self, next: &ProviderConfigMap) -> ProviderConfigMap {
+        let mut values = self.values.clone();
+        for (provider_id, incoming) in &next.values {
+            match values.get(provider_id) {
+                Some(current) => {
+                    let merged = ProviderConfigRule {
+                        provider_id: provider_id.clone(),
+                        template_id: overlay_field(&current.template_id, &incoming.template_id),
+                        provider_name: overlay_field(&current.provider_name, &incoming.provider_name),
+                        enabled: overlay_field(&current.enabled, &incoming.enabled),
+                        config: current.config.overlay(&incoming.config),
+                    };
+                    values.insert(provider_id.clone(), merged);
+                }
+                None => {
+                    values.insert(provider_id.clone(), incoming.clone());
+                }
+            }
+        }
+        ProviderConfigMap { values }
+    }
+
+    /// TS `mapConfigs`：逐规则变换 config，保持顺序与身份字段。
+    pub fn map_configs<F>(&self, transform: F) -> ProviderConfigMap
+    where
+        F: Fn(&ProviderConfig, &str, &ProviderConfigRule) -> ProviderConfig,
+    {
+        let values = self
+            .values
+            .iter()
+            .map(|(provider_id, rule)| {
+                (
+                    provider_id.clone(),
+                    ProviderConfigRule {
+                        provider_id: rule.provider_id.clone(),
+                        template_id: rule.template_id.clone(),
+                        provider_name: rule.provider_name.clone(),
+                        enabled: rule.enabled.clone(),
+                        config: transform(&rule.config, provider_id, rule),
+                    },
+                )
+            })
+            .collect();
+        ProviderConfigMap { values }
+    }
+
+    pub fn rules(&self) -> impl Iterator<Item = &ProviderConfigRule> {
+        self.values.values()
+    }
+}
+
+#[cfg(test)]
+mod overlay_tests {
+    use super::*;
+
+    fn api_key(api_key_value: &str) -> ProviderAccess {
+        ProviderAccess::ApiKey(ApiKeyAccess {
+            access_type: ApiKeyAccessType::ApiKey,
+            api_key: Field::Value(api_key_value.to_string()),
+            api_key_management_url: Field::Absent,
+        })
+    }
+
+    fn provider(access: Field<ProviderAccess>) -> ProviderConfig {
+        ProviderConfig {
+            access,
+            ..ProviderConfig::default()
+        }
+    }
+
+    #[test]
+    fn field_overlay_keeps_absent_and_clears_on_null() {
+        let mut base = provider(Field::Absent);
+        base.group = Field::Value(ProviderGroup::StandardPersonal);
+        base.logo = Field::Value(ProviderLogo {
+            key: "logo-a".to_string(),
+        });
+        let mut next = ProviderConfig::default();
+        // next 全缺席：base 原样。
+        assert_eq!(base.overlay(&next), base);
+        // 显式 null 清空 logo；group 缺席保持。
+        next.logo = Field::Null;
+        let merged = base.overlay(&next);
+        assert_eq!(merged.logo, Field::Null);
+        assert_eq!(merged.group, Field::Value(ProviderGroup::StandardPersonal));
+    }
+
+    #[test]
+    fn access_overlay_merges_same_type_and_replaces_across_types() {
+        let base = provider(Field::Value(api_key("key-a")));
+        let merged = base.overlay(&provider(Field::Value(ProviderAccess::ApiKey(
+            ApiKeyAccess {
+                access_type: ApiKeyAccessType::ApiKey,
+                api_key: Field::Value("key-b".to_string()),
+                api_key_management_url: Field::Value("https://manage".to_string()),
+            },
+        ))));
+        let ProviderAccess::ApiKey(access) = base_access(&merged) else {
+            panic!("api-key");
+        };
+        assert_eq!(access.api_key, Field::Value("key-b".to_string()));
+        assert_eq!(
+            access.api_key_management_url,
+            Field::Value("https://manage".to_string())
+        );
+
+        // 类型切换：整份替换（不合并 zhipu-account 与 api-key 的字段）。
+        let replaced = base.overlay(&provider(Field::Value(ProviderAccess::ZhipuAccount(
+            ZhipuAccountAccess {
+                account_type: Field::Absent,
+                mode: Field::Value(ZhipuAccountMode::StartPlan),
+                entitled: Field::Absent,
+            },
+        ))));
+        assert!(matches!(
+            replaced.access,
+            Field::Value(ProviderAccess::ZhipuAccount(_))
+        ));
+    }
+
+    fn base_access(config: &ProviderConfig) -> &ProviderAccess {
+        match &config.access {
+            Field::Value(access) => access,
+            other => panic!("access={other:?}"),
+        }
+    }
+
+    #[test]
+    fn api_overlay_merges_nested_fields() {
+        let mut base = ProviderConfig::default();
+        base.api = Field::Value(ProviderApiConfig {
+            api_type: Field::Value(ProviderApiType::OpenAiChatCompletions),
+            base_url: Field::Value("https://a".to_string()),
+            headers: Field::Absent,
+        });
+        let mut next = ProviderConfig::default();
+        next.api = Field::Value(ProviderApiConfig {
+            api_type: Field::Absent,
+            base_url: Field::Value("https://b".to_string()),
+            headers: Field::Value(IndexMap::from([("x".to_string(), "1".to_string())])),
+        });
+        let Field::Value(api) = base.overlay(&next).api else {
+            panic!("api");
+        };
+        assert_eq!(api.api_type, Field::Value(ProviderApiType::OpenAiChatCompletions));
+        assert_eq!(api.base_url, Field::Value("https://b".to_string()));
+        assert_eq!(
+            api.headers,
+            Field::Value(IndexMap::from([("x".to_string(), "1".to_string())]))
+        );
+    }
+
+    #[test]
+    fn without_group_clears_only_group() {
+        let mut config = provider(Field::Value(api_key("key")));
+        config.group = Field::Value(ProviderGroup::ZaiFamily);
+        config.visibility = Field::Value(ProviderVisibility::Hidden);
+        let stripped = config.without_group();
+        assert_eq!(stripped.group, Field::Absent);
+        assert_eq!(stripped.visibility, Field::Value(ProviderVisibility::Hidden));
+        assert_eq!(stripped.access, config.access);
+    }
+
+    #[test]
+    fn map_overlay_merges_rules_and_appends_new_keys() {
+        let base = ProviderConfigMap {
+            values: IndexMap::from([
+                (
+                    "p1".to_string(),
+                    ProviderConfigRule {
+                        provider_id: "p1".to_string(),
+                        template_id: Field::Value("tpl".to_string()),
+                        provider_name: Field::Value("P1".to_string()),
+                        enabled: Field::Value(true),
+                        config: provider(Field::Value(api_key("key-a"))),
+                    },
+                ),
+            ]),
+        };
+        let next = ProviderConfigMap {
+            values: IndexMap::from([
+                (
+                    "p1".to_string(),
+                    ProviderConfigRule {
+                        provider_id: "p1".to_string(),
+                        template_id: Field::Absent,
+                        provider_name: Field::Absent,
+                        enabled: Field::Value(false),
+                        config: provider(Field::Value(api_key("key-b"))),
+                    },
+                ),
+                (
+                    "p2".to_string(),
+                    ProviderConfigRule {
+                        provider_id: "p2".to_string(),
+                        template_id: Field::Absent,
+                        provider_name: Field::Absent,
+                        enabled: Field::Absent,
+                        config: ProviderConfig::default(),
+                    },
+                ),
+            ]),
+        };
+        let merged = base.overlay(&next);
+        let ids: Vec<&String> = merged.values.keys().collect();
+        assert_eq!(ids, vec!["p1", "p2"]);
+        let rule = merged.get("p1").expect("p1");
+        assert_eq!(rule.enabled, Field::Value(false));
+        assert_eq!(rule.template_id, Field::Value("tpl".to_string()));
+        let ProviderAccess::ApiKey(access) = base_access(&rule.config) else {
+            panic!("api-key");
+        };
+        assert_eq!(access.api_key, Field::Value("key-b".to_string()));
+    }
+
+    #[test]
+    fn map_configs_preserves_identity_and_order() {
+        let map = ProviderConfigMap {
+            values: IndexMap::from([
+                (
+                    "p1".to_string(),
+                    ProviderConfigRule {
+                        provider_id: "p1".to_string(),
+                        template_id: Field::Absent,
+                        provider_name: Field::Value("P1".to_string()),
+                        enabled: Field::Value(true),
+                        config: ProviderConfig::default(),
+                    },
+                ),
+            ]),
+        };
+        let mapped = map.map_configs(|config, provider_id, _rule| {
+            let mut next = config.clone();
+            next.group = Field::Value(provider_id_to_group(provider_id));
+            next
+        });
+        let rule = mapped.get("p1").expect("p1");
+        assert_eq!(rule.provider_name, Field::Value("P1".to_string()));
+        assert_eq!(rule.config.group, Field::Value(ProviderGroup::ZaiFamily));
+    }
+
+    fn provider_id_to_group(_provider_id: &str) -> ProviderGroup {
+        ProviderGroup::ZaiFamily
+    }
+}
