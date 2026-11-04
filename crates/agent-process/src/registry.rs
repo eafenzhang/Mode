@@ -100,6 +100,17 @@ pub struct RuntimeIdentity {
     pub workspace_key: String,
 }
 
+/// `onAgentRuntimeRestarted` 事件：某 workspace 的新 runtime 已拉起（generation > 1）。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeRestartedEvent {
+    pub workspace_key: String,
+    pub runtime_identity: RuntimeIdentity,
+}
+
+pub type RuntimeRestartListener = Arc<dyn Fn(&RuntimeRestartedEvent) + Send + Sync>;
+pub type Unsubscribe = Box<dyn FnOnce() + Send + 'static>;
+
 pub struct AgentRuntimeRegistry {
     factory: SpecFactory,
     next_generation: AtomicU64,
@@ -108,6 +119,9 @@ pub struct AgentRuntimeRegistry {
     spawn_locks: Mutex<HashMap<String, Arc<AsyncMutex<()>>>>,
     /// 入站请求处理器：对现有进程立即生效，并应用到之后拉起的进程。
     request_handler: Mutex<Option<mode_protocol_client::RequestHandler>>,
+    /// 每个 workspace 的 spawn 次数（对应 TS `runtimeGenerationByWorkspaceKey`）。
+    spawn_counts: Mutex<HashMap<String, u64>>,
+    restart_listeners: Arc<Mutex<Vec<RuntimeRestartListener>>>,
 }
 
 impl AgentRuntimeRegistry {
@@ -118,10 +132,30 @@ impl AgentRuntimeRegistry {
             entries: Mutex::new(HashMap::new()),
             spawn_locks: Mutex::new(HashMap::new()),
             request_handler: Mutex::new(None),
+            spawn_counts: Mutex::new(HashMap::new()),
+            restart_listeners: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
     /// 设置入站请求处理器：现有进程立即生效，之后拉起的进程自动挂上。
+    /// 订阅 runtime 换代事件；返回退订句柄。
+    pub fn on_runtime_restarted(&self, listener: RuntimeRestartListener) -> Unsubscribe {
+        let listeners = Arc::clone(&self.restart_listeners);
+        listeners
+            .lock()
+            .expect("restart listeners poisoned")
+            .push(Arc::clone(&listener));
+        Box::new(move || {
+            let mut listeners = listeners.lock().expect("restart listeners poisoned");
+            if let Some(index) = listeners
+                .iter()
+                .position(|candidate| Arc::ptr_eq(candidate, &listener))
+            {
+                listeners.remove(index);
+            }
+        })
+    }
+
     pub fn set_request_handler(&self, handler: Option<mode_protocol_client::RequestHandler>) {
         *self
             .request_handler
@@ -317,15 +351,43 @@ impl AgentRuntimeRegistry {
             process.client().set_request_handler(handler);
         }
         let generation = self.next_generation.fetch_add(1, Ordering::SeqCst) + 1;
-        let mut entries = self.entries.lock().expect("registry poisoned");
-        entries.insert(
-            key,
-            Entry {
-                process: Arc::clone(&process),
-                generation,
-                target: target.clone(),
-            },
-        );
+        let pid = process.pid();
+        {
+            let mut entries = self.entries.lock().expect("registry poisoned");
+            entries.insert(
+                key.clone(),
+                Entry {
+                    process: Arc::clone(&process),
+                    generation,
+                    target: target.clone(),
+                },
+            );
+        }
+        let spawn_count = {
+            let mut counts = self.spawn_counts.lock().expect("spawn counts poisoned");
+            let count = counts.entry(key.clone()).or_insert(0);
+            *count += 1;
+            *count
+        };
+        if spawn_count > 1 {
+            let event = RuntimeRestartedEvent {
+                workspace_key: key.clone(),
+                runtime_identity: RuntimeIdentity {
+                    generation,
+                    identity: format!("{key}:{generation}:{pid}"),
+                    process_id: Some(pid),
+                    workspace_key: key.clone(),
+                },
+            };
+            let listeners: Vec<_> = self
+                .restart_listeners
+                .lock()
+                .expect("restart listeners poisoned")
+                .clone();
+            for listener in listeners {
+                listener(&event);
+            }
+        }
         Ok(process)
     }
 

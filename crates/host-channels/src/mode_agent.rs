@@ -111,6 +111,9 @@ pub const UNSUPPORTED_METHOD_CODE: &str = "unsupported_method";
 /// 事件名（TS IModeAgentService.onDynamicSessionEvent）。
 pub const SESSION_EVENT_LISTEN: &str = "onDynamicSessionEvent";
 
+/// 事件名（TS `IModeAgentService.onAgentRuntimeRestarted`）。
+pub const AGENT_RUNTIME_RESTARTED_LISTEN: &str = "onAgentRuntimeRestarted";
+
 /// 事件名（TS `IModeAgentService.onDynamicPluginOperationProgress`）。
 pub const PLUGIN_OPERATION_PROGRESS_LISTEN: &str = "onDynamicPluginOperationProgress";
 
@@ -1909,6 +1912,24 @@ impl ServerChannel for ModeAgentChannel {
             });
             return Ok(Box::new(move || {
                 stop.store(true, std::sync::atomic::Ordering::SeqCst);
+            }));
+        }
+        if event == AGENT_RUNTIME_RESTARTED_LISTEN {
+            let control = Arc::clone(&self.control);
+            let subscription = control.on_runtime_restarted(Arc::new(move |event| {
+                if let Ok(text) = serde_json::to_string(event) {
+                    emit(Value::Json(text));
+                }
+            }));
+            let subscription = Mutex::new(Some(subscription));
+            return Ok(Box::new(move || {
+                if let Some(unsubscribe) = subscription
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner())
+                    .take()
+                {
+                    unsubscribe();
+                }
             }));
         }
         if event == PLUGIN_OPERATION_PROGRESS_LISTEN {

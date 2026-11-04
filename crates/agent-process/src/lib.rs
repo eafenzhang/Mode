@@ -50,8 +50,9 @@ pub use provider_sync::{
     ProviderSyncOutcome, ProviderSyncStatus, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
 pub use registry::{
-    AgentRuntimeRegistry, RuntimeHealth, RuntimeHealthState, RuntimeIdentity, SpecFactory,
-    StorageStartupSnapshot, WorkspaceTarget,
+    AgentRuntimeRegistry, RuntimeHealth, RuntimeHealthState, RuntimeIdentity,
+    RuntimeRestartListener, RuntimeRestartedEvent, SpecFactory, StorageStartupSnapshot,
+    Unsubscribe as RegistryUnsubscribe, WorkspaceTarget,
 };
 pub use resolve::{
     resolve_agent_command, AgentCommandSource, AgentResolveContext, AgentResolveError,

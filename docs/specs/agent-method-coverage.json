@@ -301,8 +301,8 @@
   },
   {
     "method": "onAgentRuntimeRestarted",
-    "status": "blocked",
-    "note": "宿主侧事件/反向请求，S2 接线时由 Host handler 或订阅 facade 提供"
+    "status": "rust",
+    "rust": "on_runtime_restarted"
   },
   {
     "method": "onDynamicConversationFrame",

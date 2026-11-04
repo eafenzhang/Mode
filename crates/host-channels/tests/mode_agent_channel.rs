@@ -857,3 +857,17 @@ async fn plugin_operation_progress_listen_requires_operation_id() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn agent_runtime_restarted_listen_registers_and_disposes() {
+    let channel = channel();
+    let subscription = channel
+        .listen(
+            "ctx".into(),
+            "onAgentRuntimeRestarted".into(),
+            Value::Undefined,
+            std::sync::Arc::new(|_| {}),
+        )
+        .expect("注册重启事件");
+    subscription();
+}

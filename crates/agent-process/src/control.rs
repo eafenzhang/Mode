@@ -295,6 +295,14 @@ impl AgentControlClient {
     }
 
     /// 存储启动：拉起（如需）并等待 `startup/storageState` 到 `ready`。
+    /// 订阅 runtime 换代事件（`onAgentRuntimeRestarted`）。
+    pub fn on_runtime_restarted(
+        &self,
+        listener: crate::RuntimeRestartListener,
+    ) -> crate::RegistryUnsubscribe {
+        self.registry.on_runtime_restarted(listener)
+    }
+
     pub async fn prepare_storage(&self, target: &AgentWorkspaceTarget) -> Result<(), String> {
         self.registry
             .prepare_storage(&target.registry_target())

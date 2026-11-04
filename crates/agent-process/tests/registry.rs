@@ -1,7 +1,7 @@
 //! Agent 运行时注册表：同一 workspace 单进程、并发去重、失效重建、空闲回收。
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use agent_process::{
@@ -196,4 +196,25 @@ async fn shutdown_all_closes_every_process() {
     }
     assert!(first.client().is_closed());
     assert!(second.client().is_closed());
+}
+
+#[tokio::test]
+async fn runtime_restart_event_fires_only_on_replacement() {
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let registry = registry(Arc::clone(&spawns));
+    let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&events);
+    let _subscription = registry.on_runtime_restarted(Arc::new(move |event| {
+        sink.lock().unwrap().push(event.workspace_key.clone());
+    }));
+
+    let first = registry.get_or_spawn(&target("D:/ws/restart")).await.unwrap();
+    assert!(events.lock().unwrap().is_empty(), "首次 spawn 不是重启");
+    first.client().dispose();
+    registry.get_or_spawn(&target("D:/ws/restart")).await.unwrap();
+    assert_eq!(
+        events.lock().unwrap().as_slice(),
+        ["D:/ws/restart".to_owned()]
+    );
+    registry.shutdown_all(Duration::from_secs(3)).await;
 }
