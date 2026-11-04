@@ -94,8 +94,28 @@ scheduler 轮询(20s) ─ claimDue / claimManualRuns ────┤
    且不落到本地 services。
 5. app 重启后，过期窗口的待触发任务被记 skipped 并重排下一周期（一次性任务转 completed）。
 
+## Rust 迁移（2026-11-04）
+
+`crates/automation-runtime` 已按本 spec 迁移调度状态机（默认不接线）：
+
+- `AutomationRuntime` 持有 `AutomationRepo`（唯一写入方），20s 轮询调用
+  `claim_due`/`claim_manual_runs`，实现 `start`/`stop`/`wake`/`dispatch_manual_run`
+  与 tick 合并请求；stop 等待在途 tick 后释放本进程认领。
+- 派发通过端口注入，Rust 侧不依赖 Agent 会话运行时：
+  - `DispatchPort::dispatch`：对应 TS `dispatchRun` + 终态订阅注册（先订阅后
+    `sendPrompt`），返回 task/session 与退订句柄；
+  - `DispatchPort::mark_task_unread`：`setTaskUnread` 的 best-effort 投影；
+  - `ModelSelectionPort::get_view`：对应 `IModelSelectionService.getView`，runtime 按
+    「run 固定值 → 持久化意图 → 首选」顺序解析并 `fix_run_model_selection`。
+- 已覆盖：认领、25 分钟内 misfire 跳过/一次性任务终结、schedule 成功推进
+  `next_run_at`、失败 transient 退避、manual stale 恢复、直派失败释放 claim、
+  终态回写与 manual 心跳（`touch_manual_claim`）。
+- **默认关闭**：壳/服务面尚未创建 runtime，实际写入方仍是 TS `AutomationRepo`。
+  翻面必须同时切换 repo、schedule 与 runtime 三处（见上文「调度状态机」），并对拍
+  至少一轮真实派发；在那之前本 crate 只由 `cargo test` 驱动。
+
 ## 已知缺口
 
 - 闲时任务（off-peak）派发链同样随 Electron 线删除，本 spec 不恢复；`OffPeakTaskRepo` 的
   claim/派发/结算为独立后续工作。
-- keep-awake（运行会话时阻止系统休眠）依赖 Electron `powerSaveBlocker`，Tauri 线无对应接线。
+- keep-awake（运行会话时阻止系统休眠）已在 Tauri 线补齐（`apps/desktop-tauri/src-tauri/src/power.rs`）。

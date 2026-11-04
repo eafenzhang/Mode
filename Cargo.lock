@@ -346,6 +346,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "automation-runtime"
+version = "0.1.0"
+dependencies = [
+ "automation-repo",
+ "automation-schedule",
+ "serde_json",
+ "tokio",
+ "workspace-identity",
+]
+
+[[package]]
 name = "automation-schedule"
 version = "0.1.0"
 dependencies = [

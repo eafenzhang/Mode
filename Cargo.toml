@@ -62,6 +62,7 @@ members = [
   "crates/runtime-tools",
   "crates/model-selection",
   "crates/automation-repo",
+  "crates/automation-runtime",
   "crates/automation-schedule",
   "crates/sidecar-host",
   "crates/system-service",

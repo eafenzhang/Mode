@@ -1,0 +1,20 @@
+[package]
+name = "automation-runtime"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Automation 调度运行时：认领 → 派发 → 结算（进程内轮询）"
+
+[lib]
+name = "automation_runtime"
+path = "src/lib.rs"
+
+[dependencies]
+automation-repo = { path = "../automation-repo" }
+automation-schedule = { path = "../automation-schedule" }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
+workspace-identity = { path = "../workspace-identity" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
