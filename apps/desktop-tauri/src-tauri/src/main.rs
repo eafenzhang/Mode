@@ -86,6 +86,12 @@ fn main() {
             },
         );
         eprintln!("[mode-tauri] agent owner=node (S0: agent-health read-only)");
+        // keep-awake（keepAwakeWhileRunning）：设置打开且存在执行中闲时任务时
+        // 阻止系统空闲休眠（Windows SetThreadExecutionState；其余平台 no-op）。
+        mode_tauri::power::start_watcher(
+            mode_tauri::host::resolve_data_root(&handle),
+            mode_tauri::power::KeepAwake::new(),
+        );
         let inprocess = mode_tauri::inprocess::InprocessState::from_env(
             std::sync::Arc::clone(&supervisor),
             mode_tauri::host::resolve_data_root(&handle),

@@ -547,7 +547,7 @@ release verify。矩阵以 `--strict` 运行（todo 必须为 0）；automation 
    Rust `automation-repo` 要等任务/会话频道接线后随运行时一起翻面。
    **随 Electron 线删除且未恢复的两条链**（记录为该域收口缺口）：闲时任务派发链
    （spec 已声明为独立后续工作，`OffPeakTaskRepo` 只有 Repo 没有 runtime）与
-   keep-awake（Electron `powerSaveBlocker` 在 Tauri 线无对应接线）。
+   keep-awake（Electron powerSaveBlocker 在 Tauri 线无对应接线）——**已补（2026-11-04）**：壳内 power 模块轮询 keepAwakeWhileRunning 与 off_peak_tasks running 计数，Windows 调 SetThreadExecutionState(ES_CONTINUOUS|ES_SYSTEM_REQUIRED)，其余平台 no-op。
    仍未迁：任务频道与会话链路。
    **门禁生产者对拍已加**（`pnpm check:tasks-schema-parity`，CI 同时跑 TS 与 Rust 快照），
    但生产者**暂不切换**：Node 仍写任务库，现在切会让门禁看不到 TS 迁移变化。等 Rust

@@ -12,6 +12,7 @@ use tauri::Runtime;
 pub mod agent_runtime;
 pub mod host;
 pub mod inprocess;
+pub mod power;
 pub mod single_instance;
 pub mod terminal;
 pub mod web_assets;

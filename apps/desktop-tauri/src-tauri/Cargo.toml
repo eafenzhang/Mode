@@ -63,6 +63,7 @@ tauri-build.workspace = true
 # 截在**建窗口之前**并把 argv 交回第一个进程（见 src/single_instance.rs 的模块文档）。
 tauri-plugin-single-instance.workspace = true
 agent-process = { path = "../../../crates/agent-process" }
+off-peak-repo = { path = "../../../crates/off-peak-repo" }
 platform = { path = "../../../crates/platform" }
 runtime-env = { path = "../../../crates/runtime-env" }
 runtime-tools = { path = "../../../crates/runtime-tools" }
