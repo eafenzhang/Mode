@@ -1,0 +1,14 @@
+[package]
+name = "provider-resolver"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Provider 配置解析：Built-in/Personal/Account Overlay 合并、模板施加、模型候选与 Registry 过滤（对应 packages/provider/src/resolver.ts）"
+
+[lib]
+name = "provider_resolver"
+path = "src/lib.rs"
+
+[dependencies]
+indexmap = "2"
+provider-config = { path = "../provider-config" }

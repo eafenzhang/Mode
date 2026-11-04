@@ -34,7 +34,7 @@ pub use provider::{
 };
 pub use rules::{
     parse_mode_builtin_model_config_rules, parse_personal_model_config_rules, ModelConfigRules,
-    ModelRule,
+    ModelConfigRuleResolutionInput, ModelRule,
 };
 pub use value::{Field, Issue, ParseError, ParseResult};
 

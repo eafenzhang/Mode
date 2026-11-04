@@ -24,6 +24,7 @@ members = [
   "crates/platform",
   "crates/project-memory",
   "crates/provider-config",
+  "crates/provider-resolver",
   "crates/provider-config-source",
   "crates/provider-config-repository",
   "crates/provider-legacy-migration",
