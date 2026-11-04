@@ -45,7 +45,8 @@ pub use control::{
 pub use initialize::{AgentInitializeResult, MODE_PROTOCOL_NAME, MODE_PROTOCOL_VERSION};
 pub use mcp::ListMcpServersOptions;
 pub use provider_sync::{
-    AccountProviderConfigSnapshot, ProviderConfigSync, ProviderReadFuture, ProviderSource,
+    empty_account_provider_config_snapshot, AccountProviderConfigSnapshot,
+    MutableAccountProviderConfigSource, ProviderConfigSync, ProviderReadFuture, ProviderSource,
     ProviderSyncOutcome, ProviderSyncStatus, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
 pub use registry::{
