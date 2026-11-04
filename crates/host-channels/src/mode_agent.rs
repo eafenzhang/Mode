@@ -12,7 +12,10 @@
 //! - `resumeSession` 的 `model` 不落 wire（协议 `SessionResumeParams` 无该字段，TS 同）；
 //! - `disposeWorkspace` 的等待中 provider-ready continuation / v4 订阅路由 /
 //!   CUA 轮次跟踪清理属服务层；
-//! - `listMcpServerStatuses` 不做 TS 的 `unrecognized_keys` 兼容重试。
+//! - `listMcpServerStatuses` 不做 TS 的 `unrecognized_keys` 兼容重试；
+//! - 事件订阅首批只桥 `session.event` 与 `snapshot`：TS 聚合的 `state.updated` /
+//!   `permission.request` / `userInput.*` 来自通知与反向请求，尚未接线；订阅建立失败
+//!   不做 TS 的指数退避重试；`eventCoalescing`（后台摘要合并）未实现。
 
 use std::sync::Arc;
 
@@ -43,6 +46,9 @@ pub const MODE_AGENT_CHANNEL: &str = "mode-agent";
 
 /// 决策 2 契约：Rust 侧未实现的方法返回该错误码（host-ownership-switch §6 决策 2）。
 pub const UNSUPPORTED_METHOD_CODE: &str = "unsupported_method";
+
+/// 事件名（TS IModeAgentService.onDynamicSessionEvent）。
+pub const SESSION_EVENT_LISTEN: &str = "onDynamicSessionEvent";
 
 pub struct ModeAgentChannel {
     control: Arc<AgentControlClient>,
@@ -438,6 +444,89 @@ impl ServerChannel for ModeAgentChannel {
             }
         })
     }
+
+    fn listen(
+        &self,
+        _ctx: String,
+        event: String,
+        arg: Value,
+        emit: rpc_host::EventCallback,
+    ) -> Result<rpc_host::Subscription, ChannelError> {
+        if event != SESSION_EVENT_LISTEN {
+            return Err(ChannelError::error(format!(
+                "mode-agent channel: unknown event {event}"
+            )));
+        }
+        let params: SubscribeParams = parse_params("onDynamicSessionEvent", arg)?;
+        let control = Arc::clone(&self.control);
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stop_flag = Arc::clone(&stop);
+        // 订阅循环可能被同步调用（ChannelServer::listen），这里自带 current-thread
+        // runtime，不依赖调用方是否位于 tokio 上下文。
+        std::thread::spawn(move || {
+            let runtime = match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(runtime) => runtime,
+                Err(_) => return,
+            };
+            runtime.block_on(async move {
+                let target = params.workspace.target();
+                let mut subscription = match control
+                    .subscribe_session(
+                        &target,
+                        &params.session_id,
+                        params.delivery_kind,
+                        params.after_seq,
+                        params.include_snapshot.unwrap_or(false),
+                    )
+                    .await
+                {
+                    Ok(subscription) => subscription,
+                    // TS 对订阅建立失败做指数退避重试（SESSION_SUBSCRIBE_MAX_ATTEMPTS）；
+                    // Rust 首批不做重试（已知缺口），失败即结束该订阅。
+                    Err(_) => return,
+                };
+                let emit_json = |json: serde_json::Value| {
+                    if let Ok(text) = serde_json::to_string(&json) {
+                        emit(Value::Json(text));
+                    }
+                };
+                // TS 顺序：replay（已排序）→ snapshot → 实时事件。
+                for event in &subscription.replay {
+                    if stop_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                        return;
+                    }
+                    emit_json(serde_json::json!({ "type": "session.event", "event": event }));
+                }
+                if let Some(snapshot) = &subscription.snapshot {
+                    if stop_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                        return;
+                    }
+                    emit_json(serde_json::json!({ "type": "snapshot", "snapshot": snapshot }));
+                }
+                loop {
+                    tokio::select! {
+                        _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {
+                            if stop_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                                return;
+                            }
+                        }
+                        event = subscription.recv() => match event {
+                            Some(event) => emit_json(
+                                serde_json::json!({ "type": "session.event", "event": event }),
+                            ),
+                            None => return,
+                        },
+                    }
+                }
+            });
+        });
+        Ok(Box::new(move || {
+            stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        }))
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -449,6 +538,19 @@ struct ListMcpParams {
     mcp_servers: Option<Vec<McpServer>>,
     #[serde(default)]
     mode: Option<McpListMode>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SubscribeParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    delivery_kind: DeliveryKind,
+    #[serde(default)]
+    after_seq: Option<u64>,
+    #[serde(default)]
+    include_snapshot: Option<bool>,
 }
 
 /// `disposeWorkspace` 的优雅关闭宽限（TS 服务层使用进程管理器的默认清理节奏）。

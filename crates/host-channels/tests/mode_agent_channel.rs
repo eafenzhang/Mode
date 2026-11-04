@@ -126,3 +126,36 @@ async fn non_object_argument_is_rejected() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn listen_rejects_unknown_event() {
+    let channel = channel();
+    let error = channel
+        .listen(
+            "ctx".into(),
+            "onDynamicSomething".into(),
+            object_arg("{}"),
+            std::sync::Arc::new(|_| {}),
+        )
+        .map(|_| ())
+        .expect_err("未知事件");
+    assert!(message(&error).contains("unknown event"), "{error:?}");
+}
+
+#[tokio::test]
+async fn listen_rejects_invalid_delivery_kind() {
+    let channel = channel();
+    let error = channel
+        .listen(
+            "ctx".into(),
+            "onDynamicSessionEvent".into(),
+            object_arg(r#"{"workspacePath":"D:/ws","sessionId":"s1","deliveryKind":"ftp"}"#),
+            std::sync::Arc::new(|_| {}),
+        )
+        .map(|_| ())
+        .expect_err("非法 deliveryKind");
+    assert!(
+        message(&error).contains("invalid onDynamicSessionEvent request"),
+        "{error:?}"
+    );
+}
