@@ -303,3 +303,35 @@ async fn grant_workspace_hook_trust_requires_digests() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn storage_startup_listen_without_runtime_is_noop() {
+    let channel = channel();
+    let subscription = channel
+        .listen(
+            "ctx".into(),
+            "onDynamicStorageStartupState".into(),
+            object_arg(r#"{"workspacePath":"D:/ws"}"#),
+            std::sync::Arc::new(|_| {}),
+        )
+        .expect("无活进程时应返回空订阅");
+    subscription();
+}
+
+#[tokio::test]
+async fn storage_startup_listen_requires_workspace() {
+    let channel = channel();
+    let error = channel
+        .listen(
+            "ctx".into(),
+            "onDynamicStorageStartupState".into(),
+            object_arg("{}"),
+            std::sync::Arc::new(|_| {}),
+        )
+        .map(|_| ())
+        .expect_err("缺 workspacePath");
+    assert!(
+        message(&error).contains("invalid onDynamicStorageStartupState request"),
+        "{error:?}"
+    );
+}

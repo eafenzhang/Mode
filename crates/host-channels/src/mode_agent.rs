@@ -29,7 +29,8 @@
 //!   cancelOperation/marketplace 增删改与 suggested 引用解析未接线；
 //! - `sendPrompt` 不做 TS 的 `unrecognized_keys` 兼容重试，且缺少
 //!   browserAmbientContext 的 executor 收集（TS 缺省时主动采集）；
-//! - 事件订阅首批只桥 `session.event` 与 `snapshot`：TS 聚合的 `state.updated` /
+//! - 事件订阅已桥 `session.event`/`snapshot` 与 onDynamicStorageStartupState
+//!   （generation 取订阅时快照，进程换代后 watch 结束即停止推送）；：TS 聚合的 `state.updated` /
 //!   `permission.request` / `userInput.*` 来自通知与反向请求，尚未接线；订阅建立失败
 //!   不做 TS 的指数退避重试；`eventCoalescing`（后台摘要合并）未实现。
 
@@ -82,6 +83,9 @@ pub const UNSUPPORTED_METHOD_CODE: &str = "unsupported_method";
 
 /// 事件名（TS IModeAgentService.onDynamicSessionEvent）。
 pub const SESSION_EVENT_LISTEN: &str = "onDynamicSessionEvent";
+
+/// 事件名（TS `IModeAgentService.onDynamicStorageStartupState`）。
+pub const STORAGE_STARTUP_LISTEN: &str = "onDynamicStorageStartupState";
 
 pub struct ModeAgentChannel {
     control: Arc<AgentControlClient>,
@@ -844,6 +848,56 @@ impl ServerChannel for ModeAgentChannel {
         arg: Value,
         emit: rpc_host::EventCallback,
     ) -> Result<rpc_host::Subscription, ChannelError> {
+        if event == STORAGE_STARTUP_LISTEN {
+            let params: WorkspaceParams = parse_params("onDynamicStorageStartupState", arg)?;
+            let control = Arc::clone(&self.control);
+            let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let stop_flag = Arc::clone(&stop);
+            std::thread::spawn(move || {
+                let runtime = match tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                {
+                    Ok(runtime) => runtime,
+                    Err(_) => return,
+                };
+                runtime.block_on(async move {
+                    let target = params.target();
+                    // 没有活进程时无事件可推（与 TS 的静默语义一致）。
+                    let Some(mut receiver) = control.subscribe_storage_startup(&target) else {
+                        return;
+                    };
+                    let generation = control
+                        .storage_startup_state(&target)
+                        .map(|snapshot| snapshot.generation)
+                        .unwrap_or(0);
+                    let emit_snapshot = |state: &Option<agent_process::StorageStartupState>| {
+                        let json = serde_json::json!({
+                            "generation": generation,
+                            "state": state,
+                        });
+                        if let Ok(text) = serde_json::to_string(&json) {
+                            emit(Value::Json(text));
+                        }
+                    };
+                    loop {
+                        if stop_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                            return;
+                        }
+                        match receiver.changed().await {
+                            Ok(()) => {
+                                let state = receiver.borrow().clone();
+                                emit_snapshot(&state);
+                            }
+                            Err(_) => return,
+                        }
+                    }
+                });
+            });
+            return Ok(Box::new(move || {
+                stop.store(true, std::sync::atomic::Ordering::SeqCst);
+            }));
+        }
         if event != SESSION_EVENT_LISTEN {
             return Err(ChannelError::error(format!(
                 "mode-agent channel: unknown event {event}"
