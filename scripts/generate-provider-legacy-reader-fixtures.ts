@@ -316,6 +316,76 @@ const cases: FixtureCase[] = [
     env: { runtimeEnv: "production", bigModelApiOrigin: "https://bigmodel.cn" },
     config: config({}),
   },
+  {
+    name: "error-provider-api-format-enum",
+    env: { runtimeEnv: "production", bigModelApiOrigin: "https://bigmodel.cn" },
+    config: config({ a: { apiFormat: "bogus" } }),
+  },
+  {
+    name: "error-nested-model-limit-type",
+    env: { runtimeEnv: "production", bigModelApiOrigin: "https://bigmodel.cn" },
+    config: config({ a: { models: { m: { limit: { context: "abc" } } } } }),
+  },
+  {
+    name: "error-nested-model-kind-enum",
+    env: { runtimeEnv: "production", bigModelApiOrigin: "https://bigmodel.cn" },
+    config: config({ a: { models: { m: { kinds: ["bogus"] } } } }),
+  },
+  {
+    name: "error-nested-model-reasoning-union",
+    env: { runtimeEnv: "production", bigModelApiOrigin: "https://bigmodel.cn" },
+    config: config({ a: { models: { m: { reasoning: { enabled: "yes" } } } } }),
+  },
+  {
+    name: "error-nested-mode-deleted-models",
+    env: { runtimeEnv: "production", bigModelApiOrigin: "https://bigmodel.cn" },
+    config: config({ a: { mode: { deletedModels: [""] } } }),
+  },
+  {
+    name: "error-root-schema-type",
+    env: { runtimeEnv: "production", bigModelApiOrigin: "https://bigmodel.cn" },
+    config: { $schema: 5, provider: { a: {} } },
+  },
+  {
+    name: "nested-model-full-fields-valid",
+    env: { runtimeEnv: "production", bigModelApiOrigin: "https://bigmodel.cn" },
+    config: config({
+      rich: {
+        kind: "openai",
+        name: "Rich",
+        apiFormat: "openai-chat-completions",
+        source: "custom",
+        catalogSourceId: "china-llm-mode-dev",
+        defaultKind: "openai",
+        models: {
+          "rich-model": {
+            id: "rich-model",
+            name: " Rich ",
+            kinds: ["openai", "anthropic"],
+            defaultKind: "openai",
+            modelIdByKind: { openai: "rich-openai", anthropic: "rich-anthropic" },
+            variants: { fast: { a: 1 }, slow: { b: 2 } },
+            reasoningSpec: {
+              defaultLevel: "high",
+              levels: {
+                high: {
+                  openai: {
+                    set: [{ path: ["temperature"], value: 0.7 }],
+                    unset: [{ path: ["top_p"] }],
+                  },
+                },
+              },
+            },
+            modalities: { input: ["text"], output: ["text"] },
+            limit: { context: 1000, input: 500, output: 100 },
+            options: { q: 1 },
+            headers: { h: "v" },
+            mode: { kinds: ["openai"], supportsTools: true, priority: 5, modified: true },
+          },
+        },
+      },
+    }),
+  },
 ];
 
 async function main(): Promise<void> {
@@ -339,7 +409,16 @@ async function main(): Promise<void> {
         "utf8",
       );
       setDataRootPathOverride(dataRoot);
-      const providers = await readLegacyModeConfigProviders();
+      let providers: unknown;
+      let errorField: string | undefined;
+      try {
+        providers = await readLegacyModeConfigProviders();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const match = /field=(.*)$/u.exec(message);
+        if (!match?.[1]) throw error;
+        errorField = match[1];
+      }
       fixtures.push({
         name: testCase.name,
         env: {
@@ -347,7 +426,7 @@ async function main(): Promise<void> {
           bigmodel_api_origin: resolveBigModelApiOrigin(process.env),
         },
         config: testCase.config,
-        providers,
+        ...(errorField === undefined ? { providers } : { errorField }),
       });
     }
   } finally {

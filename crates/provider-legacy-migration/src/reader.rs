@@ -400,7 +400,15 @@ fn open_code_model_to_provider_model(
     provider_default_kind: ProviderKind,
     prefer_open_code_fields: bool,
 ) -> JsonValue {
-    let mode = model.get("mode").and_then(object);
+    let mode_extensions = model.get("mode").and_then(object);
+    // TS `openCodeModelToModelProviderModel`：prefer-open-code 时模型级 `mode` 整体
+    // 置空（只有 modeExtensions 供 priority/modified/deleted）；否则才参与
+    // supportsTools/defaultKind/disabledReason 等回退。
+    let mode = if prefer_open_code_fields {
+        None
+    } else {
+        mode_extensions
+    };
     let limit = model.get("limit").and_then(object);
     let options = model.get("options").and_then(object);
     let context_window = positive(limit.and_then(|limit| limit.get("context")))
@@ -449,7 +457,7 @@ fn open_code_model_to_provider_model(
     .or_else(|| mode.and_then(|mode| parse_kind(mode.get("defaultKind"))))
     .unwrap_or(provider_default_kind);
     let priority = finite(model.get("priority"))
-        .or_else(|| finite(mode.and_then(|mode| mode.get("priority"))));
+        .or_else(|| finite(mode_extensions.and_then(|mode| mode.get("priority"))));
     let disabled_reason = non_empty(model.get("disabledReason"))
         .or_else(|| non_empty(mode.and_then(|mode| mode.get("disabledReason"))));
     let supports_tools = bool_value(model.get("supportsTools"))
@@ -457,9 +465,9 @@ fn open_code_model_to_provider_model(
     let supports_structured_output = bool_value(model.get("supportsStructuredOutput"))
         .or_else(|| bool_value(mode.and_then(|mode| mode.get("supportsStructuredOutput"))));
     let modified = bool_value(model.get("modified"))
-        .or_else(|| bool_value(mode.and_then(|mode| mode.get("modified"))));
+        .or_else(|| bool_value(mode_extensions.and_then(|mode| mode.get("modified"))));
     let deleted = bool_value(model.get("deleted"))
-        .or_else(|| bool_value(mode.and_then(|mode| mode.get("deleted"))));
+        .or_else(|| bool_value(mode_extensions.and_then(|mode| mode.get("deleted"))));
     let id = non_empty(model.get("id")).unwrap_or_else(|| model_id.to_string());
     let modalities = model.get("modalities").and_then(object);
     create_model_provider_model_config(&CreateModelConfigParams {

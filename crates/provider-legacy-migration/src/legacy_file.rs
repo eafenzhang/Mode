@@ -3,7 +3,8 @@
 //! 真源：`packages/services/src/model-provider/legacyModeConfigProviderReader.ts` 的
 //! `readRawModeConfigFile` / `readModeConfigProviders`。本模块只做文件读取、分阶段
 //! 错误与已知字段形状校验；Provider 归一化仍由 [`crate::read_mode_config_providers`]
-//! 负责。完整 zod 嵌套模型字段的对拍留待后续切片。
+//! 负责。zod 嵌套模型字段/枚举成员的校验已按声明顺序补齐（2026-11-04），
+//! 首个 issue 路径与 TS 逐字对齐。
 
 use std::fmt;
 use std::io::ErrorKind;
@@ -118,119 +119,509 @@ fn validate_config_file(value: &JsonValue) -> Result<(), String> {
     };
     for (provider_id, value) in providers {
         let field = format!("provider.{provider_id}");
-        let Some(provider) = value.as_object() else {
-            return Err(field);
-        };
-        validate_provider(provider, &field)?;
+        validate_provider(value, &field)?;
     }
     Ok(())
 }
 
-fn validate_provider(
-    provider: &indexmap::IndexMap<String, JsonValue>,
+const PROVIDER_KINDS: &[&str] = &["anthropic", "openai", "openai-compatible"];
+const API_FORMATS: &[&str] = &[
+    "anthropic-messages",
+    "openai-chat-completions",
+    "openai-responses",
+];
+const PROVIDER_SOURCES: &[&str] = &["builtin", "models-dev", "custom", "workspace"];
+const CATALOG_SOURCE_IDS: &[&str] = &["china-llm-mode-dev"];
+const SYSTEM_DISABLED_REASONS: &[&str] = &[
+    "coding_plan_not_authenticated",
+    "coding_plan_not_connected",
+    "coding_plan_auth_failed",
+    "coding_plan_not_entitled",
+    "oauth_provider_inactive",
+];
+const MODALITIES: &[&str] = &["text", "image", "video", "audio", "pdf"];
+
+fn check_string(
+    object: &indexmap::IndexMap<String, JsonValue>,
+    key: &str,
     field: &str,
 ) -> Result<(), String> {
-    for key in [
-        "api",
-        "name",
-        "id",
-        "npm",
-        "kind",
-        "systemDisabledReason",
-        "apiFormat",
-        "source",
-        "catalogSourceId",
-        "catalogProviderId",
-        "modelsDevProviderId",
-        "logoUrl",
-        "apiKeyUrl",
-        "defaultKind",
-    ] {
-        if let Some(value) = provider.get(key) {
-            if value.as_str().is_none() {
-                return Err(format!("{field}.{key}"));
-            }
+    if let Some(value) = object.get(key) {
+        if value.as_str().is_none() {
+            return Err(format!("{field}.{key}"));
         }
     }
-    for key in ["enabled", "apiKeyRequired"] {
-        if let Some(value) = provider.get(key) {
-            if value.as_bool().is_none() {
-                return Err(format!("{field}.{key}"));
-            }
+    Ok(())
+}
+
+fn check_bool(
+    object: &indexmap::IndexMap<String, JsonValue>,
+    key: &str,
+    field: &str,
+) -> Result<(), String> {
+    if let Some(value) = object.get(key) {
+        if value.as_bool().is_none() {
+            return Err(format!("{field}.{key}"));
         }
     }
-    for key in ["createdAt", "updatedAt"] {
-        if let Some(value) = provider.get(key) {
-            if value.as_number().is_none() {
-                return Err(format!("{field}.{key}"));
-            }
+    Ok(())
+}
+
+fn check_number(
+    object: &indexmap::IndexMap<String, JsonValue>,
+    key: &str,
+    field: &str,
+) -> Result<(), String> {
+    if let Some(value) = object.get(key) {
+        if value.as_number().is_none() {
+            return Err(format!("{field}.{key}"));
         }
     }
-    for key in ["env", "whitelist", "blacklist"] {
-        if let Some(value) = provider.get(key) {
-            let Some(items) = value.as_array() else {
-                return Err(format!("{field}.{key}"));
-            };
-            if items.iter().any(|item| item.as_str().is_none()) {
-                return Err(format!("{field}.{key}"));
-            }
+    Ok(())
+}
+
+fn check_positive_number(
+    object: &indexmap::IndexMap<String, JsonValue>,
+    key: &str,
+    field: &str,
+) -> Result<(), String> {
+    if let Some(value) = object.get(key) {
+        let positive = value
+            .as_number()
+            .and_then(|number| number.as_f64())
+            .map(|number| number.is_finite() && number > 0.0)
+            .unwrap_or(false);
+        if !positive {
+            return Err(format!("{field}.{key}"));
         }
     }
-    for key in ["options", "providerMappings", "endpoints"] {
-        if let Some(value) = provider.get(key) {
-            if value.as_object().is_none() {
-                return Err(format!("{field}.{key}"));
-            }
+    Ok(())
+}
+
+fn check_object(
+    object: &indexmap::IndexMap<String, JsonValue>,
+    key: &str,
+    field: &str,
+) -> Result<(), String> {
+    if let Some(value) = object.get(key) {
+        if value.as_object().is_none() {
+            return Err(format!("{field}.{key}"));
         }
     }
-    if let Some(headers) = provider.get("headers") {
-        let Some(headers) = headers.as_object() else {
-            return Err(format!("{field}.headers"));
+    Ok(())
+}
+
+fn check_enum(
+    object: &indexmap::IndexMap<String, JsonValue>,
+    key: &str,
+    field: &str,
+    allowed: &[&str],
+) -> Result<(), String> {
+    if let Some(value) = object.get(key) {
+        let valid = value
+            .as_str()
+            .map(|text| allowed.contains(&text))
+            .unwrap_or(false);
+        if !valid {
+            return Err(format!("{field}.{key}"));
+        }
+    }
+    Ok(())
+}
+
+fn check_string_array(
+    object: &indexmap::IndexMap<String, JsonValue>,
+    key: &str,
+    field: &str,
+) -> Result<(), String> {
+    if let Some(value) = object.get(key) {
+        let Some(items) = value.as_array() else {
+            return Err(format!("{field}.{key}"));
         };
-        for (name, value) in headers {
-            if value.as_str().is_none() {
-                return Err(format!("{field}.headers.{name}"));
+        for (index, item) in items.iter().enumerate() {
+            if item.as_str().is_none() {
+                return Err(format!("{field}.{key}.{index}"));
             }
         }
     }
+    Ok(())
+}
+
+fn check_enum_array(
+    object: &indexmap::IndexMap<String, JsonValue>,
+    key: &str,
+    field: &str,
+    allowed: &[&str],
+) -> Result<(), String> {
+    if let Some(value) = object.get(key) {
+        let Some(items) = value.as_array() else {
+            return Err(format!("{field}.{key}"));
+        };
+        for (index, item) in items.iter().enumerate() {
+            let valid = item
+                .as_str()
+                .map(|text| allowed.contains(&text))
+                .unwrap_or(false);
+            if !valid {
+                return Err(format!("{field}.{key}.{index}"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn check_string_record(
+    object: &indexmap::IndexMap<String, JsonValue>,
+    key: &str,
+    field: &str,
+) -> Result<(), String> {
+    if let Some(value) = object.get(key) {
+        let Some(record) = value.as_object() else {
+            return Err(format!("{field}.{key}"));
+        };
+        for (name, item) in record {
+            if item.as_str().is_none() {
+                return Err(format!("{field}.{key}.{name}"));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// zod object.passthrough() 语义：非对象报自身路径；已知键按声明顺序校验。
+fn validate_provider(value: &JsonValue, field: &str) -> Result<(), String> {
+    let Some(provider) = value.as_object() else {
+        return Err(field.to_string());
+    };
+    // 顺序 = modeOpenCodeProviderConfigSchema 的声明顺序（首个 issue 逐字对齐）。
+    check_string(provider, "api", field)?;
+    check_string(provider, "name", field)?;
+    check_string_array(provider, "env", field)?;
+    check_string(provider, "id", field)?;
+    check_enum(provider, "kind", field, PROVIDER_KINDS)?;
+    check_string(provider, "npm", field)?;
+    check_string_array(provider, "whitelist", field)?;
+    check_string_array(provider, "blacklist", field)?;
+    check_object(provider, "options", field)?;
+    check_bool(provider, "enabled", field)?;
+    check_enum(
+        provider,
+        "systemDisabledReason",
+        field,
+        SYSTEM_DISABLED_REASONS,
+    )?;
+    if let Some(endpoints) = provider.get("endpoints") {
+        validate_endpoints(endpoints, &format!("{field}.endpoints"))?;
+    }
+    check_enum(provider, "apiFormat", field, API_FORMATS)?;
+    check_enum(provider, "source", field, PROVIDER_SOURCES)?;
+    check_enum(provider, "catalogSourceId", field, CATALOG_SOURCE_IDS)?;
+    check_string(provider, "catalogProviderId", field)?;
+    check_string(provider, "modelsDevProviderId", field)?;
+    check_bool(provider, "apiKeyRequired", field)?;
+    check_string_record(provider, "headers", field)?;
+    check_string(provider, "logoUrl", field)?;
+    check_string(provider, "apiKeyUrl", field)?;
+    check_enum(provider, "defaultKind", field, PROVIDER_KINDS)?;
+    check_object(provider, "providerMappings", field)?;
+    check_number(provider, "createdAt", field)?;
+    check_number(provider, "updatedAt", field)?;
     if let Some(models) = provider.get("models") {
         let Some(models) = models.as_object() else {
             return Err(format!("{field}.models"));
         };
-        for (model_id, value) in models {
-            if value.as_object().is_none() {
-                return Err(format!("{field}.models.{model_id}"));
-            }
+        for (model_id, model) in models {
+            validate_model(model, &format!("{field}.models.{model_id}"))?;
         }
     }
     if let Some(mode) = provider.get("mode") {
-        let Some(mode) = mode.as_object() else {
-            return Err(format!("{field}.mode"));
+        validate_provider_mode(mode, &format!("{field}.mode"))?;
+    }
+    Ok(())
+}
+
+fn validate_model(value: &JsonValue, field: &str) -> Result<(), String> {
+    let Some(model) = value.as_object() else {
+        return Err(field.to_string());
+    };
+    // 顺序 = modeOpenCodeModelConfigSchema 的声明顺序。
+    check_string(model, "id", field)?;
+    check_string(model, "name", field)?;
+    if let Some(reasoning) = model.get("reasoning") {
+        // z.union([boolean, object])：任一分支失败时 issue 落在 union 自身路径。
+        if reasoning.as_bool().is_none() && !is_valid_reasoning_extension(reasoning) {
+            return Err(format!("{field}.reasoning"));
+        }
+    }
+    if let Some(limit) = model.get("limit") {
+        let limit_field = format!("{field}.limit");
+        let Some(limit) = limit.as_object() else {
+            return Err(limit_field);
         };
-        if let Some(enabled) = mode.get("enabled") {
-            if enabled.as_bool().is_none() {
-                return Err(format!("{field}.mode.enabled"));
+        for key in ["context", "input", "output"] {
+            check_positive_number(limit, key, &limit_field)?;
+        }
+    }
+    check_positive_number(model, "contextWindow", field)?;
+    check_positive_number(model, "maxOutputTokens", field)?;
+    if let Some(modalities) = model.get("modalities") {
+        validate_modalities(modalities, &format!("{field}.modalities"))?;
+    }
+    check_object(model, "options", field)?;
+    check_string_record(model, "headers", field)?;
+    if let Some(variants) = model.get("variants") {
+        let variants_field = format!("{field}.variants");
+        let Some(variants) = variants.as_object() else {
+            return Err(variants_field);
+        };
+        for (name, item) in variants {
+            if item.as_object().is_none() {
+                return Err(format!("{variants_field}.{name}"));
             }
         }
-        if let Some(headers) = mode.get("headers") {
-            let Some(headers) = headers.as_object() else {
-                return Err(format!("{field}.mode.headers"));
+    }
+    check_enum_array(model, "kinds", field, PROVIDER_KINDS)?;
+    check_enum(model, "defaultKind", field, PROVIDER_KINDS)?;
+    if let Some(map) = model.get("modelIdByKind") {
+        validate_kind_string_map(map, &format!("{field}.modelIdByKind"))?;
+    }
+    check_string(model, "disabledReason", field)?;
+    check_bool(model, "supportsTools", field)?;
+    check_bool(model, "supportsStructuredOutput", field)?;
+    if let Some(spec) = model.get("reasoningSpec") {
+        validate_reasoning_spec(spec, &format!("{field}.reasoningSpec"))?;
+    }
+    check_bool(model, "hasMaxOutputTokens", field)?;
+    check_number(model, "priority", field)?;
+    check_bool(model, "modified", field)?;
+    check_bool(model, "deleted", field)?;
+    if let Some(mode) = model.get("mode") {
+        validate_model_mode(mode, &format!("{field}.mode"))?;
+    }
+    Ok(())
+}
+
+fn is_valid_reasoning_extension(value: &JsonValue) -> bool {
+    let Some(extension) = value.as_object() else {
+        return false;
+    };
+    let bool_ok = |key: &str| {
+        extension
+            .get(key)
+            .map(|item| item.as_bool().is_some())
+            .unwrap_or(true)
+    };
+    let string_ok = |key: &str| {
+        extension
+            .get(key)
+            .map(|item| item.as_str().is_some())
+            .unwrap_or(true)
+    };
+    let mut valid = bool_ok("enabled") && string_ok("defaultVariant");
+    if let Some(variants) = extension.get("variants") {
+        let Some(items) = variants.as_array() else {
+            return false;
+        };
+        valid = valid && items.iter().all(|item| item.as_str().is_some());
+    }
+    if let Some(aliases) = extension.get("aliases") {
+        let Some(record) = aliases.as_object() else {
+            return false;
+        };
+        valid = valid && record.values().all(|item| item.as_str().is_some());
+    }
+    valid
+}
+
+fn validate_modalities(value: &JsonValue, field: &str) -> Result<(), String> {
+    let Some(modalities) = value.as_object() else {
+        return Err(field.to_string());
+    };
+    for key in ["input", "output"] {
+        if let Some(items) = modalities.get(key) {
+            let Some(items) = items.as_array() else {
+                return Err(format!("{field}.{key}"));
             };
-            for (name, value) in headers {
-                if value.as_str().is_none() {
-                    return Err(format!("{field}.mode.headers.{name}"));
+            for (index, item) in items.iter().enumerate() {
+                let valid = item
+                    .as_str()
+                    .map(|text| MODALITIES.contains(&text))
+                    .unwrap_or(false);
+                if !valid {
+                    return Err(format!("{field}.{key}.{index}"));
                 }
             }
         }
-        if let Some(models) = mode.get("deletedModels") {
-            let Some(models) = models.as_array() else {
-                return Err(format!("{field}.mode.deletedModels"));
+    }
+    Ok(())
+}
+
+fn validate_kind_string_map(value: &JsonValue, field: &str) -> Result<(), String> {
+    let Some(record) = value.as_object() else {
+        return Err(field.to_string());
+    };
+    for (kind, item) in record {
+        if !PROVIDER_KINDS.contains(&kind.as_str()) {
+            // z.partialRecord 对枚举外键报错（路径到键本身）。
+            return Err(format!("{field}.{kind}"));
+        }
+        let valid = item.as_str().map(|text| !text.is_empty()).unwrap_or(false);
+        if !valid {
+            return Err(format!("{field}.{kind}"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_endpoints(value: &JsonValue, field: &str) -> Result<(), String> {
+    let Some(endpoints) = value.as_object() else {
+        return Err(field.to_string());
+    };
+    for key in ["anthropic", "openai", "gemini", "baseURL"] {
+        check_string(endpoints, key, field)?;
+    }
+    if let Some(paths) = endpoints.get("paths") {
+        let paths_field = format!("{field}.paths");
+        let Some(paths) = paths.as_object() else {
+            return Err(paths_field);
+        };
+        for (kind, item) in paths {
+            if !PROVIDER_KINDS.contains(&kind.as_str()) || item.as_str().is_none() {
+                return Err(format!("{paths_field}.{kind}"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_provider_mode(value: &JsonValue, field: &str) -> Result<(), String> {
+    let Some(mode) = value.as_object() else {
+        return Err(field.to_string());
+    };
+    check_bool(mode, "enabled", field)?;
+    check_enum(mode, "systemDisabledReason", field, SYSTEM_DISABLED_REASONS)?;
+    if let Some(endpoints) = mode.get("endpoints") {
+        validate_endpoints(endpoints, &format!("{field}.endpoints"))?;
+    }
+    check_enum(mode, "apiFormat", field, API_FORMATS)?;
+    check_enum(mode, "source", field, PROVIDER_SOURCES)?;
+    check_enum(mode, "catalogSourceId", field, CATALOG_SOURCE_IDS)?;
+    check_string(mode, "catalogProviderId", field)?;
+    check_string(mode, "modelsDevProviderId", field)?;
+    check_bool(mode, "apiKeyRequired", field)?;
+    check_string_record(mode, "headers", field)?;
+    check_string(mode, "logoUrl", field)?;
+    check_string(mode, "apiKeyUrl", field)?;
+    check_enum(mode, "defaultKind", field, PROVIDER_KINDS)?;
+    check_object(mode, "providerMappings", field)?;
+    check_number(mode, "createdAt", field)?;
+    check_number(mode, "updatedAt", field)?;
+    if let Some(deleted) = mode.get("deletedModels") {
+        let Some(items) = deleted.as_array() else {
+            return Err(format!("{field}.deletedModels"));
+        };
+        for (index, item) in items.iter().enumerate() {
+            let valid = item.as_str().map(|text| !text.is_empty()).unwrap_or(false);
+            if !valid {
+                return Err(format!("{field}.deletedModels.{index}"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_model_mode(value: &JsonValue, field: &str) -> Result<(), String> {
+    let Some(mode) = value.as_object() else {
+        return Err(field.to_string());
+    };
+    check_enum_array(mode, "kinds", field, PROVIDER_KINDS)?;
+    check_enum(mode, "defaultKind", field, PROVIDER_KINDS)?;
+    if let Some(map) = mode.get("modelIdByKind") {
+        validate_kind_string_map(map, &format!("{field}.modelIdByKind"))?;
+    }
+    check_string(mode, "disabledReason", field)?;
+    check_bool(mode, "supportsTools", field)?;
+    check_bool(mode, "supportsStructuredOutput", field)?;
+    if let Some(spec) = mode.get("reasoning") {
+        validate_reasoning_spec(spec, &format!("{field}.reasoning"))?;
+    }
+    check_bool(mode, "hasMaxOutputTokens", field)?;
+    check_number(mode, "priority", field)?;
+    check_bool(mode, "modified", field)?;
+    check_bool(mode, "deleted", field)?;
+    Ok(())
+}
+
+fn validate_reasoning_spec(value: &JsonValue, field: &str) -> Result<(), String> {
+    let Some(spec) = value.as_object() else {
+        return Err(field.to_string());
+    };
+    if let Some(default_level) = spec.get("defaultLevel") {
+        let valid = default_level
+            .as_str()
+            .map(|text| !text.is_empty())
+            .unwrap_or(false);
+        if !valid {
+            return Err(format!("{field}.defaultLevel"));
+        }
+    }
+    let Some(levels) = spec.get("levels") else {
+        return Err(format!("{field}.levels"));
+    };
+    let Some(levels) = levels.as_object() else {
+        return Err(format!("{field}.levels"));
+    };
+    for (level, patches) in levels {
+        if level.is_empty() {
+            return Err(format!("{field}.levels.{level}"));
+        }
+        let level_field = format!("{field}.levels.{level}");
+        let Some(patches) = patches.as_object() else {
+            return Err(level_field);
+        };
+        for (kind, patch) in patches {
+            if !PROVIDER_KINDS.contains(&kind.as_str()) {
+                return Err(format!("{level_field}.{kind}"));
+            }
+            validate_options_patch(patch, &format!("{level_field}.{kind}"))?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_options_patch(value: &JsonValue, field: &str) -> Result<(), String> {
+    let Some(patch) = value.as_object() else {
+        return Err(field.to_string());
+    };
+    for operation in ["set", "unset"] {
+        if let Some(items) = patch.get(operation) {
+            let operation_field = format!("{field}.{operation}");
+            let Some(items) = items.as_array() else {
+                return Err(operation_field);
             };
-            if models
-                .iter()
-                .any(|item| item.as_str().map(|value| value.is_empty()).unwrap_or(true))
-            {
-                return Err(format!("{field}.mode.deletedModels"));
+            for (index, item) in items.iter().enumerate() {
+                let item_field = format!("{operation_field}.{index}");
+                let Some(item) = item.as_object() else {
+                    return Err(item_field);
+                };
+                let Some(path) = item.get("path") else {
+                    return Err(format!("{item_field}.path"));
+                };
+                let Some(segments) = path.as_array() else {
+                    return Err(format!("{item_field}.path"));
+                };
+                if segments.is_empty() {
+                    return Err(format!("{item_field}.path"));
+                }
+                for (segment_index, segment) in segments.iter().enumerate() {
+                    let valid = segment
+                        .as_str()
+                        .map(|text| !text.is_empty())
+                        .unwrap_or(false);
+                    if !valid {
+                        return Err(format!("{item_field}.path.{segment_index}"));
+                    }
+                }
             }
         }
     }

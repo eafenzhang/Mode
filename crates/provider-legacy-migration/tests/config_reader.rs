@@ -34,10 +34,10 @@ fn matches_typescript_legacy_config_reader() {
             .and_then(JsonValue::as_object)
             .expect("case.env");
         let config = case.get("config").expect("case.config");
-        let expected = case
-            .get("providers")
-            .and_then(JsonValue::as_array)
-            .expect("case.providers");
+        let Some(expected) = case.get("providers").and_then(JsonValue::as_array) else {
+            // schema 错误用例由 legacy_file_reader.rs 断言错误字段；这里只跑成功用例。
+            continue;
+        };
         let actual = read_mode_config_providers(
             config,
             &LegacyConfigReaderEnv {

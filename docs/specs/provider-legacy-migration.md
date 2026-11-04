@@ -118,8 +118,8 @@ Personal 层导入）。真源：`legacyModelProviderSerialized.ts`、
    自定义 scheme 的共享 origin 形态。
 3. 迁移只产出配置对象，不做文件 IO；落盘/合并仍由 provider-node 运行时负责。
 4. `read_mode_config_providers` 只接收已解析的 config JSON；文件级入口自 2026-11-03 起
-   由 `read_legacy_mode_config_providers` 提供（下面 §4.1）。文件读取端目前校验顶层与
-   Provider 已知字段形状，完整的 zod 嵌套模型字段/枚举成员校验仍待补齐。
+   由 `read_legacy_mode_config_providers` 提供（下面 §4.1）。文件读取端已覆盖完整的 zod 嵌套模型字段/枚举成员校验
+   （2026-11-04 补齐，见 §4.1）。
 
 ### 4.1 旧 `config.json` 文件读取边界
 
@@ -134,13 +134,22 @@ read_legacy_mode_config_providers(path, env, read?)
 
 - IO 错误码：`PermissionDenied → EACCES`；其它优先用 `raw_os_error` 数字，缺省用
   `ErrorKind` 的调试名（与 Node 字符串错误码存在差异）。
-- schema 校验覆盖：根对象、`$schema` 字符串、`provider` 对象、Provider 的
-  `api/name/id/npm/kind/...` 字符串字段、`enabled/apiKeyRequired` 布尔、
-  `createdAt/updatedAt` 数字、`env/whitelist/blacklist` 字符串数组、
-  `options/providerMappings/endpoints` 对象、`headers` 字符串字典、`models` 对象，
-  以及 `mode` 的 `enabled/headers/deletedModels` 形状。
-- 未覆盖：模型条目的嵌套字段类型、枚举成员（kind/apiFormat/source 等）、端点的
-  内部结构；这些仍以 `read_mode_config_providers` 的归一化结果为准，后续补齐。
+- schema 校验按 zod schema **声明顺序**逐键执行并返回首个 issue 的路径（以 `.`
+  连接，与 TS 逐字一致）。覆盖范围：
+  - 根：`$schema` 字符串、`provider` 对象；
+  - Provider：字符串字段（`api/name/id/npm/catalogProviderId/modelsDevProviderId/
+    logoUrl/apiKeyUrl`）、枚举（`kind/defaultKind`、`apiFormat`、`source`、
+    `catalogSourceId`、`systemDisabledReason`）、布尔（`enabled/apiKeyRequired`）、
+    数字（`createdAt/updatedAt`）、字符串数组（`env/whitelist/blacklist`）、
+    `options/providerMappings` 对象、`headers` 字符串字典、`endpoints` 内部结构、
+    `models` 记录、`mode` 扩展；
+  - 模型条目：`reasoning`（布尔或 `{enabled,variants,defaultVariant,aliases}` 联合，
+    失败时 issue 落在 union 路径）、`limit.{context,input,output}` 正数、
+    `contextWindow/maxOutputTokens` 正数、`modalities` 枚举数组、
+    `variants` 对象记录、`kinds/defaultKind` 枚举、`modelIdByKind` 枚举键→非空串、
+    `reasoningSpec`（`defaultLevel`/必填 `levels`/kind patch 的 `set|unset.path`）、
+    `priority`、布尔字段与 `mode` 扩展；
+  - 数组元素错误路径带下标（如 `models.m.kinds.0`、`mode.deletedModels.0`）。
 
 ## 5. 验收
 
@@ -155,9 +164,12 @@ read_legacy_mode_config_providers(path, env, read?)
     `defaultFormatsEndpoints`。
 - `pnpm provider-legacy-reader:fixtures` →
   `crates/provider-legacy-migration/fixtures/legacy-config-reader.json`
-  - 10 条：新运行态字段覆盖旧扩展、旧 `mode` 回退（含 reasoningSpec/mode.reasoning/
+  - 17 条：新运行态字段覆盖旧扩展、旧 `mode` 回退（含 reasoningSpec/mode.reasoning/
     variants）、仅旧 endpoints、BigModel Coding Plan 生产/测试环境、ZAI/BigModel
-    runtime 路径纠偏、store 清理、OpenCode `kind` + 规范 endpoints、缺省/空 provider。
+    runtime 路径纠偏、store 清理、OpenCode `kind` + 规范 endpoints、缺省/空 provider、
+    **嵌套模型全字段合法用例**，以及 6 条 schema 错误用例（Provider 枚举、模型
+    `limit` 类型 / `kinds` 枚举 / `reasoning` 联合、`mode.deletedModels` 空串、
+    根 `$schema` 类型；以 `errorField` 记录首个 issue 路径）。
 - `pnpm provider-legacy-import:fixtures` →
   `crates/provider-legacy-migration/fixtures/legacy-personal-import.json`
   - 9 条：空输入、内置模板与跳过身份、自定义 Provider 成员/去重/上下文过滤、source

@@ -1026,6 +1026,252 @@
         "provider": {}
       },
       "providers": []
+    },
+    {
+      "name": "error-provider-api-format-enum",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "a": {
+            "apiFormat": "bogus"
+          }
+        }
+      },
+      "errorField": "provider.a.apiFormat"
+    },
+    {
+      "name": "error-nested-model-limit-type",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "a": {
+            "models": {
+              "m": {
+                "limit": {
+                  "context": "abc"
+                }
+              }
+            }
+          }
+        }
+      },
+      "errorField": "provider.a.models.m.limit.context"
+    },
+    {
+      "name": "error-nested-model-kind-enum",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "a": {
+            "models": {
+              "m": {
+                "kinds": [
+                  "bogus"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "errorField": "provider.a.models.m.kinds.0"
+    },
+    {
+      "name": "error-nested-model-reasoning-union",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "a": {
+            "models": {
+              "m": {
+                "reasoning": {
+                  "enabled": "yes"
+                }
+              }
+            }
+          }
+        }
+      },
+      "errorField": "provider.a.models.m.reasoning"
+    },
+    {
+      "name": "error-nested-mode-deleted-models",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "a": {
+            "mode": {
+              "deletedModels": [
+                ""
+              ]
+            }
+          }
+        }
+      },
+      "errorField": "provider.a.mode.deletedModels.0"
+    },
+    {
+      "name": "error-root-schema-type",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": 5,
+        "provider": {
+          "a": {}
+        }
+      },
+      "errorField": "$schema"
+    },
+    {
+      "name": "nested-model-full-fields-valid",
+      "env": {
+        "runtime_env": "production",
+        "bigmodel_api_origin": "https://bigmodel.cn"
+      },
+      "config": {
+        "$schema": "https://example.invalid/mode-config.schema.json",
+        "provider": {
+          "rich": {
+            "kind": "openai",
+            "name": "Rich",
+            "apiFormat": "openai-chat-completions",
+            "source": "custom",
+            "catalogSourceId": "china-llm-mode-dev",
+            "defaultKind": "openai",
+            "models": {
+              "rich-model": {
+                "id": "rich-model",
+                "name": " Rich ",
+                "kinds": [
+                  "openai",
+                  "anthropic"
+                ],
+                "defaultKind": "openai",
+                "modelIdByKind": {
+                  "openai": "rich-openai",
+                  "anthropic": "rich-anthropic"
+                },
+                "variants": {
+                  "fast": {
+                    "a": 1
+                  },
+                  "slow": {
+                    "b": 2
+                  }
+                },
+                "reasoningSpec": {
+                  "defaultLevel": "high",
+                  "levels": {
+                    "high": {
+                      "openai": {
+                        "set": [
+                          {
+                            "path": [
+                              "temperature"
+                            ],
+                            "value": 0.7
+                          }
+                        ],
+                        "unset": [
+                          {
+                            "path": [
+                              "top_p"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                "modalities": {
+                  "input": [
+                    "text"
+                  ],
+                  "output": [
+                    "text"
+                  ]
+                },
+                "limit": {
+                  "context": 1000,
+                  "input": 500,
+                  "output": 100
+                },
+                "options": {
+                  "q": 1
+                },
+                "headers": {
+                  "h": "v"
+                },
+                "mode": {
+                  "kinds": [
+                    "openai"
+                  ],
+                  "supportsTools": true,
+                  "priority": 5,
+                  "modified": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "providers": [
+        {
+          "id": "rich",
+          "name": "Rich",
+          "endpoints": {},
+          "apiFormat": "openai-responses",
+          "source": "custom",
+          "catalogSourceId": "china-llm-mode-dev",
+          "apiKey": "",
+          "defaultKind": "openai",
+          "models": [
+            {
+              "id": "rich-model",
+              "name": "Rich",
+              "kinds": [
+                "openai"
+              ],
+              "defaultKind": "openai",
+              "modalities": {
+                "input": [
+                  "text"
+                ],
+                "output": [
+                  "text"
+                ]
+              },
+              "contextWindow": 1000,
+              "maxOutputTokens": 100,
+              "priority": 5,
+              "modified": true
+            }
+          ],
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        }
+      ]
     }
   ]
 }

@@ -41,10 +41,8 @@ fn reads_all_fixture_cases_with_io_boundary() {
             .and_then(JsonValue::as_str)
             .expect("case.name");
         let config = case.get("config").expect("case.config");
-        let expected = case
-            .get("providers")
-            .and_then(JsonValue::as_array)
-            .expect("case.providers");
+        let expected = case.get("providers").and_then(JsonValue::as_array);
+        let expected_error = case.get("errorField").and_then(JsonValue::as_str);
         let has_provider = config
             .as_object()
             .map(|root| root.contains_key("provider"))
@@ -64,12 +62,23 @@ fn reads_all_fixture_cases_with_io_boundary() {
                 .expect("env.bigmodel_api_origin"),
             now_ms: 1_700_000_000_000,
         };
-        let actual = read_legacy_mode_config_providers_with(
+        let result = read_legacy_mode_config_providers_with(
             Path::new("fixture/config.json"),
             &case_env,
             fake_read(config.to_json_string().into_bytes()),
-        )
-        .unwrap_or_else(|error| panic!("{name}: {error}"));
+        );
+        if let Some(expected_error) = expected_error {
+            match result {
+                Err(LegacyConfigFileError::Schema { field, .. }) => {
+                    assert_eq!(field, expected_error, "{name}: schema 错误字段不一致");
+                }
+                Err(other) => panic!("{name}: 期望 schema 错误 {expected_error}，实际 {other}"),
+                Ok(_) => panic!("{name}: 期望 schema 错误 {expected_error}，实际成功"),
+            }
+            continue;
+        }
+        let actual = result.unwrap_or_else(|error| panic!("{name}: {error}"));
+        let expected = expected.expect("case.providers");
         if has_provider {
             assert_eq!(
                 actual.as_deref(),
@@ -141,7 +150,7 @@ fn schema_errors_report_field_paths() {
         ),
         (
             r#"{"provider":{"x":{"mode":{"deletedModels":[""]}}}}"#,
-            "provider.x.mode.deletedModels",
+            "provider.x.mode.deletedModels.0",
         ),
     ] {
         let error = read_legacy_mode_config_providers_with(
