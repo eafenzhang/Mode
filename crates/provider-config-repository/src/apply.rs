@@ -93,7 +93,8 @@ fn read_active_release(path: &Path) -> Result<Option<ModeBuiltinRelease>, String
 
 fn write_active(path: &Path, release: &ModeBuiltinRelease) -> Result<(), String> {
     // TS: JSON.stringify(encodeModeBuiltinRelease(release), null, 2)，无尾随换行。
-    let content = serde_json::to_string_pretty(&release.to_json()).map_err(|error| error.to_string())?;
+    let content =
+        serde_json::to_string_pretty(&release.to_json()).map_err(|error| error.to_string())?;
     // 外层已持锁；原子写内部再抢锁会自锁超时。
     let options = WriteOptions {
         use_file_lock: false,

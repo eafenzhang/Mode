@@ -10,6 +10,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use account_provider_overlay::{
     create_fail_closed_account_provider_config_snapshot, AccountProviderConfigSnapshot,
@@ -20,7 +21,12 @@ use agent_process::{ProviderReadFuture, ProviderSource};
 use provider_config::ProviderConfigMap;
 use provider_config_source::{read_snapshot, SourceError};
 use serde_json::Value;
-use tokio::sync::Mutex;
+mod service;
+
+pub use service::{
+    AccountProviderService, ConfigSourcePort, OverlayResolver, RefreshErrorEvent, ResolveRequest,
+    ResolverPort, ServiceFuture, SnapshotConfigSource, Unsubscribe,
+};
 
 /// 链路错误。配置层与账号层分别保留原始错误，便于调用方区分可重试性。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -135,48 +141,39 @@ impl<O: AccountProviderOverlayOptions + Send + Sync> ProviderChain<O> {
     }
 }
 
-/// `ProviderSource` 适配器：把 [`ProviderChain`] 包装为 agent-process 可消费的异步源。
-pub struct AgentProviderSource<O: AccountProviderOverlayOptions> {
-    chain: Mutex<ProviderChain<O>>,
-    reasons: Vec<String>,
+/// `ProviderSource` 适配器：把 [`AccountProviderService`] 包装为 agent-process 可消费的异步源。
+pub struct AgentProviderSource {
+    service: Arc<AccountProviderService>,
 }
 
-impl<O: AccountProviderOverlayOptions + Send + Sync> AgentProviderSource<O> {
+impl AgentProviderSource {
     pub fn new(
         bundled_path: impl Into<String>,
         active_path: Option<String>,
         personal_path: impl Into<PathBuf>,
-        options: O,
+        options: impl AccountProviderOverlayOptions + Send + Sync + 'static,
     ) -> Self {
+        let config_source = Arc::new(SnapshotConfigSource::new(
+            bundled_path,
+            active_path,
+            personal_path,
+        ));
+        let resolver = Arc::new(OverlayResolver::new(options));
         Self {
-            chain: Mutex::new(ProviderChain::new(
-                bundled_path,
-                active_path,
-                personal_path,
-                options,
-            )),
-            reasons: vec!["start".to_owned()],
+            service: AccountProviderService::new(config_source, resolver),
         }
     }
 
-    /// 覆盖传给账号层的刷新原因（默认 `["start"]`）。
-    pub fn with_reasons(mut self, reasons: Vec<String>) -> Self {
-        self.reasons = reasons;
-        self
+    /// 底层服务，供宿主注册变更/错误监听或释放资源。
+    pub fn service(&self) -> &Arc<AccountProviderService> {
+        &self.service
     }
 }
 
-impl<O> ProviderSource for AgentProviderSource<O>
-where
-    O: AccountProviderOverlayOptions + Send + Sync,
-{
+impl ProviderSource for AgentProviderSource {
     fn read(&self) -> ProviderReadFuture<'_> {
         Box::pin(async move {
-            let mut chain = self.chain.lock().await;
-            let snapshot = chain
-                .resolve(&self.reasons)
-                .await
-                .map_err(|error| error.to_string())?;
+            let snapshot = self.service.read().await?;
             Ok(to_agent_snapshot(&snapshot))
         })
     }

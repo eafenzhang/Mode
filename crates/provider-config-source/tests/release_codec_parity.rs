@@ -61,7 +61,9 @@ fn apply_pretty_json_matches_json_stringify() {
     let sample = object(&fixture, "prettySample");
     let release = decode_mode_builtin_release(object(sample, "input"))
         .unwrap_or_else(|error| panic!("pretty 样例解码失败: {error}"));
-    let expected = object(sample, "pretty").as_str().expect("prettySample.pretty");
+    let expected = object(sample, "pretty")
+        .as_str()
+        .expect("prettySample.pretty");
     let pretty = serde_json::to_string_pretty(&release.to_json()).expect("pretty");
     assert_eq!(pretty, expected);
 }

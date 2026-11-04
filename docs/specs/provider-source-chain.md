@@ -29,8 +29,9 @@
 | `personal_path` | Personal `provider_config.json` 路径 |
 | `options: O` | 账号事实注入点，实现 `AccountProviderOverlayOptions`（设置、账号身份、Coding Plan Key、Family 可用性） |
 
-`reasons` 由调用方传入（`start`、`config:*`、`explicit` 等），语义与 TS 一致：其中包含
-凭据刷新原因时，Overlay 会强制刷新 Coding Plan Key。
+`reasons` 的来源与 TS 一致：首次读取为 `start`，显式刷新为调用方给出的原因，
+配置源变化为 `config:<reason>`（空原因记作 `config:changed`）。其中包含凭据刷新原因时，
+Overlay 会强制刷新 Coding Plan Key。
 
 ## 3. 输出
 
@@ -55,12 +56,23 @@ fail-closed 只用 Built-in 里 `access.type = zhipu-account` 的 Provider，且
 
 ## 5. 状态所有权与并发
 
-- `ProviderChain` 持有 last-known-good（上一份成功或 fail-closed 快照），一个实例对应一个
-  逻辑数据根；`resolve` 串行执行（`&mut self`）。
-- `AgentProviderSource` 用异步互斥包住 chain，实现 `ProviderSource`，因此同一 Source 的被
-  多个同步调用并发读取时不会交错推进 last-known-good。
-- 不缓存配置文件读取结果；每次 `read()` 都重新读文件层，避免磁盘变更被吞掉。revision
-  去重只在 `ProviderConfigSync` 做。
+`AccountProviderService` 是唯一的编排状态所有者：
+
+- `read()` 缓存首份快照；无快照但有 in-flight 轮次时共享该轮结果，不会重复解析。有快照
+  后直接返回缓存，文件变化由配置源订阅触发后台 `refresh("config:*")`。
+- `refresh(reason)` 递增 `requested_generation` 并登记 waiter；只有覆盖该 generation 的
+  轮次能回应。轮次开始后到达的请求留给下一轮。
+- 每轮解析前读一次配置、解析后再读一次复核：复核 revision 变化或期间出现新请求时整轮
+  丢弃，补 `superseded-resolution` 后重跑，绝不短暂发布过期快照。
+- 首次解析失败发布 fail-closed；之后失败保留 last-known-good 并回绝本 generation 的
+  waiter。失败轮期间登记的 waiter 由后续轮次回应（`finishRefresh` 语义）。
+- `onDidChange` 只在已有旧快照且 revision 变化时通知，reason 是本轮 reasons 的
+  `join(",")`；`onDidRefreshError` 每轮失败都会通知（含 fail-closed 轮）。
+- `dispose()` 退订配置源、拒绝所有等待中的 refresh、清空监听器；in-flight 轮次自行结束。
+
+`ProviderChain`（同步单轮解析）保留为测试/诊断辅助；生产交付入口是
+`AgentProviderSource` → `AccountProviderService` → `to_agent_snapshot`。配置文件读取与
+revision 去重仍分属配置源与 `ProviderConfigSync`，服务不重复实现。
 
 ## 6. 验收场景
 
@@ -75,3 +87,9 @@ fail-closed 只用 Built-in 里 `access.type = zhipu-account` 的 Provider，且
 4. 已有成功快照后 Overlay 失败：返回错误，下一次成功读取仍能发布新 revision。
 5. 端到端：`AgentControlClient::sync_account_provider_config` 发出的
    `provider/updateAccountConfig` 参数与本链输出一致；重复调用返回 `Unchanged`。
+6. 并发首读共享同一轮（Resolver 只调用一次）；一轮开始后调用 `refresh("explicit")`
+   必须再跑一轮后才回应。
+7. 解析期间配置 revision 变化：整轮作废，最终快照的 `basedOnModeBuiltinRevision` 为新
+   revision，Resolver 至少调用两次。
+8. 配置源通知触发后台刷新；成功后 revision 变化才触发 `onDidChange`，首份快照不触发。
+9. `dispose()` 后等待中的 refresh 返回 `AccountProviderService 已 dispose`。
