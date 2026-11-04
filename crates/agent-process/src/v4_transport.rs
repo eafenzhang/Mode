@@ -20,11 +20,13 @@ use tokio::task::AbortHandle;
 use agent_protocol::v4_sessions_index::{parse_sessions_index_topic, SessionsIndexWireFrame};
 use agent_protocol::v4_transport::{
     ConversationSubscribeAck, ConversationSubscribeParams, ConversationSubscribeResult,
-    ConversationWireFrame, V4_CONVERSATION_FRAME_NOTIFICATION, V4_CONVERSATION_SUBSCRIBE_METHOD,
+    ConversationWireFrame, SubscribeBase, SubscribeVisibility, V4ClientMode,
+    V4_CONVERSATION_FRAME_NOTIFICATION, V4_CONVERSATION_SUBSCRIBE_METHOD,
 };
 use agent_protocol::v4_workspace_config::{parse_workspace_config_topic, WorkspaceConfigWireFrame};
 
 use crate::control::{AgentControlClient, AgentWorkspaceTarget, ControlError, RuntimePolicy};
+use crate::session_read::session_workspace_ref;
 
 const FRAME_CHANNEL_CAPACITY: usize = 256;
 
@@ -211,5 +213,60 @@ impl AgentControlClient {
         }
         let (ack, frames, abort) = subscribe_topic_frames(self, target, &params).await?;
         Ok(WorkspaceConfigFrameSubscription { ack, frames, abort })
+    }
+}
+
+/// `v4/conversation/unsubscribe` 方法名（与 TS `V4_METHODS.conversationUnsubscribe` 对齐）。
+pub const V4_CONVERSATION_UNSUBSCRIBE_METHOD: &str = "v4/conversation/unsubscribe";
+
+impl AgentControlClient {
+    /// 按 sessionId 建立会话帧订阅（topic=`conversation/<sessionId>`）。
+    ///
+    /// 连接身份（connectionId / clientMode）由调用方注入；宿主内部直调默认
+    /// `desktop-continuous`（与 TS `resolveV4Connection` 的 fallback 同口径）。
+    pub async fn subscribe_conversation_frames(
+        &self,
+        target: &AgentWorkspaceTarget,
+        session_id: &str,
+        connection_id: &str,
+        client_mode: V4ClientMode,
+        base: Option<SubscribeBase>,
+        visibility: Option<SubscribeVisibility>,
+    ) -> Result<ConversationFrameSubscription, ControlError> {
+        let params = ConversationSubscribeParams {
+            topic: format!("conversation/{session_id}"),
+            base,
+            visibility,
+            connection_id: connection_id.to_string(),
+            client_mode,
+            workspace: Some(session_workspace_ref(target)),
+            legacy_task_ids: None,
+            resume_thought_level: None,
+            workflow_run_deltas: None,
+        };
+        self.subscribe_conversation_v4(target, params).await
+    }
+
+    /// 退订：按 route 的 topic/subscriptionId/connectionId 发协议退订请求。
+    pub async fn unsubscribe_conversation_frames(
+        &self,
+        target: &AgentWorkspaceTarget,
+        topic: &str,
+        subscription_id: &str,
+        connection_id: &str,
+    ) -> Result<(), ControlError> {
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
+        let params = serde_json::json!({
+            "topic": topic,
+            "subscriptionId": subscription_id,
+            "connectionId": connection_id,
+        });
+        process
+            .client()
+            .request(V4_CONVERSATION_UNSUBSCRIBE_METHOD, Some(params))
+            .await?;
+        Ok(())
     }
 }
