@@ -19,8 +19,9 @@
 //! - 未接：hasActiveCuaOperationTurn（CUA 跟踪属 TS 服务层）、automation 十方法
 //!   （按决策 4 由 Renderer 分别调用两个 owner）、setConnectionFlowStateV4
 //!   （仅 trusted relay/facade 可调）、sendConversationCommandV4（信封需客户端
-//!   富化：灰度门禁/Bot/Browser 上下文）与 respondSessionRuntimePreferences
-//!   （反向请求需异步回复通道，当前 host 用 local 默认应答）与多数事件源；
+//!   富化：灰度门禁/Bot/Browser 上下文）与多数事件源；外部权威运行时偏好
+//!   反向请求已接（onDynamicSessionRuntimePreferencesRequest +
+//!   respondSessionRuntimePreferences，走 ReplyHandle 延迟应答）；
 //! - workflows 六方法已接（global 载体简化为「首个本地活跃 runtime → 管理面
 //!   workspace」，TS 的 reusable/stale 清理与 cancelPluginOperation（无 workspace、
 //!   需按 operationId 路由到持有 runtime）未接）；
@@ -51,8 +52,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use agent_process::{
-    AgentControlClient, AgentWorkspaceTarget, AppRuntimePreferences, ControlError,
-    GrantTrustResult, ListSessionsOptions, RuntimeIdentity, RuntimePolicy, StorageStartupSnapshot,
+    external_runtime_preferences_handler, AgentControlClient, AgentWorkspaceTarget,
+    AppRuntimePreferences, ControlError, GrantTrustResult, ListSessionsOptions,
+    PendingSessionRuntimePreferences, RuntimeIdentity, RuntimePolicy, RuntimePreferencesResolution,
+    StorageStartupSnapshot,
 };
 use agent_protocol::mcp::{McpListMode, McpListResult};
 use agent_protocol::message::{MessageModel, MessageWithParts};
@@ -111,6 +114,9 @@ pub const UNSUPPORTED_METHOD_CODE: &str = "unsupported_method";
 /// 事件名（TS IModeAgentService.onDynamicSessionEvent）。
 pub const SESSION_EVENT_LISTEN: &str = "onDynamicSessionEvent";
 
+/// 事件名（TS `IModeAgentService.onDynamicSessionRuntimePreferencesRequest`）。
+pub const SESSION_RUNTIME_PREFERENCES_LISTEN: &str = "onDynamicSessionRuntimePreferencesRequest";
+
 /// 事件名（TS `IModeAgentService.onAgentRuntimeRestarted`）。
 pub const AGENT_RUNTIME_RESTARTED_LISTEN: &str = "onAgentRuntimeRestarted";
 
@@ -133,6 +139,10 @@ pub struct ModeAgentChannel {
     /// 活跃订阅（subscriptionId -> route）与归属键索引。
     routes: Arc<Mutex<HashMap<String, V4Route>>>,
     route_owners: Arc<Mutex<HashMap<String, String>>>,
+    /// 外部权威运行时偏好请求：pending 回复句柄与监听器。
+    runtime_preferences_pending: Arc<PendingSessionRuntimePreferences>,
+    runtime_preferences_listeners: Arc<Mutex<Vec<rpc_host::EventCallback>>>,
+    runtime_preferences_handler_installed: Arc<Mutex<bool>>,
 }
 
 impl ModeAgentChannel {
@@ -145,6 +155,9 @@ impl ModeAgentChannel {
             workspace_config_listeners: Arc::new(Mutex::new(HashMap::new())),
             routes: Arc::new(Mutex::new(HashMap::new())),
             route_owners: Arc::new(Mutex::new(HashMap::new())),
+            runtime_preferences_pending: PendingSessionRuntimePreferences::new(),
+            runtime_preferences_listeners: Arc::new(Mutex::new(Vec::new())),
+            runtime_preferences_handler_installed: Arc::new(Mutex::new(false)),
         }
     }
 }
@@ -315,6 +328,7 @@ impl ServerChannel for ModeAgentChannel {
         let workspace_config_listeners_handle = Arc::clone(&self.workspace_config_listeners);
         let routes_handle = Arc::clone(&self.routes);
         let route_owners_handle = Arc::clone(&self.route_owners);
+        let runtime_preferences_pending = Arc::clone(&self.runtime_preferences_pending);
         Box::pin(async move {
             match command.as_str() {
                 "listSessions" => {
@@ -1783,6 +1797,22 @@ impl ServerChannel for ModeAgentChannel {
                         .map_err(control_error)?;
                     json_value(&result)
                 }
+                "respondSessionRuntimePreferences" => {
+                    let params: RespondRuntimePreferencesParams =
+                        parse_params("respondSessionRuntimePreferences", arg)?;
+                    let resolution = match params.resolution {
+                        RuntimePreferencesResolutionParams::Resolved { preferences } => {
+                            RuntimePreferencesResolution::Resolved(preferences)
+                        }
+                        RuntimePreferencesResolutionParams::Failed { message } => {
+                            RuntimePreferencesResolution::Failed(message)
+                        }
+                    };
+                    runtime_preferences_pending
+                        .respond(&params.request_id, resolution)
+                        .map_err(ChannelError::error)?;
+                    Ok(Value::Undefined)
+                }
                 other => Err(unsupported(other)),
             }
         })
@@ -1912,6 +1942,64 @@ impl ServerChannel for ModeAgentChannel {
             });
             return Ok(Box::new(move || {
                 stop.store(true, std::sync::atomic::Ordering::SeqCst);
+            }));
+        }
+        if event == SESSION_RUNTIME_PREFERENCES_LISTEN {
+            let listeners = Arc::clone(&self.runtime_preferences_listeners);
+            let callback: rpc_host::EventCallback = Arc::new(move |value| emit(value));
+            listeners
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner())
+                .push(Arc::clone(&callback));
+            let installed = Arc::clone(&self.runtime_preferences_handler_installed);
+            let mut was_installed = installed
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            if !*was_installed {
+                let pending = Arc::clone(&self.runtime_preferences_pending);
+                let forward_listeners = Arc::clone(&listeners);
+                let handler = external_runtime_preferences_handler(pending, move |payload| {
+                    let callbacks = forward_listeners
+                        .lock()
+                        .unwrap_or_else(|poison| poison.into_inner())
+                        .clone();
+                    if callbacks.is_empty() {
+                        return false;
+                    }
+                    let text = payload.to_string();
+                    for callback in callbacks {
+                        callback(Value::Json(text.clone()));
+                    }
+                    true
+                });
+                self.control.set_request_handler(handler);
+                *was_installed = true;
+            }
+            drop(was_installed);
+            let control = Arc::clone(&self.control);
+            let listeners_for_dispose = Arc::clone(&listeners);
+            let installed_for_dispose = Arc::clone(&installed);
+            return Ok(Box::new(move || {
+                let mut callbacks = listeners_for_dispose
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner());
+                if let Some(index) = callbacks
+                    .iter()
+                    .position(|candidate| Arc::ptr_eq(candidate, &callback))
+                {
+                    callbacks.remove(index);
+                }
+                let empty = callbacks.is_empty();
+                drop(callbacks);
+                if empty {
+                    let mut installed = installed_for_dispose
+                        .lock()
+                        .unwrap_or_else(|poison| poison.into_inner());
+                    if *installed {
+                        control.clear_request_handler();
+                        *installed = false;
+                    }
+                }
             }));
         }
         if event == AGENT_RUNTIME_RESTARTED_LISTEN {
@@ -2990,6 +3078,25 @@ struct CancelPluginOperationParams {
 #[serde(rename_all = "camelCase")]
 struct PluginOperationProgressListenParams {
     operation_id: String,
+}
+
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RespondRuntimePreferencesParams {
+    request_id: String,
+    resolution: RuntimePreferencesResolutionParams,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "status", rename_all = "lowercase")]
+enum RuntimePreferencesResolutionParams {
+    Resolved {
+        preferences: agent_protocol::session::RuntimePreferencesResult,
+    },
+    Failed {
+        message: String,
+    },
 }
 
 fn not_owned() -> ChannelError {

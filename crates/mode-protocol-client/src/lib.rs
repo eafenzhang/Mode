@@ -92,16 +92,41 @@ impl Default for ClientOptions {
     }
 }
 
-/// 入站请求的应答：成功结果、显式错误（如 `-32602`）或未处理（回 `-32601`）。
+/// 入站请求的应答：成功结果、显式错误（如 `-32602`）、未处理（回 `-32601`）
+/// 或延迟应答（由 [`ReplyHandle`] 稍后回复）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum RequestReply {
     Result(Value),
     Error { code: i64, message: String },
     NotHandled,
+    Deferred,
 }
 
-/// 入站请求处理器。
-pub type RequestHandler = Arc<dyn Fn(&Value) -> RequestReply + Send + Sync>;
+/// 延迟应答句柄：可在任意线程回复一次；重复调用被忽略。
+#[derive(Clone)]
+pub struct ReplyHandle {
+    shared: Arc<Shared>,
+    id: RequestId,
+    replied: Arc<AtomicBool>,
+}
+
+impl ReplyHandle {
+    pub fn respond(&self, reply: RequestReply) {
+        if matches!(reply, RequestReply::Deferred) {
+            return;
+        }
+        if self.replied.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let frame = reply_frame(&self.id, reply);
+        if let Err(error) = self.shared.send_frame(frame) {
+            self.shared.close_with(error);
+        }
+    }
+}
+
+/// 入站请求处理器；返回 `Deferred` 时必须通过 `ReplyHandle` 回复。
+pub type RequestHandler = Arc<dyn Fn(&Value, ReplyHandle) -> RequestReply + Send + Sync>;
 
 type Pending = Mutex<HashMap<RequestId, oneshot::Sender<Result<Value, ClientError>>>>;
 
@@ -473,33 +498,50 @@ fn handle_inbound(shared: &Arc<Shared>, value: Value) {
     ));
 }
 
+fn reply_frame(id: &RequestId, reply: RequestReply) -> Value {
+    match reply {
+        RequestReply::Result(result) => json!({ "id": id.to_value(), "result": result }),
+        RequestReply::Error { code, message } => json!({
+            "id": id.to_value(),
+            "error": { "code": code, "message": message }
+        }),
+        RequestReply::NotHandled => json!({
+            "id": id.to_value(),
+            "error": { "code": -32601, "message": "Method not found" }
+        }),
+        RequestReply::Deferred => json!({
+            "id": id.to_value(),
+            "error": { "code": -32603, "message": "Deferred reply missing" }
+        }),
+    }
+}
+
 fn respond_to_request(shared: &Arc<Shared>, id: &RequestId, method: &str, params: Option<&Value>) {
     let handler = shared
         .request_handler
         .lock()
         .expect("handler poisoned")
         .clone();
-    let reply = handler.map(|handler| {
-        let request = json!({
-            "id": id.to_value(),
-            "method": method,
-            "params": params.cloned().unwrap_or(Value::Null),
-        });
-        handler(&request)
-    });
-    let frame = match reply {
-        Some(RequestReply::Result(result)) => json!({ "id": id.to_value(), "result": result }),
-        Some(RequestReply::Error { code, message }) => json!({
-            "id": id.to_value(),
-            "error": { "code": code, "message": message }
-        }),
-        Some(RequestReply::NotHandled) | None => json!({
-            "id": id.to_value(),
-            "error": { "code": -32601, "message": "Method not found" }
-        }),
+    let Some(handler) = handler else {
+        let frame = reply_frame(id, RequestReply::NotHandled);
+        if let Err(error) = shared.send_frame(frame) {
+            shared.close_with(error);
+        }
+        return;
     };
-    if let Err(error) = shared.send_frame(frame) {
-        shared.close_with(error);
+    let request = json!({
+        "id": id.to_value(),
+        "method": method,
+        "params": params.cloned().unwrap_or(Value::Null),
+    });
+    let handle = ReplyHandle {
+        shared: Arc::clone(shared),
+        id: id.clone(),
+        replied: Arc::new(AtomicBool::new(false)),
+    };
+    let reply = handler(&request, handle.clone());
+    if !matches!(reply, RequestReply::Deferred) {
+        handle.respond(reply);
     }
 }
 
@@ -535,6 +577,42 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result["accepted"], true);
+        server.await.unwrap();
+        client.dispose();
+    }
+
+    #[tokio::test]
+    async fn deferred_request_reply_is_sent_when_handle_responds() {
+        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+        let (client_read, client_write) = tokio::io::split(client_io);
+        let (server_read, mut server_write) = tokio::io::split(server_io);
+        let client = ProtocolClient::connect(client_read, client_write, ClientOptions::default());
+        let (handle_tx, handle_rx) = tokio::sync::oneshot::channel();
+        let handle_tx = std::sync::Mutex::new(Some(handle_tx));
+        client.set_request_handler(Arc::new(move |_request: &Value, reply: ReplyHandle| {
+            let _ = handle_tx
+                .lock()
+                .expect("handle poisoned")
+                .take()
+                .expect("single deferred reply")
+                .send(reply);
+            RequestReply::Deferred
+        }));
+
+        let server = tokio::spawn(async move {
+            let mut reader = BufReader::new(server_read);
+            let mut line = Vec::new();
+            server_write
+                .write_all(b"{\"id\":\"srv-d\",\"method\":\"interaction/ask\",\"params\":{}}\n")
+                .await
+                .unwrap();
+            reader.read_until(b'\n', &mut line).await.unwrap();
+            let response: Value = serde_json::from_slice(&line[..line.len() - 1]).unwrap();
+            assert_eq!(response["result"]["answer"], 7);
+        });
+
+        let handle = handle_rx.await.expect("deferred handle");
+        handle.respond(RequestReply::Result(json!({ "answer": 7 })));
         server.await.unwrap();
         client.dispose();
     }
@@ -579,7 +657,7 @@ mod tests {
         let (server_read, mut server_write) = tokio::io::split(server_io);
         let client = ProtocolClient::connect(client_read, client_write, ClientOptions::default());
         let mut notifications = client.subscribe_notifications();
-        client.set_request_handler(Arc::new(|request: &Value| {
+        client.set_request_handler(Arc::new(|request: &Value, _reply: ReplyHandle| {
             assert_eq!(request["method"], "interaction/ask");
             RequestReply::Result(json!({ "answer": 42 }))
         }));

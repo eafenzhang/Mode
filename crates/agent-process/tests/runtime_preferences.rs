@@ -6,7 +6,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use agent_process::{
-    default_runtime_preferences, default_runtime_preferences_handler, runtime_preferences_handler,
+    default_runtime_preferences, default_runtime_preferences_handler,
+    external_runtime_preferences_handler, runtime_preferences_reply,
+    PendingSessionRuntimePreferences, RuntimePreferencesResolution,
     AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, AgentWorkspaceTarget,
     ListSessionsOptions, SpecFactory, SESSION_REQUEST_RUNTIME_PREFERENCES_METHOD,
 };
@@ -69,16 +71,16 @@ fn registry(mode: &str, log: &FrameLog, spawns: Arc<AtomicUsize>) -> AgentRuntim
 
 #[test]
 fn handler_answers_default_preferences_and_rejects_bad_params() {
-    let handler = runtime_preferences_handler(|scope| {
+    let resolve = |scope| {
         assert_eq!(scope, RuntimePreferencesScope::UserExecution);
         Ok(default_runtime_preferences())
-    });
+    };
 
-    let reply = handler(&json!({
+    let reply = runtime_preferences_reply(&json!({
         "id": "server-1",
         "method": SESSION_REQUEST_RUNTIME_PREFERENCES_METHOD,
         "params": { "sessionId": "sess-1", "scope": "user-execution" }
-    }));
+    }), &resolve);
     match reply {
         RequestReply::Result(value) => {
             assert_eq!(value["nativeSearchEnhancementsEnabled"], true);
@@ -88,17 +90,20 @@ fn handler_answers_default_preferences_and_rejects_bad_params() {
         other => panic!("unexpected reply: {other:?}"),
     }
 
-    let reply = handler(&json!({
+    let reply = runtime_preferences_reply(&json!({
         "id": "server-1",
         "method": SESSION_REQUEST_RUNTIME_PREFERENCES_METHOD,
         "params": { "sessionId": "sess-1", "scope": "bogus" }
-    }));
+    }), &resolve);
     match reply {
         RequestReply::Error { code, .. } => assert_eq!(code, -32602),
         other => panic!("unexpected reply: {other:?}"),
     }
 
-    let reply = handler(&json!({ "id": "server-1", "method": "other/method", "params": {} }));
+    let reply = runtime_preferences_reply(
+        &json!({ "id": "server-1", "method": "other/method", "params": {} }),
+        &resolve,
+    );
     assert_eq!(reply, RequestReply::NotHandled);
 }
 
@@ -168,6 +173,48 @@ async fn handler_set_after_spawn_applies_to_existing_process() {
         .unwrap();
 
     let reply = log.reply().expect("已有进程也必须挂上新处理器");
+    assert_eq!(reply["result"]["nativeSearchEnhancementsEnabled"], true);
+    registry.shutdown_all(Duration::from_secs(3)).await;
+}
+
+#[tokio::test]
+async fn external_handler_waits_for_respond() {
+    let log = FrameLog::new("external");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let registry = Arc::new(registry("reverse-runtime-preferences", &log, spawns));
+    let pending = PendingSessionRuntimePreferences::new();
+    let (payload_tx, mut payload_rx) = tokio::sync::mpsc::unbounded_channel();
+    registry.set_request_handler(Some(external_runtime_preferences_handler(
+        std::sync::Arc::clone(&pending),
+        move |payload| {
+            let _ = payload_tx.send(payload);
+            true
+        },
+    )));
+    let control = AgentControlClient::new(std::sync::Arc::clone(&registry));
+    let list = tokio::spawn({
+        let control = std::sync::Arc::new(control);
+        async move {
+            control
+                .list_sessions(
+                    &AgentWorkspaceTarget::new("/ws/demo"),
+                    ListSessionsOptions::default(),
+                )
+                .await
+        }
+    });
+
+    let payload = payload_rx.recv().await.expect("renderer 必须收到请求");
+    let request_id = payload["requestId"].as_str().expect("requestId").to_owned();
+    pending
+        .respond(
+            &request_id,
+            RuntimePreferencesResolution::Resolved(default_runtime_preferences()),
+        )
+        .unwrap();
+    list.await.unwrap().unwrap();
+
+    let reply = log.reply().expect("必须收到反向请求的应答");
     assert_eq!(reply["result"]["nativeSearchEnhancementsEnabled"], true);
     registry.shutdown_all(Duration::from_secs(3)).await;
 }

@@ -871,3 +871,36 @@ async fn agent_runtime_restarted_listen_registers_and_disposes() {
         .expect("注册重启事件");
     subscription();
 }
+
+#[tokio::test]
+async fn session_runtime_preferences_listen_registers_and_disposes() {
+    let channel = channel();
+    let subscription = channel
+        .listen(
+            "ctx".into(),
+            "onDynamicSessionRuntimePreferencesRequest".into(),
+            Value::Undefined,
+            std::sync::Arc::new(|_| {}),
+        )
+        .expect("注册运行时偏好请求监听");
+    subscription();
+}
+
+#[tokio::test]
+async fn respond_session_runtime_preferences_without_pending_is_rejected() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "respondSessionRuntimePreferences",
+        object_arg(
+            r#"{"requestId":"missing","resolution":{"status":"failed","message":"boom"}}"#,
+        ),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("无 pending");
+    assert!(
+        message(&error).contains("request not found"),
+        "{error:?}"
+    );
+}

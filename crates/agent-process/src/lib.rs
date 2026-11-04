@@ -59,7 +59,9 @@ pub use resolve::{
     ResolvedAgentCommand,
 };
 pub use runtime_preferences::{
-    default_runtime_preferences, default_runtime_preferences_handler, runtime_preferences_handler,
+    default_runtime_preferences, default_runtime_preferences_handler,
+    external_runtime_preferences_handler, runtime_preferences_handler, runtime_preferences_reply,
+    PendingSessionRuntimePreferences, RuntimePreferencesResolution,
     SESSION_REQUEST_RUNTIME_PREFERENCES_METHOD,
 };
 pub use session_events::{SessionSubscription, SESSION_EVENT_NOTIFICATION};

@@ -295,6 +295,15 @@ impl AgentControlClient {
     }
 
     /// 存储启动：拉起（如需）并等待 `startup/storageState` 到 `ready`。
+    /// 安装/清除入站反向请求处理器（对所有现有与后续 runtime 生效）。
+    pub fn set_request_handler(&self, handler: mode_protocol_client::RequestHandler) {
+        self.registry.set_request_handler(Some(handler));
+    }
+
+    pub fn clear_request_handler(&self) {
+        self.registry.set_request_handler(None);
+    }
+
     /// 订阅 runtime 换代事件（`onAgentRuntimeRestarted`）。
     pub fn on_runtime_restarted(
         &self,
