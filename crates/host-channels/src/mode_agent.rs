@@ -13,6 +13,9 @@
 //! - `disposeWorkspace` 的等待中 provider-ready continuation / v4 订阅路由 /
 //!   CUA 轮次跟踪清理属服务层；
 //! - `listMcpServerStatuses` 不做 TS 的 `unrecognized_keys` 兼容重试；
+//! - plugins 首批只覆盖 list/overview/describe/setEnabled/install/uninstall/
+//!   update/configure/validate/referenceCatalog；restoreBuiltin/resetConfig/
+//!   cancelOperation/marketplace 增删改与 suggested 引用解析未接线；
 //! - `sendPrompt` 不做 TS 的 `unrecognized_keys` 兼容重试，且缺少
 //!   browserAmbientContext 的 executor 收集（TS 缺省时主动采集）；
 //! - 事件订阅首批只桥 `session.event` 与 `snapshot`：TS 聚合的 `state.updated` /
@@ -26,6 +29,11 @@ use agent_process::{
 };
 use agent_protocol::mcp::{McpListMode, McpListResult};
 use agent_protocol::message::{MessageModel, MessageWithParts};
+use agent_protocol::plugin::{
+    PluginScope, PluginsConfigureResult, PluginsDescribeResult, PluginsInstallResult,
+    PluginsListResult, PluginsOverviewResult, PluginsReferenceCatalogResult,
+    PluginsSetEnabledResult, PluginsUninstallResult, PluginsValidateResult,
+};
 use agent_protocol::session::{SessionSendParams, SessionSendResult, WorkspaceRef};
 use agent_protocol::session_create::McpServer;
 use agent_protocol::session_debug::SessionDebugSnapshot;
@@ -454,6 +462,129 @@ impl ServerChannel for ModeAgentChannel {
                         .map_err(control_error)?;
                     json_value(&result)
                 }
+                "listPlugins" => {
+                    let params: PluginViewParams = parse_params("listPlugins", arg)?;
+                    let result: PluginsListResult = control
+                        .list_plugins(&params.workspace.target(), params.config_scope)
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "getPluginsOverview" => {
+                    let params: PluginViewParams = parse_params("getPluginsOverview", arg)?;
+                    let result: PluginsOverviewResult = control
+                        .get_plugins_overview(&params.workspace.target(), params.config_scope)
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "describePlugin" => {
+                    let params: DescribePluginParams = parse_params("describePlugin", arg)?;
+                    let result: PluginsDescribeResult = control
+                        .describe_plugin(
+                            &params.workspace.target(),
+                            &params.marketplace,
+                            &params.plugin_name,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "setPluginEnabled" => {
+                    let params: SetPluginEnabledParams = parse_params("setPluginEnabled", arg)?;
+                    let result: PluginsSetEnabledResult = control
+                        .set_plugin_enabled(
+                            &params.workspace.target(),
+                            &params.plugin_id,
+                            params.enabled,
+                            params.operation_id.as_deref(),
+                            params.scope,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "installPlugin" => {
+                    let params: InstallPluginParams = parse_params("installPlugin", arg)?;
+                    let result: PluginsInstallResult = control
+                        .install_plugin(
+                            &params.workspace.target(),
+                            &params.plugin_name,
+                            &params.marketplace,
+                            params.scope,
+                            params.dry_run,
+                            params.operation_id.as_deref(),
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "uninstallPlugin" => {
+                    let params: UninstallPluginParams = parse_params("uninstallPlugin", arg)?;
+                    let result: PluginsUninstallResult = control
+                        .uninstall_plugin(
+                            &params.workspace.target(),
+                            params.plugin_id.as_deref(),
+                            params.plugin_name.as_deref(),
+                            params.marketplace.as_deref(),
+                            params.remove_cache,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "updatePlugin" => {
+                    let params: UpdatePluginParams = parse_params("updatePlugin", arg)?;
+                    let result: PluginsInstallResult = control
+                        .update_plugin(
+                            &params.workspace.target(),
+                            params.plugin_id.as_deref(),
+                            params.marketplace.as_deref(),
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "configurePlugin" => {
+                    let params: ConfigurePluginParams = parse_params("configurePlugin", arg)?;
+                    let result: PluginsConfigureResult = control
+                        .configure_plugin(
+                            &params.workspace.target(),
+                            &params.plugin_id,
+                            params.options,
+                            params.clear_option_keys,
+                            params.scope,
+                            params.dry_run,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "validatePlugin" => {
+                    let params: ValidatePluginParams = parse_params("validatePlugin", arg)?;
+                    let result: PluginsValidateResult = control
+                        .validate_plugin(
+                            &params.workspace.target(),
+                            params.plugin_name.as_deref(),
+                            params.marketplace.as_deref(),
+                            params.source.as_deref(),
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "getPluginReferenceCatalog" => {
+                    let params: PluginReferenceCatalogParams =
+                        parse_params("getPluginReferenceCatalog", arg)?;
+                    let result: PluginsReferenceCatalogResult = control
+                        .plugin_reference_catalog(
+                            &params.workspace.target(),
+                            params.session_id.as_deref(),
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
                 other => Err(unsupported(other)),
             }
         })
@@ -831,4 +962,113 @@ mod tests {
         assert_eq!(wire.thought_level.as_deref(), Some("high"));
         assert_eq!(wire.off_peak_tool_enabled, None);
     }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PluginViewParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    #[serde(default)]
+    config_scope: Option<PluginScope>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DescribePluginParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    marketplace: String,
+    plugin_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetPluginEnabledParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    plugin_id: String,
+    enabled: bool,
+    #[serde(default)]
+    operation_id: Option<String>,
+    #[serde(default)]
+    scope: Option<PluginScope>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InstallPluginParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    #[serde(default)]
+    dry_run: Option<bool>,
+    marketplace: String,
+    #[serde(default)]
+    operation_id: Option<String>,
+    plugin_name: String,
+    #[serde(default)]
+    scope: Option<PluginScope>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UninstallPluginParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    #[serde(default)]
+    marketplace: Option<String>,
+    #[serde(default)]
+    plugin_id: Option<String>,
+    #[serde(default)]
+    plugin_name: Option<String>,
+    #[serde(default)]
+    remove_cache: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdatePluginParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    #[serde(default)]
+    plugin_id: Option<String>,
+    #[serde(default)]
+    marketplace: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConfigurePluginParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    #[serde(default)]
+    clear_option_keys: Option<Vec<String>>,
+    #[serde(default)]
+    dry_run: Option<bool>,
+    options: std::collections::BTreeMap<String, serde_json::Value>,
+    plugin_id: String,
+    #[serde(default)]
+    scope: Option<PluginScope>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ValidatePluginParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    #[serde(default)]
+    marketplace: Option<String>,
+    #[serde(default)]
+    plugin_name: Option<String>,
+    #[serde(default)]
+    source: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PluginReferenceCatalogParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    #[serde(default)]
+    session_id: Option<String>,
 }

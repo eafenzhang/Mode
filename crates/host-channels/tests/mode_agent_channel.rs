@@ -192,3 +192,35 @@ async fn send_prompt_rejects_automation_and_offpeak_together() {
     // 组合约束在 client_for 之前校验：不会拉起 runtime，错误直达调用方。
     assert!(message(&error).contains("mutually exclusive"), "{error:?}");
 }
+
+#[tokio::test]
+async fn describe_plugin_requires_marketplace_and_name() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "describePlugin",
+        object_arg(r#"{"workspacePath":"D:/ws"}"#),
+    )
+    .await
+    .expect_err("缺 marketplace/pluginName");
+    assert!(
+        message(&error).contains("invalid describePlugin request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn configure_plugin_requires_options_object() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "configurePlugin",
+        object_arg(r#"{"workspacePath":"D:/ws","pluginId":"p1","options":"nope"}"#),
+    )
+    .await
+    .expect_err("options 非对象");
+    assert!(
+        message(&error).contains("invalid configurePlugin request"),
+        "{error:?}"
+    );
+}
