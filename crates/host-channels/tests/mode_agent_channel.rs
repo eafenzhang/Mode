@@ -259,3 +259,47 @@ async fn move_saved_workflow_requires_workspace() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn runtime_identity_unavailable_matches_ts_message() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "getWorkspaceRuntimeIdentity",
+        object_arg(r#"{"workspacePath":"D:/ws"}"#),
+    )
+    .await
+    .expect_err("无 runtime");
+    assert!(
+        message(&error).contains("Mode agent runtime identity is unavailable."),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn sync_app_runtime_preferences_requires_flag() {
+    let channel = channel();
+    let error = call(&channel, "syncAppRuntimePreferences", object_arg(r#"{}"#))
+        .await
+        .expect_err("缺 askUserQuestionAutoResolutionEnabled");
+    assert!(
+        message(&error).contains("invalid syncAppRuntimePreferences request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn grant_workspace_hook_trust_requires_digests() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "grantWorkspaceHookTrust",
+        object_arg(r#"{"workspacePath":"D:/ws"}"#),
+    )
+    .await
+    .expect_err("缺 digest");
+    assert!(
+        message(&error).contains("invalid grantWorkspaceHookTrust request"),
+        "{error:?}"
+    );
+}

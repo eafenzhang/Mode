@@ -54,7 +54,8 @@ struct Entry {
     target: WorkspaceTarget,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StorageStartupSnapshot {
     pub generation: u64,
     pub state: Option<StorageStartupState>,
@@ -90,7 +91,8 @@ pub struct RuntimeHealth {
 ///
 /// `identity` 与 TS `ModeAgentRuntimeIdentity.identity` 同构：
 /// `${workspaceKey}:${generation}:${pid}`（Rust 侧没有 lane 维度）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RuntimeIdentity {
     pub generation: u64,
     pub identity: String,

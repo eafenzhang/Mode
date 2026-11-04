@@ -80,7 +80,8 @@ pub enum GrantTrustReasonCode {
     WorkspaceHooksConfigUnreadable,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GrantTrustResult {
     pub accepted: bool,
     pub reason_code: Option<GrantTrustReasonCode>,

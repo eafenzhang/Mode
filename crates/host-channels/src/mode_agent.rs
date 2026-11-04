@@ -13,6 +13,14 @@
 //! - `disposeWorkspace` 的等待中 provider-ready continuation / v4 订阅路由 /
 //!   CUA 轮次跟踪清理属服务层；
 //! - `listMcpServerStatuses` 不做 TS 的 `unrecognized_keys` 兼容重试；
+//! - 已接：getStorageStartupState/getWorkspaceRuntimeIdentity/syncAppRuntimePreferences/
+//!   closeSession/grantWorkspaceHookTrust/resolveSuggestedPluginReference/
+//!   getSkillReferenceCatalog/readWorkspacePresentation/disposeAll；
+//! - 未接：collectLocalRuntimeChildProcesses（宿主进程面）、cancelPluginOperation
+//!   （无 workspace，需 operationId 路由）、hasActiveCuaOperationTurn（CUA 跟踪属
+//!   TS 服务层）、getAppUsageStats/getTaskTokenUsage（agent 数据库统计）、automation
+//!   十方法（按决策 4 由 Renderer 分别调用两个 owner）与多数事件源（进程采样 /
+//!   v4 帧 / runtime 偏好请求 / CUA 观察）；
 //! - workflows 六方法已接（global 载体简化为「首个本地活跃 runtime → 管理面
 //!   workspace」，TS 的 reusable/stale 清理与 cancelPluginOperation（无 workspace、
 //!   需按 operationId 路由到持有 runtime）未接）；
@@ -28,15 +36,17 @@
 use std::sync::Arc;
 
 use agent_process::{
-    AgentControlClient, AgentWorkspaceTarget, ControlError, ListSessionsOptions, RuntimePolicy,
+    AgentControlClient, AgentWorkspaceTarget, AppRuntimePreferences, ControlError,
+    GrantTrustResult, ListSessionsOptions, RuntimeIdentity, RuntimePolicy, StorageStartupSnapshot,
 };
 use agent_protocol::mcp::{McpListMode, McpListResult};
 use agent_protocol::message::{MessageModel, MessageWithParts};
 use agent_protocol::plugin::{
-    PluginScope, PluginsConfigureResult, PluginsDescribeResult, PluginsInstallResult,
-    PluginsListResult, PluginsMarketplaceMutationResult, PluginsOverviewResult,
-    PluginsReferenceCatalogResult, PluginsRestoreBuiltinResult, PluginsSetEnabledResult,
-    PluginsUninstallResult, PluginsValidateResult,
+    PluginDeliveryKind, PluginScope, PluginsConfigureResult, PluginsDescribeResult,
+    PluginsInstallResult, PluginsListResult, PluginsMarketplaceMutationResult,
+    PluginsOverviewResult, PluginsReferenceCatalogResult, PluginsResolveSuggestedReferenceResult,
+    PluginsRestoreBuiltinResult, PluginsSetEnabledResult, PluginsUninstallResult,
+    PluginsValidateResult,
 };
 use agent_protocol::session::{SessionSendParams, SessionSendResult, WorkspaceRef};
 use agent_protocol::session_create::McpServer;
@@ -47,14 +57,16 @@ use agent_protocol::session_send::{
     BotDeliveryTarget, BrowserAmbientContext, ModelExecution, OffPeakRunType,
 };
 use agent_protocol::session_write::{
-    SessionCompactResult, SessionGoalAction, SessionGoalResult, SessionResumeParams,
-    SessionSetModeParams, SessionSetModelParams, SessionSetThoughtLevelParams,
+    SessionCompactResult, SessionGoalAction, SessionGoalResult, SessionPersistence,
+    SessionResumeParams, SessionSetModeParams, SessionSetModelParams, SessionSetThoughtLevelParams,
 };
+use agent_protocol::skills::SkillsReferenceCatalogResult;
 use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
 use agent_protocol::workflow::{
     SavedWorkflowMeta, SavedWorkflowScope, WorkflowsDeleteResult, WorkflowsGetResult,
     WorkflowsListResult, WorkflowsMoveResult, WorkflowsRunsResult, WorkflowsUpdateMetaResult,
 };
+use agent_protocol::workspace::WorkspacePresentation;
 use rpc_host::{BoxFuture, CancellationToken, ChannelError, ServerChannel};
 use rpc_wire::Value;
 use serde::Deserialize;
@@ -722,6 +734,104 @@ impl ServerChannel for ModeAgentChannel {
                         .map_err(control_error)?;
                     json_value(&result)
                 }
+                "getStorageStartupState" => {
+                    let params: WorkspaceParams = parse_params("getStorageStartupState", arg)?;
+                    let snapshot: Option<StorageStartupSnapshot> =
+                        control.storage_startup_state(&params.target());
+                    match snapshot {
+                        Some(snapshot) => json_value(&snapshot),
+                        None => Ok(Value::Json("null".to_string())),
+                    }
+                }
+                "getWorkspaceRuntimeIdentity" => {
+                    let params: WorkspaceParams = parse_params("getWorkspaceRuntimeIdentity", arg)?;
+                    let identity: Option<RuntimeIdentity> =
+                        control.runtime_identity(&params.target());
+                    match identity {
+                        Some(identity) => json_value(&identity),
+                        // TS 在无 runtime 时抛同文案。
+                        None => Err(ChannelError::error(
+                            "Mode agent runtime identity is unavailable.",
+                        )),
+                    }
+                }
+                "syncAppRuntimePreferences" => {
+                    let params: AppPreferencesParams =
+                        parse_params("syncAppRuntimePreferences", arg)?;
+                    control
+                        .sync_app_runtime_preferences(AppRuntimePreferences {
+                            ask_user_question_auto_resolution_enabled: params
+                                .ask_user_question_auto_resolution_enabled,
+                            model_io_full_retention_enabled: params.model_io_full_retention_enabled,
+                        })
+                        .await
+                        .map_err(control_error)?;
+                    Ok(Value::Undefined)
+                }
+                "closeSession" => {
+                    let params: CloseSessionParams = parse_params("closeSession", arg)?;
+                    let closed = control
+                        .close_session(
+                            &params.workspace.target(),
+                            &params.session_id,
+                            params.expected_persistence,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    Ok(json_text(serde_json::json!(closed)))
+                }
+                "grantWorkspaceHookTrust" => {
+                    let params: GrantHookTrustParams =
+                        parse_params("grantWorkspaceHookTrust", arg)?;
+                    let result: GrantTrustResult = control
+                        .grant_workspace_hook_trust(
+                            &params.workspace.target(),
+                            &params.bundle_digest,
+                            &params.hook_declaration_digest,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "resolveSuggestedPluginReference" => {
+                    let params: ResolveSuggestedParams =
+                        parse_params("resolveSuggestedPluginReference", arg)?;
+                    let result: PluginsResolveSuggestedReferenceResult = control
+                        .resolve_suggested_plugin_reference(
+                            &params.workspace.target(),
+                            &params.stable_id,
+                            &params.operation_id,
+                            params.client_mode,
+                            params.delivery_kind,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "getSkillReferenceCatalog" => {
+                    let params: PluginReferenceCatalogParams =
+                        parse_params("getSkillReferenceCatalog", arg)?;
+                    let result: SkillsReferenceCatalogResult = control
+                        .skill_reference_catalog(
+                            &params.workspace.target(),
+                            params.session_id.as_deref(),
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "readWorkspacePresentation" => {
+                    let params: WorkspaceParams = parse_params("readWorkspacePresentation", arg)?;
+                    let result: WorkspacePresentation = control
+                        .read_workspace_presentation(&params.target())
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "disposeAll" => {
+                    control.dispose_all(DISPOSE_GRACE).await;
+                    Ok(Value::Undefined)
+                }
                 other => Err(unsupported(other)),
             }
         })
@@ -1338,4 +1448,42 @@ fn self_carrier_target(
     }
     let _ = std::fs::create_dir_all(management_workspace);
     AgentWorkspaceTarget::new(management_workspace.to_string_lossy().into_owned())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AppPreferencesParams {
+    ask_user_question_auto_resolution_enabled: bool,
+    #[serde(default)]
+    model_io_full_retention_enabled: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CloseSessionParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    #[serde(default)]
+    expected_persistence: Option<SessionPersistence>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GrantHookTrustParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    bundle_digest: String,
+    hook_declaration_digest: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResolveSuggestedParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    stable_id: String,
+    operation_id: String,
+    client_mode: PluginDeliveryKind,
+    delivery_kind: PluginDeliveryKind,
 }
