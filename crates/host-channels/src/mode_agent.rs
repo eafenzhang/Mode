@@ -17,14 +17,14 @@
 //!   closeSession/grantWorkspaceHookTrust/resolveSuggestedPluginReference/
 //!   getSkillReferenceCatalog/readWorkspacePresentation/disposeAll；
 //! - 未接：automation 十方法（按决策 4 由 Renderer 分别调用两个 owner）、
-//!   setConnectionFlowStateV4（仅 trusted relay/facade 可调）、
 //!   sendConversationCommandV4（信封需客户端富化：灰度门禁/Bot/Browser 上下文）；
 //!   provider/account 两个网络方法按决策 2 保持显式 unsupported；
 //! - 已接事件面：onAgentRuntimeRestarted、onDynamicPluginOperationProgress、
 //!   onDynamicSessionRuntimePreferencesRequest + respondSessionRuntimePreferences
 //!   （ReplyHandle 延迟应答）、process 遥测四类、onDynamicConversationTelemetryFact、
 //!   onDynamicCuaPermissionObservation、onDynamicLocalTtftFacts（空事件）与
-//!   hasActiveCuaOperationTurn；
+//!   hasActiveCuaOperationTurn；setConnectionFlowStateV4 也已接（连接身份注入
+//!   rust-inprocess）；
 //! - workflows 六方法已接（global 载体简化为「首个本地活跃 runtime → 管理面
 //!   workspace」，TS 的 reusable/stale 清理与 cancelPluginOperation（无 workspace、
 //!   需按 operationId 路由到持有 runtime）未接）；
@@ -89,7 +89,7 @@ use agent_protocol::v4_queries::{
     AttachmentPreviewSourceKind, AttachmentPreviewSourceParams, AttachmentReadParams,
     AttachmentTerminalParams, BackgroundBashOutputParams, ConversationAttachmentReadParams,
     ConversationAttachmentStatParams, ConversationResyncParams, ConversationRowTarget,
-    ConversationUsageParams,
+    ConnectionFlowParams, ConnectionFlowState, ConversationUsageParams,
     FileChangesParams, FileRewindPreviewParams, PlansParams, ResyncBase, RowsRangeParams,
     WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams, WorkflowRunArtifactsParams,
     UsageStatsParams, WorkflowRunEventsParams, WorkflowRunNodeResultParams,
@@ -1848,6 +1848,23 @@ impl ServerChannel for ModeAgentChannel {
                 "hasActiveCuaOperationTurn" => {
                     json_value(&control.has_active_cua_operation_turn())
                 }
+                "setConnectionFlowStateV4" => {
+                    let params: ConnectionFlowV4Params =
+                        parse_params("setConnectionFlowStateV4", arg)?;
+                    control
+                        .set_connection_flow_state_v4(
+                            &params.workspace.target(),
+                            ConnectionFlowParams {
+                                // 连接身份由宿主注入；调用方不能伪造其它 connection。
+                                connection_id: V4_LOCAL_CONNECTION_ID.to_string(),
+                                state: params.state,
+                            },
+                            RuntimePolicy::StartIfNeeded,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    Ok(Value::Undefined)
+                }
                 other => Err(unsupported(other)),
             }
         })
@@ -3279,6 +3296,15 @@ where
     Box::new(move || {
         stop.store(true, std::sync::atomic::Ordering::SeqCst);
     })
+}
+
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConnectionFlowV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    state: ConnectionFlowState,
 }
 
 fn not_owned() -> ChannelError {

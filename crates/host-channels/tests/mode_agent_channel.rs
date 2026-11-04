@@ -976,3 +976,20 @@ async fn has_active_cua_operation_turn_is_false_without_events() {
         .expect("查询 CUA turn");
     assert_eq!(value, Value::Json("false".to_owned()));
 }
+
+#[tokio::test]
+async fn connection_flow_state_rejects_invalid_state() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "setConnectionFlowStateV4",
+        object_arg(r#"{"workspacePath":"D:/ws","state":"melting"}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("非法 state");
+    assert!(
+        message(&error).contains("invalid setConnectionFlowStateV4 request"),
+        "{error:?}"
+    );
+}
