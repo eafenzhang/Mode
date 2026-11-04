@@ -22,8 +22,7 @@ pub use json::JsonValue;
 pub use model::{
     parse_manual_model_config, parse_model_config, translate_issues, translate_issues_at,
     EnumOptionSpecConfig, LimitOptionSpecConfig, ManualModelConfig, ModelConfig,
-    ModelInputFormatConfig, ModelOptionSpecsConfig, ModelOutputFormatConfig,
-    ModelPropertiesConfig,
+    ModelInputFormatConfig, ModelOptionSpecsConfig, ModelOutputFormatConfig, ModelPropertiesConfig,
 };
 pub use provider::{
     parse_account_provider_config_map, parse_mode_builtin_provider_config_rules,

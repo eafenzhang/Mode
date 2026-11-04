@@ -13,6 +13,8 @@ path = "src/lib.rs"
 serde = { workspace = true }
 serde_json = { workspace = true }
 indexmap = { version = "2", features = ["serde"] }
+regex = "1"
+url.workspace = true
 
 [dev-dependencies]
 serde_json = { workspace = true }

@@ -229,7 +229,11 @@ pub fn parse_required_field<T>(
     let mut field_path = path.to_vec();
     field_path.push(key.to_owned());
     match map.get(key) {
-        None => Err(vec![Issue::invalid_type(&field_path, expected, "undefined")]),
+        None => Err(vec![Issue::invalid_type(
+            &field_path,
+            expected,
+            "undefined",
+        )]),
         Some(JsonValue::Null) => Err(vec![Issue::invalid_type(&field_path, expected, "null")]),
         Some(value) => parser(value, &field_path),
     }
@@ -269,9 +273,8 @@ pub fn parse_positive_int(value: &JsonValue, path: &[String]) -> Result<i64, Vec
     let number = value
         .as_number()
         .ok_or_else(|| vec![Issue::invalid_type(path, "int", value.kind())])?;
-    let integer = crate::json::safe_integer(number).ok_or_else(|| {
-        vec![Issue::invalid_type(path, "int", value.kind())]
-    })?;
+    let integer = crate::json::safe_integer(number)
+        .ok_or_else(|| vec![Issue::invalid_type(path, "int", value.kind())])?;
     if integer <= 0 {
         return Err(vec![Issue::too_small(path, ">0")]);
     }

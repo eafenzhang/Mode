@@ -81,16 +81,12 @@ fn is_valid_authority(authority_and_rest: &str) -> bool {
         if after.is_empty() {
             return true;
         }
-        return after
-            .strip_prefix(':')
-            .is_some_and(is_valid_port);
+        return after.strip_prefix(':').is_some_and(is_valid_port);
     }
 
     // IPv4/域名 + 可选端口；host 必须非空。
     match host_port.rsplit_once(':') {
-        Some((host, port)) if !host.contains(':') => {
-            !host.is_empty() && is_valid_port(port)
-        }
+        Some((host, port)) if !host.contains(':') => !host.is_empty() && is_valid_port(port),
         _ => !host_port.is_empty() && !host_port.contains(':'),
     }
 }

@@ -8,6 +8,7 @@ use indexmap::IndexMap;
 
 use crate::cel::validate_option_map;
 use crate::json::{array, boolean, int, JsonValue};
+use crate::provider::{overlay_field, overlay_nested};
 use crate::value::{
     check_unknown_keys, expect_object, parse_bool, parse_optional_field, parse_positive_int,
     parse_required_field, parse_string, Field, Issue, ParseResult,
@@ -120,9 +121,7 @@ impl ModelConfig {
         let value = self.to_json();
         match parse_model_config_with(&value, &[], Mode::Complete) {
             Ok(_) => Vec::new(),
-            Err(ParseErrorOrIssues::Issues(issues)) => {
-                translate_issues(&value, issues, false)
-            }
+            Err(ParseErrorOrIssues::Issues(issues)) => translate_issues(&value, issues, false),
             Err(ParseErrorOrIssues::Invariant(message)) => {
                 vec![Issue::new("invalid-config", Vec::new(), message)]
             }
@@ -133,12 +132,19 @@ impl ModelConfig {
 impl ModelPropertiesConfig {
     pub fn to_json(&self) -> JsonValue {
         let mut entries = Vec::new();
-        push_field_bool(&mut entries, "requiresMfjsToolSchema", &self.requires_mfjs_tool_schema);
+        push_field_bool(
+            &mut entries,
+            "requiresMfjsToolSchema",
+            &self.requires_mfjs_tool_schema,
+        );
         push_field_int(&mut entries, "contextWindow", &self.context_window);
-        if let Some(input_format) = field_json(&self.input_format, ModelInputFormatConfig::to_json) {
+        if let Some(input_format) = field_json(&self.input_format, ModelInputFormatConfig::to_json)
+        {
             entries.push(("inputFormat", input_format));
         }
-        if let Some(output_format) = field_json(&self.output_format, ModelOutputFormatConfig::to_json) {
+        if let Some(output_format) =
+            field_json(&self.output_format, ModelOutputFormatConfig::to_json)
+        {
             entries.push(("outputFormat", output_format));
         }
         push_field_bool(&mut entries, "supportsToolCall", &self.supports_tool_call);
@@ -291,29 +297,36 @@ fn parse_manual_model_config_issues(
 ) -> Result<ModelConfig, ParseErrorOrIssues> {
     let map = expect_object(value, path).map_err(ParseErrorOrIssues::Issues)?;
     let mut issues = Vec::new();
-    check_unknown_keys(map, &["enabled", "properties", "optionSpecs"], path, &mut issues);
+    check_unknown_keys(
+        map,
+        &["enabled", "properties", "optionSpecs"],
+        path,
+        &mut issues,
+    );
 
-    let enabled = parse_optional_field(map, "enabled", path, parse_bool)
+    let enabled =
+        parse_optional_field(map, "enabled", path, parse_bool).unwrap_or_else(|mut errors| {
+            issues.append(&mut errors);
+            Field::Absent
+        });
+    let properties =
+        parse_required_field(map, "properties", path, "object", |value, field_path| {
+            parse_manual_properties(value, field_path)
+        })
+        .map(Field::Value)
         .unwrap_or_else(|mut errors| {
             issues.append(&mut errors);
             Field::Absent
         });
-    let properties = parse_required_field(map, "properties", path, "object", |value, field_path| {
-        parse_manual_properties(value, field_path)
-    })
-    .map(Field::Value)
-    .unwrap_or_else(|mut errors| {
-        issues.append(&mut errors);
-        Field::Absent
-    });
-    let option_specs = parse_required_field(map, "optionSpecs", path, "object", |value, field_path| {
-        parse_manual_option_specs(value, field_path)
-    })
-    .map(Field::Value)
-    .unwrap_or_else(|mut errors| {
-        issues.append(&mut errors);
-        Field::Absent
-    });
+    let option_specs =
+        parse_required_field(map, "optionSpecs", path, "object", |value, field_path| {
+            parse_manual_option_specs(value, field_path)
+        })
+        .map(Field::Value)
+        .unwrap_or_else(|mut errors| {
+            issues.append(&mut errors);
+            Field::Absent
+        });
 
     if issues.is_empty() {
         Ok(ModelConfig {
@@ -346,9 +359,22 @@ fn parse_model_config_with(
 ) -> Result<ModelConfig, ParseErrorOrIssues> {
     let map = expect_object(value, path).map_err(ParseErrorOrIssues::Issues)?;
     let mut issues = Vec::new();
-    check_unknown_keys(map, &["enabled", "properties", "optionSpecs"], path, &mut issues);
+    check_unknown_keys(
+        map,
+        &["enabled", "properties", "optionSpecs"],
+        path,
+        &mut issues,
+    );
 
-    let enabled = parse_mode_field(map, "enabled", path, mode, "boolean", parse_bool, &mut issues);
+    let enabled = parse_mode_field(
+        map,
+        "enabled",
+        path,
+        mode,
+        "boolean",
+        parse_bool,
+        &mut issues,
+    );
     let properties = parse_mode_field(
         map,
         "properties",
@@ -507,16 +533,51 @@ fn parse_input_format(
     ];
     check_unknown_keys(map, &keys, path, &mut issues);
 
-    let supports_text =
-        parse_mode_field(map, "supportsText", path, mode, "boolean", parse_bool, &mut issues);
-    let supports_image =
-        parse_mode_field(map, "supportsImage", path, mode, "boolean", parse_bool, &mut issues);
-    let supports_video =
-        parse_mode_field(map, "supportsVideo", path, mode, "boolean", parse_bool, &mut issues);
-    let supports_audio =
-        parse_mode_field(map, "supportsAudio", path, mode, "boolean", parse_bool, &mut issues);
-    let supports_pdf =
-        parse_mode_field(map, "supportsPdf", path, mode, "boolean", parse_bool, &mut issues);
+    let supports_text = parse_mode_field(
+        map,
+        "supportsText",
+        path,
+        mode,
+        "boolean",
+        parse_bool,
+        &mut issues,
+    );
+    let supports_image = parse_mode_field(
+        map,
+        "supportsImage",
+        path,
+        mode,
+        "boolean",
+        parse_bool,
+        &mut issues,
+    );
+    let supports_video = parse_mode_field(
+        map,
+        "supportsVideo",
+        path,
+        mode,
+        "boolean",
+        parse_bool,
+        &mut issues,
+    );
+    let supports_audio = parse_mode_field(
+        map,
+        "supportsAudio",
+        path,
+        mode,
+        "boolean",
+        parse_bool,
+        &mut issues,
+    );
+    let supports_pdf = parse_mode_field(
+        map,
+        "supportsPdf",
+        path,
+        mode,
+        "boolean",
+        parse_bool,
+        &mut issues,
+    );
 
     if issues.is_empty() {
         Ok(ModelInputFormatConfig {
@@ -539,8 +600,15 @@ fn parse_output_format(
     let map = expect_object(value, path)?;
     let mut issues = Vec::new();
     check_unknown_keys(map, &["supportsText"], path, &mut issues);
-    let supports_text =
-        parse_mode_field(map, "supportsText", path, mode, "boolean", parse_bool, &mut issues);
+    let supports_text = parse_mode_field(
+        map,
+        "supportsText",
+        path,
+        mode,
+        "boolean",
+        parse_bool,
+        &mut issues,
+    );
     if issues.is_empty() {
         Ok(ModelOutputFormatConfig { supports_text })
     } else {
@@ -666,7 +734,12 @@ fn parse_option_specs(
 ) -> Result<ModelOptionSpecsConfig, Vec<Issue>> {
     let map = expect_object(value, path)?;
     let mut issues = Vec::new();
-    check_unknown_keys(map, &["reasoningLevel", "maxOutputTokens"], path, &mut issues);
+    check_unknown_keys(
+        map,
+        &["reasoningLevel", "maxOutputTokens"],
+        path,
+        &mut issues,
+    );
 
     let reasoning_level = parse_mode_field(
         map,
@@ -716,11 +789,30 @@ fn parse_manual_properties(
         &mut issues,
     );
 
-    let context_window = required_value(map, "contextWindow", path, "int", parse_positive_int, &mut issues);
-    let supports_json_schema_output =
-        required_value(map, "supportsJsonSchemaOutput", path, "boolean", parse_bool, &mut issues);
-    let supports_native_web_search =
-        required_value(map, "supportsNativeWebSearch", path, "boolean", parse_bool, &mut issues);
+    let context_window = required_value(
+        map,
+        "contextWindow",
+        path,
+        "int",
+        parse_positive_int,
+        &mut issues,
+    );
+    let supports_json_schema_output = required_value(
+        map,
+        "supportsJsonSchemaOutput",
+        path,
+        "boolean",
+        parse_bool,
+        &mut issues,
+    );
+    let supports_native_web_search = required_value(
+        map,
+        "supportsNativeWebSearch",
+        path,
+        "boolean",
+        parse_bool,
+        &mut issues,
+    );
     let supports_mid_conversation_system = required_value(
         map,
         "supportsMidConversationSystem",
@@ -766,8 +858,22 @@ fn parse_manual_input_format(
         path,
         &mut issues,
     );
-    let supports_image = required_value(map, "supportsImage", path, "boolean", parse_bool, &mut issues);
-    let supports_video = required_value(map, "supportsVideo", path, "boolean", parse_bool, &mut issues);
+    let supports_image = required_value(
+        map,
+        "supportsImage",
+        path,
+        "boolean",
+        parse_bool,
+        &mut issues,
+    );
+    let supports_video = required_value(
+        map,
+        "supportsVideo",
+        path,
+        "boolean",
+        parse_bool,
+        &mut issues,
+    );
     let supports_pdf = required_value(map, "supportsPdf", path, "boolean", parse_bool, &mut issues);
     if issues.is_empty() {
         Ok(ModelInputFormatConfig {
@@ -788,7 +894,12 @@ fn parse_manual_option_specs(
 ) -> Result<ModelOptionSpecsConfig, Vec<Issue>> {
     let map = expect_object(value, path)?;
     let mut issues = Vec::new();
-    check_unknown_keys(map, &["reasoningLevel", "maxOutputTokens"], path, &mut issues);
+    check_unknown_keys(
+        map,
+        &["reasoningLevel", "maxOutputTokens"],
+        path,
+        &mut issues,
+    );
 
     let reasoning_level = required_value(
         map,
@@ -850,9 +961,7 @@ fn parse_mode_field<T>(
 ) -> Field<T> {
     let result = match mode {
         Mode::Sparse => parse_optional_field(map, key, path, parser),
-        Mode::Complete => {
-            parse_required_field(map, key, path, expected, parser).map(Field::Value)
-        }
+        Mode::Complete => parse_required_field(map, key, path, expected, parser).map(Field::Value),
     };
     result.unwrap_or_else(|mut errors| {
         issues.append(&mut errors);
@@ -950,7 +1059,8 @@ fn manual_option_specs_to_json(option_specs: &ModelOptionSpecsConfig) -> JsonVal
     object_entries(entries)
 }
 
-fn object_entries(entries: Vec<(&str, JsonValue)>) -> JsonValue {    let mut map = IndexMap::new();
+fn object_entries(entries: Vec<(&str, JsonValue)>) -> JsonValue {
+    let mut map = IndexMap::new();
     for (key, value) in entries {
         map.insert(key.to_owned(), value);
     }
@@ -983,13 +1093,21 @@ fn field_string_array(field: &Field<Vec<String>>) -> Option<JsonValue> {
     })
 }
 
-fn push_field_bool(entries: &mut Vec<(&'static str, JsonValue)>, key: &'static str, field: &Field<bool>) {
+fn push_field_bool(
+    entries: &mut Vec<(&'static str, JsonValue)>,
+    key: &'static str,
+    field: &Field<bool>,
+) {
     if let Some(value) = field_bool(field) {
         entries.push((key, value));
     }
 }
 
-fn push_field_int(entries: &mut Vec<(&'static str, JsonValue)>, key: &'static str, field: &Field<i64>) {
+fn push_field_int(
+    entries: &mut Vec<(&'static str, JsonValue)>,
+    key: &'static str,
+    field: &Field<i64>,
+) {
     if let Some(value) = field_int(field) {
         entries.push((key, value));
     }
@@ -1071,4 +1189,120 @@ fn value_at_path<'a>(value: &'a JsonValue, path: &[String]) -> Option<&'a JsonVa
         }
     }
     Some(current)
+}
+
+impl ModelInputFormatConfig {
+    pub fn overlay(&self, next: &ModelInputFormatConfig) -> ModelInputFormatConfig {
+        ModelInputFormatConfig {
+            supports_text: overlay_field(&self.supports_text, &next.supports_text),
+            supports_image: overlay_field(&self.supports_image, &next.supports_image),
+            supports_video: overlay_field(&self.supports_video, &next.supports_video),
+            supports_audio: overlay_field(&self.supports_audio, &next.supports_audio),
+            supports_pdf: overlay_field(&self.supports_pdf, &next.supports_pdf),
+        }
+    }
+}
+
+impl ModelOutputFormatConfig {
+    pub fn overlay(&self, next: &ModelOutputFormatConfig) -> ModelOutputFormatConfig {
+        ModelOutputFormatConfig {
+            supports_text: overlay_field(&self.supports_text, &next.supports_text),
+        }
+    }
+}
+
+impl ModelPropertiesConfig {
+    pub fn overlay(&self, next: &ModelPropertiesConfig) -> ModelPropertiesConfig {
+        ModelPropertiesConfig {
+            requires_mfjs_tool_schema: overlay_field(
+                &self.requires_mfjs_tool_schema,
+                &next.requires_mfjs_tool_schema,
+            ),
+            context_window: overlay_field(&self.context_window, &next.context_window),
+            input_format: overlay_nested(
+                &self.input_format,
+                &next.input_format,
+                |current, incoming| current.overlay(incoming),
+            ),
+            output_format: overlay_nested(
+                &self.output_format,
+                &next.output_format,
+                |current, incoming| current.overlay(incoming),
+            ),
+            supports_tool_call: overlay_field(&self.supports_tool_call, &next.supports_tool_call),
+            supports_json_schema_output: overlay_field(
+                &self.supports_json_schema_output,
+                &next.supports_json_schema_output,
+            ),
+            supports_native_web_search: overlay_field(
+                &self.supports_native_web_search,
+                &next.supports_native_web_search,
+            ),
+            supports_mid_conversation_system: overlay_field(
+                &self.supports_mid_conversation_system,
+                &next.supports_mid_conversation_system,
+            ),
+        }
+    }
+}
+
+impl EnumOptionSpecConfig {
+    pub fn overlay(&self, next: &EnumOptionSpecConfig) -> EnumOptionSpecConfig {
+        EnumOptionSpecConfig {
+            values: overlay_field(&self.values, &next.values),
+            map: overlay_field(&self.map, &next.map),
+        }
+    }
+}
+
+impl LimitOptionSpecConfig {
+    pub fn overlay(&self, next: &LimitOptionSpecConfig) -> LimitOptionSpecConfig {
+        LimitOptionSpecConfig {
+            max: overlay_field(&self.max, &next.max),
+            map: overlay_field(&self.map, &next.map),
+        }
+    }
+}
+
+impl ModelOptionSpecsConfig {
+    pub fn overlay(&self, next: &ModelOptionSpecsConfig) -> ModelOptionSpecsConfig {
+        ModelOptionSpecsConfig {
+            reasoning_level: overlay_nested(
+                &self.reasoning_level,
+                &next.reasoning_level,
+                |current, incoming| current.overlay(incoming),
+            ),
+            max_output_tokens: overlay_nested(
+                &self.max_output_tokens,
+                &next.max_output_tokens,
+                |current, incoming| current.overlay(incoming),
+            ),
+        }
+    }
+}
+
+impl ModelConfig {
+    pub fn overlay(&self, next: &ModelConfig) -> ModelConfig {
+        ModelConfig {
+            enabled: overlay_field(&self.enabled, &next.enabled),
+            properties: overlay_nested(&self.properties, &next.properties, |current, incoming| {
+                current.overlay(incoming)
+            }),
+            option_specs: overlay_nested(
+                &self.option_specs,
+                &next.option_specs,
+                |current, incoming| current.overlay(incoming),
+            ),
+        }
+    }
+
+    /// TS `clearManualModelConfig`：清掉手写规则完全owned 的字段（properties/optionSpecs），
+    /// 保留 enabled 与未知字段（Rust 结构化模型没有未知字段）。
+    pub fn clear_manual(&self) -> ModelConfig {
+        ModelConfig {
+            enabled: self.enabled.clone(),
+            properties: Field::Absent,
+            option_specs: Field::Absent,
+        }
+    }
 }

@@ -218,14 +218,18 @@ impl ProviderConfig {
         let mut entries = Vec::new();
         push_field(&mut entries, "group", &self.group, |value| {
             string(value.as_str())
-        });        push_field(&mut entries, "logo", &self.logo, |value| {
+        });
+        push_field(&mut entries, "logo", &self.logo, |value| {
             object([("type", string("builtin")), ("key", string(&value.key))])
         });
         push_field(&mut entries, "access", &self.access, access_to_json);
         push_field(&mut entries, "api", &self.api, api_to_json);
-        push_field(&mut entries, "builtinModelIds", &self.builtin_model_ids, |values| {
-            string_array_json(values)
-        });
+        push_field(
+            &mut entries,
+            "builtinModelIds",
+            &self.builtin_model_ids,
+            |values| string_array_json(values),
+        );
         push_field(
             &mut entries,
             "personalModelIds",
@@ -327,7 +331,10 @@ pub fn parse_provider_config(value: &JsonValue, path: &[String]) -> ParseResult<
     parse_provider_config_value(value, path, ProviderMode::Sparse).map_err(ParseError::from)
 }
 
-pub fn parse_provider_config_map(value: &JsonValue, path: &[String]) -> ParseResult<ProviderConfigMap> {
+pub fn parse_provider_config_map(
+    value: &JsonValue,
+    path: &[String],
+) -> ParseResult<ProviderConfigMap> {
     let entries = value
         .as_array()
         .ok_or_else(|| issues_error(vec![Issue::invalid_type(path, "array", value.kind())]))?;
@@ -339,7 +346,9 @@ pub fn parse_provider_config_map(value: &JsonValue, path: &[String]) -> ParseRes
         match parse_provider_rule(entry, &entry_path, ProviderMode::Sparse) {
             Ok(rule) => rules.push(rule),
             Err(ProviderParseError::Issues(mut errors)) => issues.append(&mut errors),
-            Err(ProviderParseError::Invariant(message)) => return Err(ParseError::Invariant(message)),
+            Err(ProviderParseError::Invariant(message)) => {
+                return Err(ParseError::Invariant(message))
+            }
         }
     }
     if !issues.is_empty() {
@@ -433,7 +442,9 @@ pub fn parse_provider_template_map(
         match parse_template_rule(entry, &entry_path) {
             Ok(rule) => rules.push(rule),
             Err(ProviderParseError::Issues(mut errors)) => issues.append(&mut errors),
-            Err(ProviderParseError::Invariant(message)) => return Err(ParseError::Invariant(message)),
+            Err(ProviderParseError::Invariant(message)) => {
+                return Err(ParseError::Invariant(message))
+            }
         }
     }
     if !issues.is_empty() {
@@ -468,7 +479,9 @@ pub fn parse_account_provider_config_map(
                 config,
             }),
             Err(ProviderParseError::Issues(mut errors)) => issues.append(&mut errors),
-            Err(ProviderParseError::Invariant(message)) => return Err(ParseError::Invariant(message)),
+            Err(ProviderParseError::Invariant(message)) => {
+                return Err(ParseError::Invariant(message))
+            }
         }
     }
     if !issues.is_empty() {
@@ -528,16 +541,23 @@ fn parse_provider_rule(
     let mut issues = Vec::new();
     check_unknown_keys(
         map,
-        &["providerId", "templateId", "providerName", "enabled", "config"],
+        &[
+            "providerId",
+            "templateId",
+            "providerName",
+            "enabled",
+            "config",
+        ],
         path,
         &mut issues,
     );
 
-    let provider_id = parse_required_field(map, "providerId", path, "string", parse_non_empty_string)
-        .unwrap_or_else(|mut errors| {
-            issues.append(&mut errors);
-            String::new()
-        });
+    let provider_id =
+        parse_required_field(map, "providerId", path, "string", parse_non_empty_string)
+            .unwrap_or_else(|mut errors| {
+                issues.append(&mut errors);
+                String::new()
+            });
     let template_id = parse_optional_field(map, "templateId", path, parse_non_empty_string)
         .unwrap_or_else(|mut errors| {
             issues.append(&mut errors);
@@ -548,13 +568,11 @@ fn parse_provider_rule(
             issues.append(&mut errors);
             Field::Absent
         });
-    let enabled =
-        parse_optional_non_null_field(map, "enabled", path, "boolean", parse_bool).unwrap_or_else(
-            |mut errors| {
-                issues.append(&mut errors);
-                Field::Absent
-            },
-        );
+    let enabled = parse_optional_non_null_field(map, "enabled", path, "boolean", parse_bool)
+        .unwrap_or_else(|mut errors| {
+            issues.append(&mut errors);
+            Field::Absent
+        });
     let config = parse_required_field(map, "config", path, "object", |value, field_path| {
         parse_provider_config_value(value, field_path, mode).map_err(|error| match error {
             ProviderParseError::Issues(issues) => issues,
@@ -600,7 +618,11 @@ fn parse_personal_provider_rule(
     let rule = parse_provider_rule(value, path, ProviderMode::Personal)?;
     if provider_id.starts_with("account:") && access_present {
         return Err(ProviderParseError::Issues(vec![Issue::custom(
-            &[path.to_vec(), vec!["config".to_owned(), "access".to_owned()]].concat(),
+            &[
+                path.to_vec(),
+                vec!["config".to_owned(), "access".to_owned()],
+            ]
+            .concat(),
             "固定 Account Provider 的 Access 只能由 Mode Built-in Config 声明",
         )]));
     }
@@ -613,13 +635,19 @@ fn parse_template_rule(
 ) -> Result<ProviderTemplate, ProviderParseError> {
     let map = expect_object(value, path)?;
     let mut issues = Vec::new();
-    check_unknown_keys(map, &["templateId", "templateNameMap", "config"], path, &mut issues);
+    check_unknown_keys(
+        map,
+        &["templateId", "templateNameMap", "config"],
+        path,
+        &mut issues,
+    );
 
-    let template_id = parse_required_field(map, "templateId", path, "string", parse_non_empty_string)
-        .unwrap_or_else(|mut errors| {
-            issues.append(&mut errors);
-            String::new()
-        });
+    let template_id =
+        parse_required_field(map, "templateId", path, "string", parse_non_empty_string)
+            .unwrap_or_else(|mut errors| {
+                issues.append(&mut errors);
+                String::new()
+            });
     let template_name_map = parse_required_field(
         map,
         "templateNameMap",
@@ -663,18 +691,16 @@ fn parse_template_name_map(
     let map = expect_object(value, path)?;
     let mut issues = Vec::new();
     check_unknown_keys(map, &["zh-CN", "en-US"], path, &mut issues);
-    let zh_cn =
-        parse_optional_non_null_field(map, "zh-CN", path, "string", parse_non_empty_string)
-            .unwrap_or_else(|mut errors| {
-                issues.append(&mut errors);
-                Field::Absent
-            });
-    let en_us =
-        parse_optional_non_null_field(map, "en-US", path, "string", parse_non_empty_string)
-            .unwrap_or_else(|mut errors| {
-                issues.append(&mut errors);
-                Field::Absent
-            });
+    let zh_cn = parse_optional_non_null_field(map, "zh-CN", path, "string", parse_non_empty_string)
+        .unwrap_or_else(|mut errors| {
+            issues.append(&mut errors);
+            Field::Absent
+        });
+    let en_us = parse_optional_non_null_field(map, "en-US", path, "string", parse_non_empty_string)
+        .unwrap_or_else(|mut errors| {
+            issues.append(&mut errors);
+            Field::Absent
+        });
     if !issues.is_empty() {
         return Err(issues);
     }
@@ -733,9 +759,8 @@ fn parse_provider_config_value(
             ProviderMode::Personal => GroupConstraint::Personal,
             _ => GroupConstraint::Any,
         };
-        let parser = |value: &JsonValue, field_path: &[String]| {
-            parse_group(value, field_path, constraint)
-        };
+        let parser =
+            |value: &JsonValue, field_path: &[String]| parse_group(value, field_path, constraint);
         if required {
             parse_required_field(map, "group", path, "string", parser)
                 .map(Field::Value)
@@ -820,16 +845,19 @@ fn parse_provider_config_value(
             | ProviderMode::Template
             | ProviderMode::Account
     ) {
-        parse_optional_field(map, "builtinModelIds", path, parse_string_array)
-            .unwrap_or_else(|mut errors| {
+        parse_optional_field(map, "builtinModelIds", path, parse_string_array).unwrap_or_else(
+            |mut errors| {
                 issues.append(&mut errors);
                 Field::Absent
-            })
+            },
+        )
     } else {
         Field::Absent
     };
-    let personal_model_ids = if matches!(mode, ProviderMode::Sparse | ProviderMode::Complete | ProviderMode::Personal)
-    {
+    let personal_model_ids = if matches!(
+        mode,
+        ProviderMode::Sparse | ProviderMode::Complete | ProviderMode::Personal
+    ) {
         parse_optional_field(map, "personalModelIds", path, parse_string_array).unwrap_or_else(
             |mut errors| {
                 issues.append(&mut errors);
@@ -839,7 +867,10 @@ fn parse_provider_config_value(
     } else {
         Field::Absent
     };
-    let model_order = if matches!(mode, ProviderMode::Sparse | ProviderMode::Complete | ProviderMode::Personal) {
+    let model_order = if matches!(
+        mode,
+        ProviderMode::Sparse | ProviderMode::Complete | ProviderMode::Personal
+    ) {
         parse_optional_field(map, "modelOrder", path, parse_string_array).unwrap_or_else(
             |mut errors| {
                 issues.append(&mut errors);
@@ -921,9 +952,10 @@ fn parse_group(
     let group = ProviderGroup::parse(&text);
     let allowed = match (group, constraint) {
         (Some(group), GroupConstraint::Any) => Some(group),
-        (Some(group @ (ProviderGroup::ZaiFamily | ProviderGroup::BigmodelFamily)), GroupConstraint::Builtin) => {
-            Some(group)
-        }
+        (
+            Some(group @ (ProviderGroup::ZaiFamily | ProviderGroup::BigmodelFamily)),
+            GroupConstraint::Builtin,
+        ) => Some(group),
         (Some(ProviderGroup::StandardPersonal), GroupConstraint::Personal) => {
             Some(ProviderGroup::StandardPersonal)
         }
@@ -937,7 +969,11 @@ fn parse_group(
                 GroupConstraint::Builtin => &["zai-family", "bigmodel-family"],
                 GroupConstraint::Personal => &["standard-personal"],
             };
-            Err(vec![Issue::invalid_value(path, values, format!("{text:?}"))])
+            Err(vec![Issue::invalid_value(
+                path,
+                values,
+                format!("{text:?}"),
+            )])
         }
     }
 }
@@ -946,12 +982,11 @@ fn parse_logo(value: &JsonValue, path: &[String]) -> Result<ProviderLogo, Vec<Is
     let map = expect_object(value, path)?;
     let mut issues = Vec::new();
     check_unknown_keys(map, &["type", "key"], path, &mut issues);
-    let type_value = parse_required_field(map, "type", path, "string", parse_string).unwrap_or_else(
-        |mut errors| {
+    let type_value = parse_required_field(map, "type", path, "string", parse_string)
+        .unwrap_or_else(|mut errors| {
             issues.append(&mut errors);
             String::new()
-        },
-    );
+        });
     if type_value != "builtin" {
         let mut type_path = path.to_vec();
         type_path.push("type".to_owned());
@@ -961,12 +996,11 @@ fn parse_logo(value: &JsonValue, path: &[String]) -> Result<ProviderLogo, Vec<Is
             format!("{type_value:?}"),
         ));
     }
-    let key = parse_required_field(map, "key", path, "string", parse_non_empty_string).unwrap_or_else(
-        |mut errors| {
+    let key = parse_required_field(map, "key", path, "string", parse_non_empty_string)
+        .unwrap_or_else(|mut errors| {
             issues.append(&mut errors);
             String::new()
-        },
-    );
+        });
     if !issues.is_empty() {
         return Err(issues);
     }
@@ -1001,12 +1035,11 @@ fn parse_access(
         }
         let mut issues = Vec::new();
         check_unknown_keys(map, &["type", "entitled"], path, &mut issues);
-        let entitled = parse_optional_field(map, "entitled", path, parse_bool).unwrap_or_else(
-            |mut errors| {
+        let entitled =
+            parse_optional_field(map, "entitled", path, parse_bool).unwrap_or_else(|mut errors| {
                 issues.append(&mut errors);
                 Field::Absent
-            },
-        );
+            });
         if !issues.is_empty() {
             return Err(issues);
         }
@@ -1153,7 +1186,11 @@ enum ApiMode {
     Personal,
 }
 
-fn parse_api(value: &JsonValue, path: &[String], mode: ApiMode) -> Result<ProviderApiConfig, Vec<Issue>> {
+fn parse_api(
+    value: &JsonValue,
+    path: &[String],
+    mode: ApiMode,
+) -> Result<ProviderApiConfig, Vec<Issue>> {
     let map = expect_object(value, path)?;
     let mut issues = Vec::new();
     check_unknown_keys(map, &["type", "baseUrl", "headers"], path, &mut issues);
@@ -1179,7 +1216,8 @@ fn parse_api(value: &JsonValue, path: &[String], mode: ApiMode) -> Result<Provid
 
     let base_url = match mode {
         ApiMode::Complete => {
-            parse_required_field(map, "baseUrl", path, "string", parse_non_blank_url).map(Field::Value)
+            parse_required_field(map, "baseUrl", path, "string", parse_non_blank_url)
+                .map(Field::Value)
         }
         ApiMode::Personal => parse_optional_field(map, "baseUrl", path, parse_string),
         ApiMode::Sparse => parse_optional_field(map, "baseUrl", path, parse_url_string),
@@ -1206,11 +1244,7 @@ fn parse_api(value: &JsonValue, path: &[String], mode: ApiMode) -> Result<Provid
     })
 }
 
-fn parse_enum<T>(
-    value: &JsonValue,
-    path: &[String],
-    values: &[&str],
-) -> Result<T, Vec<Issue>>
+fn parse_enum<T>(value: &JsonValue, path: &[String], values: &[&str]) -> Result<T, Vec<Issue>>
 where
     T: EnumParser,
 {
@@ -1257,7 +1291,11 @@ fn parse_url_string(value: &JsonValue, path: &[String]) -> Result<String, Vec<Is
     if is_valid_url(&text) {
         Ok(text)
     } else {
-        Err(vec![Issue::new("invalid_format", path.to_vec(), "Invalid URL")])
+        Err(vec![Issue::new(
+            "invalid_format",
+            path.to_vec(),
+            "Invalid URL",
+        )])
     }
 }
 
@@ -1266,7 +1304,11 @@ fn parse_non_blank_url(value: &JsonValue, path: &[String]) -> Result<String, Vec
     if is_valid_url(&text) {
         Ok(text)
     } else {
-        Err(vec![Issue::new("invalid_format", path.to_vec(), "Invalid URL")])
+        Err(vec![Issue::new(
+            "invalid_format",
+            path.to_vec(),
+            "Invalid URL",
+        )])
     }
 }
 
@@ -1281,11 +1323,7 @@ fn check_unique_ids<'a>(
         if !seen.insert(id.to_owned()) {
             issues.push(Issue::new(
                 "custom",
-                vec![
-                    group.to_owned(),
-                    index.to_string(),
-                    key.to_owned(),
-                ],
+                vec![group.to_owned(), index.to_string(), key.to_owned()],
                 format!("重复 {key}: {id}"),
             ));
         }
@@ -1492,7 +1530,7 @@ fn push_field<T>(
     }
 }
 
-fn overlay_field<T: Clone>(base: &Field<T>, next: &Field<T>) -> Field<T> {
+pub(crate) fn overlay_field<T: Clone>(base: &Field<T>, next: &Field<T>) -> Field<T> {
     match next {
         Field::Absent => base.clone(),
         other => other.clone(),
@@ -1501,7 +1539,7 @@ fn overlay_field<T: Clone>(base: &Field<T>, next: &Field<T>) -> Field<T> {
 
 /// TS `overlayConfig`：next 缺席 → base；next 为 null（或 base 缺席/null）→ next；
 /// 其余按值合并。
-fn overlay_nested<T: Clone>(
+pub(crate) fn overlay_nested<T: Clone>(
     base: &Field<T>,
     next: &Field<T>,
     merge: impl Fn(&T, &T) -> T,
@@ -1510,9 +1548,7 @@ fn overlay_nested<T: Clone>(
         (_, Field::Absent) => base.clone(),
         (_, Field::Null) => Field::Null,
         (Field::Absent | Field::Null, Field::Value(_)) => next.clone(),
-        (Field::Value(current), Field::Value(incoming)) => {
-            Field::Value(merge(current, incoming))
-        }
+        (Field::Value(current), Field::Value(incoming)) => Field::Value(merge(current, incoming)),
     }
 }
 
@@ -1607,7 +1643,10 @@ impl ProviderConfigMap {
                     let merged = ProviderConfigRule {
                         provider_id: provider_id.clone(),
                         template_id: overlay_field(&current.template_id, &incoming.template_id),
-                        provider_name: overlay_field(&current.provider_name, &incoming.provider_name),
+                        provider_name: overlay_field(
+                            &current.provider_name,
+                            &incoming.provider_name,
+                        ),
                         enabled: overlay_field(&current.enabled, &incoming.enabled),
                         config: current.config.overlay(&incoming.config),
                     };
@@ -1728,22 +1767,29 @@ mod overlay_tests {
 
     #[test]
     fn api_overlay_merges_nested_fields() {
-        let mut base = ProviderConfig::default();
-        base.api = Field::Value(ProviderApiConfig {
-            api_type: Field::Value(ProviderApiType::OpenAiChatCompletions),
-            base_url: Field::Value("https://a".to_string()),
-            headers: Field::Absent,
-        });
-        let mut next = ProviderConfig::default();
-        next.api = Field::Value(ProviderApiConfig {
-            api_type: Field::Absent,
-            base_url: Field::Value("https://b".to_string()),
-            headers: Field::Value(IndexMap::from([("x".to_string(), "1".to_string())])),
-        });
+        let base = ProviderConfig {
+            api: Field::Value(ProviderApiConfig {
+                api_type: Field::Value(ProviderApiType::OpenAiChatCompletions),
+                base_url: Field::Value("https://a".to_string()),
+                headers: Field::Absent,
+            }),
+            ..ProviderConfig::default()
+        };
+        let next = ProviderConfig {
+            api: Field::Value(ProviderApiConfig {
+                api_type: Field::Absent,
+                base_url: Field::Value("https://b".to_string()),
+                headers: Field::Value(IndexMap::from([("x".to_string(), "1".to_string())])),
+            }),
+            ..ProviderConfig::default()
+        };
         let Field::Value(api) = base.overlay(&next).api else {
             panic!("api");
         };
-        assert_eq!(api.api_type, Field::Value(ProviderApiType::OpenAiChatCompletions));
+        assert_eq!(
+            api.api_type,
+            Field::Value(ProviderApiType::OpenAiChatCompletions)
+        );
         assert_eq!(api.base_url, Field::Value("https://b".to_string()));
         assert_eq!(
             api.headers,
@@ -1758,25 +1804,26 @@ mod overlay_tests {
         config.visibility = Field::Value(ProviderVisibility::Hidden);
         let stripped = config.without_group();
         assert_eq!(stripped.group, Field::Absent);
-        assert_eq!(stripped.visibility, Field::Value(ProviderVisibility::Hidden));
+        assert_eq!(
+            stripped.visibility,
+            Field::Value(ProviderVisibility::Hidden)
+        );
         assert_eq!(stripped.access, config.access);
     }
 
     #[test]
     fn map_overlay_merges_rules_and_appends_new_keys() {
         let base = ProviderConfigMap {
-            values: IndexMap::from([
-                (
-                    "p1".to_string(),
-                    ProviderConfigRule {
-                        provider_id: "p1".to_string(),
-                        template_id: Field::Value("tpl".to_string()),
-                        provider_name: Field::Value("P1".to_string()),
-                        enabled: Field::Value(true),
-                        config: provider(Field::Value(api_key("key-a"))),
-                    },
-                ),
-            ]),
+            values: IndexMap::from([(
+                "p1".to_string(),
+                ProviderConfigRule {
+                    provider_id: "p1".to_string(),
+                    template_id: Field::Value("tpl".to_string()),
+                    provider_name: Field::Value("P1".to_string()),
+                    enabled: Field::Value(true),
+                    config: provider(Field::Value(api_key("key-a"))),
+                },
+            )]),
         };
         let next = ProviderConfigMap {
             values: IndexMap::from([
@@ -1817,18 +1864,16 @@ mod overlay_tests {
     #[test]
     fn map_configs_preserves_identity_and_order() {
         let map = ProviderConfigMap {
-            values: IndexMap::from([
-                (
-                    "p1".to_string(),
-                    ProviderConfigRule {
-                        provider_id: "p1".to_string(),
-                        template_id: Field::Absent,
-                        provider_name: Field::Value("P1".to_string()),
-                        enabled: Field::Value(true),
-                        config: ProviderConfig::default(),
-                    },
-                ),
-            ]),
+            values: IndexMap::from([(
+                "p1".to_string(),
+                ProviderConfigRule {
+                    provider_id: "p1".to_string(),
+                    template_id: Field::Absent,
+                    provider_name: Field::Value("P1".to_string()),
+                    enabled: Field::Value(true),
+                    config: ProviderConfig::default(),
+                },
+            )]),
         };
         let mapped = map.map_configs(|config, provider_id, _rule| {
             let mut next = config.clone();

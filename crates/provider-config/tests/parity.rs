@@ -88,9 +88,7 @@ fn run_parse(kind: &str, input: &JsonValue) -> ParseResult<JsonValue> {
             parse_account_provider_config_map(input, &[]).map(|value| value.to_json())
         }
         "model-config" => parse_model_config(input, &[]).map(|value| value.to_json()),
-        "manual-model-config" => {
-            parse_manual_model_config(input, &[]).map(|value| value.to_json())
-        }
+        "manual-model-config" => parse_manual_model_config(input, &[]).map(|value| value.to_json()),
         "mode-builtin-model-rules" => {
             parse_mode_builtin_model_config_rules(input, &[]).map(|value| value.to_json())
         }
@@ -141,7 +139,10 @@ fn parity_with_typescript() {
                 );
                 let actual_json: Value =
                     serde_json::from_str(&actual_output).expect("Rust 输出必须是合法 JSON");
-                let expected_json = record.output_json.as_ref().expect("成功记录缺少 outputJson");
+                let expected_json = record
+                    .output_json
+                    .as_ref()
+                    .expect("成功记录缺少 outputJson");
                 assert_eq!(
                     &actual_json, expected_json,
                     "记录 {} 的深层 JSON 不一致",
@@ -157,8 +158,11 @@ fn parity_with_typescript() {
                     record.name
                 );
                 if !expected_paths.is_empty() && !invariant {
-                    let actual_codes: BTreeSet<_> =
-                        error.issues().iter().map(|issue| issue.code.as_str()).collect();
+                    let actual_codes: BTreeSet<_> = error
+                        .issues()
+                        .iter()
+                        .map(|issue| issue.code.as_str())
+                        .collect();
                     assert!(
                         !actual_codes.is_empty(),
                         "记录 {} 有路径但缺少问题码",
@@ -166,10 +170,7 @@ fn parity_with_typescript() {
                     );
                 }
             }
-            (true, Err(error)) => panic!(
-                "记录 {} 在 TS 成功、Rust 失败: {error:?}",
-                record.name
-            ),
+            (true, Err(error)) => panic!("记录 {} 在 TS 成功、Rust 失败: {error:?}", record.name),
             (false, Ok(value)) => panic!(
                 "记录 {} 在 TS 失败、Rust 成功: {}",
                 record.name,

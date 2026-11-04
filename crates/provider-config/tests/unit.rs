@@ -4,8 +4,8 @@ use provider_config::{
     parse_account_provider_config_map, parse_json_text, parse_manual_model_config,
     parse_mode_builtin_model_config_rules, parse_mode_builtin_provider_config_rules,
     parse_model_config, parse_personal_model_config_rules, parse_personal_provider_config_map,
-    parse_provider_config, parse_provider_config_map, parse_provider_template_map, Field, JsonValue,
-    ParseError,
+    parse_provider_config, parse_provider_config_map, parse_provider_template_map, Field,
+    JsonValue, ParseError,
 };
 
 fn input(text: &str) -> JsonValue {
@@ -13,7 +13,11 @@ fn input(text: &str) -> JsonValue {
 }
 
 fn issue_paths(error: &ParseError) -> Vec<String> {
-    error.issues().iter().map(|issue| issue.path_key()).collect()
+    error
+        .issues()
+        .iter()
+        .map(|issue| issue.path_key())
+        .collect()
 }
 
 #[test]
@@ -51,7 +55,10 @@ fn optional_null_and_absent_are_distinct() {
     let absent = parse_provider_config(&input("{}"), &[]).expect("空配置");
     assert_eq!(absent.to_json().to_json_string(), "{}");
     let nulls = parse_provider_config(&input(r#"{"group":null,"api":null}"#), &[]).expect("null");
-    assert_eq!(nulls.to_json().to_json_string(), r#"{"group":null,"api":null}"#);
+    assert_eq!(
+        nulls.to_json().to_json_string(),
+        r#"{"group":null,"api":null}"#
+    );
     assert!(matches!(absent.group, Field::Absent));
     assert!(matches!(nulls.group, Field::Null));
 }
@@ -60,7 +67,10 @@ fn optional_null_and_absent_are_distinct() {
 fn model_ids_are_trimmed_and_blank_is_invariant() {
     let config =
         parse_provider_config(&input(r#"{"builtinModelIds":["  m1  ","m2"]}"#), &[]).unwrap();
-    assert_eq!(config.to_json().to_json_string(), r#"{"builtinModelIds":["m1","m2"]}"#);
+    assert_eq!(
+        config.to_json().to_json_string(),
+        r#"{"builtinModelIds":["m1","m2"]}"#
+    );
 
     let error = parse_provider_config(&input(r#"{"builtinModelIds":["   "]}"#), &[]).unwrap_err();
     assert!(matches!(error, ParseError::Invariant(_)));
@@ -92,7 +102,10 @@ fn number_boundaries_follow_safe_positive_integer() {
         (r#"{"properties":{"contextWindow":0}}"#, false),
         (r#"{"properties":{"contextWindow":-1}}"#, false),
         (r#"{"properties":{"contextWindow":1.5}}"#, false),
-        (r#"{"properties":{"contextWindow":9007199254740992}}"#, false),
+        (
+            r#"{"properties":{"contextWindow":9007199254740992}}"#,
+            false,
+        ),
     ] {
         assert_eq!(
             parse_model_config(&input(text), &[]).is_ok(),
@@ -122,7 +135,10 @@ fn option_map_requires_compilable_object_expression() {
         );
         let result = parse_model_config(&input(&text), &[]);
         assert!(result.is_err(), "{source}");
-        assert_eq!(issue_paths(&result.unwrap_err()), vec!["optionSpecs\u{1f}reasoningLevel\u{1f}map"]);
+        assert_eq!(
+            issue_paths(&result.unwrap_err()),
+            vec!["optionSpecs\u{1f}reasoningLevel\u{1f}map"]
+        );
     }
 }
 
@@ -134,7 +150,14 @@ fn regex_patterns_are_validated_like_js_regexp() {
             serde_json::to_string(pattern).expect("转义")
         )
     };
-    for pattern in [".*", "^gpt-", "openai-.*", "(?:a|b)", "[a-z]+", "(?<name>a)"] {
+    for pattern in [
+        ".*",
+        "^gpt-",
+        "openai-.*",
+        "(?:a|b)",
+        "[a-z]+",
+        "(?<name>a)",
+    ] {
         assert!(
             parse_mode_builtin_model_config_rules(&input(&rule(pattern)), &[]).is_ok(),
             "{pattern}"
@@ -150,12 +173,31 @@ fn regex_patterns_are_validated_like_js_regexp() {
 
 #[test]
 fn urls_follow_common_js_url_acceptance() {
-    for url in ["https://api.example.com", "http://a", "a:b", "mailto:x@y", "x:"] {
-        let text = format!(r#"{{"api":{{"baseUrl":{}}}}}"#, serde_json::to_string(url).unwrap());
+    for url in [
+        "https://api.example.com",
+        "http://a",
+        "a:b",
+        "mailto:x@y",
+        "x:",
+    ] {
+        let text = format!(
+            r#"{{"api":{{"baseUrl":{}}}}}"#,
+            serde_json::to_string(url).unwrap()
+        );
         assert!(parse_provider_config(&input(&text), &[]).is_ok(), "{url}");
     }
-    for url in ["not a url", "http://", "//x", "1:2", "http://a b", "http://example.com:99999"] {
-        let text = format!(r#"{{"api":{{"baseUrl":{}}}}}"#, serde_json::to_string(url).unwrap());
+    for url in [
+        "not a url",
+        "http://",
+        "//x",
+        "1:2",
+        "http://a b",
+        "http://example.com:99999",
+    ] {
+        let text = format!(
+            r#"{{"api":{{"baseUrl":{}}}}}"#,
+            serde_json::to_string(url).unwrap()
+        );
         assert!(parse_provider_config(&input(&text), &[]).is_err(), "{url}");
     }
 }
@@ -167,14 +209,20 @@ fn personal_provider_rejects_account_access_and_builtin_model_ids() {
         &[],
     )
     .unwrap_err();
-    assert_eq!(issue_paths(&error), vec!["providerRules\u{1f}0\u{1f}config\u{1f}access"]);
+    assert_eq!(
+        issue_paths(&error),
+        vec!["providerRules\u{1f}0\u{1f}config\u{1f}access"]
+    );
 
     let error = parse_personal_provider_config_map(
         &input(r#"{"providerRules":[{"providerId":"p","config":{"builtinModelIds":["m"]}}]}"#),
         &[],
     )
     .unwrap_err();
-    assert_eq!(issue_paths(&error), vec!["providerRules\u{1f}0\u{1f}config"]);
+    assert_eq!(
+        issue_paths(&error),
+        vec!["providerRules\u{1f}0\u{1f}config"]
+    );
 }
 
 #[test]
@@ -209,7 +257,10 @@ fn manual_config_requires_properties_and_option_specs() {
         &[],
     )
     .unwrap_err();
-    assert_eq!(issue_paths(&error), vec!["optionSpecs\u{1f}maxOutputTokens"]);
+    assert_eq!(
+        issue_paths(&error),
+        vec!["optionSpecs\u{1f}maxOutputTokens"]
+    );
 }
 
 #[test]
@@ -270,7 +321,9 @@ fn validate_complete_reports_missing_required_fields() {
         .map(|issue| issue.path_key())
         .collect::<Vec<_>>();
     assert_eq!(paths, vec!["group", "access", "api"]);
-    assert!(issues.iter().all(|issue| issue.code == "required-field-missing"));
+    assert!(issues
+        .iter()
+        .all(|issue| issue.code == "required-field-missing"));
 
     let map = parse_provider_config_map(
         &input(r#"[{"providerId":"p1","config":{"group":"zai-family","access":{"type":"api-key","apiKey":"k"},"api":{"type":"openai-responses","baseUrl":"https://x"}}}]"#),

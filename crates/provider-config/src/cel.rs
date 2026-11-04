@@ -93,9 +93,7 @@ fn tokenize(source: &str) -> Result<Vec<Token>, String> {
 
         if character.is_ascii_alphabetic() || character == '_' {
             let mut end = offset + 1;
-            while end < chars.len()
-                && (chars[end].is_ascii_alphanumeric() || chars[end] == '_')
-            {
+            while end < chars.len() && (chars[end].is_ascii_alphanumeric() || chars[end] == '_') {
                 end += 1;
             }
             tokens.push(Token {
@@ -140,7 +138,9 @@ fn tokenize(source: &str) -> Result<Vec<Token>, String> {
             continue;
         }
 
-        return Err(format!("unsupported token {character:?} at offset {offset}"));
+        return Err(format!(
+            "unsupported token {character:?} at offset {offset}"
+        ));
     }
 
     tokens.push(Token {
@@ -163,9 +163,7 @@ fn read_number(chars: &[char], start: usize) -> (Token, usize) {
         }
     }
     // (\.[0-9]+)?
-    if chars.get(index) == Some(&'.')
-        && chars.get(index + 1).is_some_and(|c| c.is_ascii_digit())
-    {
+    if chars.get(index) == Some(&'.') && chars.get(index + 1).is_some_and(|c| c.is_ascii_digit()) {
         index += 1;
         while index < chars.len() && chars[index].is_ascii_digit() {
             index += 1;
@@ -221,7 +219,9 @@ fn read_string(chars: &[char], start: usize, quote: char) -> Result<(Token, usiz
         let escape_offset = cursor;
         cursor += 1;
         let Some(escaped) = chars.get(cursor).copied() else {
-            return Err(format!("unterminated string escape at offset {escape_offset}"));
+            return Err(format!(
+                "unterminated string escape at offset {escape_offset}"
+            ));
         };
         let simple = match escaped {
             '\'' => Some('\''),
@@ -247,9 +247,8 @@ fn read_string(chars: &[char], start: usize, quote: char) -> Result<(Token, usiz
             if !digits.chars().all(|c| c.is_ascii_hexdigit()) {
                 return Err(format!("invalid unicode escape at offset {escape_offset}"));
             }
-            let code = u32::from_str_radix(&digits, 16).map_err(|_| {
-                format!("invalid unicode escape at offset {escape_offset}")
-            })?;
+            let code = u32::from_str_radix(&digits, 16)
+                .map_err(|_| format!("invalid unicode escape at offset {escape_offset}"))?;
             value.push(char::from_u32(code).unwrap_or('\u{fffd}'));
             cursor += 5;
             continue;
@@ -300,10 +299,7 @@ impl Parser<'_> {
         let when_true = self.parse_conditional()?;
         self.expect(":")?;
         let when_false = self.parse_conditional()?;
-        Ok(Expr::Conditional(
-            Box::new(when_true),
-            Box::new(when_false),
-        ))
+        Ok(Expr::Conditional(Box::new(when_true), Box::new(when_false)))
     }
 
     fn parse_logical_or(&mut self) -> Result<Expr, String> {
@@ -459,10 +455,7 @@ impl Parser<'_> {
     fn expect(&mut self, value: &str) -> Result<(), String> {
         let token = self.current().clone();
         if token.value != value {
-            return Err(format!(
-                "expected {:?} at offset {}",
-                value, token.offset
-            ));
+            return Err(format!("expected {:?} at offset {}", value, token.offset));
         }
         self.index += 1;
         Ok(())
