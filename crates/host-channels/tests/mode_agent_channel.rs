@@ -901,3 +901,16 @@ async fn collect_local_runtime_child_processes_without_runtime_is_empty() {
     .expect("无 runtime 应返回空列表");
     assert_eq!(value, Value::Json("[]".to_owned()));
 }
+
+#[tokio::test]
+async fn cancel_plugin_operation_requires_operation_id() {
+    let channel = channel();
+    let error = call(&channel, "cancelPluginOperation", object_arg("{}"))
+        .await
+        .map(|_| ())
+        .expect_err("缺 operationId");
+    assert!(
+        message(&error).contains("invalid cancelPluginOperation request"),
+        "{error:?}"
+    );
+}

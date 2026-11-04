@@ -16,12 +16,11 @@
 //! - 已接：getStorageStartupState/getWorkspaceRuntimeIdentity/syncAppRuntimePreferences/
 //!   closeSession/grantWorkspaceHookTrust/resolveSuggestedPluginReference/
 //!   getSkillReferenceCatalog/readWorkspacePresentation/disposeAll；
-//! - 未接：cancelPluginOperation
-//!   （无 workspace，需 operationId 路由）、hasActiveCuaOperationTurn（CUA 跟踪属
-//!   TS 服务层）、getAppUsageStats/getTaskTokenUsage（agent 数据库统计）、automation
-//!   十方法（按决策 4 由 Renderer 分别调用两个 owner）、setConnectionFlowStateV4
-//!   （仅 trusted relay/facade 可调）与多数事件源（进程采样 / v4 帧 / runtime
-//!   偏好请求 / CUA 观察）；
+//! - 未接：hasActiveCuaOperationTurn（CUA 跟踪属 TS 服务层）、automation 十方法
+//!   （按决策 4 由 Renderer 分别调用两个 owner）、setConnectionFlowStateV4
+//!   （仅 trusted relay/facade 可调）、sendConversationCommandV4（信封需客户端
+//!   富化：灰度门禁/Bot/Browser 上下文）与 respondSessionRuntimePreferences
+//!   （反向请求需异步回复通道，当前 host 用 local 默认应答）与多数事件源；
 //! - workflows 六方法已接（global 载体简化为「首个本地活跃 runtime → 管理面
 //!   workspace」，TS 的 reusable/stale 清理与 cancelPluginOperation（无 workspace、
 //!   需按 operationId 路由到持有 runtime）未接）；
@@ -1800,6 +1799,20 @@ impl ServerChannel for ModeAgentChannel {
                     let result = control.collect_local_runtime_child_processes().await;
                     json_value(&result)
                 }
+                "cancelPluginOperation" => {
+                    let params: CancelPluginOperationParams =
+                        parse_params("cancelPluginOperation", arg)?;
+                    // 取消无 workspace：复用插件管理面载体（与 TS 的 pluginProcessManager 同口径）。
+                    let _ = std::fs::create_dir_all(&management_workspace);
+                    let target = AgentWorkspaceTarget::new(
+                        management_workspace.to_string_lossy().into_owned(),
+                    );
+                    let result = control
+                        .cancel_plugin_operation(&target, &params.operation_id)
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
                 other => Err(unsupported(other)),
             }
         })
@@ -2950,6 +2963,13 @@ struct TestModelConnectivityV4Params {
     #[serde(flatten)]
     workspace: WorkspaceParams,
     selection: agent_protocol::session::ModelSelection,
+}
+
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CancelPluginOperationParams {
+    operation_id: String,
 }
 
 fn not_owned() -> ChannelError {
