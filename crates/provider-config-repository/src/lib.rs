@@ -23,12 +23,14 @@ use provider_config_file_codec::{
 };
 use provider_config_source::{decode_personal_document, empty_personal_layer, PersonalLayer};
 
+pub mod apply;
 pub mod cache_paths;
 pub mod materializer;
 pub mod remote_refresh;
 pub mod remote_sync;
 pub mod runtime_paths;
 
+pub use apply::{apply_remote_release, ApplyRemoteReleaseOutcome};
 pub use cache_paths::{
     create_mode_builtin_endpoint_key, normalize_mode_builtin_endpoint_origin,
     resolve_mode_builtin_cache_paths, resolve_mode_builtin_client_platform,

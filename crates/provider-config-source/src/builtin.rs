@@ -159,6 +159,33 @@ impl BuiltinLayer {
     }
 }
 
+/// 只读读取 Bundled/Active 候选并按 TS 规则选择，返回选中的 Release。
+///
+/// `active_path` 为空时使用 `bundled_path`；sourceKey 不参与选择。
+pub fn select_mode_builtin_release(
+    bundled_path: &str,
+    active_path: Option<&str>,
+) -> Result<ModeBuiltinRelease, SourceError> {
+    let bundled = bundled_path.trim();
+    if bundled.is_empty() {
+        return Err(SourceError::invalid(
+            "Mode Built-in bundledFilePath 不能为空",
+        ));
+    }
+    let active = active_path
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(bundled);
+
+    let bundled_candidate = read_release_candidate(bundled);
+    let active_candidate = if active == bundled {
+        None
+    } else {
+        Some(read_release_candidate(active))
+    };
+    select_release_candidate(&bundled_candidate, active_candidate.as_ref())
+}
+
 /// 只读读取 Bundled/Active 候选并按 TS 规则选择。
 ///
 /// `active_path` 为空时使用 `bundled_path`；`sourceKey` 始终按 Active 路径计算。
@@ -177,14 +204,7 @@ pub fn read_mode_builtin_layer(
         .filter(|value| !value.is_empty())
         .unwrap_or(bundled);
     let source_key = source_key_for_path(active);
-
-    let bundled_candidate = read_release_candidate(bundled);
-    let active_candidate = if active == bundled {
-        None
-    } else {
-        Some(read_release_candidate(active))
-    };
-    let release = select_release_candidate(&bundled_candidate, active_candidate.as_ref())?;
+    let release = select_mode_builtin_release(bundled, Some(active))?;
 
     Ok(BuiltinLayer {
         revision: format!("mode-builtin:{}:{}", release.revision, source_key),

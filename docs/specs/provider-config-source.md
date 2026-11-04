@@ -61,6 +61,7 @@ crates/provider-config-source/
 | `decode_personal_document(&JsonValue) -> Result<PersonalLayer, SourceError>` | 严格解码，供测试与后续写入路径复用 |
 | `read_mode_builtin_layer(bundled, active?) -> Result<BuiltinLayer, SourceError>` | 候选读取与选择；两者都不可用时返回错误 |
 | `decode_mode_builtin_release(&JsonValue) -> Result<ModeBuiltinRelease, SourceError>` | Release 严格解码 |
+| `select_mode_builtin_release(bundled, active) -> Result<ModeBuiltinRelease, SourceError>` | 只读候选选择，返回选中的 Release（apply 复用） |
 | `serialize_mode_builtin_release(&ModeBuiltinRelease) -> String` | 与 TS `serializeModeBuiltinRelease` 一致的紧凑 JSON |
 | `read_snapshot(bundled, personal, active?) -> Result<ProviderConfigSnapshot, SourceError>` | 两层组合 |
 | `source_key_for_path(path)` / `source_key_with_cwd(path, cwd)` | `sha256(resolve(path))`，后者用于确定性测试 |

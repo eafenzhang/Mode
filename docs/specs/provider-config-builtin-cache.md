@@ -13,12 +13,15 @@
 | `cache_paths::resolve_mode_builtin_cache_paths` | `resolveModeBuiltinCachePaths` | Active/LKG 路径布局 |
 | `cache_paths::create_mode_builtin_endpoint_key` | `createModeBuiltinEndpointKey` | Origin 规范化 + sha256 前 32 位 |
 | `materializer::materialize_mode_builtin_provider_config` | `materializeModeBuiltinProviderConfig` | 随包 Release 的唯一写入点 |
+| `apply::apply_remote_release` | `applyRemoteRelease` | Remote/LKG 落盘与 revision 裁决 |
 
 - **路径是兼容范围**：`runtime/provider/<platform>/<appVersion>/endpoint-<hash>/` 的层级与文件名
   必须与 TS 一致；平台或版本段非法时拒绝，不做路径清洗。
 - **唯一写入点**：随包基线只由 materializer 写入；它复用 `atomic-file` 的跨进程锁与
   私有原子写，其他层不得直接写该文件。
 - materializer 与下载配置分离，不保留历史 hash 副本；内容未变化时不重写。
+- Active/LKG 的 Remote 落盘只经 `apply_remote_release`；它复用同一跨进程锁与私有
+  原子写，不另建写路径。
 
 ## 2. 路径规则
 
@@ -52,7 +55,27 @@ materialize({ environmentConfigRoot, content })
 - 首次物化时父目录不存在：先 `create_dir_all`，否则锁目录无法创建。
 - 返回写入的目标路径。
 
-## 4. 失败语义
+## 4. Remote Release 落盘（`applyRemoteRelease`）
+
+`apply_remote_release(bundledPath, activePath, release)`：
+
+1. `create_dir_all(activePath.parent())` → `withFileLock(activePath)`；
+2. 锁内重新读取 Bundled/Active，按 `provider-config-source.md` §4.2 选择当前值；
+   若 Active 缺失、无效或与选中值的 signature（`revision + ":" + serialize`）不同，
+   先把选中值原子写回 Active；
+3. `release.revision < current.revision` → `Stale`，不再写盘；
+4. revision 相同：规范序列化相同 → `Unchanged`；不同 → 错误
+   `Mode Built-in 相同 revision <n> 对应不同内容`；
+5. revision 更大 → 私有原子写 Active → `Updated`。
+
+落盘格式为 `JSON.stringify(encodeModeBuiltinRelease(release), null, 2)`：2 空格缩进、
+无尾随换行；`pnpm builtin-release:fixtures` 的 `prettySample` 已与 TS 逐字节对拍。
+
+- 文件监听、`observedSignature` 与 `remote-updated` 通知不在本层；调用方据 `Updated`
+  自行广播。
+- Active 只是可丢弃缓存：读取/解码失败按“无候选”处理，由有效 Bundled 覆盖。
+
+## 5. 失败语义
 
 | 场景 | 行为 |
 | --- | --- |
@@ -62,7 +85,7 @@ materialize({ environmentConfigRoot, content })
 | 父目录创建失败 / 锁超时 / 原子写失败 | 错误原样上抛，交由调用方重试 |
 | 内容与现有文件一致 | 跳过写入，返回路径 |
 
-## 5. 与 TS 的已知差异
+## 6. 与 TS 的已知差异
 
 | 差异 | 说明 |
 | --- | --- |
@@ -70,8 +93,10 @@ materialize({ environmentConfigRoot, content })
 | 平台/架构注入 | 生产用 `resolve_mode_builtin_client_platform_from_process`；测试可直接传入平台/架构。 |
 | 路径比较 | 复用 `atomic-file` 的锁与写；Windows 分隔符由 `PathBuf` 处理。 |
 
-## 6. 验收
+## 7. 验收
 
 - `cargo test -p provider-config-repository`：5 条缓存用例覆盖平台映射、Origin 归一、
-  路径布局与非法段、首次物化/内容不变不重写、嵌套目录创建；仓库其余 11 条用例同时回归。
-- 真机/远程同步未开始；Node 物化路径仍是 oracle。
+  路径布局与非法段、首次物化/内容不变不重写、嵌套目录创建；6 条 apply 用例覆盖
+  updated/stale/unchanged/同 revision 冲突、缺失 Active 与无效 Active 覆盖；仓库其余
+  用例同时回归。
+- 真实 HTTP 下载未开始；Node 物化与 apply 路径仍是 oracle。

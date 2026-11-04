@@ -56,6 +56,17 @@ fn real_release_serializes_byte_for_byte_like_ts() {
 }
 
 #[test]
+fn apply_pretty_json_matches_json_stringify() {
+    let fixture = load_fixture();
+    let sample = object(&fixture, "prettySample");
+    let release = decode_mode_builtin_release(object(sample, "input"))
+        .unwrap_or_else(|error| panic!("pretty 样例解码失败: {error}"));
+    let expected = object(sample, "pretty").as_str().expect("prettySample.pretty");
+    let pretty = serde_json::to_string_pretty(&release.to_json()).expect("pretty");
+    assert_eq!(pretty, expected);
+}
+
+#[test]
 fn ts_rejected_documents_are_rejected_here() {
     let fixture = load_fixture();
     let rejects = object(&fixture, "rejects")

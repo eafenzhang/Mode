@@ -89,12 +89,26 @@ for (const [name, mutate] of [
   expectReject(name, mutate(minimalRelease()));
 }
 
+const prettySampleInput = minimalRelease();
+prettySampleInput.revision = 9;
+prettySampleInput.config.providerConfigRules.providerRules.push({
+  providerId: "p1",
+  providerName: "P1",
+  config: { group: "zai-family", builtinModelIds: ["m1", "m2"] },
+});
+const prettySample = decodeModeBuiltinRelease(prettySampleInput);
+
 const fixture = {
   valid: {
     input: raw,
     encoded: encodeModeBuiltinRelease(decoded),
     serialized: serializeModeBuiltinRelease(decoded),
     revision: decoded.revision,
+  },
+  // applyRemoteRelease 落盘格式：JSON.stringify(..., null, 2)，无尾随换行。
+  prettySample: {
+    input: prettySampleInput,
+    pretty: JSON.stringify(encodeModeBuiltinRelease(prettySample), null, 2),
   },
   rejects,
 };

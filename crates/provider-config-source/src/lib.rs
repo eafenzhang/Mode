@@ -14,8 +14,8 @@ use std::fmt;
 use provider_config::{JsonValue, ModelConfigRules, ProviderConfigMap, ProviderTemplateMap};
 
 pub use builtin::{
-    decode_mode_builtin_release, read_mode_builtin_layer, serialize_mode_builtin_release,
-    BuiltinLayer, ModeBuiltinRelease,
+    decode_mode_builtin_release, read_mode_builtin_layer, select_mode_builtin_release,
+    serialize_mode_builtin_release, BuiltinLayer, ModeBuiltinRelease,
 };
 pub use personal::{
     decode_personal_document, empty_personal_layer, read_personal_layer, ModelSelection,
