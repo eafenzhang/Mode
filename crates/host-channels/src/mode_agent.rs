@@ -98,6 +98,8 @@ use agent_protocol::workflow::{
     SavedWorkflowMeta, SavedWorkflowScope, WorkflowsDeleteResult, WorkflowsGetResult,
     WorkflowsListResult, WorkflowsMoveResult, WorkflowsRunsResult, WorkflowsUpdateMetaResult,
 };
+use agent_protocol::conversation_telemetry::ConversationTelemetryFact;
+use agent_protocol::cua_permission::CuaPermissionObservation;
 use agent_protocol::process_telemetry::{
     McpResourceSample, McpTelemetryEvent, ProcessResourceSample, ToolExecResource,
 };
@@ -129,6 +131,12 @@ pub const MCP_RESOURCE_SAMPLES_LISTEN: &str = "onDynamicMcpResourceSamples";
 
 /// 事件名（TS `IModeAgentService.onDynamicToolExecResource`）。
 pub const TOOL_EXEC_RESOURCE_LISTEN: &str = "onDynamicToolExecResource";
+
+/// 事件名（TS `IModeAgentService.onDynamicCuaPermissionObservation`）。
+pub const CUA_PERMISSION_OBSERVATION_LISTEN: &str = "onDynamicCuaPermissionObservation";
+
+/// 事件名（TS `IModeAgentService.onDynamicConversationTelemetryFact`）。
+pub const CONVERSATION_TELEMETRY_FACT_LISTEN: &str = "onDynamicConversationTelemetryFact";
 
 /// 事件名（TS `IModeAgentService.onDynamicLocalTtftFacts`；审计版恒为空事件）。
 pub const LOCAL_TTFT_FACTS_LISTEN: &str = "onDynamicLocalTtftFacts";
@@ -1827,9 +1835,12 @@ impl ServerChannel for ModeAgentChannel {
                             RuntimePreferencesResolution::Failed(message)
                         }
                     };
-                    runtime_preferences_pending
-                        .respond(&params.request_id, resolution)
-                        .map_err(ChannelError::error)?;
+                    agent_process::respond_session_runtime_preferences(
+                        &runtime_preferences_pending,
+                        &params.request_id,
+                        resolution,
+                    )
+                    .map_err(ChannelError::error)?;
                     Ok(Value::Undefined)
                 }
                 other => Err(unsupported(other)),
@@ -1968,6 +1979,7 @@ impl ServerChannel for ModeAgentChannel {
             return Ok(listen_process_notifications(
                 control,
                 "process/resourceSample",
+                None,
                 |value| serde_json::from_value::<ProcessResourceSample>(value).ok(),
                 emit,
             ));
@@ -1977,6 +1989,7 @@ impl ServerChannel for ModeAgentChannel {
             return Ok(listen_process_notifications(
                 control,
                 "process/mcpTelemetry",
+                None,
                 |value| serde_json::from_value::<McpTelemetryEvent>(value).ok(),
                 emit,
             ));
@@ -1986,6 +1999,7 @@ impl ServerChannel for ModeAgentChannel {
             return Ok(listen_process_notifications(
                 control,
                 "process/mcpResourceSamples",
+                None,
                 |value| serde_json::from_value::<Vec<McpResourceSample>>(value).ok(),
                 emit,
             ));
@@ -1995,7 +2009,40 @@ impl ServerChannel for ModeAgentChannel {
             return Ok(listen_process_notifications(
                 control,
                 "process/toolExecResource",
+                None,
                 |value| serde_json::from_value::<ToolExecResource>(value).ok(),
+                emit,
+            ));
+        }
+        if event == CUA_PERMISSION_OBSERVATION_LISTEN {
+            let control = Arc::clone(&self.control);
+            return Ok(listen_process_notifications(
+                control,
+                "v4/cua/permission-observation",
+                None,
+                |value| {
+                    serde_json::from_value::<CuaPermissionObservation>(value)
+                        .ok()
+                        .filter(|observation| observation.validate().is_ok())
+                },
+                emit,
+            ));
+        }
+        if event == CONVERSATION_TELEMETRY_FACT_LISTEN {
+            let params: WorkspaceParams =
+                parse_params("onDynamicConversationTelemetryFact", arg)?;
+            let workspace_key = params.target().workspace_key();
+            let control = Arc::clone(&self.control);
+            let emit = rpc_host::EventCallback::clone(&emit);
+            return Ok(listen_process_notifications(
+                control,
+                "v4/telemetry/event",
+                Some(workspace_key),
+                |value| {
+                    serde_json::from_value::<ConversationTelemetryFact>(value)
+                        .ok()
+                        .filter(|fact| fact.validate().is_ok())
+                },
                 emit,
             ));
         }
@@ -3163,6 +3210,7 @@ enum RuntimePreferencesResolutionParams {
 fn listen_process_notifications<P>(
     control: Arc<AgentControlClient>,
     method: &'static str,
+    workspace_key: Option<String>,
     parse: fn(serde_json::Value) -> Option<P>,
     emit: rpc_host::EventCallback,
 ) -> rpc_host::Subscription
@@ -3200,6 +3248,11 @@ where
                                 != Some(method)
                             {
                                 continue;
+                            }
+                            if let Some(workspace_key) = &workspace_key {
+                                if &notification.workspace_key != workspace_key {
+                                    continue;
+                                }
                             }
                             let Some(params) = notification.value.get("params") else {
                                 continue;

@@ -155,6 +155,15 @@ impl PendingSessionRuntimePreferences {
     }
 }
 
+/// `respondSessionRuntimePreferences`：回复一条 pending 请求。
+pub fn respond_session_runtime_preferences(
+    pending: &PendingSessionRuntimePreferences,
+    request_id: &str,
+    resolution: RuntimePreferencesResolution,
+) -> Result<(), String> {
+    pending.respond(request_id, resolution)
+}
+
 /// 外部权威处理器：把请求交给订阅方（renderer），等 `respond` 回复。
 ///
 /// `on_request` 收到带 `requestId` 的完整参数；没有订阅方时立即回 -32603。

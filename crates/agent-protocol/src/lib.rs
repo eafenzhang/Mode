@@ -50,6 +50,8 @@
 //! stdout/stdin 上**整帧原样**录下——不是照着镜像类型写的。两端各自用自己的类型解同一份字节，
 //! 所以哪一端单方面改类型而另一端没跟上，那一端就会红。
 
+pub mod conversation_telemetry;
+pub mod cua_permission;
 pub mod frame;
 pub mod mcp;
 pub mod message;

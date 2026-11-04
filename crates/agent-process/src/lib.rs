@@ -60,8 +60,9 @@ pub use resolve::{
 };
 pub use runtime_preferences::{
     default_runtime_preferences, default_runtime_preferences_handler,
-    external_runtime_preferences_handler, runtime_preferences_handler, runtime_preferences_reply,
-    PendingSessionRuntimePreferences, RuntimePreferencesResolution,
+    external_runtime_preferences_handler, respond_session_runtime_preferences,
+    runtime_preferences_handler, runtime_preferences_reply, PendingSessionRuntimePreferences,
+    RuntimePreferencesResolution,
     SESSION_REQUEST_RUNTIME_PREFERENCES_METHOD,
 };
 pub use session_events::{SessionSubscription, SESSION_EVENT_NOTIFICATION};

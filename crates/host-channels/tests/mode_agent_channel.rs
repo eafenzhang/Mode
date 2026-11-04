@@ -939,3 +939,31 @@ async fn local_ttft_listener_is_empty_event() {
         .expect("空事件订阅");
     subscription();
 }
+
+#[tokio::test]
+async fn conversation_telemetry_listener_registers_and_disposes() {
+    let channel = channel();
+    let subscription = channel
+        .listen(
+            "ctx".into(),
+            "onDynamicConversationTelemetryFact".into(),
+            object_arg(r#"{"workspacePath":"D:/ws"}"#),
+            std::sync::Arc::new(|_| {}),
+        )
+        .expect("注册会话遥测");
+    subscription();
+}
+
+#[tokio::test]
+async fn cua_permission_observation_listener_registers_and_disposes() {
+    let channel = channel();
+    let subscription = channel
+        .listen(
+            "ctx".into(),
+            "onDynamicCuaPermissionObservation".into(),
+            Value::Undefined,
+            std::sync::Arc::new(|_| {}),
+        )
+        .expect("注册 CUA 权限观察");
+    subscription();
+}
