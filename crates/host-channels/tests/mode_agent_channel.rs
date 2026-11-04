@@ -472,3 +472,54 @@ async fn unsubscribe_unknown_workspace_config_is_noop() {
     .await
     .expect("未知订阅应静默返回");
 }
+
+#[tokio::test]
+async fn resync_without_route_is_not_owned() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "resyncConversationV4",
+        object_arg(r#"{"workspacePath":"D:/ws","subscriptionId":"missing","base":null}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("无归属订阅");
+    assert!(
+        message(&error).contains("fault.subscription.notOwned"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn conversation_rows_range_requires_limit() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "conversationRowsRangeV4",
+        object_arg(r#"{"workspacePath":"D:/ws","sessionId":"s1"}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 limit");
+    assert!(
+        message(&error).contains("invalid conversationRowsRangeV4 request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn resync_sessions_index_without_route_is_not_owned() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "resyncSessionsIndexV4",
+        object_arg(r#"{"workspacePath":"D:/ws","subscriptionId":"missing","base":null}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("无归属订阅");
+    assert!(
+        message(&error).contains("fault.subscription.notOwned"),
+        "{error:?}"
+    );
+}

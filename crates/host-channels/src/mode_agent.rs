@@ -70,6 +70,7 @@ use agent_protocol::session_write::{
 };
 use agent_protocol::skills::SkillsReferenceCatalogResult;
 use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
+use agent_protocol::v4_queries::{ConversationResyncParams, ResyncBase, RowsRangeParams};
 use agent_protocol::v4_transport::{SubscribeBase, V4ClientMode};
 use agent_protocol::workflow::{
     SavedWorkflowMeta, SavedWorkflowScope, WorkflowsDeleteResult, WorkflowsGetResult,
@@ -1277,6 +1278,58 @@ impl ServerChannel for ModeAgentChannel {
                     }
                     Ok(Value::Undefined)
                 }
+                "resyncConversationV4" => {
+                    let params: ResyncV4Params = parse_params("resyncConversationV4", arg)?;
+                    resync_route(
+                        &control,
+                        &params.workspace.target(),
+                        params,
+                        "conversation/",
+                        &routes_handle,
+                    )
+                    .await
+                }
+                "resyncSessionsIndexV4" => {
+                    let params: ResyncV4Params = parse_params("resyncSessionsIndexV4", arg)?;
+                    resync_route(
+                        &control,
+                        &params.workspace.target(),
+                        params,
+                        "sessions-index/",
+                        &routes_handle,
+                    )
+                    .await
+                }
+                "resyncWorkspaceConfigV4" => {
+                    let params: ResyncV4Params = parse_params("resyncWorkspaceConfigV4", arg)?;
+                    resync_route(
+                        &control,
+                        &params.workspace.target(),
+                        params,
+                        "workspace-config/",
+                        &routes_handle,
+                    )
+                    .await
+                }
+                "conversationRowsRangeV4" => {
+                    let params: RowsRangeV4Params = parse_params("conversationRowsRangeV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result: agent_protocol::v4_queries::RowsRangeResult = control
+                        .conversation_rows_range_v4(
+                            &params.workspace.target(),
+                            RowsRangeParams {
+                                session_id: params.session_id,
+                                // Host 注入可信 clientMode；renderer 调用不带。
+                                client_mode: Some(V4ClientMode::DesktopContinuous),
+                                before_row_id: params.before_row_id,
+                                limit: params.limit,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
                 other => Err(unsupported(other)),
             }
         })
@@ -2126,4 +2179,102 @@ struct SubscribeIndexParams {
     base: Option<SubscribeBaseParams>,
     #[serde(default)]
     visibility: Option<String>,
+}
+
+/// resync 参数（TS ModeAgentConversationResyncParams；base 必填但可为 null）。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResyncV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    subscription_id: String,
+    #[serde(default)]
+    base: Option<SubscribeBaseParams>,
+    #[serde(default)]
+    force_snapshot: Option<bool>,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+/// rowsRange 参数（TS ModeAgentConversationRowsRangeParams）。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RowsRangeV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    #[serde(default)]
+    before_row_id: Option<serde_json::Number>,
+    limit: serde_json::Number,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+fn not_owned() -> ChannelError {
+    ChannelError::error("fault.subscription.notOwned")
+}
+
+/// 查找并校验 route 归属（workspace + topic 前缀），与 TS resolveV4UnsubscribeRoute 同口径。
+fn owned_route(
+    routes: &Mutex<HashMap<String, V4Route>>,
+    subscription_id: &str,
+    workspace_key: &str,
+    topic_prefix: &str,
+) -> Result<V4Route, ChannelError> {
+    routes
+        .lock()
+        .unwrap()
+        .get(subscription_id)
+        .filter(|route| {
+            route.workspace_key == workspace_key && route.topic.starts_with(topic_prefix)
+        })
+        .map(|route| V4Route {
+            workspace_key: route.workspace_key.clone(),
+            topic: route.topic.clone(),
+            subscription_id: route.subscription_id.clone(),
+            connection_id: route.connection_id.clone(),
+            stop: Arc::clone(&route.stop),
+        })
+        .ok_or_else(not_owned)
+}
+
+async fn resync_route(
+    control: &AgentControlClient,
+    target: &AgentWorkspaceTarget,
+    params: ResyncV4Params,
+    topic_prefix: &str,
+    routes: &Mutex<HashMap<String, V4Route>>,
+) -> Result<Value, ChannelError> {
+    let workspace_key = target.workspace_key();
+    let route = owned_route(
+        routes,
+        &params.subscription_id,
+        &workspace_key,
+        topic_prefix,
+    )?;
+    let policy = policy_from(params.runtime_policy.as_deref())?;
+    let result = control
+        .resync_conversation_v4(
+            target,
+            ConversationResyncParams {
+                topic: route.topic,
+                connection_id: route.connection_id,
+                subscription_id: route.subscription_id,
+                base: match params.base {
+                    Some(base) => Some(ResyncBase {
+                        log_epoch: base.log_epoch,
+                        seq: base
+                            .seq
+                            .as_u64()
+                            .ok_or_else(|| ChannelError::error("invalid base.seq"))?,
+                    }),
+                    None => None,
+                },
+                force_snapshot: params.force_snapshot,
+            },
+            policy,
+        )
+        .await
+        .map_err(control_error)?;
+    json_value(&result)
 }
