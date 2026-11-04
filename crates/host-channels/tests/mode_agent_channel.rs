@@ -830,3 +830,61 @@ async fn task_token_usage_requires_session_id() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn generate_workspace_text_requires_prompt_or_messages() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "generateWorkspaceText",
+        object_arg(
+            r#"{"workspacePath":"D:/ws",
+                "selection":{"providerId":"p1","modelId":"m1"},
+                "querySource":"git-commit"}"#,
+        ),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("prompt/messages 至少一个");
+    // 组合约束在 client_for 之前校验：不会拉起 runtime。
+    assert!(
+        message(&error).contains("prompt 或 messages 至少需要提供一个"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn generate_workspace_text_requires_selection() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "generateWorkspaceText",
+        object_arg(
+            r#"{"workspacePath":"D:/ws","prompt":"hi","querySource":"git-commit"}"#,
+        ),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 selection");
+    assert!(
+        message(&error).contains("invalid generateWorkspaceText request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn test_model_connectivity_requires_selection() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "testModelConnectivity",
+        object_arg(r#"{"workspacePath":"D:/ws"}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 selection");
+    assert!(
+        message(&error).contains("invalid testModelConnectivity request"),
+        "{error:?}"
+    );
+}

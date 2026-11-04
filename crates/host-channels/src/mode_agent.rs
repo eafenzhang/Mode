@@ -40,7 +40,8 @@
 //!   ArtifactRead/Workspace/NodeResult）均已接线；attachments（begin/chunk/
 //!   commit/abort/read/previewSource + conversationAttachmentRead/Stat）、
 //!   conversationFileChanges/FileRewindPreview、backgroundBashOutput、
-//!   queryConversationCommandsV4 与 getAppUsageStats/getTaskTokenUsage 也已接线；
+//!   queryConversationCommandsV4、getAppUsageStats/getTaskTokenUsage 与
+//!   generateWorkspaceText/testModelConnectivity 也已接线；
 //! - 事件订阅已桥 `session.event`/`snapshot` 与 onDynamicStorageStartupState
 //!   （generation 取订阅时快照，进程换代后 watch 结束即停止推送）；：TS 聚合的 `state.updated` /
 //!   `permission.request` / `userInput.*` 来自通知与反向请求，尚未接线；订阅建立失败
@@ -50,8 +51,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use agent_process::{
-    AgentControlClient, AgentWorkspaceTarget, AppRuntimePreferences, ControlError,
-    GrantTrustResult, ListSessionsOptions, RuntimeIdentity, RuntimePolicy, StorageStartupSnapshot,
+    build_workspace_ref, AgentControlClient, AgentWorkspaceTarget, AppRuntimePreferences,
+    ControlError, GrantTrustResult, ListSessionsOptions, RuntimeIdentity, RuntimePolicy,
+    StorageStartupSnapshot,
 };
 use agent_protocol::mcp::{McpListMode, McpListResult};
 use agent_protocol::message::{MessageModel, MessageWithParts};
@@ -94,6 +96,9 @@ use agent_protocol::workflow::{
     WorkflowsListResult, WorkflowsMoveResult, WorkflowsRunsResult, WorkflowsUpdateMetaResult,
 };
 use agent_protocol::workspace::WorkspacePresentation;
+use agent_protocol::workspace_generate::{
+    GenerateTextParams, WorkspaceModelMessage, WorkspaceModelTool,
+};
 use rpc_host::{BoxFuture, CancellationToken, ChannelError, ServerChannel};
 use rpc_wire::Value;
 use serde::Deserialize;
@@ -1758,6 +1763,38 @@ impl ServerChannel for ModeAgentChannel {
                         .map_err(control_error)?;
                     json_value(&result)
                 }
+                "generateWorkspaceText" => {
+                    let params: GenerateWorkspaceTextV4Params =
+                        parse_params("generateWorkspaceText", arg)?;
+                    let target = params.workspace.target();
+                    let result = control
+                        .workspace_generate_text(
+                            &target,
+                            &GenerateTextParams {
+                                workspace: build_workspace_ref(&target),
+                                selection: params.selection,
+                                prompt: params.prompt,
+                                messages: params.messages,
+                                tools: params.tools,
+                                query_source: params.query_source,
+                                max_output_tokens: params.max_output_tokens,
+                                operation_id: params.operation_id,
+                            },
+                            params.request_timeout_ms,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "testModelConnectivity" => {
+                    let params: TestModelConnectivityV4Params =
+                        parse_params("testModelConnectivity", arg)?;
+                    let result = control
+                        .test_model_connectivity(&params.workspace.target(), &params.selection)
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
                 other => Err(unsupported(other)),
             }
         })
@@ -2878,6 +2915,36 @@ struct AppUsageV4Params {
     range: AppUsageRange,
     #[serde(default)]
     time_zone: Option<String>,
+}
+
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GenerateWorkspaceTextV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    selection: agent_protocol::session::ModelSelection,
+    #[serde(default)]
+    prompt: Option<String>,
+    #[serde(default)]
+    messages: Option<Vec<WorkspaceModelMessage>>,
+    #[serde(default)]
+    tools: Option<Vec<WorkspaceModelTool>>,
+    query_source: String,
+    #[serde(default)]
+    max_output_tokens: Option<u64>,
+    #[serde(default)]
+    operation_id: Option<String>,
+    #[serde(default)]
+    request_timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TestModelConnectivityV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    selection: agent_protocol::session::ModelSelection,
 }
 
 fn not_owned() -> ChannelError {

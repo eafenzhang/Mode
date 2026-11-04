@@ -11,7 +11,11 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
+use agent_protocol::session::ModelSelection;
 use agent_protocol::v4_queries::{AppUsageSnapshot, UsageStatsParams};
+use agent_protocol::workspace_generate::{
+    CancelGenerateTextResult, GenerateTextParams, GenerateTextResult, TestModelConnectivityResult,
+};
 
 use crate::{AgentProcessError, AgentRuntimeRegistry, WorkspaceTarget};
 use mode_protocol_client::ClientError;
@@ -224,6 +228,90 @@ impl AgentControlClient {
         }
         self.usage_stats_v4(&workspace, params, RuntimePolicy::ExistingOnly)
             .await
+    }
+
+    /// `workspace/generateText`：一次性文本生成；超时只在显式传入时覆盖。
+    pub async fn workspace_generate_text(
+        &self,
+        target: &AgentWorkspaceTarget,
+        params: &GenerateTextParams,
+        timeout_ms: Option<u64>,
+    ) -> Result<GenerateTextResult, ControlError> {
+        params.validate().map_err(ControlError::InvalidParams)?;
+        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let value = serde_json::to_value(params).expect("generateText params 序列化不会失败");
+        let response = match timeout_ms {
+            Some(timeout_ms) => {
+                process
+                    .client()
+                    .request_with_timeout(
+                        "workspace/generateText",
+                        Some(value),
+                        std::time::Duration::from_millis(timeout_ms),
+                    )
+                    .await?
+            }
+            None => {
+                process
+                    .client()
+                    .request("workspace/generateText", Some(value))
+                    .await?
+            }
+        };
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid workspace/generateText result: {error}"))
+        })
+    }
+
+    /// `workspace/cancelGenerateText`：best-effort 取消，失败由调用方记录。
+    pub async fn cancel_workspace_generate_text(
+        &self,
+        target: &AgentWorkspaceTarget,
+        operation_id: &str,
+    ) -> Result<CancelGenerateTextResult, ControlError> {
+        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let response = process
+            .client()
+            .request(
+                "workspace/cancelGenerateText",
+                Some(json!({ "operationId": operation_id })),
+            )
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid workspace/cancelGenerateText result: {error}"
+            ))
+        })
+    }
+
+    /// `provider/testModelConnectivity`：连接测试成功恒为 `{ success: true }`。
+    pub async fn test_model_connectivity(
+        &self,
+        target: &AgentWorkspaceTarget,
+        selection: &ModelSelection,
+    ) -> Result<TestModelConnectivityResult, ControlError> {
+        let process = self.client_for(target, RuntimePolicy::StartIfNeeded).await?;
+        let response = process
+            .client()
+            .request(
+                "provider/testModelConnectivity",
+                Some(json!({
+                    "workspace": build_workspace_ref(target),
+                    "selection": selection,
+                })),
+            )
+            .await?;
+        let result: TestModelConnectivityResult = serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!(
+                "invalid provider/testModelConnectivity result: {error}"
+            ))
+        })?;
+        if !result.success {
+            return Err(ControlError::InvalidResult(
+                "provider/testModelConnectivity must return success=true".to_owned(),
+            ));
+        }
+        Ok(result)
     }
 
     /// Account Provider Config 交付；未注入源时与 TS 的「无源」分支一致，直接返回。
