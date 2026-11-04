@@ -523,3 +523,120 @@ async fn resync_sessions_index_without_route_is_not_owned() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn hello_conversation_returns_local_host_hello() {
+    let channel = channel();
+    let value = call(&channel, "helloConversationV4", Value::Undefined)
+        .await
+        .expect("host hello");
+    let Value::Json(text) = value else {
+        panic!("expected JSON string");
+    };
+    let hello: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(hello["kind"], "hello");
+    assert_eq!(hello["connectionId"], "rust-inprocess");
+    assert_eq!(hello["clientMode"], "desktop-continuous");
+    assert_eq!(hello["deliveryProfile"], "continuous");
+}
+
+#[tokio::test]
+async fn initialize_conversation_rejects_unknown_client_hello_field() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "initializeConversationV4",
+        object_arg(
+            r#"{"kind":"clientHello","protocolVersion":4,"clientId":"c1","appVersion":"1.0.0","extra":true}"#,
+        ),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("未知字段");
+    assert!(
+        message(&error).contains("invalid clientHello"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn initialize_conversation_accepts_valid_client_hello() {
+    let channel = channel();
+    call(
+        &channel,
+        "initializeConversationV4",
+        object_arg(r#"{"kind":"clientHello","protocolVersion":4,"clientId":"c1","appVersion":"1.0.0"}"#),
+    )
+    .await
+    .expect("合法 clientHello");
+}
+
+#[tokio::test]
+async fn conversation_plans_requires_session_id() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "conversationPlansV4",
+        object_arg(r#"{"workspacePath":"D:/ws"}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 sessionId");
+    assert!(
+        message(&error).contains("invalid conversationPlansV4 request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn workflow_run_events_requires_run_id() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "conversationWorkflowRunEventsV4",
+        object_arg(r#"{"workspacePath":"D:/ws","sessionId":"s1"}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 runId");
+    assert!(
+        message(&error).contains("invalid conversationWorkflowRunEventsV4 request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn artifact_read_requires_offset_and_limit() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "conversationWorkflowRunArtifactReadV4",
+        object_arg(
+            r#"{"workspacePath":"D:/ws","sessionId":"s1","runId":"r1","artifactId":"a1","version":1}"#,
+        ),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 offset/limit");
+    assert!(
+        message(&error).contains("invalid conversationWorkflowRunArtifactReadV4 request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn node_result_requires_site_id_and_ordinal() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "conversationWorkflowRunNodeResultV4",
+        object_arg(r#"{"workspacePath":"D:/ws","sessionId":"s1","runId":"r1"}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 siteId/ordinal");
+    assert!(
+        message(&error).contains("invalid conversationWorkflowRunNodeResultV4 request"),
+        "{error:?}"
+    );
+}

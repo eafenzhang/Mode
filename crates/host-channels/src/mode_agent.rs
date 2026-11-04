@@ -19,14 +19,15 @@
 //! - 未接：collectLocalRuntimeChildProcesses（宿主进程面）、cancelPluginOperation
 //!   （无 workspace，需 operationId 路由）、hasActiveCuaOperationTurn（CUA 跟踪属
 //!   TS 服务层）、getAppUsageStats/getTaskTokenUsage（agent 数据库统计）、automation
-//!   十方法（按决策 4 由 Renderer 分别调用两个 owner）与多数事件源（进程采样 /
-//!   v4 帧 / runtime 偏好请求 / CUA 观察）；
+//!   十方法（按决策 4 由 Renderer 分别调用两个 owner）、setConnectionFlowStateV4
+//!   （仅 trusted relay/facade 可调）与多数事件源（进程采样 / v4 帧 / runtime
+//!   偏好请求 / CUA 观察）；
 //! - workflows 六方法已接（global 载体简化为「首个本地活跃 runtime → 管理面
 //!   workspace」，TS 的 reusable/stale 清理与 cancelPluginOperation（无 workspace、
 //!   需按 operationId 路由到持有 runtime）未接）；
-//! - plugins 首批只覆盖 list/overview/describe/setEnabled/install/uninstall/
-//!   update/configure/validate/referenceCatalog；restoreBuiltin/resetConfig/
-//!   cancelOperation/marketplace 增删改与 suggested 引用解析未接线；
+//! - plugins 已覆盖 list/overview/describe/setEnabled/install/uninstall/update/
+//!   configure/validate/referenceCatalog/restoreBuiltin/resetConfig/marketplace
+//!   增删改与 suggested 引用解析；cancelPluginOperation 未接；
 //! - `sendPrompt` 不做 TS 的 `unrecognized_keys` 兼容重试，且缺少
 //!   browserAmbientContext 的 executor 收集（TS 缺省时主动采集）；
 //! - v4 conversation 帧已接：subscribeConversationV4/unsubscribeConversationV4 +
@@ -34,7 +35,9 @@
 //!   连接身份按宿主内部直调默认 rust-inprocess/desktop-continuous）；sessions-index
 //!   帧同样已接（subscribeSessionsIndexV4/unsubscribe + onDynamicSessionsIndexFrame）；
 //!   workspace-config 帧也已接（subscribeWorkspaceConfigV4/unsubscribe +
-//!   onDynamicWorkspaceConfigFrame）；resync / rowsRange 未接线；
+//!   onDynamicWorkspaceConfigFrame）；resync / rowsRange 与 v4 只读 query 族
+//!   （hello/initialize、plans、workflowRuns/Events/Artifacts/ArtifactData/
+//!   ArtifactRead/Workspace/NodeResult）均已接线；
 //! - 事件订阅已桥 `session.event`/`snapshot` 与 onDynamicStorageStartupState
 //!   （generation 取订阅时快照，进程换代后 watch 结束即停止推送）；：TS 聚合的 `state.updated` /
 //!   `permission.request` / `userInput.*` 来自通知与反向请求，尚未接线；订阅建立失败
@@ -70,7 +73,12 @@ use agent_protocol::session_write::{
 };
 use agent_protocol::skills::SkillsReferenceCatalogResult;
 use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
-use agent_protocol::v4_queries::{ConversationResyncParams, ResyncBase, RowsRangeParams};
+use agent_protocol::v4_queries::{
+    ConversationResyncParams, PlansParams, ResyncBase, RowsRangeParams,
+    WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams, WorkflowRunArtifactsParams,
+    WorkflowRunEventsParams, WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams,
+    WorkflowRunsQueryParams,
+};
 use agent_protocol::v4_transport::{SubscribeBase, V4ClientMode};
 use agent_protocol::workflow::{
     SavedWorkflowMeta, SavedWorkflowScope, WorkflowsDeleteResult, WorkflowsGetResult,
@@ -81,7 +89,7 @@ use rpc_host::{BoxFuture, CancellationToken, ChannelError, ServerChannel};
 use rpc_wire::Value;
 use serde::Deserialize;
 
-use agent_process::CreateSessionOptions;
+use agent_process::{CreateSessionOptions, build_host_hello, validate_client_hello};
 
 use crate::params::first_arg_object;
 
@@ -1330,6 +1338,159 @@ impl ServerChannel for ModeAgentChannel {
                         .map_err(control_error)?;
                     json_value(&result)
                 }
+                "helloConversationV4" => json_value(&build_host_hello(V4_LOCAL_CONNECTION_ID)),
+                "initializeConversationV4" => {
+                    let object = first_arg_object(&arg)?;
+                    validate_client_hello(&serde_json::Value::Object(object))
+                        .map_err(control_error)?;
+                    Ok(Value::Undefined)
+                }
+                "conversationPlansV4" => {
+                    let params: SessionV4Params = parse_params("conversationPlansV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_plans_v4(
+                            &params.workspace.target(),
+                            PlansParams {
+                                session_id: params.session_id,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "conversationWorkflowRunEventsV4" => {
+                    let params: WorkflowRunEventsV4Params =
+                        parse_params("conversationWorkflowRunEventsV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_workflow_run_events_v4(
+                            &params.workspace.target(),
+                            WorkflowRunEventsParams {
+                                session_id: params.session_id,
+                                run_id: params.run_id,
+                                after_sequence: params.after_sequence,
+                                limit: params.limit,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "conversationWorkflowRunsV4" => {
+                    let params: WorkflowRunsV4Params =
+                        parse_params("conversationWorkflowRunsV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_workflow_runs_v4(
+                            &params.workspace.target(),
+                            WorkflowRunsQueryParams {
+                                session_id: params.session_id,
+                                limit: params.limit,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "conversationWorkflowRunArtifactsV4" => {
+                    let params: WorkflowRunV4Params =
+                        parse_params("conversationWorkflowRunArtifactsV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_workflow_run_artifacts_v4(
+                            &params.workspace.target(),
+                            WorkflowRunArtifactsParams {
+                                session_id: params.session_id,
+                                run_id: params.run_id,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "conversationWorkflowRunArtifactDataV4" => {
+                    let params: WorkflowRunArtifactDataV4Params =
+                        parse_params("conversationWorkflowRunArtifactDataV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_workflow_run_artifact_data_v4(
+                            &params.workspace.target(),
+                            WorkflowRunArtifactDataParams {
+                                session_id: params.session_id,
+                                run_id: params.run_id,
+                                artifact_id: params.artifact_id,
+                                after_sequence: params.after_sequence,
+                                limit: params.limit,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "conversationWorkflowRunArtifactReadV4" => {
+                    let params: WorkflowRunArtifactReadV4Params =
+                        parse_params("conversationWorkflowRunArtifactReadV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_workflow_run_artifact_read_v4(
+                            &params.workspace.target(),
+                            WorkflowRunArtifactReadParams {
+                                session_id: params.session_id,
+                                run_id: params.run_id,
+                                artifact_id: params.artifact_id,
+                                version: params.version,
+                                offset: params.offset,
+                                limit: params.limit,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "conversationWorkflowRunWorkspaceV4" => {
+                    let params: WorkflowRunV4Params =
+                        parse_params("conversationWorkflowRunWorkspaceV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_workflow_run_workspace_v4(
+                            &params.workspace.target(),
+                            WorkflowRunWorkspaceParams {
+                                session_id: params.session_id,
+                                run_id: params.run_id,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "conversationWorkflowRunNodeResultV4" => {
+                    let params: WorkflowRunNodeResultV4Params =
+                        parse_params("conversationWorkflowRunNodeResultV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_workflow_run_node_result_v4(
+                            &params.workspace.target(),
+                            WorkflowRunNodeResultParams {
+                                session_id: params.session_id,
+                                run_id: params.run_id,
+                                site_id: params.site_id,
+                                ordinal: params.ordinal,
+                                max_bytes: params.max_bytes,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
                 other => Err(unsupported(other)),
             }
         })
@@ -2206,6 +2367,103 @@ struct RowsRangeV4Params {
     #[serde(default)]
     before_row_id: Option<serde_json::Number>,
     limit: serde_json::Number,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+
+// ---- v4 conversation 只读 query 族（plans / workflow runs / artifacts） ----
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowRunV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    run_id: String,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowRunEventsV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    run_id: String,
+    #[serde(default)]
+    after_sequence: Option<u64>,
+    #[serde(default)]
+    limit: Option<u64>,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowRunsV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    #[serde(default)]
+    limit: Option<u64>,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowRunArtifactDataV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    run_id: String,
+    artifact_id: String,
+    #[serde(default)]
+    after_sequence: Option<u64>,
+    #[serde(default)]
+    limit: Option<u64>,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowRunArtifactReadV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    run_id: String,
+    artifact_id: String,
+    version: u64,
+    offset: u64,
+    limit: u64,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowRunNodeResultV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    run_id: String,
+    site_id: String,
+    ordinal: u64,
+    #[serde(default)]
+    max_bytes: Option<u64>,
     #[serde(default)]
     runtime_policy: Option<String>,
 }
