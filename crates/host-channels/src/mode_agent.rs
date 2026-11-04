@@ -31,7 +31,8 @@
 //!   browserAmbientContext 的 executor 收集（TS 缺省时主动采集）；
 //! - v4 conversation 帧已接：subscribeConversationV4/unsubscribeConversationV4 +
 //!   onDynamicConversationFrame 事件（帧按 workspaceKey fan-out，归属键替换旧订阅；
-//!   连接身份按宿主内部直调默认 rust-inprocess/desktop-continuous）；sessions-index /
+//!   连接身份按宿主内部直调默认 rust-inprocess/desktop-continuous）；sessions-index
+//!   帧同样已接（subscribeSessionsIndexV4/unsubscribe + onDynamicSessionsIndexFrame）；
 //!   workspace-config / resync / rowsRange 未接线；
 //! - 事件订阅已桥 `session.event`/`snapshot` 与 onDynamicStorageStartupState
 //!   （generation 取订阅时快照，进程换代后 watch 结束即停止推送）；：TS 聚合的 `state.updated` /
@@ -99,6 +100,8 @@ pub struct ModeAgentChannel {
     management_workspace: std::path::PathBuf,
     /// v4 conversation 帧监听者（workspaceKey -> 回调表）。
     frame_listeners: Arc<Mutex<HashMap<String, Vec<rpc_host::EventCallback>>>>,
+    /// v4 sessions-index 帧监听者（workspaceKey -> 回调表）。
+    sessions_index_listeners: Arc<Mutex<HashMap<String, Vec<rpc_host::EventCallback>>>>,
     /// 活跃订阅（subscriptionId -> route）与归属键索引。
     routes: Arc<Mutex<HashMap<String, V4Route>>>,
     route_owners: Arc<Mutex<HashMap<String, String>>>,
@@ -110,6 +113,7 @@ impl ModeAgentChannel {
             control,
             management_workspace,
             frame_listeners: Arc::new(Mutex::new(HashMap::new())),
+            sessions_index_listeners: Arc::new(Mutex::new(HashMap::new())),
             routes: Arc::new(Mutex::new(HashMap::new())),
             route_owners: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -278,6 +282,7 @@ impl ServerChannel for ModeAgentChannel {
         let control = Arc::clone(&self.control);
         let management_workspace = self.management_workspace.clone();
         let frame_listeners_handle = Arc::clone(&self.frame_listeners);
+        let sessions_index_listeners_handle = Arc::clone(&self.sessions_index_listeners);
         let routes_handle = Arc::clone(&self.routes);
         let route_owners_handle = Arc::clone(&self.route_owners);
         Box::pin(async move {
@@ -996,6 +1001,141 @@ impl ServerChannel for ModeAgentChannel {
                     }
                     Ok(Value::Undefined)
                 }
+                "subscribeSessionsIndexV4" => {
+                    let params: SubscribeIndexParams =
+                        parse_params("subscribeSessionsIndexV4", arg)?;
+                    let target = params.workspace.target();
+                    let workspace_key = target.workspace_key();
+                    let topic = format!("sessions-index/{workspace_key}");
+                    let base = params.base.map(|base| SubscribeBase {
+                        log_epoch: base.log_epoch,
+                        seq: base.seq,
+                    });
+                    let visibility = visibility_from(params.visibility.as_deref())?;
+                    let owner_key =
+                        format!("{workspace_key}\u{0}{topic}\u{0}{V4_LOCAL_CONNECTION_ID}");
+                    if let Some(old_id) = route_owners_handle.lock().unwrap().remove(&owner_key) {
+                        if let Some(old) = routes_handle.lock().unwrap().remove(&old_id) {
+                            old.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+                        }
+                    }
+                    let listeners = Arc::clone(&sessions_index_listeners_handle);
+                    let routes = Arc::clone(&routes_handle);
+                    let route_owners = Arc::clone(&route_owners_handle);
+                    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+                    let control2 = Arc::clone(&control);
+                    let stop_flag = Arc::clone(&stop);
+                    let owner_for_pump = owner_key.clone();
+                    let workspace_for_pump = workspace_key.clone();
+                    let (ack_tx, ack_rx) =
+                        tokio::sync::oneshot::channel::<Result<serde_json::Value, String>>();
+                    std::thread::spawn(move || {
+                        let runtime = match tokio::runtime::Builder::new_current_thread()
+                            .enable_all()
+                            .build()
+                        {
+                            Ok(runtime) => runtime,
+                            Err(error) => {
+                                let _ = ack_tx.send(Err(error.to_string()));
+                                return;
+                            }
+                        };
+                        runtime.block_on(async move {
+                            let mut subscription = match control2
+                                .subscribe_sessions_index_frames(&target, base, visibility)
+                                .await
+                            {
+                                Ok(subscription) => subscription,
+                                Err(error) => {
+                                    let _ = ack_tx.send(Err(error.to_string()));
+                                    return;
+                                }
+                            };
+                            let subscription_id = subscription.ack.subscription_id.clone();
+                            routes.lock().unwrap().insert(
+                                subscription_id.clone(),
+                                V4Route {
+                                    workspace_key: workspace_for_pump.clone(),
+                                    topic: format!("sessions-index/{}", workspace_for_pump),
+                                    subscription_id: subscription_id.clone(),
+                                    connection_id: V4_LOCAL_CONNECTION_ID.to_string(),
+                                    stop: Arc::clone(&stop_flag),
+                                },
+                            );
+                            route_owners
+                                .lock()
+                                .unwrap()
+                                .insert(owner_for_pump.clone(), subscription_id.clone());
+                            let ack_json =
+                                serde_json::to_value(&subscription.ack).unwrap_or_default();
+                            let _ = ack_tx.send(Ok(ack_json));
+                            loop {
+                                tokio::select! {
+                                    _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {
+                                        if stop_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                                            break;
+                                        }
+                                    }
+                                    frame = subscription.recv() => match frame {
+                                        Some(frame) => {
+                                            let Ok(text) = serde_json::to_string(&frame) else {
+                                                continue;
+                                            };
+                                            let callbacks = listeners
+                                                .lock()
+                                                .unwrap()
+                                                .get(&workspace_for_pump)
+                                                .cloned()
+                                                .unwrap_or_default();
+                                            for callback in callbacks {
+                                                callback(Value::Json(text.clone()));
+                                            }
+                                        }
+                                        None => break,
+                                    },
+                                }
+                            }
+                            routes.lock().unwrap().remove(&subscription_id);
+                            route_owners.lock().unwrap().remove(&owner_for_pump);
+                        });
+                    });
+                    match ack_rx.await {
+                        Ok(Ok(ack)) => Ok(json_text(ack)),
+                        Ok(Err(message)) => Err(ChannelError::error(message)),
+                        Err(_) => Err(ChannelError::error("subscribeSessionsIndexV4 aborted")),
+                    }
+                }
+                "unsubscribeSessionsIndexV4" => {
+                    let params: UnsubscribeV4Params =
+                        parse_params("unsubscribeSessionsIndexV4", arg)?;
+                    let target = params.workspace.target();
+                    let workspace_key = target.workspace_key();
+                    let route = routes_handle
+                        .lock()
+                        .unwrap()
+                        .remove(&params.subscription_id)
+                        .filter(|route| {
+                            route.workspace_key == workspace_key
+                                && route.topic.starts_with("sessions-index/")
+                        });
+                    if let Some(route) = route {
+                        route.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+                        route_owners_handle.lock().unwrap().remove(&format!(
+                            "{}\u{0}{}\u{0}{}",
+                            route.workspace_key, route.topic, route.connection_id
+                        ));
+                        control
+                            .unsubscribe_conversation_frames(
+                                &target,
+                                &route.topic,
+                                &route.subscription_id,
+                                &route.connection_id,
+                            )
+                            .await
+                            .map_err(control_error)?;
+                    }
+                    Ok(Value::Undefined)
+                }
                 other => Err(unsupported(other)),
             }
         })
@@ -1008,6 +1148,29 @@ impl ServerChannel for ModeAgentChannel {
         arg: Value,
         emit: rpc_host::EventCallback,
     ) -> Result<rpc_host::Subscription, ChannelError> {
+        if event == SESSIONS_INDEX_FRAME_LISTEN {
+            let params: WorkspaceParams = parse_params("onDynamicSessionsIndexFrame", arg)?;
+            let workspace_key = params.target().workspace_key();
+            let listeners = Arc::clone(&self.sessions_index_listeners);
+            let callback: rpc_host::EventCallback = Arc::new(move |value| emit(value));
+            listeners
+                .lock()
+                .unwrap()
+                .entry(workspace_key.clone())
+                .or_default()
+                .push(Arc::clone(&callback));
+            let listeners_for_dispose = Arc::clone(&listeners);
+            let key_for_dispose = workspace_key.clone();
+            return Ok(Box::new(move || {
+                let mut map = listeners_for_dispose.lock().unwrap();
+                if let Some(callbacks) = map.get_mut(&key_for_dispose) {
+                    callbacks.retain(|candidate| !Arc::ptr_eq(candidate, &callback));
+                    if callbacks.is_empty() {
+                        map.remove(&key_for_dispose);
+                    }
+                }
+            }));
+        }
         if event == CONVERSATION_FRAME_LISTEN {
             let params: WorkspaceParams = parse_params("onDynamicConversationFrame", arg)?;
             let workspace_key = params.target().workspace_key();
@@ -1729,6 +1892,9 @@ struct ResolveSuggestedParams {
 
 pub const CONVERSATION_FRAME_LISTEN: &str = "onDynamicConversationFrame";
 
+/// 事件名（TS IModeAgentService.onDynamicSessionsIndexFrame）。
+pub const SESSIONS_INDEX_FRAME_LISTEN: &str = "onDynamicSessionsIndexFrame";
+
 /// 订阅参数（TS ModeAgentConversationSubscribeParams）。
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1781,4 +1947,16 @@ fn visibility_from(
         )),
         Some(other) => Err(ChannelError::error(format!("invalid visibility: {other}"))),
     }
+}
+
+/// sessions-index 订阅参数（TS ModeAgentSessionsIndexSubscribeParams 的宿主侧子集）。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SubscribeIndexParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    #[serde(default)]
+    base: Option<SubscribeBaseParams>,
+    #[serde(default)]
+    visibility: Option<String>,
 }

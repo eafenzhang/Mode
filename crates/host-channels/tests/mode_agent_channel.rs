@@ -392,3 +392,43 @@ async fn subscribe_conversation_requires_session_id() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn sessions_index_listen_registers_and_disposes() {
+    let channel = channel();
+    let subscription = channel
+        .listen(
+            "ctx".into(),
+            "onDynamicSessionsIndexFrame".into(),
+            object_arg(r#"{"workspacePath":"D:/ws"}"#),
+            std::sync::Arc::new(|_| {}),
+        )
+        .expect("注册索引帧监听");
+    subscription();
+}
+
+#[tokio::test]
+async fn subscribe_sessions_index_rejects_invalid_visibility() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "subscribeSessionsIndexV4",
+        object_arg(r#"{"workspacePath":"D:/ws","visibility":"sideways"}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("非法 visibility");
+    assert!(message(&error).contains("invalid visibility"), "{error:?}");
+}
+
+#[tokio::test]
+async fn unsubscribe_unknown_sessions_index_is_noop() {
+    let channel = channel();
+    call(
+        &channel,
+        "unsubscribeSessionsIndexV4",
+        object_arg(r#"{"workspacePath":"D:/ws","subscriptionId":"missing"}"#),
+    )
+    .await
+    .expect("未知订阅应静默返回");
+}

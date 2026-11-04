@@ -219,6 +219,9 @@ impl AgentControlClient {
 /// `v4/conversation/unsubscribe` 方法名（与 TS `V4_METHODS.conversationUnsubscribe` 对齐）。
 pub const V4_CONVERSATION_UNSUBSCRIBE_METHOD: &str = "v4/conversation/unsubscribe";
 
+/// v4 conversation 的宿主内部连接名（与 channel 侧常量同口径）。
+pub const V4_LOCAL_CONNECTION_ID: &str = "rust-inprocess";
+
 impl AgentControlClient {
     /// 按 sessionId 建立会话帧订阅（topic=`conversation/<sessionId>`）。
     ///
@@ -245,6 +248,27 @@ impl AgentControlClient {
             workflow_run_deltas: None,
         };
         self.subscribe_conversation_v4(target, params).await
+    }
+
+    /// 按 workspaceKey 建立 sessions-index 帧订阅（topic=`sessions-index/<workspaceKey>`）。
+    pub async fn subscribe_sessions_index_frames(
+        &self,
+        target: &AgentWorkspaceTarget,
+        base: Option<SubscribeBase>,
+        visibility: Option<SubscribeVisibility>,
+    ) -> Result<SessionsIndexFrameSubscription, ControlError> {
+        let params = ConversationSubscribeParams {
+            topic: format!("sessions-index/{}", target.workspace_key()),
+            base,
+            visibility,
+            connection_id: V4_LOCAL_CONNECTION_ID.to_string(),
+            client_mode: V4ClientMode::DesktopContinuous,
+            workspace: None,
+            legacy_task_ids: None,
+            resume_thought_level: None,
+            workflow_run_deltas: None,
+        };
+        self.subscribe_sessions_index_v4(target, params).await
     }
 
     /// 退订：按 route 的 topic/subscriptionId/connectionId 发协议退订请求。
