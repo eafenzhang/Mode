@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use agent_process::AgentControlClient;
-use host_channels::AgentHealthChannel;
+use host_channels::{AgentHealthChannel, ModeAgentChannel, MODE_AGENT_CHANNEL};
 use host_channels::{
     AttachmentTransferChannel, BroadcastChannel, ClientConfigChannel, ClientScenesChannel,
     CommandsChannel, ConversationMirrorChannel, CredentialChannel, FileChannel, FileWatcherChannel,
@@ -439,6 +439,14 @@ fn build_server(
                     host_channels::plugin_sync::default_service(),
                 )),
             ),
+            MODE_AGENT_CHANNEL => {
+                // S2（host-ownership-switch §5）：默认不注册，只有开关显式包含
+                // mode-agent 时才接管；未迁移方法返回 unsupported_method。
+                server.register_channel(
+                    MODE_AGENT_CHANNEL,
+                    Arc::new(ModeAgentChannel::new(Arc::clone(agent_control))),
+                );
+            }
             AGENT_HEALTH_CHANNEL => {
                 server.register_channel(
                     AGENT_HEALTH_CHANNEL,
