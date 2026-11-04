@@ -15,6 +15,7 @@ agent-protocol = { path = "../agent-protocol" }
 broadcast-service = { path = "../broadcast-service" }
 commands-service = { path = "../commands-service" }
 git-cli = { path = "../git-cli" }
+mcp-sync-service = { path = "../mcp-sync-service" }
 git-service = { path = "../git-service" }
 git-checkpoint-service = { path = "../git-checkpoint-service" }
 conversation-mirror = { path = "../conversation-mirror" }
