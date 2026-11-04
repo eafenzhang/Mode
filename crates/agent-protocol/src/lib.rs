@@ -51,6 +51,7 @@
 //! 所以哪一端单方面改类型而另一端没跟上，那一端就会红。
 
 pub mod conversation_telemetry;
+pub mod cua_operation_event;
 pub mod cua_permission;
 pub mod frame;
 pub mod mcp;

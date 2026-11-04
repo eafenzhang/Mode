@@ -16,13 +16,15 @@
 //! - 已接：getStorageStartupState/getWorkspaceRuntimeIdentity/syncAppRuntimePreferences/
 //!   closeSession/grantWorkspaceHookTrust/resolveSuggestedPluginReference/
 //!   getSkillReferenceCatalog/readWorkspacePresentation/disposeAll；
-//! - 未接：hasActiveCuaOperationTurn（CUA 跟踪属 TS 服务层）、automation 十方法
-//!   （按决策 4 由 Renderer 分别调用两个 owner）、setConnectionFlowStateV4
-//!   （仅 trusted relay/facade 可调）、sendConversationCommandV4（信封需客户端
-//!   富化：灰度门禁/Bot/Browser 上下文）与多数事件源；外部权威运行时偏好
-//!   反向请求已接（onDynamicSessionRuntimePreferencesRequest +
-//!   respondSessionRuntimePreferences，走 ReplyHandle 延迟应答）；process 遥测四类与
-//!   onDynamicLocalTtftFacts（空事件）已接；
+//! - 未接：automation 十方法（按决策 4 由 Renderer 分别调用两个 owner）、
+//!   setConnectionFlowStateV4（仅 trusted relay/facade 可调）、
+//!   sendConversationCommandV4（信封需客户端富化：灰度门禁/Bot/Browser 上下文）；
+//!   provider/account 两个网络方法按决策 2 保持显式 unsupported；
+//! - 已接事件面：onAgentRuntimeRestarted、onDynamicPluginOperationProgress、
+//!   onDynamicSessionRuntimePreferencesRequest + respondSessionRuntimePreferences
+//!   （ReplyHandle 延迟应答）、process 遥测四类、onDynamicConversationTelemetryFact、
+//!   onDynamicCuaPermissionObservation、onDynamicLocalTtftFacts（空事件）与
+//!   hasActiveCuaOperationTurn；
 //! - workflows 六方法已接（global 载体简化为「首个本地活跃 runtime → 管理面
 //!   workspace」，TS 的 reusable/stale 清理与 cancelPluginOperation（无 workspace、
 //!   需按 operationId 路由到持有 runtime）未接）；
@@ -1842,6 +1844,9 @@ impl ServerChannel for ModeAgentChannel {
                     )
                     .map_err(ChannelError::error)?;
                     Ok(Value::Undefined)
+                }
+                "hasActiveCuaOperationTurn" => {
+                    json_value(&control.has_active_cua_operation_turn())
                 }
                 other => Err(unsupported(other)),
             }

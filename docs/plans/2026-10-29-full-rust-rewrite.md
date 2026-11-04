@@ -54,7 +54,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | W1 平台基元 | **完成**：settings/paths/credential/fs/file/file-watcher/SQLite/日志/进程/system/media-preview；近两轮新增数据根（归属/迁移/初始化完整）、子进程环境策略、bundled 工具解析、网络重试状态、存储分类与占用聚合。 |
 | W2 传输切换 | **部分**：壳内服务面与 scope 复用已就绪；Node Host 仍是默认所有者，`stdioFrames`/`stdoutGuard` 退场与流控对拍未做 |
 | W3 宿主域 | **已接管/迁移**：设置类、文件类、凭据、git/checkpoint、conversation-mirror、skills、skill-sync、plugin-sync、subagents、settings-sync、broadcast、system、automation-service（10/10）、onboarding-record-service（9/9）、provider 旧 store 迁移、provider 余额识别/编排/目标解析、official MCP 鉴权判定、远程桌面自适应码率/画质降档状态机；**部分**：任务/会话（Repos 已迁、频道未）、provider 写路径与运行时、plugins 管理面、hooks/onboarding、usage-stats（时间范围/quota/legacy+credit monitor 已迁）、terminal（服务面与频道已迁、真机未验收）、LAN（发现纯逻辑已迁、UDP/CLI 未迁）、CUA broker（raw input socket 解析策略已迁）；**未开始**：远程工作区、云账号 |
-| W4 Agent 运行时 | **协议/客户端镜像 101/115（todo=0，not-needed=11，blocked=3）**；S0 健康快照与 S1 覆盖矩阵完成；会话级 api-retry tracker/draft registry 已迁移；频道所有权切换（S2）：S0 健康面已接线、S2 mode-agent 适配器已覆盖 85/99 调用面方法（会话读写、plugins、workflows、v4 帧/订阅/query 族、mcp 状态等；默认不注册、未迁移=unsupported_method，2026-11-04）、设计已批准（2026-11-04，按「最彻底」口径：native binary 兜底 S2 前补齐、网络方法不委托 Host、独立只读健康频道、Renderer 双 owner 调用） |
+| W4 Agent 运行时 | **协议/客户端镜像 102/115（todo=0，not-needed=11，blocked=2，均为决策 2 的 provider/account）**；S0 健康快照与 S1 覆盖矩阵完成；会话级 api-retry tracker/draft registry 已迁移；频道所有权切换（S2）：S0 健康面已接线、S2 mode-agent 适配器已覆盖 86/99 调用面方法（会话读写、plugins、workflows、v4 帧/订阅/query 族、mcp 状态等；默认不注册、未迁移=unsupported_method，2026-11-04）、设计已批准（2026-11-04，按「最彻底」口径：native binary 兜底 S2 前补齐、网络方法不委托 Host、独立只读健康频道、Renderer 双 owner 调用） |
 | W5 / W6 | 未开始 |
 
 **服务层新增 crate（2026-11-01 ~ 11-03）**

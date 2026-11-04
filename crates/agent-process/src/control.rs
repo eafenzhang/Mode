@@ -302,6 +302,11 @@ impl AgentControlClient {
         self.registry.subscribe_process_notifications()
     }
 
+    /// 当前是否有仍在执行的 Computer Use turn。
+    pub fn has_active_cua_operation_turn(&self) -> bool {
+        self.registry.has_active_cua_operation_turn()
+    }
+
     /// 安装/清除入站反向请求处理器（对所有现有与后续 runtime 生效）。
     pub fn set_request_handler(&self, handler: mode_protocol_client::RequestHandler) {
         self.registry.set_request_handler(Some(handler));

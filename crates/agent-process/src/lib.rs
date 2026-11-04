@@ -19,6 +19,7 @@ use tokio::sync::{broadcast, Mutex};
 use tokio::task::JoinHandle;
 
 mod control;
+mod cua_operation_tracker;
 mod initialize;
 mod mcp;
 mod plugins;
@@ -37,6 +38,7 @@ mod workflows;
 mod workspace;
 mod workspace_policy;
 
+pub use cua_operation_tracker::CuaOperationTurnTracker;
 pub use control::{
     build_grant_params, build_workspace_ref, AgentControlClient, AgentWorkspaceTarget,
     ControlError, GrantTrustReasonCode, GrantTrustResult, LocalRuntimeChildProcesses,

@@ -8,6 +8,8 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use crate::cua_operation_tracker::CuaOperationTurnTracker;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -131,6 +133,7 @@ pub struct AgentRuntimeRegistry {
     spawn_counts: Mutex<HashMap<String, u64>>,
     restart_listeners: Arc<Mutex<Vec<RuntimeRestartListener>>>,
     notification_hub: broadcast::Sender<ProcessNotification>,
+    cua_tracker: Arc<Mutex<CuaOperationTurnTracker>>,
 }
 
 impl AgentRuntimeRegistry {
@@ -144,6 +147,7 @@ impl AgentRuntimeRegistry {
             spawn_counts: Mutex::new(HashMap::new()),
             restart_listeners: Arc::new(Mutex::new(Vec::new())),
             notification_hub: broadcast::channel(1024).0,
+            cua_tracker: Arc::new(Mutex::new(CuaOperationTurnTracker::new())),
         }
     }
 
@@ -153,6 +157,14 @@ impl AgentRuntimeRegistry {
         &self,
     ) -> broadcast::Receiver<ProcessNotification> {
         self.notification_hub.subscribe()
+    }
+
+    /// 当前是否有仍在执行的 desktop-local Computer Use turn。
+    pub fn has_active_cua_operation_turn(&self) -> bool {
+        self.cua_tracker
+            .lock()
+            .expect("cua tracker poisoned")
+            .has_active_turn()
     }
 
     /// 订阅 runtime 换代事件；返回退订句柄。
@@ -369,6 +381,10 @@ impl AgentRuntimeRegistry {
         }
         let generation = self.next_generation.fetch_add(1, Ordering::SeqCst) + 1;
         let pid = process.pid();
+        self.cua_tracker
+            .lock()
+            .expect("cua tracker poisoned")
+            .clear_workspace_key(&key);
         {
             let mut entries = self.entries.lock().expect("registry poisoned");
             entries.insert(
@@ -408,10 +424,29 @@ impl AgentRuntimeRegistry {
         let mut notifications = process.client().subscribe_notifications();
         let hub = self.notification_hub.clone();
         let workspace_key_for_hub = key.clone();
+        let cua_tracker = Arc::clone(&self.cua_tracker);
+        let workspace_for_cua = target.clone();
         tokio::spawn(async move {
             loop {
                 match notifications.recv().await {
                     Ok(value) => {
+                        if value.get("method").and_then(serde_json::Value::as_str)
+                            == Some("computer-use/operation-event")
+                        {
+                            if let Some(params) = value.get("params") {
+                                if let Ok(event) = serde_json::from_value::<
+                                    agent_protocol::cua_operation_event::CuaOperationEvent,
+                                >(params.clone())
+                                {
+                                    if event.validate().is_ok() {
+                                        cua_tracker
+                                            .lock()
+                                            .expect("cua tracker poisoned")
+                                            .accept(&workspace_for_cua, &event);
+                                    }
+                                }
+                            }
+                        }
                         let _ = hub.send(ProcessNotification {
                             workspace_key: workspace_key_for_hub.clone(),
                             value,
@@ -427,6 +462,10 @@ impl AgentRuntimeRegistry {
 
     /// 关闭并移除指定 workspace 的 Agent（下次调用会重新拉起）。
     pub async fn invalidate(&self, workspace_key: &str, grace: Duration) {
+        self.cua_tracker
+            .lock()
+            .expect("cua tracker poisoned")
+            .clear_workspace_key(workspace_key);
         let entry = self
             .entries
             .lock()

@@ -967,3 +967,12 @@ async fn cua_permission_observation_listener_registers_and_disposes() {
         .expect("注册 CUA 权限观察");
     subscription();
 }
+
+#[tokio::test]
+async fn has_active_cua_operation_turn_is_false_without_events() {
+    let channel = channel();
+    let value = call(&channel, "hasActiveCuaOperationTurn", Value::Undefined)
+        .await
+        .expect("查询 CUA turn");
+    assert_eq!(value, Value::Json("false".to_owned()));
+}
