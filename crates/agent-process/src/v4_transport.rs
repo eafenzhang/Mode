@@ -271,6 +271,27 @@ impl AgentControlClient {
         self.subscribe_sessions_index_v4(target, params).await
     }
 
+    /// 按 workspaceKey 建立 workspace-config 帧订阅（topic=`workspace-config/<workspaceKey>`）。
+    pub async fn subscribe_workspace_config_frames(
+        &self,
+        target: &AgentWorkspaceTarget,
+        base: Option<SubscribeBase>,
+        visibility: Option<SubscribeVisibility>,
+    ) -> Result<WorkspaceConfigFrameSubscription, ControlError> {
+        let params = ConversationSubscribeParams {
+            topic: format!("workspace-config/{}", target.workspace_key()),
+            base,
+            visibility,
+            connection_id: V4_LOCAL_CONNECTION_ID.to_string(),
+            client_mode: V4ClientMode::DesktopContinuous,
+            workspace: None,
+            legacy_task_ids: None,
+            resume_thought_level: None,
+            workflow_run_deltas: None,
+        };
+        self.subscribe_workspace_config_v4(target, params).await
+    }
+
     /// 退订：按 route 的 topic/subscriptionId/connectionId 发协议退订请求。
     pub async fn unsubscribe_conversation_frames(
         &self,

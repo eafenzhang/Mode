@@ -432,3 +432,43 @@ async fn unsubscribe_unknown_sessions_index_is_noop() {
     .await
     .expect("未知订阅应静默返回");
 }
+
+#[tokio::test]
+async fn workspace_config_listen_registers_and_disposes() {
+    let channel = channel();
+    let subscription = channel
+        .listen(
+            "ctx".into(),
+            "onDynamicWorkspaceConfigFrame".into(),
+            object_arg(r#"{"workspacePath":"D:/ws"}"#),
+            std::sync::Arc::new(|_| {}),
+        )
+        .expect("注册配置帧监听");
+    subscription();
+}
+
+#[tokio::test]
+async fn subscribe_workspace_config_rejects_invalid_visibility() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "subscribeWorkspaceConfigV4",
+        object_arg(r#"{"workspacePath":"D:/ws","visibility":"sideways"}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("非法 visibility");
+    assert!(message(&error).contains("invalid visibility"), "{error:?}");
+}
+
+#[tokio::test]
+async fn unsubscribe_unknown_workspace_config_is_noop() {
+    let channel = channel();
+    call(
+        &channel,
+        "unsubscribeWorkspaceConfigV4",
+        object_arg(r#"{"workspacePath":"D:/ws","subscriptionId":"missing"}"#),
+    )
+    .await
+    .expect("未知订阅应静默返回");
+}
