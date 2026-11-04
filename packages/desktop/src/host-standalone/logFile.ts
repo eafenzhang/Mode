@@ -49,6 +49,8 @@ export function isExpiredHostLogFile(fileName: string, now = new Date()): boolea
 export interface HostLogFileSink {
   /** 追加一行（调用方已带换行）；IO 失败静默丢弃——日志不能反向影响业务。 */
   write(line: string): void;
+  /** 等当前写链落盘（诊断/用例用；产品路径不依赖它，写失败后自然 resolve）。 */
+  flush(): Promise<void>;
 }
 
 export interface HostLogFileSinkOptions {
@@ -68,7 +70,7 @@ export async function createHostLogFileSink(
   try {
     await mkdir(dir, { recursive: true });
   } catch {
-    return { write: () => {} };
+    return { write: () => {}, flush: async () => {} };
   }
   let broken = false;
   const now = options.now ?? (() => new Date());
@@ -102,5 +104,6 @@ export async function createHostLogFileSink(
           broken = true;
         });
     },
+    flush: () => writeChain,
   };
 }
