@@ -201,6 +201,15 @@ impl AgentRuntimeRegistry {
         self.live_entry(&target.key())
     }
 
+    /// 任意一个活 runtime 的 workspace target（对应 TS usage 全局库的「任一已连接 client」）。
+    pub fn first_live_target(&self) -> Option<WorkspaceTarget> {
+        let entries = self.entries.lock().expect("registry poisoned");
+        entries
+            .values()
+            .find(|entry| !entry.process.client().is_closed())
+            .map(|entry| entry.target.clone())
+    }
+
     /// 现有 runtime 的身份（existing-only，不 spawn）；没有活进程时返回 `None`。
     pub fn existing_identity(&self, target: &WorkspaceTarget) -> Option<RuntimeIdentity> {
         let key = target.key();

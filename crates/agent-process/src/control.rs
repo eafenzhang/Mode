@@ -11,6 +11,8 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
+use agent_protocol::v4_queries::{AppUsageSnapshot, UsageStatsParams};
+
 use crate::{AgentProcessError, AgentRuntimeRegistry, WorkspaceTarget};
 use mode_protocol_client::ClientError;
 
@@ -206,6 +208,22 @@ impl AgentControlClient {
                     workspace_key: target.workspace_key(),
                 }),
         }
+    }
+
+    /// `v4/usage/stats`（全应用范围）：复用任一活 workspace runtime，不拉起新进程。
+    pub async fn app_usage_stats_v4(
+        &self,
+        params: UsageStatsParams,
+    ) -> Result<AppUsageSnapshot, ControlError> {
+        let Some(target) = self.registry.first_live_target() else {
+            return Err(ControlError::InvalidParams("no_active_workspace".to_owned()));
+        };
+        let mut workspace = AgentWorkspaceTarget::new(target.workspace_path.clone());
+        if let Some(identity) = target.workspace_identity.clone() {
+            workspace = workspace.with_identity(identity);
+        }
+        self.usage_stats_v4(&workspace, params, RuntimePolicy::ExistingOnly)
+            .await
     }
 
     /// Account Provider Config 交付；未注入源时与 TS 的「无源」分支一致，直接返回。

@@ -39,8 +39,8 @@
 //!   （hello/initialize、plans、workflowRuns/Events/Artifacts/ArtifactData/
 //!   ArtifactRead/Workspace/NodeResult）均已接线；attachments（begin/chunk/
 //!   commit/abort/read/previewSource + conversationAttachmentRead/Stat）、
-//!   conversationFileChanges/FileRewindPreview、backgroundBashOutput 与
-//!   queryConversationCommandsV4 也已接线；
+//!   conversationFileChanges/FileRewindPreview、backgroundBashOutput、
+//!   queryConversationCommandsV4 与 getAppUsageStats/getTaskTokenUsage 也已接线；
 //! - 事件订阅已桥 `session.event`/`snapshot` 与 onDynamicStorageStartupState
 //!   （generation 取订阅时快照，进程换代后 watch 结束即停止推送）；：TS 聚合的 `state.updated` /
 //!   `permission.request` / `userInput.*` 来自通知与反向请求，尚未接线；订阅建立失败
@@ -78,14 +78,15 @@ use agent_protocol::skills::SkillsReferenceCatalogResult;
 use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
 use agent_protocol::v4::{CommandKey, CommandsQueryParams};
 use agent_protocol::v4_queries::{
-    AttachmentBeginParams, AttachmentChunkParams, AttachmentPreviewChunked,
+    AppUsageRange, AttachmentBeginParams, AttachmentChunkParams, AttachmentPreviewChunked,
     AttachmentPreviewSourceKind, AttachmentPreviewSourceParams, AttachmentReadParams,
     AttachmentTerminalParams, BackgroundBashOutputParams, ConversationAttachmentReadParams,
     ConversationAttachmentStatParams, ConversationResyncParams, ConversationRowTarget,
+    ConversationUsageParams,
     FileChangesParams, FileRewindPreviewParams, PlansParams, ResyncBase, RowsRangeParams,
     WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams, WorkflowRunArtifactsParams,
-    WorkflowRunEventsParams, WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams,
-    WorkflowRunsQueryParams,
+    UsageStatsParams, WorkflowRunEventsParams, WorkflowRunNodeResultParams,
+    WorkflowRunWorkspaceParams, WorkflowRunsQueryParams,
 };
 use agent_protocol::v4_transport::{SubscribeBase, V4ClientMode};
 use agent_protocol::workflow::{
@@ -1731,6 +1732,32 @@ impl ServerChannel for ModeAgentChannel {
                         .map_err(control_error)?;
                     json_value(&result)
                 }
+                "getAppUsageStats" => {
+                    let params: AppUsageV4Params = parse_params("getAppUsageStats", arg)?;
+                    let result = control
+                        .app_usage_stats_v4(UsageStatsParams {
+                            range: params.range,
+                            time_zone: params.time_zone,
+                        })
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "getTaskTokenUsage" => {
+                    let params: SessionV4Params = parse_params("getTaskTokenUsage", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_usage_v4(
+                            &params.workspace.target(),
+                            ConversationUsageParams {
+                                session_id: params.session_id,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
                 other => Err(unsupported(other)),
             }
         })
@@ -2842,6 +2869,15 @@ struct CommandsQueryV4Params {
     clock: Option<bool>,
     #[serde(default)]
     runtime_policy: Option<String>,
+}
+
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AppUsageV4Params {
+    range: AppUsageRange,
+    #[serde(default)]
+    time_zone: Option<String>,
 }
 
 fn not_owned() -> ChannelError {

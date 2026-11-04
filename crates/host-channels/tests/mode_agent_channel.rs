@@ -786,3 +786,47 @@ async fn query_conversation_commands_rejects_clock_false_before_runtime() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn app_usage_without_active_runtime_reports_no_active_workspace() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "getAppUsageStats",
+        object_arg(r#"{"range":"7d"}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("无活 runtime");
+    assert!(message(&error).contains("no_active_workspace"), "{error:?}");
+}
+
+#[tokio::test]
+async fn app_usage_requires_range() {
+    let channel = channel();
+    let error = call(&channel, "getAppUsageStats", object_arg("{}"))
+        .await
+        .map(|_| ())
+        .expect_err("缺 range");
+    assert!(
+        message(&error).contains("invalid getAppUsageStats request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn task_token_usage_requires_session_id() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "getTaskTokenUsage",
+        object_arg(r#"{"workspacePath":"D:/ws"}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 sessionId");
+    assert!(
+        message(&error).contains("invalid getTaskTokenUsage request"),
+        "{error:?}"
+    );
+}
