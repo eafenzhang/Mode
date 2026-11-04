@@ -13,6 +13,8 @@
 //! - `disposeWorkspace` 的等待中 provider-ready continuation / v4 订阅路由 /
 //!   CUA 轮次跟踪清理属服务层；
 //! - `listMcpServerStatuses` 不做 TS 的 `unrecognized_keys` 兼容重试；
+//! - `sendPrompt` 不做 TS 的 `unrecognized_keys` 兼容重试，且缺少
+//!   browserAmbientContext 的 executor 收集（TS 缺省时主动采集）；
 //! - 事件订阅首批只桥 `session.event` 与 `snapshot`：TS 聚合的 `state.updated` /
 //!   `permission.request` / `userInput.*` 来自通知与反向请求，尚未接线；订阅建立失败
 //!   不做 TS 的指数退避重试；`eventCoalescing`（后台摘要合并）未实现。
@@ -24,11 +26,14 @@ use agent_process::{
 };
 use agent_protocol::mcp::{McpListMode, McpListResult};
 use agent_protocol::message::{MessageModel, MessageWithParts};
-use agent_protocol::session::WorkspaceRef;
+use agent_protocol::session::{SessionSendParams, SessionSendResult, WorkspaceRef};
 use agent_protocol::session_create::McpServer;
 use agent_protocol::session_debug::SessionDebugSnapshot;
 use agent_protocol::session_event::SessionEvent;
 use agent_protocol::session_read::{SessionInfo, SessionMode, SessionSubagentsResult};
+use agent_protocol::session_send::{
+    BotDeliveryTarget, BrowserAmbientContext, ModelExecution, OffPeakRunType,
+};
 use agent_protocol::session_write::{
     SessionCompactResult, SessionGoalAction, SessionGoalResult, SessionResumeParams,
     SessionSetModeParams, SessionSetModelParams, SessionSetThoughtLevelParams,
@@ -407,6 +412,15 @@ impl ServerChannel for ModeAgentChannel {
                         .map_err(control_error)?;
                     json_value(&snapshot)
                 }
+                "sendPrompt" => {
+                    let params: SendPromptParams = parse_params("sendPrompt", arg)?;
+                    let target = params.workspace.target();
+                    let result: SessionSendResult = control
+                        .send_prompt(&target, params.into_wire())
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
                 "compactSession" => {
                     let params: CompactParams = parse_params("compactSession", arg)?;
                     let result: SessionCompactResult = control
@@ -551,6 +565,65 @@ struct SubscribeParams {
     after_seq: Option<u64>,
     #[serde(default)]
     include_snapshot: Option<bool>,
+}
+
+/// `sendPrompt` 的频道参数：按 TS `buildSessionSendParams` 的落 wire 字段集映射；
+/// messageId/clientMode/sessionTraceId/runtimeProviderHeaders 只用于服务层记账，不落 wire。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SendPromptParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    #[serde(default)]
+    model_selection: Option<MessageModel>,
+    #[serde(default)]
+    model_execution: Option<ModelExecution>,
+    #[serde(default)]
+    input_id: Option<String>,
+    #[serde(default)]
+    query_id: Option<String>,
+    content: String,
+    #[serde(default)]
+    attachments: Option<Vec<serde_json::Map<String, serde_json::Value>>>,
+    #[serde(default)]
+    browser_ambient_context: Option<BrowserAmbientContext>,
+    #[serde(default)]
+    expected_revision: Option<u64>,
+    #[serde(default)]
+    expected_provider_revision: Option<String>,
+    #[serde(default)]
+    automation_id: Option<String>,
+    #[serde(default)]
+    off_peak_task_id: Option<String>,
+    #[serde(default)]
+    off_peak_run_type: Option<OffPeakRunType>,
+    #[serde(default)]
+    bot_delivery_target: Option<BotDeliveryTarget>,
+    #[serde(default)]
+    tool_denylist: Option<Vec<String>>,
+}
+
+impl SendPromptParams {
+    fn into_wire(self) -> SessionSendParams {
+        SessionSendParams {
+            session_id: self.session_id,
+            model_selection: self.model_selection,
+            model_execution: self.model_execution,
+            input_id: self.input_id,
+            query_id: self.query_id,
+            content: self.content,
+            attachments: self.attachments,
+            browser_ambient_context: self.browser_ambient_context,
+            expected_revision: self.expected_revision,
+            expected_provider_revision: self.expected_provider_revision,
+            automation_id: self.automation_id,
+            off_peak_task_id: self.off_peak_task_id,
+            off_peak_run_type: self.off_peak_run_type,
+            bot_delivery_target: self.bot_delivery_target,
+            tool_denylist: self.tool_denylist,
+        }
+    }
 }
 
 /// `disposeWorkspace` 的优雅关闭宽限（TS 服务层使用进程管理器的默认清理节奏）。

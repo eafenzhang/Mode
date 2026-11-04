@@ -159,3 +159,36 @@ async fn listen_rejects_invalid_delivery_kind() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn send_prompt_requires_content() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "sendPrompt",
+        object_arg(r#"{"workspacePath":"D:/ws","sessionId":"s1"}"#),
+    )
+    .await
+    .expect_err("缺 content");
+    assert!(
+        message(&error).contains("invalid sendPrompt request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn send_prompt_rejects_automation_and_offpeak_together() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "sendPrompt",
+        object_arg(
+            r#"{"workspacePath":"D:/ws","sessionId":"s1","content":"hi",
+                "automationId":"a1","offPeakTaskId":"o1"}"#,
+        ),
+    )
+    .await
+    .expect_err("互斥校验");
+    // 组合约束在 client_for 之前校验：不会拉起 runtime，错误直达调用方。
+    assert!(message(&error).contains("mutually exclusive"), "{error:?}");
+}
