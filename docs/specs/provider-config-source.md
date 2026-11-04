@@ -171,6 +171,12 @@ revision 时用 `ManualModelConfig::to_json()` 单独复刻该重排，未修改
 
 `modelConfigRules` 使用 `toModeBuiltinJSON()`（五组，不含 manual 组）。
 
+对拍（2026-11-04）：`pnpm builtin-release:fixtures` 以仓库内真实 Release
+`config/provider/mode-builtin.json` 生成 `fixtures/builtin-release.json`，保存 TS 端
+`encodeModeBuiltinRelease` 结果与 `JSON.stringify` 原文；`tests/release_codec_parity.rs`
+要求 Rust 解码后规范序列化逐字节一致，并回放 10 条 TS 拒绝文档（schemaVersion、
+未知键、revision 越界/非整数、缺 config/modelConfigRules、`builtin:zapi`）。
+
 ### 4.2 候选选择
 
 `activePath = active?.trim() || bundledPath`。读取时：
