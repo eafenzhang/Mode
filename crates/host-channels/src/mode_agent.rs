@@ -13,6 +13,9 @@
 //! - `disposeWorkspace` 的等待中 provider-ready continuation / v4 订阅路由 /
 //!   CUA 轮次跟踪清理属服务层；
 //! - `listMcpServerStatuses` 不做 TS 的 `unrecognized_keys` 兼容重试；
+//! - workflows 六方法已接（global 载体简化为「首个本地活跃 runtime → 管理面
+//!   workspace」，TS 的 reusable/stale 清理与 cancelPluginOperation（无 workspace、
+//!   需按 operationId 路由到持有 runtime）未接）；
 //! - plugins 首批只覆盖 list/overview/describe/setEnabled/install/uninstall/
 //!   update/configure/validate/referenceCatalog；restoreBuiltin/resetConfig/
 //!   cancelOperation/marketplace 增删改与 suggested 引用解析未接线；
@@ -31,8 +34,9 @@ use agent_protocol::mcp::{McpListMode, McpListResult};
 use agent_protocol::message::{MessageModel, MessageWithParts};
 use agent_protocol::plugin::{
     PluginScope, PluginsConfigureResult, PluginsDescribeResult, PluginsInstallResult,
-    PluginsListResult, PluginsOverviewResult, PluginsReferenceCatalogResult,
-    PluginsSetEnabledResult, PluginsUninstallResult, PluginsValidateResult,
+    PluginsListResult, PluginsMarketplaceMutationResult, PluginsOverviewResult,
+    PluginsReferenceCatalogResult, PluginsRestoreBuiltinResult, PluginsSetEnabledResult,
+    PluginsUninstallResult, PluginsValidateResult,
 };
 use agent_protocol::session::{SessionSendParams, SessionSendResult, WorkspaceRef};
 use agent_protocol::session_create::McpServer;
@@ -47,6 +51,10 @@ use agent_protocol::session_write::{
     SessionSetModeParams, SessionSetModelParams, SessionSetThoughtLevelParams,
 };
 use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
+use agent_protocol::workflow::{
+    SavedWorkflowMeta, SavedWorkflowScope, WorkflowsDeleteResult, WorkflowsGetResult,
+    WorkflowsListResult, WorkflowsMoveResult, WorkflowsRunsResult, WorkflowsUpdateMetaResult,
+};
 use rpc_host::{BoxFuture, CancellationToken, ChannelError, ServerChannel};
 use rpc_wire::Value;
 use serde::Deserialize;
@@ -65,11 +73,16 @@ pub const SESSION_EVENT_LISTEN: &str = "onDynamicSessionEvent";
 
 pub struct ModeAgentChannel {
     control: Arc<AgentControlClient>,
+    /// 工作流 global scope 的管理面载体（dataRoot/.mode/plugin-workspace，宿主注入）。
+    management_workspace: std::path::PathBuf,
 }
 
 impl ModeAgentChannel {
-    pub fn new(control: Arc<AgentControlClient>) -> Self {
-        Self { control }
+    pub fn new(control: Arc<AgentControlClient>, management_workspace: std::path::PathBuf) -> Self {
+        Self {
+            control,
+            management_workspace,
+        }
     }
 }
 
@@ -233,6 +246,7 @@ impl ServerChannel for ModeAgentChannel {
         _cancel: CancellationToken,
     ) -> BoxFuture<Result<Value, ChannelError>> {
         let control = Arc::clone(&self.control);
+        let management_workspace = self.management_workspace.clone();
         Box::pin(async move {
             match command.as_str() {
                 "listSessions" => {
@@ -581,6 +595,129 @@ impl ServerChannel for ModeAgentChannel {
                             &params.workspace.target(),
                             params.session_id.as_deref(),
                         )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "addPluginMarketplace" => {
+                    let params: AddMarketplaceParams = parse_params("addPluginMarketplace", arg)?;
+                    let result: PluginsMarketplaceMutationResult = control
+                        .add_plugin_marketplace(
+                            &params.workspace.target(),
+                            &params.source,
+                            params.dry_run,
+                            params.operation_id.as_deref(),
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "removePluginMarketplace" => {
+                    let params: RemoveMarketplaceParams =
+                        parse_params("removePluginMarketplace", arg)?;
+                    let result: PluginsMarketplaceMutationResult = control
+                        .remove_plugin_marketplace(&params.workspace.target(), &params.marketplace)
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "updatePluginMarketplace" => {
+                    let params: UpdateMarketplaceParams =
+                        parse_params("updatePluginMarketplace", arg)?;
+                    let result: PluginsMarketplaceMutationResult = control
+                        .update_plugin_marketplace(
+                            &params.workspace.target(),
+                            params.marketplace.as_deref(),
+                            params.operation_id.as_deref(),
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "restoreBuiltinPlugin" => {
+                    let params: RestoreBuiltinParams = parse_params("restoreBuiltinPlugin", arg)?;
+                    let result: PluginsRestoreBuiltinResult = control
+                        .restore_builtin_plugin(&params.workspace.target(), &params.plugin_id)
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "resetPluginConfig" => {
+                    let params: ResetPluginConfigParams = parse_params("resetPluginConfig", arg)?;
+                    let result: PluginsConfigureResult = control
+                        .reset_plugin_config(
+                            &params.workspace.target(),
+                            &params.plugin_id,
+                            params.scope,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "listSavedWorkflows" => {
+                    let params: WorkflowTargetParams = parse_params("listSavedWorkflows", arg)?;
+                    let target = self_carrier_target(&control, &management_workspace, &params);
+                    let result: WorkflowsListResult = control
+                        .list_saved_workflows(&target, params.scope)
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "getSavedWorkflow" => {
+                    let params: WorkflowNameParams = parse_params("getSavedWorkflow", arg)?;
+                    let target =
+                        self_carrier_target(&control, &management_workspace, &params.target);
+                    let result: WorkflowsGetResult = control
+                        .get_saved_workflow(&target, &params.name, params.target.scope)
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "listSavedWorkflowRuns" => {
+                    let params: WorkflowRunsParams = parse_params("listSavedWorkflowRuns", arg)?;
+                    let target =
+                        self_carrier_target(&control, &management_workspace, &params.target);
+                    let result: WorkflowsRunsResult = control
+                        .list_saved_workflow_runs(
+                            &target,
+                            params.name.as_deref(),
+                            params.limit,
+                            params.target.scope,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "updateSavedWorkflowMeta" => {
+                    let params: WorkflowUpdateMetaParams =
+                        parse_params("updateSavedWorkflowMeta", arg)?;
+                    let target =
+                        self_carrier_target(&control, &management_workspace, &params.target);
+                    let result: WorkflowsUpdateMetaResult = control
+                        .update_saved_workflow_meta(
+                            &target,
+                            &params.name,
+                            params.meta,
+                            params.target.scope,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "deleteSavedWorkflow" => {
+                    let params: WorkflowNameParams = parse_params("deleteSavedWorkflow", arg)?;
+                    let target =
+                        self_carrier_target(&control, &management_workspace, &params.target);
+                    let result: WorkflowsDeleteResult = control
+                        .delete_saved_workflow(&target, &params.name, params.target.scope)
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "moveSavedWorkflow" => {
+                    let params: MoveWorkflowParams = parse_params("moveSavedWorkflow", arg)?;
+                    let result: WorkflowsMoveResult = control
+                        .move_saved_workflow(&params.workspace.target(), &params.name)
                         .await
                         .map_err(control_error)?;
                     json_value(&result)
@@ -1071,4 +1208,134 @@ struct PluginReferenceCatalogParams {
     workspace: WorkspaceParams,
     #[serde(default)]
     session_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AddMarketplaceParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    #[serde(default)]
+    dry_run: Option<bool>,
+    #[serde(default)]
+    operation_id: Option<String>,
+    source: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RemoveMarketplaceParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    marketplace: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateMarketplaceParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    #[serde(default)]
+    marketplace: Option<String>,
+    #[serde(default)]
+    operation_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RestoreBuiltinParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    plugin_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResetPluginConfigParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    plugin_id: String,
+    #[serde(default)]
+    scope: Option<PluginScope>,
+}
+
+/// 工作流频道参数：workspace 可省（仅 `scope:"global"` 时），与 TS union 同口径。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowTargetParams {
+    #[serde(default)]
+    workspace_path: Option<String>,
+    #[serde(default)]
+    workspace_identity: Option<String>,
+    #[serde(default)]
+    remote_session_id: Option<String>,
+    #[serde(default)]
+    scope: Option<SavedWorkflowScope>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowNameParams {
+    #[serde(flatten)]
+    target: WorkflowTargetParams,
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowUpdateMetaParams {
+    #[serde(flatten)]
+    target: WorkflowTargetParams,
+    name: String,
+    meta: SavedWorkflowMeta,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowRunsParams {
+    #[serde(flatten)]
+    target: WorkflowTargetParams,
+    #[serde(default)]
+    name: Option<String>,
+    limit: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MoveWorkflowParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    name: String,
+}
+
+/// 载体选择（TS `resolveSavedWorkflowCarrier`）：带 workspace 直通；只给 global 时
+/// 先选本机活跃 runtime，否则落到管理面 workspace（`<dataRoot>/.mode/plugin-workspace`，
+/// 与 TS `ensurePluginManagementWorkspacePath` 同路径）。
+fn self_carrier_target(
+    control: &AgentControlClient,
+    management_workspace: &std::path::Path,
+    params: &WorkflowTargetParams,
+) -> AgentWorkspaceTarget {
+    if let Some(path) = params
+        .workspace_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let mut target = AgentWorkspaceTarget::new(path);
+        if let Some(identity) = &params.workspace_identity {
+            target = target.with_identity(identity.clone());
+        }
+        if let Some(remote_session) = &params.remote_session_id {
+            target = target.with_remote_session(remote_session.clone());
+        }
+        return target;
+    }
+    for active in control.active_workspace_targets() {
+        if active.remote_session_id.is_none() && active.workspace_identity.is_none() {
+            return active;
+        }
+    }
+    let _ = std::fs::create_dir_all(management_workspace);
+    AgentWorkspaceTarget::new(management_workspace.to_string_lossy().into_owned())
 }

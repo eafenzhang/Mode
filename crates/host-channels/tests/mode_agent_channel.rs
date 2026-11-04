@@ -11,7 +11,10 @@ use rpc_wire::Value;
 fn channel() -> ModeAgentChannel {
     let factory: SpecFactory = Arc::new(|_target| panic!("契约测试不应拉起 runtime"));
     let registry = AgentRuntimeRegistry::new(factory);
-    ModeAgentChannel::new(Arc::new(AgentControlClient::new(Arc::new(registry))))
+    ModeAgentChannel::new(
+        Arc::new(AgentControlClient::new(Arc::new(registry))),
+        std::env::temp_dir().join("mode-agent-health-test-workspace"),
+    )
 }
 
 async fn call(
@@ -221,6 +224,38 @@ async fn configure_plugin_requires_options_object() {
     .expect_err("options 非对象");
     assert!(
         message(&error).contains("invalid configurePlugin request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn list_saved_workflow_runs_requires_limit() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "listSavedWorkflowRuns",
+        object_arg(r#"{"workspacePath":"D:/ws","name":"wf"}"#),
+    )
+    .await
+    .expect_err("缺 limit");
+    assert!(
+        message(&error).contains("invalid listSavedWorkflowRuns request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn move_saved_workflow_requires_workspace() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "moveSavedWorkflow",
+        object_arg(r#"{"name":"wf"}"#),
+    )
+    .await
+    .expect_err("缺 workspacePath");
+    assert!(
+        message(&error).contains("invalid moveSavedWorkflow request"),
         "{error:?}"
     );
 }

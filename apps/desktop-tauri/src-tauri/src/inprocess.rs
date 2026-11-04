@@ -444,7 +444,10 @@ fn build_server(
                 // mode-agent 时才接管；未迁移方法返回 unsupported_method。
                 server.register_channel(
                     MODE_AGENT_CHANNEL,
-                    Arc::new(ModeAgentChannel::new(Arc::clone(agent_control))),
+                    Arc::new(ModeAgentChannel::new(
+                        Arc::clone(agent_control),
+                        data_root.join(".mode").join("plugin-workspace"),
+                    )),
                 );
             }
             AGENT_HEALTH_CHANNEL => {
