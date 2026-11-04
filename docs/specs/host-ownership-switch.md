@@ -177,3 +177,39 @@ S2 的 20 个真实任务与 parity matrix 是硬门禁（DR-07），不能压�
 接线改判，provider/account 2 个网络方法按决策 2 给 `unsupported` 降级语义。
 
 在上述决策批准前，`mode-agent` 频道保持 Host 所有，Rust 侧只继续补协议与方法实现。
+
+## 7. S2 真机 20 任务验收清单（2026-11-05）
+
+执行前提：`MODE_HOST_INPROCESS_CHANNELS` 显式包含 `mode-agent`；使用真实模型与
+可用 workspace；记录写入 `.plan/accept-<版本>-s2/`（日志、截图、关键帧）。
+
+| # | 任务 | 覆盖方法 | 通过标准 |
+| --- | --- | --- | --- |
+| 1 | 新会话发送文本 | createSession/sendPrompt/readSession/readSessionMessages | 流式首 token、最终消息与 usage 一致；无 unsupported |
+| 2 | 多轮上下文 + 中途停止 | sendPrompt/readSession | 停止后终态正确，下一轮上下文不丢 |
+| 3 | 切换模型与思考档 | setModel/setThoughtLevel | 快照 model/thoughtLevel 立即生效，下一轮按新模型执行 |
+| 4 | 切换会话模式 | setMode | 快照 mode 更新，工具行为随之变化 |
+| 5 | 关闭后恢复会话 | closeSession/resumeSession/listSessions | 恢复历史完整，可继续发送 |
+| 6 | 会话压缩 | compactSession | 摘要落库，后续轮次正常且 token 下降 |
+| 7 | 文件读取工具 | sendPrompt/listSessions | 工具调用与结果出现在消息部件中 |
+| 8 | 文件编辑 + 回滚预览 | conversationFileChangesV4/conversationFileRewindPreviewV4 | 变更清单与预览正确，无路径泄漏 |
+| 9 | Bash 前台与后台输出 | backgroundBashOutputV4 | 前台完成；后台任务可按 workId 轮询到输出与终态 |
+| 10 | 附件上传与预览 | attachmentBegin/Chunk/Commit/PreviewSource、conversationAttachmentRead/Stat | 图片可发送，预览/读取字节一致 |
+| 11 | 计划模式产物 | conversationPlansV4 | ExitPlanMode 方案可见且行序正确 |
+| 12 | Goal/Todo 生命周期 | goalSession | 创建/完成状态与快照一致 |
+| 13 | conversation 订阅与重同步 | subscribeConversationV4/resyncConversationV4/unsubscribe | 首帧完整、增量有序；resync 后不重复不丢帧 |
+| 14 | 历史分页 | conversationRowsRangeV4 | 向上翻页无重复行，边界 limit 正确 |
+| 15 | workflow run 读面 | conversationWorkflowRuns/Events/Artifacts/ArtifactData/ArtifactRead/Workspace/NodeResult | 七组结果形状正确，artifact 字节可读 |
+| 16 | 远程/重连语义 | subscribeSessionsIndexV4/subscribeWorkspaceConfigV4 + session events | `web-remote-replayable` 重连后补号、去重、快照一致 |
+| 17 | MCP 列表与状态 | listMcpServerStatuses/listSessions | 状态/failureKind 正确，未知字段不导致失败 |
+| 18 | 插件概览与开关 | getPluginsOverview/setPluginEnabled/configurePlugin/validatePlugin | 变更持久化，诊断信息完整 |
+| 19 | Skills 目录与引用 | getSkillReferenceCatalog/resolveSuggestedPluginReference/getPluginReferenceCatalog | 条目 enabled 均为 true，引用解析成功 |
+| 20 | 子代理与健康面 | listSessionSubagents/getWorkspaceRuntimeIdentity/agent-health list/describe | running/ended 正确；健康状态与 owner 日志一致 |
+
+补充检查（不计入 20 个）：
+
+- provider/account 两个网络方法返回 `unsupported_method` 与批准文案；从开关移除
+  `mode-agent` 后同样任务全部回到 Node Host 且无回归。
+- 桌面与手机 Web 各跑 1、13、16 三项；`desktop-continuous` 与
+  `web-remote-replayable` 的快照/重连语义分别验证。
+- 任务 1/9/10/15 结束后检查无孤儿 Agent/MCP 进程。
