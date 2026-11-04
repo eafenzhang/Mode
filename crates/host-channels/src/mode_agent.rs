@@ -37,7 +37,10 @@
 //!   workspace-config 帧也已接（subscribeWorkspaceConfigV4/unsubscribe +
 //!   onDynamicWorkspaceConfigFrame）；resync / rowsRange 与 v4 只读 query 族
 //!   （hello/initialize、plans、workflowRuns/Events/Artifacts/ArtifactData/
-//!   ArtifactRead/Workspace/NodeResult）均已接线；
+//!   ArtifactRead/Workspace/NodeResult）均已接线；attachments（begin/chunk/
+//!   commit/abort/read/previewSource + conversationAttachmentRead/Stat）、
+//!   conversationFileChanges/FileRewindPreview、backgroundBashOutput 与
+//!   queryConversationCommandsV4 也已接线；
 //! - 事件订阅已桥 `session.event`/`snapshot` 与 onDynamicStorageStartupState
 //!   （generation 取订阅时快照，进程换代后 watch 结束即停止推送）；：TS 聚合的 `state.updated` /
 //!   `permission.request` / `userInput.*` 来自通知与反向请求，尚未接线；订阅建立失败
@@ -73,8 +76,13 @@ use agent_protocol::session_write::{
 };
 use agent_protocol::skills::SkillsReferenceCatalogResult;
 use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
+use agent_protocol::v4::{CommandKey, CommandsQueryParams};
 use agent_protocol::v4_queries::{
-    ConversationResyncParams, PlansParams, ResyncBase, RowsRangeParams,
+    AttachmentBeginParams, AttachmentChunkParams, AttachmentPreviewChunked,
+    AttachmentPreviewSourceKind, AttachmentPreviewSourceParams, AttachmentReadParams,
+    AttachmentTerminalParams, BackgroundBashOutputParams, ConversationAttachmentReadParams,
+    ConversationAttachmentStatParams, ConversationResyncParams, ConversationRowTarget,
+    FileChangesParams, FileRewindPreviewParams, PlansParams, ResyncBase, RowsRangeParams,
     WorkflowRunArtifactDataParams, WorkflowRunArtifactReadParams, WorkflowRunArtifactsParams,
     WorkflowRunEventsParams, WorkflowRunNodeResultParams, WorkflowRunWorkspaceParams,
     WorkflowRunsQueryParams,
@@ -1491,6 +1499,238 @@ impl ServerChannel for ModeAgentChannel {
                         .map_err(control_error)?;
                     json_value(&result)
                 }
+                "backgroundBashOutputV4" => {
+                    let params: BackgroundBashOutputV4Params =
+                        parse_params("backgroundBashOutputV4", arg)?;
+                    let result = control
+                        .background_bash_output_v4(
+                            &params.workspace.target(),
+                            BackgroundBashOutputParams {
+                                session_id: params.session_id,
+                                work_id: params.work_id,
+                            },
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "conversationFileChangesV4" => {
+                    let params: FileChangesV4Params =
+                        parse_params("conversationFileChangesV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_file_changes_v4(
+                            &params.workspace.target(),
+                            FileChangesParams {
+                                session_id: params.session_id,
+                                target: params.target,
+                                base_revision: params.base_revision,
+                                base_log_epoch: params.base_log_epoch,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "conversationFileRewindPreviewV4" => {
+                    let params: FileChangesV4Params =
+                        parse_params("conversationFileRewindPreviewV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_file_rewind_preview_v4(
+                            &params.workspace.target(),
+                            FileRewindPreviewParams {
+                                session_id: params.session_id,
+                                target: params.target,
+                                base_revision: params.base_revision,
+                                base_log_epoch: params.base_log_epoch,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "attachmentBeginV4" => {
+                    let params: AttachmentBeginV4Params =
+                        parse_params("attachmentBeginV4", arg)?;
+                    let result = control
+                        .attachment_begin_v4(
+                            &params.workspace.target(),
+                            AttachmentBeginParams {
+                                // 连接身份由宿主注入，调用方不能伪造。
+                                connection_id: V4_LOCAL_CONNECTION_ID.to_string(),
+                                upload_id: params.upload_id,
+                                session_id: params.session_id,
+                                file_name: params.file_name,
+                                mime: params.mime,
+                                total_bytes: params.total_bytes,
+                                total_chunks: params.total_chunks,
+                                checksum: params.checksum,
+                            },
+                            RuntimePolicy::StartIfNeeded,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "attachmentChunkV4" => {
+                    let params: AttachmentChunkV4Params =
+                        parse_params("attachmentChunkV4", arg)?;
+                    let result = control
+                        .attachment_chunk_v4(
+                            &params.workspace.target(),
+                            AttachmentChunkParams {
+                                connection_id: V4_LOCAL_CONNECTION_ID.to_string(),
+                                upload_id: params.upload_id,
+                                session_id: params.session_id,
+                                chunk_index: params.chunk_index,
+                                data_base64: params.data_base64,
+                            },
+                            RuntimePolicy::StartIfNeeded,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "attachmentCommitV4" => {
+                    let params: AttachmentTerminalV4Params =
+                        parse_params("attachmentCommitV4", arg)?;
+                    let result = control
+                        .attachment_commit_v4(
+                            &params.workspace.target(),
+                            AttachmentTerminalParams {
+                                connection_id: V4_LOCAL_CONNECTION_ID.to_string(),
+                                upload_id: params.upload_id,
+                                session_id: params.session_id,
+                            },
+                            RuntimePolicy::StartIfNeeded,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "attachmentAbortV4" => {
+                    let params: AttachmentTerminalV4Params =
+                        parse_params("attachmentAbortV4", arg)?;
+                    control
+                        .attachment_abort_v4(
+                            &params.workspace.target(),
+                            AttachmentTerminalParams {
+                                connection_id: V4_LOCAL_CONNECTION_ID.to_string(),
+                                upload_id: params.upload_id,
+                                session_id: params.session_id,
+                            },
+                            RuntimePolicy::StartIfNeeded,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    Ok(Value::Undefined)
+                }
+                "attachmentReadV4" => {
+                    let params: AttachmentReadV4Params = parse_params("attachmentReadV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .attachment_read_v4(
+                            &params.workspace.target(),
+                            AttachmentReadParams {
+                                session_id: params.session_id,
+                                attachment_ref: params.attachment_ref,
+                                target: params.target,
+                                attachment_index: params.attachment_index,
+                                offset: params.offset,
+                                limit: params.limit,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "attachmentPreviewSourceV4" => {
+                    let params: AttachmentPreviewSourceV4Params =
+                        parse_params("attachmentPreviewSourceV4", arg)?;
+                    // 远端/Web 走分段下载；只有本地 desktop-continuous 才取本地播放源。
+                    if params.workspace.remote_session_id.is_some() {
+                        return json_value(&AttachmentPreviewChunked {
+                            kind: AttachmentPreviewSourceKind::Chunked,
+                        });
+                    }
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .attachment_preview_source_v4(
+                            &params.workspace.target(),
+                            AttachmentPreviewSourceParams {
+                                session_id: params.session_id,
+                                attachment_ref: params.attachment_ref,
+                                target: params.target,
+                                attachment_index: params.attachment_index,
+                                client_mode: V4ClientMode::DesktopContinuous,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "conversationAttachmentReadV4" => {
+                    let params: ConversationAttachmentReadV4Params =
+                        parse_params("conversationAttachmentReadV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_attachment_read_v4(
+                            &params.workspace.target(),
+                            ConversationAttachmentReadParams {
+                                session_id: params.session_id,
+                                attachment_ref: params.attachment_ref,
+                                target: params.target,
+                                attachment_index: params.attachment_index,
+                                offset: params.offset,
+                                limit: params.limit,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "conversationAttachmentStatV4" => {
+                    let params: ConversationAttachmentStatV4Params =
+                        parse_params("conversationAttachmentStatV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .conversation_attachment_stat_v4(
+                            &params.workspace.target(),
+                            ConversationAttachmentStatParams {
+                                session_id: params.session_id,
+                                attachment_ref: params.attachment_ref,
+                                target: params.target,
+                                attachment_index: params.attachment_index,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
+                "queryConversationCommandsV4" => {
+                    let params: CommandsQueryV4Params =
+                        parse_params("queryConversationCommandsV4", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let result = control
+                        .commands_query_v4(
+                            &params.workspace.target(),
+                            CommandsQueryParams {
+                                commands: params.commands,
+                                clock: params.clock,
+                            },
+                            policy,
+                        )
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&result)
+                }
                 other => Err(unsupported(other)),
             }
         })
@@ -2464,6 +2704,142 @@ struct WorkflowRunNodeResultV4Params {
     ordinal: u64,
     #[serde(default)]
     max_bytes: Option<u64>,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+
+// ---- v4 attachment / file-changes / background bash ----
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BackgroundBashOutputV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    work_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileChangesV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    target: ConversationRowTarget,
+    base_revision: u64,
+    base_log_epoch: String,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AttachmentBeginV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    upload_id: String,
+    session_id: String,
+    file_name: String,
+    mime: String,
+    total_bytes: u64,
+    total_chunks: u64,
+    checksum: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AttachmentChunkV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    upload_id: String,
+    session_id: String,
+    chunk_index: u64,
+    data_base64: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AttachmentTerminalV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    upload_id: String,
+    session_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AttachmentReadV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    #[serde(rename = "ref")]
+    attachment_ref: String,
+    #[serde(default)]
+    target: Option<ConversationRowTarget>,
+    #[serde(default)]
+    attachment_index: Option<u64>,
+    offset: u64,
+    limit: u64,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AttachmentPreviewSourceV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    #[serde(rename = "ref")]
+    attachment_ref: String,
+    #[serde(default)]
+    target: Option<ConversationRowTarget>,
+    #[serde(default)]
+    attachment_index: Option<u64>,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConversationAttachmentReadV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    #[serde(rename = "ref")]
+    attachment_ref: String,
+    target: ConversationRowTarget,
+    attachment_index: u64,
+    offset: u64,
+    limit: u64,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConversationAttachmentStatV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    session_id: String,
+    #[serde(rename = "ref")]
+    attachment_ref: String,
+    target: ConversationRowTarget,
+    attachment_index: u64,
+    #[serde(default)]
+    runtime_policy: Option<String>,
+}
+
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CommandsQueryV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    commands: Vec<CommandKey>,
+    #[serde(default)]
+    clock: Option<bool>,
     #[serde(default)]
     runtime_policy: Option<String>,
 }

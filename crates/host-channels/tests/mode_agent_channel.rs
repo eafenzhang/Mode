@@ -640,3 +640,149 @@ async fn node_result_requires_site_id_and_ordinal() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn attachment_preview_source_returns_chunked_for_remote_workspace() {
+    let channel = channel();
+    let value = call(
+        &channel,
+        "attachmentPreviewSourceV4",
+        object_arg(
+            r#"{"workspacePath":"D:/ws","remoteSessionId":"remote-1","sessionId":"s1","ref":"a1"}"#,
+        ),
+    )
+    .await
+    .expect("远端预览源无需 runtime");
+    let Value::Json(text) = value else {
+        panic!("expected JSON string");
+    };
+    let result: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(result, serde_json::json!({ "kind": "chunked" }));
+}
+
+#[tokio::test]
+async fn attachment_begin_requires_checksum() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "attachmentBeginV4",
+        object_arg(
+            r#"{"workspacePath":"D:/ws","uploadId":"u1","sessionId":"s1","fileName":"a.png","mime":"image/png","totalBytes":1,"totalChunks":1}"#,
+        ),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 checksum");
+    assert!(
+        message(&error).contains("invalid attachmentBeginV4 request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn attachment_chunk_requires_data() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "attachmentChunkV4",
+        object_arg(r#"{"workspacePath":"D:/ws","uploadId":"u1","sessionId":"s1","chunkIndex":0}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 dataBase64");
+    assert!(
+        message(&error).contains("invalid attachmentChunkV4 request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn file_changes_requires_target() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "conversationFileChangesV4",
+        object_arg(
+            r#"{"workspacePath":"D:/ws","sessionId":"s1","baseRevision":1,"baseLogEpoch":"e1"}"#,
+        ),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 target");
+    assert!(
+        message(&error).contains("invalid conversationFileChangesV4 request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn conversation_attachment_stat_requires_target() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "conversationAttachmentStatV4",
+        object_arg(
+            r#"{"workspacePath":"D:/ws","sessionId":"s1","ref":"a1","attachmentIndex":0}"#,
+        ),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 target");
+    assert!(
+        message(&error).contains("invalid conversationAttachmentStatV4 request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn background_bash_output_requires_work_id() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "backgroundBashOutputV4",
+        object_arg(r#"{"workspacePath":"D:/ws","sessionId":"s1"}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 workId");
+    assert!(
+        message(&error).contains("invalid backgroundBashOutputV4 request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn query_conversation_commands_requires_commands() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "queryConversationCommandsV4",
+        object_arg(r#"{"workspacePath":"D:/ws"}"#),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("缺 commands");
+    assert!(
+        message(&error).contains("invalid queryConversationCommandsV4 request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn query_conversation_commands_rejects_clock_false_before_runtime() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "queryConversationCommandsV4",
+        object_arg(
+            r#"{"workspacePath":"D:/ws","commands":[{"commandId":"c1","sessionId":null}],"clock":false}"#,
+        ),
+    )
+    .await
+    .map(|_| ())
+    .expect_err("clock=false");
+    assert!(
+        message(&error).contains("clock must be true"),
+        "{error:?}"
+    );
+}
