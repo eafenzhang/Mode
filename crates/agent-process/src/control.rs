@@ -295,6 +295,13 @@ impl AgentControlClient {
     }
 
     /// 存储启动：拉起（如需）并等待 `startup/storageState` 到 `ready`。
+    /// 订阅全部 runtime 的原始通知（遥测事件面）。
+    pub fn subscribe_process_notifications(
+        &self,
+    ) -> tokio::sync::broadcast::Receiver<crate::ProcessNotification> {
+        self.registry.subscribe_process_notifications()
+    }
+
     /// 安装/清除入站反向请求处理器（对所有现有与后续 runtime 生效）。
     pub fn set_request_handler(&self, handler: mode_protocol_client::RequestHandler) {
         self.registry.set_request_handler(Some(handler));

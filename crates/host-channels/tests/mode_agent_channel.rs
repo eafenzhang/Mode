@@ -904,3 +904,38 @@ async fn respond_session_runtime_preferences_without_pending_is_rejected() {
         "{error:?}"
     );
 }
+
+#[tokio::test]
+async fn telemetry_listeners_register_and_dispose() {
+    let channel = channel();
+    for event in [
+        "onDynamicProcessResourceSample",
+        "onDynamicMcpTelemetry",
+        "onDynamicMcpResourceSamples",
+        "onDynamicToolExecResource",
+    ] {
+        let subscription = channel
+            .listen(
+                "ctx".into(),
+                event.into(),
+                Value::Undefined,
+                std::sync::Arc::new(|_| {}),
+            )
+            .unwrap_or_else(|error| panic!("{event}: {error:?}"));
+        subscription();
+    }
+}
+
+#[tokio::test]
+async fn local_ttft_listener_is_empty_event() {
+    let channel = channel();
+    let subscription = channel
+        .listen(
+            "ctx".into(),
+            "onDynamicLocalTtftFacts".into(),
+            object_arg(r#"{"workspacePath":"D:/ws"}"#),
+            std::sync::Arc::new(|_| {}),
+        )
+        .expect("空事件订阅");
+    subscription();
+}

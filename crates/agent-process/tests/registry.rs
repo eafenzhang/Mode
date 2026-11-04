@@ -218,3 +218,19 @@ async fn runtime_restart_event_fires_only_on_replacement() {
     );
     registry.shutdown_all(Duration::from_secs(3)).await;
 }
+
+#[tokio::test]
+async fn notification_hub_forwards_runtime_notifications() {
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let registry = registry_with_mode("storage-ready", Arc::clone(&spawns));
+    let mut notifications = registry.subscribe_process_notifications();
+    registry.get_or_spawn(&target("D:/ws/hub")).await.unwrap();
+
+    let notification = tokio::time::timeout(Duration::from_secs(3), notifications.recv())
+        .await
+        .expect("通知超时")
+        .expect("通知流关闭");
+    assert_eq!(notification.workspace_key, "D:/ws/hub");
+    assert_eq!(notification.value["method"], "startup/storageState");
+    registry.shutdown_all(Duration::from_secs(3)).await;
+}

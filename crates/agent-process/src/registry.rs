@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use tokio::sync::broadcast;
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::storage::{StorageStartupPhase, StorageStartupState};
@@ -111,6 +112,13 @@ pub struct RuntimeRestartedEvent {
 pub type RuntimeRestartListener = Arc<dyn Fn(&RuntimeRestartedEvent) + Send + Sync>;
 pub type Unsubscribe = Box<dyn FnOnce() + Send + 'static>;
 
+/// 跨 runtime 的原始通知（附 workspaceKey，便于按事件面过滤）。
+#[derive(Debug, Clone)]
+pub struct ProcessNotification {
+    pub workspace_key: String,
+    pub value: serde_json::Value,
+}
+
 pub struct AgentRuntimeRegistry {
     factory: SpecFactory,
     next_generation: AtomicU64,
@@ -122,6 +130,7 @@ pub struct AgentRuntimeRegistry {
     /// 每个 workspace 的 spawn 次数（对应 TS `runtimeGenerationByWorkspaceKey`）。
     spawn_counts: Mutex<HashMap<String, u64>>,
     restart_listeners: Arc<Mutex<Vec<RuntimeRestartListener>>>,
+    notification_hub: broadcast::Sender<ProcessNotification>,
 }
 
 impl AgentRuntimeRegistry {
@@ -134,10 +143,18 @@ impl AgentRuntimeRegistry {
             request_handler: Mutex::new(None),
             spawn_counts: Mutex::new(HashMap::new()),
             restart_listeners: Arc::new(Mutex::new(Vec::new())),
+            notification_hub: broadcast::channel(1024).0,
         }
     }
 
     /// 设置入站请求处理器：现有进程立即生效，之后拉起的进程自动挂上。
+    /// 订阅全部现有/后续 runtime 的原始通知。
+    pub fn subscribe_process_notifications(
+        &self,
+    ) -> broadcast::Receiver<ProcessNotification> {
+        self.notification_hub.subscribe()
+    }
+
     /// 订阅 runtime 换代事件；返回退订句柄。
     pub fn on_runtime_restarted(&self, listener: RuntimeRestartListener) -> Unsubscribe {
         let listeners = Arc::clone(&self.restart_listeners);
@@ -388,6 +405,23 @@ impl AgentRuntimeRegistry {
                 listener(&event);
             }
         }
+        let mut notifications = process.client().subscribe_notifications();
+        let hub = self.notification_hub.clone();
+        let workspace_key_for_hub = key.clone();
+        tokio::spawn(async move {
+            loop {
+                match notifications.recv().await {
+                    Ok(value) => {
+                        let _ = hub.send(ProcessNotification {
+                            workspace_key: workspace_key_for_hub.clone(),
+                            value,
+                        });
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => return,
+                }
+            }
+        });
         Ok(process)
     }
 

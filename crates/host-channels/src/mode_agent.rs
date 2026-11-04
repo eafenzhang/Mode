@@ -21,7 +21,8 @@
 //!   （仅 trusted relay/facade 可调）、sendConversationCommandV4（信封需客户端
 //!   富化：灰度门禁/Bot/Browser 上下文）与多数事件源；外部权威运行时偏好
 //!   反向请求已接（onDynamicSessionRuntimePreferencesRequest +
-//!   respondSessionRuntimePreferences，走 ReplyHandle 延迟应答）；
+//!   respondSessionRuntimePreferences，走 ReplyHandle 延迟应答）；process 遥测四类与
+//!   onDynamicLocalTtftFacts（空事件）已接；
 //! - workflows 六方法已接（global 载体简化为「首个本地活跃 runtime → 管理面
 //!   workspace」，TS 的 reusable/stale 清理与 cancelPluginOperation（无 workspace、
 //!   需按 operationId 路由到持有 runtime）未接）；
@@ -97,6 +98,9 @@ use agent_protocol::workflow::{
     SavedWorkflowMeta, SavedWorkflowScope, WorkflowsDeleteResult, WorkflowsGetResult,
     WorkflowsListResult, WorkflowsMoveResult, WorkflowsRunsResult, WorkflowsUpdateMetaResult,
 };
+use agent_protocol::process_telemetry::{
+    McpResourceSample, McpTelemetryEvent, ProcessResourceSample, ToolExecResource,
+};
 use agent_protocol::workspace::WorkspacePresentation;
 use rpc_host::{BoxFuture, CancellationToken, ChannelError, ServerChannel};
 use rpc_wire::Value;
@@ -113,6 +117,21 @@ pub const UNSUPPORTED_METHOD_CODE: &str = "unsupported_method";
 
 /// 事件名（TS IModeAgentService.onDynamicSessionEvent）。
 pub const SESSION_EVENT_LISTEN: &str = "onDynamicSessionEvent";
+
+/// 事件名（TS `IModeAgentService.onDynamicProcessResourceSample`）。
+pub const PROCESS_RESOURCE_SAMPLE_LISTEN: &str = "onDynamicProcessResourceSample";
+
+/// 事件名（TS `IModeAgentService.onDynamicMcpTelemetry`）。
+pub const MCP_TELEMETRY_LISTEN: &str = "onDynamicMcpTelemetry";
+
+/// 事件名（TS `IModeAgentService.onDynamicMcpResourceSamples`）。
+pub const MCP_RESOURCE_SAMPLES_LISTEN: &str = "onDynamicMcpResourceSamples";
+
+/// 事件名（TS `IModeAgentService.onDynamicToolExecResource`）。
+pub const TOOL_EXEC_RESOURCE_LISTEN: &str = "onDynamicToolExecResource";
+
+/// 事件名（TS `IModeAgentService.onDynamicLocalTtftFacts`；审计版恒为空事件）。
+pub const LOCAL_TTFT_FACTS_LISTEN: &str = "onDynamicLocalTtftFacts";
 
 /// 事件名（TS `IModeAgentService.onDynamicSessionRuntimePreferencesRequest`）。
 pub const SESSION_RUNTIME_PREFERENCES_LISTEN: &str = "onDynamicSessionRuntimePreferencesRequest";
@@ -1944,6 +1963,46 @@ impl ServerChannel for ModeAgentChannel {
                 stop.store(true, std::sync::atomic::Ordering::SeqCst);
             }));
         }
+        if event == PROCESS_RESOURCE_SAMPLE_LISTEN {
+            let control = Arc::clone(&self.control);
+            return Ok(listen_process_notifications(
+                control,
+                "process/resourceSample",
+                |value| serde_json::from_value::<ProcessResourceSample>(value).ok(),
+                emit,
+            ));
+        }
+        if event == MCP_TELEMETRY_LISTEN {
+            let control = Arc::clone(&self.control);
+            return Ok(listen_process_notifications(
+                control,
+                "process/mcpTelemetry",
+                |value| serde_json::from_value::<McpTelemetryEvent>(value).ok(),
+                emit,
+            ));
+        }
+        if event == MCP_RESOURCE_SAMPLES_LISTEN {
+            let control = Arc::clone(&self.control);
+            return Ok(listen_process_notifications(
+                control,
+                "process/mcpResourceSamples",
+                |value| serde_json::from_value::<Vec<McpResourceSample>>(value).ok(),
+                emit,
+            ));
+        }
+        if event == TOOL_EXEC_RESOURCE_LISTEN {
+            let control = Arc::clone(&self.control);
+            return Ok(listen_process_notifications(
+                control,
+                "process/toolExecResource",
+                |value| serde_json::from_value::<ToolExecResource>(value).ok(),
+                emit,
+            ));
+        }
+        if event == LOCAL_TTFT_FACTS_LISTEN {
+            // 审计版已删除 TTFT 采集与协议通知；保持空事件语义。
+            return Ok(Box::new(|| {}));
+        }
         if event == SESSION_RUNTIME_PREFERENCES_LISTEN {
             let listeners = Arc::clone(&self.runtime_preferences_listeners);
             let callback: rpc_host::EventCallback = Arc::new(move |value| emit(value));
@@ -3097,6 +3156,71 @@ enum RuntimePreferencesResolutionParams {
     Failed {
         message: String,
     },
+}
+
+
+/// 跨 runtime 遥测通知的订阅线程：按 method 过滤后把 `params` 作为事件载荷发出。
+fn listen_process_notifications<P>(
+    control: Arc<AgentControlClient>,
+    method: &'static str,
+    parse: fn(serde_json::Value) -> Option<P>,
+    emit: rpc_host::EventCallback,
+) -> rpc_host::Subscription
+where
+    P: serde::Serialize + Send + 'static,
+{
+    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stop_flag = Arc::clone(&stop);
+    std::thread::spawn(move || {
+        let runtime = match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(runtime) => runtime,
+            Err(_) => return,
+        };
+        runtime.block_on(async move {
+            let mut receiver = control.subscribe_process_notifications();
+            loop {
+                if stop_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                    return;
+                }
+                tokio::select! {
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {
+                        if stop_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                            return;
+                        }
+                    }
+                    notification = receiver.recv() => match notification {
+                        Ok(notification) => {
+                            if notification
+                                .value
+                                .get("method")
+                                .and_then(serde_json::Value::as_str)
+                                != Some(method)
+                            {
+                                continue;
+                            }
+                            let Some(params) = notification.value.get("params") else {
+                                continue;
+                            };
+                            let Some(parsed) = parse(params.clone()) else {
+                                continue;
+                            };
+                            if let Ok(text) = serde_json::to_string(&parsed) {
+                                emit(Value::Json(text));
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+                    }
+                }
+            }
+        });
+    });
+    Box::new(move || {
+        stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    })
 }
 
 fn not_owned() -> ChannelError {

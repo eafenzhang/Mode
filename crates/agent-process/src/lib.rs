@@ -50,7 +50,7 @@ pub use provider_sync::{
     ProviderSyncOutcome, ProviderSyncStatus, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
 pub use registry::{
-    AgentRuntimeRegistry, RuntimeHealth, RuntimeHealthState, RuntimeIdentity,
+    AgentRuntimeRegistry, ProcessNotification, RuntimeHealth, RuntimeHealthState, RuntimeIdentity,
     RuntimeRestartListener, RuntimeRestartedEvent, SpecFactory, StorageStartupSnapshot,
     Unsubscribe as RegistryUnsubscribe, WorkspaceTarget,
 };
