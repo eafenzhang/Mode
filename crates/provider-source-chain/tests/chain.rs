@@ -113,3 +113,49 @@ async fn missing_bundled_release_is_a_config_error() {
     assert!(matches!(error, ChainError::Config(_)), "unexpected {error:?}");
     assert!(chain.last_snapshot().is_none());
 }
+
+#[tokio::test]
+async fn local_only_source_delivers_file_layer_with_accounts_fail_closed() {
+    let fixture = Fixture::new("local-only");
+    let source = AgentProviderSource::local(
+        fixture.bundled.clone(),
+        None,
+        fixture.personal.clone(),
+    );
+    let snapshot = source.read().await.unwrap();
+
+    // Built-in 账号族仍然出现，但没有账号事实时不能是 entitled。
+    assert!(snapshot.providers.contains_key("zai-start"));
+    assert_eq!(snapshot.providers["zai-start"]["access"]["entitled"], false);
+    if let Some(state) = snapshot.states.get("zai-start") {
+        assert_ne!(state["availability"], "available");
+    }
+}
+
+#[tokio::test]
+async fn refresh_picks_up_builtin_revision_changes() {
+    let fixture = Fixture::new("refresh");
+    let source = AgentProviderSource::local(
+        fixture.bundled.clone(),
+        None,
+        fixture.personal.clone(),
+    );
+    let before = source.read().await.unwrap();
+
+    std::fs::write(
+        &fixture.bundled,
+        support::release().replace("\"revision\":7", "\"revision\":8"),
+    )
+    .unwrap();
+
+    source.refresh("mode-builtin:updated").await.unwrap();
+    let after = source.read().await.unwrap();
+    assert_ne!(before.revision, after.revision);
+    assert!(
+        after
+            .based_on_mode_builtin_revision
+            .contains("mode-builtin:8:"),
+        "unexpected basedOn {}",
+        after.based_on_mode_builtin_revision
+    );
+}

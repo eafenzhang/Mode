@@ -1,0 +1,23 @@
+[package]
+name = "provider-account-facts"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "账号 Provider 事实注入：设置/身份/缓存 Key/Coding Plan 可用性"
+
+[lib]
+name = "provider_account_facts"
+path = "src/lib.rs"
+
+[dependencies]
+account-api-key-resolver = { path = "../account-api-key-resolver" }
+agent-protocol = { path = "../agent-protocol" }
+account-provider-overlay = { path = "../account-provider-overlay" }
+coding-plan-http = { path = "../coding-plan-http" }
+indexmap = { version = "2", features = ["serde"] }
+serde_json.workspace = true
+url.workspace = true
+zai-start-plan-billing = { path = "../zai-start-plan-billing" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

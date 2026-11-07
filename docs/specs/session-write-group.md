@@ -72,10 +72,13 @@ Off-Peak / 动态工作流灰度；本 facade 接收已解析的布尔值，prov
 | `goal_session`              | `session/goal`            | `{sessionId, inputId?, action, objective?, expectedRevision?}`                                                                     | `{response, snapshot, startedTurn?}` |
 | `resume_session`            | `session/resume`          | `{sessionId, workspace?, thoughtLevel?, mcpServers?, toolAllowlist?, toolDenylist?, offPeakToolEnabled?, dynamicWorkflowEnabled?}` | 完整状态快照                         |
 
-- `resume_session` 的兼容重试：旧 Agent 报 `-32602` 且 `data.message` 里的 zod issues
-  全部是 `unrecognized_keys`、且键都属于 `thoughtLevel/mcpServers/toolAllowlist/
-toolDenylist/offPeakToolEnabled/dynamicWorkflowEnabled` 时，省略这些字段重试一次；
-  出现任何非可选键直接上抛原错误（只信任结构化 issues，不猜人类可读摘要）。
+- 兼容重试（`create_session` / `resume_session` / `send_prompt`）：旧 Agent 报 `-32602`
+  且 `data.message` 里的 zod issues 全部是顶层 `unrecognized_keys`、键都属于各自可选集合时，
+  省略这些字段重试一次；出现任何非可选键直接上抛原错误（只信任结构化 issues，不猜摘要）。
+  - create：`persistence/thoughtLevel/mcpServers/toolAllowlist/toolDenylist/offPeakToolEnabled/dynamicWorkflowEnabled`
+  - resume：`thoughtLevel/mcpServers/toolAllowlist/toolDenylist/offPeakToolEnabled/dynamicWorkflowEnabled`
+  - send：`browserAmbientContext/automationId/offPeakTaskId/offPeakRunType/botDeliveryTarget/toolDenylist`
+- `SessionSendParams::omit_fields` 提供 send 的字段裁剪；create 由 facade 内部构建参数时裁剪。
 
 - `compact` 结果里的 `compact.state` 是 `accepted | already_running`，`operationId` 可选。
 - `goal.action` 是 `show | set | replace | pause | resume | clear`，objective 只在 set/replace
@@ -504,6 +507,42 @@ command：没有 ACK/幂等表，超时重发安全，陈旧读防护由调用�
   不同 workspace 串行发送（TS 并行队列，最终状态一致）。
 - 测试：`crates/agent-process/tests/workspace_policy.rs`（5 条：四种方法、未知字段、
   广播、`-32601` 降级、真实错误上抛）。
+
+## 2r. v4 命令通用转发：`sendConversationCommandV4`
+
+`send_conversation_command_v4(target, envelope)` → `v4/command`：把 renderer 构造的
+`CommandEnvelope` 转发给 Agent。与 TS `modeAgentService.sendConversationCommandV4`
+同形，但按 S2 的宿主边界收敛了「客户端富化」：
+
+- **信封严格解析**：`ttft?` / `commandId` / `clientId` / `sessionId`（required-nullable）/
+  `baseRevision?` / `baseLogEpoch?` / `type` / `payload` / `issuedAt`，未知键直接拒绝；
+  `type` 覆盖 `commandTypeSchema` 的 34 个命令。`payload` 保持原始 JSON（逐命令 schema
+  由 CLI 校验）。
+- **CAS 前置校验**：`COMMANDS_REQUIRING_BASE_REVISION` 缺 `baseRevision`、row-target 命令
+  缺 `baseLogEpoch` 时在发出前拒绝（与 TS `parseCommandEnvelope` 一致）。
+- **连接身份**：频道按宿主可信身份处理，固定 `desktop-continuous`；renderer 传入的
+  `clientMode` 不参与判定。`workspaceIdentity` / `remoteSessionId` 存在时剥离 `ttft`
+  （远端可重放链路不启用本地 TTFT 观测）。
+- **独立 Plan 预检**：payload（含 `config` / `firstInput`）任一 `planEnabled: true` 时先
+  请求 `runtime/capabilities`，`independentPlanState !== true` 返回
+  `proto.independentPlanUnsupported`。
+- **工具面隔离**：`sendText` 带 `automationId` 合并
+  `CronCreate` / `CronUpdate` / `CronDelete` denylist；带 `offPeakTaskId` 合并
+  `OffPeakCreate`（与调用方已有列表去重，保留原顺序）。
+- **ACK**：原样返回六态 ACK，不在这里把 `rejected` / `stale` / `failed` 转成异常
+  （调用方按 `status` 分流，与 TS 一致）。
+
+**已知保真缺口（S2 翻面前必须逐项确认）**：
+
+| 缺口 | 原因 | 影响 |
+| --- | --- | --- |
+| `createSession` 的 `offPeakToolEnabled` 不注入 | Off-Peak 灰度依赖 coding-plan 订阅服务（远端 client-config），Rust 侧尚无事实源 | 切面后 Off-Peak 工具不注册（fail-closed） |
+| `dynamicWorkflowEnabled` 仅支持本地 env 覆盖（`MODE_DYNAMIC_WORKFLOW_MODE`） | 远端 client-config 灰度源未迁；env 命中时注入，缺省/非法 fail-closed | 未设 env 时动态工作流工具不注册 |
+| `sendText` 的 `browserAmbientContext` 不采集 | 需要 browser executor（Host→Main 执行桥） | Browser Use 首轮缺少 ambient tabs 提示 |
+
+Account Provider Config 预同步已接（2026-11-05）：频道在 createSession / resumeSession /
+readSession / readWorkspacePresentation / subscribeConversationV4 / v4 createSession 前调用
+`ensure_provider_config`；壳侧注入文件层 `ProviderSource`（账号族仍 fail-closed）。
 
 ## 3. 验收
 

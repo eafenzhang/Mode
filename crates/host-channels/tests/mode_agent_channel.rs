@@ -119,6 +119,82 @@ async fn missing_session_id_is_a_parse_error() {
 }
 
 #[tokio::test]
+async fn read_session_existing_only_does_not_spawn() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "readSession",
+        object_arg(r#"{"workspacePath":"D:/ws","sessionId":"s1","runtimePolicy":"existing-only"}"#),
+    )
+    .await
+    .expect_err("existing-only 不应拉起 runtime");
+    assert!(
+        message(&error).contains("Mode Agent runtime is not running"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn send_command_requires_session_id_field() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "sendConversationCommandV4",
+        object_arg(
+            r#"{"workspacePath":"D:/ws","envelope":{
+                "commandId":"c1","clientId":"cl1","type":"stop",
+                "payload":{},"issuedAt":1}}"#,
+        ),
+    )
+    .await
+    .expect_err("缺少 required-nullable sessionId");
+    assert!(
+        message(&error).contains("invalid sendConversationCommandV4 request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn send_command_rejects_unknown_envelope_field() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "sendConversationCommandV4",
+        object_arg(
+            r#"{"workspacePath":"D:/ws","envelope":{
+                "commandId":"c1","clientId":"cl1","sessionId":"s1","type":"stop",
+                "payload":{},"issuedAt":1,"unexpected":true}}"#,
+        ),
+    )
+    .await
+    .expect_err("信封未知键");
+    assert!(
+        message(&error).contains("invalid sendConversationCommandV4 request"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn send_command_requires_cas_revision_before_spawn() {
+    let channel = channel();
+    let error = call(
+        &channel,
+        "sendConversationCommandV4",
+        object_arg(
+            r#"{"workspacePath":"D:/ws","envelope":{
+                "commandId":"c1","clientId":"cl1","sessionId":"s1",
+                "type":"applyFileRewind","payload":{},"issuedAt":1}}"#,
+        ),
+    )
+    .await
+    .expect_err("CAS 命令缺 baseRevision");
+    assert!(
+        message(&error).contains("CAS commands require baseRevision"),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
 async fn non_object_argument_is_rejected() {
     let channel = channel();
     let error = call(&channel, "listSessions", Value::Json("[]".into()))

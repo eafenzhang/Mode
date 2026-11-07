@@ -128,6 +128,19 @@ impl ReplyHandle {
 /// 入站请求处理器；返回 `Deferred` 时必须通过 `ReplyHandle` 回复。
 pub type RequestHandler = Arc<dyn Fn(&Value, ReplyHandle) -> RequestReply + Send + Sync>;
 
+/// 按顺序尝试多个处理器；`NotHandled` 才继续，`ReplyHandle` 是 Clone，不会丢应答权。
+pub fn chain_request_handlers(handlers: Vec<RequestHandler>) -> RequestHandler {
+    Arc::new(move |request, reply| {
+        for handler in &handlers {
+            match handler(request, reply.clone()) {
+                RequestReply::NotHandled => {}
+                handled => return handled,
+            }
+        }
+        RequestReply::NotHandled
+    })
+}
+
 type Pending = Mutex<HashMap<RequestId, oneshot::Sender<Result<Value, ClientError>>>>;
 
 struct Shared {

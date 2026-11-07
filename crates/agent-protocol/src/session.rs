@@ -127,6 +127,62 @@ pub struct SessionSendParams {
 }
 
 impl SessionSendParams {
+    /// 旧 Agent 不认的顶层可选字段（与 TS `SESSION_SEND_OPTIONAL_COMPAT_FIELDS` 一致）。
+    pub const OPTIONAL_COMPAT_FIELDS: [&'static str; 6] = [
+        "browserAmbientContext",
+        "automationId",
+        "offPeakTaskId",
+        "offPeakRunType",
+        "botDeliveryTarget",
+        "toolDenylist",
+    ];
+
+    /// 按兼容重试要求省略指定顶层字段（协议 camelCase）。
+    pub fn omit_fields(&self, omitted: &[String]) -> Self {
+        let has = |name: &str| omitted.iter().any(|value| value == name);
+        Self {
+            session_id: self.session_id.clone(),
+            model_selection: self.model_selection.clone(),
+            model_execution: self.model_execution.clone(),
+            input_id: self.input_id.clone(),
+            query_id: self.query_id.clone(),
+            content: self.content.clone(),
+            attachments: self.attachments.clone(),
+            browser_ambient_context: if has("browserAmbientContext") {
+                None
+            } else {
+                self.browser_ambient_context.clone()
+            },
+            expected_revision: self.expected_revision,
+            expected_provider_revision: self.expected_provider_revision.clone(),
+            automation_id: if has("automationId") {
+                None
+            } else {
+                self.automation_id.clone()
+            },
+            off_peak_task_id: if has("offPeakTaskId") {
+                None
+            } else {
+                self.off_peak_task_id.clone()
+            },
+            off_peak_run_type: if has("offPeakRunType") {
+                None
+            } else {
+                self.off_peak_run_type
+            },
+            bot_delivery_target: if has("botDeliveryTarget") {
+                None
+            } else {
+                self.bot_delivery_target.clone()
+            },
+            tool_denylist: if has("toolDenylist") {
+                None
+            } else {
+                self.tool_denylist.clone()
+            },
+        }
+    }
+
     /// 协议 `superRefine` 的三条组合约束；返回第一条违规消息。
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.automation_id.is_some() && self.off_peak_task_id.is_some() {

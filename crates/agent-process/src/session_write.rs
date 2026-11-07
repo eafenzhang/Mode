@@ -28,6 +28,17 @@ use mode_protocol_client::ClientError;
 use crate::control::{AgentControlClient, AgentWorkspaceTarget, ControlError, RuntimePolicy};
 use crate::session_read::session_workspace_ref;
 
+/// TS `SESSION_CREATE_OPTIONAL_COMPAT_FIELDS`：旧 app-server 不认时省略重试。
+const CREATE_OPTIONAL_COMPAT_FIELDS: [&str; 7] = [
+    "persistence",
+    "thoughtLevel",
+    "mcpServers",
+    "toolAllowlist",
+    "toolDenylist",
+    "offPeakToolEnabled",
+    "dynamicWorkflowEnabled",
+];
+
 /// `createSession` 的调用参数；缺省字段不会序列化。
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct CreateSessionOptions {
@@ -57,28 +68,18 @@ impl AgentControlClient {
         let process = self
             .client_for(target, RuntimePolicy::StartIfNeeded)
             .await?;
-        let params = SessionCreateParams {
-            session_id: options.session_id,
-            workspace: session_workspace_ref(target),
-            parent_session_id: options.parent_session_id,
-            mode: options.mode,
-            model: options.model,
-            persistence: options.persistence,
-            thought_level: options.thought_level,
-            title_generation_enabled: options.title_generation_enabled,
-            mcp_servers: options.mcp_servers,
-            tool_allowlist: options.tool_allowlist,
-            tool_denylist: options.tool_denylist,
-            imported_history: options.imported_history,
-            off_peak_tool_enabled: options.off_peak_tool_enabled.then_some(true),
-            dynamic_workflow_enabled: options.dynamic_workflow_enabled.then_some(true),
-        };
-        let params = serde_json::to_value(&params).expect("session/create params 序列化不会失败");
-        let response = process
-            .client()
-            .request(SESSION_CREATE_METHOD, Some(params))
-            .await?;
-        parse_snapshot(&response, "session/create")
+        let first = request_create(&process, target, &options, &[]).await;
+        match first {
+            Ok(response) => parse_snapshot(&response, "session/create"),
+            Err(error) => {
+                let fields = compat_fields(&error, &CREATE_OPTIONAL_COMPAT_FIELDS);
+                if fields.is_empty() {
+                    return Err(error);
+                }
+                let response = request_create(&process, target, &options, &fields).await?;
+                parse_snapshot(&response, "session/create")
+            }
+        }
     }
 
     /// `session/send`：提交一次输入，返回受理确认（`accepted` 必须是 `true`）。
@@ -96,20 +97,18 @@ impl AgentControlClient {
         let process = self
             .client_for(target, RuntimePolicy::StartIfNeeded)
             .await?;
-        let params = serde_json::to_value(&params).expect("session/send params 序列化不会失败");
-        let response = process
-            .client()
-            .request(SESSION_SEND_METHOD, Some(params))
-            .await?;
-        let result: SessionSendResult = serde_json::from_value(response).map_err(|error| {
-            ControlError::InvalidResult(format!("invalid session/send result: {error}"))
-        })?;
-        if !result.accepted {
-            return Err(ControlError::InvalidResult(
-                "invalid session/send result: accepted must be true".to_string(),
-            ));
+        match request_send(&process, &params).await {
+            Ok(response) => parse_send_result(&response),
+            Err(error) => {
+                let fields = compat_fields(&error, &SessionSendParams::OPTIONAL_COMPAT_FIELDS);
+                if fields.is_empty() {
+                    return Err(error);
+                }
+                let retry = params.omit_fields(&fields);
+                let response = request_send(&process, &retry).await?;
+                parse_send_result(&response)
+            }
         }
-        Ok(result)
     }
 
     /// `session/close`：返回 `closed`（Agent 未返回该字段时按普通 close 成功处理为 `true`）。
@@ -266,7 +265,7 @@ impl AgentControlClient {
         match first {
             Ok(response) => parse_snapshot(&response, "session/resume"),
             Err(error) => {
-                let fields = resume_compat_fields(&error);
+                let fields = compat_fields(&error, &SessionResumeParams::OPTIONAL_COMPAT_FIELDS);
                 if fields.is_empty() {
                     return Err(error);
                 }
@@ -276,6 +275,65 @@ impl AgentControlClient {
             }
         }
     }
+}
+
+async fn request_create(
+    process: &crate::AgentProcess,
+    target: &AgentWorkspaceTarget,
+    options: &CreateSessionOptions,
+    omitted: &[String],
+) -> Result<Value, ControlError> {
+    let has = |name: &str| omitted.iter().any(|value| value == name);
+    let params = SessionCreateParams {
+        session_id: options.session_id.clone(),
+        workspace: session_workspace_ref(target),
+        parent_session_id: options.parent_session_id.clone(),
+        mode: options.mode,
+        model: options.model.clone(),
+        persistence: if has("persistence") {
+            None
+        } else {
+            options.persistence
+        },
+        thought_level: if has("thoughtLevel") {
+            None
+        } else {
+            options.thought_level.clone()
+        },
+        title_generation_enabled: options.title_generation_enabled,
+        mcp_servers: if has("mcpServers") {
+            None
+        } else {
+            options.mcp_servers.clone()
+        },
+        tool_allowlist: if has("toolAllowlist") {
+            None
+        } else {
+            options.tool_allowlist.clone()
+        },
+        tool_denylist: if has("toolDenylist") {
+            None
+        } else {
+            options.tool_denylist.clone()
+        },
+        imported_history: options.imported_history.clone(),
+        off_peak_tool_enabled: if has("offPeakToolEnabled") {
+            None
+        } else {
+            options.off_peak_tool_enabled.then_some(true)
+        },
+        dynamic_workflow_enabled: if has("dynamicWorkflowEnabled") {
+            None
+        } else {
+            options.dynamic_workflow_enabled.then_some(true)
+        },
+    };
+    let value = serde_json::to_value(&params).expect("session/create params 序列化不会失败");
+    process
+        .client()
+        .request(SESSION_CREATE_METHOD, Some(value))
+        .await
+        .map_err(ControlError::Client)
 }
 
 async fn request_resume(
@@ -289,9 +347,33 @@ async fn request_resume(
         .map_err(ControlError::Client)
 }
 
-/// 解析 `-32602` 的 `data.message`（JSON 数组）并与 TS 集合比对：
+async fn request_send(
+    process: &crate::AgentProcess,
+    params: &SessionSendParams,
+) -> Result<Value, ControlError> {
+    let value = serde_json::to_value(params).expect("session/send params 序列化不会失败");
+    process
+        .client()
+        .request(SESSION_SEND_METHOD, Some(value))
+        .await
+        .map_err(ControlError::Client)
+}
+
+fn parse_send_result(response: &Value) -> Result<SessionSendResult, ControlError> {
+    let result: SessionSendResult = serde_json::from_value(response.clone()).map_err(|error| {
+        ControlError::InvalidResult(format!("invalid session/send result: {error}"))
+    })?;
+    if !result.accepted {
+        return Err(ControlError::InvalidResult(
+            "invalid session/send result: accepted must be true".to_string(),
+        ));
+    }
+    Ok(result)
+}
+
+/// 解析 `-32602` 的 `data.message`（JSON 数组）并与调用方给定的允许集合比对：
 /// 只要出现不认识的键（或结构不符），就不做兼容重试，原错误上抛。
-fn resume_compat_fields(error: &ControlError) -> Vec<String> {
+fn compat_fields(error: &ControlError, allowed: &[&str]) -> Vec<String> {
     let ControlError::Client(ClientError::Server {
         code: -32602,
         data: Some(data),
@@ -328,7 +410,7 @@ fn resume_compat_fields(error: &ControlError) -> Vec<String> {
             let Some(key) = key.as_str() else {
                 continue;
             };
-            if !SessionResumeParams::OPTIONAL_COMPAT_FIELDS.contains(&key) {
+            if !allowed.contains(&key) {
                 return Vec::new();
             }
             if !keys.iter().any(|existing| existing == key) {

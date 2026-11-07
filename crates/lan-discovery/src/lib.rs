@@ -11,6 +11,14 @@ use plugin_discovery::js::locale_compare;
 use serde_json::Value;
 
 pub mod announcement;
+pub mod discovery;
+pub mod interfaces;
+
+pub use discovery::{
+    discover_lan_peers, LanDiscoveryOptions, TailscaleSource, DISCOVERY_WINDOW,
+    TAILSCALE_STATUS_TIMEOUT,
+};
+pub use interfaces::{local_ipv4_addresses, network_interfaces, NetworkInterface};
 
 pub use announcement::{
     build_lan_announcement_payload, build_lan_probe_payload, parse_lan_announcement,

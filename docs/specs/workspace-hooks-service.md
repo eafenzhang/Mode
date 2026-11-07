@@ -21,6 +21,8 @@
 7. `load_hooks`：按固定来源顺序合并投影，附带快照、`hooksEnabled` 与 trust store 状态。
 
 不在本 spec 内：`grantWorkspaceHookTrust` 转 Agent authority、频道注册。
+（2026-11-05：`host-channels::hooks` 已接通 `loadHooks` / `saveHooks` / `grantWorkspaceHookTrust`，
+并进入 inprocess 开关白名单；`load_hooks_with_identity` 支持调用方 `workspaceIdentity`。）
 
 ## 2. 行为真源
 
@@ -125,8 +127,9 @@ legacy 来源额外约束：只认 `WORKSPACE_HOOK_EVENT_NAMES` 内的事件；`
 1. 固定来源顺序，逐段追加：
    工程快照 → `agents`(project) → `claude`(project) → mode user → `agents`(user) →
    `claude`(user)。
-2. 快照只由**工程来源**构建（用户级 mode 配置不进 bundle），`workspaceIdentity` 与
-   `projectPath` 都用工作区路径的正斜杠形式。
+2. 快照只由**工程来源**构建（用户级 mode 配置不进 bundle）。`workspaceIdentity` 优先用
+   调用方传入的身份（`load_hooks_with_identity`；空/缺省回落到工作区路径），`projectPath`
+   用工作区路径的正斜杠形式。远程 workspace 不能把身份退化成路径。
 3. `hooksEnabled = hooks.some(hook => hook.enabled === true)`，空列表为 `false`。
 4. 返回 `{hooks, hooksEnabled, snapshot, trustStoreCorrupt}`；`snapshot` 无工程来源时为 `null`。
 

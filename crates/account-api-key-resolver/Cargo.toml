@@ -1,0 +1,18 @@
+[package]
+name = "account-api-key-resolver"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "OAuth access token → Coding Plan API Key（customerInfo/list/copy）"
+
+[lib]
+name = "account_api_key_resolver"
+path = "src/lib.rs"
+
+[dependencies]
+reqwest.workspace = true
+rustls.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

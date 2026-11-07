@@ -185,6 +185,23 @@ impl AgentRuntimeRegistry {
         })
     }
 
+    /// 在现有处理器之后追加一个；已有处理器先处理（`NotHandled` 才继续）。
+    pub fn push_request_handler(&self, handler: mode_protocol_client::RequestHandler) {
+        let combined = {
+            let mut current = self
+                .request_handler
+                .lock()
+                .expect("request handler poisoned");
+            match current.take() {
+                Some(existing) => {
+                    mode_protocol_client::chain_request_handlers(vec![existing, handler])
+                }
+                None => handler,
+            }
+        };
+        self.set_request_handler(Some(combined));
+    }
+
     pub fn set_request_handler(&self, handler: Option<mode_protocol_client::RequestHandler>) {
         *self
             .request_handler

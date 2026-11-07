@@ -467,7 +467,7 @@
   {
     "method": "sendConversationCommandV4",
     "status": "rust",
-    "rust": "resolve_interaction_v4"
+    "rust": "send_conversation_command_v4"
   },
   {
     "method": "sendPrompt",

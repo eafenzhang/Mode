@@ -1,6 +1,6 @@
 # Spec：Agent 频道所有权切换（W4 门槛）
 
-状态：**草案（2026-11-01），待批准；本文件不改变运行时行为。**
+状态：**已批准（2026-11-04），S2 实施中；本文件不改变运行时行为。**
 
 关联：`docs/plans/2026-10-29-full-rust-rewrite.md`（W4）、
 `docs/specs/agent-process.md`、`docs/specs/session-read-group.md`、
@@ -10,8 +10,8 @@
 
 当前 `mode-agent` 频道由 Node Host 拥有：Host 拉起 `mode-agent` 子进程、
 持有 115 个方法的路由与部分聚合状态。Rust 侧已经具备协议内核、进程层、
-`AgentRuntimeRegistry` 与约 40 个方法，但**频道名只能整体切换**（`inprocess.rs`
-按频道名在启动期分流），所以不能「半个 `mode-agent`」。
+`AgentRuntimeRegistry` 与 102 个方法（2026-11-05 覆盖矩阵），但**频道名只能
+整体切换**（`inprocess.rs` 按频道名在启动期分流），所以不能「半个 `mode-agent`」。
 
 结论：
 
@@ -97,9 +97,11 @@ sequenceDiagram
 - `pnpm agent:callsites` 生成 `docs/specs/agent-method-callsites.md`（Renderer/Desktop/
   Services/CLI 的调用点计数与最多 3 个例子）；计数是启发式，只作归类证据。
 - 基线（2026-11-01）：115 个方法，`rust=91`、`blocked=24`、`todo=0`、`not-needed=0`。
-  `blocked` 为宿主事件/反向请求与真实模型网络方法（note 已写明）；
-  剩余 `todo` 集中在 automation 域、`initialize` 与
-  `syncAppRuntimePreferences`。检查已升级为「`todo` 必须为 0」；`blocked` 仍需在 S2 前逐项决策。
+- 当前（2026-11-05）：`rust=102`、`not-needed=11`、`blocked=2`、`todo=0`。`not-needed`
+  为 automation 10（决策 4）与 `onDynamicLocalTtftFacts`（审计判定空事件）；`blocked`
+  为 `generateWorkspaceText` / `testModelConnectivity`（决策 2 显式 `unsupported_method`）。
+- 方法面口径：115 个方法 = 100 个请求方法 + 15 个事件方法；S2 请求面按 100 计。
+- 检查已升级为「`todo` 必须为 0」；`blocked` 的降级语义已按决策 2 收敛。
 
 ### 4.2 健康状态面
 
@@ -135,7 +137,9 @@ sequenceDiagram
 
 - 启动日志记录 `agent owner=rust|node`、registry generation、switch 环境变量值。
 - 回滚：从 `MODE_HOST_INPROCESS_CHANNELS` 去掉 `mode-agent` 并重启；Host 重新成为
-  owner。Rust 侧 registry 在 shutdown 时 `dispose_all`，不留孤儿进程。
+  owner。Rust 侧 registry 在 shutdown 时 `dispose_all`，不留孤儿进程
+  （2026-11-05：`RunEvent::Exit` 先 `shutdown_agents(2s)` 再收 Host；开关白名单
+  已包含 `mcp-sync` / `agent-health` / `mode-agent`）。
 - 切换观测：同一 workspace 连续两次启动必须只有一个 `mode-agent` 子进程；
   `taskkill`/正常退出后无残留。
 
@@ -145,13 +149,13 @@ sequenceDiagram
 | ---- | --------------------------------------------------------- | -------------------------------------- |
 | S0   | 健康状态面（只读，Host 提供） **已落地（2026-11-04）**：壳装配 `AgentRuntimeRegistry`+`AgentControlClient`（`agent_runtime.rs`，工厂完整实现启动规格解析），`agent-health` 频道进 inprocess 接管清单，启动日志 `agent owner=node (S0: agent-health read-only)` | UI/日志可见 owner 与 state，不影响行为 |
 | S1   | 方法覆盖矩阵与 `blocked` 清零；未实现方法返回 TS 同款错误 | 矩阵检查脚本绿                         |
-| S2   | `mode-agent` 频道适配器（默认不注册）+ 启动期开关 **第一批已落（2026-11-04）**：`host-channels::mode_agent` 适配会话只读组（listSessions/readSession/readSessionMessages/readSessionEvents/listSessionSubagents/readSessionDebug）、listMcpServerStatuses、写组（initialize/prepareStorage/createSession/resumeSession/setModel/setThoughtLevel/setMode/compactSession/goalSession/disposeWorkspace）、sendPrompt（按 TS buildSessionSendParams 落 wire 字段集）、plugins（十方法 + marketplace 增删改/restoreBuiltin/resetConfig）、workflows 六方法（global scope 走管理面载体）、生命周期/杂项九方法（storage 快照/运行时身份/偏好广播/closeSession/hook trust/skill catalog/workspace presentation/disposeAll）、v4 conversation 帧（subscribeConversationV4/unsubscribe + onDynamicConversationFrame fan-out）与事件订阅（onDynamicSessionEvent：replay→snapshot→live；onDynamicStorageStartupState：watch 推送），未迁移方法返回 `unsupported_method`；壳内 inprocess 仅当开关显式包含 `mode-agent` 时注册。**已知保真缺口**：readSession 的 account 预同步/passive-read policy、mcp `unrecognized_keys` 重试仍属服务层 | 打开开关后 20 个真实任务通过           |
+| S2   | `mode-agent` 频道适配器（默认不注册）+ 启动期开关 **实施中（2026-11-05）**：适配器已覆盖 88/100 请求面与全部 15 个事件面——会话只读/写组、sendPrompt、plugins（含 marketplace/cancelOperation）、workflows 六方法、生命周期/杂项、v4 帧/订阅/query 族、v4 命令转发（`sendConversationCommandV4`）、attachments、用量、process 遥测、TTFT 空事件、conversation telemetry、CUA 权限观察与 operation turn、连接流控、运行时偏好延迟应答、插件操作进度。剩余 automation 10（决策 4 改判 `not-needed`，Renderer 分调两个 owner）；provider/account 2 个网络方法按决策 2 返回显式 `unsupported_method`。壳内 inprocess 仅当开关显式包含 `mode-agent` 时注册。**已知保真缺口**：sendPrompt 的 `browserAmbientContext` 采集、createSession 的 Off-Peak 灰度 flag（动态工作流已支持 env 覆盖）仍待接；readSession 的 Account Config 预同步/`runtimePolicy`、mcp 与 create/resume/send 的 `unrecognized_keys` 重试已接（2026-11-05） | 打开开关后 20 个真实任务通过           |
 | S3   | Host 侧删除 `mode-agent` 所有权路径（保留回滚开关）       | 关闭开关仍全绿；无孤儿进程             |
-| S4   | `hooks` grant、`mode-task`、会话索引写路由                | 对应 spec 验收                         |
+| S4   | `hooks` 频道（load/save/grant）**已落（2026-11-05）**；剩 `mode-task`、会话索引写路由 | hooks 真机开关验收；`mode-task` 对应 spec 验收 |
 
 S2 的 20 个真实任务与 parity matrix 是硬门禁（DR-07），不能压缩。
 
-## 6. 待批准决策（2026-11-04 已批准，按「最彻底」口径）
+## 6. 决策记录（2026-11-04 已批准，按「最彻底」口径）
 
 1. **方法清单的 `not-needed` 证据由谁确认** — **已批准**：脚本生成调用点证据
    （`pnpm agent:callsites`）+ 人工只审例外；S1 收口时按脚本清单全量过一遍。
@@ -173,15 +177,21 @@ S2 的 20 个真实任务与 parity matrix 是硬门禁（DR-07），不能压�
    不依赖 Node 运行时（远端部署同时受益）。
 
 上述批准后：S2 按本 spec 的分阶段实施推进；automation 10 个 Host 聚合方法
-随决策 4 拆到 Renderer 侧后改判 `not-needed`/`rust`，宿主事件 12 个随 S2
-接线改判，provider/account 2 个网络方法按决策 2 给 `unsupported` 降级语义。
+已按决策 4 改判 `not-needed`（Renderer 分调两个 owner），宿主事件/反向请求 12 个
+已随 S2 接线改判 `rust`，provider/account 2 个网络方法保持 `blocked` 并按决策 2
+返回 `unsupported_method`。
 
-在上述决策批准前，`mode-agent` 频道保持 Host 所有，Rust 侧只继续补协议与方法实现。
+决策已全部批准；`mode-agent` 频道在 S2 翻面前仍保持 Host 所有（Rust 适配器默认不注册），
+翻面与回滚按 §5 执行。
 
 ## 7. S2 真机 20 任务验收清单（2026-11-05）
 
 执行前提：`MODE_HOST_INPROCESS_CHANNELS` 显式包含 `mode-agent`；使用真实模型与
 可用 workspace；记录写入 `.plan/accept-<版本>-s2/`（日志、截图、关键帧）。
+**2026-11-05 补充**：壳侧已注入 `ProviderSource`，并升级为
+`provider-account-facts`（设置/身份/缓存 Key/Coding Plan 可用性 + reqwest）；
+新进程首次取 client 即交付。Personal API Key Provider 与已有 OAuth/JWT 的 Coding Plan
+可验收；OAuth→API Key 与团队权益/团队 Key 已接；团队请求鉴权接线仍属 W3。
 
 | # | 任务 | 覆盖方法 | 通过标准 |
 | --- | --- | --- | --- |

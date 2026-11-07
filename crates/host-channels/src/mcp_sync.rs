@@ -7,7 +7,9 @@
 
 use std::sync::Arc;
 
-use agent_process::{AgentControlClient, AgentWorkspaceTarget, ListMcpServersOptions};
+use agent_process::{
+    AgentControlClient, AgentWorkspaceTarget, ControlError, ListMcpServersOptions,
+};
 use agent_protocol::mcp::McpListMode;
 use agent_protocol::session_create::McpServer as ProtocolMcpServer;
 use mcp_sync_service::{ImportParams, LoadRequest, McpSyncService, SavePayload};
@@ -133,7 +135,7 @@ impl ServerChannel for McpSyncChannel {
                         target = target.with_identity(identity.clone());
                     }
                     let result = control
-                        .list_mcp_server_statuses(
+                        .list_mcp_server_statuses_compat(
                             &target,
                             ListMcpServersOptions {
                                 mcp_servers: params.mcp_servers,
@@ -141,7 +143,17 @@ impl ServerChannel for McpSyncChannel {
                             },
                         )
                         .await
-                        .map_err(|error| ChannelError::error(error.to_string()))?;
+                        .map_err(|error| match error {
+                            ControlError::McpStatusModeUnsupported => {
+                                ChannelError::error(error.to_string()).with_extra(
+                                    "code",
+                                    Value::Str(
+                                        crate::MCP_STATUS_MODE_UNSUPPORTED_CODE.into(),
+                                    ),
+                                )
+                            }
+                            other => ChannelError::error(other.to_string()),
+                        })?;
                     Ok(json_value(&result))
                 }
                 SAVE_MCP_TO_USER_DIRECTORY => {

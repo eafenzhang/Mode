@@ -1,0 +1,21 @@
+[package]
+name = "coding-plan-http"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Coding Plan 可用性 HTTP 编排：请求构造、状态分类与解析接线（传输无关）"
+
+[lib]
+name = "coding_plan_http"
+path = "src/lib.rs"
+
+[dependencies]
+account-provider-overlay = { path = "../account-provider-overlay" }
+coding-plan-entitlement = { path = "../coding-plan-entitlement" }
+reqwest.workspace = true
+rustls.workspace = true
+serde_json.workspace = true
+zai-start-plan-billing = { path = "../zai-start-plan-billing" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt", "rt-multi-thread"] }

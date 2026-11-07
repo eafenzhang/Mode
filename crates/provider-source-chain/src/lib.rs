@@ -14,9 +14,12 @@ use std::sync::Arc;
 
 use account_provider_overlay::{
     create_fail_closed_account_provider_config_snapshot, AccountProviderConfigSnapshot,
-    AccountProviderConfigSource, AccountProviderOverlayError, AccountProviderOverlayOptions,
-    AccountProviderResolveInput,
+    AccountProviderConfigSource, AccountProviderConnectionSettings,
+    AccountProviderFamilyAvailabilityInput, AccountProviderOverlayError,
+    AccountProviderOverlayOptions, AccountProviderResolveInput, BoxFuture,
+    CodingPlanAvailabilityResult, ProviderFamilyDomain,
 };
+use indexmap::IndexMap;
 use agent_process::{ProviderReadFuture, ProviderSource};
 use provider_config::ProviderConfigMap;
 use provider_config_source::{read_snapshot, SourceError};
@@ -141,12 +144,75 @@ impl<O: AccountProviderOverlayOptions + Send + Sync> ProviderChain<O> {
     }
 }
 
+/// 只读文件层的 Overlay 注入：账号身份、Coding Plan Key 与家庭可用性都按「未知」返回。
+///
+/// 这是 S2 阶段的过渡实现：账号/OAuth/网络事实源仍属 W3 的 model-provider 域。
+/// 结果语义是 **fail-closed**——Built-in 里的账号族会带着 unavailableReason 下发，
+/// Personal API Key Provider 不受影响。生产账号源接入后应替换为真实实现。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LocalOnlyOverlayOptions;
+
+impl AccountProviderOverlayOptions for LocalOnlyOverlayOptions {
+    fn read_settings(
+        &self,
+    ) -> BoxFuture<'_, Result<AccountProviderConnectionSettings, AccountProviderOverlayError>> {
+        Box::pin(async {
+            Ok(AccountProviderConnectionSettings {
+                provider_family_domain: None,
+                selections: Default::default(),
+                unresolved_families: None,
+            })
+        })
+    }
+
+    fn load_account_identity(
+        &self,
+        _family: ProviderFamilyDomain,
+    ) -> BoxFuture<'_, Result<Option<String>, AccountProviderOverlayError>> {
+        Box::pin(async { Ok(None) })
+    }
+
+    fn load_coding_plan_api_key<'a>(
+        &'a self,
+        _provider_id: &'a str,
+        _family: ProviderFamilyDomain,
+        _account_identity: &'a str,
+        _force_refresh: bool,
+    ) -> BoxFuture<'a, Result<Option<String>, AccountProviderOverlayError>> {
+        Box::pin(async { Ok(None) })
+    }
+
+    fn resolve_family_availability<'a>(
+        &'a self,
+        _input: AccountProviderFamilyAvailabilityInput,
+    ) -> BoxFuture<
+        'a,
+        Result<IndexMap<String, CodingPlanAvailabilityResult>, AccountProviderOverlayError>,
+    > {
+        Box::pin(async { Ok(IndexMap::new()) })
+    }
+}
+
 /// `ProviderSource` 适配器：把 [`AccountProviderService`] 包装为 agent-process 可消费的异步源。
 pub struct AgentProviderSource {
     service: Arc<AccountProviderService>,
 }
 
 impl AgentProviderSource {
+    /// 只读文件层（Built-in + Personal）的过渡装配；账号事实 fail-closed。
+    pub fn local(
+        bundled_path: impl Into<String>,
+        active_path: Option<String>,
+        personal_path: impl Into<PathBuf>,
+    ) -> Self {
+        Self::new(
+            bundled_path,
+            active_path,
+            personal_path,
+            LocalOnlyOverlayOptions,
+        )
+    }
+
     pub fn new(
         bundled_path: impl Into<String>,
         active_path: Option<String>,
@@ -167,6 +233,11 @@ impl AgentProviderSource {
     /// 底层服务，供宿主注册变更/错误监听或释放资源。
     pub fn service(&self) -> &Arc<AccountProviderService> {
         &self.service
+    }
+
+    /// 配置源变更后强制刷新一轮；`read()` 自身仍返回缓存快照。
+    pub async fn refresh(&self, reason: &str) -> Result<(), String> {
+        self.service.refresh(reason).await.map(|_| ())
     }
 }
 

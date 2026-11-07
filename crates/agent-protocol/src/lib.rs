@@ -58,6 +58,8 @@ pub mod mcp;
 pub mod message;
 pub mod permission;
 pub mod process_telemetry;
+pub mod official_mcp_auth;
+pub mod provider_runtime_headers;
 pub mod plugin;
 pub mod session;
 pub mod session_create;

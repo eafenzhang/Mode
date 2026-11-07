@@ -218,3 +218,215 @@ async fn external_handler_waits_for_respond() {
     assert_eq!(reply["result"]["nativeSearchEnhancementsEnabled"], true);
     registry.shutdown_all(Duration::from_secs(3)).await;
 }
+
+#[tokio::test]
+async fn responds_to_provider_runtime_headers_request() {
+    use agent_process::{
+        provider_runtime_headers_handler, ProviderRuntimeHeadersResolver,
+        ProviderRuntimeHeadersFuture,
+    };
+
+    struct StaticResolver;
+    impl ProviderRuntimeHeadersResolver for StaticResolver {
+        fn resolve<'a>(
+            &'a self,
+            _params: &'a agent_protocol::provider_runtime_headers::ProviderRuntimeHeadersRequestParams,
+        ) -> ProviderRuntimeHeadersFuture<'a> {
+            Box::pin(async move { Some("jwt-1".to_string()) })
+        }
+    }
+
+    let log = FrameLog::new("provider-headers");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let registry = Arc::new(registry("reverse-provider-runtime-headers", &log, spawns));
+    registry.push_request_handler(provider_runtime_headers_handler(
+        Arc::new(StaticResolver),
+        tokio::runtime::Handle::current(),
+    ));
+    let control = AgentControlClient::new(Arc::clone(&registry));
+
+    control
+        .list_sessions(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            ListSessionsOptions {
+                include_archived: false,
+                limit: None,
+                session_ids: None,
+                runtime_policy: agent_process::RuntimePolicy::StartIfNeeded,
+            },
+        )
+        .await
+        .unwrap();
+
+    for _ in 0..200 {
+        if let Some(reply) = log.reply() {
+            assert_eq!(reply["result"]["headersApplied"], true);
+            assert_eq!(reply["result"]["requestAuth"]["apiKey"], "jwt-1");
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!("provider runtime headers reply not observed");
+}
+
+#[tokio::test]
+async fn provider_runtime_headers_bad_params_are_rejected() {
+    use agent_process::{
+        provider_runtime_headers_handler, ProviderRuntimeHeadersResolver,
+        ProviderRuntimeHeadersFuture,
+    };
+
+    struct RejectResolver;
+    impl ProviderRuntimeHeadersResolver for RejectResolver {
+        fn resolve<'a>(
+            &'a self,
+            _params: &'a agent_protocol::provider_runtime_headers::ProviderRuntimeHeadersRequestParams,
+        ) -> ProviderRuntimeHeadersFuture<'a> {
+            Box::pin(async move { Some("unused".to_string()) })
+        }
+    }
+
+    let log = FrameLog::new("provider-headers-invalid");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let registry = Arc::new(registry(
+        "reverse-provider-runtime-headers-invalid",
+        &log,
+        spawns,
+    ));
+    registry.push_request_handler(provider_runtime_headers_handler(
+        Arc::new(RejectResolver),
+        tokio::runtime::Handle::current(),
+    ));
+    let control = AgentControlClient::new(Arc::clone(&registry));
+
+    control
+        .list_sessions(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            ListSessionsOptions {
+                include_archived: false,
+                limit: None,
+                session_ids: None,
+                runtime_policy: agent_process::RuntimePolicy::StartIfNeeded,
+            },
+        )
+        .await
+        .unwrap();
+
+    for _ in 0..200 {
+        if let Some(reply) = log.reply() {
+            assert_eq!(reply["error"]["code"], -32602);
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!("provider runtime headers error reply not observed");
+}
+
+#[tokio::test]
+async fn responds_to_official_mcp_auth_headers_request() {
+    use agent_process::{
+        official_mcp_auth_headers_handler, OfficialMcpAuthHeadersFuture,
+        OfficialMcpAuthHeadersResolver,
+    };
+    use std::collections::BTreeMap;
+
+    struct StaticResolver;
+    impl OfficialMcpAuthHeadersResolver for StaticResolver {
+        fn resolve<'a>(
+            &'a self,
+            _params: &'a agent_protocol::official_mcp_auth::OfficialMcpAuthHeadersRequestParams,
+        ) -> OfficialMcpAuthHeadersFuture<'a> {
+            Box::pin(async move {
+                let mut headers = BTreeMap::new();
+                headers.insert("Authorization".to_string(), "Bearer jwt-1".to_string());
+                Ok(headers)
+            })
+        }
+    }
+
+    let log = FrameLog::new("official-mcp");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let registry = Arc::new(registry("reverse-official-mcp-headers", &log, spawns));
+    registry.push_request_handler(official_mcp_auth_headers_handler(
+        Arc::new(StaticResolver),
+        tokio::runtime::Handle::current(),
+    ));
+    let control = AgentControlClient::new(Arc::clone(&registry));
+
+    control
+        .list_sessions(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            ListSessionsOptions {
+                include_archived: false,
+                limit: None,
+                session_ids: None,
+                runtime_policy: agent_process::RuntimePolicy::StartIfNeeded,
+            },
+        )
+        .await
+        .unwrap();
+
+    for _ in 0..200 {
+        if let Some(reply) = log.reply() {
+            assert_eq!(reply["result"]["ok"], true);
+            assert_eq!(reply["result"]["headers"]["Authorization"], "Bearer jwt-1");
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!("official mcp auth headers reply not observed");
+}
+
+#[tokio::test]
+async fn official_mcp_auth_headers_failure_reason_is_preserved() {
+    use agent_process::{
+        official_mcp_auth_headers_handler, OfficialMcpAuthHeadersFuture,
+        OfficialMcpAuthHeadersResolver, OfficialMcpAuthPortFailureReason,
+    };
+    struct UntrustedResolver;
+    impl OfficialMcpAuthHeadersResolver for UntrustedResolver {
+        fn resolve<'a>(
+            &'a self,
+            _params: &'a agent_protocol::official_mcp_auth::OfficialMcpAuthHeadersRequestParams,
+        ) -> OfficialMcpAuthHeadersFuture<'a> {
+            Box::pin(async move {
+                Err(OfficialMcpAuthPortFailureReason::OfficialMcpOriginUntrusted)
+            })
+        }
+    }
+
+    let log = FrameLog::new("official-mcp-untrusted");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let registry = Arc::new(registry("reverse-official-mcp-headers", &log, spawns));
+    registry.push_request_handler(official_mcp_auth_headers_handler(
+        Arc::new(UntrustedResolver),
+        tokio::runtime::Handle::current(),
+    ));
+    let control = AgentControlClient::new(Arc::clone(&registry));
+
+    control
+        .list_sessions(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            ListSessionsOptions {
+                include_archived: false,
+                limit: None,
+                session_ids: None,
+                runtime_policy: agent_process::RuntimePolicy::StartIfNeeded,
+            },
+        )
+        .await
+        .unwrap();
+
+    for _ in 0..200 {
+        if let Some(reply) = log.reply() {
+            assert_eq!(reply["result"]["ok"], false);
+            assert_eq!(
+                reply["result"]["reason"],
+                "official_mcp_origin_untrusted"
+            );
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!("official mcp auth headers failure reply not observed");
+}

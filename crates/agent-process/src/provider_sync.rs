@@ -59,10 +59,10 @@ struct UpdateAccountConfigWire {
 }
 
 /// 按 workspace key 串行并记录已交付 revision；client 与 workspace 一一对应。
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ProviderConfigSync {
-    delivered: Mutex<BTreeMap<String, String>>,
-    locks: Mutex<BTreeMap<String, Arc<AsyncMutex<()>>>>,
+    delivered: Arc<Mutex<BTreeMap<String, String>>>,
+    locks: Arc<Mutex<BTreeMap<String, Arc<AsyncMutex<()>>>>>,
 }
 
 impl ProviderConfigSync {

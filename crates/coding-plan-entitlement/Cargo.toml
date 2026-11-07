@@ -1,0 +1,15 @@
+[package]
+name = "coding-plan-entitlement"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Coding Plan 订阅权益解析：个人/团队列表信封 → 可用性"
+
+[lib]
+name = "coding_plan_entitlement"
+path = "src/lib.rs"
+
+[dependencies]
+account-provider-overlay = { path = "../account-provider-overlay" }
+serde.workspace = true
+serde_json.workspace = true

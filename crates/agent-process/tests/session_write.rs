@@ -589,3 +589,57 @@ async fn resume_does_not_retry_for_non_optional_unrecognized_key() {
     );
     assert_eq!(log.frame_params_all("session/resume").len(), 1);
 }
+
+#[tokio::test]
+async fn create_session_retries_without_unrecognized_optional_fields() {
+    let log = FrameLog::new("create-compat");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("session-create-reject-once", &log, spawns);
+
+    let snapshot = client
+        .create_session(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            CreateSessionOptions {
+                persistence: Some(SessionPersistence::Immediate),
+                thought_level: Some("high".to_string()),
+                ..CreateSessionOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(snapshot.session.session_id, "sess-1");
+
+    let frames = log.frame_params_all("session/create");
+    assert_eq!(frames.len(), 2, "应降级重试一次");
+    assert_eq!(frames[0]["persistence"], "immediate");
+    assert!(frames[1].get("persistence").is_none());
+    assert_eq!(frames[1]["thoughtLevel"], "high", "未命中的字段仍应保留");
+}
+
+#[tokio::test]
+async fn send_prompt_retries_without_unrecognized_optional_fields() {
+    let log = FrameLog::new("send-compat");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("session-send-reject-once", &log, spawns);
+
+    let params: SessionSendParams = serde_json::from_value(json!({
+        "sessionId": "sess-1",
+        "content": "hello",
+        "automationId": "auto-1",
+        "toolDenylist": ["Bash"]
+    }))
+    .unwrap();
+
+    let result = client
+        .send_prompt(&AgentWorkspaceTarget::new("/ws/demo"), params)
+        .await
+        .unwrap();
+    assert!(result.accepted);
+
+    let frames = log.frame_params_all("session/send");
+    assert_eq!(frames.len(), 2, "应降级重试一次");
+    assert_eq!(frames[0]["automationId"], "auto-1");
+    assert!(frames[1].get("automationId").is_none());
+    assert_eq!(frames[1]["toolDenylist"], json!(["Bash"]));
+    assert_eq!(frames[1]["content"], "hello");
+}

@@ -126,6 +126,202 @@ pub struct CommandAck {
     pub result: Option<Value>,
 }
 
+// ── v4/command 通用信封 ──
+//
+// 真源：`packages/shared/src/mode-protocol-v4/command.ts` 的
+// `commandEnvelopeSchema` / `commandTypeSchema` 与 `parseCommandEnvelope` 的组合校验。
+// 逐命令 payload schema 不在本镜像范围内（共 34 个，CLI 仍是最终校验者）；这里只保证
+// 信封字段与两条组合约束在发出前与 TS 一致。
+
+/// `commandTypeSchema` 的 34 个命令。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CommandType {
+    CreateSession,
+    CreateSelectionSideSession,
+    SendText,
+    SendGoalCommand,
+    Stop,
+    Compact,
+    ForkAssistant,
+    ApplyFileRewind,
+    EditUserQuery,
+    RetryTurn,
+    SetAssistantFeedback,
+    SendQueuedNow,
+    EditQueueItem,
+    ReorderQueueItem,
+    DeleteQueueItem,
+    SetAutoDrain,
+    ResolveInteraction,
+    RespondWorkspaceHookReview,
+    ToggleWorkspaceHookReviewItem,
+    RevokeWorkspaceHookTrust,
+    RequestWorkspaceHookReview,
+    SnoozeInteractionAutoResolution,
+    SwitchModelConfig,
+    SwitchCollaborationMode,
+    SetFollowupMode,
+    PauseGoal,
+    ResumeGoal,
+    CancelBackgroundWork,
+    ResumeWorkflowRun,
+    StartSavedWorkflow,
+    AmendWorkflowRunSettings,
+    RenameSession,
+    DeleteSession,
+    DiscardSharedContext,
+}
+
+impl CommandType {
+    /// TS `COMMANDS_REQUIRING_BASE_REVISION`。
+    pub fn requires_base_revision(self) -> bool {
+        matches!(
+            self,
+            Self::ApplyFileRewind
+                | Self::ForkAssistant
+                | Self::EditUserQuery
+                | Self::RetryTurn
+                | Self::SetAssistantFeedback
+                | Self::SendQueuedNow
+                | Self::EditQueueItem
+                | Self::ReorderQueueItem
+                | Self::DeleteQueueItem
+                | Self::SetAutoDrain
+                | Self::SwitchModelConfig
+                | Self::SwitchCollaborationMode
+                | Self::SetFollowupMode
+                | Self::PauseGoal
+                | Self::ResumeGoal
+        )
+    }
+
+    /// TS `ROW_TARGETING_COMMANDS`。
+    pub fn is_row_targeting(self) -> bool {
+        matches!(
+            self,
+            Self::ApplyFileRewind
+                | Self::ForkAssistant
+                | Self::EditUserQuery
+                | Self::RetryTurn
+                | Self::SetAssistantFeedback
+        )
+    }
+}
+
+/// `commandEnvelopeSchema`：`sessionId` 是 required-nullable，`payload` 保持原始 JSON。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConversationCommandEnvelope {
+    /// 本地 TTFT 观测上下文；远端/可重放链路必须剥离。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttft: Option<Value>,
+    pub command_id: String,
+    pub client_id: String,
+    pub session_id: CommandSessionId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_revision: Option<Number>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_log_epoch: Option<String>,
+    #[serde(rename = "type")]
+    pub command_type: CommandType,
+    pub payload: Value,
+    /// 客户端时钟（毫秒），仅遥测。
+    pub issued_at: Number,
+}
+
+impl ConversationCommandEnvelope {
+    /// `parseCommandEnvelope` 的两条组合约束 + `baseLogEpoch` 的 trim 语义。
+    pub fn validate(&self) -> Result<(), String> {
+        if self
+            .base_log_epoch
+            .as_deref()
+            .is_some_and(|epoch| epoch.trim().is_empty())
+        {
+            return Err("baseLogEpoch must be non-empty".to_string());
+        }
+        if self.command_type.requires_base_revision() && self.base_revision.is_none() {
+            return Err("CAS commands require baseRevision".to_string());
+        }
+        if self.command_type.is_row_targeting() && self.base_log_epoch.is_none() {
+            return Err("CAS commands require baseLogEpoch".to_string());
+        }
+        Ok(())
+    }
+
+    /// TS `sendConversationCommandV4` 的 `planEnabled` 探测（顶层 / config / firstInput）。
+    pub fn plan_enabled(&self) -> bool {
+        let Some(payload) = self.payload.as_object() else {
+            return false;
+        };
+        let enabled = |value: Option<&Value>| value.and_then(Value::as_bool) == Some(true);
+        enabled(payload.get("planEnabled"))
+            || enabled(
+                payload
+                    .get("config")
+                    .and_then(Value::as_object)
+                    .and_then(|config| config.get("planEnabled")),
+            )
+            || enabled(
+                payload
+                    .get("firstInput")
+                    .and_then(Value::as_object)
+                    .and_then(|input| input.get("planEnabled")),
+            )
+    }
+
+    /// 主机侧富化：`desktop_continuous` 为假或远程 workspace 时剥离 `ttft`，
+    /// 并按本轮 `automationId` / `offPeakTaskId` 合并 `sendText` 的 mutation denylist。
+    pub fn apply_host_enrichment(&mut self, desktop_continuous: bool, remote: bool) {
+        if !desktop_continuous || remote {
+            self.ttft = None;
+        }
+        self.merge_send_text_tool_denylist();
+    }
+
+    fn merge_send_text_tool_denylist(&mut self) {
+        if self.command_type != CommandType::SendText {
+            return;
+        }
+        let Some(payload) = self.payload.as_object_mut() else {
+            return;
+        };
+        let has_non_empty = |key: &str| {
+            payload
+                .get(key)
+                .and_then(Value::as_str)
+                .is_some_and(|value| !value.is_empty())
+        };
+        let additions: &[&str] = if has_non_empty("automationId") {
+            &["CronCreate", "CronUpdate", "CronDelete"]
+        } else if has_non_empty("offPeakTaskId") {
+            &["OffPeakCreate"]
+        } else {
+            return;
+        };
+        let mut merged: Vec<String> = payload
+            .get("toolDisallowlist")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        for name in additions {
+            if !merged.iter().any(|existing| existing == name) {
+                merged.push((*name).to_string());
+            }
+        }
+        payload.insert(
+            "toolDisallowlist".to_string(),
+            Value::Array(merged.into_iter().map(Value::String).collect()),
+        );
+    }
+}
+
 // ── commands/query ──
 //
 // 真源：`commandsQueryParamsSchema` / `commandQueryItemSchema` /
@@ -153,7 +349,38 @@ impl<'de> Deserialize<'de> for CommandSessionId {
     where
         D: serde::Deserializer<'de>,
     {
-        Option::<String>::deserialize(deserializer).map(Self)
+        struct Visitor;
+
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = CommandSessionId;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a string or null")
+            }
+
+            fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+                Ok(CommandSessionId(None))
+            }
+
+            fn visit_none<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+                Ok(CommandSessionId(None))
+            }
+
+            fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                String::deserialize(deserializer).map(|value| CommandSessionId(Some(value)))
+            }
+
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                Ok(CommandSessionId(Some(value.to_string())))
+            }
+        }
+
+        // `deserialize_any` 而不是 `Option::deserialize`：后者的 missing-field 路径
+        // 会把「字段缺失」也当成 null；协议要求 sessionId 字段必须存在。
+        deserializer.deserialize_any(Visitor)
     }
 }
 
@@ -332,5 +559,179 @@ impl CommandsQueryResult {
             clock.validate()?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn envelope(json: Value) -> ConversationCommandEnvelope {
+        serde_json::from_value(json).expect("envelope")
+    }
+
+    fn send_text(extra: Value) -> ConversationCommandEnvelope {
+        let mut payload = serde_json::json!({ "text": "hi" });
+        payload
+            .as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        envelope(serde_json::json!({
+            "commandId": "cmd-1",
+            "clientId": "client-1",
+            "sessionId": "s1",
+            "type": "sendText",
+            "payload": payload,
+            "issuedAt": 1
+        }))
+    }
+
+    #[test]
+    fn envelope_requires_session_id_and_rejects_unknown_fields() {
+        let missing = serde_json::from_value::<ConversationCommandEnvelope>(serde_json::json!({
+            "commandId": "cmd-1",
+            "clientId": "client-1",
+            "type": "stop",
+            "payload": {},
+            "issuedAt": 1
+        }));
+        assert!(missing.is_err());
+
+        let unknown = serde_json::from_value::<ConversationCommandEnvelope>(serde_json::json!({
+            "commandId": "cmd-1",
+            "clientId": "client-1",
+            "sessionId": "s1",
+            "type": "stop",
+            "payload": {},
+            "issuedAt": 1,
+            "unexpected": true
+        }));
+        assert!(unknown.is_err());
+    }
+
+    #[test]
+    fn nullable_session_id_round_trips() {
+        let value = serde_json::json!({
+            "commandId": "cmd-1",
+            "clientId": "client-1",
+            "sessionId": null,
+            "type": "createSession",
+            "payload": { "workspaceId": "w1" },
+            "issuedAt": 1
+        });
+        let parsed = envelope(value.clone());
+        assert_eq!(parsed.session_id.0, None);
+        assert_eq!(serde_json::to_value(&parsed).unwrap(), value);
+    }
+
+    #[test]
+    fn cas_commands_require_revision_and_epoch() {
+        let missing_revision = envelope(serde_json::json!({
+            "commandId": "cmd-1",
+            "clientId": "client-1",
+            "sessionId": "s1",
+            "type": "applyFileRewind",
+            "payload": {},
+            "issuedAt": 1
+        }));
+        assert_eq!(
+            missing_revision.validate().unwrap_err(),
+            "CAS commands require baseRevision"
+        );
+
+        let missing_epoch = envelope(serde_json::json!({
+            "commandId": "cmd-1",
+            "clientId": "client-1",
+            "sessionId": "s1",
+            "type": "applyFileRewind",
+            "baseRevision": 1,
+            "payload": {},
+            "issuedAt": 1
+        }));
+        assert_eq!(
+            missing_epoch.validate().unwrap_err(),
+            "CAS commands require baseLogEpoch"
+        );
+
+        let blank_epoch = envelope(serde_json::json!({
+            "commandId": "cmd-1",
+            "clientId": "client-1",
+            "sessionId": "s1",
+            "type": "applyFileRewind",
+            "baseRevision": 1,
+            "baseLogEpoch": "  ",
+            "payload": {},
+            "issuedAt": 1
+        }));
+        assert_eq!(
+            blank_epoch.validate().unwrap_err(),
+            "baseLogEpoch must be non-empty"
+        );
+    }
+
+    #[test]
+    fn plan_enabled_reads_all_three_shapes() {
+        assert!(envelope(serde_json::json!({
+            "commandId": "cmd-1", "clientId": "c", "sessionId": null,
+            "type": "createSession", "payload": { "planEnabled": true }, "issuedAt": 1
+        }))
+        .plan_enabled());
+        assert!(envelope(serde_json::json!({
+            "commandId": "cmd-1", "clientId": "c", "sessionId": "s",
+            "type": "sendText", "payload": { "config": { "planEnabled": true } }, "issuedAt": 1
+        }))
+        .plan_enabled());
+        assert!(envelope(serde_json::json!({
+            "commandId": "cmd-1", "clientId": "c", "sessionId": null,
+            "type": "createSession", "payload": { "firstInput": { "planEnabled": true } }, "issuedAt": 1
+        }))
+        .plan_enabled());
+        assert!(!send_text(serde_json::json!({})).plan_enabled());
+    }
+
+    #[test]
+    fn host_enrichment_strips_ttft_for_remote_or_replayable() {
+        let mut local = send_text(serde_json::json!({}));
+        local.ttft = Some(serde_json::json!({ "mark": 1 }));
+        local.apply_host_enrichment(true, false);
+        assert!(local.ttft.is_some());
+
+        let mut remote = send_text(serde_json::json!({}));
+        remote.ttft = Some(serde_json::json!({ "mark": 1 }));
+        remote.apply_host_enrichment(true, true);
+        assert!(remote.ttft.is_none());
+
+        let mut replayable = send_text(serde_json::json!({}));
+        replayable.ttft = Some(serde_json::json!({ "mark": 1 }));
+        replayable.apply_host_enrichment(false, false);
+        assert!(replayable.ttft.is_none());
+    }
+
+    #[test]
+    fn host_enrichment_merges_send_text_denylist_without_duplicates() {
+        let mut automation = send_text(serde_json::json!({
+            "automationId": "a1",
+            "toolDisallowlist": ["Custom", "CronCreate"]
+        }));
+        automation.apply_host_enrichment(true, false);
+        assert_eq!(
+            automation.payload["toolDisallowlist"],
+            serde_json::json!(["Custom", "CronCreate", "CronUpdate", "CronDelete"])
+        );
+
+        let mut off_peak = send_text(serde_json::json!({ "offPeakTaskId": "o1" }));
+        off_peak.apply_host_enrichment(true, false);
+        assert_eq!(
+            off_peak.payload["toolDisallowlist"],
+            serde_json::json!(["OffPeakCreate"])
+        );
+
+        // 非 sendText 或没有本轮归因时不注入。
+        let mut stop = envelope(serde_json::json!({
+            "commandId": "cmd-1", "clientId": "c", "sessionId": "s",
+            "type": "stop", "payload": { "automationId": "a1" }, "issuedAt": 1
+        }));
+        stop.apply_host_enrichment(true, false);
+        assert!(stop.payload.get("toolDisallowlist").is_none());
     }
 }

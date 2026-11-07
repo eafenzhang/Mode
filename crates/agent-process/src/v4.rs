@@ -13,9 +13,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_protocol::v4::{
-    CommandAck, CommandsQueryParams, CommandsQueryResult, ResolveInteractionAnswer,
-    ResolveInteractionEnvelope, ResolveInteractionPayload, ResolveInteractionType,
-    V4_COMMANDS_QUERY_METHOD, V4_COMMAND_METHOD,
+    CommandAck, CommandsQueryParams, CommandsQueryResult, ConversationCommandEnvelope,
+    ResolveInteractionAnswer, ResolveInteractionEnvelope, ResolveInteractionPayload,
+    ResolveInteractionType, V4_COMMANDS_QUERY_METHOD, V4_COMMAND_METHOD,
 };
 use agent_protocol::v4_queries::{
     AppUsageSnapshot, AttachmentAbortResult, AttachmentBeginParams, AttachmentBeginResult,
@@ -56,6 +56,16 @@ use serde_json::Value;
 use crate::control::{AgentControlClient, AgentWorkspaceTarget, ControlError, RuntimePolicy};
 
 static COMMAND_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+const RUNTIME_CAPABILITIES_METHOD: &str = "runtime/capabilities";
+
+/// TS `modeRuntimeCapabilitiesSchema`：zod 默认 strip，未知键不拒绝。
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeCapabilities {
+    #[serde(default)]
+    independent_plan_state: Option<bool>,
+}
 
 /// host 的 hello（与 TS `helloConversationV4` 的能力集一致）。
 pub fn build_host_hello(connection_id: &str) -> HelloMessage {
@@ -145,6 +155,56 @@ impl AgentControlClient {
             return Err(ControlError::CommandRejected(message));
         }
         Ok(ack)
+    }
+
+    /// TS `ensureIndependentPlanSupport`：Plan 字段只有执行端支持时才能下发。
+    /// 旧 CLI 会静默剥掉 Plan 字段，所以必须在命令发出前确认能力。
+    pub async fn ensure_independent_plan_support(
+        &self,
+        target: &AgentWorkspaceTarget,
+    ) -> Result<(), ControlError> {
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
+        let response = process
+            .client()
+            .request(RUNTIME_CAPABILITIES_METHOD, Some(serde_json::json!({})))
+            .await?;
+        let capabilities: RuntimeCapabilities =
+            serde_json::from_value(response).map_err(|error| {
+                ControlError::InvalidResult(format!("invalid runtime/capabilities result: {error}"))
+            })?;
+        if capabilities.independent_plan_state != Some(true) {
+            return Err(ControlError::InvalidParams(
+                "proto.independentPlanUnsupported".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// `sendConversationCommandV4`：转发 renderer 构造的完整命令信封。
+    ///
+    /// 与 `resolve_interaction_v4` 不同，这里不对 ACK 做成功断言：TS 侧同样把六态
+    /// ACK 原样返回，由调用方按 `status` 分流。信封的组合约束在发出前校验。
+    pub async fn send_conversation_command_v4(
+        &self,
+        target: &AgentWorkspaceTarget,
+        envelope: &ConversationCommandEnvelope,
+    ) -> Result<CommandAck, ControlError> {
+        envelope.validate().map_err(ControlError::InvalidParams)?;
+        let process = self
+            .client_for(target, RuntimePolicy::StartIfNeeded)
+            .await?;
+        let params = serde_json::to_value(envelope).map_err(|error| {
+            ControlError::InvalidParams(format!("invalid v4 command envelope: {error}"))
+        })?;
+        let response = process
+            .client()
+            .request(V4_COMMAND_METHOD, Some(params))
+            .await?;
+        serde_json::from_value(response).map_err(|error| {
+            ControlError::InvalidResult(format!("invalid v4/command result: {error}"))
+        })
     }
 
     /// `v4/conversation/rowsRange`：游标制行分页（loadOlder）。只读、无状态，

@@ -33,6 +33,22 @@
 配置源变化为 `config:<reason>`（空原因记作 `config:changed`）。其中包含凭据刷新原因时，
 Overlay 会强制刷新 Coding Plan Key。
 
+### 2b. 本地文件层过渡装配（2026-11-05）
+
+`AgentProviderSource::local(bundled_path, active_path, personal_path)` 使用
+`LocalOnlyOverlayOptions`：`read_settings` 返回空选择、账号身份/Key 均为 `None`、
+Family 可用性为空表。效果：
+
+- 文件层仍按原语义读取（`ProviderChain` 的合并快照包含 Personal）；但账号 Overlay 只以
+  Built-in 为 configured providers——Personal Provider 由 Agent 自己从
+  `MODE_PERSONAL_PROVIDER_CONFIG_FILE` 读取，不进入 Account Overlay；
+- 账号族（Coding Plan / Start Plan）按 Overlay 既有语义 **fail-closed**，
+  `access.entitled=false` 并带 unavailableReason；
+- Personal API Key Provider 不依赖账号事实，可正常交付给 Agent。
+
+这是 S2 的过渡接线：真实设置、账号身份、Coding Plan Key 与 Family 可用性仍属
+W3 model-provider/cloud 域；接入后替换 options 即可，不改链路上层。
+
 ## 3. 输出
 
 `agent_process::AccountProviderConfigSnapshot`：

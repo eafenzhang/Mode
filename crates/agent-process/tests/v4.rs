@@ -9,7 +9,7 @@ use agent_process::{
     AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, AgentWorkspaceTarget, ControlError,
     SpecFactory,
 };
-use agent_protocol::v4::{CommandAckStatus, ResolveInteractionAnswer};
+use agent_protocol::v4::{CommandAckStatus, ConversationCommandEnvelope, ResolveInteractionAnswer};
 use serde_json::Value;
 
 const FIXTURE: &str = env!("CARGO_BIN_EXE_agent-process-fixture");
@@ -140,6 +140,73 @@ async fn rejected_ack_maps_to_command_rejected() {
             assert!(message.contains("resolveInteraction rejected"), "{message}");
             assert!(message.contains("fault.command.rejected"), "{message}");
             assert!(message.contains("denied"), "{message}");
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+fn send_text_envelope() -> ConversationCommandEnvelope {
+    serde_json::from_value(serde_json::json!({
+        "commandId": "cmd-send-1",
+        "clientId": "client-1",
+        "sessionId": "sess-1",
+        "type": "sendText",
+        "payload": { "text": "hello" },
+        "issuedAt": 1700000000000u64
+    }))
+    .unwrap()
+}
+
+#[tokio::test]
+async fn send_conversation_command_forwards_envelope_and_returns_ack() {
+    let log = FrameLog::new("send-command");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, spawns);
+
+    let ack = client
+        .send_conversation_command_v4(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            &send_text_envelope(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ack.status, CommandAckStatus::Accepted);
+    assert_eq!(ack.command_id, "cmd-send-1");
+
+    let frames = log.frame_params("v4/command");
+    assert_eq!(frames.len(), 1);
+    assert_eq!(frames[0]["type"], "sendText");
+    assert_eq!(frames[0]["sessionId"], "sess-1");
+    assert_eq!(frames[0]["payload"]["text"], "hello");
+    assert_eq!(frames[0]["commandId"], "cmd-send-1");
+}
+
+#[tokio::test]
+async fn plan_preflight_accepts_capable_runtime() {
+    let log = FrameLog::new("plan-capable");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, spawns);
+
+    client
+        .ensure_independent_plan_support(&AgentWorkspaceTarget::new("/ws/demo"))
+        .await
+        .unwrap();
+    assert_eq!(log.frame_params("runtime/capabilities").len(), 1);
+}
+
+#[tokio::test]
+async fn plan_preflight_rejects_runtime_without_capability() {
+    let log = FrameLog::new("plan-unsupported");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("runtime-capabilities-unsupported", &log, spawns);
+
+    let error = client
+        .ensure_independent_plan_support(&AgentWorkspaceTarget::new("/ws/demo"))
+        .await
+        .unwrap_err();
+    match error {
+        ControlError::InvalidParams(message) => {
+            assert_eq!(message, "proto.independentPlanUnsupported");
         }
         other => panic!("unexpected error: {other:?}"),
     }

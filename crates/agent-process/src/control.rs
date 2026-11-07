@@ -6,7 +6,8 @@
 //! 行为真源：`packages/services/src/mode-agent/modeAgentService.ts` 的
 //! `grantWorkspaceHookTrust` 与 `buildWorkspaceRef`。
 
-use std::sync::Arc;
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
@@ -113,6 +114,9 @@ pub enum ControlError {
     /// v4 命令被服务端否决（rejected/stale/failed），消息携带原始 ACK 摘要。
     CommandRejected(String),
     ProviderSync(String),
+    /// 旧 Agent 不支持 MCP status-only；频道映射为稳定错误码
+    /// `MODE_AGENT_MCP_STATUS_MODE_UNSUPPORTED`。
+    McpStatusModeUnsupported,
     /// existing-only 策略下没有活进程（对应 TS `MODE_AGENT_RUNTIME_UNAVAILABLE`）。
     RuntimeUnavailable {
         workspace_key: String,
@@ -134,6 +138,10 @@ impl std::fmt::Display for ControlError {
             Self::InvalidParams(message) => formatter.write_str(message),
             Self::CommandRejected(message) => formatter.write_str(message),
             Self::ProviderSync(message) => formatter.write_str(message),
+            // 与 TS `ModeAgentMcpStatusModeUnsupportedError` 的 message 一致。
+            Self::McpStatusModeUnsupported => {
+                formatter.write_str("The connected Mode Agent does not support MCP status-only refresh")
+            }
             // 消息与 TS `createRuntimeUnavailableError` 一致。
             Self::RuntimeUnavailable { .. } => {
                 formatter.write_str("Mode Agent runtime is not running.")
@@ -156,9 +164,14 @@ impl From<ClientError> for ControlError {
     }
 }
 
+#[derive(Clone)]
 pub struct AgentControlClient {
     registry: Arc<AgentRuntimeRegistry>,
     provider_sync: crate::ProviderConfigSync,
+    /// 可选的事实源；注入后每次新进程拉起都会先交付 Account Provider Config。
+    provider_source: Arc<Mutex<Option<Arc<dyn crate::ProviderSource>>>>,
+    /// 已交付过的 `workspaceKey -> pid`，避免每次请求重复读取配置源。
+    provider_synced: Arc<Mutex<BTreeMap<String, u32>>>,
     /// v4 命令的稳定提交端标识（对应 TS host services 的进程稳定 clientId）。
     v4_client_id: String,
 }
@@ -172,7 +185,100 @@ impl AgentControlClient {
         Self {
             registry,
             provider_sync: crate::ProviderConfigSync::new(),
+            provider_source: Arc::new(Mutex::new(None)),
+            provider_synced: Arc::new(Mutex::new(BTreeMap::new())),
             v4_client_id: format!("host-rust-{}-{now}", std::process::id()),
+        }
+    }
+
+    /// 注入/替换 Provider 事实源。替换后清空已交付记录，下一次取 client 会重新交付。
+    pub fn set_provider_source(&self, source: Option<Arc<dyn crate::ProviderSource>>) {
+        *self.provider_source.lock().expect("provider source poisoned") = source;
+        self.provider_synced
+            .lock()
+            .expect("provider sync state poisoned")
+            .clear();
+    }
+
+    pub fn has_provider_source(&self) -> bool {
+        self.provider_source
+            .lock()
+            .expect("provider source poisoned")
+            .is_some()
+    }
+
+    fn provider_source(&self) -> Option<Arc<dyn crate::ProviderSource>> {
+        self.provider_source
+            .lock()
+            .expect("provider source poisoned")
+            .clone()
+    }
+
+    /// 确保某个进程已收到当前 Provider 快照。`force` 为假时按 pid 去重；
+    /// `force` 为真时仍走 `ProviderConfigSync` 的 revision 去重，供 create/read 等
+    /// TS 显式同步点使用。
+    async fn sync_provider_for_process(
+        &self,
+        target: &AgentWorkspaceTarget,
+        process: &crate::AgentProcess,
+        force: bool,
+    ) -> Result<(), ControlError> {
+        let Some(source) = self.provider_source() else {
+            return Ok(());
+        };
+        let workspace_key = target.workspace_key();
+        if !force
+            && self
+                .provider_synced
+                .lock()
+                .expect("provider sync state poisoned")
+                .get(&workspace_key)
+                .is_some_and(|pid| *pid == process.pid())
+        {
+            return Ok(());
+        }
+        self.provider_sync
+            .sync(&workspace_key, process.client(), source.as_ref())
+            .await?;
+        self.provider_synced
+            .lock()
+            .expect("provider sync state poisoned")
+            .insert(workspace_key, process.pid());
+        Ok(())
+    }
+
+    /// TS `ensureAccountProviderConfigSynced`：在 create/read/subscribe 等显式同步点
+    /// 读取最新快照并按 revision 去重交付。
+    pub async fn ensure_provider_config(
+        &self,
+        target: &AgentWorkspaceTarget,
+    ) -> Result<(), ControlError> {
+        if self.provider_source().is_none() {
+            return Ok(());
+        }
+        let process = self
+            .registry
+            .get_or_spawn(&target.registry_target())
+            .await?;
+        self.sync_provider_for_process(target, &process, true)
+            .await
+    }
+
+    /// 配置源变更后的广播：对每个活 workspace 重新交付当前快照。
+    /// 没有任何活进程时为空操作，不会因此拉起 Agent。
+    pub async fn refresh_provider_config(&self) -> Result<(), ControlError> {
+        if self.provider_source().is_none() {
+            return Ok(());
+        }
+        let mut first_error = None;
+        for target in self.active_workspace_targets() {
+            if let Err(error) = self.ensure_provider_config(&target).await {
+                first_error.get_or_insert(error);
+            }
+        }
+        match first_error {
+            Some(error) => Err(error),
+            None => Ok(()),
         }
     }
 
@@ -207,18 +313,25 @@ impl AgentControlClient {
         target: &AgentWorkspaceTarget,
         policy: RuntimePolicy,
     ) -> Result<Arc<crate::AgentProcess>, ControlError> {
-        match policy {
-            RuntimePolicy::StartIfNeeded => Ok(self
-                .registry
-                .get_or_spawn(&target.registry_target())
-                .await?),
+        let process = match policy {
+            RuntimePolicy::StartIfNeeded => {
+                self.registry
+                    .get_or_spawn(&target.registry_target())
+                    .await?
+            }
             RuntimePolicy::ExistingOnly => self
                 .registry
                 .existing_process(&target.registry_target())
                 .ok_or_else(|| ControlError::RuntimeUnavailable {
                     workspace_key: target.workspace_key(),
-                }),
+                })?,
+        };
+        // 只有允许拉起的路径才做 Provider 交付；existing-only 读取保持纯观察语义。
+        if policy == RuntimePolicy::StartIfNeeded {
+            self.sync_provider_for_process(target, &process, false)
+                .await?;
         }
+        Ok(process)
     }
 
     /// `v4/usage/stats`（全应用范围）：复用任一活 workspace runtime，不拉起新进程。
@@ -310,6 +423,11 @@ impl AgentControlClient {
     /// 安装/清除入站反向请求处理器（对所有现有与后续 runtime 生效）。
     pub fn set_request_handler(&self, handler: mode_protocol_client::RequestHandler) {
         self.registry.set_request_handler(Some(handler));
+    }
+
+    /// 追加反向请求处理器，保留已安装的处理器。
+    pub fn push_request_handler(&self, handler: mode_protocol_client::RequestHandler) {
+        self.registry.push_request_handler(handler);
     }
 
     pub fn clear_request_handler(&self) {

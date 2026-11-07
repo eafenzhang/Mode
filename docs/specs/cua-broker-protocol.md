@@ -42,14 +42,35 @@
   （TS 测试锁定 `" X "` 原样返回）；空白值不算注入，回落铸造——services 的
   `probeStableCuaHelperSocket` 与 macOS 懒启动注入都依赖这条语义。
 
+### 2.3 socket 传输与健康探测（2026-11-05）
+
+`BrokerClient::call(method, params, timeout_ms)`：单请求单连接，写入
+`{"id":"1","method":…,"params":…}\n`，读到首个换行后解析：
+
+- `{ok:true,result}` → `result`；
+- `{ok:false,error:{message,code}}` → `BrokerError{code}`；
+- 响应 JSON 非法 → `internal`；连接失败/对端关闭 → `stale_socket`；
+- 超时 → `timeout`；单个响应行上限 **4 MiB**（超出 → `internal`，防止无界缓冲）。
+
+平台连接：POSIX 用 Unix domain socket，Windows 用命名管道（`tokio::net`）。
+
+`transport::broker_call(runtime)` 把异步客户端包成注入端口的同步 `BrokerCall`：
+构造 `params = {"events": events}` 调 `raw_input`，把 `dispatched` 转成
+`RawInputBrokerResult`；`BrokerError` 原样映射为 `BrokerCallError::Broker`。
+调用线程会 `block_on(runtime)`，**不得**从该运行时的 worker 线程调用；宿主应把它
+用于同步桥或专用阻塞线程。
+`BrokerClient::probe_health(options)` 在 deadline 内按 100ms 间隔、每次 500ms 超时
+轮询 `health`；只接受 `pid === null` 或数字的结果，返回
+`{bundleId: string|null, pid: number|null}`；耗尽 deadline → `broker_unavailable`。
+默认总超时 10s，与 TS 一致。
+
 ## 3. 已知差异
 
 1. 响应序列化：TS `JSON.stringify` 按插入序，Rust 对拍按解析后的 JSON 值比较
    （键序无关）。
 2. `dispatch_request` 的 backend 形态是 `BackendOutcome`（Ok/Err{message, code}），
    不承载 TS 异常对象；`code` 非字符串或空串一律 `internal`。
-3. 不含 socket 传输、健康探测（`probeHelperHealth`）、超时与 `BrokerError` 类型——
-   这些是异步 IO/控制流，归宿主。
+3. 响应行有 4 MiB 上限（TS 无上限）；正常 broker 响应远小于该值。
 
 ## 4. 验收
 
@@ -57,5 +78,8 @@
   方法表白名单与只读子集、未知方法/包装 backend 失败、无 code → internal、
   malformed → invalid_request、平台铸造与 dir 覆盖、env 原样返回与回落铸造）；
   连同既有 injector 8 条与 resolver 7 条全绿。
+- transport 用例：成功结果、远端错误、非法 JSON、超时、健康探测成功与超时、
+  `broker_call` 的 `dispatched` 解析与错误映射；Windows 用命名管道 server、
+  Unix 用 UnixListener 作为对端。
 - TS oracle：`packages/mode-cua/test/broker.test.mjs` 保留为行为真源。
 - `cargo clippy -p cua-raw-input --all-targets -- -D warnings`。

@@ -15,7 +15,7 @@ mod writable;
 pub use atomic::atomic_write_json;
 pub use load::{
     from_legacy_hooks_config, from_project_snapshot, from_user_mode_source, load_hooks,
-    LoadHooksResult,
+    load_hooks_with_identity, LoadHooksResult,
 };
 pub use toggle::{write_workspace_hook_configured_toggle, WorkspaceHookMutationError};
 pub use writable::{get_writable_hook, resolve_next_root_enabled, to_mode_hooks_events};

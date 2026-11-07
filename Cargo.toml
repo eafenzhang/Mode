@@ -47,8 +47,15 @@ members = [
   "crates/terminal-service",
   "crates/remote-desktop-streaming",
   "crates/lan-discovery",
+  "crates/lan-pairing",
+  "crates/lan-http",
   "crates/cua-raw-input",
   "crates/zai-start-plan-billing",
+  "crates/coding-plan-entitlement",
+  "crates/coding-plan-http",
+  "crates/provider-account-facts",
+  "crates/account-api-key-resolver",
+  "crates/httpdate-shim",
   "crates/provider-config-file-codec",
   "crates/tasks-db",
   "crates/task-index-repo",
@@ -152,3 +159,6 @@ rcgen = { version = "0.14", default-features = false, features = ["ring"] }
 tauri-plugin-notification = "2"
 # 终端 PTY（spec `terminal-pty-in-shell.md`）：壳持有终端进程，Host 崩溃/重生不再带走终端。
 portable-pty = "0.9"
+
+[patch.crates-io]
+httpdate = { path = "crates/httpdate-shim" }

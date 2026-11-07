@@ -3,6 +3,16 @@
 version = 4
 
 [[package]]
+name = "account-api-key-resolver"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "rustls",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "account-provider-overlay"
 version = "0.1.0"
 dependencies = [
@@ -689,6 +699,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "coding-plan-entitlement"
+version = "0.1.0"
+dependencies = [
+ "account-provider-overlay",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "coding-plan-http"
+version = "0.1.0"
+dependencies = [
+ "account-provider-overlay",
+ "coding-plan-entitlement",
+ "reqwest",
+ "rustls",
+ "serde_json",
+ "tokio",
+ "zai-start-plan-billing",
+]
+
+[[package]]
 name = "combine"
 version = "4.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -921,6 +953,7 @@ name = "cua-raw-input"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1974,6 +2007,7 @@ dependencies = [
  "system-service",
  "terminal-service",
  "tokio",
+ "workspace-hooks-service",
 ]
 
 [[package]]
@@ -2026,6 +2060,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
 
 [[package]]
+name = "httpdate"
+version = "1.0.3"
+
+[[package]]
 name = "hyper"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2037,6 +2075,7 @@ dependencies = [
  "http",
  "http-body",
  "httparse",
+ "httpdate",
  "itoa",
  "pin-project-lite",
  "smallvec",
@@ -2577,7 +2616,31 @@ name = "lan-discovery"
 version = "0.1.0"
 dependencies = [
  "indexmap 2.14.2",
+ "libc",
  "plugin-discovery",
+ "serde",
+ "serde_json",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "lan-http"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "lan-pairing",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "lan-pairing"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
  "serde",
  "serde_json",
 ]
@@ -2806,8 +2869,12 @@ dependencies = [
 name = "mode-tauri"
 version = "0.1.0"
 dependencies = [
+ "account-api-key-resolver",
+ "account-provider-overlay",
  "agent-process",
+ "agent-protocol",
  "broadcast-service",
+ "coding-plan-http",
  "commands-service",
  "conversation-mirror",
  "credential-store",
@@ -2816,9 +2883,13 @@ dependencies = [
  "file-watcher",
  "host-channels",
  "off-peak-repo",
+ "official-mcp-auth",
  "platform",
  "project-memory",
  "protocol",
+ "provider-account-facts",
+ "provider-config-repository",
+ "provider-source-chain",
  "rpc-host",
  "rpc-wire",
  "runtime-env",
@@ -3766,6 +3837,21 @@ dependencies = [
  "schemars 0.8.22",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "provider-account-facts"
+version = "0.1.0"
+dependencies = [
+ "account-api-key-resolver",
+ "account-provider-overlay",
+ "agent-protocol",
+ "coding-plan-http",
+ "indexmap 2.14.2",
+ "serde_json",
+ "tokio",
+ "url",
+ "zai-start-plan-billing",
 ]
 
 [[package]]
@@ -6889,6 +6975,7 @@ dependencies = [
 name = "zai-start-plan-billing"
 version = "0.1.0"
 dependencies = [
+ "account-provider-overlay",
  "serde_json",
  "url",
 ]

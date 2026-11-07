@@ -12,11 +12,11 @@ path = "src/lib.rs"
 [dependencies]
 account-provider-overlay = { path = "../account-provider-overlay" }
 agent-process = { path = "../agent-process" }
+indexmap = { version = "2", features = ["serde"] }
 provider-config = { path = "../provider-config" }
 provider-config-source = { path = "../provider-config-source" }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
-indexmap = "2"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }

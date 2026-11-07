@@ -195,3 +195,83 @@ async fn mismatched_receipt_fails_without_marking_delivered() {
         .await;
     assert_eq!(log.frames().len(), 2);
 }
+
+#[tokio::test]
+async fn injected_source_syncs_on_first_client_and_dedupes_by_pid() {
+    let log = FrameLog::new("auto-sync");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let control = control("", &log, Arc::clone(&spawns));
+    control.set_provider_source(Some(Arc::new(FakeSource::new("rev-1"))));
+    let target = agent_process::AgentWorkspaceTarget::new("D:/ws/auto-sync");
+
+    let options = || agent_process::ListSessionsOptions {
+        include_archived: false,
+        limit: None,
+        session_ids: None,
+        runtime_policy: agent_process::RuntimePolicy::StartIfNeeded,
+    };
+    control.list_sessions(&target, options()).await.unwrap();
+    let frames = log.frames();
+    assert_eq!(frames.len(), 2, "首次取 client 必须先交付 Provider");
+    assert!(frames[0].contains("provider/updateAccountConfig"));
+    assert!(frames[1].contains("session/list"));
+
+    // 同一 pid 再取 client 不重复读取配置源。
+    control.list_sessions(&target, options()).await.unwrap();
+    assert_eq!(log.frames().len(), 3);
+
+    // 显式同步点：revision 未变时 ProviderConfigSync 不再发送。
+    control.ensure_provider_config(&target).await.unwrap();
+    assert_eq!(log.frames().len(), 3);
+}
+
+#[tokio::test]
+async fn refresh_provider_config_redelivers_changed_revision_to_active_workspaces() {
+    let log = FrameLog::new("refresh");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let control = control("", &log, Arc::clone(&spawns));
+    let source = Arc::new(FakeSource::new("rev-1"));
+    control.set_provider_source(Some(source.clone()));
+    let target = agent_process::AgentWorkspaceTarget::new("D:/ws/refresh");
+
+    // 拉起并完成首次交付。
+    control
+        .list_sessions(
+            &target,
+            agent_process::ListSessionsOptions {
+                include_archived: false,
+                limit: None,
+                session_ids: None,
+                runtime_policy: agent_process::RuntimePolicy::StartIfNeeded,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        log.frames()
+            .iter()
+            .filter(|frame| frame.contains("provider/updateAccountConfig"))
+            .count(),
+        1
+    );
+
+    // 配置源换 revision 后广播；只发新的 Provider 帧，不产生额外业务请求。
+    source.set_revision("rev-2");
+    control.refresh_provider_config().await.unwrap();
+    let frames = log.frames();
+    assert_eq!(
+        frames
+            .iter()
+            .filter(|frame| frame.contains("provider/updateAccountConfig"))
+            .count(),
+        2
+    );
+    assert!(frames.last().unwrap().contains("rev-2"));
+    assert_eq!(
+        frames
+            .iter()
+            .filter(|frame| frame.contains("session/list"))
+            .count(),
+        1
+    );
+}

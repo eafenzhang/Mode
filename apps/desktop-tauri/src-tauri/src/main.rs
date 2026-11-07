@@ -24,7 +24,8 @@
 //! 3. 托盘最后装：它是附加入口，任何一步先失败都不应该连带它。
 //! 4. **Host 先起、窗口后建**（M3 Task 1）：注入桥在文档启动时经 `host_startup_id` 采用
 //!    当前代，先起 Host 才能保证这笔调用有代可读（未起先建窗口会拿到空 id，桥拒绝投端口）。
-//! 5. 退出时收 Host：`RunEvent::Exit` 里 `shutdown()`（不留孤儿，DR-T1-3）。
+//! 5. 退出时收 Host 与 Agent：`RunEvent::Exit` 里先 `shutdown_agents()` 再收 Host
+//!    （不留孤儿，DR-T1-3 / host-ownership-switch §4.3）。
 //!
 //! ## 命令面为什么只有一个 `invoke_handler`
 //!
@@ -83,6 +84,7 @@ fn main() {
             &mode_tauri::agent_runtime::AgentRuntimeConfig {
                 resources_dir: handle.path().resource_dir().ok(),
                 data_root: mode_tauri::host::resolve_data_root(&handle),
+                app_version: handle.package_info().version.to_string(),
             },
         );
         eprintln!("[mode-tauri] agent owner=node (S0: agent-health read-only)");
@@ -186,6 +188,13 @@ fn main() {
         if let tauri::RunEvent::Exit = event {
             // 壳正常退出 → 收掉 sidecar（不留孤儿）并停止自动重生。被强杀时靠 Host 自己的
             // stdin EOF 保护兜底，见 packages/desktop/src/host-standalone/index.ts。
+            // Rust 侧 Agent 由壳自己拉起，退出时必须自己收：先优雅关闭（超时整树强杀），
+            // 再收 Node Host。未启用壳内频道时 registry 为空，调用无副作用。
+            if let Some(inprocess) =
+                app_handle.try_state::<std::sync::Arc<mode_tauri::inprocess::InprocessState>>()
+            {
+                inprocess.shutdown_agents(std::time::Duration::from_secs(2));
+            }
             if let Some(supervisor) =
                 app_handle.try_state::<std::sync::Arc<mode_tauri::host::HostSupervisor>>()
             {

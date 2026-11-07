@@ -6,19 +6,23 @@
 //! 未迁移的方法一律返回 `unsupported_method`（决策 2 契约），不静默降级。
 //!
 //! 已知保真缺口（S2 硬门禁前必须补齐，见 spec §5 与覆盖矩阵）：
-//! - `readSession` / `createSession` 的 Account Provider Config 预同步与 TS 的
-//!   passive-read runtimePolicy 由服务层编排，本层硬编码 `StartIfNeeded`；
+//! - `readSession` / `createSession` 的 Account Provider Config 预同步已接；
+//!   `readSession.runtimePolicy` 已透传（`existing-only` 不拉起、不同步）；
 //! - `createSession` 的 `sessionTraceId` 缓存与 `ModelSelection`→wire 的转换属服务层；
 //! - `resumeSession` 的 `model` 不落 wire（协议 `SessionResumeParams` 无该字段，TS 同）；
-//! - `disposeWorkspace` 的等待中 provider-ready continuation / v4 订阅路由 /
-//!   CUA 轮次跟踪清理属服务层；
-//! - `listMcpServerStatuses` 不做 TS 的 `unrecognized_keys` 兼容重试；
+//! - `disposeWorkspace` 的 v4 订阅/帧监听清理已接（2026-11-05）；等待中的
+//!   provider-ready continuation 与 CUA 轮次跟踪仍属服务层；
+//! - `listMcpServerStatuses` 的 `unrecognized_keys` 兼容重试已接（2026-11-05），
+//!   `mode: status` 被拒时返回稳定错误码 `MODE_AGENT_MCP_STATUS_MODE_UNSUPPORTED`；
 //! - 已接：getStorageStartupState/getWorkspaceRuntimeIdentity/syncAppRuntimePreferences/
 //!   closeSession/grantWorkspaceHookTrust/resolveSuggestedPluginReference/
 //!   getSkillReferenceCatalog/readWorkspacePresentation/disposeAll；
-//! - 未接：automation 十方法（按决策 4 由 Renderer 分别调用两个 owner）、
-//!   sendConversationCommandV4（信封需客户端富化：灰度门禁/Bot/Browser 上下文）；
+//! - 未接：automation 十方法（按决策 4 由 Renderer 分别调用两个 owner）；
 //!   provider/account 两个网络方法按决策 2 保持显式 unsupported；
+//! - sendConversationCommandV4 已接：信封严格校验 + Plan 预检 + TTFT 剥离 +
+//!   sendText denylist；已知缺口：createSession 的 offPeak/dynamicWorkflow 灰度 flag、
+//!   sendText 的 browserAmbientContext、createSession 的 provider 预同步
+//!   （见 `docs/specs/session-write-group.md` §2r）；
 //! - 已接事件面：onAgentRuntimeRestarted、onDynamicPluginOperationProgress、
 //!   onDynamicSessionRuntimePreferencesRequest + respondSessionRuntimePreferences
 //!   （ReplyHandle 延迟应答）、process 遥测四类、onDynamicConversationTelemetryFact、
@@ -31,8 +35,8 @@
 //! - plugins 已覆盖 list/overview/describe/setEnabled/install/uninstall/update/
 //!   configure/validate/referenceCatalog/restoreBuiltin/resetConfig/marketplace
 //!   增删改与 suggested 引用解析；cancelPluginOperation 未接；
-//! - `sendPrompt` 不做 TS 的 `unrecognized_keys` 兼容重试，且缺少
-//!   browserAmbientContext 的 executor 收集（TS 缺省时主动采集）；
+//! - `sendPrompt` 的 `unrecognized_keys` 兼容重试已接（facade 层）；
+//!   仍缺少 browserAmbientContext 的 executor 收集（TS 缺省时主动采集）；
 //! - v4 conversation 帧已接：subscribeConversationV4/unsubscribeConversationV4 +
 //!   onDynamicConversationFrame 事件（帧按 workspaceKey fan-out，归属键替换旧订阅；
 //!   连接身份按宿主内部直调默认 rust-inprocess/desktop-continuous）；sessions-index
@@ -83,7 +87,9 @@ use agent_protocol::session_write::{
 };
 use agent_protocol::skills::SkillsReferenceCatalogResult;
 use agent_protocol::snapshot::{DeliveryKind, SessionStateSnapshot};
-use agent_protocol::v4::{CommandKey, CommandsQueryParams};
+use agent_protocol::v4::{
+    CommandKey, CommandType, CommandsQueryParams, ConversationCommandEnvelope,
+};
 use agent_protocol::v4_queries::{
     AppUsageRange, AttachmentBeginParams, AttachmentChunkParams, AttachmentPreviewChunked,
     AttachmentPreviewSourceKind, AttachmentPreviewSourceParams, AttachmentReadParams,
@@ -116,8 +122,27 @@ use crate::params::first_arg_object;
 
 pub const MODE_AGENT_CHANNEL: &str = "mode-agent";
 
+/// TS `MODE_DYNAMIC_WORKFLOW_MODE_ENV`：本地覆盖优先级最高；远端灰度源未迁，
+/// 缺省/非法值 fail-closed（与 TS `DEFAULT_DYNAMIC_WORKFLOW_MODE` 一致）。
+pub const DYNAMIC_WORKFLOW_MODE_ENV: &str = "MODE_DYNAMIC_WORKFLOW_MODE";
+
+/// `normalizeDynamicWorkflowMode` + `isDynamicWorkflowModeEnabled` 的等价实现。
+pub fn dynamic_workflow_enabled(mode: Option<&str>) -> bool {
+    matches!(
+        mode.map(str::trim),
+        Some("onDemand") | Some("alwaysOn")
+    )
+}
+
+fn dynamic_workflow_enabled_from_process() -> bool {
+    dynamic_workflow_enabled(std::env::var(DYNAMIC_WORKFLOW_MODE_ENV).ok().as_deref())
+}
+
 /// 决策 2 契约：Rust 侧未实现的方法返回该错误码（host-ownership-switch §6 决策 2）。
 pub const UNSUPPORTED_METHOD_CODE: &str = "unsupported_method";
+
+/// 旧 Agent 不支持 MCP status-only 时的稳定错误码（跨 RPC 保留，供 UI 停止轮询）。
+pub const MCP_STATUS_MODE_UNSUPPORTED_CODE: &str = "MODE_AGENT_MCP_STATUS_MODE_UNSUPPORTED";
 
 /// 事件名（TS IModeAgentService.onDynamicSessionEvent）。
 pub const SESSION_EVENT_LISTEN: &str = "onDynamicSessionEvent";
@@ -189,6 +214,7 @@ impl ModeAgentChannel {
             runtime_preferences_handler_installed: Arc::new(Mutex::new(false)),
         }
     }
+
 }
 
 #[derive(Debug, Deserialize)]
@@ -241,8 +267,9 @@ struct ReadSessionParams {
     message_limit: Option<u64>,
     #[serde(default)]
     after_seq: Option<u64>,
-    // runtimePolicy 暂不接受：agent-process 的 read_session 硬编码 StartIfNeeded（见模块头
-    // 已知保真缺口）。保留键会被 serde 忽略，不制造假接线。
+    /// 被动索引/观察者用 `existing-only`；缺省 `start-if-needed`。
+    #[serde(default)]
+    runtime_policy: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -323,6 +350,15 @@ fn control_error(error: ControlError) -> ChannelError {
     ChannelError::error(error.to_string())
 }
 
+/// 需要跨 RPC 保留稳定 code 的控制面错误；其余走通用映射。
+fn control_error_with_codes(error: ControlError) -> ChannelError {
+    match error {
+        ControlError::McpStatusModeUnsupported => ChannelError::error(error.to_string())
+            .with_extra("code", Value::Str(MCP_STATUS_MODE_UNSUPPORTED_CODE.into())),
+        other => control_error(other),
+    }
+}
+
 fn json_text(json: serde_json::Value) -> Value {
     Value::Json(json.to_string())
 }
@@ -331,6 +367,65 @@ fn json_value<T: serde::Serialize>(value: &T) -> Result<Value, ChannelError> {
     serde_json::to_value(value)
         .map(|json| Value::Json(json.to_string()))
         .map_err(|error| ChannelError::error(format!("serialize result failed: {error}")))
+}
+
+/// `disposeWorkspace` 的宿主侧清理：先停掉该 workspace 的 v4 帧泵与监听者，
+/// 避免 runtime 关闭过程中继续向 renderer 推帧；`dispose_workspace` 再回收进程。
+/// `disposeAll`：停掉全部 v4 帧泵并清空监听者。
+fn clear_all_subscriptions(
+    routes: &Mutex<HashMap<String, V4Route>>,
+    route_owners: &Mutex<HashMap<String, String>>,
+    frame_listeners: &Mutex<HashMap<String, Vec<rpc_host::EventCallback>>>,
+    sessions_index_listeners: &Mutex<HashMap<String, Vec<rpc_host::EventCallback>>>,
+    workspace_config_listeners: &Mutex<HashMap<String, Vec<rpc_host::EventCallback>>>,
+) {
+    for (_, route) in routes.lock().unwrap().drain() {
+        route
+            .stop
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+    route_owners.lock().unwrap().clear();
+    frame_listeners.lock().unwrap().clear();
+    sessions_index_listeners.lock().unwrap().clear();
+    workspace_config_listeners.lock().unwrap().clear();
+}
+
+fn clear_workspace_subscriptions(
+    workspace_key: &str,
+    routes: &Mutex<HashMap<String, V4Route>>,
+    route_owners: &Mutex<HashMap<String, String>>,
+    frame_listeners: &Mutex<HashMap<String, Vec<rpc_host::EventCallback>>>,
+    sessions_index_listeners: &Mutex<HashMap<String, Vec<rpc_host::EventCallback>>>,
+    workspace_config_listeners: &Mutex<HashMap<String, Vec<rpc_host::EventCallback>>>,
+) {
+    let subscription_ids: Vec<String> = routes
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(_, route)| route.workspace_key == workspace_key)
+        .map(|(subscription_id, _)| subscription_id.clone())
+        .collect();
+    for subscription_id in subscription_ids {
+        if let Some(route) = routes.lock().unwrap().remove(&subscription_id) {
+            route
+                .stop
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    let owner_prefix = format!("{workspace_key}\u{0}");
+    route_owners
+        .lock()
+        .unwrap()
+        .retain(|owner, _| !owner.starts_with(&owner_prefix));
+    frame_listeners.lock().unwrap().remove(workspace_key);
+    sessions_index_listeners
+        .lock()
+        .unwrap()
+        .remove(workspace_key);
+    workspace_config_listeners
+        .lock()
+        .unwrap()
+        .remove(workspace_key);
 }
 
 /// 未迁移方法：显式 `unsupported_method`（带回滚指引），不做静默降级。
@@ -379,13 +474,23 @@ impl ServerChannel for ModeAgentChannel {
                 }
                 "readSession" => {
                     let params: ReadSessionParams = parse_params("readSession", arg)?;
+                    let policy = policy_from(params.runtime_policy.as_deref())?;
+                    let target = params.workspace.target();
+                    // TS 只有非 existing-only 的普通读取才同步 Account Config。
+                    if policy == RuntimePolicy::StartIfNeeded {
+                        control
+                            .ensure_provider_config(&target)
+                            .await
+                            .map_err(control_error)?;
+                    }
                     let snapshot: SessionStateSnapshot = control
-                        .read_session(
-                            &params.workspace.target(),
+                        .read_session_with_policy(
+                            &target,
                             &params.session_id,
                             delivery_from(params.delivery_kind.as_deref())?,
                             params.message_limit,
                             params.after_seq,
+                            policy,
                         )
                         .await
                         .map_err(control_error)?;
@@ -443,7 +548,7 @@ impl ServerChannel for ModeAgentChannel {
                 "listMcpServerStatuses" => {
                     let params: ListMcpParams = parse_params("listMcpServerStatuses", arg)?;
                     let result: McpListResult = control
-                        .list_mcp_server_statuses(
+                        .list_mcp_server_statuses_compat(
                             &params.workspace.target(),
                             agent_process::ListMcpServersOptions {
                                 mcp_servers: params.mcp_servers,
@@ -451,7 +556,7 @@ impl ServerChannel for ModeAgentChannel {
                             },
                         )
                         .await
-                        .map_err(control_error)?;
+                        .map_err(control_error_with_codes)?;
                     json_value(&result)
                 }
                 "initialize" => {
@@ -479,17 +584,33 @@ impl ServerChannel for ModeAgentChannel {
                 }
                 "disposeWorkspace" => {
                     let params: WorkspaceParams = parse_params("disposeWorkspace", arg)?;
-                    // TS 还会清理等待中的 provider-ready continuation / v4 订阅路由 /
-                    // CUA 轮次跟踪；这些属服务层（spec 已知保真缺口）。
-                    control
-                        .dispose_workspace(&params.target(), DISPOSE_GRACE)
-                        .await;
+                    let target = params.target();
+                    // 先停本 workspace 的订阅/监听，再回收进程；等待中的 provider-ready
+                    // continuation 与 CUA 轮次跟踪仍属服务层（spec 已知保真缺口）。
+                    clear_workspace_subscriptions(
+                        &target.workspace_key(),
+                        &routes_handle,
+                        &route_owners_handle,
+                        &frame_listeners_handle,
+                        &sessions_index_listeners_handle,
+                        &workspace_config_listeners_handle,
+                    );
+                    control.dispose_workspace(&target, DISPOSE_GRACE).await;
                     Ok(Value::Undefined)
                 }
                 "createSession" => {
                     let params: CreateSessionParams = parse_params("createSession", arg)?;
+                    let target = params.workspace.target();
+                    // 与 TS 的 session_create 同步点一致：先交付最新 Account Config。
+                    control
+                        .ensure_provider_config(&target)
+                        .await
+                        .map_err(control_error)?;
+                    let mut options = params.options();
+                    options.dynamic_workflow_enabled =
+                        dynamic_workflow_enabled_from_process();
                     let snapshot: SessionStateSnapshot = control
-                        .create_session(&params.workspace.target(), params.options())
+                        .create_session(&target, options)
                         .await
                         .map_err(control_error)?;
                     json_value(&snapshot)
@@ -497,6 +618,10 @@ impl ServerChannel for ModeAgentChannel {
                 "resumeSession" => {
                     let params: ResumeSessionParams = parse_params("resumeSession", arg)?;
                     let target = params.workspace.target();
+                    control
+                        .ensure_provider_config(&target)
+                        .await
+                        .map_err(control_error)?;
                     let resume = params.into_wire(&target);
                     let snapshot: SessionStateSnapshot = control
                         .resume_session(&target, resume)
@@ -921,13 +1046,25 @@ impl ServerChannel for ModeAgentChannel {
                 }
                 "readWorkspacePresentation" => {
                     let params: WorkspaceParams = parse_params("readWorkspacePresentation", arg)?;
+                    let target = params.target();
+                    control
+                        .ensure_provider_config(&target)
+                        .await
+                        .map_err(control_error)?;
                     let result: WorkspacePresentation = control
-                        .read_workspace_presentation(&params.target())
+                        .read_workspace_presentation(&target)
                         .await
                         .map_err(control_error)?;
                     json_value(&result)
                 }
                 "disposeAll" => {
+                    clear_all_subscriptions(
+                        &routes_handle,
+                        &route_owners_handle,
+                        &frame_listeners_handle,
+                        &sessions_index_listeners_handle,
+                        &workspace_config_listeners_handle,
+                    );
                     control.dispose_all(DISPOSE_GRACE).await;
                     Ok(Value::Undefined)
                 }
@@ -942,6 +1079,11 @@ impl ServerChannel for ModeAgentChannel {
                         seq: base.seq,
                     });
                     let visibility = visibility_from(params.visibility.as_deref())?;
+                    // TS conversation_subscribe 的顺序屏障：订阅首帧前先交付 Account Config。
+                    control
+                        .ensure_provider_config(&target)
+                        .await
+                        .map_err(control_error)?;
                     // 归属键相同的旧订阅先停掉（TS 的 ownership 替换语义）。
                     let owner_key =
                         format!("{workspace_key}\u{0}{topic}\u{0}{V4_LOCAL_CONNECTION_ID}");
@@ -1765,6 +1907,46 @@ impl ServerChannel for ModeAgentChannel {
                         .map_err(control_error)?;
                     json_value(&result)
                 }
+                "sendConversationCommandV4" => {
+                    let params: ConversationCommandV4Params =
+                        parse_params("sendConversationCommandV4", arg)?;
+                    let target = params.workspace.target();
+                    let mut envelope = params.envelope;
+                    envelope.validate().map_err(ChannelError::error)?;
+                    if envelope.command_type == CommandType::CreateSession {
+                        control
+                            .ensure_provider_config(&target)
+                            .await
+                            .map_err(control_error)?;
+                        // TS `buildConversationCommandEnvelope` 同源注入：V4 createSession
+                        // 是桌面新会话的实际创建路径，灰度未命中时保持缺省（fail-closed）。
+                        if dynamic_workflow_enabled_from_process() {
+                            if let Some(payload) = envelope.payload.as_object_mut() {
+                                payload.insert(
+                                    "dynamicWorkflowEnabled".to_string(),
+                                    serde_json::Value::Bool(true),
+                                );
+                            }
+                        }
+                    }
+                    if envelope.plan_enabled() {
+                        control
+                            .ensure_independent_plan_support(&target)
+                            .await
+                            .map_err(control_error)?;
+                    }
+                    // 频道只服务可信桌面连接：远端 workspace 不启用本地 TTFT 观测，
+                    // sendText 的工具面 denylist 在这里合并。
+                    envelope.apply_host_enrichment(
+                        true,
+                        target.workspace_identity.is_some() || target.remote_session_id.is_some(),
+                    );
+                    let ack = control
+                        .send_conversation_command_v4(&target, &envelope)
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&ack)
+                }
                 "queryConversationCommandsV4" => {
                     let params: CommandsQueryV4Params =
                         parse_params("queryConversationCommandsV4", arg)?;
@@ -2100,13 +2282,11 @@ impl ServerChannel for ModeAgentChannel {
                     }
                     true
                 });
-                self.control.set_request_handler(handler);
+                self.control.push_request_handler(handler);
                 *was_installed = true;
             }
             drop(was_installed);
-            let control = Arc::clone(&self.control);
             let listeners_for_dispose = Arc::clone(&listeners);
-            let installed_for_dispose = Arc::clone(&installed);
             return Ok(Box::new(move || {
                 let mut callbacks = listeners_for_dispose
                     .lock()
@@ -2117,17 +2297,8 @@ impl ServerChannel for ModeAgentChannel {
                 {
                     callbacks.remove(index);
                 }
-                let empty = callbacks.is_empty();
-                drop(callbacks);
-                if empty {
-                    let mut installed = installed_for_dispose
-                        .lock()
-                        .unwrap_or_else(|poison| poison.into_inner());
-                    if *installed {
-                        control.clear_request_handler();
-                        *installed = false;
-                    }
-                }
+                // 处理器一旦安装就保留：它同时承载 provider runtime headers 等
+                // 零 UI 反向请求；无监听者时运行时偏好分支自行回 -32603。
             }));
         }
         if event == AGENT_RUNTIME_RESTARTED_LISTEN {
@@ -2565,6 +2736,91 @@ mod tests {
         assert_eq!(workspace.workspace_key, "remote-1");
         assert_eq!(wire.thought_level.as_deref(), Some("high"));
         assert_eq!(wire.off_peak_tool_enabled, None);
+    }
+
+    #[test]
+    fn dynamic_workflow_gate_is_fail_closed() {
+        assert!(!dynamic_workflow_enabled(None));
+        assert!(!dynamic_workflow_enabled(Some("disabled")));
+        // TS normalize 先 trim 再比对（大小写敏感）。
+        assert!(dynamic_workflow_enabled(Some(" alwaysOn ")));
+        assert!(!dynamic_workflow_enabled(Some("AlwaysOn")));
+        assert!(!dynamic_workflow_enabled(Some("bogus")));
+        assert!(dynamic_workflow_enabled(Some("onDemand")));
+        assert!(dynamic_workflow_enabled(Some("alwaysOn")));
+    }
+
+    #[test]
+    fn mcp_status_unsupported_keeps_stable_code_across_rpc() {
+        let error = control_error_with_codes(ControlError::McpStatusModeUnsupported);
+        match error {
+            ChannelError::Error { extra, .. } => {
+                assert!(extra.iter().any(|(key, value)| {
+                    key == "code"
+                        && matches!(value, Value::Str(code) if code == MCP_STATUS_MODE_UNSUPPORTED_CODE)
+                }));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispose_cleanup_stops_only_the_target_workspace() {
+        let routes = Mutex::new(HashMap::from([
+            (
+                "sub-a".to_string(),
+                V4Route {
+                    workspace_key: "ws-a".to_string(),
+                    topic: "conversation/s1".to_string(),
+                    subscription_id: "sub-a".to_string(),
+                    connection_id: V4_LOCAL_CONNECTION_ID.to_string(),
+                    stop: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                },
+            ),
+            (
+                "sub-b".to_string(),
+                V4Route {
+                    workspace_key: "ws-b".to_string(),
+                    topic: "conversation/s2".to_string(),
+                    subscription_id: "sub-b".to_string(),
+                    connection_id: V4_LOCAL_CONNECTION_ID.to_string(),
+                    stop: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                },
+            ),
+        ]));
+        let stop_a = std::sync::Arc::clone(&routes.lock().unwrap()["sub-a"].stop);
+        let owners = Mutex::new(HashMap::from([
+            (
+                format!("ws-a\u{0}conversation/s1\u{0}{V4_LOCAL_CONNECTION_ID}"),
+                "sub-a".to_string(),
+            ),
+            (
+                format!("ws-b\u{0}conversation/s2\u{0}{V4_LOCAL_CONNECTION_ID}"),
+                "sub-b".to_string(),
+            ),
+        ]));
+        let frames = Mutex::new(HashMap::from([
+            ("ws-a".to_string(), Vec::new()),
+            ("ws-b".to_string(), Vec::new()),
+        ]));
+
+        clear_workspace_subscriptions(
+            "ws-a",
+            &routes,
+            &owners,
+            &frames,
+            &Mutex::new(HashMap::new()),
+            &Mutex::new(HashMap::new()),
+        );
+
+        assert!(stop_a.load(std::sync::atomic::Ordering::SeqCst));
+        let routes = routes.lock().unwrap();
+        assert!(!routes.contains_key("sub-a"));
+        assert!(routes.contains_key("sub-b"));
+        drop(routes);
+        assert_eq!(owners.lock().unwrap().len(), 1);
+        assert!(!frames.lock().unwrap().contains_key("ws-a"));
+        assert!(frames.lock().unwrap().contains_key("ws-b"));
     }
 }
 
@@ -3181,6 +3437,16 @@ struct CommandsQueryV4Params {
     clock: Option<bool>,
     #[serde(default)]
     runtime_policy: Option<String>,
+}
+
+/// `sendConversationCommandV4`：`clientMode` 是 Host 内部字段，renderer 传入也不采信；
+/// 频道统一按可信 `desktop-continuous` 处理（S2 的远端连接身份仍由 Host 载体负责）。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConversationCommandV4Params {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    envelope: ConversationCommandEnvelope,
 }
 
 

@@ -277,3 +277,231 @@ mod tests {
             .is_empty());
     }
 }
+
+/// Start Plan 可用性：balance 业务信封 + plans 身份/状态 + 有效期。
+///
+/// 与 TS `resolveStartPlanBalanceAvailability` 同口径：业务失败 → auth_failed；
+/// 无 active Start Plan → not_entitled；模型为空且权益全部在未来 → pending；
+/// 否则 available（有模型白名单则带上）。
+pub fn resolve_start_plan_availability(
+    payload: &Value,
+    now_seconds: f64,
+) -> account_provider_overlay::CodingPlanAvailabilityResult {
+    use account_provider_overlay::{
+        CodingPlanAvailabilityResult, CodingPlanUnavailableReason,
+    };
+
+    if !is_successful_business_envelope(payload) {
+        return CodingPlanAvailabilityResult::Unavailable {
+            reason: CodingPlanUnavailableReason::CodingPlanAuthFailed,
+        };
+    }
+    let plans = payload
+        .get("data")
+        .and_then(Value::as_object)
+        .and_then(|data| data.get("plans"))
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let active_plans: Vec<&serde_json::Map<String, Value>> = plans
+        .iter()
+        .filter_map(Value::as_object)
+        .filter(|plan| plan_status_is_active(plan) && plan_identity_matches(plan))
+        .collect();
+    if active_plans.is_empty() {
+        return CodingPlanAvailabilityResult::Unavailable {
+            reason: CodingPlanUnavailableReason::CodingPlanNotEntitled,
+        };
+    }
+
+    let models = resolve_zai_start_plan_balance_model_ids(payload);
+    let server_time = payload
+        .get("data")
+        .and_then(Value::as_object)
+        .and_then(|data| data.get("server_time"))
+        .and_then(Value::as_f64)
+        .filter(|value| value.is_finite() && *value >= 0.0);
+    let reference_now = server_time.unwrap_or(now_seconds);
+    let mut effective_times: Vec<Option<f64>> = Vec::new();
+    for plan in active_plans {
+        let entitlements = plan.get("entitlements").and_then(Value::as_array);
+        match entitlements {
+            Some(entries) if !entries.is_empty() => {
+                for entry in entries {
+                    effective_times.push(
+                        entry
+                            .get("effective_at")
+                            .and_then(js_time_number),
+                    );
+                }
+            }
+            _ => effective_times.push(
+                plan.get("starts_at").and_then(js_time_number),
+            ),
+        }
+    }
+    if models.is_empty()
+        && !effective_times.is_empty()
+        && effective_times
+            .iter()
+            .all(|value| value.is_some_and(|time| time.is_finite() && time > reference_now))
+    {
+        let effective_at = effective_times
+            .iter()
+            .flatten()
+            .copied()
+            .fold(f64::INFINITY, f64::min);
+        return CodingPlanAvailabilityResult::Pending {
+            effective_at: effective_at as i64,
+            models: Vec::new(),
+        };
+    }
+    CodingPlanAvailabilityResult::Available {
+        models: (!models.is_empty()).then_some(models),
+    }
+}
+
+fn is_successful_business_envelope(payload: &Value) -> bool {
+    if payload.get("success").and_then(Value::as_bool) == Some(false) {
+        return false;
+    }
+    match payload.get("code") {
+        None => true,
+        Some(value) => matches!(value.as_i64(), Some(0 | 200)),
+    }
+}
+
+fn plan_status_is_active(plan: &serde_json::Map<String, Value>) -> bool {
+    plan.get("status")
+        .and_then(Value::as_str)
+        .map(|status| status.trim().to_lowercase() == "active")
+        .unwrap_or(false)
+}
+
+fn plan_identity_matches(plan: &serde_json::Map<String, Value>) -> bool {
+    let normalize = |key: &str| {
+        plan.get(key)
+            .and_then(Value::as_str)
+            .map(|value| value.trim().to_lowercase())
+            .filter(|value| !value.is_empty())
+    };
+    let plan_id = normalize("plan_id");
+    let name = normalize("name");
+    match (plan_id, name) {
+        (None, None) => true,
+        (plan_id, name) => [plan_id, name]
+            .into_iter()
+            .flatten()
+            .any(|value| value.contains("start-plan") || value.contains("start plan")),
+    }
+}
+
+/// 与 TS `Number(value)` 对齐，但空串/null 在调用方语义里表示「无时间」。
+fn js_time_number(value: &Value) -> Option<f64> {
+    match value {
+        Value::Null => None,
+        Value::Number(number) => number.as_f64(),
+        Value::String(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                trimmed.parse::<f64>().ok().filter(|value| value.is_finite())
+            }
+        }
+        Value::Bool(boolean) => Some(if *boolean { 1.0 } else { 0.0 }),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod availability_tests {
+    use super::*;
+    use account_provider_overlay::{
+        CodingPlanAvailabilityResult, CodingPlanUnavailableReason,
+    };
+    use serde_json::json;
+
+    fn active_plan_payload() -> Value {
+        json!({
+            "success": true,
+            "code": 0,
+            "data": {
+                "plans": [{ "plan_id": "mode-v3-start-plan", "name": "Mode V3 Start Plan", "status": "active" }],
+                "balances": [{ "capabilities": ["model:glm-4.6"] }]
+            }
+        })
+    }
+
+    #[test]
+    fn active_start_plan_with_models_is_available() {
+        let result = resolve_start_plan_availability(&active_plan_payload(), 1_000.0);
+        assert_eq!(
+            result,
+            CodingPlanAvailabilityResult::Available {
+                models: Some(vec!["GLM-4.6".to_string()])
+            }
+        );
+    }
+
+    #[test]
+    fn no_active_start_plan_is_not_entitled() {
+        let payload = json!({
+            "success": true,
+            "data": { "plans": [{ "plan_id": "mode-v3-coding-plan", "status": "active" }] }
+        });
+        assert_eq!(
+            resolve_start_plan_availability(&payload, 1_000.0),
+            CodingPlanAvailabilityResult::Unavailable {
+                reason: CodingPlanUnavailableReason::CodingPlanNotEntitled
+            }
+        );
+    }
+
+    #[test]
+    fn business_failure_is_auth_failed() {
+        let payload = json!({ "success": false, "code": 401 });
+        assert_eq!(
+            resolve_start_plan_availability(&payload, 1_000.0),
+            CodingPlanAvailabilityResult::Unavailable {
+                reason: CodingPlanUnavailableReason::CodingPlanAuthFailed
+            }
+        );
+    }
+
+    #[test]
+    fn future_entitlement_without_models_is_pending_using_server_time() {
+        let payload = json!({
+            "success": true,
+            "data": {
+                "server_time": 1_000,
+                "plans": [{
+                    "plan_id": "mode-v3-start-plan",
+                    "status": "active",
+                    "entitlements": [{ "effective_at": 2_000 }]
+                }],
+                "balances": []
+            }
+        });
+        // 调用方本地时间已过 2000，但服务端时间仍是 1000 → pending。
+        assert_eq!(
+            resolve_start_plan_availability(&payload, 5_000.0),
+            CodingPlanAvailabilityResult::Pending {
+                effective_at: 2_000,
+                models: Vec::new()
+            }
+        );
+    }
+
+    #[test]
+    fn active_plan_without_identity_is_accepted() {
+        let payload = json!({
+            "success": true,
+            "data": { "plans": [{ "status": " active " }], "balances": [] }
+        });
+        assert_eq!(
+            resolve_start_plan_availability(&payload, 1_000.0),
+            CodingPlanAvailabilityResult::Available { models: None }
+        );
+    }
+}

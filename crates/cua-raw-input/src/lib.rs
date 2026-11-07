@@ -14,6 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub mod broker_protocol;
 pub mod injector;
+pub mod transport;
 
 pub use broker_protocol::{
     dispatch_request, error_response, error_response_from_failure, handle_request_line,
@@ -24,6 +25,11 @@ pub use broker_protocol::{
 pub use injector::{
     BrokerCall, BrokerCallError, CuaHelperError, RawInputBrokerResult, RawInputDispatch,
     RawInputInjector, RawInputInjectorOptions, SocketPathResolver, DEFAULT_RAW_INPUT_TIMEOUT_MS,
+};
+pub use transport::{
+    broker_call, BrokerClient, BrokerError, HealthProbeOptions, HelperHealth, DEFAULT_CALL_TIMEOUT,
+    DEFAULT_HEALTH_POLL_INTERVAL, DEFAULT_HEALTH_TIMEOUT, DEFAULT_HEALTH_TRY_TIMEOUT,
+    MAX_RESPONSE_LINE_BYTES,
 };
 
 pub type SocketResolver = Arc<dyn Fn() -> Option<String> + Send + Sync>;

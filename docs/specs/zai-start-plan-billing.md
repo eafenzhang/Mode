@@ -18,6 +18,7 @@
 | `build_zai_start_plan_remaining` | `buildZaiStartPlanRemaining` |
 | `pick_current_zai_start_plan` | `pickCurrentZaiStartPlan` |
 | `pick_zai_start_plan_billing_cycle` | `pickZaiStartPlanBillingCycle` |
+| `resolve_start_plan_availability` | `resolveStartPlanBalanceAvailability`（纯逻辑部分） |
 
 网络请求、in-flight 缓存、HTTP Date 读取与 `Date.now` 由调用方负责；Rust 入口注入
 `response_time` 与 `now_secs`。
@@ -45,6 +46,23 @@
 - `data` 存在时始终输出 `plans` 数组（缺失补 `[]`）；`balances` 缺失保持缺失；
   未知字段原样保留。`data` 缺失时原样返回。
 
+## 4b. Start Plan 可用性
+
+`resolve_start_plan_availability(payload, now_seconds)`，返回
+`account_provider_overlay::CodingPlanAvailabilityResult`：
+
+1. 业务信封失败（`success === false` 或 `code` 非 0/200）→ `unavailable / auth_failed`；
+2. 无 active Start Plan（`status` trim 小写为 `active`，且 `plan_id`/`name` 含
+   `start-plan` / `start plan`；两者都缺失时视为匹配）→ `unavailable / not_entitled`；
+3. 模型为空且权益时间全部在未来 → `pending { effectiveAt, models: [] }`；
+   参考时间优先用 `data.server_time`，否则用调用方传入的 `now_seconds`；
+4. 否则 `available`，有余额模型白名单时带上（经 §3 归一化）。
+
+`effective_at` 取 `entitlements[].effective_at`（数组非空时），否则 `starts_at`；
+null/空串视为「无时间」，不伪造日期。
+
+网络请求与 401/403 分类由调用方负责（本 crate 只判定已取得的 payload）。
+
 ## 5. Subscription / Quota / Remaining
 
 - subscription：只保留 status trim 小写为 `active` 的 plan；`plan_id` 缺省空串，
@@ -70,6 +88,8 @@
 
 ## 7. 验收
 
+- `resolve_start_plan_availability` 5 条：有模型、无 active、业务失败、future pending
+  （server_time 优先）、缺身份 active。
 - `pnpm zai-start-plan-billing:fixtures` →
   `crates/zai-start-plan-billing/fixtures/billing.json`
   - 3 组 URL（追加、原位替换、origin 补 `/`）；

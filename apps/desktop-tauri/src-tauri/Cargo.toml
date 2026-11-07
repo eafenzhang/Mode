@@ -63,11 +63,20 @@ tauri-build.workspace = true
 # 截在**建窗口之前**并把 argv 交回第一个进程（见 src/single_instance.rs 的模块文档）。
 tauri-plugin-single-instance.workspace = true
 agent-process = { path = "../../../crates/agent-process" }
+agent-protocol = { path = "../../../crates/agent-protocol" }
 off-peak-repo = { path = "../../../crates/off-peak-repo" }
+official-mcp-auth = { path = "../../../crates/official-mcp-auth" }
+account-api-key-resolver = { path = "../../../crates/account-api-key-resolver" }
+account-provider-overlay = { path = "../../../crates/account-provider-overlay" }
+coding-plan-http = { path = "../../../crates/coding-plan-http" }
+provider-account-facts = { path = "../../../crates/provider-account-facts" }
+provider-config-repository = { path = "../../../crates/provider-config-repository" }
+provider-source-chain = { path = "../../../crates/provider-source-chain" }
 platform = { path = "../../../crates/platform" }
 runtime-env = { path = "../../../crates/runtime-env" }
 runtime-tools = { path = "../../../crates/runtime-tools" }
 sidecar-host = { path = "../../../crates/sidecar-host" }
+subagents-service = { path = "../../../crates/subagents-service" }
 protocol = { path = "../../../crates/protocol" }
 conversation-mirror = { path = "../../../crates/conversation-mirror" }
 file-watcher = { path = "../../../crates/file-watcher" }
@@ -83,7 +92,6 @@ settings-store = { path = "../../../crates/settings-store" }
 settings-sync-service = { path = "../../../crates/settings-sync-service" }
 skill-sync-service = { path = "../../../crates/skill-sync-service" }
 skills-service = { path = "../../../crates/skills-service" }
-subagents-service = { path = "../../../crates/subagents-service" }
 system-service = { path = "../../../crates/system-service" }
 updater = { path = "../../../crates/updater" }
 tray = { path = "../../../crates/tray" }

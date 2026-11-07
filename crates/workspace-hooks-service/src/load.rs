@@ -518,14 +518,30 @@ fn load_legacy(
 }
 
 /// `loadHooks`：工程来源 + 用户级 mode + 四处 legacy 配置合并。
+///
+/// `workspaceIdentity` 与 TS 一致地取调用方身份（远程 workspace 不能退化成路径）。
 pub fn load_hooks(
     workspace_path: &Path,
     home_dir: &Path,
     discovered_at: &str,
 ) -> LoadHooksResult {
+    load_hooks_with_identity(workspace_path, None, home_dir, discovered_at)
+}
+
+/// 带调用方 workspace 身份的 `loadHooks`。身份为空时回落到解析后的工作区路径。
+pub fn load_hooks_with_identity(
+    workspace_path: &Path,
+    workspace_identity: Option<&str>,
+    home_dir: &Path,
+    discovered_at: &str,
+) -> LoadHooksResult {
     let workspace_path = resolve_path(workspace_path);
     let workspace_text = path_to_forward_slashes(&workspace_path);
-    let workspace_identity = workspace_text.clone();
+    let workspace_identity = workspace_identity
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| workspace_text.clone());
 
     let (project_sources, _errors) = read_workspace_hook_project_sources(&workspace_path, None);
     let user_config = read_json_object(&user_mode_config_path(home_dir));
@@ -582,5 +598,43 @@ pub fn load_hooks(
         hooks_enabled,
         snapshot: snapshot.map(|snapshot: Snapshot| snapshot.to_json()),
         trust_store_corrupt: corrupt,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identity_override_reaches_snapshot() {
+        let root = std::env::temp_dir().join(format!(
+            "hooks-load-identity-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let workspace = root.join("ws");
+        let home = root.join("home");
+        std::fs::create_dir_all(workspace.join(".mode")).unwrap();
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(
+            workspace.join(".mode").join("config.json"),
+            r#"{"hooks":{"enabled":true,"events":{"Stop":[{"hooks":[{"type":"command","command":"echo hi"}]}]}}}"#,
+        )
+        .unwrap();
+
+        let result = load_hooks_with_identity(
+            &workspace,
+            Some("remote:identity"),
+            &home,
+            "2026-01-01T00:00:00.000Z",
+        );
+        let snapshot = result.snapshot.expect("工程来源应产生快照");
+        assert_eq!(snapshot["workspaceIdentity"], "remote:identity");
+        assert!(!snapshot["hooks"].as_array().unwrap().is_empty());
+
+        std::fs::remove_dir_all(&root).ok();
     }
 }

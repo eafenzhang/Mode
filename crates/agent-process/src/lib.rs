@@ -23,6 +23,8 @@ mod cua_operation_tracker;
 mod initialize;
 mod mcp;
 mod plugins;
+mod official_mcp_auth_headers;
+mod provider_runtime_headers;
 mod provider_sync;
 mod registry;
 mod resolve;
@@ -46,6 +48,16 @@ pub use control::{
 };
 pub use initialize::{AgentInitializeResult, MODE_PROTOCOL_NAME, MODE_PROTOCOL_VERSION};
 pub use mcp::ListMcpServersOptions;
+pub use mode_protocol_client::RequestHandler;
+pub use official_mcp_auth_headers::{
+    official_mcp_auth_headers_handler, OfficialMcpAuthHeadersFuture,
+    OfficialMcpAuthHeadersResolver,
+};
+pub use agent_protocol::official_mcp_auth::OfficialMcpAuthPortFailureReason;
+pub use provider_runtime_headers::{
+    provider_runtime_headers_handler, ProviderRuntimeHeadersFuture,
+    ProviderRuntimeHeadersResolver,
+};
 pub use provider_sync::{
     empty_account_provider_config_snapshot, AccountProviderConfigSnapshot,
     MutableAccountProviderConfigSource, ProviderConfigSync, ProviderReadFuture, ProviderSource,

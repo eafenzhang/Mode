@@ -145,3 +145,31 @@ async fn unknown_snapshot_fields_are_rejected() {
         other => panic!("unexpected error: {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn existing_only_read_does_not_spawn_runtime() {
+    let log = FrameLog::new("existing-only");
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let client = control("", &log, Arc::clone(&spawns));
+
+    let error = client
+        .read_session_with_policy(
+            &AgentWorkspaceTarget::new("/ws/demo"),
+            "sess-1",
+            None,
+            None,
+            None,
+            agent_process::RuntimePolicy::ExistingOnly,
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        error,
+        ControlError::RuntimeUnavailable { .. }
+    ));
+    assert_eq!(
+        spawns.load(Ordering::SeqCst),
+        0,
+        "existing-only 读取不得拉起 runtime"
+    );
+}

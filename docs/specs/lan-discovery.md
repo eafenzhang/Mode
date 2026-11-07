@@ -63,11 +63,23 @@
 | `sort_discovered_peers` | `discoverLanPeers` 的最终排序 | `(name ?? serverId)` 键；沿用仓库确定性 localeCompare 口径（小写折叠 → 大小写次序），排序稳定 |
 | 常量 | `lanAccess.ts` | 发现端口 45879、默认端口 45880、协议版本、配对码 TTL、默认中继地址 |
 
-### 未迁（宿主装配层）
+### 运行时（2026-11-05 已迁）
 
-- UDP socket 的 bind/send、1.5s 收集窗口、应答去重键（`serverId@host:port`）。
-- `tailscale` CLI 候选路径、800ms 超时与 runner 降级；由宿主注入 `tailscaleStatusRunner`。
-- 网卡枚举（`networkInterfaces`）；公告解析已在 `lan-discovery::announcement`。
+`lan_discovery::discovery::discover_lan_peers(options)` 覆盖 TS `discoverLanPeers`：
+
+- UDP bind `0.0.0.0:0`、`set_broadcast`、发送探测、按 `serverId@host:port` 去重、
+  1.5s 收集窗口（可注入 timeout）；
+- Tailscale 单播：`TailscaleSource::Cli` 走候选路径 + 800ms 超时降级为纯广播，
+  `Injected` 供测试/宿主注入；
+- 本机应答过滤：调用方可注入完整地址集；未注入时用网卡枚举
+  （[`lan_discovery::interfaces`]，Windows `GetAdaptersAddresses` / Unix `getifaddrs`）
+  并按探测目标做 UDP connect 路由兜底。
+- 广播目标：全局 `255.255.255.255` + 每个非 internal IPv4 网卡的定向广播
+  （前缀长度/掩码换算），与 TS `collectBroadcastTargets` 同口径。
+
+### 未迁
+
+- 配对/HTTP 与双机实机验收未开始；Node 实现仍是 oracle。
 
 ### 已知差异
 
@@ -76,6 +88,7 @@
 | 字符串排序 | TS 用运行环境 `localeCompare`；Rust 用确定性 ASCII 近似（小写折叠 → 大小写次序）。ASCII 名称/IP 一致，非 ASCII 名称在极端 locale 下可能不同。 |
 | 结构体字段 | Rust `LanDiscoveredPeer` 只保留合并所需字段；`LanPeerAnnouncement` 由公告解析层做 magic/协议版本校验。 |
 | 端口类型 | Rust 用 `u16`；TS 在公告 schema 已限制 1..=65535。 |
+| 网卡枚举 | 用系统接口直接读取；与 Node `os.networkInterfaces()` 在虚拟网卡/别名上的集合可能有差异，实机双机验收覆盖。 |
 
 ### 验收
 
@@ -83,4 +96,5 @@
   tailnet 副地址、端口分卡、同 host 覆盖、排序）、IPv4 严格校验、CGNAT 边界、
   定向广播与目标去重、本机过滤（None/空集语义）、最终排序（回退键、大小写次序、
   稳定序），以及公告契约的键序、可选字段、trim/未知键与非法字段拒绝。
-- UDP 端到端与实机双机验收未开始；Node 实现仍是 oracle。
+- 运行时新增 3 条真实 UDP 用例（应答收集、本机过滤、Tailscale 注入单播）；
+  UDP 双机实机验收未开始；Node 实现仍是 oracle。

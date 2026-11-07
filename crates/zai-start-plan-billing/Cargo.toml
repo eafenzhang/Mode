@@ -10,5 +10,6 @@ name = "zai_start_plan_billing"
 path = "src/lib.rs"
 
 [dependencies]
+account-provider-overlay = { path = "../account-provider-overlay" }
 serde_json = { workspace = true }
 url = { workspace = true }

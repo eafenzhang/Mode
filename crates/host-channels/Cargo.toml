@@ -30,6 +30,7 @@ skill-sync-service = { path = "../skill-sync-service" }
 plugin-sync-service = { path = "../plugin-sync-service" }
 subagents-service = { path = "../subagents-service" }
 system-service = { path = "../system-service" }
+workspace-hooks-service = { path = "../workspace-hooks-service" }
 terminal-service = { path = "../terminal-service" }
 rpc-host = { path = "../rpc-host" }
 rpc-wire = { path = "../rpc-wire" }

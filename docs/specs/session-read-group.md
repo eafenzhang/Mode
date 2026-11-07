@@ -156,12 +156,17 @@ Goal 的 `summaryTitle` 在 schema 里是 `.default(null)`：**省略**与显式
 | `start-if-needed`（默认） | 复用或拉起 Agent；供读取历史/索引 |
 | `existing-only` | 只复用现有进程；没有活进程时报 `Mode Agent runtime is not running.`（code `MODE_AGENT_RUNTIME_UNAVAILABLE`），**绝不 spawn** |
 
+2026-11-05：`session/read` 的显式策略已落（`read_session_with_policy`）；频道
+`readSession` 透传 `runtimePolicy`，只有 `start-if-needed` 才做 Provider 同步，
+`existing-only` 保持纯观察语义。
+
 ## 5. 不做的部分
 
 - TS `listSessions` 会顺带把 `traceId` 记进进程内缓存；Rust facade 无该缓存，调用方按
   返回值自行保存。
-- 交互偏好同步、Off-Peak 工具面同步、provider registry 预热属于 mode-agent 服务层编排，
-  不在本组；接频道时由服务层在取 client 后补齐。
+- 交互偏好同步、Off-Peak 工具面同步属于 mode-agent 服务层编排，不在本组；
+  Provider Account Config 交付已由频道在 `start-if-needed` 读取前接入（见
+  `docs/specs/agent-process.md`）。
 - `session/list`、`session/events`、`session/subagents`、`session/messages`、`session/read`、
   `session/debug` 之外的方法按需补类型与录制夹具。
 

@@ -103,6 +103,50 @@ fn write_reverse_preferences(stdout: &mut std::io::Stdout, invalid_scope: bool) 
     let _ = stdout.flush();
 }
 
+fn write_official_mcp_auth_headers(stdout: &mut std::io::Stdout) {
+    let request = json!({
+        "id": "server-1",
+        "method": "interaction/requestOfficialMcpAuthHeaders",
+        "params": {
+            "requestId": "req-1",
+            "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+            "pluginId": "official-zai",
+            "mcpKey": "mcp-key-1",
+            "targetOrigin": "https://zcode.z.ai"
+        }
+    });
+    let _ = writeln!(stdout, "{request}");
+    let _ = stdout.flush();
+}
+
+fn write_provider_runtime_headers(stdout: &mut std::io::Stdout, invalid: bool) {
+    let model_selection = if invalid {
+        json!({ "providerId": "p", "bogusField": true })
+    } else {
+        json!({ "providerId": "zai", "modelId": "GLM-5.3" })
+    };
+    let request = json!({
+        "id": "server-1",
+        "method": "interaction/requestProviderRuntimeHeaders",
+        "params": {
+            "requestId": "req-1",
+            "sessionId": "sess-1",
+            "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
+            "modelSelection": model_selection,
+            "providerId": "zai",
+            "accountAccess": {
+                "type": "zhipu-account",
+                "accountType": "zai",
+                "mode": "start-plan",
+                "entitled": true
+            },
+            "reason": "model-request"
+        }
+    });
+    let _ = writeln!(stdout, "{request}");
+    let _ = stdout.flush();
+}
+
 /// `session/read` 与三个 setter 共用的最小合法快照。
 fn minimal_snapshot() -> Value {
     json!({
@@ -139,6 +183,19 @@ fn minimal_snapshot() -> Value {
     })
 }
 
+fn unrecognized_params_error(id: Value, keys: &[&str]) -> Value {
+    let keys: Vec<&str> = keys.to_vec();
+    let issues = json!([{ "code": "unrecognized_keys", "keys": keys }]).to_string();
+    json!({
+        "id": id,
+        "error": {
+            "code": -32602,
+            "message": "Invalid params",
+            "data": { "message": issues }
+        }
+    })
+}
+
 fn main() {
     let mode = std::env::args().nth(1).unwrap_or_default();
     if mode == "exit-immediately" {
@@ -147,6 +204,10 @@ fn main() {
 
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
+    // MCP 兼容重试夹具：首次请求按旧 Agent 语义拒绝新增字段。
+    let mut mcp_rejected = false;
+    let mut session_create_rejected = false;
+    let mut session_send_rejected = false;
     if mode == "storage-ready" {
         write_notification(
             &mut stdout,
@@ -178,6 +239,14 @@ fn main() {
     if mode == "reverse-runtime-preferences" || mode == "reverse-runtime-preferences-invalid" {
         write_reverse_preferences(&mut stdout, mode.ends_with("invalid"));
     }
+    if mode == "reverse-provider-runtime-headers"
+        || mode == "reverse-provider-runtime-headers-invalid"
+    {
+        write_provider_runtime_headers(&mut stdout, mode.ends_with("invalid"));
+    }
+    if mode == "reverse-official-mcp-headers" {
+        write_official_mcp_auth_headers(&mut stdout);
+    }
     for line in stdin.lock().lines() {
         let Ok(line) = line else {
             break;
@@ -188,6 +257,7 @@ fn main() {
         let Ok(request) = serde_json::from_str::<Value>(&line) else {
             continue;
         };
+        let request_params = request.get("params");
         let method = request
             .get("method")
             .and_then(Value::as_str)
@@ -523,6 +593,13 @@ fn main() {
             }
             let _ = stdout.flush();
             continue;
+        } else if method == "runtime/capabilities" {
+            json!({
+                "id": id,
+                "result": {
+                    "independentPlanState": mode != "runtime-capabilities-unsupported"
+                }
+            })
         } else if method == "v4/command" {
             let command_id = request
                 .get("params")
@@ -1121,20 +1198,48 @@ fn main() {
             }
             json!({ "id": id, "result": result })
         } else if method == "mcp/list" {
-            let mut result = json!({
-                "statuses": {
-                    "mcp-1": {
-                        "status": "connected",
-                        "transport": "stdio",
-                        "toolCount": 3,
-                        "updatedAt": "t1"
+            let reject_mode = request_params.and_then(|params| params.get("mode")).is_some()
+                && (mode == "mcp-reject-mode" || mode == "mcp-reject-mode-once")
+                && (mode == "mcp-reject-mode" || !mcp_rejected);
+            let reject_servers = request_params
+                .and_then(|params| params.get("mcpServers"))
+                .is_some()
+                && (mode == "mcp-reject-servers" || mode == "mcp-reject-servers-once")
+                && (mode == "mcp-reject-servers" || !mcp_rejected);
+            if reject_mode || reject_servers {
+                mcp_rejected = true;
+                let keys = if reject_mode && reject_servers {
+                    json!(["mode", "mcpServers"])
+                } else if reject_mode {
+                    json!(["mode"])
+                } else {
+                    json!(["mcpServers"])
+                };
+                let issues = json!([{ "code": "unrecognized_keys", "keys": keys }]).to_string();
+                json!({
+                    "id": id,
+                    "error": {
+                        "code": -32602,
+                        "message": "Invalid params",
+                        "data": { "message": issues }
                     }
+                })
+            } else {
+                let mut result = json!({
+                    "statuses": {
+                        "mcp-1": {
+                            "status": "connected",
+                            "transport": "stdio",
+                            "toolCount": 3,
+                            "updatedAt": "t1"
+                        }
+                    }
+                });
+                if mode == "bad-mcp-list" {
+                    result["unexpected"] = json!(true);
                 }
-            });
-            if mode == "bad-mcp-list" {
-                result["unexpected"] = json!(true);
+                json!({ "id": id, "result": result })
             }
-            json!({ "id": id, "result": result })
         } else if method == "workspace/readPresentation" {
             let mut result = json!({
                 "workspace": { "workspacePath": "/ws/demo", "workspaceKey": "/ws/demo" },
@@ -1158,21 +1263,37 @@ fn main() {
             }
             json!({ "id": id, "result": result })
         } else if method == "session/send" {
-            let accepted = mode != "rejected-session-send";
-            json!({
-                "id": id,
-                "result": {
-                    "accepted": accepted,
-                    "sessionId": "sess-1",
-                    "stateRevision": 3
-                }
-            })
-        } else if method == "session/create" {
-            let mut snapshot = minimal_snapshot();
-            if mode == "bad-session-create" {
-                snapshot["unexpected"] = json!(true);
+            let has_automation = request_params
+                .and_then(|params| params.get("automationId"))
+                .is_some();
+            if mode == "session-send-reject-once" && !session_send_rejected && has_automation {
+                session_send_rejected = true;
+                unrecognized_params_error(id, &["automationId"])
+            } else {
+                let accepted = mode != "rejected-session-send";
+                json!({
+                    "id": id,
+                    "result": {
+                        "accepted": accepted,
+                        "sessionId": "sess-1",
+                        "stateRevision": 3
+                    }
+                })
             }
-            json!({ "id": id, "result": snapshot })
+        } else if method == "session/create" {
+            let has_persistence = request_params
+                .and_then(|params| params.get("persistence"))
+                .is_some();
+            if mode == "session-create-reject-once" && !session_create_rejected && has_persistence {
+                session_create_rejected = true;
+                unrecognized_params_error(id, &["persistence"])
+            } else {
+                let mut snapshot = minimal_snapshot();
+                if mode == "bad-session-create" {
+                    snapshot["unexpected"] = json!(true);
+                }
+                json!({ "id": id, "result": snapshot })
+            }
         } else if method == "session/read" {
             let mut snapshot = minimal_snapshot();
             if mode == "bad-session-read" {

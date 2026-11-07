@@ -24,6 +24,7 @@ pub mod file_watcher;
 pub mod git;
 pub mod git_checkpoint;
 pub mod health;
+pub mod hooks;
 pub mod mcp_sync;
 pub mod media_preview;
 pub mod memory_channel;
@@ -48,10 +49,14 @@ pub use file_watcher::FileWatcherChannel;
 pub use git::GitChannel;
 pub use git_checkpoint::GitCheckpointChannel;
 pub use health::{AgentHealthChannel, DESCRIBE, LIST};
+pub use hooks::{HooksChannel, GRANT_WORKSPACE_HOOK_TRUST, HOOKS_CHANNEL, LOAD_HOOKS, SAVE_HOOKS};
 pub use mcp_sync::McpSyncChannel;
 pub use media_preview::MediaPreviewChannel;
 pub use memory_channel::{MemoryChannel, LIST_MEMORIES, READ_MEMORY_FILE};
-pub use mode_agent::{ModeAgentChannel, MODE_AGENT_CHANNEL, UNSUPPORTED_METHOD_CODE};
+pub use mode_agent::{
+    dynamic_workflow_enabled, ModeAgentChannel, DYNAMIC_WORKFLOW_MODE_ENV,
+    MCP_STATUS_MODE_UNSUPPORTED_CODE, MODE_AGENT_CHANNEL, UNSUPPORTED_METHOD_CODE,
+};
 pub use plugin_sync::PluginSyncChannel;
 pub use setting::SettingChannel;
 pub use settings_sync::SettingsSyncChannel;

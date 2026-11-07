@@ -46,15 +46,15 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 宿主服务面里最大的六个域：`bots` 20,644、`mode-agent` 19,729、`session` 12,175、
 `conversation-share` 5,495、`model-provider` 5,272、`git` 4,778。
 
-## 2.1 进度快照（2026-11-03）
+## 2.1 进度快照（2026-11-05）
 
 | 波次 | 状态 |
 | --- | --- |
-| W0 地基 | **完成**：线格式、协议、`rpc-host`、壳内路由；21 个频道可启动期接管（默认关闭） |
+| W0 地基 | **完成**：线格式、协议、`rpc-host`、壳内路由；25 个频道可启动期接管（21 个业务频道 + `mcp-sync` / `agent-health` / `mode-agent` / `hooks`；默认关闭） |
 | W1 平台基元 | **完成**：settings/paths/credential/fs/file/file-watcher/SQLite/日志/进程/system/media-preview；近两轮新增数据根（归属/迁移/初始化完整）、子进程环境策略、bundled 工具解析、网络重试状态、存储分类与占用聚合。 |
 | W2 传输切换 | **部分**：壳内服务面与 scope 复用已就绪；Node Host 仍是默认所有者，`stdioFrames`/`stdoutGuard` 退场与流控对拍未做 |
 | W3 宿主域 | **已接管/迁移**：设置类、文件类、凭据、git/checkpoint、conversation-mirror、skills、skill-sync、plugin-sync、subagents、settings-sync、broadcast、system、automation-service（10/10）、onboarding-record-service（9/9）、provider 旧 store 迁移、provider 余额识别/编排/目标解析、official MCP 鉴权判定、远程桌面自适应码率/画质降档状态机；**部分**：任务/会话（Repos 已迁、频道未）、provider 写路径与运行时、plugins 管理面、hooks/onboarding、usage-stats（时间范围/quota/legacy+credit monitor 已迁）、terminal（服务面与频道已迁、真机未验收）、LAN（发现纯逻辑已迁、UDP/CLI 未迁）、CUA broker（raw input socket 解析策略已迁）；**未开始**：远程工作区、云账号 |
-| W4 Agent 运行时 | **协议/客户端镜像 102/115（todo=0，not-needed=11，blocked=2，均为决策 2 的 provider/account）**；S0 健康快照与 S1 覆盖矩阵完成；会话级 api-retry tracker/draft registry 已迁移；频道所有权切换（S2）：S0 健康面已接线、S2 mode-agent 适配器已覆盖 87/99 调用面方法（会话读写、plugins、workflows、v4 帧/订阅/query 族、mcp 状态等；默认不注册、未迁移=unsupported_method，2026-11-04）、设计已批准（2026-11-04，按「最彻底」口径：native binary 兜底 S2 前补齐、网络方法不委托 Host、独立只读健康频道、Renderer 双 owner 调用） |
+| W4 Agent 运行时 | **协议/客户端镜像 102/115（todo=0，not-needed=11，blocked=2，均为决策 2 的 provider/account）**；S0 健康快照与 S1 覆盖矩阵完成；会话级 api-retry tracker/draft registry 已迁移；频道所有权切换（S2）：S0 健康面已接线、S2 mode-agent 适配器已覆盖 88/100 请求面方法 + 全部 15 个事件面（会话读写、plugins、workflows、v4 帧/订阅/query 族、attachments、用量、process/telemetry/CUA 观测、连接流控、v4 命令转发等；默认不注册、未迁移=unsupported_method，2026-11-05），剩余 automation 10（决策 4 由 Renderer 分调两个 owner）；native binary 兜底已落并接入壳、真机 20 任务清单已定（`host-ownership-switch` §7）、设计已批准（2026-11-04，按「最彻底」口径：网络方法不委托 Host、独立只读健康频道） |
 | W5 / W6 | 未开始 |
 
 **服务层新增 crate（2026-11-01 ~ 11-03）**
@@ -96,12 +96,62 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 - W4：`v4/commands/query`、sessions-index topic、workspace-config 帧/订阅、
   `session/compact|goal|resume`、`syncAppRuntimePreferences`、`initialize`。
 - W4 门槛：`docs/specs/host-ownership-switch.md` 设计草案；S1 矩阵
-  （rust=91 / blocked=24 / todo=0，strict 门禁）；S0 只读健康快照。
+  （2026-11-01 基线 rust=91 / blocked=24 / todo=0，strict 门禁）；S0 只读健康快照。
 - 发布与验收：v0.0.109 已发布；本地真人路径验收 19 个频道（`plugin-sync` 为后续第 20 个，
   仅 SSH/WSL 远程可达）。
 
-**阻塞项（需决策）**：automation 归属（Host 聚合面 vs 独立频道）、`mode-agent` 切换 S2、
-健康状态暴露位置、网络/凭据方法的降级语义。
+**2026-11-04 ~ 11-05 交付**
+
+- **S2 请求面**：mode-agent 适配器从 80 扩到 88 个请求方法——v4 hello/initialize 与
+  只读 query 族、attachments 四段事务与读取、`conversationFileChanges` /
+  `FileRewindPreview`、`backgroundBashOutput`、`queryConversationCommandsV4`、
+  `sendConversationCommandV4`（信封严格校验/Plan 预检/TTFT 剥离/denylist 合并）、
+  `getAppUsageStats` / `getTaskTokenUsage`、`collectLocalRuntimeChildProcesses`、
+  `cancelPluginOperation`、`hasActiveCuaOperationTurn`、`setConnectionFlowStateV4`。
+- **S2 协议兼容**：create/resume/send 与 mcp/list 的 `unrecognized_keys` 降级重试
+  全部对齐 TS；`mode: status` 被拒时保留稳定错误码
+  `MODE_AGENT_MCP_STATUS_MODE_UNSUPPORTED`。
+- **S2 事件面**：15 个 `on*` 全部接线——session event、storage 启动、runtime 重启、
+  运行时偏好反向请求（延迟应答）、插件操作进度、process 四类遥测、TTFT 空事件、
+  conversation telemetry、CUA 权限观察、conversation / sessions-index /
+  workspace-config 帧。
+- **协议/控制面**：process 遥测四类、conversation telemetry 全 10 分支、CUA permission
+  observation、CUA operation event 六类事件的严格镜像；`CuaOperationTurnTracker`
+  （事件去重、序号单调、turn 替换/退役、排期兑现、session/workspace 清理）；连接身份
+  注入（`rust-inprocess` / `desktop-continuous`）。
+- **切换门槛**：native binary 启动兜底已落并接入壳（决策 5）；`agent-health` 只读频道
+  接线（决策 3）；真机 20 任务验收清单入 `host-ownership-switch` §7（2026-11-05）。
+- **S2 回滚/观测（2026-11-05）**：inprocess 开关白名单补 `mcp-sync` / `agent-health` /
+  `mode-agent`（此前会被当成未移植频道忽略）；退出事件先 `shutdown_agents(2s)` 收 Rust
+  Agent，再收 Node Host，避免孤儿进程。
+- **W3 补充**：provider model listing、Registry/Resolver、Built-in Release 逐字节对拍、
+  Remote apply/LKG、AccountProviderService 编排；`mcp-sync` 频道注册（第 22 个）；
+  Automation 调度运行时已迁（默认不接线）。
+- **ProviderSource（2026-11-05）**：壳侧接文件层事实链（Built-in 随包/开发树 +
+  Personal `provider_config.json` + spawn env），新进程首次取 client 先交付
+  Account Provider Config；`createSession`/`readSession`/`subscribe`/v4 createSession
+  走显式同步点并按 revision 去重。账号事实已升级为 `ProviderAccountFacts`
+  （设置/身份/缓存 Key/Coding Plan 可用性 + reqwest），构造失败才回退文件层。Personal Provider 由 Agent 自己从 `MODE_PERSONAL_PROVIDER_CONFIG_FILE`
+  读取；账号 Overlay 的变更刷新（`refresh_provider_config`）待 W3 账号事实源接线触发。
+- **hooks 频道（2026-11-05）**：`host-channels::hooks` 接通 `loadHooks`（含调用方
+  `workspaceIdentity`）/ `saveHooks` / `grantWorkspaceHookTrust`（转发 Agent authority），
+  进入 inprocess 开关白名单；S4 只剩 `mode-task` 与会话索引写路由。
+- **W3 CUA/LAN（2026-11-05）**：CUA broker socket 传输（Unix socket / Windows 命名管道、
+  超时、错误码、`probeHealth`、同步注入适配）与 LAN UDP 发现运行时（探测/收集窗口/Tailscale 单播/
+  本机过滤/网卡枚举/定向广播）落地；另新增 `crates/lan-pairing` 配对核心
+  （配对码/长期令牌/客户端记录）与 `lan-http` 配对/管理处理器（校验/限速/Cookie/令牌提取/状态快照）。
+- **口径修正**：115 个 `IModeAgentService` 方法 = 100 个请求方法 + 15 个事件方法，
+  S2 请求面分母按 100 计（此前的 `/99` 把一个事件方法漏进了请求面）。
+
+**剩余门槛（决策已于 2026-11-04 批准）**：`mode-agent` S2 翻面与真机 20 任务、
+automation 十方法在 Renderer 的双 owner 拆分、provider/account 网络方法的
+`unsupported_method` 降级（已按决策 2 实现）、健康面接线（`agent-health` 已完成）。
+
+**S2 翻面前置（2026-11-05 更新）**：壳侧已注入文件层 `ProviderSource`
+（`AgentProviderSource::local` + spawn env），新进程首次取 client 即交付 Built-in +
+Personal 配置；账号/OAuth/Coding Plan 事实仍 fail-closed，属 W3 provider/cloud 域。
+因此 §7 的 20 任务可使用 Personal API Key Provider 验收；Coding Plan/Start Plan
+账号模型场景仍需等账号事实源接完。
 
 ## 3. 终态架构
 
@@ -131,7 +181,7 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | RPC 线格式 | `crates/rpc-wire` + `docs/specs/rpc-wire-format.md`，与 TS 字节级对拍 | **已完成**（`5e926cb9`） |
 | 协议层 | 13 字节 `ProtocolMessage` 头、stdio 4 字节前缀、请求与回帧信封的 Rust 编解码 | **已完成**（`crates/rpc-wire::frame/stdio/envelope`，14 条黄金样例对拍） |
 | 壳内 ChannelServer | 频道注册、分派、事件订阅/取消、错误映射、pending 与超时 | **已完成**（`crates/rpc-host` + `docs/specs/rpc-host-dispatch.md`，10 条行为用例） |
-| 帧路由 | 按频道分流（Rust 服务面 vs 遗留 Node），启动期一次性开关 | **已完成**：判定层 + 壳内接线（`inprocess.rs`）；已接管 21 个频道，scoped 控制帧登记并按 scope 复用服务面；开关默认关闭。**2026-10-31 本地真人路径验收**：当时 19 个频道全部注册成功（`plugin-sync` 为后续第 20 个），15 个经 UI 路径验证（setting/memory/skills/subagents/commands/settings-sync/file/file-watcher/git/media-preview/credential/system + client-config/client-scenes/broadcast 间接），`prompt-attachment-transfer`、`conversation-mirror`、`skill-sync`、`git-checkpoint` 需模型或远程/手机环境，未覆盖；记录与截图在 `.plan/accept-0.0.109-inprocess/` |
+| 帧路由 | 按频道分流（Rust 服务面 vs 遗留 Node），启动期一次性开关 | **已完成**：判定层 + 壳内接线（`inprocess.rs`）；已接管 25 个频道（21 个业务频道 + `mcp-sync` / `agent-health` / `mode-agent` / `hooks`），scoped 控制帧登记并按 scope 复用服务面；开关默认关闭。**2026-10-31 本地真人路径验收**：当时 19 个频道全部注册成功（`plugin-sync` 为后续第 20 个），15 个经 UI 路径验证（setting/memory/skills/subagents/commands/settings-sync/file/file-watcher/git/media-preview/credential/system + client-config/client-scenes/broadcast 间接），`prompt-attachment-transfer`、`conversation-mirror`、`skill-sync`、`git-checkpoint` 需模型或远程/手机环境，未覆盖；记录与截图在 `.plan/accept-0.0.109-inprocess/` |
 | 启动分解度量 | `measure:host-startup`（host 四个 `startup_mark` + 解析脚本与 4 条单测） | **已完成**（标记已入 host；基线等下一次真实启动后读取） |
 
 出口：开关为空时产品行为与今天字节级一致；打开只读频道时 UI 正常。
@@ -259,7 +309,7 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 
 按依赖与风险排序，每域独立完成、独立开关、独立回滚：
 
-| 序 | 域 | TS 行数 | Rust 目标 | 关键依赖 | 进度（2026-11-03） |
+| 序 | 域 | TS 行数 | Rust 目标 | 关键依赖 | 进度（2026-11-05） |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 设置 / 客户端配置 | ≈3.3k | 壳内 `settings` | W1 | `setting` / `client-config` / `client-scenes` 已接管 |
 | 2 | 文件 / fs / 监视 | ≈2.8k | `ignore` + `notify` + std | W1 | `file` / `file-watcher` 已接管 |
@@ -267,16 +317,16 @@ base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、
 | 4 | 凭据 | 277 | `ring`（文件托管密钥） | W1 | `credential` 已接管（`crates/credential-store`） |
 | 5 | 终端旧路径 | 1,354 | 壳已有 PTY | W2 | **shell 选项与 profile 组合已迁（2026-11-02）**：`crates/integrated-terminal-shells` 覆盖 Windows CMD/Git Bash、ComSpec/PATH/PATHEXT、固定路径与推导路径，`pnpm integrated-terminal-shells:fixtures` 11 条对拍全绿；`crates/terminal-profile` 覆盖字体栈去重/fallback、自定义字体与 detected 字号/主题继承，`pnpm terminal-profile:fixtures` 12 条对拍全绿；**terminal-profile 系统探测已迁（2026-11-03）**：JSONC 解析、Windows Terminal/VS Code/kitty raw 探测，`pnpm terminal-profile-detect:fixtures` 9 条全绿；**macOS Terminal/iTerm2 plist 原始探测已迁（2026-11-03）**：字体/字号/颜色/theme/profile 选择，`pnpm terminal-profile-macos:fixtures` 10 条全绿；**Alacritty TOML/YAML 探测已迁（2026-11-03）**：`pnpm terminal-profile-alacritty:fixtures` 9 条全绿；**terminalService 纯解析面已迁（2026-11-03）**：`crates/terminal-service-resolution` 覆盖 shell/cwd/env patch/Windows PTY/ConPTY 回退判定，`pnpm terminal-service-resolution:fixtures` 16 条全绿；**PTY 生命周期与频道已迁（2026-11-03）**：抽出 `crates/terminal-session`（portable-pty 管理器，壳命令面与频道共用）、`crates/terminal-service` 组合 profile 与 spawn/write/resize/dispose/disposeByKey 及 data/exit 事件、`crates/host-channels/src/terminal.rs` 注册为第 21 个壳内频道，规范 `docs/specs/terminal-service.md`；**剩余**：真机开关验收、node-pty 路径删除 |
 | 6 | Git / checkpoint | ≈4.8k | `gix` 或系统 git | W1 | **基础层、repo 层、`git` 与 `git-checkpoint` 频道已迁（2026-10-31）**：`crates/git-cli`（命令执行/超时强杀/输出配额/local env 清理、二进制探测、status v2/numstat/diff/branch issue 解析、路径范围；39 op 对拍）；`crates/git-service`（repo 16 操作 + 门面 changes/refresh/commit；`pnpm git-service:fixtures` 7 个真实 git 仓库用例全绿，含 stagedOnly/推送/游离 HEAD）；`crates/git-checkpoint-service`（manifest store + 临时 index 隐藏 commit + diff/restore/冲突检测/删除；`pnpm git-checkpoint:fixtures` 7 个真实仓库用例全绿，含 rename 恢复、scope 边界、冲突与 force）；频道 `git`（18 方法）与 `git-checkpoint`（4 方法）已注册，`generateCommitMessage` 依赖 W4 Agent 模型 |
-| 7 | provider / 模型选择 / orcarouter / bigmodel | ≈7.5k | `reqwest` + `rustls` | W1 | **已开始（2026-10-30）**：纯配置模型已 Rust 化（`crates/provider-config`，`docs/specs/provider-config.md`）——Provider/Model/ManualModel、规则容器、access/api、Restricted CEL、严格 schema 与保序序列化，`pnpm provider-config:fixtures` + 75 条解析/8 条 complete 校验对拍；**文件只读源也已迁**（`crates/provider-config-source`，`docs/specs/provider-config-source.md`）——Personal 解码/legacy manual 归一/恢复、Builtin Release 候选选择与 `mode-builtin:<rev>:<sourceKey>`、两层组合 Snapshot 与 revision，`pnpm provider-config-source:fixtures` 对拍；**账号层 Overlay 也已迁**（`crates/account-provider-overlay`，`docs/specs/account-provider-overlay.md`）——family 分组/identity 缓存/unresolvedFamilies（start-plan 例外）、API Key 折叠、off-peak 选择匹配、team scope 与 `resetPrevious`、unavailableReason、states 生成与 `account:${JSON.stringify([...])}` revision，`pnpm account-provider-overlay:fixtures` 对拍；**事实链也已迁**（`crates/provider-source-chain`，`docs/specs/provider-source-chain.md`）——文件层 + 账号 Overlay 组合、首次 fail-closed 与 last-known-good、`providerId -> config` 线格式，适配为 `agent-process::ProviderSource` 并用真实子进程 fixture 验证交付与 revision 去重；**旧 provider store 解析与迁移已迁（2026-11-01）**：`crates/provider-legacy-migration` 覆盖 legacy 列表校验、`migrateLegacyModelProviderConfig`、端点归一化/重复 URL 折叠、v2 模型条目投影，以及 v2 纯 helper（apiFormat/defaultKind/runtimeBaseUrl/modelIds/createModelConfig/reasoning 清理），`pnpm provider-legacy:fixtures` 24 条迁移 + 全部 helper 回放全绿；**旧 `config.json` 读取已迁（2026-11-02）**：同一 crate 增加 `read_mode_config_providers`，覆盖 OpenCode→v2 转换、旧 `mode` 回退、BigModel/ZAI runtime 路径纠偏与测试/生产 origin、deletedModels tombstone、store 清理与映射剥离，`pnpm provider-legacy-reader:fixtures` 10 条回放全绿；**Personal 层导入已迁（2026-11-02）**：`import_legacy_personal_provider_config` 覆盖内置模板身份、source/身份过滤、Provider/成员收集与去重、API 配置回退、context 精确规则原地替换，`pnpm provider-legacy-import:fixtures` 9 条回放全绿；**外部 Provider 余额识别/解析已迁（2026-11-01）**：`crates/provider-balance` 覆盖 6 家供应商（DeepSeek/Moonshot/SiliconFlow/StepFun/OpenRouter/Novita）的主机识别、固定查询地址、响应投影、Provider 设置视图目标解析与 fail-soft 快照编排（注入目标解析/HTTP 取回/时钟），`pnpm provider-balance:fixtures` 13+14+14+11 用例回放全绿；**ZAI Start Plan 纯逻辑已迁（2026-11-02）**：`crates/zai-start-plan-billing` 覆盖 balance URL app_version、官方 GLM modelIds 归一、plan/balance 过期过滤，以及 subscription/quota/remaining/plan 选择，`pnpm zai-start-plan-billing:fixtures` 14 条 + `pnpm zai-start-plan-quota:fixtures` 全绿；**Personal Provider Config 文件 codec 已迁（2026-11-02）**：`crates/provider-config-file-codec` 覆盖 v1 严格解码、旧手动规则归一化与规范编码，`pnpm provider-config-file:fixtures` 16 条对拍全绿；**Personal 配置仓库读写已迁（2026-11-03）**：`crates/provider-config-repository` 覆盖 read/update、跨进程锁、私有不落半截原子写、legacy 导入与无效文件恢复降级，以及 `MODE_*_PROVIDER_CONFIG_FILE` 运行时路径解析、轮询/`onDidChange`（revision 去重、writeGeneration 防倒退、poll-error 一次性上报、dispose），规范 `docs/specs/provider-config-repository.md`，11 条用例；**Built-in 缓存路径与物化已迁（2026-11-03）**：`crates/provider-config-repository` 的 `cache_paths`/`materializer` 覆盖平台与版本隔离路径、Endpoint Origin 归一与 key、随包基线严格解码/序列化/私有原子写/内容不变不重写，规范 `docs/specs/provider-config-builtin-cache.md`，5 条用例；**旧 `config.json` 文件边界已迁（2026-11-03）**：`provider-legacy-migration` 增加可注入读取的 `read_legacy_mode_config_providers`，覆盖 ENOENT→None、IO/JSON/schema 分阶段错误、顶层与 Provider 已知字段形状校验、`provider` 缺失→None，7 条用例（含 10 条既有 fixture 全量回放）；**Remote Release 控制面已迁（2026-11-03）**：`provider-config-repository` 的 `remote_sync` 覆盖控制文件模型、锁内租约/not-due/force、端点切换重置、成功间隔、失败指数退避、取消保留计数与租约不匹配保护，规范 `docs/specs/provider-config-remote-sync.md`，10 条用例；**Remote 刷新编排已迁（2026-11-03）**：同一 crate 的 `remote_refresh` 覆盖租约跳过、not-due/force、端点复核、missing、apply 结果映射与失败结算，8 条用例；**model listing 已迁（2026-11-04）**：`crates/provider-model-listing`（spec `docs/specs/provider-model-listing.md`）覆盖「检测可用模型」的 `buildRemoteModelListRequest`（openai 原样 baseURL / anthropic `/v1` 归一化、`limit` 保留其它既有参数、显式 headers 大小写不敏感优先）与 `parseRemoteModelListPage`（`{data:[...]}` 形状、id trim、`has_more+last_id` cursor 语义），`pnpm provider-model-listing:fixtures` 13 build + 10 parse 回放全绿；**registry/resolver 已迁（2026-11-04）**：`crates/provider-resolver`（spec `docs/specs/provider-resolver.md`）覆盖 Account Overlay 仅限 Built-in 且去分组、模板施加、family 优先与 owned 顺序、enabled/entitled/current 门禁、executable/selectable 与 Registry 子集过滤，配合 `provider-config` 新增的模型规则 resolve/overlay 原语，7 条契约用例全绿；**可变账号源 replace 已迁（2026-11-04）**：`agent-process::MutableAccountProviderConfigSource` 覆盖空快照（empty-account-config-v1/uninitialized）、revision 幂等门禁与监听通知（onDidChange/退订），3 条单测；**旧 config 嵌套 schema 完整对拍已迁（2026-11-04）**：`legacy_file` 校验器按 zod 声明顺序覆盖嵌套模型字段与枚举成员（含数组下标路径与 union 路径），夹具补嵌套合法用例与 6 条 errorField 用例；**Built-in Release wire 全量对拍已补（2026-11-04）**：`provider-config-source` 以真实 `config/provider/mode-builtin.json` 生成 `fixtures/builtin-release.json`，Rust 规范序列化逐字节对齐 TS，并回放 10 条拒绝文档（schemaVersion/未知键/revision 越界/缺字段/`builtin:zapi`）；**Remote apply/LKG 已迁（2026-11-04）**：`provider-config-repository::apply_remote_release` 覆盖锁内重选候选与 Active 物化、stale/unchanged/updated 与同 revision 冲突，落盘 2 空格 pretty JSON 与 TS 逐字节对拍（`prettySample`），6 条用例；**AccountProviderService 编排已迁（2026-11-04）**：`provider-source-chain::AccountProviderService` 覆盖首读缓存与 in-flight 共享、generation/waiter、superseded-resolution、fail-closed 与 LKG、配置源订阅、onDidChange/onDidRefreshError 与 dispose，`AgentProviderSource` 改为服务入口，`pnpm` 无需新夹具（真实文件层 + 脚本化 Resolver 共 8 条用例）；**已确认不需要实现**：Built-in 远端下载被 `packages/services/src/node.ts` 的去智谱化决定停用（`modeBuiltinRemote` 不传入），OAuth/CodingPlan/账号网络查询全部由 `assertOfficialServiceRemoved` 短路；**Automation 调度运行时已迁（2026-11-04）**：`crates/automation-runtime` 覆盖认领/misfire/结算/manual 恢复与直派，派发经 `DispatchPort` 注入（不依赖会话运行时），5 条真实 sqlite 用例；按 spec 默认不接线，翻面需 repo/schedule/runtime 同时切换；**剩余**：orcarouter/bigmodel 与频道接管、usage-stats 网络/凭据接线、W5/W6 与 S2 真机门禁 |
+| 7 | provider / 模型选择 / orcarouter / bigmodel | ≈7.5k | `reqwest` + `rustls` | W1 | **已开始（2026-10-30）**：纯配置模型已 Rust 化（`crates/provider-config`，`docs/specs/provider-config.md`）——Provider/Model/ManualModel、规则容器、access/api、Restricted CEL、严格 schema 与保序序列化，`pnpm provider-config:fixtures` + 75 条解析/8 条 complete 校验对拍；**文件只读源也已迁**（`crates/provider-config-source`，`docs/specs/provider-config-source.md`）——Personal 解码/legacy manual 归一/恢复、Builtin Release 候选选择与 `mode-builtin:<rev>:<sourceKey>`、两层组合 Snapshot 与 revision，`pnpm provider-config-source:fixtures` 对拍；**账号层 Overlay 也已迁**（`crates/account-provider-overlay`，`docs/specs/account-provider-overlay.md`）——family 分组/identity 缓存/unresolvedFamilies（start-plan 例外）、API Key 折叠、off-peak 选择匹配、team scope 与 `resetPrevious`、unavailableReason、states 生成与 `account:${JSON.stringify([...])}` revision，`pnpm account-provider-overlay:fixtures` 对拍；**事实链也已迁**（`crates/provider-source-chain`，`docs/specs/provider-source-chain.md`）——文件层 + 账号 Overlay 组合、首次 fail-closed 与 last-known-good、`providerId -> config` 线格式，适配为 `agent-process::ProviderSource` 并用真实子进程 fixture 验证交付与 revision 去重；**旧 provider store 解析与迁移已迁（2026-11-01）**：`crates/provider-legacy-migration` 覆盖 legacy 列表校验、`migrateLegacyModelProviderConfig`、端点归一化/重复 URL 折叠、v2 模型条目投影，以及 v2 纯 helper（apiFormat/defaultKind/runtimeBaseUrl/modelIds/createModelConfig/reasoning 清理），`pnpm provider-legacy:fixtures` 24 条迁移 + 全部 helper 回放全绿；**旧 `config.json` 读取已迁（2026-11-02）**：同一 crate 增加 `read_mode_config_providers`，覆盖 OpenCode→v2 转换、旧 `mode` 回退、BigModel/ZAI runtime 路径纠偏与测试/生产 origin、deletedModels tombstone、store 清理与映射剥离，`pnpm provider-legacy-reader:fixtures` 10 条回放全绿；**Personal 层导入已迁（2026-11-02）**：`import_legacy_personal_provider_config` 覆盖内置模板身份、source/身份过滤、Provider/成员收集与去重、API 配置回退、context 精确规则原地替换，`pnpm provider-legacy-import:fixtures` 9 条回放全绿；**外部 Provider 余额识别/解析已迁（2026-11-01）**：`crates/provider-balance` 覆盖 6 家供应商（DeepSeek/Moonshot/SiliconFlow/StepFun/OpenRouter/Novita）的主机识别、固定查询地址、响应投影、Provider 设置视图目标解析与 fail-soft 快照编排（注入目标解析/HTTP 取回/时钟），`pnpm provider-balance:fixtures` 13+14+14+11 用例回放全绿；**ZAI Start Plan 纯逻辑已迁（2026-11-02）**：`crates/zai-start-plan-billing` 覆盖 balance URL app_version、官方 GLM modelIds 归一、plan/balance 过期过滤，以及 subscription/quota/remaining/plan 选择，`pnpm zai-start-plan-billing:fixtures` 14 条 + `pnpm zai-start-plan-quota:fixtures` 全绿；**Personal Provider Config 文件 codec 已迁（2026-11-02）**：`crates/provider-config-file-codec` 覆盖 v1 严格解码、旧手动规则归一化与规范编码，`pnpm provider-config-file:fixtures` 16 条对拍全绿；**Personal 配置仓库读写已迁（2026-11-03）**：`crates/provider-config-repository` 覆盖 read/update、跨进程锁、私有不落半截原子写、legacy 导入与无效文件恢复降级，以及 `MODE_*_PROVIDER_CONFIG_FILE` 运行时路径解析、轮询/`onDidChange`（revision 去重、writeGeneration 防倒退、poll-error 一次性上报、dispose），规范 `docs/specs/provider-config-repository.md`，11 条用例；**Built-in 缓存路径与物化已迁（2026-11-03）**：`crates/provider-config-repository` 的 `cache_paths`/`materializer` 覆盖平台与版本隔离路径、Endpoint Origin 归一与 key、随包基线严格解码/序列化/私有原子写/内容不变不重写，规范 `docs/specs/provider-config-builtin-cache.md`，5 条用例；**旧 `config.json` 文件边界已迁（2026-11-03）**：`provider-legacy-migration` 增加可注入读取的 `read_legacy_mode_config_providers`，覆盖 ENOENT→None、IO/JSON/schema 分阶段错误、顶层与 Provider 已知字段形状校验、`provider` 缺失→None，7 条用例（含 10 条既有 fixture 全量回放）；**Remote Release 控制面已迁（2026-11-03）**：`provider-config-repository` 的 `remote_sync` 覆盖控制文件模型、锁内租约/not-due/force、端点切换重置、成功间隔、失败指数退避、取消保留计数与租约不匹配保护，规范 `docs/specs/provider-config-remote-sync.md`，10 条用例；**Remote 刷新编排已迁（2026-11-03）**：同一 crate 的 `remote_refresh` 覆盖租约跳过、not-due/force、端点复核、missing、apply 结果映射与失败结算，8 条用例；**model listing 已迁（2026-11-04）**：`crates/provider-model-listing`（spec `docs/specs/provider-model-listing.md`）覆盖「检测可用模型」的 `buildRemoteModelListRequest`（openai 原样 baseURL / anthropic `/v1` 归一化、`limit` 保留其它既有参数、显式 headers 大小写不敏感优先）与 `parseRemoteModelListPage`（`{data:[...]}` 形状、id trim、`has_more+last_id` cursor 语义），`pnpm provider-model-listing:fixtures` 13 build + 10 parse 回放全绿；**registry/resolver 已迁（2026-11-04）**：`crates/provider-resolver`（spec `docs/specs/provider-resolver.md`）覆盖 Account Overlay 仅限 Built-in 且去分组、模板施加、family 优先与 owned 顺序、enabled/entitled/current 门禁、executable/selectable 与 Registry 子集过滤，配合 `provider-config` 新增的模型规则 resolve/overlay 原语，7 条契约用例全绿；**可变账号源 replace 已迁（2026-11-04）**：`agent-process::MutableAccountProviderConfigSource` 覆盖空快照（empty-account-config-v1/uninitialized）、revision 幂等门禁与监听通知（onDidChange/退订），3 条单测；**旧 config 嵌套 schema 完整对拍已迁（2026-11-04）**：`legacy_file` 校验器按 zod 声明顺序覆盖嵌套模型字段与枚举成员（含数组下标路径与 union 路径），夹具补嵌套合法用例与 6 条 errorField 用例；**Built-in Release wire 全量对拍已补（2026-11-04）**：`provider-config-source` 以真实 `config/provider/mode-builtin.json` 生成 `fixtures/builtin-release.json`，Rust 规范序列化逐字节对齐 TS，并回放 10 条拒绝文档（schemaVersion/未知键/revision 越界/缺字段/`builtin:zapi`）；**Remote apply/LKG 已迁（2026-11-04）**：`provider-config-repository::apply_remote_release` 覆盖锁内重选候选与 Active 物化、stale/unchanged/updated 与同 revision 冲突，落盘 2 空格 pretty JSON 与 TS 逐字节对拍（`prettySample`），6 条用例；**AccountProviderService 编排已迁（2026-11-04）**：`provider-source-chain::AccountProviderService` 覆盖首读缓存与 in-flight 共享、generation/waiter、superseded-resolution、fail-closed 与 LKG、配置源订阅、onDidChange/onDidRefreshError 与 dispose，`AgentProviderSource` 改为服务入口，`pnpm` 无需新夹具（真实文件层 + 脚本化 Resolver 共 8 条用例）；**已确认不需要实现**：Built-in 远端下载被 `packages/services/src/node.ts` 的去智谱化决定停用（`modeBuiltinRemote` 不传入），OAuth/CodingPlan/账号网络查询全部由 `assertOfficialServiceRemoved` 短路；**Automation 调度运行时已迁（2026-11-04）**：`crates/automation-runtime` 覆盖认领/misfire/结算/manual 恢复与直派，派发经 `DispatchPort` 注入（不依赖会话运行时），5 条真实 sqlite 用例；按 spec 默认不接线，翻面需 repo/schedule/runtime 同时切换；**Start Plan 可用性纯逻辑已迁（2026-11-05）**：`zai-start-plan-billing::resolve_start_plan_availability` 覆盖业务信封、active Start Plan 身份、模型白名单、server_time 优先的 pending 判定（5 条用例）；**Coding Plan 权益解析已迁（2026-11-05）**：`crates/coding-plan-entitlement` 覆盖个人/团队订阅信封、Coding 条目损坏与无关键隔离、可用性映射（6 条用例）；**HTTP 编排已迁（2026-11-05）**：`crates/coding-plan-http` 覆盖个人订阅/Start Plan/团队详情的请求构造、状态分类与解析接线（注入 GET 端口，7 条用例）；**Overlay options 已迁（2026-11-05）**：`crates/provider-account-facts` 组合设置/身份/缓存 Key/可用性，实现 `AccountProviderOverlayOptions`（7 条用例）；**reqwest 传输已补（2026-11-05）**：`ReqwestCodingPlanHttp` 安装 ring provider（8 条用例）；**URL/env 与壳侧注入已接（2026-11-05）**：`EnvCodingPlanUrls` + `AgentRuntimeConfig.app_version`，`agent_runtime` 用 `ProviderAccountFacts` 装配 `AgentProviderSource`（失败回退文件层）；**OAuth→API Key 兑换已迁（2026-11-05）**：`crates/account-api-key-resolver` 覆盖 customerInfo/默认机构项目/list/create/copy/secret 组合与 reqwest 传输（6 条用例），壳侧注入 `CodingPlanKeyExchange` 并回写缓存；**反向请求已接（2026-11-06，fixture 端到端 4 条，含官方 MCP 鉴权头）**：`interaction/requestProviderRuntimeHeaders` 由 `agent-process` 处理器 + 壳侧 `resolve_runtime_api_key`（Start/Individual/Team）延迟应答；**团队权益已迁（2026-11-05）**：`team_availability` 覆盖 customerInfo 团队项目校验与订阅详情，`resolve_team_key` 覆盖团队项目 Key 创建/copy；剩团队 runtime key 的请求鉴权接线（account request auth 未迁）；**文件层交付已接（2026-11-05）**：壳侧 `AgentProviderSource::local` 解析 Built-in 随包/开发树 + Personal `provider_config.json`，新进程首次取 client 先交付 Account Provider Config，并把 `MODE_*_PROVIDER_CONFIG_FILE` 注入 spawn env；`createSession`/`resumeSession`/`readSession`/`readWorkspacePresentation`/`subscribeConversationV4`/v4 createSession 按 revision 显式同步；**剩余**：配置实时轮询、orcarouter/bigmodel 与频道接管、usage-stats 网络/凭据接线、W5/W6 与 S2 真机门禁 |
 | 8 | usage-stats / coding-plan | ≈5.4k | 壳内聚合 | W1 | **时间范围、quota、legacy monitor 与 Coding Plan credit-usage 投影已迁（2026-11-02）**：`crates/usage-stats` 覆盖 App Usage 7d/30d/all 本地日范围、Coding Plan today/7d/30d/custom、逐时/逐日坐标轴与自定义范围错误，BigModel quota limits/主额度/订阅摘要（固定偏移日期解析），legacy monitor model/tool → Snapshot，以及 credit-usage 模型/工具序列对齐、拆分桶过滤、activity heatmap、detail/health，`pnpm usage-stats:fixtures` 27+31+5+4+11+6 与 `pnpm usage-stats-credit:fixtures` 5 条对拍全绿；**MCP quota 纯投影已迁（2026-11-03）**：`crates/usage-stats` 的 `mcp_quota` 覆盖凭证归属匹配、总额度夹紧/百分比、响应信封 schema/业务失败与秒→毫秒，7 条用例；**usageStatsService 编排已迁（2026-11-03）**：`crates/usage-stats` 的 `service` 覆盖 6 个 Coding Plan 账号 ID 门控、五个 gated 方法、`getSnapshot`/entitlement/balance 委派、默认 `{}` 请求与错误透传，6 条用例；**剩余**：ZAI monitor、缓存/网络源、真实凭证/HTTP 接线 |
 | 9 | 远程工作区 / SSH / WSL / Docker | 远程链路 | `russh` + 本地进程 | W2 | 未开始 |
-| 10 | LAN 配对 / 发现 | ≈1.5k | UDP + 壳内 HTTP | W2 | **发现纯逻辑与公告契约已迁（2026-11-03）**：`crates/lan-discovery` 覆盖 `tailscale status --json` 的 IPv4 解析与降级、同 `serverId+port` 单卡合并（物理局域网优先、tailnet 进 `extraHosts`、同 host 后者胜）、IPv4/CGNAT 判定、定向广播地址与目标去重，以及公告 magic/协议版本/字段校验与 payload 构造，13 条用例；**本机过滤与最终排序已迁（2026-11-04）**：同 crate 的 `filter_self_entries`（None 对应 TS `includeSelf`，宿主注入本机地址集）与 `sort_discovered_peers`（`name ?? serverId` + 确定性 localeCompare 近似，稳定序），cargo 15 条全绿；**剩余**：UDP bind/send 收集窗口、CLI runner、配对/HTTP |
+| 10 | LAN 配对 / 发现 | ≈1.5k | UDP + 壳内 HTTP | W2 | **发现纯逻辑与公告契约已迁（2026-11-03）**：`crates/lan-discovery` 覆盖 `tailscale status --json` 的 IPv4 解析与降级、同 `serverId+port` 单卡合并（物理局域网优先、tailnet 进 `extraHosts`、同 host 后者胜）、IPv4/CGNAT 判定、定向广播地址与目标去重，以及公告 magic/协议版本/字段校验与 payload 构造，13 条用例；**本机过滤与最终排序已迁（2026-11-04）**：同 crate 的 `filter_self_entries`（None 对应 TS `includeSelf`，宿主注入本机地址集）与 `sort_discovered_peers`（`name ?? serverId` + 确定性 localeCompare 近似，稳定序），cargo 15 条全绿；**运行时已迁（2026-11-05）**：`lan_discovery::discovery::discover_lan_peers` 覆盖 UDP bind/send、1.5s 收集窗口、`serverId@host:port` 去重、Tailscale CLI/注入单播与本机过滤，3 条真实 UDP 用例；**网卡枚举与定向广播已迁（2026-11-05）**：`interfaces` 用 Windows `GetAdaptersAddresses` / Unix `getifaddrs` 提供本机地址与 subnet broadcast；**配对核心已迁（2026-11-05）**：新增 `crates/lan-pairing` 覆盖配对码（5min TTL/单次/常量时间）、长期令牌（base64url）、客户端记录/撤销/重置、令牌校验与 60s 活跃节流（spec `docs/specs/lan-pairing.md`，7 条用例）；**HTTP 处理器已迁（2026-11-05）**：`crates/lan-http` 覆盖 `POST /api/lan/pair` 的 JSON 校验、30 次/分钟限速、错误口径、`mode_lite_token` Cookie 与 Bearer/query/Cookie 令牌提取（spec `docs/specs/lan-http.md`，10 条用例）；同 crate 提供 state/pair-code/remove/reset 管理处理器；**HTTP 传输已接（2026-11-05）**：hyper 1.x `serve` + 令牌鉴权 + `httpdate` 本地补丁，12 条用例；**剩余**：WebSocket 服务、公网中继、设置页/双机验收 |
 | 11 | 远程桌面 | 媒体面已有 Rust helper | 壳内协调器 | W2 | **自适应码率/画质降档状态机已迁（2026-11-03）**：`crates/remote-desktop-streaming` 覆盖两档码率（RTT 60/30 滞回、丢帧即降、4 次健康 + 10s 驻留回升）、`sharp→balanced→smooth` 降档链、丢帧 + RTT 双阈连续 2 窗触发与 30s 冷却，`pnpm remote-desktop-streaming:fixtures` 对拍全绿；**会话状态条统计采集器已迁（2026-11-04）**：同 crate 的 `session_stats` 覆盖 fps/RTT/帧龄中位数（奇偶取法与 .5 进位）/分辨率/码率（首拍无分母 null、按拍清零）/解码丢弃/解码队列/冻结累计九项读数，11 条事件序列回放全绿；**剩余**：媒体 WS `set-bitrate` 下发、`switchQuality` 重建会话与壳内协调器 |
 | 12 | 云账号 / 设备目录 / OAuth | ≈4k | `reqwest` + 本地密钥 | W1 | 未开始 |
 | 13 | 对话共享 / 镜像 / 遥测 | ≈5.5k | 壳内 | W3-3 | `conversation-mirror` 已接管 |
 | 14 | skills / skill-sync / mcp-sync / plugin-sync / plugins | ≈4.5k | 壳内（素材仍是 JS） | W1 | **skills 服务面与频道已迁（2026-10-31）**：`crates/skills-service` 覆盖 `skillsService` 六方法（list / setEnabled / buildPromptContext / copyToCommon / removeFromCommon / deleteSkill），四类根扫描 + 插件技能根 + frontmatter 子集解析，`pnpm skills:fixtures` 生成 TS 真源用例、`tests/replay.rs` 逐项深比较结果与结束树（5 用例全绿，spec `docs/specs/skills-service.md`）；频道适配器已注册。**mcp-sync 本地面已迁（2026-10-31）**：`crates/mcp-sync-service` 覆盖 7 个本地方法（载入/保存/候选/远程状态/导出/写访问/导入 + filesystem 路径改写），`pnpm mcp-sync:fixtures` 8 用例回放全绿；`listWorkspaceMcpServerStatuses` 已接（2026-11-04，W4 Agent 控制面就绪后由 `host-channels::mcp_sync` 频道承载，mcp/list 词收拢一处），频道已注册。**skill-sync 已迁（2026-10-31）**：`crates/skill-sync-service` 覆盖 5 个方法（候选扫描/远端状态/ustar+gzip 导出/写访问/导入），`pnpm skill-sync:fixtures` 3 用例回放全绿（含 TS 归档在 Rust 侧导入）；嵌套 `Uint8Array` 由 `rpc_wire::nested_bytes` 辅助在适配器内编解码，频道已注册（spec `docs/specs/skill-sync-service.md`）。**`skills/referenceCatalog` 协议镜像已落（2026-11-01）**：session/workspace 两种权威、条目 `enabled` 必须为 true，2 条控制面测试。**`plugin-sync` 七方法已全部迁移（2026-11-01）**：`crates/plugin-sync-service` 覆盖候选扫描/远端判重/写权限/归档导出导入/marketplace source 镜像与导入（含 TS 归档在 Rust 侧导入），`pnpm plugin-sync:fixtures` 3 用例回放全绿；频道适配器已注册（第 20 个）。真机开关验收未开始 |
-| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` / `commands` / `subagents` / `broadcast` 已接管（subagents：`crates/subagents-service` 八方法 + 旧状态/旧 Markdown 迁移，`pnpm subagents:fixtures` 7 用例回放对拍；broadcast：`crates/broadcast-service` 按 Tauri 线 `parentPort: null` 的 local-only 语义实现发送 + claim 状态机，`pnpm broadcast:fixtures` 2 用例回放对拍；两者频道适配器均已注册；subagents 的 `prepareRuntimeState` 壳启动钩子未接）；`hooks` 的服务面（读侧 `loadHooks` + `saveHooks` + 已审核开关）已 Rust 化并对拍，剩 `grantWorkspaceHookTrust` 与频道本体；grant 依赖 Agent authority，整体推迟到 W4；**`onboarding-record` 服务已迁（2026-11-01）**：`crates/onboarding-record-service` 覆盖 9 个方法（覆盖写/匿名认领/shouldOnboard 判定/dismiss/settings 回填/偏好回写/v1 升级/损坏容忍），`pnpm onboarding-record:fixtures` 7 用例回放全绿；userId 与任务存在性由调用方注入，频道未注册；onboarding 流程仍被 OAuth/任务库挡住 |
-| 16 | cua-permission-broker / cua-pip | ≈2.4k | 壳内 | 现有 helper | **raw input 解析与注入已迁（2026-11-03）**：`crates/cua-raw-input` 覆盖 live peek → 稳定探测 → 开关放行后单次创建 + 失败退避、probe-only 与 0 退避，以及事件数组门、socket 缺失、broker 调用与错误码收敛（unreachable → helper_unavailable、协议码保留、非法结果 fail-closed），15 条用例；**broker 协议装帧已迁（2026-11-04）**：同 crate 的 `broker_protocol`（spec `docs/specs/cua-broker-protocol.md`）覆盖行编解码、方法白名单/只读子集（raw_input/rd_media_* 在表外）、dispatch 错误收敛（method_not_found、无 code → internal）、socket 路径铸造（win32 管道/posix .sock/dir 覆盖）与 env 发现（注入值原样返回不 trim），7 条用例；**剩余**：socket 传输（net.connect/超时/健康探测）、PiP session、Windows helper host |
+| 15 | subagents / hooks / commands / memory / onboarding / broadcast | ≈5k | 壳内 | W3-3 | `memory` / `commands` / `subagents` / `broadcast` 已接管（subagents：`crates/subagents-service` 八方法 + 旧状态/旧 Markdown 迁移，`pnpm subagents:fixtures` 7 用例回放对拍；broadcast：`crates/broadcast-service` 按 Tauri 线 `parentPort: null` 的 local-only 语义实现发送 + claim 状态机，`pnpm broadcast:fixtures` 2 用例回放对拍；两者频道适配器均已注册；subagents 的 `prepareRuntimeState` 壳侧已在首次 Agent spawn 前接线（2026-11-05））；`hooks` 服务面与频道已迁（2026-11-05）：`loadHooks`（含调用方 `workspaceIdentity`）+ `saveHooks` + 已审核开关，`grantWorkspaceHookTrust` 经 `host-channels::hooks` 转发 Agent authority，`host-channels` 契约与 `workspace-hooks-service` 身份测试全绿；真机开关验收待做；**`onboarding-record` 服务已迁（2026-11-01）**：`crates/onboarding-record-service` 覆盖 9 个方法（覆盖写/匿名认领/shouldOnboard 判定/dismiss/settings 回填/偏好回写/v1 升级/损坏容忍），`pnpm onboarding-record:fixtures` 7 用例回放全绿；userId 与任务存在性由调用方注入，频道未注册；onboarding 流程仍被 OAuth/任务库挡住 |
+| 16 | cua-permission-broker / cua-pip | ≈2.4k | 壳内 | 现有 helper | **raw input 解析与注入已迁（2026-11-03）**：`crates/cua-raw-input` 覆盖 live peek → 稳定探测 → 开关放行后单次创建 + 失败退避、probe-only 与 0 退避，以及事件数组门、socket 缺失、broker 调用与错误码收敛（unreachable → helper_unavailable、协议码保留、非法结果 fail-closed），15 条用例；**broker 协议装帧已迁（2026-11-04）**：同 crate 的 `broker_protocol`（spec `docs/specs/cua-broker-protocol.md`）覆盖行编解码、方法白名单/只读子集（raw_input/rd_media_* 在表外）、dispatch 错误收敛（method_not_found、无 code → internal）、socket 路径铸造（win32 管道/posix .sock/dir 覆盖）与 env 发现（注入值原样返回不 trim），7 条用例；**socket 传输已迁（2026-11-05）**：`cua_raw_input::transport::BrokerClient` 覆盖单请求单连接、Unix socket/Windows 命名管道、总超时、远端错误码、非法 JSON、4 MiB 行上限与 `probeHealth`（100ms/500ms/10s）；6 条真实 socket 用例；**注入端口适配已补（2026-11-05）**：`transport::broker_call` 把同步 `BrokerCall` 接到异步客户端（`raw_input` + `dispatched` 解析/错误映射），2 条用例；**剩余**：PiP session、Windows helper host |
 | 17 | 其余（media-preview、prompt-attachment-transfer、off-peak-task、settings-sync…） | ≈2k | 壳内 | W1 | `media-preview` / `prompt-attachment-transfer` 已接管；**`settings-sync` 已迁（2026-10-31）**：`crates/settings-sync-service` 六方法（外部 15 agent × skills/commands/plugins + 12 MCP 来源探测与导入、Claude AGENTS.md 迁移、首启提示状态），`pnpm settings-sync:fixtures` 6 用例回放对拍，频道适配器已注册 |
 | 18 | 系统信息 / 内网探测 | ≈0.5k | 壳内 | W1 | `system` 已接管 |
 
@@ -352,7 +402,7 @@ capability）（5 条 + 双端夹具）。**插件写侧已落（2026-11-01）**
 条目（subagentNames 缺省兼容）、`resolveSuggestedReference` 的可信身份 superRefine；
 2 条控制面测试。**市场与安装写侧已落（2026-11-01）**：`marketplace/add|remove|update`、
 `install`、`cancelOperation`、`uninstall`、`update` 七组 params/result 严格镜像，
-operationProgress 通知类型已声明（订阅 facade 待所有权切换）；2 条控制面测试。
+operationProgress 通知已接线（按 `operationId` 过滤，监听者关闭即退订）；2 条控制面测试。
 **v4 会话订阅已落**：`v4/conversation/subscribe` 参数/ACK 严格镜像，wire frame
 （complete/fragment + crc32）按 subscriptionId 过滤后流入；会话帧内部先按原始 JSON
 透传，随后由 `conversationDelta` 收紧（2 条 + 双端夹具）。**v4 握手已落**：host hello（能力位/profile 校验）与
@@ -423,25 +473,37 @@ protocolVersion 校验，5 条协议测试。**订阅 facade 已接**：`subscri
 复用 `v4/conversation/subscribe`，按 `subscriptionId` 过滤
 `v4/conversation/frame` 并反序列化为 sessions-index 帧（与 conversation 共用泛型过滤，
 2 条控制面测试）。只读面到此补齐。
-**未做**：native binary 兜底、真实 provider/account 网络事实、频道注册与所有权切换。
-`IModeAgentService` 115 个方法已覆盖 91 个（明细见 `docs/specs/agent-method-coverage.json`）；
-其余 24 个全部 `blocked`：10 个 automation（Host 聚合面归属待定）、12 个宿主事件/反向请求
-（随 S2 接线）、2 个真实模型/网络方法（降级语义待定）。
-所有权切换仍是 W4 下一片，`hooks` 的 grant 与任务/会话频道都等它。
-**设计草案已落（2026-11-01，待批准）**：`docs/specs/host-ownership-switch.md`
+**未做（2026-11-05）**：频道所有权翻面（`mode-agent` 目前默认不注册）、真实
+provider/account 网络事实。`sendConversationCommandV4` 已接（信封严格校验 +
+Plan 预检 + TTFT 剥离 + sendText denylist；灰度 flag/Browser 上下文/Provider 预同步
+三处缺口见 `docs/specs/session-write-group.md` §2r）。
+native binary 兜底已完成（`agent-process::resolve`；壳工厂注入
+`runtime_tools::find_mode_agent_runtime_binary`）。
+覆盖矩阵：115 个方法 = `rust=102` / `not-needed=11` / `blocked=2` / `todo=0`
+（明细见 `docs/specs/agent-method-coverage.json`）。`not-needed` 为 automation 10
+（决策 4：Renderer 分别调用两个 owner）与 `onDynamicLocalTtftFacts`（审计判定空事件）；
+`blocked` 为 `generateWorkspaceText` / `testModelConnectivity`（决策 2：切换后显式
+`unsupported_method`）。S2 适配器已覆盖 88/100 请求面 + 15 个事件面；剩余请求面为
+上述 10 个 automation 方法。
+所有权切换仍是 W4 下一片，`hooks` 频道与任务/会话频道都等它。
+**设计已批准（2026-11-04）**：`docs/specs/host-ownership-switch.md`
 定义频道级一次性切换、单 Agent 所有权不变量、请求/事件顺序、健康状态面
-（不引入定时 ping）与 S0–S4 分阶段出口；开放决策包括 `not-needed` 审计方式、
-`blocked` 方法降级语义、健康面暴露位置与 Host 聚合面读 agent 的方式。
+（不引入定时 ping）与 S0–S4 分阶段出口；决策 1–5 已按「最彻底」口径批准
+（`not-needed` 证据、`blocked` 不委托 Host、健康面独立只读频道、Renderer 双 owner、
+native binary 兜底）。
 **S1 覆盖矩阵工具已落（2026-11-01）**：`pnpm agent:coverage` 校验
 `IModeAgentService` 方法与 `docs/specs/agent-method-coverage.json` 双向一致、
-`status=rust` 的函数存在；`pnpm agent:callsites` 生成调用点证据。基线 115 个方法
-（rust=91 / blocked=24 / todo=0 / not-needed=0），已接入 `verify:pre-push` 与
-release verify。矩阵以 `--strict` 运行（todo 必须为 0）；automation 10 个方法与宿主事件/网络方法计入 `blocked`，2026-11-04 已批准收敛口径（决策 2/4 + S2 接线）。
+`status=rust` 的函数存在；`pnpm agent:callsites` 生成调用点证据。2026-11-01 基线
+115 个方法（rust=91 / blocked=24 / todo=0 / not-needed=0）；当前（2026-11-05）
+rust=102 / not-needed=11 / blocked=2。已接入 `verify:pre-push` 与 release verify。
+矩阵以 `--strict` 运行（todo 必须为 0）；automation 10 个方法与 TTFT 已按决策 4
+改判 `not-needed`，provider/account 2 个网络方法保持 `blocked`（决策 2 显式
+`unsupported_method`）。
 **S0 健康计算面已落（2026-11-01）**：`AgentRuntimeRegistry::health` /
 `AgentControlClient::runtime_health` 返回
 `{state, workspaceKey, runtimeIdentity, generation, processId, storageState, lastError}`；
 传输关闭/storage 终态失败 → dead，非 storage 入口 → ready，gate 未 ready → starting；
-`degraded` 待请求失败计数。3 条测试；暴露位置仍待决策 3。
+`degraded` 待请求失败计数。3 条测试；决策 3 已落地（`agent-health` 只读频道，壳内注册）。
 
 ### W5 生态面替换
 
@@ -506,9 +568,32 @@ release verify。矩阵以 `--strict` 运行（todo 必须为 0）；automation 
 - 路线图 M3 的「两台实机 LAN/RD/Web、IM 真账号、TUI 交互验收」不因重写取消，
   而是移到对应波次的出口。
 
-## 10. 下一步（2026-10-29 续）
+## 10. 下一步（2026-11-05 更新）
 
-1. **真机验收开关**：打开 `MODE_HOST_INPROCESS_CHANNELS` 跑已接管的 21 个频道，核对回帧、
+### 10.1 当前顺序
+
+1. **S2 收口与翻面**：`sendConversationCommandV4` 已接（余三处保真缺口见
+   `session-write-group` §2r，翻面前确认或接受）；确认 automation 10 个方法在频道侧
+   维持 `unsupported_method`（决策 4：Renderer 分调两个 owner）。
+   然后按 `docs/specs/host-ownership-switch.md` §7 跑真机 20 任务；桌面与手机 Web
+   各覆盖第 1/13/16 项，分别验证 `desktop-continuous` 与 `web-remote-replayable`。
+   记录写入 `.plan/accept-<版本>-s2/`。
+2. **S2 回滚与观测**：从 `MODE_HOST_INPROCESS_CHANNELS` 移除 `mode-agent` 后，同样任务
+   回到 Node Host 且无回归；检查无孤儿 Agent/MCP 进程；`agent-health` 的 state 与
+   `agent owner=` 启动日志一致。
+3. **W2 传输流控**：频道侧的 `setConnectionFlowStateV4` 已接管（agent 连接状态），
+   但 Host 帧层 `saturated`/`drained`、scoped attachment 与 `stdioFrames`/`stdoutGuard`
+   退场仍未对拍；完成后默认切壳内服务面。
+4. **S4 聚合面**：`hooks` 频道已落（load/save/grant，2026-11-05），开机验收后即可
+   切换；剩 `mode-task`/会话索引写路由，按决策 4 把 `modeTaskServiceAdapter` 的
+   耦合点拆到 Renderer。
+5. **W3 剩余域**：provider 写路径与 usage 网络/凭据接线、LAN WebSocket 与公网中继（HTTP 配对/管理已迁）、
+   CUA PiP/Windows helper host、远程工作区、云账号。
+6. **W1 收口**：SQLite 迁移门禁（基线改由 Rust 迁移生成 + `--base-ref` 只增校验）。
+
+### 10.2 待办详情（2026-10-29 记录，未完成部分仍有效）
+
+1. **真机验收开关**：打开 `MODE_HOST_INPROCESS_CHANNELS` 跑已接管的 25 个频道，核对回帧、
    事件与错误路径；关闭开关回归 Node 路径。启动四段耗时用 `pnpm measure:host-startup` 读取。
    验收凭据频道时用一份临时数据根，避免把真实 `credentials.json` 写坏；验收 `file` 时用
    空 workspace，注意首次扫描会创建 `.modeignore`；验收 `file-watcher` 时确认
@@ -516,10 +601,10 @@ release verify。矩阵以 `--strict` 运行（todo 必须为 0）；automation 
 2. **W1 剩余基元**：`fs` 剩余工具与 SQLite 迁移门禁（基线改由 Rust 迁移生成 +
    `--base-ref` 只增校验）。`credential` 已落地（`crates/credential-store`，
    AES-256-GCM + 文件托管密钥；TS 注释里的 keyring 仍是后续项）。
-3. **hooks 频道本体（阻塞在 W4）**：discovery、`saveHooks` 原子写与读侧 `loadHooks`
-   已先做完并对拍，剩 `grantWorkspaceHookTrust`——它必须转发给 Agent authority，壳内需要
-   `mode-protocol` 客户端；与 W4 的 Agent 控制面一起接，避免壳直接写 trust store。
-   `onboarding-record` 同样
+3. **hooks 频道（2026-11-05 已落）**：`host-channels::hooks` 接通 discovery / `loadHooks`
+   （含调用方 `workspaceIdentity`）/ `saveHooks` 原子写 / `grantWorkspaceHookTrust`
+   （转发 Agent authority，壳内不直接写 trust store），并进入 inprocess 开关白名单；
+   剩真机开关验收。`onboarding-record` 同样
    被注入依赖挡住（`loadUserId` 需要 OAuth、`hasExistingLocalTask` 需要任务库）。
 4. **W3-3 任务 / 会话域**：体量最大（≈12.2k 行）。**任务库 schema + 迁移已 Rust 化**
    （`crates/tasks-db`，含 3 条冻结迁移、checksum 对拍、adopt/0002/0003、WAL 锁等待与

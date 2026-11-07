@@ -140,9 +140,29 @@ impl AgentControlClient {
         message_limit: Option<u64>,
         after_seq: Option<u64>,
     ) -> Result<SessionStateSnapshot, ControlError> {
-        let process = self
-            .client_for(target, RuntimePolicy::StartIfNeeded)
-            .await?;
+        self.read_session_with_policy(
+            target,
+            session_id,
+            delivery_kind,
+            message_limit,
+            after_seq,
+            RuntimePolicy::StartIfNeeded,
+        )
+        .await
+    }
+
+    /// `session/read` 的显式运行时策略版本：`ExistingOnly` 供被动索引/观察者使用，
+    /// 绝不拉起 Agent（TS `runtimePolicy: "existing-only"`）。
+    pub async fn read_session_with_policy(
+        &self,
+        target: &AgentWorkspaceTarget,
+        session_id: &str,
+        delivery_kind: Option<DeliveryKind>,
+        message_limit: Option<u64>,
+        after_seq: Option<u64>,
+        policy: RuntimePolicy,
+    ) -> Result<SessionStateSnapshot, ControlError> {
+        let process = self.client_for(target, policy).await?;
         let params = SessionReadParams {
             session_id: session_id.to_string(),
             delivery_kind,

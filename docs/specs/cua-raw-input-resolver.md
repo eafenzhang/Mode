@@ -2,7 +2,7 @@
 
 > 真源：`packages/services/src/cua-permission-broker/cuaRawInput.ts` 的
 > `createCuaRawInputSocketResolver` 与 `createCuaRawInputInjector`。
-> 真实 socket 发现、broker 传输与 helper 生命周期仍留在宿主。
+> 真实 socket 发现与 helper 生命周期仍留在宿主；broker 行协议与传输已在本 crate。
 
 ## 1. 范围与所有者
 
@@ -58,8 +58,9 @@ resolve():
 
 - `cargo test -p cua-raw-input`：15 条用例覆盖解析优先级/开关/退避，以及注入端口的事件门、
   socket 缺失、成功计数、非法结果与错误码收敛。
-- 真实 socket 发现、broker 传输、PiP session、Windows helper host 未迁；
-  Node 实现仍是 oracle。
+- broker 传输已迁（`cua_raw_input::transport`，2026-11-05）：Unix socket / Windows
+  命名管道、单请求超时、错误码与健康探测。真实 socket 发现、PiP session、
+  Windows helper host 仍未迁；Node 实现仍是 oracle。
 
 ## 6. 注入端口（2026-11-03）
 

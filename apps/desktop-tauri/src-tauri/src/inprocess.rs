@@ -18,7 +18,8 @@ use std::time::Duration;
 
 use agent_process::AgentControlClient;
 use host_channels::{
-    AgentHealthChannel, McpSyncChannel, ModeAgentChannel, MCP_SYNC_CHANNEL, MODE_AGENT_CHANNEL,
+    AgentHealthChannel, HooksChannel, McpSyncChannel, ModeAgentChannel, HOOKS_CHANNEL,
+    MCP_SYNC_CHANNEL, MODE_AGENT_CHANNEL,
 };
 use host_channels::{
     AttachmentTransferChannel, BroadcastChannel, ClientConfigChannel, ClientScenesChannel,
@@ -59,9 +60,44 @@ pub struct InprocessState {
     router: FrameRouter,
     local_tx: UnboundedSender<(Option<u32>, Vec<u8>)>,
     enabled: bool,
+    /// S2 翻面/回滚与退出清理共用同一个 client；健康面只读，不会因持有它而 spawn。
+    agent_control: Arc<AgentControlClient>,
     /// 页面桥声明挂接/回收的 remote scope。服务面目前只接管 base scope；这张表先如实
     /// 记录，供下一步按 scope 复用 `ChannelServer` 与回帧加前缀时使用。
     scopes: std::sync::Mutex<LocalScopeRegistry>,
+}
+
+/// 开关允许接管的频道集合。`mode-agent` / `agent-health` 与普通业务频道一样按名字
+/// 显式加入；漏在这里的表现是「日志说 ignored、频道永远不注册」。
+fn is_owned_channel(name: &str) -> bool {
+    matches!(
+        name,
+        MEMORY_CHANNEL
+            | ATTACHMENT_TRANSFER_CHANNEL
+            | CLIENT_CONFIG_CHANNEL
+            | CLIENT_SCENES_CHANNEL
+            | MEDIA_PREVIEW_CHANNEL
+            | CONVERSATION_MIRROR_CHANNEL
+            | SETTING_CHANNEL
+            | CREDENTIAL_CHANNEL
+            | SYSTEM_CHANNEL
+            | FILE_CHANNEL
+            | FILE_WATCHER_CHANNEL
+            | COMMANDS_CHANNEL
+            | SKILLS_CHANNEL
+            | SUBAGENTS_CHANNEL
+            | SETTINGS_SYNC_CHANNEL
+            | BROADCAST_CHANNEL
+            | SKILL_SYNC_CHANNEL
+            | GIT_CHANNEL
+            | GIT_CHECKPOINT_CHANNEL
+            | PLUGIN_SYNC_CHANNEL
+            | MCP_SYNC_CHANNEL
+            | AGENT_HEALTH_CHANNEL
+            | MODE_AGENT_CHANNEL
+            | HOOKS_CHANNEL
+            | TERMINAL_CHANNEL
+    )
 }
 
 impl InprocessState {
@@ -81,32 +117,13 @@ impl InprocessState {
 
         let mut owned = Vec::new();
         for name in requested {
-            match name.as_str() {
-                MEMORY_CHANNEL
-                | ATTACHMENT_TRANSFER_CHANNEL
-                | CLIENT_CONFIG_CHANNEL
-                | CLIENT_SCENES_CHANNEL
-                | MEDIA_PREVIEW_CHANNEL
-                | CONVERSATION_MIRROR_CHANNEL
-                | SETTING_CHANNEL
-                | CREDENTIAL_CHANNEL
-                | SYSTEM_CHANNEL
-                | FILE_CHANNEL
-                | FILE_WATCHER_CHANNEL
-                | COMMANDS_CHANNEL
-                | SKILLS_CHANNEL
-                | SUBAGENTS_CHANNEL
-                | SETTINGS_SYNC_CHANNEL
-                | BROADCAST_CHANNEL
-                | SKILL_SYNC_CHANNEL
-                | GIT_CHANNEL
-                | GIT_CHECKPOINT_CHANNEL
-                | PLUGIN_SYNC_CHANNEL
-                | TERMINAL_CHANNEL => owned.push(name),
+            if is_owned_channel(&name) {
+                owned.push(name);
+            } else {
                 // 还没移植的频道明确忽略：宁可不接管，也不能出现「半个频道」。
-                other => crate::host::shell_log(&format!(
-                    "inprocess channel ignored (not ported yet): {other}"
-                )),
+                crate::host::shell_log(&format!(
+                    "inprocess channel ignored (not ported yet): {name}"
+                ));
             }
         }
         let enabled = !owned.is_empty();
@@ -151,8 +168,15 @@ impl InprocessState {
             router,
             local_tx,
             enabled,
+            agent_control,
             scopes: std::sync::Mutex::new(LocalScopeRegistry::new()),
         })
+    }
+
+    /// 壳退出时收掉 Rust 侧 Agent 运行时（带优雅关闭宽限，超时整树强杀）。
+    /// 未启用任何壳内频道时也是安全的：registry 为空，直接返回。
+    pub fn shutdown_agents(&self, grace: Duration) {
+        tauri::async_runtime::block_on(self.agent_control.dispose_all(grace));
     }
 
     pub fn decide(&self, frame: &[u8]) -> RouteDecision {
@@ -464,6 +488,12 @@ fn build_server(
                     Arc::new(AgentHealthChannel::new(Arc::clone(agent_control))),
                 );
             }
+            HOOKS_CHANNEL => {
+                server.register_channel(
+                    HOOKS_CHANNEL,
+                    Arc::new(HooksChannel::new(Arc::clone(agent_control))),
+                );
+            }
             TERMINAL_CHANNEL => {
                 let env = settings_store::HomeEnv::from_process();
                 let paths = settings_store::resolve_settings_paths(&env);
@@ -485,4 +515,26 @@ fn build_server(
         }
     }
     server
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn agent_and_mcp_channels_are_explicitly_switchable() {
+        // S0/S2 的频道必须能通过同一个开关启用；漏掉时只会打 ignored 日志。
+        assert!(is_owned_channel(MCP_SYNC_CHANNEL));
+        assert!(is_owned_channel(AGENT_HEALTH_CHANNEL));
+        assert!(is_owned_channel(MODE_AGENT_CHANNEL));
+        assert!(is_owned_channel(HOOKS_CHANNEL));
+        assert!(is_owned_channel(TERMINAL_CHANNEL));
+    }
+
+    #[test]
+    fn host_owned_channels_stay_out_of_the_switch() {
+        assert!(!is_owned_channel("host"));
+        assert!(!is_owned_channel("mode-task"));
+        assert!(!is_owned_channel("window-controller"));
+    }
 }

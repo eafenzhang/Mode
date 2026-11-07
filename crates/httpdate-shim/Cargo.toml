@@ -1,0 +1,10 @@
+[package]
+name = "httpdate"
+version = "1.0.3"
+edition = "2021"
+publish = false
+description = "离线构建用的最小 httpdate 实现（hyper Date 头：IMF-fixdate）"
+
+[lib]
+name = "httpdate"
+path = "src/lib.rs"

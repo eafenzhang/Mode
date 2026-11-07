@@ -110,10 +110,42 @@ cwd 失效时回落到 workspace；再失效则交给 spawn 继承壳进程 cwd�
 - 未注入源 → 直接返回 `None`，与 TS 的 `if (!accountProviderConfigSource) return` 一致，
   也不会拉起 Agent。
 
-**未做**：真实凭据 / OAuth / Family 可用性网络源（`createAccountProviderConfigSource` 的
-注入实现）。事实链本身已在 `crates/provider-source-chain` 落地（见
-`docs/specs/provider-source-chain.md`）：它组合文件层与账号 Overlay 并直接实现
-`ProviderSource`，剩余只是把 `AccountProviderOverlayOptions` 换成生产实现。
+**生产接线（2026-11-05）**：`AgentControlClient::set_provider_source` 注入源后，
+`client_for` 在**每个新进程第一次取用**时先交付 Account Provider Config（按
+`workspaceKey -> pid` 去重）；`ensure_provider_config` 供 TS 的显式同步点
+（createSession / resumeSession / readSession / readWorkspacePresentation /
+subscribeConversationV4 / v4 createSession）调用，仍按 revision 去重。
+壳侧（`agent_runtime.rs`）按 env → 随包/开发树 Built-in → 数据根
+`v2/provider_config.json` 解析路径，并把 `MODE_*_PROVIDER_CONFIG_FILE` 注入 agent spawn env。
+
+**限制**：交付的是账号 Overlay 快照（Built-in 账号族 + account facts），**不含 Personal
+Provider**；Personal 由 Agent 自己从 `MODE_PERSONAL_PROVIDER_CONFIG_FILE` 读取。
+`AccountProviderService::read` 首读缓存；壳侧已接 Personal 配置 1s 轮询
+（`provider-config-repository`），变更即 `refresh` + `refresh_provider_config`
+重交付活跃 workspace（poll-error 保留 LKG 不重交付）。
+
+**生产账号事实（2026-11-05）**：壳侧使用 `provider-account-facts` 的
+`ProviderAccountFacts`（设置/身份/缓存 Key/Coding Plan 可用性 + reqwest 传输）装配
+`AgentProviderSource`；构造失败才回退 `LocalOnlyOverlayOptions`。仍缺 OAuth→API Key
+兑换与团队权益。
+
+## 反向请求：official MCP auth headers
+
+`official_mcp_auth_headers_handler(resolver, runtime)` 处理
+`interaction/requestOfficialMcpAuthHeaders`：origin 信任（loopback dev 开关 +
+Mode API origin 比对）→ `oauth:active_provider` + `zcodejwttoken` 身份 →
+按 settings 团队选择产出 scope 头（BigModel TEAM 带 org/project，ZAI 为 null）。
+失败原因走协议三类枚举（`official_auth_unavailable` / `official_auth_plan_required` /
+`official_mcp_origin_untrusted`），响应序列化手工实现（`ok` 必须是布尔字面量）。
+
+## 反向请求：provider runtime headers
+
+`provider_runtime_headers_handler(resolver, runtime)` 处理
+`interaction/requestProviderRuntimeHeaders`：严格解析 params（accountAccess 判别联合），
+在运行时上执行异步解析并 `ReplyHandle` 延迟应答；成功回
+`{headersApplied:true, requestAuth:{apiKey}}`，失败回 `headersApplied:false`。
+`AgentRuntimeRegistry::push_request_handler` 按顺序组合处理器，保留运行时偏好等既有处理器。
+端到端用例（fixture 反向请求）：成功回 `requestAuth.apiKey`、非法 params 回 `-32602`。
 
 ## 控制面 facade（第一批：hooks 预信任）
 
