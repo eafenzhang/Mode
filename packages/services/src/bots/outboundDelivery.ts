@@ -155,9 +155,12 @@ export function createBotSendQueue(minIntervalMs = BOT_SEND_MIN_INTERVAL_MS): Bo
     const scheduled = startTail
       .catch(() => undefined)
       .then(async (): Promise<void> => {
-        const waitMs = lastStartedAt + minIntervalMs - Date.now();
-        if (waitMs > 0) {
-          await new Promise((resolve) => setTimeout(resolve, waitMs));
+        // setTimeout 在负载下可能提前 1-2ms 触发，单次等待会让实际启动间隔低于
+        // 下限（2026-11-08 CI 实测 gap 38ms < 40ms）。按墙钟复核剩余时间，直到
+        // 确实到达 lastStartedAt + minIntervalMs 才放行，保证「最小启动间隔」契约。
+        const notBefore = lastStartedAt + minIntervalMs;
+        for (let remaining = notBefore - Date.now(); remaining > 0; remaining = notBefore - Date.now()) {
+          await new Promise((resolve) => setTimeout(resolve, remaining));
         }
         lastStartedAt = Date.now();
       });
