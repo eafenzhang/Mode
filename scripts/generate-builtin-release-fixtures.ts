@@ -9,23 +9,21 @@
  * schema/退出 Provider 的接受-拒绝对拍。
  *
  * ```bash
- * node scripts/generate-builtin-release-fixtures.mjs
+ * pnpm builtin-release:fixtures
  * cargo test -p provider-config-source
  * ```
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { tsImport } from "tsx/esm/api";
+
+import {
+  decodeModeBuiltinRelease,
+  encodeModeBuiltinRelease,
+  serializeModeBuiltinRelease,
+} from "../packages/provider-node/src/mode-builtin-release.js";
 
 const root = resolve(import.meta.dirname, "..");
 const output = resolve(root, "crates/provider-config-source/fixtures/builtin-release.json");
-
-const { decodeModeBuiltinRelease, encodeModeBuiltinRelease, serializeModeBuiltinRelease } =
-  await tsImport(
-    pathToFileURL(resolve(root, "packages/provider-node/src/mode-builtin-release.ts")).href,
-    import.meta.url,
-  );
 
 const EMPTY_MODEL_RULES = {
   modelRules: [],
