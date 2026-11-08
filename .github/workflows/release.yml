@@ -365,7 +365,8 @@ jobs:
   #   - Linux：webkit2gtk/soup3 的 dev 包名随发行版变动（见下面 apt 列表）；
   #     AppImage 打包依赖 FUSE，容器里靠 APPIMAGE_EXTRACT_AND_RUN=1 绕过，
   #     若仍失败可改用 `--bundles deb`（deb 只需 dpkg-deb，风险最低）。
-  #   - macOS：arm64 runner（macos-14）出 aarch64-apple-darwin 产物。
+  #   - macOS：arm64 runner（macos-15）出 aarch64-apple-darwin 产物
+  #     （macos-14 已于 2026-11-02 从 GitHub Actions 退役，见 actions/runner-images）。
   tauri:
     needs: [release, verify]
     if: ${{ github.event_name == 'push' || inputs.build_artifacts }}
@@ -379,7 +380,7 @@ jobs:
             rustTarget: x86_64-pc-windows-msvc
             bundles: nsis
             ext: exe
-          - runner: macos-14
+          - runner: macos-15
             target: mac
             arch: arm64
             rustTarget: aarch64-apple-darwin
