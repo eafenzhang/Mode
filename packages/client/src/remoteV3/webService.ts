@@ -42,6 +42,8 @@ export interface WebRemoteV3ServiceOptions {
   loadProfile: () => Promise<WebDeviceProfile | null>;
   /** 测试注入点。 */
   createAccountClient?: (profile: WebDeviceProfile) => WebAccountClient;
+  /** 登录/注册用（此时还没有 profile）；测试注入。 */
+  createLoginClient?: (serverUrl: string, deviceName: string) => WebAccountClient;
   createLink?: (profile: WebDeviceProfile) => WebControlLink;
 }
 
@@ -171,7 +173,19 @@ export function createWebRemoteV3Service(options: WebRemoteV3ServiceOptions): IR
   const pollOnce = async (): Promise<void> => {
     const current = pending;
     if (!current) return;
-    const result = await current.client.pollGithubDeviceLogin(current.deviceCode);
+    let result: Awaited<ReturnType<WebAccountClient["pollGithubDeviceLogin"]>>;
+    try {
+      result = await current.client.pollGithubDeviceLogin(current.deviceCode);
+    } catch (error) {
+      // 瞬时网络失败不清掉 pending：保持「等待授权」并按原间隔重试，避免用户重开 Device Flow。
+      setState({ error: messageOf(error) });
+      clearPoll();
+      pollTimer = setTimeout(() => {
+        pollTimer = null;
+        void pollOnce();
+      }, current.interval * 1_000);
+      return;
+    }
     if (result.status === "ok") {
       clearPoll();
       pending = null;
@@ -239,11 +253,10 @@ export function createWebRemoteV3Service(options: WebRemoteV3ServiceOptions): IR
       return state;
     },
     configure: async (params: RemoteV3ConfigureParams) => {
-      const client = new WebAccountClient({
-        store: options.store,
-        serverUrl: params.serverUrl,
-        deviceName: params.deviceName ?? "Mode Web",
-      });
+      const deviceName = params.deviceName ?? "Mode Web";
+      const client =
+        options.createLoginClient?.(params.serverUrl, deviceName) ??
+        new WebAccountClient({ store: options.store, serverUrl: params.serverUrl, deviceName });
       profile = await client.loginWithSessionToken(params.webSessionToken);
       loading = null;
       setState({
@@ -260,11 +273,10 @@ export function createWebRemoteV3Service(options: WebRemoteV3ServiceOptions): IR
       await ensureProfile();
       const serverUrl = (params?.serverUrl ?? state.serverUrl ?? "").trim();
       if (!serverUrl) throw new Error("请先填写账号服务地址");
-      const client = new WebAccountClient({
-        store: options.store,
-        serverUrl,
-        deviceName: "Mode Web",
-      });
+      const deviceName = "Mode Web";
+      const client =
+        options.createLoginClient?.(serverUrl, deviceName) ??
+        new WebAccountClient({ store: options.store, serverUrl, deviceName });
       const challenge: WebGithubChallenge = await client.beginGithubDeviceLogin();
       pending = {
         client,

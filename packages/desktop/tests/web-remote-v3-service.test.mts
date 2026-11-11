@@ -257,6 +257,54 @@ test("隧道事件封装 base64url，send/close 走同一 stream", async () => {
   assert.equal(stream.closed, 1);
 });
 
+test("Device Flow 轮询瞬时失败后继续等待，不重开授权", async () => {
+  const { link } = createFakeLink();
+  let polls = 0;
+  const errors: string[] = [];
+  const account = {
+    async beginGithubDeviceLogin() {
+      return {
+        deviceCode: "device-code",
+        userCode: "ABCD-1234",
+        verificationUri: "https://github.example/device",
+        expiresIn: 60,
+        interval: 0,
+      };
+    },
+    async pollGithubDeviceLogin() {
+      polls += 1;
+      if (polls === 1) throw new Error("network down");
+      return { status: "ok", profile: PROFILE };
+    },
+    async listHosts() {
+      return DEVICES;
+    },
+    async logout() {
+      return undefined;
+    },
+  } as unknown as WebAccountClient;
+  const service = createWebRemoteV3Service({
+    store: { get: async () => null, set: async () => undefined, delete: async () => undefined },
+    loadProfile: async () => null,
+    createAccountClient: () => account,
+    createLoginClient: () => account,
+    createLink: () => link,
+  });
+  service.onDidChange((state) => {
+    if (state.error) errors.push(state.error);
+  });
+
+  const challenge = await service.beginGithubLogin({ serverUrl: "https://remote.example" });
+  assert.equal(challenge.userCode, "ABCD-1234");
+  await waitFor(() => polls >= 2, "第二次轮询");
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if ((await service.getState()).status === "online") break;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.deepEqual(errors, ["network down"], "失败只记录一次，随后恢复");
+  assert.equal((await service.getState()).status, "online");
+});
+
 test("Host 管理类操作在浏览器明确拒绝", async () => {
   const { link } = createFakeLink();
   const service = createWebRemoteV3Service({

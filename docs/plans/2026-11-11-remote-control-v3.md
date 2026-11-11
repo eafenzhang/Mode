@@ -132,8 +132,8 @@ packages/remote-server
   v3 账号名，退出菜单直连 `disconnectAccount`。
 - P2 直连前置已落地：Host 注册上报 LAN 地址（≤8）并进入设备目录，远程控制页展示
   首个地址；`remote.workspace.list` 接到真实工作区列表。LAN direct 数据面/选路仍待实现。
-- 测试：59 项（core 16 + remote-server 14 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
-  ChannelClient 重连 1/Web 工作区 1/Web 远程桌面 5/v3 工作区 attachment 2/Web v3 服务 5 +
+- 测试：60 项（core 16 + remote-server 14 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
+  ChannelClient 重连 1/Web 工作区 1/Web 远程桌面 5/v3 工作区 attachment 2/Web v3 服务 6 +
   server direct WS 2 + UI v3 目标/向导 3 + 侧边栏账号 2）。
 - 门禁：`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`、
   `pnpm knip:gate` 全绿；新包测试已加入 `.github/workflows/release.yml` verify，
