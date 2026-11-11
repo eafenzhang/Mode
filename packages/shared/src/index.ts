@@ -41,6 +41,7 @@ export type {
   LanConnectOptions,
   RemoteTarget,
   SSHConnectOptions,
+  V3ConnectOptions,
   WSLConnectOptions,
 } from "./remoteTarget.js";
 export {

@@ -43,6 +43,7 @@ import type {
 } from "@mode/shared/remote-desktop";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
 import { WebV3Page } from "./v3/WebV3Page.js";
+import { connectV3RemoteWorkspace } from "./v3/connectV3Workspace.js";
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
   const saved = localStorage.getItem("mode-theme");
@@ -470,6 +471,11 @@ function createWebPlatform(supportsLanPeerController = false): IPlatformService 
      * 两条路径共用 attachRemoteWorkspaceSession，复用现有向导/目录浏览器/远程 tab。
      */
     async connectRemote(options: RemoteTarget) {
+      if (options.kind === "v3") {
+        // v3（docs/specs/remote-control-v3-web-workspace.md）：浏览器直连 Noise，
+        // 不经服务端 attach；链路与 session 生命周期由 connectV3RemoteWorkspace 持有。
+        return connectV3RemoteWorkspace(options);
+      }
       if (options.kind === "lan") {
         const response = await fetch(`${resolveBasePath()}/api/connect-remote-lan`, {
           method: "POST",

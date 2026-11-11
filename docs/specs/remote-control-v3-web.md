@@ -58,8 +58,9 @@
 1. 多账号隔离与私钥加密存储；当前 profile 单账号保存，IndexedDB 中的私钥未额外加密。
 2. 传输：Relay WSS 已实现；LAN direct 在浏览器受混合内容限制，仅在 HTTPS 页面允许
    `wss` 直连，否则回落 Relay。
-3. UI：完整远程工作区页面（目录浏览、文件/终端服务）仍待实现；远程桌面页面已挂载，
-   还缺真机验收（同意窗 → 首帧 → 键鼠输入 → 关闭释放）与弱网/断线复测。
+3. UI：完整远程工作区页面仍待实现，方案与工作量见
+   [remote-control-v3-web-workspace.md](./remote-control-v3-web-workspace.md)；
+   远程桌面页面已挂载，还缺真机验收（同意窗 → 首帧 → 键鼠输入 → 关闭释放）与弱网/断线复测。
 4. 移动端复用同一 Web 客户端，尚未接入。
 5. 安全：CSP/Origin 校验、token 只存内存/安全存储、禁止把私钥或 access token
    写入 URL、localStorage 明文或日志。

@@ -8,6 +8,7 @@ export type { WebSocketConnectionCloseEvent } from "./websocket.js";
 export { connectViaMessagePort, createMessagePortServiceConnection } from "./messageport.js";
 export type { MessagePortServiceConnection } from "./messageport.js";
 export { openWebWorkspace, type WebWorkspaceConnection } from "./webWorkspace.js";
+export { attachV3WorkspaceSession, type V3WorkspaceSession } from "./v3Workspace.js";
 export {
   createWebRemoteDesktopSession,
   type CreateWebRemoteDesktopSessionParams,

@@ -11,13 +11,13 @@ import {
 
 import { WebV3RemoteDesktop } from "./WebV3RemoteDesktop.js";
 import { createWebCredentialStore } from "./credentialStore.js";
+import { V3_SERVER_URL_KEY } from "./storedProfile.js";
 
-const SERVER_URL_KEY = "mode.remote.v3.web-server-url";
 const credentialStore = createWebCredentialStore();
 
 export function WebV3Page() {
   const [serverUrl, setServerUrl] = useState(
-    () => localStorage.getItem(SERVER_URL_KEY) ?? "",
+    () => localStorage.getItem(V3_SERVER_URL_KEY) ?? "",
   );
   const [profile, setProfile] = useState<WebDeviceProfile | null>(null);
   const [hosts, setHosts] = useState<WebDeviceSummary[]>([]);
@@ -111,7 +111,7 @@ export function WebV3Page() {
     setError("");
     setTestResult("");
     try {
-      localStorage.setItem(SERVER_URL_KEY, serverUrl.trim());
+      localStorage.setItem(V3_SERVER_URL_KEY, serverUrl.trim());
       setChallenge(await client.beginGithubDeviceLogin());
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
