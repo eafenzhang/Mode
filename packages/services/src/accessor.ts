@@ -19,7 +19,7 @@ import type { ICuaPermissionService } from "./cua-permission-broker/cuaPermissio
 import type { IBotsService } from "./bots/bots.js";
 import type { IFileWatcherService } from "./fileWatcher/fileWatcher.js";
 import type { IOAuthService } from "./oauth/oauth.js";
-import type { IOrcaRouterService } from "./orcarouter/service.js";
+import type { IOrcaRouterService } from "./orcarouter/descriptor.js";
 import type {
   IModelSelectionService,
   IProviderSettingsService,
