@@ -106,6 +106,8 @@ function normalizeErrorCode(code: string | undefined): RemoteDesktopErrorCode {
     "unauthorized",
     "stale_ticket",
     "locally_controlled",
+    // 浏览器本机缺少 WebCodecs/WebCrypto（见 docs/specs/web-remote-desktop.md）。
+    "decoder_unsupported",
     "internal",
   ];
   return known.includes(code as RemoteDesktopErrorCode)

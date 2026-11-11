@@ -61,6 +61,13 @@ function createFakeStream(streamId: number): FakeStream {
   return stream;
 }
 
+/** Node 没有 WebCodecs：适配层预检按浏览器能力判断，这里注入/撤销占位实现。 */
+function setVideoDecoder(value: unknown): void {
+  (globalThis as Record<string, unknown>).VideoDecoder = value;
+}
+
+setVideoDecoder(class {});
+
 function encodeBody(value: unknown): string {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
 }
@@ -187,6 +194,25 @@ test("v3 主控：媒体 socket 契约（二进制下行/文本与二进制上�
   media.send(binary);
   assert.equal(mediaStream.sent[1]![0], 1, "二进制上行为 binary 帧");
   assert.deepEqual(Array.from(mediaStream.sent[1]!.subarray(1)), [9, 8, 7]);
+});
+
+test("v3 主控：缺少 WebCodecs 时本机预检拒绝，不请求对端", async () => {
+  setVideoDecoder(undefined);
+  try {
+    const harness = createHarness();
+    assert.deepEqual(await harness.session.start(), { error: "decoder_unsupported" });
+    assert.equal(harness.requests.length, 0, "预检失败不应发起 HTTP 请求");
+    assert.ok(
+      harness.events.some(
+        (event) =>
+          event.kind === "state" &&
+          event.state === "closed" &&
+          event.error === "decoder_unsupported",
+      ),
+    );
+  } finally {
+    setVideoDecoder(class {});
+  }
 });
 
 test("v3 主控：对端拒绝时把错误码交给会话层", async () => {

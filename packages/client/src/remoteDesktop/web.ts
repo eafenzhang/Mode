@@ -221,6 +221,16 @@ export function createWebRemoteDesktopSession(
 
   const controller = createRemoteDesktopHostController({
     openSession: async (_serverId, quality, codec) => {
+      // 本机能力预检先于请求：缺 WebCodecs/WebCrypto（含非安全上下文）时不弹对端同意框。
+      const hasVideoDecoder =
+        typeof (globalThis as { VideoDecoder?: unknown }).VideoDecoder !== "undefined";
+      if (!hasVideoDecoder || !globalThis.crypto?.subtle) {
+        return {
+          ok: false,
+          errorCode: "decoder_unsupported",
+          error: "浏览器缺少 WebCodecs/WebCrypto，需 HTTPS 与新版 Chrome/Edge",
+        };
+      }
       const query = new URLSearchParams();
       if (quality) query.set("quality", quality);
       if (codec) query.set("codec", codec);
