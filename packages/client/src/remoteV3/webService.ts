@@ -11,19 +11,17 @@ import {
   type WebRemoteConnection,
 } from "@mode/remote-core/web";
 import { Emitter } from "@mode/rpc";
+
+import { createWebPairingMethods } from "./webPairing.js";
+import { createWebRequestMethods } from "./webRequests.js";
 import type { IRemoteV3Service } from "@mode/services";
 import type {
   RemoteV3BeginLoginParams,
   RemoteV3ConfigureParams,
   RemoteV3DeviceSummary,
-  RemoteV3GithubChallenge,
   RemoteV3HostState,
-  RemoteV3HttpRequestParams,
-  RemoteV3HttpResponse,
   RemoteV3RemoteDesktopSession,
   RemoteV3RemoteDesktopStartParams,
-  RemoteV3RequestParams,
-  RemoteV3RequestResult,
   RemoteV3ResetPinParams,
   RemoteV3TunnelEvent,
   RemoteV3TunnelOpenParams,
@@ -340,56 +338,26 @@ export function createWebRemoteV3Service(options: WebRemoteV3ServiceOptions): IR
       setState({ ...INITIAL_STATE, status: "unconfigured" });
       return state;
     },
+    ...createWebPairingMethods({
+      requireProfile,
+      accountFor,
+      reloadProfile: () => options.loadProfile(),
+      applyProfile: (next) => {
+        profile = next;
+        setState({
+          status: "online",
+          serverUrl: next.serverUrl,
+          deviceId: next.deviceId,
+          deviceName: next.deviceName,
+          fingerprint: fingerprintOf(next),
+          error: null,
+        });
+      },
+    }),
     resetPeerPin: async (_params: RemoteV3ResetPinParams) => {
       throw new Error("浏览器端不保存 peer pin");
     },
-    request: async (params: RemoteV3RequestParams): Promise<RemoteV3RequestResult> => {
-      const attachment = await ensureConnection(params.hostDeviceId);
-      const id = crypto.randomUUID();
-      const timeoutMs = params.timeoutMs ?? 15_000;
-      return await new Promise<RemoteV3RequestResult>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          dispose();
-          reject(new Error(`remote.request 超时：${params.method}`));
-        }, timeoutMs);
-        const dispose = attachment.connection.onFrame((frame) => {
-          if (frame.type !== "rpc.response" && frame.type !== "rpc.error") return;
-          if (frame.id !== id) return;
-          if (frame.type === "rpc.response") {
-            clearTimeout(timer);
-            dispose();
-            resolve({ result: frame.result });
-            return;
-          }
-          if (frame.type === "rpc.error") {
-            clearTimeout(timer);
-            dispose();
-            reject(new Error(`${frame.code}: ${frame.message}`));
-          }
-        });
-        attachment.connection.send({
-          v: 1,
-          type: "rpc.request",
-          id,
-          method: params.method,
-          params: params.params ?? {},
-        });
-      });
-    },
-    httpRequest: async (params: RemoteV3HttpRequestParams): Promise<RemoteV3HttpResponse> => {
-      const attachment = await ensureConnection(params.hostDeviceId);
-      return (await attachment.link.request(
-        "remote.http.request",
-        {
-          method: params.method,
-          path: params.path,
-          ...(params.headers ? { headers: params.headers } : {}),
-          ...(params.bodyBase64 ? { bodyBase64: params.bodyBase64 } : {}),
-          ...(params.timeoutMs ? { timeoutMs: params.timeoutMs } : {}),
-        },
-        params.timeoutMs ?? 15_000,
-      )) as RemoteV3HttpResponse;
-    },
+    ...createWebRequestMethods(ensureConnection),
     openTunnel: async (params: RemoteV3TunnelOpenParams) => {
       const attachment = await ensureConnection(params.hostDeviceId);
       const stream = attachment.link.openStream("remote.ws", {

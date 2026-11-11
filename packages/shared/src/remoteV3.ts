@@ -115,3 +115,31 @@ export interface RemoteV3TunnelEvent {
   data?: string;
   reason?: string;
 }
+
+/** 跨账号配对（docs/specs/remote-control-v3-pairing.md）。 */
+export interface RemoteV3PairingStart {
+  pairingId: string;
+  ticket: string;
+  expiresAt: number;
+}
+
+export interface RemoteV3PairingClaim {
+  pairingId: string;
+  verificationCode: string;
+  hostName: string;
+  expiresAt: number;
+}
+
+export type RemoteV3PairingStatus = "pending" | "claimed" | "confirmed" | "canceled" | "expired";
+
+export interface RemoteV3PairingState {
+  status: RemoteV3PairingStatus;
+  expiresAt: number;
+  hostName: string | null;
+  clientName: string | null;
+}
+
+export interface RemoteV3ConfirmPairingParams {
+  pairingId: string;
+  code: string;
+}

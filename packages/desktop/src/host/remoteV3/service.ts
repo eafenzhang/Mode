@@ -12,9 +12,12 @@ import type { IRemoteV3Service } from "@mode/services";
 import type {
   RemoteV3BeginLoginParams,
   RemoteV3ConfigureParams,
+  RemoteV3ConfirmPairingParams,
   RemoteV3DeviceSummary,
   RemoteV3GithubChallenge,
   RemoteV3HostState,
+  RemoteV3PairingStart,
+  RemoteV3PairingState,
   RemoteV3HttpRequestParams,
   RemoteV3HttpResponse,
   RemoteV3RemoteDesktopSession,
@@ -35,6 +38,12 @@ import {
   registerRemoteV3Host,
   RemoteV3ApiError,
 } from "./api.js";
+import {
+  beginRemoteV3Pairing,
+  cancelRemoteV3Pairing,
+  confirmRemoteV3Pairing,
+  getRemoteV3Pairing,
+} from "./apiPairing.js";
 import {
   clearRemoteV3AccountName,
   clearRemoteV3Tokens,
@@ -330,6 +339,57 @@ export class RemoteV3HostService implements IRemoteV3Service {
 
   async listDevices(): Promise<RemoteV3DeviceSummary[]> {
     return this.client.listDevicesForHost();
+  }
+
+  // ---- 跨账号配对：Host 角色（docs/specs/remote-control-v3-pairing.md）----
+
+  async beginPairing(): Promise<RemoteV3PairingStart> {
+    const config = this.requireConfig();
+    if (!config.serverUrl || !config.tokens) throw new Error("Host 尚未登录远程控制 v3");
+    return await beginRemoteV3Pairing({
+      serverUrl: config.serverUrl,
+      accessToken: config.tokens.accessToken,
+      ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+    });
+  }
+
+  async confirmPairing(params: RemoteV3ConfirmPairingParams): Promise<RemoteV3HostState> {
+    const config = this.requireConfig();
+    if (!config.serverUrl || !config.tokens) throw new Error("Host 尚未登录远程控制 v3");
+    const credentials = await confirmRemoteV3Pairing({
+      serverUrl: config.serverUrl,
+      accessToken: config.tokens.accessToken,
+      pairingId: params.pairingId,
+      code: params.code,
+      ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+    });
+    // 确认成功即轮换 Host 凭证：先落盘，再用新 token 重建 Control 链路。
+    await saveRemoteV3Tokens(this.options.credentials, credentials);
+    this.config = { ...config, tokens: credentials };
+    await this.startLink();
+    return this.stateStore.snapshot;
+  }
+
+  async getPairing(pairingId: string): Promise<RemoteV3PairingState> {
+    const config = this.requireConfig();
+    if (!config.serverUrl || !config.tokens) throw new Error("Host 尚未登录远程控制 v3");
+    return await getRemoteV3Pairing({
+      serverUrl: config.serverUrl,
+      accessToken: config.tokens.accessToken,
+      pairingId,
+      ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+    });
+  }
+
+  async cancelPairing(pairingId: string): Promise<RemoteV3PairingState> {
+    const config = this.requireConfig();
+    if (!config.serverUrl || !config.tokens) throw new Error("Host 尚未登录远程控制 v3");
+    return await cancelRemoteV3Pairing({
+      serverUrl: config.serverUrl,
+      accessToken: config.tokens.accessToken,
+      pairingId,
+      ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+    });
   }
 
   readonly onDidChange = (listener: (state: RemoteV3HostState) => void) =>

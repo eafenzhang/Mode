@@ -333,3 +333,67 @@ test("disconnectAccount 关闭连接并回到未配置", async () => {
   assert.equal(next.status, "unconfigured");
   assert.equal(state.closed, 1, "disconnect 必须关闭 Control 链路");
 });
+
+test("浏览器配对：claim/redeem/cancel 委托账号客户端并刷新状态", async () => {
+  const { link } = createFakeLink();
+  const calls: string[] = [];
+  let redeemed = false;
+  let profile = PROFILE;
+  const account = {
+    async claimPairing(ticket: string) {
+      calls.push(`claim:${ticket}`);
+      return { pairingId: "p-1", verificationCode: "01234567", hostName: "Desk", expiresAt: 1 };
+    },
+    async getPairing() {
+      return {
+        status: redeemed ? "confirmed" : "claimed",
+        expiresAt: 1,
+        hostName: "Desk",
+        clientName: "Web",
+      };
+    },
+    async redeemPairing() {
+      calls.push("redeem");
+      redeemed = true;
+      profile = { ...PROFILE, accessToken: "access-2", refreshToken: "refresh-2" };
+      return {
+        accessToken: "access-2",
+        refreshToken: "refresh-2",
+        accessExpiresAt: 1,
+        refreshExpiresAt: 2,
+      };
+    },
+    async cancelPairing() {
+      calls.push("cancel");
+    },
+    async listHosts() {
+      return DEVICES;
+    },
+    async logout() {
+      return undefined;
+    },
+  } as unknown as WebAccountClient;
+  const service = createWebRemoteV3Service({
+    store: { get: async () => null, set: async () => undefined, delete: async () => undefined },
+    loadProfile: async () => profile,
+    createAccountClient: () => account,
+    createLink: () => link,
+  });
+
+  assert.deepEqual(await service.claimPairing!("ticket-1"), {
+    pairingId: "p-1",
+    verificationCode: "01234567",
+    hostName: "Desk",
+    expiresAt: 1,
+  });
+  assert.equal((await service.getPairing!("p-1")).status, "claimed");
+  assert.equal((await service.redeemPairing!("p-1")).status, "confirmed");
+  assert.equal((await service.getState()).status, "online");
+  assert.deepEqual(await service.cancelPairing!("p-1"), {
+    status: "confirmed",
+    expiresAt: 1,
+    hostName: "Desk",
+    clientName: "Web",
+  });
+  assert.deepEqual(calls, ["claim:ticket-1", "redeem", "cancel"]);
+});

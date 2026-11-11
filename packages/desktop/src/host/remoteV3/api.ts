@@ -1,5 +1,9 @@
 import { parseDeviceDescriptor, type DeviceDescriptor } from "@mode/remote-core";
-import type { RemoteV3DeviceSummary } from "@mode/shared";
+import type {
+  RemoteV3DeviceSummary,
+  RemoteV3PairingStart,
+  RemoteV3PairingState,
+} from "@mode/shared";
 
 import type { RemoteV3Tokens } from "./identity.js";
 
@@ -301,7 +305,7 @@ export async function exchangeGithubAccessToken(input: {
   return body.sessionToken;
 }
 
-async function readJson(response: Response): Promise<Record<string, unknown>> {
+export async function readJson(response: Response): Promise<Record<string, unknown>> {
   try {
     const parsed = (await response.json()) as unknown;
     return typeof parsed === "object" && parsed !== null
@@ -312,7 +316,7 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
   }
 }
 
-function readError(body: Record<string, unknown>, fallback: string): string {
+export function readError(body: Record<string, unknown>, fallback: string): string {
   const error = body.error;
   if (typeof error === "object" && error !== null) {
     const message = (error as { message?: unknown }).message;
