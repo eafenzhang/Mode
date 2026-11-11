@@ -485,7 +485,8 @@ P3 已接线的部分：
 
 仍在进行：
 
-- 媒体与工作区隧道均已支持重开；Control 中断后的业务 session lease 恢复仍未实现。
+- 媒体与工作区隧道均已支持重开；Control 中断后不保留服务端 lease，由客户端重开
+  隧道/重新发起会话恢复（工作区重放 Initialize，远程桌面按票据重连）。
 - Web 客户端：`@mode/remote-core/web` 已提供 Noise/X25519、`WebControlLink`
   （Control + Relay + 业务帧 + 自动重连）和 `WebAccountClient`
   （身份/注册/刷新/目录/GitHub Device Flow 代理）；`/v3` 页面已提供登录、设备目录、
@@ -493,7 +494,9 @@ P3 已接线的部分：
   已落地（HTTP 桥 + 双 `remote.ws` 隧道 + `nativeMediaSession.openSocket` 注入，
   信令状态机与桌面 Host 共用），`/v3` 已挂载远程桌面页并复用现有会话面；
   完整工作区页面仍待实现，见 [remote-control-v3-web.md](./remote-control-v3-web.md)。
-- WebRTC/P2P/TURN、Control 中断 lease 恢复；LAN direct 已落地但 LAN 监听本身仍是 WS（无 TLS）。
+- WebRTC/P2P/TURN；LAN direct 已落地但 LAN 监听本身仍是 WS（无 TLS）。Control 中断
+  后的会话恢复走客户端路径：工作区重开 `/ws/host` 隧道并按新 Initialize 重放订阅，
+  远程桌面按票据重连媒体/重新发起会话；服务端不保留业务 lease。
 - 跨账号配对 v1：服务端已实现（§10；[配对规格](./remote-control-v3-pairing.md)），
   客户端扫码/Host 本机确认 UI 与 `IRemoteV3Service` 方法待接。
 - v2 旧模块删除：v2 `ICloudAccountService` 与账号 UI 已删除；`packages/cloud-relay`
