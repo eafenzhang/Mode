@@ -10,6 +10,27 @@ import { z } from "zod";
 // 都引用本常量，两侧同构建天然同版本；旧版对端由 coordinator 回 unsupported 收口。
 export const REMOTE_DESKTOP_PROTOCOL_VERSION = 2;
 
+/** 信令单帧上限（utf8 字节）：超限断开该会话，不做截断转发；主控/被控两侧同口径。 */
+export const REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES = 64 * 1024;
+
+/**
+ * 媒体面 socket 的最小契约。
+ *
+ * 桌面 renderer 直接 `new WebSocket(mediaUrl)`；浏览器 v3 客户端没有本机回环代理，
+ * 由 E2EE `remote.ws` 隧道适配器实现同一契约后注入。事件用结构化类型表达，
+ * 避免 shared 依赖 DOM lib。
+ */
+export interface RemoteDesktopMediaSocket {
+  readonly readyState: number;
+  binaryType: string;
+  onopen: (() => void) | null;
+  onmessage: ((event: { data: unknown }) => void) | null;
+  onclose: (() => void) | null;
+  onerror: (() => void) | null;
+  send(data: string | ArrayBufferLike | ArrayBufferView): void;
+  close(code?: number, reason?: string): void;
+}
+
 // ---- 显示器描述（被控端 → 主控端：供选择与坐标换算参照；物理像素口径）----
 export const remoteDesktopMonitorSchema = z
   .object({

@@ -11,8 +11,8 @@ import type { AddressInfo } from "node:net";
 
 import { WebSocket, WebSocketServer } from "ws";
 
+import { createRemoteDesktopHostController, type RemoteDesktopSignalSocket } from "@mode/client";
 import type { RemoteDesktopSessionEvent } from "@mode/shared/remote-desktop";
-import { createRemoteDesktopHostController } from "../src/host/remoteDesktopController.js";
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -70,6 +70,7 @@ function createController(
   const events: RemoteDesktopSessionEvent[] = [];
   const controller = createRemoteDesktopHostController({
     openSession: open,
+    openSocket: (url) => new WebSocket(url) as unknown as RemoteDesktopSignalSocket,
     logger: { info: () => undefined, warn: () => undefined },
     push: (event) => events.push(event),
     ...(options?.handshakeTimeoutMs !== undefined

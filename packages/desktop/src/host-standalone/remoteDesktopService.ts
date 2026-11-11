@@ -1,6 +1,12 @@
 /* eslint-disable max-lines -- 设置/同意/主控/被控协调共享同一状态机与收口路径，拆散会让边界分散。 */
 import { join } from "node:path";
 
+import {
+  createRemoteDesktopHostController,
+  type RemoteDesktopPeerSessionFailure,
+  type RemoteDesktopPeerSessionOpen,
+  type RemoteDesktopSignalSocket,
+} from "@mode/client";
 import { Emitter } from "@mode/rpc";
 import type {
   RemoteDesktopConsentRequest,
@@ -28,13 +34,9 @@ import {
   getCuaRawInputInjector,
   getCuaRdMediaController,
 } from "@mode/services/node";
+import { WebSocket } from "ws";
 
 import type { LanAccessServerHandle } from "../host/lanAccessServer.js";
-import {
-  createRemoteDesktopHostController,
-  type RemoteDesktopPeerSessionFailure,
-  type RemoteDesktopPeerSessionOpen,
-} from "../host/remoteDesktopController.js";
 import {
   RemoteDesktopHostMessageTypes,
   type RemoteDesktopMessageFromHost,
@@ -379,6 +381,8 @@ export async function createRemoteDesktopHostService(
       }
       return openLanSession(serverId, quality, codec);
     },
+    // 桌面 Host 的信令走 `ws`；浏览器 Web 客户端注入 E2EE 隧道适配器（同一状态机）。
+    openSocket: (url) => new WebSocket(url) as unknown as RemoteDesktopSignalSocket,
     logger: {
       info: (...args: unknown[]) => log(describeArgs(args)),
       warn: (...args: unknown[]) => log(`warn ${describeArgs(args)}`),

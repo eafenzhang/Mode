@@ -1,3 +1,4 @@
+/* oxlint-disable eslint(max-lines) -- 媒体面 socket/解码/重连/统计共享同一会话生命周期，拆散会分散收口路径。 */
 /**
  * 原生媒体面 renderer 会话（spec: docs/specs/lan-remote-desktop-native-media.md）。
  * 纯函数（帧头/IV/SPS）不碰 DOM；胶水部分用 WebCodecs + WS（仅桌面 Chromium）。
@@ -6,10 +7,13 @@
  *   [u32 seq 大端][u8 flags(bit0=关键帧)][u32 capturedAtMs（被控时钟，帧龄起点）][ciphertext ‖ GCM tag(16)]
  * IV 不随帧传：iv = salt(8B) ∥ seq(4B 大端)，aes-256-gcm（spec 安全节）。
  */
+import type { RemoteDesktopMediaSocket } from "@mode/shared/remote-desktop";
+
 import { logger } from "@/logger.js";
 import { nextReconnectDelayMs, RECONNECT_MAX_ATTEMPTS } from "@/remote-desktop/reconnectPolicy.js";
 import { codecStringFromAnnexB } from "./codecString.js";
 import { createFirstFrameWatchdog } from "./firstFrameWatchdog.js";
+import { MEDIA_SOCKET_OPEN, openMediaSocket } from "./mediaSocket.js";
 
 // codec 串派生与 HEVC 解码预检拆至 codecString.ts（max-lines 约束）；
 // re-export 保持既有消费方（会话胶水/测试）导入路径不变。
@@ -57,6 +61,11 @@ export interface NativeMediaSessionOptions {
   keyHex: string;
   saltHex: string;
   canvas: HTMLCanvasElement;
+  /**
+   * socket 工厂（缺省 `new WebSocket(url)`）。桌面端直连本机回环代理；
+   * 浏览器端注入隧道适配器，把媒体地址映射到 E2EE 数据面。
+   */
+  openSocket?: (url: string) => RemoteDesktopMediaSocket;
   onConfigured?: (info: { width: number; height: number; codec: string }) => void;
   onDecoded?: () => void;
   /**
@@ -136,7 +145,7 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   let clockOffsetMs: number | null = null;
   // 媒体 WS 瞬断重连（P2-1）状态：当前 socket、退避计数/定时器、重连后的重同步标志
   //（断流期间中继丢帧 → 只放行关键帧并强制重配解码器，防花屏残留）。
-  let ws: WebSocket | null = null;
+  let ws: RemoteDesktopMediaSocket | null = null;
   let reconnectAttempts = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let awaitingKeyAfterReconnect = false;
@@ -179,7 +188,7 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       return;
     }
     lastKeyRequestAt = now;
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (ws && ws.readyState === MEDIA_SOCKET_OPEN) {
       ws.send(JSON.stringify({ t: "need-key" }));
     }
   };
@@ -223,14 +232,14 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       scheduleReconnect();
       return;
     }
-    attachSocket(new WebSocket(url), true);
+    attachSocket(openMediaSocket(opts.openSocket, url), true);
   };
 
   /**
    * socket 挂接（初连/重连共用）：所有 handler 都做 `ws === socket` 身份核对，
    * 被顶替/收口后的迟到事件不驱动状态。close 非本端收口 → 进入退避重连。
    */
-  const attachSocket = (socket: WebSocket, isReconnect: boolean): void => {
+  const attachSocket = (socket: RemoteDesktopMediaSocket, isReconnect: boolean): void => {
     ws = socket;
     socket.binaryType = "arraybuffer";
     socket.onopen = () => {
@@ -356,7 +365,7 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   // ws 一开就发 ready：helper 的 ready 门控只认第一条开流指令，而被控状态机保证首帧必为 IDR
   // （先 IDR 后 delta），所以不必等任何上行事件——否则画面要等用户首次移动鼠标/按键才出流，开局全黑。
   // （ready 发送在 attachSocket 的 onopen 里，初连与重连共用同一幂等位。）
-  const handleMessage = (event: MessageEvent): void => {
+  const handleMessage = (event: { data: unknown }): void => {
     if (typeof event.data === "string") {
       let msg: { t?: string };
       try {
@@ -470,12 +479,12 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
 
   // 初连：连接失败（拒连/证书/服务未就绪）走与瞬断同一条退避重连——每次尝试都会
   // 重新取票，票据过期/消费冲突在重试链上自然恢复。
-  attachSocket(new WebSocket(opts.url), false);
+  attachSocket(openMediaSocket(opts.openSocket, opts.url), false);
 
   return {
     send(event) {
       const socket = ws;
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      if (!socket || socket.readyState !== MEDIA_SOCKET_OPEN) return;
       // 幂等补发保险：正常路径 ready 已在 onopen 发出；万一 open 事件派发晚于本调用，
       // 这里补一次（ready 必须恰好一次：helper 收到前的帧不推流，重复 ready 会让 host 重下发开流指令）。
       if (!readySent) {
@@ -486,11 +495,11 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
     },
     isOpen() {
       const socket = ws;
-      return socket !== null && socket.readyState === WebSocket.OPEN;
+      return socket !== null && socket.readyState === MEDIA_SOCKET_OPEN;
     },
     ping(ts) {
       const socket = ws;
-      if (socket && socket.readyState === WebSocket.OPEN) {
+      if (socket && socket.readyState === MEDIA_SOCKET_OPEN) {
         socket.send(JSON.stringify({ t: "ping", ts }));
       }
     },

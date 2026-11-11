@@ -1,6 +1,5 @@
-import { WebSocket } from "ws";
-
 import {
+  REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES,
   remoteDesktopSignalMessageSchema,
   type RemoteDesktopCodec,
   type RemoteDesktopErrorCode,
@@ -10,7 +9,25 @@ import {
   type RemoteDesktopStartSessionResult,
 } from "@mode/shared/remote-desktop";
 
-import { REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES } from "./remoteDesktopMessages.js";
+const SIGNAL_SOCKET_OPEN = 1;
+const utf8 = new TextEncoder();
+
+/**
+ * 信令 socket 的最小契约：桌面端由 `ws` 实现，浏览器端由 E2EE 隧道适配器实现。
+ *
+ * 为什么不在本模块直接 new WebSocket：`@mode/client` 同时被浏览器与 Node 打包，
+ * 引入 `ws` 会把 Node 依赖带进 Web 产物；信令状态的唯一实现在这里，socket 由调用方注入。
+ */
+export interface RemoteDesktopSignalSocket {
+  readonly readyState: number;
+  on(event: "open", listener: () => void): void;
+  on(event: "message", listener: (data: unknown) => void): void;
+  on(event: "close", listener: () => void): void;
+  on(event: "error", listener: (error: Error) => void): void;
+  send(text: string): void;
+  close(): void;
+  removeAllListeners(): void;
+}
 
 /**
  * 信令 WS 保活：媒体 WS 有 3s 应用层 ping，但信令在会话稳定后可能长时间无帧。
@@ -54,6 +71,8 @@ export interface CreateRemoteDesktopHostControllerOptions {
   logger: { info(...args: unknown[]): void; warn(...args: unknown[]): void };
   /** 事件出口；不缓冲，只发给当前订阅者。 */
   push: (event: RemoteDesktopSessionEvent) => void;
+  /** 信令 socket 工厂：桌面注入 `new WebSocket(url)`，浏览器注入隧道适配器。 */
+  openSocket: (url: string) => RemoteDesktopSignalSocket;
   /**
    * 握手窗口：WS 建连后到**收到对端第一帧**的上限（缺省 15s）。
    *
@@ -97,7 +116,7 @@ function normalizeErrorCode(code: string | undefined): RemoteDesktopErrorCode {
 export function createRemoteDesktopHostController(
   options: CreateRemoteDesktopHostControllerOptions,
 ): RemoteDesktopHostController {
-  let socket: WebSocket | null = null;
+  let socket: RemoteDesktopSignalSocket | null = null;
   let closedPushed = false;
   let starting = false;
   /** start 在途时到来 end/dispose：结果作废，不再建立 socket（终态已推）。 */
@@ -145,7 +164,7 @@ export function createRemoteDesktopHostController(
     pushState("closed", error, teardownOptions?.retryable);
   };
 
-  const attach = (ws: WebSocket): void => {
+  const attach = (ws: RemoteDesktopSignalSocket): void => {
     ws.on("open", () => {
       if (socket !== ws) {
         return;
@@ -170,7 +189,11 @@ export function createRemoteDesktopHostController(
         return;
       }
       const text =
-        typeof data === "string" ? data : Buffer.isBuffer(data) ? data.toString("utf8") : "";
+        typeof data === "string"
+          ? data
+          : data instanceof Uint8Array
+            ? new TextDecoder().decode(data)
+            : "";
       if (text) {
         // 收到任何非空帧都说明对端活着（格式是否合法由下面的 schema 判），握手窗口到此为止。
         clearHandshakeTimer();
@@ -178,7 +201,7 @@ export function createRemoteDesktopHostController(
       if (!text) {
         return;
       }
-      if (Buffer.byteLength(text, "utf8") > REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES) {
+      if (utf8.encode(text).length > REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES) {
         options.logger.warn("[remote-desktop] controller signal frame over 64KiB, closing session");
         teardown("internal");
         return;
@@ -232,7 +255,7 @@ export function createRemoteDesktopHostController(
       pushState("closed");
       return;
     }
-    if (current.readyState === WebSocket.OPEN) {
+    if (current.readyState === SIGNAL_SOCKET_OPEN) {
       try {
         current.send(JSON.stringify({ type: "bye", reason }));
       } catch {
@@ -280,9 +303,9 @@ export function createRemoteDesktopHostController(
         pushState("closed", code);
         return { error: code };
       }
-      let ws: WebSocket;
+      let ws: RemoteDesktopSignalSocket;
       try {
-        ws = new WebSocket(result.wsUrl);
+        ws = options.openSocket(result.wsUrl);
       } catch (error) {
         options.logger.warn("[remote-desktop] invalid peer ws url:", error);
         pushState("closed", "internal");
@@ -303,11 +326,11 @@ export function createRemoteDesktopHostController(
         return;
       }
       const ws = socket;
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (!ws || ws.readyState !== SIGNAL_SOCKET_OPEN) {
         return;
       }
       const frame = JSON.stringify(parsed.data);
-      if (Buffer.byteLength(frame, "utf8") > REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES) {
+      if (utf8.encode(frame).length > REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES) {
         options.logger.warn("[remote-desktop] outgoing signal over 64KiB, dropping frame");
         return;
       }

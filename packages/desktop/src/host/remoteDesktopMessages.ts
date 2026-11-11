@@ -36,7 +36,7 @@ import {
 /** 一条注入帧的最大事件条数（与 crates/mode-cua-ax input.rs 的 MAX_RAW_INPUT_EVENTS 同口径）。 */
 export const REMOTE_DESKTOP_INJECT_MAX_EVENTS = 512;
 /** 信令单帧上限（utf8 字节）：超限 host 断开该会话，不做截断转发。 */
-export const REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES = 64 * 1024;
+export { REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES } from "@mode/shared/remote-desktop";
 
 const trimmedNonEmpty = z.string().trim().min(1);
 

@@ -113,14 +113,17 @@ packages/remote-server
   `openWebWorkspace` 已把 `/ws/host` 隧道包装成浏览器 ChannelClient；`/v3` 页面提供
   IndexedDB 凭据、登录、设备目录、加密 RPC 与工作区隧道连通测试。完整工作区/远程桌面
   Web 页面仍待实现。
+- Web 远程桌面主控原语已落地：`createWebRemoteDesktopSession` 走 HTTP 桥创建会话，
+  信令/媒体分别用 `remote.ws` 隧道承载；主控状态机抽到 `@mode/client` 并支持注入
+  socket（桌面 Host 仍传 `ws`），媒体面新增 `openSocket` 注入点，解码/重连逻辑未复制。
 - 仍未开始：WebRTC/P2P/TURN、跨账号配对 v1。
 - 账号展示已接入：`/auth/me` 展示名落库并进入 Host 状态，侧边栏/账号弹窗优先显示
   v3 账号名，退出菜单直连 `disconnectAccount`。
 - P2 直连前置已落地：Host 注册上报 LAN 地址（≤8）并进入设备目录，远程控制页展示
   首个地址；`remote.workspace.list` 接到真实工作区列表。LAN direct 数据面/选路仍待实现。
-- 测试：47 项（core 16 + remote-server 14 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
-  ChannelClient 重连 1/Web 工作区 1 + server direct WS 2 + UI v3 目标/向导 3 +
-  侧边栏账号 2）。
+- 测试：51 项（core 16 + remote-server 14 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
+  ChannelClient 重连 1/Web 工作区 1/Web 远程桌面 4 + server direct WS 2 +
+  UI v3 目标/向导 3 + 侧边栏账号 2）。
 - 门禁：`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`、
   `pnpm knip:gate` 全绿；新包测试已加入 `.github/workflows/release.yml` verify，
   Desktop Host 测试由既有 desktop tests glob 覆盖。
