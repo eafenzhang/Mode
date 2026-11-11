@@ -68,6 +68,7 @@ export async function startRemoteServer(options: RemoteServerOptions): Promise<R
     pepper: options.pepper ?? options.secret,
     github: options.githubVerifier ?? createGithubVerifier(),
     ...(options.pairingTtlMs ? { pairingTtlMs: options.pairingTtlMs } : {}),
+    ...(options.allowedOrigins?.length ? { allowedOrigins: options.allowedOrigins } : {}),
     ...(options.githubClientId?.trim()
       ? {
           githubDevice: {

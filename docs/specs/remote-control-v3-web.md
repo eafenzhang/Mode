@@ -69,8 +69,10 @@
    `/v3` 独立页仍只提供目录与连通测试。远程桌面页面已挂载，还缺真机验收
    （同意窗 → 首帧 → 键鼠输入 → 关闭释放）与弱网/断线复测。
 4. 移动端复用同一 Web 客户端，尚未接入。
-5. 安全：CSP/Origin 校验仍待；私钥/token 已做静态加密信封（IndexedDB），
-   不写入 URL 或日志。localStorage 回落路径仍是明文。
+5. 安全：CSP 仍待；`/api/v1/*` 的 CORS 白名单已接（复用 `allowedOrigins` /
+   `MODE_REMOTE_ALLOWED_ORIGINS`，未命中不回显 ACAO；未配置时仅同源可用）。
+   私钥/token 已做静态加密信封（IndexedDB），不写入 URL 或日志；
+   localStorage 回落路径仍是明文。
 
 ## 验收
 

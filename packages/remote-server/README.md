@@ -18,7 +18,8 @@ pnpm --filter @mode/remote-server dev
 `MODE_REMOTE_METRICS_TOKEN`（提供时暴露 Prometheus `/metrics`）、
 `MODE_GITHUB_CLIENT_ID`（提供时暴露浏览器 GitHub Device Flow 代理）、
 `MODE_GITHUB_API_BASE_URL`、`MODE_REMOTE_ALLOWED_ORIGINS`（逗号分隔的浏览器 Origin；
-原生客户端不带 Origin，不受影响）。
+同时用于 Control/Relay WS 与 `/api/v1/*` 的 CORS 白名单。原生客户端不带 Origin，
+不受影响；未配置时不发 CORS 头，仅同源页面可用）。
 
 ## 端点
 

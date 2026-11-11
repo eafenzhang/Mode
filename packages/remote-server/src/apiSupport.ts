@@ -19,6 +19,11 @@ export interface ApiDeps {
   };
   /** 跨账号配对会话 TTL（缺省 180s；测试可缩短）。 */
   pairingTtlMs?: number;
+  /**
+   * 浏览器跨源调用 `/api/v1/*` 的白名单（与 Control/Relay WS 同一份配置）。
+   * 未配置时不发 CORS 头：仅同源页面可用。
+   */
+  allowedOrigins?: string[];
 }
 
 export class ApiError extends Error {

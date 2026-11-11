@@ -28,6 +28,13 @@ export function createApiHandler(deps: ApiDeps) {
   const deviceAuth = new FixedWindowLimiter(60, 60_000);
   return async (req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> => {
     try {
+      applyCors(deps.allowedOrigins, req, res);
+      // 浏览器预检：允许来源已在 applyCors 写入 ACAO；未配置白名单时不发头上浏览器自会拦截。
+      if (req.method === "OPTIONS") {
+        res.writeHead(204, { "access-control-max-age": "600" });
+        res.end();
+        return;
+      }
       const key = req.socket.remoteAddress ?? "unknown";
       if (!general.allow(key)) {
         throw new ApiError(429, "rate_limited", "请求过于频繁，请稍后重试");
@@ -364,4 +371,23 @@ function mapStoreError(error: StoreError): ApiError {
     default:
       return new ApiError(400, error.code, error.message);
   }
+}
+
+/**
+ * API 的 CORS 头：与 Control/Relay WS 共用 `allowedOrigins` 白名单。
+ * 未配置时不发 ACAO，行为保持同源可用；配置后只回显命中的来源。
+ */
+function applyCors(
+  allowedOrigins: string[] | undefined,
+  req: IncomingMessage,
+  res: ServerResponse,
+): void {
+  const origin = req.headers.origin;
+  if (!allowedOrigins?.length || typeof origin !== "string") return;
+  if (!allowedOrigins.includes(origin)) return;
+  res.setHeader("access-control-allow-origin", origin);
+  res.setHeader("vary", "Origin");
+  res.setHeader("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.setHeader("access-control-allow-headers", "authorization,content-type");
+  res.setHeader("access-control-expose-headers", "content-type");
 }
