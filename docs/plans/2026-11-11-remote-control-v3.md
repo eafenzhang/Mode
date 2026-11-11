@@ -135,14 +135,15 @@ packages/remote-server
   [remote-control-v3-pairing.md](../specs/remote-control-v3-pairing.md)，
   浏览器 Client SDK（claim/status/redeem/cancel）与 `IRemoteV3Service` 配对方法已接：
   桌面 Host 实现 begin/confirm/get/cancel（确认后轮换凭证并重建 Control），浏览器实现
-  claim/get/redeem/cancel；E2E 覆盖「桌面 Host × 浏览器 Client」全流程。扫码/确认 UI 待接。
+  claim/get/redeem/cancel；E2E 覆盖「桌面 Host × 浏览器 Client」全流程。
+  账号弹窗已挂配对面板（短票 + 本机验证码），状态机为纯函数并单测。
 - 仍未开始：WebRTC/P2P/TURN。
 - 账号展示已接入：`/auth/me` 展示名落库并进入 Host 状态，侧边栏/账号弹窗优先显示
   v3 账号名，退出菜单直连 `disconnectAccount`。
 - P2 直连前置已落地：Host 注册上报 LAN 地址（≤8）并进入设备目录，远程控制页展示
   首个地址；`remote.workspace.list` 接到真实工作区列表。LAN direct 数据面/选路仍待实现。
-- 测试：71 项（core 18 + remote-server 19 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
-  配对 E2E 2 +
+- 测试：74 项（core 18 + remote-server 19 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
+  配对 E2E 2 + 配对 UI 状态机 3 +
   ChannelClient 重连 1/Web 工作区 1/Web 工作区重连 1/Web 远程桌面 5/v3 工作区 attachment 2/
   Web v3 服务 6 +
   server direct WS 2 + UI v3 目标/向导 3 + 侧边栏账号 2）。

@@ -19,6 +19,7 @@ import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
+import { RemoteV3PairingPanel } from "./RemoteV3PairingPanel.js";
 
 const STATE_TIMEOUT_MS = 12_000;
 
@@ -361,6 +362,7 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
             )}
             </div>
           ) : null}
+          {status === "online" ? <RemoteV3PairingPanel service={service} /> : null}
           {error ? <p className="text-ui-base text-destructive">{error}</p> : null}
         </div>
       ) : null}

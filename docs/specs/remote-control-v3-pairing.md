@@ -1,6 +1,6 @@
 # 远程控制 v3 跨账号配对 v1
 
-状态：2026-11-11 服务端、桌面 Host 确认面与浏览器 Client 已实现（扫码/确认 UI 待接）。
+状态：2026-11-11 已实现（服务端、桌面 Host 确认、浏览器 Client、配对面板）。
 母规范：
 [remote-control-v3.md](./remote-control-v3.md) §10。
 
@@ -122,4 +122,7 @@ pending --claim--> claimed --confirm--> confirmed --redeem--> (终态)
   redeem 后刷新服务侧 profile 快照。
 - E2E：真实 remote-server + 桌面 Host 服务 + `WebAccountClient`，覆盖
   begin → claim → confirm → redeem → 目录可见，以及取消后 claim 失败。
-- 待接：二维码/短票展示与 Host 本机验证码输入 UI。
+- UI：`RemoteV3PairingPanel` 挂在账号弹窗在线态，按方法能力分角色渲染：
+  Host 生成/复制短票并轮询 claim，认领后输入 8 位码确认；Client 粘贴短票 claim、
+  展示验证码并轮询确认，Host 确认后自动 redeem。状态机 `pairingModel.ts` 为纯函数
+  （3 项测试）。二维码留作后续（短票已满足一次性 + 人工输入）。
