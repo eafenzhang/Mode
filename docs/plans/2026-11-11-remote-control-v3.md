@@ -139,13 +139,15 @@ packages/remote-server
   账号弹窗已挂配对面板（短票 + 本机验证码），状态机为纯函数并单测。
   桌面 Client 角色也支持 claim/redeem（跨账号由对方发起时 get/cancel 自动回落到
   Client 身份）；E2E 覆盖桌面 A ↔ 桌面 B。
+- Web 凭据静态加密：IndexedDB 分支用不可导出 AES-GCM 密钥加密 profile（私钥/token），
+  旧明文读取兼容并自动升级；localStorage 回落保持明文并在规格中声明。
 - 仍未开始：WebRTC/P2P/TURN。
 - 账号展示已接入：`/auth/me` 展示名落库并进入 Host 状态，侧边栏/账号弹窗优先显示
   v3 账号名，退出菜单直连 `disconnectAccount`。
 - P2 直连前置已落地：Host 注册上报 LAN 地址（≤8）并进入设备目录，远程控制页展示
   首个地址；`remote.workspace.list` 接到真实工作区列表。LAN direct 数据面与选路已在
   P2 落地（`/ws/v1/direct` + 失败回落 Relay）；剩余为 LAN 监听 WSS/TLS。
-- 测试：75 项（core 18 + remote-server 19 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
+- 测试：79 项（core 22 + remote-server 19 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
   配对 E2E 3 + 配对 UI 状态机 3 +
   ChannelClient 重连 1/Web 工作区 1/Web 工作区重连 1/Web 远程桌面 5/v3 工作区 attachment 2/
   Web v3 服务 6 +

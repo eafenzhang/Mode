@@ -59,7 +59,9 @@
 
 ## 待实现
 
-1. 多账号隔离与私钥加密存储；当前 profile 单账号保存，IndexedDB 中的私钥未额外加密。
+1. 多账号隔离仍待实现。私钥/token 落盘已加 AES-GCM 信封：密钥为不可导出的
+   `CryptoKey`（同存 IndexedDB），旧明文读取兼容并在下次写入升级；
+   localStorage 回落（无 IndexedDB）仍为明文，已在实现注释与本节声明。
 2. 传输：Relay WSS 已实现；LAN direct 在浏览器受混合内容限制，仅在 HTTPS 页面允许
    `wss` 直连，否则回落 Relay。
 3. UI：主 Web 已接通 v3 工作区（向导选 Host → 注册远程 session → 复用现有 tab/文件/
@@ -67,8 +69,8 @@
    `/v3` 独立页仍只提供目录与连通测试。远程桌面页面已挂载，还缺真机验收
    （同意窗 → 首帧 → 键鼠输入 → 关闭释放）与弱网/断线复测。
 4. 移动端复用同一 Web 客户端，尚未接入。
-5. 安全：CSP/Origin 校验、token 只存内存/安全存储、禁止把私钥或 access token
-   写入 URL、localStorage 明文或日志。
+5. 安全：CSP/Origin 校验仍待；私钥/token 已做静态加密信封（IndexedDB），
+   不写入 URL 或日志。localStorage 回落路径仍是明文。
 
 ## 验收
 

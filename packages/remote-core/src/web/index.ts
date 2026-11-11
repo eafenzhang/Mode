@@ -20,6 +20,7 @@ export {
   type WebRemoteConnection,
 } from "./controlLink.js";
 export { type WebBusinessStream } from "./streams.js";
+export { createEncryptedCredentialStore } from "./secureStore.js";
 export {
   WebAccountClient,
   WebApiError,

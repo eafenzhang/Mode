@@ -4,6 +4,12 @@ export interface WebCredentialStore {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
   delete(key: string): Promise<void>;
+  /**
+   * 可选：结构化对象存储。IndexedDB 能持久化不可导出的 `CryptoKey`（用于加密凭据）；
+   * localStorage 不具备该能力，加密层据此回落明文。
+   */
+  getValue?<T>(key: string): Promise<T | null>;
+  setValue?<T>(key: string, value: T): Promise<void>;
 }
 
 export interface WebDeviceProfile {

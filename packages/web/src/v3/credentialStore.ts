@@ -1,13 +1,20 @@
-import type { WebCredentialStore } from "@mode/remote-core/web";
+import { createEncryptedCredentialStore, type WebCredentialStore } from "@mode/remote-core/web";
 
 const DB_NAME = "mode-remote-v3";
 const DB_VERSION = 1;
 const STORE_NAME = "kv";
 const LOCAL_PREFIX = "mode.remote.v3.";
 
-/** 浏览器默认凭据存储：优先 IndexedDB，隐私模式不可用时回落 localStorage。 */
+/**
+ * 浏览器默认凭据存储：优先 IndexedDB，隐私模式不可用时回落 localStorage。
+ *
+ * IndexedDB 分支额外挂 AES-GCM 信封：私钥/token 不再以明文落盘，密钥是不可导出的
+ * CryptoKey（同样存 IndexedDB）。localStorage 存不了 CryptoKey，保持明文并在文档中声明。
+ */
 export function createWebCredentialStore(): WebCredentialStore {
-  if (typeof indexedDB !== "undefined") return createIndexedDbStore();
+  if (typeof indexedDB !== "undefined") {
+    return createEncryptedCredentialStore(createIndexedDbStore());
+  }
   return createLocalStorageStore();
 }
 
@@ -62,16 +69,29 @@ function request<T>(store: IDBObjectStore, method: "get", key: string): Promise<
   });
 }
 
+async function putValue(store: IDBObjectStore, key: string, value: unknown): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const result = store.put(value, key);
+    result.onsuccess = () => resolve();
+    result.onerror = () => reject(result.error ?? new Error("IndexedDB 写入失败"));
+  });
+}
+
 function createIndexedDbStore(): WebCredentialStore {
   return {
     get: async (key) => (await withStore("readonly", (store) => request<string>(store, "get", key))) ?? null,
     set: async (key, value) => {
       await withStore("readwrite", async (store) => {
-        await new Promise<void>((resolve, reject) => {
-          const result = store.put(value, key);
-          result.onsuccess = () => resolve();
-          result.onerror = () => reject(result.error ?? new Error("IndexedDB 写入失败"));
-        });
+        await putValue(store, key, value);
+        return undefined as void;
+      });
+    },
+    // 结构化对象：IndexedDB 可直接持久化 CryptoKey（localStorage 不具备）。
+    getValue: async <T>(key: string) =>
+      (await withStore("readonly", (store) => request<T>(store, "get", key))) ?? null,
+    setValue: async <T>(key: string, value: T) => {
+      await withStore("readwrite", async (store) => {
+        await putValue(store, key, value);
         return undefined as void;
       });
     },
