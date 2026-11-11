@@ -16,6 +16,7 @@ import type {
   RemoteV3DeviceSummary,
   RemoteV3GithubChallenge,
   RemoteV3HostState,
+  RemoteV3PairingClaim,
   RemoteV3PairingStart,
   RemoteV3PairingState,
   RemoteV3HttpRequestParams,
@@ -370,26 +371,47 @@ export class RemoteV3HostService implements IRemoteV3Service {
     return this.stateStore.snapshot;
   }
 
+  async claimPairing(ticket: string): Promise<RemoteV3PairingClaim> {
+    return await this.client.claimPairing(ticket);
+  }
+
+  async redeemPairing(pairingId: string): Promise<RemoteV3PairingState> {
+    return await this.client.redeemPairing(pairingId);
+  }
+
   async getPairing(pairingId: string): Promise<RemoteV3PairingState> {
-    const config = this.requireConfig();
-    if (!config.serverUrl || !config.tokens) throw new Error("Host 尚未登录远程控制 v3");
-    return await getRemoteV3Pairing({
-      serverUrl: config.serverUrl,
-      accessToken: config.tokens.accessToken,
-      pairingId,
-      ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
-    });
+    const config = this.config;
+    if (config?.serverUrl && config.tokens) {
+      try {
+        return await getRemoteV3Pairing({
+          serverUrl: config.serverUrl,
+          accessToken: config.tokens.accessToken,
+          pairingId,
+          ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+        });
+      } catch (error) {
+        // 本机不是该会话的 Host（跨账号由对方发起）：改用 Client 身份查询。
+        if (!(error instanceof RemoteV3ApiError) || error.status !== 403) throw error;
+      }
+    }
+    return await this.client.getPairing(pairingId);
   }
 
   async cancelPairing(pairingId: string): Promise<RemoteV3PairingState> {
-    const config = this.requireConfig();
-    if (!config.serverUrl || !config.tokens) throw new Error("Host 尚未登录远程控制 v3");
-    return await cancelRemoteV3Pairing({
-      serverUrl: config.serverUrl,
-      accessToken: config.tokens.accessToken,
-      pairingId,
-      ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
-    });
+    const config = this.config;
+    if (config?.serverUrl && config.tokens) {
+      try {
+        return await cancelRemoteV3Pairing({
+          serverUrl: config.serverUrl,
+          accessToken: config.tokens.accessToken,
+          pairingId,
+          ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+        });
+      } catch (error) {
+        if (!(error instanceof RemoteV3ApiError) || error.status !== 403) throw error;
+      }
+    }
+    return await this.client.cancelPairing(pairingId);
   }
 
   readonly onDidChange = (listener: (state: RemoteV3HostState) => void) =>

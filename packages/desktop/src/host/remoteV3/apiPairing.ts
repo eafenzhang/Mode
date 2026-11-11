@@ -1,4 +1,5 @@
 import type {
+  RemoteV3PairingClaim,
   RemoteV3PairingStart,
   RemoteV3PairingState,
 } from "@mode/shared";
@@ -114,4 +115,65 @@ export async function cancelRemoteV3Pairing(input: {
   const body = await readJson(response);
   if (!response.ok) throw new RemoteV3ApiError(response.status, readError(body, "取消配对失败"));
   return parsePairingState(body);
+}
+
+/** Client 角色认领配对票。 */
+export async function claimRemoteV3Pairing(input: {
+  serverUrl: string;
+  accessToken: string;
+  ticket: string;
+  fetchImpl?: typeof fetch;
+}): Promise<RemoteV3PairingClaim> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const response = await fetchImpl(`${input.serverUrl}/api/v1/pairing/sessions/claim`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${input.accessToken}`,
+    },
+    body: JSON.stringify({ ticket: input.ticket }),
+  });
+  const body = await readJson(response);
+  if (!response.ok) throw new RemoteV3ApiError(response.status, readError(body, "认领配对失败"));
+  if (
+    typeof body.pairingId !== "string" ||
+    typeof body.verificationCode !== "string" ||
+    typeof body.expiresAt !== "number"
+  ) {
+    throw new Error("配对 claim 响应缺少字段");
+  }
+  return {
+    pairingId: body.pairingId,
+    verificationCode: body.verificationCode,
+    hostName: typeof body.hostName === "string" ? body.hostName : "",
+    expiresAt: body.expiresAt,
+  };
+}
+
+/** Client 角色领取轮换后的凭证（一次性）。 */
+export async function redeemRemoteV3Pairing(input: {
+  serverUrl: string;
+  accessToken: string;
+  pairingId: string;
+  fetchImpl?: typeof fetch;
+}): Promise<RemoteV3Tokens> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const response = await fetchImpl(
+    `${input.serverUrl}/api/v1/pairing/sessions/${encodeURIComponent(input.pairingId)}/redeem`,
+    {
+      method: "POST",
+      headers: { authorization: `Bearer ${input.accessToken}` },
+    },
+  );
+  const body = await readJson(response);
+  if (!response.ok) throw new RemoteV3ApiError(response.status, readError(body, "领取配对凭证失败"));
+  if (typeof body.accessToken !== "string" || typeof body.refreshToken !== "string") {
+    throw new Error("配对凭证响应缺少 token");
+  }
+  return {
+    accessToken: body.accessToken,
+    accessExpiresAt: typeof body.accessExpiresAt === "number" ? body.accessExpiresAt : 0,
+    refreshToken: body.refreshToken,
+    refreshExpiresAt: typeof body.refreshExpiresAt === "number" ? body.refreshExpiresAt : 0,
+  };
 }

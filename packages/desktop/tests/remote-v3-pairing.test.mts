@@ -170,3 +170,71 @@ test("配对取消后 Client claim 失败", async () => {
     await server.close();
   }
 });
+
+test("桌面之间配对：B 作为 Client 认领 A 的票并在 redeem 后看到 A", async () => {
+  const server = await startRemoteServer({
+    port: 0,
+    dbPath: ":memory:",
+    secret: "pairing-desktop-secret-long-enough",
+    githubVerifier: async (token) => {
+      if (token === "github-alice") return { providerUserId: "alice", login: "alice" };
+      if (token === "github-bob") return { providerUserId: "bob", login: "bob" };
+      throw new Error("invalid github token");
+    },
+  });
+  const alice = createFakeCredentials();
+  const bob = createFakeCredentials();
+  const hostA = await createRemoteV3HostService({
+    credentials: alice.credentials,
+    env: {},
+    log: () => undefined,
+    version: "0.0.1-test",
+    deviceName: "Host A",
+  });
+  const hostB = await createRemoteV3HostService({
+    credentials: bob.credentials,
+    env: {},
+    log: () => undefined,
+    version: "0.0.1-test",
+    deviceName: "Host B",
+  });
+  try {
+    const aliceSession = await login(server.url, "github-alice");
+    const bobSession = await login(server.url, "github-bob");
+    const configuredA = await hostA.configure({
+      serverUrl: server.url,
+      webSessionToken: aliceSession,
+      deviceName: "Host A",
+    });
+    await hostB.configure({
+      serverUrl: server.url,
+      webSessionToken: bobSession,
+      deviceName: "Host B",
+    });
+    assert.equal(configuredA.status, "online", configuredA.error ?? "");
+    const hostADeviceId = configuredA.deviceId!;
+
+    const started = await hostA.beginPairing();
+    const claim = await hostB.claimPairing(started.ticket);
+    assert.equal(claim.hostName, "Host A");
+    const confirmed = await hostA.confirmPairing({
+      pairingId: started.pairingId,
+      code: claim.verificationCode,
+    });
+    assert.equal(confirmed.status, "online", confirmed.error ?? "");
+
+    const redeemed = await hostB.redeemPairing(started.pairingId);
+    assert.equal(redeemed.status, "confirmed");
+
+    const hosts = await hostB.listHosts();
+    assert.ok(
+      hosts.some((host) => host.deviceId === hostADeviceId),
+      "redeem 后 Client 目录必须能看到 Host A",
+    );
+    assert.equal((await hostB.getPairing(started.pairingId)).status, "confirmed");
+  } finally {
+    await hostA.disconnectAccount();
+    await hostB.disconnectAccount();
+    await server.close();
+  }
+});

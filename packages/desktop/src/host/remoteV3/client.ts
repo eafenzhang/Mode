@@ -14,6 +14,8 @@ import type {
   RemoteV3DeviceSummary,
   RemoteV3HttpRequestParams,
   RemoteV3HttpResponse,
+  RemoteV3PairingClaim,
+  RemoteV3PairingState,
   RemoteV3RequestParams,
   RemoteV3RequestResult,
 } from "@mode/shared";
@@ -24,6 +26,7 @@ import {
   refreshRemoteV3Tokens,
   registerRemoteV3OwnedRole,
 } from "./api.js";
+import { createClientPairingMethods } from "./clientPairing.js";
 import {
   clearRemoteV3ClientTokens,
   loadOrCreateRemoteV3ClientProfile,
@@ -73,8 +76,21 @@ export class RemoteV3ClientRuntime {
   private clientRefreshInFlight: Promise<RemoteV3ClientProfile> | null = null;
   private generation = 0;
 
+  private readonly pairing: ReturnType<typeof createClientPairingMethods>;
+
   constructor(deps: RemoteV3ClientRuntimeDeps) {
     this.deps = deps;
+    this.pairing = createClientPairingMethods({
+      credentials: deps.credentials,
+      ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+      getServerUrl: () => deps.getServerUrl(),
+      ensureProfile: (serverUrl) => this.ensureProfile(serverUrl),
+      refreshClient: (serverUrl, profile) => this.refreshClient(serverUrl, profile),
+      applyProfile: (profile) => {
+        this.profile = profile;
+      },
+      dispose: () => this.dispose(),
+    });
   }
 
   async request(params: RemoteV3RequestParams): Promise<RemoteV3RequestResult> {
@@ -214,6 +230,22 @@ export class RemoteV3ClientRuntime {
       const refreshed = await this.refreshClient(serverUrl, profile);
       return await this.startClient(serverUrl, refreshed, hostDeviceId);
     }
+  }
+
+  async claimPairing(ticket: string): Promise<RemoteV3PairingClaim> {
+    return await this.pairing.claimPairing(ticket);
+  }
+
+  async getPairing(pairingId: string): Promise<RemoteV3PairingState> {
+    return await this.pairing.getPairing(pairingId);
+  }
+
+  async cancelPairing(pairingId: string): Promise<RemoteV3PairingState> {
+    return await this.pairing.cancelPairing(pairingId);
+  }
+
+  async redeemPairing(pairingId: string): Promise<RemoteV3PairingState> {
+    return await this.pairing.redeemPairing(pairingId);
   }
 
   private async ensureProfile(serverUrl: string): Promise<RemoteV3ClientProfile> {
