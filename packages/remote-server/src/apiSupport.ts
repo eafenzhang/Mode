@@ -17,6 +17,8 @@ export interface ApiDeps {
     baseUrl?: string;
     fetchImpl?: typeof fetch;
   };
+  /** 跨账号配对会话 TTL（缺省 180s；测试可缩短）。 */
+  pairingTtlMs?: number;
 }
 
 export class ApiError extends Error {

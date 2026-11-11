@@ -61,3 +61,19 @@ export interface DeviceCredential {
   refreshToken: string;
   refreshExpiresAt: number;
 }
+
+/** 跨账号配对会话（docs/specs/remote-control-v3-pairing.md）。 */
+export interface PairingRow {
+  id: string;
+  ticket_hash: string;
+  host_device_id: string;
+  client_device_id: string | null;
+  code_hash: string | null;
+  status: "pending" | "claimed" | "confirmed" | "canceled";
+  created_at: number;
+  expires_at: number;
+  claimed_at: number | null;
+  confirmed_at: number | null;
+  redeemed_at: number | null;
+  attempts: number;
+}

@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import type { DeviceDescriptor } from "@mode/remote-core";
 
 import { randomToken, sha256Hex } from "./crypto.js";
+import { PairingStore } from "./pairingStore.js";
 import { migrateSchema } from "./schema.js";
 
 import {
@@ -33,15 +34,16 @@ export type {
   DeviceRow,
   MembershipRow,
 } from "./storeTypes.js";
-
 export class CloudStore {
   private readonly db: DatabaseSync;
-
+  /** 跨账号配对会话：与账号/设备共用连接，状态机独立（pairingStore.ts）。 */
+  readonly pairing: PairingStore;
   constructor(dbPath: string) {
     if (dbPath !== ":memory:") mkdirSync(path.dirname(dbPath), { recursive: true });
     this.db = new DatabaseSync(dbPath);
     this.db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     migrateSchema(this.db);
+    this.pairing = new PairingStore(this.db, this);
   }
   close(): void {
     this.db.close();

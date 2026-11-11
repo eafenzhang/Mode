@@ -26,6 +26,8 @@ export interface RemoteServerOptions {
   githubDeviceBaseUrl?: string;
   /** 直接终止 TLS（生产也可由反向代理终止）；提供时 URL/Relay 会使用 https/wss。 */
   tls?: { key: string | Buffer; cert: string | Buffer };
+  /** 跨账号配对会话 TTL（缺省 180s；测试可缩短）。 */
+  pairingTtlMs?: number;
   /** 提供时暴露 `GET /metrics`（Bearer / x-metrics-token）；未配置时返回 404。 */
   metricsToken?: string;
   log?: (line: string) => void;
@@ -65,6 +67,7 @@ export async function startRemoteServer(options: RemoteServerOptions): Promise<R
     gateway,
     pepper: options.pepper ?? options.secret,
     github: options.githubVerifier ?? createGithubVerifier(),
+    ...(options.pairingTtlMs ? { pairingTtlMs: options.pairingTtlMs } : {}),
     ...(options.githubClientId?.trim()
       ? {
           githubDevice: {

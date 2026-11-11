@@ -11,6 +11,7 @@ import {
   type ApiDeps,
 } from "./apiSupport.js";
 import { handleGithubDeviceRoute } from "./deviceAuth.js";
+import { handlePairingRoute } from "./pairingRoutes.js";
 import { descriptorOf, GatewayError, parseAddresses } from "./gateway.js";
 import { FixedWindowLimiter } from "./rateLimit.js";
 import { StoreError, type DeviceRow } from "./store.js";
@@ -55,6 +56,11 @@ async function route(
   const method = req.method ?? "GET";
   const path = url.pathname;
   if (await handleGithubDeviceRoute(deps, req, res, method, path)) return;
+  if (
+    await handlePairingRoute(deps, req, res, method, path, (request) => requireDevice(deps, request))
+  ) {
+    return;
+  }
 
   if (method === "POST" && path === "/api/v1/auth/github") {
     const body = await readJson(req);
@@ -337,6 +343,24 @@ function mapStoreError(error: StoreError): ApiError {
       return new ApiError(401, error.code, error.message);
     case "github_unreachable":
       return new ApiError(502, error.code, error.message);
+    case "pairing_invalid_ticket":
+    case "device_not_found":
+      return new ApiError(404, error.code, error.message);
+    case "pairing_expired":
+      return new ApiError(410, error.code, error.message);
+    case "pairing_code_invalid":
+      return new ApiError(401, error.code, error.message);
+    case "pairing_attempts_exhausted":
+      return new ApiError(429, error.code, error.message);
+    case "pairing_already_used":
+    case "pairing_not_claimed":
+    case "pairing_not_confirmed":
+    case "same_account":
+      return new ApiError(409, error.code, error.message);
+    case "pairing_role_invalid":
+      return new ApiError(400, error.code, error.message);
+    case "forbidden":
+      return new ApiError(403, error.code, error.message);
     default:
       return new ApiError(400, error.code, error.message);
   }
