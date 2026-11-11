@@ -39,6 +39,8 @@ export const lanPeerAnnouncementSchema = z.object({
   version: z.string(),
   /** 对端 HTTP/WS 监听端口。 */
   port: z.number().int().positive().max(65535),
+  /** 端点协议；缺省 http（旧 Host 不广播该字段）。 */
+  scheme: z.enum(["http", "https"]).optional(),
   requiresPairing: z.boolean(),
   platform: z.string().optional(),
 });
@@ -126,6 +128,8 @@ export const lanAccessStateSchema = z
   .object({
     enabled: z.boolean(),
     port: z.number().int().positive().max(65535).nullable(),
+    /** 监听协议；缺省 http（旧 Host 不返回该键）。 */
+    scheme: z.enum(["http", "https"]).optional(),
     addresses: z.array(z.string()),
     pairCode: lanAccessPairCodeSchema.nullable(),
     clients: z.array(lanAccessClientRecordSchema),
@@ -141,6 +145,8 @@ export interface LanAccessState {
   enabled: boolean;
   /** 未启用时为 null。 */
   port: number | null;
+  /** 监听协议；缺省 http。 */
+  scheme?: "http" | "https";
   /** 局域网可达地址（用于提示用户在客户端手动输入）。 */
   addresses: string[];
   /** 当前有效配对码；未启用或未生成时为 null。 */

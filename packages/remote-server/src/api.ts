@@ -311,7 +311,10 @@ function parseAddressList(value: unknown): string[] | undefined {
   }
   const result: string[] = [];
   for (const entry of value) {
-    if (typeof entry !== "string" || !/^[A-Za-z0-9.:[\]-]+:\d{1,5}$/.test(entry)) {
+    if (
+      typeof entry !== "string" ||
+      !/^(?:wss?:\/\/)?[A-Za-z0-9.:[\]-]+:\d{1,5}$/u.test(entry)
+    ) {
       throw new ApiError(422, "invalid_message", "addresses 元素格式非法");
     }
     result.push(entry);

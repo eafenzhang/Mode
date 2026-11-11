@@ -92,7 +92,8 @@ Client：设备名 / deviceId / 指纹：
 
 ## 9. 已知限制（验收时按此判定，不算失败）
 
-- LAN 监听本身仍是 WS（无 TLS），LAN direct 仅在内网使用；跨公网回落 Relay。
+- LAN 监听默认仍是 WS；配置 `MODE_LAN_TLS_KEY_FILE`/`MODE_LAN_TLS_CERT_FILE` 后为
+  HTTPS/WSS（证书须受信任，自签名不支持）。跨公网仍回落 Relay。
 - 浏览器 LAN direct 受混合内容限制（HTTPS 页面不能连 `ws://`），自动回落 Relay。
 - 浏览器 `localStorage` 回落路径的凭据不加密。
 - WebRTC/P2P/TURN 未实现；跨 NAT 连接依赖 Relay。

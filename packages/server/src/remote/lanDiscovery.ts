@@ -126,7 +126,7 @@ function isTailscaleRangeAddress(host: string): boolean {
 export function mergeLanDiscoveredPeers(entries: LanDiscoveredPeer[]): LanDiscoveredPeer[] {
   const groups = new Map<string, LanDiscoveredPeer[]>();
   for (const entry of entries) {
-    const key = `${entry.serverId}|${entry.port}`;
+    const key = `${entry.serverId}|${entry.port}|${entry.scheme ?? "http"}`;
     const group = groups.get(key);
     if (group) {
       group.push(entry);

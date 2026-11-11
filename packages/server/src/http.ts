@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- HTTP、WebSocket 与静态资源路由集中注册，保持同一鉴权顺序。 */
 import { randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
+import { createServer as createHttpsServer } from "node:https";
 import { basename, extname, relative, resolve, sep } from "node:path";
 import { hostname } from "node:os";
 import { Hono, type Context } from "hono";
@@ -247,6 +248,8 @@ export interface FnosAppUpdateEndpoint {
 }
 
 interface HttpServerOptions {
+  /** 直接终止 TLS（证书须被客户端信任；自签名不在支持范围）。 */
+  tls?: { key: string | Buffer; cert: string | Buffer };
   serverId?: string;
   name?: string;
   host?: string;
@@ -1426,12 +1429,29 @@ export function createHttpServer(
     });
   }
 
-  const server = serve({ fetch: app.fetch, hostname: options.host, port }, () => {
-    const address = server.address();
-    const listenPort = typeof address === "object" && address ? address.port : port;
-    const listenHost = options.host?.trim() || "localhost";
-    log(`http://${listenHost}:${listenPort}`);
-  });
+  // serve 的 Options 是 http/http2 的联合类型：提供 https createServer 时整体收窄为同一分支。
+  const serveOptions = {
+    fetch: app.fetch,
+    hostname: options.host,
+    port,
+    ...(options.tls
+      ? {
+          // hono 以 `createServer(serverOptions, requestListener)` 调用：证书由我们固定，
+          // 忽略传入的 http serverOptions。
+          createServer: (
+            _serverOptions: unknown,
+            handler: import("node:http").RequestListener,
+          ) => createHttpsServer({ key: options.tls!.key, cert: options.tls!.cert }, handler),
+        }
+      : {}),
+  } as Parameters<typeof serve>[0];
+  const server = serve(serveOptions, () => {
+      const address = server.address();
+      const listenPort = typeof address === "object" && address ? address.port : port;
+      const listenHost = options.host?.trim() || "localhost";
+      log(`${options.tls ? "https" : "http"}://${listenHost}:${listenPort}`);
+    },
+  );
 
   injectWebSocket(server);
 

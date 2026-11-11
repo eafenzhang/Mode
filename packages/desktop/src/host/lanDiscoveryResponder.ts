@@ -18,6 +18,7 @@ export async function startLanDiscoveryResponder(params: {
   name: string;
   version: string;
   port: number;
+  scheme?: "http" | "https";
   isDisposed: () => boolean;
   warn: (...args: unknown[]) => void;
 }): Promise<{ close(): void }> {
@@ -27,6 +28,7 @@ export async function startLanDiscoveryResponder(params: {
     name: params.name,
     version: params.version,
     port: params.port,
+    ...(params.scheme ? { scheme: params.scheme } : {}),
     requiresPairing: true,
     platform: process.platform,
   });

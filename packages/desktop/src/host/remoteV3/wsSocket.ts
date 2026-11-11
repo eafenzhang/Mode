@@ -23,6 +23,16 @@ export function connectWebSocket(url: string): Promise<RemoteSocket> {
 }
 
 /**
+ * 地址 → 直连 URL：`wss://host:port` 保持 TLS（默认 CA 校验，证书必须受信任）；
+ * 纯 `host:port` 仍是 `ws://`（旧 Host / 局域网明文）。
+ */
+export function buildDirectSocketUrl(address: string): string {
+  const trimmed = address.trim().replace(/\/+$/u, "");
+  const base = /^wss?:\/\//u.test(trimmed) ? trimmed : `ws://${trimmed}`;
+  return `${base}/ws/v1/direct`;
+}
+
+/**
  * LAN 直连数据面：连接 Host `/ws/v1/direct`，首发 `direct.attach` 自证 ticket，
  * 等到 `relay.ready` 后才交给 ControlLink。ready 之前的其他消息先缓存，
  * 避免数据帧在 `attachDirect` 挂监听前丢失。
@@ -34,7 +44,7 @@ export function connectDirectWebSocket(
   timeoutMs = DIRECT_READY_TIMEOUT_MS,
 ): Promise<RemoteSocket> {
   return new Promise((resolve, reject) => {
-    const url = `ws://${address.trim().replace(/\/+$/u, "")}/ws/v1/direct`;
+    const url = buildDirectSocketUrl(address);
     const ws = new WebSocket(url);
     let settled = false;
     let ready = false;

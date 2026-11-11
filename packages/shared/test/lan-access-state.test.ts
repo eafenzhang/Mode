@@ -61,3 +61,38 @@ test("host 回帖：带 remoteDesktopAuthorized 的 lan-access-state-result 必�
     "LanAccessState 渲染层 schema 同口径",
   );
 });
+
+test("LAN scheme：announcement 与状态可携带 https（旧端缺键按 http）", async () => {
+  const { buildLanAnnouncementPayload, parseLanAnnouncement } = await import("../src/lanAccess.js");
+  const tls = parseLanAnnouncement(
+    buildLanAnnouncementPayload({
+      serverId: "server-tls",
+      version: "1.0.0",
+      port: 45880,
+      scheme: "https",
+      requiresPairing: true,
+    }),
+  );
+  assert.equal(tls?.scheme, "https");
+  const legacy = parseLanAnnouncement(
+    buildLanAnnouncementPayload({
+      serverId: "server-legacy",
+      version: "1.0.0",
+      port: 45880,
+      requiresPairing: true,
+    }),
+  );
+  assert.equal(legacy?.scheme, undefined);
+
+  assert.equal(
+    lanAccessStateSchema.safeParse({
+      enabled: true,
+      port: 45880,
+      scheme: "https",
+      addresses: ["192.168.1.10:45880"],
+      pairCode: null,
+      clients: [],
+    }).success,
+    true,
+  );
+});

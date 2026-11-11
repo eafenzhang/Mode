@@ -156,11 +156,13 @@ packages/remote-server
   v3 账号名，退出菜单直连 `disconnectAccount`。
 - P2 直连前置已落地：Host 注册上报 LAN 地址（≤8）并进入设备目录，远程控制页展示
   首个地址；`remote.workspace.list` 接到真实工作区列表。LAN direct 数据面与选路已在
-  P2 落地（`/ws/v1/direct` + 失败回落 Relay）；剩余为 LAN 监听 WSS/TLS。
-- 测试：84 项（core 24 + remote-server 22 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
+  P2 落地（`/ws/v1/direct` + 失败回落 Relay）。LAN 监听可选 TLS：运维提供受信任的
+  key/cert（`MODE_LAN_TLS_KEY_FILE` / `MODE_LAN_TLS_CERT_FILE`），地址以 `wss://` 前缀
+  进入设备目录，发现广播带 `scheme`；未配置时保持明文 WS。
+- 测试：91 项（core 27 + remote-server 25 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
   配对 E2E 3 + 配对 UI 状态机 3 +
   ChannelClient 重连 1/Web 工作区 1/Web 工作区重连 1/Web 远程桌面 5/v3 工作区 attachment 2/
-  Web v3 服务 6 +
+  Web v3 服务 6 + LAN TLS/scheme 3 +
   server direct WS 2 + UI v3 目标/向导 3 + 侧边栏账号 2）。
 - 门禁：`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`、
   `pnpm knip:gate` 全绿；新包测试已加入 `.github/workflows/release.yml` verify，

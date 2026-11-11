@@ -501,7 +501,8 @@ P3 已接线的部分：
   已落地（HTTP 桥 + 双 `remote.ws` 隧道 + `nativeMediaSession.openSocket` 注入，
   信令状态机与桌面 Host 共用），`/v3` 已挂载远程桌面页并复用现有会话面；
   完整工作区页面仍待实现，见 [remote-control-v3-web.md](./remote-control-v3-web.md)。
-- WebRTC/P2P/TURN；LAN direct 已落地但 LAN 监听本身仍是 WS（无 TLS）。Control 中断
+- WebRTC/P2P/TURN。LAN direct 已落地；LAN 监听可选 TLS（提供受信任 key/cert 时
+  `https/wss`，地址以 `wss://` 进入目录，自签名不支持），未配置时仍为明文 WS。Control 中断
   后的会话恢复走客户端路径：工作区重开 `/ws/host` 隧道并按新 Initialize 重放订阅，
   远程桌面按票据重连媒体/重新发起会话；服务端不保留业务 lease。
 - 跨账号配对 v1：服务端已实现（§10；[配对规格](./remote-control-v3-pairing.md)），

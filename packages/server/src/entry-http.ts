@@ -12,6 +12,7 @@ import {
   materializeBundledModeBuiltinProviderConfig,
   readBundledModeBuiltinProviderConfig,
 } from "./bundledModeBuiltinProviderConfig.js";
+import { resolveLanTls } from "./lanTls.js";
 import { createHttpServer } from "./http.js";
 import { createLanAccessHost } from "./lanAccess.js";
 import { createFnosAppUpdaterFromEnv } from "./appUpdate/manager.js";
@@ -76,8 +77,10 @@ async function main(): Promise<void> {
     ? new RemoteDesktopPeerController(credentialService)
     : undefined;
 
+  const lanTls = resolveLanTls();
   createHttpServer(services, port, {
     ...(host ? { host } : {}),
+    ...(lanTls ? { tls: lanTls } : {}),
     ...(staticRoot ? { staticRoot, spaFallback: true } : {}),
     appUpdate,
     logsExport,

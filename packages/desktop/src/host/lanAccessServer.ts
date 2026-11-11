@@ -19,7 +19,7 @@ import {
   isModeCuaInternalFeatureEnabled,
 } from "@mode/shared";
 import type { RemoteDesktopErrorCode, RemoteDesktopQuality } from "@mode/shared/remote-desktop";
-import { createHttpServer, type V3DirectEndpoint } from "@mode/server";
+import { createHttpServer, resolveLanTls, type V3DirectEndpoint } from "@mode/server";
 import { LanPeerController } from "@mode/server/remote/lanPeerController.js";
 import { RemoteDesktopPeerController } from "@mode/server/remote/remoteDesktopPeerController.js";
 import { type ICredentialService, type ServiceCollection } from "@mode/services";
@@ -337,12 +337,15 @@ export async function startLanAccessServer(
     return token;
   };
 
+  const lanTls = resolveLanTls();
+  const lanScheme: "http" | "https" = lanTls ? "https" : "http";
   const requestedPort = params.port ?? LAN_ACCESS_DEFAULT_PORT;
   // 打包形态的 webRoot 来自统一构建（web.html）；开发态回退到独立 web 构建（index.html）。
   const webIndexFile =
     params.webRoot && existsSync(join(params.webRoot, "web.html")) ? "web.html" : undefined;
   const server = createHttpServer(params.services, requestedPort, {
     host: "0.0.0.0",
+    ...(lanTls ? { tls: lanTls } : {}),
     authRequired: true,
     ...(params.webRoot
       ? {
@@ -433,6 +436,7 @@ export async function startLanAccessServer(
     name: params.machineName,
     version: params.appVersion,
     port,
+    scheme: lanScheme,
     isDisposed: () => disposed,
     warn,
   });
@@ -469,6 +473,7 @@ export async function startLanAccessServer(
     return {
       enabled: true,
       port,
+      scheme: lanScheme,
       addresses: listLanAddresses(port),
       pairCode: pairCode ? { ...pairCode } : null,
       clients: clients.map((client) => ({ ...client })),

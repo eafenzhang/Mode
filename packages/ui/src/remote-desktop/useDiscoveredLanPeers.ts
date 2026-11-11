@@ -34,7 +34,12 @@ export function useDiscoveredLanPeers(onPaired: () => Promise<void>) {
 
   const pair = useCallback(
     async (peer: LanDiscoveredPeer, code: string) => {
-      await platform.pairLanPeer({ host: peer.host, port: peer.port, code });
+      await platform.pairLanPeer({
+        host: peer.host,
+        port: peer.port,
+        code,
+        ...(peer.scheme ? { scheme: peer.scheme } : {}),
+      });
       setPeers((previous) => previous.filter((entry) => entry.serverId !== peer.serverId));
       await onPaired();
     },

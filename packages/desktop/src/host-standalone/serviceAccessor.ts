@@ -387,7 +387,10 @@ export async function createHostServiceSurface(
         const server = lanAccess?.getActiveServer();
         if (!server) return [];
         const state = server.getState();
-        return state.enabled ? state.addresses : [];
+        if (!state.enabled) return [];
+        // TLS 监听时地址带 wss:// 前缀，v3 直连客户端据此选择 TLS（证书需受信任）。
+        const scheme = state.scheme === "https" ? "wss://" : "";
+        return state.addresses.map((address) => `${scheme}${address}`);
       },
       getLocalApi: async () => {
         const server = lanAccess?.getActiveServer();
