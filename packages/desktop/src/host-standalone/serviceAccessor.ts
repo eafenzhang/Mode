@@ -408,9 +408,16 @@ export async function createHostServiceSurface(
   }
   openV3RemoteDesktopSession = async (serverId, quality, codec) => {
     if (!remoteV3) return null;
+    // 目录不可用（未登录 v3 / 账号服务不可达）不代表该设备是 v3 Host：回落 LAN 路径，
+    // 让 LAN 的稳定错误码（未配对 = unauthorized）照常收口。
+    let hosts: Awaited<ReturnType<typeof remoteV3.listHosts>>;
     try {
-      const hosts = await remoteV3.listHosts();
-      if (!hosts.some((host) => host.deviceId === serverId)) return null;
+      hosts = await remoteV3.listHosts();
+    } catch {
+      return null;
+    }
+    if (!hosts.some((host) => host.deviceId === serverId)) return null;
+    try {
       const session = await remoteV3.startRemoteDesktop({
         hostDeviceId: serverId,
         ...(quality ? { quality } : {}),
