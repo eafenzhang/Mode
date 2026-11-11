@@ -148,6 +148,11 @@ packages/remote-server
   `MODE_FNOS_REMOTE_PORT` 把 `/api/v1/*`、`/ws/v1/*` 转到 loopback 账号服务。
 - Web 跨源登录已支持：`/api/v1/*` 按 `allowedOrigins` 回显 CORS 头并处理预检
   （与 Control/Relay WS 同一份白名单；未配置时保持同源）。
+- WebRTC/P2P 阶段 1 已落地：协议新增 `p2p.offer/answer/candidate/close` 信令帧与
+  `iceServers`（connect.* 下发）；remote-server 支持 STUN/TURN 配置（coturn REST
+  临时凭证 HMAC），并转发双方 p2p 信令（错误 connectionId 丢弃）。环境变量：
+  `MODE_REMOTE_STUN_URLS` / `MODE_REMOTE_TURN_URLS` / `MODE_REMOTE_TURN_SECRET` /
+  `MODE_REMOTE_TURN_TTL_SECONDS`。待接：Node/浏览器 DataChannel 传输与选路。
 - 真机验收清单已固化：`pnpm test:remote-v3` 跑自动化全套，人工项见
   [remote-control-v3-acceptance.md](../specs/remote-control-v3-acceptance.md)
   （账号/配对/工作区/桌面/断线/安全六组）。
