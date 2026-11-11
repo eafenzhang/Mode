@@ -233,7 +233,7 @@ export function WebV3Page() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-10 text-foreground">
+    <div className="min-h-screen bg-background px-4 py-6 text-foreground sm:py-10">
       <div className="mx-auto max-w-2xl space-y-5">
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold">远程控制 v3 · Web</h1>
@@ -246,7 +246,7 @@ export function WebV3Page() {
           <label className="block text-ui-xs text-foreground-subtle" htmlFor="v3-server-url">
             账号服务地址
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <input
               id="v3-server-url"
               className="min-w-0 flex-1 rounded-lg border border-input-border bg-input px-3 py-2 text-ui-base outline-none focus:border-input-border-focused"
@@ -260,7 +260,7 @@ export function WebV3Page() {
             {profile ? (
               <button
                 type="button"
-                className="rounded-lg border border-border px-3 py-2 text-ui-base hover:bg-surface-hover"
+                className="w-full rounded-lg border border-border px-3 py-2 text-ui-base hover:bg-surface-hover sm:w-auto"
                 onClick={() => void logout()}
               >
                 退出
@@ -268,7 +268,7 @@ export function WebV3Page() {
             ) : (
               <button
                 type="button"
-                className="rounded-lg bg-primary px-3 py-2 text-ui-base text-primary-foreground disabled:opacity-50"
+                className="w-full rounded-lg bg-primary px-3 py-2 text-ui-base text-primary-foreground disabled:opacity-50 sm:w-auto"
                 disabled={busy || !client || !serverUrl.trim()}
                 onClick={() => void beginLogin()}
               >
