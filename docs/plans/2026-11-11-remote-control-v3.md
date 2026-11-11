@@ -141,6 +141,9 @@ packages/remote-server
   Client 身份）；E2E 覆盖桌面 A ↔ 桌面 B。
 - Web 凭据静态加密：IndexedDB 分支用不可导出 AES-GCM 密钥加密 profile（私钥/token），
   旧明文读取兼容并自动升级；localStorage 回落保持明文并在规格中声明。
+- 真机验收清单已固化：`pnpm test:remote-v3` 跑自动化全套，人工项见
+  [remote-control-v3-acceptance.md](../specs/remote-control-v3-acceptance.md)
+  （账号/配对/工作区/桌面/断线/安全六组）。
 - 仍未开始：WebRTC/P2P/TURN。
 - 账号展示已接入：`/auth/me` 展示名落库并进入 Host 状态，侧边栏/账号弹窗优先显示
   v3 账号名，退出菜单直连 `disconnectAccount`。

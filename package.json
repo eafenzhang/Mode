@@ -102,6 +102,7 @@
     "architecture:context": "node scripts/architecture/architecture-check.mjs context",
     "orca:evidence": "node harness/orca-evidence/run.mjs",
     "test:agent-runtime-oracle": "tsx --test packages/desktop/tests/agent-runtime-oracle/*.test.mts",
+    "test:remote-v3": "pnpm --filter @mode/remote-core test && pnpm --filter @mode/remote-server test && pnpm --filter @mode/ui test && pnpm exec tsx --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts",
     "knip:gate": "knip --include files,unlisted,unresolved,binaries --no-config-hints --no-progress",
     "subagents:fixtures": "tsx scripts/generate-subagents-fixtures.ts",
     "mcp-sync:fixtures": "tsx scripts/generate-mcp-sync-fixtures.ts",
