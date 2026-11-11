@@ -46,6 +46,7 @@ export class ControlLink {
     this.runtime = new ConnectionRuntime({
       identity: options.identity,
       deviceId: options.deviceId,
+      serverUrl: options.serverUrl,
       connectSocket: options.connectSocket,
       sendControl: (frame) => this.sendFrame(frame),
       sendOn: (socket, frame) => this.sendOn(socket, frame),

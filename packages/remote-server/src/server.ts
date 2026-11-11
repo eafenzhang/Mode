@@ -188,9 +188,14 @@ function constantTimeEqual(left: string, right: string): boolean {
 }
 
 function toWebSocketEndpoint(publicUrl: string): string {
+  // 子路径形态（fnOS 网关 / 反代）：返回相对 relay 路径，由客户端按服务地址解析。
+  if (publicUrl.startsWith("/")) {
+    return `${publicUrl.replace(/\/+$/u, "")}/ws/v1/relay`;
+  }
   const url = new URL(publicUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = "/ws/v1/relay";
+  // 保留 publicUrl 的路径前缀（fnOS 网关/反向代理子路径），只追加 Relay 端点。
+  url.pathname = `${url.pathname.replace(/\/+$/u, "")}/ws/v1/relay`;
   url.search = "";
   url.hash = "";
   return url.toString();

@@ -21,6 +21,11 @@ pnpm --filter @mode/remote-server dev
 同时用于 Control/Relay WS 与 `/api/v1/*` 的 CORS 白名单。原生客户端不带 Origin，
 不受影响；未配置时不发 CORS 头，仅同源页面可用）。
 
+反向代理 / fnOS 网关：服务地址可带子路径（如 `https://nas/app/mode`），API 与
+Control/Relay WS 都会保留该前缀。`MODE_REMOTE_PUBLIC_URL` 既可写完整 origin，
+也可只写网关前缀（如 `/app/mode`）：后者下发的 Relay 端点是相对路径，由客户端按自己的
+服务地址解析，适合网关域名不固定的部署。
+
 ## 端点
 
 - `POST /api/v1/auth/github`：GitHub access token 换 Web 会话。

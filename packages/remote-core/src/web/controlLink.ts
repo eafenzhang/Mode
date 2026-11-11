@@ -1,4 +1,5 @@
 import type { BusinessFrame } from "../domain/businessFrames.js";
+import { resolveRelayEndpoint } from "../domain/relayEndpoint.js";
 import { MAX_SECURE_MESSAGE_BYTES } from "../domain/limits.js";
 import { decodeBase64Url, encodeBase64Url } from "./base64url.js";
 import type { WebIdentity } from "./identity.js";
@@ -123,10 +124,8 @@ export class WebControlLink {
     const accepted = new Promise<Record<string, unknown>>((resolve, reject) => {
       this.accepted = { resolve, reject };
     });
-    this.sendControl("connect.request", {
-      hostDeviceId,
-      preferredTransports: ["relay"],
-    });
+    const preferred = { hostDeviceId, preferredTransports: ["relay"] };
+    this.sendControl("connect.request", preferred);
     const payload = await withTimeout(
       accepted,
       this.options.connectTimeoutMs ?? 15_000,
@@ -137,7 +136,8 @@ export class WebControlLink {
     const host = payload.host as { identityKey?: unknown } | undefined;
     const hostIdentityKey = requireString(host?.identityKey, "host.identityKey");
     const relay = payload.relay as { endpoint?: unknown; ticket?: unknown } | undefined;
-    const endpoint = requireString(relay?.endpoint, "relay.endpoint");
+    const rawEndpoint = requireString(relay?.endpoint, "relay.endpoint");
+    const endpoint = resolveRelayEndpoint(rawEndpoint, this.options.serverUrl);
     const ticket = requireString(relay?.ticket, "relay.ticket");
 
     const relaySocket = await this.openSocket(endpoint);

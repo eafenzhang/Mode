@@ -20,6 +20,9 @@ import { unlinkSync } from "node:fs";
 const socketPath = process.env.MODE_FNOS_SOCKET?.trim() || "";
 const listenPort = Number(process.env.MODE_FNOS_LISTEN_PORT || "0");
 const targetPort = Number(process.env.MODE_FNOS_TARGET_PORT || "3030");
+// 远程控制 v3 账号服务（remote-server）的 loopback 端口。配置后 /api/v1 与 /ws/v1
+// 走它，其余仍归 Mode 主服务：两条链路同源，TLS 由 fnOS 网关统一终止。
+const remotePort = Number(process.env.MODE_FNOS_REMOTE_PORT || "0");
 const prefix = (process.env.MODE_FNOS_PREFIX?.trim() || "/app/mode").replace(/\/+$/u, "");
 const tokenFile = process.env.MODE_FNOS_TOKEN_FILE?.trim() || "";
 const COOKIE_NAME = "mode_lite_token";
@@ -44,6 +47,17 @@ function rewritePath(url) {
   return url;
 }
 
+function isRemoteV3Path(path) {
+  return remotePort > 0 && (path.startsWith("/api/v1/") || path.startsWith("/ws/v1/"));
+}
+
+/** remote-server 不需要 Mode 的 Cookie 令牌（走 Bearer），不带过去减少凭据暴露面。 */
+function headersForRemoteV3(headers) {
+  const next = { ...headers };
+  delete next.cookie;
+  return next;
+}
+
 function withTokenCookie(headers) {
   if (!token) return headers;
   const existing = headers.cookie;
@@ -54,13 +68,15 @@ function withTokenCookie(headers) {
 }
 
 const server = createHttpServer((req, res) => {
+  const path = rewritePath(req.url ?? "/");
+  const toRemote = isRemoteV3Path(path);
   const upstream = httpRequest(
     {
       host: "127.0.0.1",
-      port: targetPort,
+      port: toRemote ? remotePort : targetPort,
       method: req.method,
-      path: rewritePath(req.url ?? "/"),
-      headers: withTokenCookie({ ...req.headers }),
+      path,
+      headers: toRemote ? headersForRemoteV3({ ...req.headers }) : withTokenCookie({ ...req.headers }),
     },
     (upstreamRes) => {
       res.writeHead(upstreamRes.statusCode ?? 502, upstreamRes.headers);
@@ -77,9 +93,13 @@ const server = createHttpServer((req, res) => {
 
 // WebSocket 升级：手工重写请求行（http.request 不承载 upgrade），双向透传字节流。
 server.on("upgrade", (req, socket, head) => {
-  const upstream = connect(targetPort, "127.0.0.1", () => {
-    const headers = withTokenCookie({ ...req.headers });
-    const lines = [`${req.method} ${rewritePath(req.url ?? "/")} HTTP/1.1`];
+  const path = rewritePath(req.url ?? "/");
+  const toRemote = isRemoteV3Path(path);
+  const upstream = connect(toRemote ? remotePort : targetPort, "127.0.0.1", () => {
+    const headers = toRemote
+      ? headersForRemoteV3({ ...req.headers })
+      : withTokenCookie({ ...req.headers });
+    const lines = [`${req.method} ${path} HTTP/1.1`];
     for (const [name, value] of Object.entries(headers)) {
       if (value === undefined) continue;
       for (const one of Array.isArray(value) ? value : [value]) {

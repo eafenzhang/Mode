@@ -86,6 +86,8 @@
 - 桌面入口走 **fnOS 统一网关**（schema 对齐官方 fndepot 应用）：`app/ui/config` 声明 `type=iframe + gatewayPrefix=/app/mode + gatewaySocket=app.sock`；fnOS 校验登录态后把 `/app/mode/*` 转发到 `$TRIM_APPDEST/app.sock`。同源 iframe，异地经中转域/隧道访问也可用，不再依赖 NAS 内网 IP。
 - web 构建以 `MODE_WEB_BASE=/app/mode/` 为 vite base：资产、`/api`、`/ws` 全部跟随网关子路径（默认 `/` 时行为不变）。
 - `proxy.mjs` 是 app.sock 的唯一监听者：前缀剥离（兼容网关带前缀或已剥离两种转发形态）+ 令牌注入（网关流量已由 fnOS 鉴权，代理补访问令牌 Cookie）；LAN 直连 `http://<nas>:3030` 仍由服务端严格校验令牌，地址见 `etc/access-url.txt`。
+- 远程控制 v3 账号服务（`@mode/remote-server`）作为 loopback 旁路进程部署（`127.0.0.1` + `$TRIM_PKGVAR` 下的 SQLite）。配置 `MODE_FNOS_REMOTE_PORT` 后，`proxy.mjs` 把 `/api/v1/*` 与 `/ws/v1/*` 转到该进程，其余仍归 Mode 主服务；两条链路同源，TLS 由 fnOS 网关统一终止。
+  - remote-server 的 `MODE_REMOTE_PUBLIC_URL` 可设为网关子路径（如 `/app/mode`）：服务端下发**相对** Relay 路径，客户端按自己的服务地址解析；账号服务地址也支持带前缀（`https://<nas>/app/mode`）。
 - 环境注入：`MODE_DATA_BASE_DIR`、`MODE_CREDENTIAL_SECRET`、`HOME=$TRIM_PKGHOME`、`PATH` 前置 `runtime/bin`（agent 子进程内 `node` 即捆绑运行时）；在线升级另注入 `MODE_FNOS_UPDATE=1`、`MODE_FNOS_APPDEST`、`MODE_FNOS_MAIN_SCRIPT`、`MODE_FNOS_INFO_LOG`、`MODE_FNOS_INFO_LOG_ARCHIVE`、`MODE_FNOS_UPDATE_PUBLIC_KEY`（读取 `$TRIM_PKGETC/update-public-key`，缺失则为空 = 不启用验签），并透传 `TRIM_APPDEST` / `TRIM_PKGVAR` / `TRIM_PKGETC` / `TRIM_SERVICE_PORT` 等生命周期变量，供 `cmd/main restart` 与日志导出复用同一所有者。
 - `cmd/main` 子命令：`start` / `stop` / `status` / **`restart`**（restart 供应用内升级在载荷交换后调用，仍是 PID 唯一写入方）。
 - `info.log` 由 `cmd/main` 管理：Host 的 stdout/stderr 全部追加到 `$TRIM_PKGVAR/info.log`，每次 `start` 前检查大小，超过 10 MiB 改名为 `info.log.1`（只保留一份归档，磁盘上限约 20 MiB）。归档路径经 `MODE_FNOS_INFO_LOG_ARCHIVE` 交给服务进程，`/api/logs/export` 同时打包当前文件与归档；日志导出本身按文件 5 MiB / 总量 20 MiB 截尾。

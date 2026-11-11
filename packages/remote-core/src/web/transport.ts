@@ -15,10 +15,11 @@ export interface ControlEnvelope {
   payload: Record<string, unknown>;
 }
 
+/** 与 Node 版同口径：保留服务地址的路径前缀，只追加 Control 端点。 */
 export function toControlUrl(serverUrl: string): string {
   const url = new URL(serverUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = "/ws/v1/connect";
+  url.pathname = `${url.pathname.replace(/\/+$/u, "")}/ws/v1/connect`;
   url.search = "";
   url.hash = "";
   return url.toString();

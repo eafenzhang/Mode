@@ -1,6 +1,7 @@
 export * from "./domain/limits.js";
 export * from "./domain/errors.js";
 export * from "./domain/base64url.js";
+export * from "./domain/relayEndpoint.js";
 export * from "./domain/descriptor.js";
 export * from "./domain/controlFrames.js";
 export * from "./domain/businessFrames.js";

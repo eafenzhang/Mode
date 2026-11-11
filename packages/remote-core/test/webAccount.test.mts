@@ -320,3 +320,15 @@ test("旧版单账号 profile 迁移到按服务地址分键", async () => {
   assert.equal(store.map.has("mode.remote.v3.web-profile"), false, "旧 key 迁移后删除");
   assert.ok(store.map.has(webProfileKey("https://legacy.example.com")));
 });
+
+test("Web 服务地址保留网关/反代路径前缀", async () => {
+  const { normalizeWebServerUrl } = await import("../src/web/accountSupport.js");
+  assert.equal(
+    normalizeWebServerUrl("https://nas.example/app/mode/"),
+    "https://nas.example/app/mode",
+  );
+  assert.equal(
+    normalizeWebServerUrl("https://remote.example.com/"),
+    "https://remote.example.com",
+  );
+});

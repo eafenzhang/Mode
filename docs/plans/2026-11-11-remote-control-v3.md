@@ -143,6 +143,9 @@ packages/remote-server
   旧明文读取兼容并自动升级；localStorage 回落保持明文并在规格中声明。
 - Web 多账号隔离：profile 按服务地址分键并有账号索引，旧单账号自动迁移；
   `/v3` 登录前可切换已保存账号，删除单个账号不影响其他账号。
+- fnOS 同源部署已支持：账号服务地址可带网关子路径（Control/Relay WS 保留前缀），
+  `MODE_REMOTE_PUBLIC_URL` 可为相对前缀并下发相对 Relay 端点；fpk 代理按
+  `MODE_FNOS_REMOTE_PORT` 把 `/api/v1/*`、`/ws/v1/*` 转到 loopback 账号服务。
 - Web 跨源登录已支持：`/api/v1/*` 按 `allowedOrigins` 回显 CORS 头并处理预检
   （与 Control/Relay WS 同一份白名单；未配置时保持同源）。
 - 真机验收清单已固化：`pnpm test:remote-v3` 跑自动化全套，人工项见

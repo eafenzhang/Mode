@@ -10,6 +10,7 @@ import type { RemoteError } from "../domain/errors.js";
 import type { IdentityKeyPair } from "../adapters/identity.js";
 import { SecureSession } from "./secureSession.js";
 import type { RemoteConnection, RemoteSocket } from "./controlTypes.js";
+import { resolveRelayEndpoint } from "../domain/relayEndpoint.js";
 
 export interface ActiveSession {
   connectionId: string;
@@ -26,6 +27,8 @@ export interface ActiveSession {
 
 export interface ConnectionRuntimeDeps {
   identity: IdentityKeyPair;
+  /** 客户端访问的服务地址；用于把相对的 Relay 下发路径解析成绝对 ws(s) 地址。 */
+  serverUrl: string;
   deviceId: string;
   connectSocket: (url: string) => Promise<RemoteSocket>;
   sendControl: (frame: { type: ControlFrame["type"]; payload: unknown }) => void;
@@ -152,7 +155,9 @@ export class ConnectionRuntime {
     timeoutMs = 10_000,
   ): Promise<void> {
     active.relay = relay;
-    const socket = await this.deps.connectSocket(relay.endpoint);
+    const socket = await this.deps.connectSocket(
+      resolveRelayEndpoint(relay.endpoint, this.deps.serverUrl),
+    );
     active.dataSocket = socket;
     let readyResolve: () => void = () => undefined;
     let readyReject: (error: Error) => void = () => undefined;

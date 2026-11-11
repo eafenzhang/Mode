@@ -34,7 +34,8 @@ export function normalizeRemoteServerUrl(raw: string): string {
   if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) {
     throw new Error("远程控制 v3 服务必须使用 HTTPS（仅本机开发允许 HTTP）");
   }
-  url.pathname = "";
+  // 保留路径前缀（fnOS 网关/反向代理子路径）；只去掉尾部斜杠。
+  url.pathname = url.pathname.replace(/\/+$/u, "");
   url.search = "";
   url.hash = "";
   return url.toString().replace(/\/$/, "");
