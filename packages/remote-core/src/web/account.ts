@@ -1,34 +1,29 @@
+import type {
+  WebCredentialStore,
+  WebDeviceProfile,
+  WebDeviceSummary,
+} from "./accountTypes.js";
 import { generateWebIdentity, importWebIdentity, exportWebIdentity } from "./identity.js";
-import { parseWebProfile, readWebError, readWebJson, webRandomUUID } from "./accountSupport.js";
+import {
+  PROFILE_KEY,
+  loadOrCreateWebProfile,
+  normalizeWebServerUrl,
+  readWebError,
+  readWebJson,
+  saveWebProfile,
+  webRandomUUID,
+} from "./accountSupport.js";
+import {
+  cancelPairing as cancelPairingRequest,
+  claimPairing as claimPairingRequest,
+  getPairing as getPairingRequest,
+  redeemPairing as redeemPairingRequest,
+  type WebDeviceCredentials,
+  type WebPairingClaim,
+  type WebPairingState,
+} from "./pairing.js";
 
-const PROFILE_KEY = "mode.remote.v3.web-profile";
-
-export interface WebCredentialStore {
-  get(key: string): Promise<string | null>;
-  set(key: string, value: string): Promise<void>;
-  delete(key: string): Promise<void>;
-}
-
-export interface WebDeviceProfile {
-  serverUrl: string;
-  deviceId: string;
-  deviceName: string;
-  /** X25519 私钥，原始 32 字节 base64url；不写日志/URL。 */
-  privateKey: string;
-  accessToken: string | null;
-  refreshToken: string | null;
-}
-
-export interface WebDeviceSummary {
-  deviceId: string;
-  name: string;
-  role: "host" | "client";
-  platform: string;
-  /** 设备公钥（目录里公开的身份标识；用于展示指纹/设备列表去重）。 */
-  identityKey: string;
-  online: boolean;
-  addresses: string[];
-}
+export type { WebCredentialStore, WebDeviceProfile, WebDeviceSummary } from "./accountTypes.js";
 
 export interface WebGithubChallenge {
   deviceCode: string;
@@ -53,65 +48,6 @@ export class WebApiError extends Error {
   }
 }
 
-export function normalizeWebServerUrl(raw: string): string {
-  const url = new URL(raw.trim());
-  const local =
-    url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1";
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) {
-    throw new Error("远程控制 v3 服务必须使用 HTTPS（仅本机开发允许 HTTP）");
-  }
-  url.pathname = "";
-  url.search = "";
-  url.hash = "";
-  return url.toString().replace(/\/$/u, "");
-}
-
-export async function loadOrCreateWebProfile(
-  store: WebCredentialStore,
-  options: { serverUrl?: string; deviceName?: string } = {},
-): Promise<WebDeviceProfile> {
-  const raw = await store.get(PROFILE_KEY);
-  const parsed = raw ? parseWebProfile(raw) : null;
-  const serverUrl = options.serverUrl ? normalizeWebServerUrl(options.serverUrl) : parsed?.serverUrl;
-  if (!serverUrl) throw new Error("远程控制 v3 服务地址未配置");
-  if (parsed && parsed.serverUrl === serverUrl) {
-    const profile = {
-      ...parsed,
-      ...(options.deviceName ? { deviceName: options.deviceName } : {}),
-    };
-    if (options.deviceName) await saveWebProfile(store, profile);
-    return profile;
-  }
-  // 首次使用或切换服务地址：生成独立设备身份，旧 token 全部失效。
-  const identity = generateWebIdentity();
-  const profile: WebDeviceProfile = {
-    serverUrl,
-    deviceId: webRandomUUID(),
-    deviceName: options.deviceName?.trim() || "Mode Web",
-    privateKey: exportWebIdentity(identity),
-    accessToken: null,
-    refreshToken: null,
-  };
-  await saveWebProfile(store, profile);
-  return profile;
-}
-
-export async function saveWebProfile(
-  store: WebCredentialStore,
-  profile: WebDeviceProfile,
-): Promise<void> {
-  await store.set(PROFILE_KEY, JSON.stringify(profile));
-}
-
-export async function clearWebAuth(store: WebCredentialStore): Promise<WebDeviceProfile | null> {
-  const raw = await store.get(PROFILE_KEY);
-  const parsed = raw ? parseWebProfile(raw) : null;
-  if (!parsed) return null;
-  const next = { ...parsed, accessToken: null, refreshToken: null };
-  await saveWebProfile(store, next);
-  return next;
-}
-
 export async function exchangeGithubAccessToken(
   serverUrl: string,
   accessToken: string,
@@ -128,7 +64,6 @@ export async function exchangeGithubAccessToken(
   return body.sessionToken;
 }
 
-/** 浏览器账号客户端：设备身份来自本地 store，token 刷新失败即要求重新登录。 */
 export class WebAccountClient {
   private profile: WebDeviceProfile | null = null;
 
@@ -241,6 +176,36 @@ export class WebAccountClient {
     }
   }
 
+  /** 认领 Host 出示的配对票（Client 角色）。 */
+  async claimPairing(ticket: string): Promise<WebPairingClaim> {
+    return await claimPairingRequest((path, init) => this.deviceRequest(path, init), ticket);
+  }
+
+  async getPairing(pairingId: string): Promise<WebPairingState> {
+    return await getPairingRequest((path, init) => this.deviceRequest(path, init), pairingId);
+  }
+
+  /** Host 确认后领取新设备凭证（一次性）；成功后本地 profile 立即换新 token。 */
+  async redeemPairing(pairingId: string): Promise<WebDeviceCredentials> {
+    const credentials = await redeemPairingRequest(
+      (path, init) => this.deviceRequest(path, init),
+      pairingId,
+    );
+    const profile = await this.ensureProfile();
+    const next: WebDeviceProfile = {
+      ...profile,
+      accessToken: credentials.accessToken,
+      refreshToken: credentials.refreshToken,
+    };
+    await saveWebProfile(this.options.store, next);
+    this.profile = next;
+    return credentials;
+  }
+
+  async cancelPairing(pairingId: string): Promise<void> {
+    await cancelPairingRequest((path, init) => this.deviceRequest(path, init), pairingId);
+  }
+
   async refreshTokens(): Promise<WebDeviceProfile> {
     const fetchImpl = this.options.fetchImpl ?? fetch;
     const next = await this.refresh(await this.ensureProfile(), fetchImpl);
@@ -327,6 +292,38 @@ export class WebAccountClient {
       throw new Error("token 刷新响应缺少 token");
     }
     return { ...profile, accessToken: body.accessToken, refreshToken: body.refreshToken };
+  }
+
+  /** device token 请求：401 刷新一次再重试；其它非 2xx 抛 `WebApiError`。 */
+  private async deviceRequest(
+    path: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Record<string, unknown>> {
+    const fetchImpl = this.options.fetchImpl ?? fetch;
+    let profile = await this.ensureProfile();
+    if (!profile.accessToken) throw new Error("Web 设备尚未登录");
+    const send = async (accessToken: string) => {
+      const response = await fetchImpl(`${profile.serverUrl}${path}`, {
+        method: init.method ?? "GET",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+      });
+      return { response, body: await readWebJson(response) };
+    };
+    let result = await send(profile.accessToken);
+    if (result.response.status === 401) {
+      profile = await this.refresh(profile, fetchImpl);
+      await saveWebProfile(this.options.store, profile);
+      this.profile = profile;
+      result = await send(profile.accessToken!);
+    }
+    if (!result.response.ok) {
+      throw new WebApiError(result.response.status, readWebError(result.body, "配对请求失败"));
+    }
+    return result.body;
   }
 
   private async listDevices(

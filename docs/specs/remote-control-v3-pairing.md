@@ -1,6 +1,7 @@
 # 远程控制 v3 跨账号配对 v1
 
-状态：2026-11-11 规格 + 服务端实现（客户端/UI 待接）。母规范：
+状态：2026-11-11 服务端与浏览器 Client SDK 已实现（Host 本机确认 UI 与桌面客户端待接）。
+母规范：
 [remote-control-v3.md](./remote-control-v3.md) §10。
 
 ## 1. 目标
@@ -112,6 +113,8 @@ pending --claim--> claimed --confirm--> confirmed --redeem--> (终态)
 
 ## 8. 增量
 
-- 服务端：schema v2、store 事务、5 条 API、E2E 测试。
-- 客户端：Host 本机输入面、Client 扫码面、`IRemoteV3Service` 配对方法与
-  `remoteV3` 协议扩展（后续）。
+- 服务端：schema v2、`PairingStore` 事务、5 条 API、E2E 测试。
+- 浏览器 Client SDK：`WebAccountClient.claimPairing/getPairing/redeemPairing/cancelPairing`
+  （device token + 401 刷新重试；redeem 后本地 profile 立即换新 token）。
+- 待接：Host 本机确认面（桌面 Host 侧 `confirmPairing`）、扫码/短票 UI、
+  `IRemoteV3Service` 配对方法与 `remoteV3` 协议扩展。

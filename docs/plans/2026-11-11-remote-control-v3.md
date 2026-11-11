@@ -133,13 +133,14 @@ packages/remote-server
   建 device_only 账号 + 单条 membership，Host `inbound_only` / Client
   `pairing_restricted`；次数/过期/重复使用均有错误码。规格见
   [remote-control-v3-pairing.md](../specs/remote-control-v3-pairing.md)，
-  客户端 UI 与 `IRemoteV3Service` 配对方法待接。
+  浏览器 Client SDK（claim/status/redeem/cancel）已接；Host 本机确认面、
+  扫码 UI 与 `IRemoteV3Service` 配对方法待接。
 - 仍未开始：WebRTC/P2P/TURN。
 - 账号展示已接入：`/auth/me` 展示名落库并进入 Host 状态，侧边栏/账号弹窗优先显示
   v3 账号名，退出菜单直连 `disconnectAccount`。
 - P2 直连前置已落地：Host 注册上报 LAN 地址（≤8）并进入设备目录，远程控制页展示
   首个地址；`remote.workspace.list` 接到真实工作区列表。LAN direct 数据面/选路仍待实现。
-- 测试：66 项（core 16 + remote-server 19 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
+- 测试：68 项（core 18 + remote-server 19 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
   ChannelClient 重连 1/Web 工作区 1/Web 工作区重连 1/Web 远程桌面 5/v3 工作区 attachment 2/
   Web v3 服务 6 +
   server direct WS 2 + UI v3 目标/向导 3 + 侧边栏账号 2）。

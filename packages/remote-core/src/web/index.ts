@@ -23,14 +23,22 @@ export { type WebBusinessStream } from "./streams.js";
 export {
   WebAccountClient,
   WebApiError,
-  clearWebAuth,
   exchangeGithubAccessToken,
-  loadOrCreateWebProfile,
-  normalizeWebServerUrl,
-  saveWebProfile,
   type WebCredentialStore,
   type WebDeviceProfile,
   type WebDeviceSummary,
   type WebGithubChallenge,
   type WebGithubPoll,
 } from "./account.js";
+export {
+  type WebDeviceCredentials,
+  type WebPairingClaim,
+  type WebPairingState,
+  type WebPairingStatus,
+} from "./pairing.js";
+export {
+  clearWebAuth,
+  loadOrCreateWebProfile,
+  normalizeWebServerUrl,
+  saveWebProfile,
+} from "./accountSupport.js";
