@@ -10,15 +10,11 @@ import {
   encodeControlFrame,
   type ControlFrame,
   type HelloPayload,
-  type RelayAssignment,
 } from "@mode/remote-core";
 
 import {
-  GatewayError,
   SERVER_CAPABILITIES,
-  descriptorOf,
   errorFrame,
-  parseAddresses,
   peerDeviceId,
   rejectDisallowedOrigin,
   toBytes,
@@ -28,7 +24,7 @@ import {
   type GatewayOptions,
 } from "./gatewayTypes.js";
 import { handleRelaySocket } from "./relayChannel.js";
-import { buildDirectAssignment, createRelayTicket } from "./tickets.js";
+import { openConnectionFor, type GatewayConnectionContext } from "./gatewayConnection.js";
 import type { CloudStore, DeviceRow } from "./store.js";
 
 export { GatewayError, descriptorOf, parseAddresses } from "./gatewayTypes.js";
@@ -71,96 +67,20 @@ export class RemoteGateway {
     return Boolean(socket && socket.ws.readyState === WebSocket.OPEN);
   }
 
+  private connectionContext(): GatewayConnectionContext {
+    return {
+      options: this.options,
+      connections: this.connections,
+      controlSockets: this.controlSockets,
+      send: (deviceId, frame) => this.send(deviceId, frame),
+      closeConnection: (connectionId, code, reason) =>
+        this.closeConnection(connectionId, code, reason),
+    };
+  }
+
   /** 由 REST /api/v1/connections 与 Control connect.request 共用。 */
   openConnection(client: DeviceRow, hostDeviceId: string): ConnectionResult {
-    if (client.role !== "client") {
-      throw new GatewayError(403, "role_required", "只有 Client 可以发起连接");
-    }
-    if (client.revoked_at !== null) {
-      throw new GatewayError(403, "device_revoked", "Client 已撤销");
-    }
-    const host = this.options.store.findDevice(hostDeviceId);
-    if (!host || host.revoked_at !== null) {
-      throw new GatewayError(404, "host_not_found", "Host 不存在或已撤销");
-    }
-    if (host.role !== "host") throw new GatewayError(400, "invalid_host", "目标不是 Host");
-    if (host.account_id !== client.account_id) {
-      throw new GatewayError(403, "cross_account", "不允许跨账号连接");
-    }
-    if (!this.options.store.hasMembership(client.id, host.id)) {
-      throw new GatewayError(403, "membership_required", "设备对没有有效授权");
-    }
-    const hostSocket = this.controlSockets.get(host.id);
-    if (!hostSocket || hostSocket.ws.readyState !== WebSocket.OPEN) {
-      throw new GatewayError(409, "host_offline", "Host 不在线");
-    }
-    // 同一 Client 的新连接替换旧连接；其他 Client 到同一 Host 的连接不受影响。
-    for (const existing of this.options.store.listOpenConnections(client.id)) {
-      if (existing.client_device_id === client.id) {
-        this.closeConnection(existing.id, 4003, "connection replaced");
-      }
-    }
-    const row = this.options.store.createConnection(client.id, host.id);
-    const nodeId = this.options.nodeId ?? "relay-1";
-    const epoch = 1;
-    const endpoint =
-      typeof this.options.relayEndpoint === "function"
-        ? this.options.relayEndpoint()
-        : this.options.relayEndpoint;
-    const hostAssignment: RelayAssignment = {
-      endpoint,
-      ticket: createRelayTicket(this.options.secret, {
-        connectionId: row.id,
-        deviceId: host.id,
-        peerDeviceId: client.id,
-        nodeId,
-        epoch,
-      }),
-      nodeId,
-      epoch,
-    };
-    const clientAssignment: RelayAssignment = {
-      endpoint,
-      ticket: createRelayTicket(this.options.secret, {
-        connectionId: row.id,
-        deviceId: client.id,
-        peerDeviceId: host.id,
-        nodeId,
-        epoch,
-      }),
-      nodeId,
-      epoch,
-    };
-    this.connections.set(row.id, {
-      row,
-      transport: null,
-      hostAssignment,
-      clientAssignment,
-      relayReady: new Set(),
-      relaySockets: new Map(),
-    });
-    this.options.metrics?.connectionOpened();
-    const direct = buildDirectAssignment(
-      this.options.secret,
-      { connectionId: row.id, hostDeviceId: host.id, clientDeviceId: client.id },
-      parseAddresses(host.addresses),
-    );
-    this.send(host.id, {
-      type: "connect.incoming",
-      payload: {
-        connectionId: row.id,
-        client: descriptorOf(client),
-        authorization: "account",
-        relay: hostAssignment,
-        ...(direct ? { direct } : {}),
-      },
-    });
-    return {
-      connectionId: row.id,
-      host: descriptorOf(host),
-      relay: clientAssignment,
-      ...(direct ? { direct } : {}),
-    };
+    return openConnectionFor(this.connectionContext(), client, hostDeviceId);
   }
 
   closeConnection(connectionId: string, code = 4001, reason = "connection closed"): void {
@@ -318,6 +238,7 @@ export class RemoteGateway {
             host: result.host,
             relay: result.relay,
             ...(result.direct ? { direct: result.direct } : {}),
+            ...(result.iceServers ? { iceServers: result.iceServers } : {}),
           },
         });
       } catch (error) {
@@ -325,12 +246,30 @@ export class RemoteGateway {
       }
       return;
     }
-    if (frame.type === "transport.selected" || frame.type === "secure.handshake" || frame.type === "relay") {
+    if (
+      frame.type === "transport.selected" ||
+      frame.type === "secure.handshake" ||
+      frame.type === "relay" ||
+      frame.type === "p2p.offer" ||
+      frame.type === "p2p.answer" ||
+      frame.type === "p2p.candidate" ||
+      frame.type === "p2p.close"
+    ) {
       this.routeConnectionFrame(device, frame);
     }
   }
   private routeConnectionFrame(device: DeviceRow, frame: ControlFrame): void {
-    if (frame.type !== "transport.selected" && frame.type !== "secure.handshake" && frame.type !== "relay") {
+    const isP2PSignal =
+      frame.type === "p2p.offer" ||
+      frame.type === "p2p.answer" ||
+      frame.type === "p2p.candidate" ||
+      frame.type === "p2p.close";
+    if (
+      frame.type !== "transport.selected" &&
+      frame.type !== "secure.handshake" &&
+      frame.type !== "relay" &&
+      !isP2PSignal
+    ) {
       return;
     }
     const active = this.connections.get(frame.payload.connectionId);
@@ -346,6 +285,7 @@ export class RemoteGateway {
     ) {
       return;
     }
+    // p2p 信令没有 targetDeviceId：连接的双方就是唯一的对端，connectionId 已绑定身份。
     const peerRelay = active.relaySockets.get(peerId);
     if (frame.type === "relay" && peerRelay && peerRelay.readyState === WebSocket.OPEN) {
       const serialized = JSON.stringify(frame);

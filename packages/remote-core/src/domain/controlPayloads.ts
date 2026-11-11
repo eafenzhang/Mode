@@ -20,6 +20,11 @@ import type {
   ErrorPayload,
   HelloAckPayload,
   HelloPayload,
+  IceServerPayload,
+  P2PAnswerPayload,
+  P2PCandidatePayload,
+  P2PClosePayload,
+  P2POfferPayload,
   RelayAssignment,
   RelayAttachPayload,
   RelayPayload,
@@ -107,10 +112,34 @@ function parseDirectAssignment(
   };
 }
 
+function parseIceServer(entry: unknown, label: string): IceServerPayload {
+  const record = asRecord(entry, label);
+  exactKeys(record, ["urls", "username", "credential"], label);
+  const urls = readStringArray(record, "urls", label, { min: 1, max: 8 });
+  for (const url of urls) {
+    if (!/^(stun|turn|turns):/u.test(url)) invalid(`${label}.urls 必须是 stun/turn(s) 地址`);
+  }
+  const result: IceServerPayload = { urls };
+  if (record.username !== undefined) {
+    result.username = readString(record, "username", label, { max: 256 });
+  }
+  if (record.credential !== undefined) {
+    result.credential = readString(record, "credential", label, { max: 512 });
+  }
+  return result;
+}
+
+function parseIceServers(value: unknown, label: string): IceServerPayload[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 8) {
+    invalid(`${label} 必须是 1..8 个条目`);
+  }
+  return value.map((entry, index) => parseIceServer(entry, `${label}[${index}]`));
+}
+
 export function parseConnectIncoming(payload: Record<string, unknown>): ConnectIncomingPayload {
   exactKeys(
     payload,
-    ["connectionId", "client", "authorization", "relay", "direct"],
+    ["connectionId", "client", "authorization", "relay", "direct", "iceServers"],
     "connect.incoming",
   );
   if (payload.authorization !== "account") invalid("connect.incoming.authorization 非法");
@@ -123,11 +152,18 @@ export function parseConnectIncoming(payload: Record<string, unknown>): ConnectI
   if (relay) result.relay = parseRelayAssignment(relay, "connect.incoming.relay");
   const direct = readObject(payload, "direct", "connect.incoming", true);
   if (direct) result.direct = parseDirectAssignment(direct, "connect.incoming.direct");
+  if (payload.iceServers !== undefined) {
+    result.iceServers = parseIceServers(payload.iceServers, "connect.incoming.iceServers");
+  }
   return result;
 }
 
 export function parseConnectAccepted(payload: Record<string, unknown>): ConnectAcceptedPayload {
-  exactKeys(payload, ["connectionId", "host", "relay", "direct"], "connect.accepted");
+  exactKeys(
+    payload,
+    ["connectionId", "host", "relay", "direct", "iceServers"],
+    "connect.accepted",
+  );
   const result: ConnectAcceptedPayload = {
     connectionId: readString(payload, "connectionId", "connect.accepted", { max: 64 }),
     host: parseDeviceDescriptor(payload.host, "connect.accepted.host"),
@@ -136,7 +172,47 @@ export function parseConnectAccepted(payload: Record<string, unknown>): ConnectA
   if (relay) result.relay = parseRelayAssignment(relay, "connect.accepted.relay");
   const direct = readObject(payload, "direct", "connect.accepted", true);
   if (direct) result.direct = parseDirectAssignment(direct, "connect.accepted.direct");
+  if (payload.iceServers !== undefined) {
+    result.iceServers = parseIceServers(payload.iceServers, "connect.accepted.iceServers");
+  }
   return result;
+}
+
+export function parseP2POffer(payload: Record<string, unknown>): P2POfferPayload {
+  exactKeys(payload, ["connectionId", "sdp"], "p2p.offer");
+  return {
+    connectionId: readString(payload, "connectionId", "p2p.offer", { max: 64 }),
+    sdp: readString(payload, "sdp", "p2p.offer", { max: 32_768 }),
+  };
+}
+
+export function parseP2PAnswer(payload: Record<string, unknown>): P2PAnswerPayload {
+  exactKeys(payload, ["connectionId", "sdp"], "p2p.answer");
+  return {
+    connectionId: readString(payload, "connectionId", "p2p.answer", { max: 64 }),
+    sdp: readString(payload, "sdp", "p2p.answer", { max: 32_768 }),
+  };
+}
+
+export function parseP2PCandidate(payload: Record<string, unknown>): P2PCandidatePayload {
+  exactKeys(payload, ["connectionId", "candidate", "sdpMid"], "p2p.candidate");
+  const result: P2PCandidatePayload = {
+    connectionId: readString(payload, "connectionId", "p2p.candidate", { max: 64 }),
+    candidate: readString(payload, "candidate", "p2p.candidate", { max: 1024 }),
+  };
+  if (payload.sdpMid !== undefined) {
+    result.sdpMid = readString(payload, "sdpMid", "p2p.candidate", { max: 64 });
+  }
+  return result;
+}
+
+export function parseP2PClose(payload: Record<string, unknown>): P2PClosePayload {
+  exactKeys(payload, ["connectionId", "reason"], "p2p.close");
+  const reason =
+    payload.reason === undefined
+      ? undefined
+      : readString(payload, "reason", "p2p.close", { max: 256 });
+  return { connectionId: readString(payload, "connectionId", "p2p.close", { max: 64 }), reason };
 }
 
 export function parseTransportSelected(payload: Record<string, unknown>): TransportSelectedPayload {

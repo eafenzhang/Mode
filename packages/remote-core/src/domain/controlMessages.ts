@@ -41,12 +41,21 @@ export interface DirectAssignment {
   addresses: string[];
 }
 
+export interface IceServerPayload {
+  urls: string[];
+  /** coturn REST 临时凭证：`<过期时间戳>:<deviceId>`。 */
+  username?: string;
+  credential?: string;
+}
+
 export interface ConnectIncomingPayload {
   connectionId: string;
   client: DeviceDescriptor;
   authorization: "account";
   relay?: RelayAssignment;
   direct?: DirectAssignment;
+  /** WebRTC 选路所需的 ICE 服务器（含 coturn 临时凭证）；未启用 WebRTC 时缺省。 */
+  iceServers?: IceServerPayload[];
 }
 
 export interface ConnectAcceptedPayload {
@@ -54,6 +63,28 @@ export interface ConnectAcceptedPayload {
   host: DeviceDescriptor;
   relay?: RelayAssignment;
   direct?: DirectAssignment;
+  iceServers?: IceServerPayload[];
+}
+
+export interface P2POfferPayload {
+  connectionId: string;
+  sdp: string;
+}
+
+export interface P2PAnswerPayload {
+  connectionId: string;
+  sdp: string;
+}
+
+export interface P2PCandidatePayload {
+  connectionId: string;
+  candidate: string;
+  sdpMid?: string;
+}
+
+export interface P2PClosePayload {
+  connectionId: string;
+  reason?: string;
 }
 
 export interface TransportSelectedPayload {
@@ -109,6 +140,10 @@ export type ControlFrame =
   | (EnvelopeBase & { type: "relay.detach"; payload: { connectionId: string; reason?: string } })
   | (EnvelopeBase & { type: "ping"; payload: { nonce?: string } })
   | (EnvelopeBase & { type: "pong"; payload: { nonce?: string } })
+  | (EnvelopeBase & { type: "p2p.offer"; payload: P2POfferPayload })
+  | (EnvelopeBase & { type: "p2p.answer"; payload: P2PAnswerPayload })
+  | (EnvelopeBase & { type: "p2p.candidate"; payload: P2PCandidatePayload })
+  | (EnvelopeBase & { type: "p2p.close"; payload: P2PClosePayload })
   | (EnvelopeBase & { type: "error"; payload: ErrorPayload });
 
 export const CONTROL_TYPES = new Set<ControlFrame["type"]>([
@@ -125,6 +160,10 @@ export const CONTROL_TYPES = new Set<ControlFrame["type"]>([
   "relay.detach",
   "ping",
   "pong",
+  "p2p.offer",
+  "p2p.answer",
+  "p2p.candidate",
+  "p2p.close",
   "error",
 ]);
 

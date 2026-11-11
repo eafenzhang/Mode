@@ -4,6 +4,10 @@ import {
   parseConnectRequest,
   parseConnectionOnly,
   parseError,
+  parseP2PAnswer,
+  parseP2PCandidate,
+  parseP2PClose,
+  parseP2POffer,
   parseHello,
   parseHelloAck,
   parseRelay,
@@ -76,6 +80,14 @@ export function decodeControlFrame(bytes: Uint8Array): ControlFrame {
           : readString(payload, "reason", "relay.detach", { max: 256 });
       return { ...envelope, type: "relay.detach", payload: { connectionId, reason } };
     }
+    case "p2p.offer":
+      return { ...envelope, type: "p2p.offer", payload: parseP2POffer(payload) };
+    case "p2p.answer":
+      return { ...envelope, type: "p2p.answer", payload: parseP2PAnswer(payload) };
+    case "p2p.candidate":
+      return { ...envelope, type: "p2p.candidate", payload: parseP2PCandidate(payload) };
+    case "p2p.close":
+      return { ...envelope, type: "p2p.close", payload: parseP2PClose(payload) };
     case "ping":
     case "pong": {
       exactKeys(payload, ["nonce"], type);
@@ -99,6 +111,11 @@ export type {
   ErrorPayload,
   HelloAckPayload,
   HelloPayload,
+  IceServerPayload,
+  P2PAnswerPayload,
+  P2PCandidatePayload,
+  P2PClosePayload,
+  P2POfferPayload,
   RelayAssignment,
   RelayAttachPayload,
   RelayPayload,

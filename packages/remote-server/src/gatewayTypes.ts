@@ -5,6 +5,7 @@ import type { WebSocket } from "ws";
 import type {
   ControlFrame,
   DeviceDescriptor,
+  IceServerPayload,
   RelayAssignment,
   TransportKind,
 } from "@mode/remote-core";
@@ -43,6 +44,7 @@ export interface ConnectionResult {
   host: DeviceDescriptor;
   relay: RelayAssignment;
   direct?: { ticket: string; addresses: string[] };
+  iceServers?: IceServerPayload[];
 }
 
 export interface GatewayMetrics {
@@ -59,8 +61,21 @@ export interface GatewayOptions {
   relayEndpoint: string | (() => string);
   nodeId?: string;
   allowedOrigins?: string[];
+  /** WebRTC/P2P 选路的 ICE 配置；未配置时 connect.* 不带 iceServers。 */
+  webrtc?: WebRtcConfig;
   metrics?: GatewayMetrics;
   log?: (line: string) => void;
+}
+
+export interface WebRtcTurnConfig {
+  urls: string[];
+  secret: string;
+  ttlSeconds?: number;
+}
+
+export interface WebRtcConfig {
+  stunUrls?: string[];
+  turn?: WebRtcTurnConfig;
 }
 
 export function descriptorOf(device: DeviceRow): DeviceDescriptor {

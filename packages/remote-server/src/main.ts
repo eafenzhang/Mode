@@ -25,6 +25,11 @@ const tls = tlsKeyFile
   ? { key: await readFile(tlsKeyFile), cert: await readFile(tlsCertFile!) }
   : undefined;
 
+const allowedOrigins = (process.env.MODE_REMOTE_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+
 const handle = await startRemoteServer({
   port,
   host: process.env.MODE_REMOTE_HOST ?? "0.0.0.0",
@@ -32,10 +37,8 @@ const handle = await startRemoteServer({
   dbPath,
   pepper,
   publicUrl,
-  allowedOrigins: process.env.MODE_REMOTE_ALLOWED_ORIGINS
-    ?.split(",")
-    .map((value) => value.trim())
-    .filter(Boolean),
+  webrtc: buildWebRtcConfigFromEnv(),
+  ...(allowedOrigins.length > 0 ? { allowedOrigins } : {}),
   githubVerifier: githubApiBaseUrl
     ? (await import("./github.js")).createGithubVerifier({ apiBaseUrl: githubApiBaseUrl })
     : undefined,
@@ -50,3 +53,31 @@ const shutdown = async (): Promise<void> => {
 };
 process.on("SIGINT", () => void shutdown());
 process.on("SIGTERM", () => void shutdown());
+
+/** 从环境变量读取 WebRTC ICE 配置；未配置 TURN 时只下发 STUN。 */
+function buildWebRtcConfigFromEnv():
+  | import("./gatewayTypes.js").WebRtcConfig
+  | undefined {
+  const stunUrls = (process.env.MODE_REMOTE_STUN_URLS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const turnUrls = (process.env.MODE_REMOTE_TURN_URLS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const turnSecret = process.env.MODE_REMOTE_TURN_SECRET?.trim() ?? "";
+  if (stunUrls.length === 0 && turnUrls.length === 0) return undefined;
+  return {
+    ...(stunUrls.length > 0 ? { stunUrls } : {}),
+    ...(turnUrls.length > 0 && turnSecret
+      ? {
+          turn: {
+            urls: turnUrls,
+            secret: turnSecret,
+            ttlSeconds: Number(process.env.MODE_REMOTE_TURN_TTL_SECONDS ?? "3600") || 3600,
+          },
+        }
+      : {}),
+  };
+}

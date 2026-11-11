@@ -28,6 +28,8 @@ export interface RemoteServerOptions {
   tls?: { key: string | Buffer; cert: string | Buffer };
   /** 跨账号配对会话 TTL（缺省 180s；测试可缩短）。 */
   pairingTtlMs?: number;
+  /** WebRTC/P2P 选路的 ICE 配置；未配置时 connect.* 不带 iceServers。 */
+  webrtc?: import("./gatewayTypes.js").WebRtcConfig;
   /** 提供时暴露 `GET /metrics`（Bearer / x-metrics-token）；未配置时返回 404。 */
   metricsToken?: string;
   log?: (line: string) => void;
@@ -59,6 +61,7 @@ export async function startRemoteServer(options: RemoteServerOptions): Promise<R
     relayEndpoint: () => relayEndpoint,
     nodeId: options.nodeId,
     allowedOrigins: options.allowedOrigins,
+    ...(options.webrtc ? { webrtc: options.webrtc } : {}),
     metrics,
     log,
   });
@@ -69,6 +72,7 @@ export async function startRemoteServer(options: RemoteServerOptions): Promise<R
     github: options.githubVerifier ?? createGithubVerifier(),
     ...(options.pairingTtlMs ? { pairingTtlMs: options.pairingTtlMs } : {}),
     ...(options.allowedOrigins?.length ? { allowedOrigins: options.allowedOrigins } : {}),
+    ...(options.webrtc ? { webrtc: options.webrtc } : {}),
     ...(options.githubClientId?.trim()
       ? {
           githubDevice: {
