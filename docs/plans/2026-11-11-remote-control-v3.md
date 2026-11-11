@@ -121,18 +121,20 @@ packages/remote-server
   WebCodecs/WebCrypto 预检（`decoder_unsupported`）。真机验收未执行。
   完整工作区页面（目录浏览/文件/终端）仍待实现，规格与工作量见
   [remote-control-v3-web-workspace.md](../specs/remote-control-v3-web-workspace.md)（约 3–4 轮）。
-- Web 工作区 v3 首段已落地：`connectRemote({kind:"v3"})` 复用 `/v3` 已存凭据建
-  Noise 连接，`attachV3WorkspaceSession` 把 `/ws/host` 注册进
-  `remoteWorkspaceSessionStore`（v3 与 LAN/SSH/Docker 共用同一注册表）；向导里的
-  v3 设备入口与 `listV3Hosts` 待接。
+- Web 工作区 v3 已接通：`connectRemote({kind:"v3"})` 复用 `/v3` 已存凭据建 Noise
+  连接，`attachV3WorkspaceSession` 把 `/ws/host` 注册进
+  `remoteWorkspaceSessionStore`（v3 与 LAN/SSH/Docker 共用同一注册表）。主 Web 注入
+  浏览器 Client 版 `remoteV3Service`（目录/Device Flow/按 Host 复用连接的
+  request·httpRequest·tunnel），向导 v3 步骤与账号弹窗因此可用；
+  `allowRemoteWorkspace` 在 LAN 主控或存在 v3 账号时放开。真机双端验收未执行。
 - 仍未开始：WebRTC/P2P/TURN、跨账号配对 v1。
 - 账号展示已接入：`/auth/me` 展示名落库并进入 Host 状态，侧边栏/账号弹窗优先显示
   v3 账号名，退出菜单直连 `disconnectAccount`。
 - P2 直连前置已落地：Host 注册上报 LAN 地址（≤8）并进入设备目录，远程控制页展示
   首个地址；`remote.workspace.list` 接到真实工作区列表。LAN direct 数据面/选路仍待实现。
-- 测试：52 项（core 16 + remote-server 14 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
-  ChannelClient 重连 1/Web 工作区 1/Web 远程桌面 5 + server direct WS 2 +
-  UI v3 目标/向导 3 + 侧边栏账号 2）。
+- 测试：59 项（core 16 + remote-server 14 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
+  ChannelClient 重连 1/Web 工作区 1/Web 远程桌面 5/v3 工作区 attachment 2/Web v3 服务 5 +
+  server direct WS 2 + UI v3 目标/向导 3 + 侧边栏账号 2）。
 - 门禁：`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`、
   `pnpm knip:gate` 全绿；新包测试已加入 `.github/workflows/release.yml` verify，
   Desktop Host 测试由既有 desktop tests glob 覆盖。

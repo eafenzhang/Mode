@@ -1,7 +1,7 @@
 # 远程控制 v3 Web 完整工作区页面
 
-状态：2026-11-11 `connectRemote({kind:"v3"})` 与 attachment 已实现；向导设备入口待接。
-母规范：
+状态：2026-11-11 已实现（`connectRemote({kind:"v3"})`、attachment、浏览器 v3 服务与
+向导接入）；真机双端验收待执行。母规范：
 [remote-control-v3.md](./remote-control-v3.md)；Web 客户端现状见
 [remote-control-v3-web.md](./remote-control-v3-web.md)。
 
@@ -88,12 +88,22 @@ if (options.kind === "v3") {
 }
 ```
 
-连接向导的设备来源新增一个只读接口（`IPlatformService` 可选方法，Web 实现；
-Desktop 已有 v3 目录，可共用；**本次未实现，待接**）：
+连接向导的设备来源沿用既有 `services.remoteV3Service.listHosts()`（`useV3ConnectionForm`），
+Web 侧实现浏览器 Client 版服务：
 
 ```ts
-listV3Hosts?(): Promise<{ deviceId: string; name: string; online: boolean }[]>;
+createWebRemoteV3Service({ store, loadProfile })
+  .listHosts()      // WebAccountClient.listHosts → role=host 投影
+  .listDevices()    // 全部设备
+  .getState()       // unconfigured / online / error + pendingLogin
+  .beginGithubLogin/pollGithubLogin/cancelGithubLogin  // 浏览器内 Device Flow + 轮询
+  .configure()      // Web 会话 token 直接注册设备
+  .disconnectAccount()
+  .request/httpRequest/openTunnel/sendTunnel/closeTunnel  // 按 Host 复用同一条 Control/Noise 连接
 ```
+
+Host 管理类操作（`resetPeerPin`）与浏览器不适用的 `startRemoteDesktop`
+（Web 远程桌面走 `/v3` 入口）明确 reject，不伪造成功。
 
 ### 4.3 事件顺序
 
@@ -134,15 +144,20 @@ listV3Hosts?(): Promise<{ deviceId: string; name: string; online: boolean }[]>;
 
 | 工作项 | 预估 |
 | --- | --- |
-| web `connectRemote` v3 分支 + 凭据读取 | 0.5 轮 |
-| 向导 v3 设备来源（`listV3Hosts` + UI 分步） | 1–2 轮 |
-| 会话释放/断线与现有 store 对齐 | 0.5 轮 |
-| 测试与回归 | 1 轮 |
-| **合计** | **约 3–4 轮（1–2 个工作日）** |
+| web `connectRemote` v3 分支 + 凭据读取 | 已完成 |
+| 向导 v3 设备来源（浏览器 `remoteV3Service`） | 已完成 |
+| 会话释放/断线与现有 store 对齐 | 已完成 |
+| 测试与回归 | 已完成（7 项：attachment 2 + 浏览器服务 5） |
+| **合计** | **实际约 2 轮** |
 
-## 8. 待确认
+剩余：真机双端验收（v3 Host 在线 → 向导选设备 → 打开远程 tab → 关 tab 释放）。
 
-- v3 账号会话放在主 Web 的哪个位置：复用 `/v3` 已存凭据静默登录，还是在主 Web 侧栏
-  加账号入口？推荐前者（不新增第二套登录 UI），失败时再回 `/v3` 登录。
-- 远程工作区选择：沿用 LAN 路径的目录浏览（连上后由 shell 选目录），不在
-  `V3ConnectOptions` 增加 `workspacePath`。
+## 8. 已定决策
+
+- 账号会话：主 Web 复用 `/v3` 写入的 `mode.remote.v3.web-server-url` + IndexedDB
+  profile 静默恢复；`allowRemoteWorkspace` 在「LAN 主控或存在 v3 账号」时放开。
+  主 Web 账号弹窗的 v3 登录也由同一服务实现（Device Flow 在浏览器内轮询）。
+- 远程工作区选择：沿用 LAN 路径的目录浏览（连上后由 shell 选目录），
+  `V3ConnectOptions` 不增加 `workspacePath`。
+- 请求/隧道所有权：同一 Host 复用一条 `WebControlLink`；`disconnectAccount` 统一收口，
+  session dispose 只关自己的 `/ws/host` 隧道。

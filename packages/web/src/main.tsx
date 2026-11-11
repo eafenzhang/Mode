@@ -13,7 +13,7 @@ import {
   type Theme,
 } from "@mode/ui";
 import "@mode/ui/styles.css";
-import { connectViaWebSocket } from "@mode/client";
+import { connectViaWebSocket, createWebRemoteV3Service } from "@mode/client";
 import { WebCallbackPage } from "./auth/WebCallbackPage.js";
 import { createWebAuthService } from "./auth/webAuthService.js";
 import { parseOAuthState, resolveSafeAppReturnTo } from "./auth/oauthStateCodec.js";
@@ -44,6 +44,8 @@ import type {
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
 import { WebV3Page } from "./v3/WebV3Page.js";
 import { connectV3RemoteWorkspace } from "./v3/connectV3Workspace.js";
+import { createWebCredentialStore } from "./v3/credentialStore.js";
+import { loadStoredV3Profile } from "./v3/storedProfile.js";
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
   const saved = localStorage.getItem("mode-theme");
@@ -1129,17 +1131,25 @@ async function bootstrapWebApp() {
   }
 
   try {
-    const services = await connectViaWebSocket(bootstrap.wsUrl, {
+    const baseServices = await connectViaWebSocket(bootstrap.wsUrl, {
       onClose: () => {},
     });
+    // v3 账号会话由浏览器持有（/v3 已存凭据）；这里把它接到向导/账号面的同一个
+    // services 访问器上，工作区连接仍由 platform.connectRemote 完成。
+    const remoteV3Service = createWebRemoteV3Service({
+      store: createWebCredentialStore(),
+      loadProfile: loadStoredV3Profile,
+    });
+    const services = { ...baseServices, remoteV3Service };
     const platform = createWebPlatform(bootstrap.supportsLanPeerController === true);
+    const hasV3Account = (await loadStoredV3Profile()) !== null;
     document.title = "Mode - Web + Server";
 
     root.render(
       <AppErrorBoundary>
         <ModeIntlProvider
-          settingService={services.settingService}
-          broadcastService={services.broadcastService}
+          settingService={baseServices.settingService}
+          broadcastService={baseServices.broadcastService}
         >
           <Root
             services={services}
@@ -1151,10 +1161,12 @@ async function bootstrapWebApp() {
             allowOpenWorkspace={bootstrap.allowOpenWorkspace}
             preferDirectoryBrowser
             supportsEmbeddedBrowser={false}
-            // LAN 主控已接通（docs/specs/web-remote-workspace.md）；SSH/WSL/Docker
-            // 仍由 platform.connectRemote 明确拒绝。桌面 LAN 静态站没有该主控面时
-            // 保持关闭，避免把用户带进必然失败的向导。
-            allowRemoteWorkspace={bootstrap.supportsLanPeerController === true}
+            // LAN 主控（web-remote-workspace.md）或已登录的 v3 账号
+            // （remote-control-v3-web-workspace.md）任一可用就开放向导；
+            // 都没有时保持关闭，避免把用户带进必然失败的向导。
+            allowRemoteWorkspace={
+              bootstrap.supportsLanPeerController === true || hasV3Account
+            }
           />
         </ModeIntlProvider>
       </AppErrorBoundary>,

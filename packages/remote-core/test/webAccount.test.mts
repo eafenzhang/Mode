@@ -107,6 +107,7 @@ test("Web 账号登录注册设备，401 时刷新 token 后重试目录", async
   assert.equal(refreshCalls, 1);
   assert.equal(hosts.length, 1);
   assert.deepEqual(hosts[0]?.addresses, ["192.168.1.10:45880"]);
+  assert.equal(hosts[0]?.identityKey, "identity", "目录投影保留设备公钥");
   const persisted = JSON.parse(store.map.get("mode.remote.v3.web-profile")!) as {
     accessToken: string;
     refreshToken: string;

@@ -10,6 +10,10 @@ export type { MessagePortServiceConnection } from "./messageport.js";
 export { openWebWorkspace, type WebWorkspaceConnection } from "./webWorkspace.js";
 export { attachV3WorkspaceSession, type V3WorkspaceSession } from "./v3Workspace.js";
 export {
+  createWebRemoteV3Service,
+  type WebRemoteV3ServiceOptions,
+} from "./remoteV3/webService.js";
+export {
   createWebRemoteDesktopSession,
   type CreateWebRemoteDesktopSessionParams,
   type WebRemoteDesktopSession,

@@ -24,6 +24,8 @@ export interface WebDeviceSummary {
   name: string;
   role: "host" | "client";
   platform: string;
+  /** 设备公钥（目录里公开的身份标识；用于展示指纹/设备列表去重）。 */
+  identityKey: string;
   online: boolean;
   addresses: string[];
 }
@@ -361,6 +363,7 @@ export class WebAccountClient {
           name: device.name,
           role: device.role,
           platform: device.platform,
+          identityKey: typeof device.identityKey === "string" ? device.identityKey : "",
           online: item.online === true,
           addresses: Array.isArray(item.addresses)
             ? item.addresses.filter((value): value is string => typeof value === "string")
