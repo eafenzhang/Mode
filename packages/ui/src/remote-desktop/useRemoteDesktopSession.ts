@@ -21,8 +21,10 @@ import {
   type RemoteDesktopQuality,
   type RemoteDesktopControlEvent,
   type RemoteDesktopPointerEvent,
+  type RemoteDesktopMediaSocket,
   type RemoteDesktopSignalMessage,
 } from "@mode/shared/remote-desktop";
+import type { IPlatformService } from "@mode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { logger } from "@/logger.js";
 import { attachRemoteDesktopInput, type RemoteDesktopInputCapture } from "./InputCapture.js";
@@ -99,15 +101,35 @@ export interface UseRemoteDesktopSessionResult {
   setClipboardEnabled: (enabled: boolean) => void;
 }
 
+/**
+ * 远程桌面会话需要的平台能力子集。
+ *
+ * 桌面/主 Web 端直接用完整 `IPlatformService`；v3 Web 页只有这几个方法，按子集注入，
+ * 避免为了让 `PlatformProvider` 满足整个接口而伪造无关能力。
+ */
+export type RemoteDesktopPlatform = Pick<
+  IPlatformService,
+  | "rdStartSession"
+  | "rdSendSignal"
+  | "rdEndSession"
+  | "rdReadClipboardText"
+  | "onRemoteDesktopSessionEvent"
+>;
+
 export function useRemoteDesktopSession(options: {
   serverId: string;
   /** 画质档位（P1-3）：随会话请求下发给被控；缺省 = 被控默认档。 */
   quality?: RemoteDesktopQuality;
   /** 档位变化回写（手动改档与自动降档共用一条路径——页级记忆）。 */
   onQualityChanged?: (quality: RemoteDesktopQuality) => void;
+  /** 平台能力注入（缺省取 `PlatformProvider`）；v3 Web 页传入隧道实现。 */
+  platform?: RemoteDesktopPlatform;
+  /** 媒体 socket 工厂（v3 Web 传入 E2EE 隧道适配器；缺省直连 DOM WebSocket）。 */
+  openMediaSocket?: (url: string) => RemoteDesktopMediaSocket;
 }): UseRemoteDesktopSessionResult {
   const { serverId, quality } = options;
-  const platform = usePlatform();
+  const fallbackPlatform = usePlatform();
+  const platform = options.platform ?? fallbackPlatform;
   const qualityPreset = REMOTE_DESKTOP_QUALITY_PRESETS[quality ?? DEFAULT_REMOTE_DESKTOP_QUALITY];
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -230,6 +252,7 @@ export function useRemoteDesktopSession(options: {
             suppressMediaFailureRef.current = false;
             sessionRef.current = createNativeMediaSession({
               url: mediaUrl,
+              ...(options.openMediaSocket ? { openSocket: options.openMediaSocket } : {}),
               // 信令里 key/salt 是十六进制字符串；Task 9 胶水的入参按字节数校验（32B key / 8B salt）。
               keyHex: effect.key,
               saltHex: effect.salt,

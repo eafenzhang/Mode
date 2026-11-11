@@ -68,6 +68,8 @@ export {
 } from "./hooks/index.js";
 
 export { ModeIntlProvider, useModeIntl, LocaleSwitcher } from "./i18n/index.js";
+export { RemoteDesktopSession } from "./remote-desktop/RemoteDesktopSession.js";
+export type { RemoteDesktopPlatform } from "./remote-desktop/useRemoteDesktopSession.js";
 export { ResourceManagerApp } from "./resource-manager/ResourceManagerApp.js";
 export type {
   ResourceManagerAppProps,

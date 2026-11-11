@@ -1,6 +1,6 @@
 # 远程控制 v3 Web 客户端
 
-状态：2026-11-11 传输、账号与工作区隧道已落地；远程桌面主控原语已落地，完整页面待接。母规范：
+状态：2026-11-11 传输、账号、工作区隧道与远程桌面页面已落地；完整工作区页面与真机验收待补。母规范：
 [remote-control-v3.md](./remote-control-v3.md)。
 
 ## 范围
@@ -44,6 +44,10 @@
   `wss://v3-remote.invalid/...` 虚拟 URL，票据更新后按同一 URL 结构重开流。
   主控状态机与桌面 Host 共用 `controller.ts`（单会话互斥、握手窗口、bye/error 收口），
   媒体面复用 `nativeMediaSession`（新增 `openSocket` 注入点），不复制解码/重连逻辑。
+- `/v3` 设备行新增「进入桌面」：`WebV3RemoteDesktop` 用平台子集
+  （`RemoteDesktopPlatform`）注入现有 `RemoteDesktopSession`，媒体 socket 由同一
+  adapter 注入；`VideoDecoder`/`crypto.subtle` 预检在建连前返回 `decoder_unsupported`。
+  会话面复用画布、输入采集、剪贴板、画质切换与媒体级重连。
 - 浏览器断线重连：Control/Relay 断开后保留 `WebRemoteConnection` 与 frame 监听，
   按 300ms→5s 退避重连（最多 10 次）；重连后重新 hello、建立连接、Noise 握手与
   Relay attach，原 connection 对象继续收发；在途业务帧不自动重放。E2E 覆盖 Host
@@ -54,10 +58,8 @@
 1. 多账号隔离与私钥加密存储；当前 profile 单账号保存，IndexedDB 中的私钥未额外加密。
 2. 传输：Relay WSS 已实现；LAN direct 在浏览器受混合内容限制，仅在 HTTPS 页面允许
    `wss` 直连，否则回落 Relay。
-3. UI：完整远程工作区页面（目录浏览、文件/终端服务）和远程桌面页面；当前 `/v3`
-   只提供设备目录、allowlist RPC、工作区/远程桌面隧道连通测试。远程桌面还缺：
-   平台适配（把 `rdStartSession/rdSendSignal/rdEndSession/onRemoteDesktopSessionEvent`
-   接到 `createWebRemoteDesktopSession`）、画布与输入挂载、`decoder_unsupported` 预检。
+3. UI：完整远程工作区页面（目录浏览、文件/终端服务）仍待实现；远程桌面页面已挂载，
+   还缺真机验收（同意窗 → 首帧 → 键鼠输入 → 关闭释放）与弱网/断线复测。
 4. 移动端复用同一 Web 客户端，尚未接入。
 5. 安全：CSP/Origin 校验、token 只存内存/安全存储、禁止把私钥或 access token
    写入 URL、localStorage 明文或日志。

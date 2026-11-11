@@ -1,3 +1,4 @@
+/* oxlint-disable eslint(max-lines) -- 操作栏/画面/结束层共享同一 view 状态与焦点收口，拆分会重复 ref 协调。 */
 /**
  * 远程桌面会话面（主控侧）：顶部操作栏（设备名/画质/显示器/全屏/断开）+ 画面全宽 letterbox + 底部状态条（fps/RTT/分辨率）。
  *
@@ -39,8 +40,14 @@ import {
   SelectValue,
 } from "@/ui-foundation/adapters/select.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
-import type { RemoteDesktopQuality } from "@mode/shared/remote-desktop";
-import { useRemoteDesktopSession } from "@/remote-desktop/useRemoteDesktopSession.js";
+import type {
+  RemoteDesktopMediaSocket,
+  RemoteDesktopQuality,
+} from "@mode/shared/remote-desktop";
+import {
+  useRemoteDesktopSession,
+  type RemoteDesktopPlatform,
+} from "@/remote-desktop/useRemoteDesktopSession.js";
 import type { RemoteDesktopSessionCloseKind } from "@/remote-desktop/sessionReducer.js";
 
 /** 对端结束/失败后停留时长：先让用户看清原因，再自动回设备页。 */
@@ -69,6 +76,8 @@ export function RemoteDesktopSession({
   onQualityChange,
   topOverlayClearancePaddingClass,
   onExit,
+  platform,
+  openMediaSocket,
 }: {
   serverId: string;
   deviceName: string;
@@ -79,6 +88,10 @@ export function RemoteDesktopSession({
   /** 左侧栏收起时让出顶部浮层左上入口宽度的 ps-* 类（chat 页 WorkspaceHeader 同款规则）。 */
   topOverlayClearancePaddingClass?: string | null;
   onExit: () => void;
+  /** v3 Web 等没有 PlatformProvider 的宿主：注入会话所需平台子集。 */
+  platform?: RemoteDesktopPlatform;
+  /** v3 Web：媒体走 E2EE 隧道，需注入隧道 socket 工厂。 */
+  openMediaSocket?: (url: string) => RemoteDesktopMediaSocket;
 }) {
   const { intl } = useModeIntl();
   const {
@@ -93,7 +106,13 @@ export function RemoteDesktopSession({
     setClipboardEnabled,
   } =
     // 页级记忆回写走 hook 的 onQualityChanged（手动改档与自动降档共用）。
-    useRemoteDesktopSession({ serverId, quality, onQualityChanged: onQualityChange });
+    useRemoteDesktopSession({
+      serverId,
+      quality,
+      onQualityChanged: onQualityChange,
+      ...(platform ? { platform } : {}),
+      ...(openMediaSocket ? { openMediaSocket } : {}),
+    });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // 工具条交互后把焦点还给画面：否则键盘输入会留在按钮/下拉上，打不到对端。

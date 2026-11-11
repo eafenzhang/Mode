@@ -116,6 +116,10 @@ packages/remote-server
 - Web 远程桌面主控原语已落地：`createWebRemoteDesktopSession` 走 HTTP 桥创建会话，
   信令/媒体分别用 `remote.ws` 隧道承载；主控状态机抽到 `@mode/client` 并支持注入
   socket（桌面 Host 仍传 `ws`），媒体面新增 `openSocket` 注入点，解码/重连逻辑未复制。
+- Web 远程桌面页已接通：`/v3` 设备行「进入桌面」→ `WebV3RemoteDesktop`，用
+  `RemoteDesktopSession` + 平台子集注入复用画布/输入/剪贴板/画质切换；发起前做
+  WebCodecs/WebCrypto 预检（`decoder_unsupported`）。真机验收未执行。
+  完整工作区页面（目录浏览/文件/终端）仍待实现。
 - 仍未开始：WebRTC/P2P/TURN、跨账号配对 v1。
 - 账号展示已接入：`/auth/me` 展示名落库并进入 Host 状态，侧边栏/账号弹窗优先显示
   v3 账号名，退出菜单直连 `disconnectAccount`。

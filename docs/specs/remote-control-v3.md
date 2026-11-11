@@ -491,8 +491,8 @@ P3 已接线的部分：
   （身份/注册/刷新/目录/GitHub Device Flow 代理）；`/v3` 页面已提供登录、设备目录、
   加密 RPC 与工作区隧道连通测试。远程桌面主控原语 `createWebRemoteDesktopSession`
   已落地（HTTP 桥 + 双 `remote.ws` 隧道 + `nativeMediaSession.openSocket` 注入，
-  信令状态机与桌面 Host 共用），完整工作区/远程桌面 Web 页面仍待实现，见
-  [remote-control-v3-web.md](./remote-control-v3-web.md)。
+  信令状态机与桌面 Host 共用），`/v3` 已挂载远程桌面页并复用现有会话面；
+  完整工作区页面仍待实现，见 [remote-control-v3-web.md](./remote-control-v3-web.md)。
 - WebRTC/P2P/TURN、Control 中断 lease 恢复；LAN direct 已落地但 LAN 监听本身仍是 WS（无 TLS）。
 - 跨账号扫码配对 v1（§10）。
 - v2 旧模块删除：v2 `ICloudAccountService` 与账号 UI 已删除；`packages/cloud-relay`

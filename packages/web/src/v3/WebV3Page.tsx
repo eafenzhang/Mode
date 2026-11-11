@@ -9,6 +9,7 @@ import {
   type WebGithubChallenge,
 } from "@mode/remote-core/web";
 
+import { WebV3RemoteDesktop } from "./WebV3RemoteDesktop.js";
 import { createWebCredentialStore } from "./credentialStore.js";
 
 const SERVER_URL_KEY = "mode.remote.v3.web-server-url";
@@ -24,6 +25,11 @@ export function WebV3Page() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [testResult, setTestResult] = useState("");
+  const [rdTarget, setRdTarget] = useState<{
+    link: WebControlLink;
+    hostDeviceId: string;
+    name: string;
+  } | null>(null);
 
   const client = useMemo(() => {
     const url = serverUrl.trim();
@@ -152,6 +158,30 @@ export function WebV3Page() {
     }
   };
 
+  /** 进入远程桌面：先建 Control/Noise 连接，再交给会话面发起（同意窗在 Host 本机）。 */
+  const enterDesktop = async (host: WebDeviceSummary): Promise<void> => {
+    if (!profile?.accessToken) return;
+    setBusy(true);
+    setError("");
+    setTestResult("");
+    const link = new WebControlLink({
+      serverUrl: profile.serverUrl,
+      deviceId: profile.deviceId,
+      accessToken: profile.accessToken,
+      identity: importWebIdentity(profile.privateKey),
+    });
+    try {
+      await link.start();
+      await link.connect(host.deviceId);
+      setRdTarget({ link, hostDeviceId: host.deviceId, name: host.name });
+    } catch (caught) {
+      link.close();
+      setError(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const testConnection = async (host: WebDeviceSummary): Promise<void> => {
     if (!profile?.accessToken) return;
     setBusy(true);
@@ -187,6 +217,20 @@ export function WebV3Page() {
       setBusy(false);
     }
   };
+
+  if (rdTarget) {
+    return (
+      <WebV3RemoteDesktop
+        link={rdTarget.link}
+        hostDeviceId={rdTarget.hostDeviceId}
+        deviceName={rdTarget.name}
+        onExit={() => {
+          rdTarget.link.close();
+          setRdTarget(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background px-4 py-10 text-foreground">
@@ -284,6 +328,14 @@ export function WebV3Page() {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        className="rounded-lg bg-primary px-3 py-1.5 text-ui-sm text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                        disabled={busy || !host.online}
+                        onClick={() => void enterDesktop(host)}
+                      >
+                        进入桌面
+                      </button>
                       <button
                         type="button"
                         className="rounded-lg border border-border px-3 py-1.5 text-ui-sm hover:bg-surface-hover disabled:opacity-50"
