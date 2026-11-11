@@ -1,4 +1,5 @@
-import { decodeBase64Url, encodeBase64Url } from "@mode/remote-core";
+// 浏览器路径必须走 web 入口：node 入口会引入 Buffer/crypto，生产包里直接 ReferenceError。
+import { decodeBase64Url, encodeBase64Url } from "@mode/remote-core/web";
 import {
   WebAccountClient,
   WebControlLink,
