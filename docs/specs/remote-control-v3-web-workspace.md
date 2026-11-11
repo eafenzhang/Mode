@@ -161,3 +161,5 @@ Host 管理类操作（`resetPeerPin`）与浏览器不适用的 `startRemoteDes
   `V3ConnectOptions` 不增加 `workspacePath`。
 - 请求/隧道所有权：同一 Host 复用一条 `WebControlLink`；`disconnectAccount` 统一收口，
   session dispose 只关自己的 `/ws/host` 隧道。
+- 隧道级重连：`/ws/host` 断开后保持 `services`/`ChannelClient` 引用，重开隧道并靠新
+  Initialize 重放订阅；不重建远程 session，也不要求用户重新连接。

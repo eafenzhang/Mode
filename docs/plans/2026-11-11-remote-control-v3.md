@@ -127,13 +127,16 @@ packages/remote-server
   浏览器 Client 版 `remoteV3Service`（目录/Device Flow/按 Host 复用连接的
   request·httpRequest·tunnel），向导 v3 步骤与账号弹窗因此可用；
   `allowRemoteWorkspace` 在 LAN 主控或存在 v3 账号时放开。真机双端验收未执行。
+- Web 工作区隧道级重连已落地：`/ws/host` 断开时 `SocketProtocol.reset` + 在途 RPC
+  立即失败，按 300ms→5s 退避重开；新 Initialize 重放订阅，`services` 引用不变。
 - 仍未开始：WebRTC/P2P/TURN、跨账号配对 v1。
 - 账号展示已接入：`/auth/me` 展示名落库并进入 Host 状态，侧边栏/账号弹窗优先显示
   v3 账号名，退出菜单直连 `disconnectAccount`。
 - P2 直连前置已落地：Host 注册上报 LAN 地址（≤8）并进入设备目录，远程控制页展示
   首个地址；`remote.workspace.list` 接到真实工作区列表。LAN direct 数据面/选路仍待实现。
-- 测试：60 项（core 16 + remote-server 14 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
-  ChannelClient 重连 1/Web 工作区 1/Web 远程桌面 5/v3 工作区 attachment 2/Web v3 服务 6 +
+- 测试：61 项（core 16 + remote-server 14 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
+  ChannelClient 重连 1/Web 工作区 1/Web 工作区重连 1/Web 远程桌面 5/v3 工作区 attachment 2/
+  Web v3 服务 6 +
   server direct WS 2 + UI v3 目标/向导 3 + 侧边栏账号 2）。
 - 门禁：`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`、
   `pnpm knip:gate` 全绿；新包测试已加入 `.github/workflows/release.yml` verify，

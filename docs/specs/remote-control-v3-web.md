@@ -52,6 +52,10 @@
   按 300ms→5s 退避重连（最多 10 次）；重连后重新 hello、建立连接、Noise 握手与
   Relay attach，原 connection 对象继续收发；在途业务帧不自动重放。E2E 覆盖 Host
   退出 → 浏览器重连 → Host 恢复 → 同一 connection 完成第二次 RPC。
+- 工作区隧道级重连：`/ws/host` 隧道断开时重置 `SocketProtocol` 半包、让在途 RPC
+  立即失败，再按 300ms→5s 退避重开（最多 10 次）；写不出去的业务帧有界排队。
+  新 ChannelServer 的 Initialize 触发 `ChannelClient` 重放事件订阅，`services` 引用不变。
+  测试覆盖「对端断开 → 自动重开 → 同一 services 完成第二次 RPC」。
 
 ## 待实现
 
