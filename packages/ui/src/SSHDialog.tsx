@@ -117,6 +117,13 @@ export function RemoteConnectionDialog({
     lanPairedLoading,
     lanPairedError,
     selectPairedPeer,
+    v3Hosts,
+    v3SelectedHost,
+    v3SelectedDeviceId,
+    v3HostsLoading,
+    v3HostsError,
+    v3Available,
+    selectV3Host,
     sshConfigAliases,
     sshConfigAliasesLoading,
     sshConfigAliasesError,
@@ -325,6 +332,7 @@ export function RemoteConnectionDialog({
       dockerContainer,
       manualDockerContainer,
       lanPeer: lanSelectedPeer,
+      v3Host: v3SelectedHost,
     });
     if (!nextTarget) {
       // 必填项缺失属于表单校验，不应该和真实连接失败共用 destructive 错误样式。
@@ -516,6 +524,14 @@ export function RemoteConnectionDialog({
                       loading: lanPairedLoading,
                       loadError: lanPairedError,
                       onSelectPairedPeer: selectPairedPeer,
+                    }}
+                    v3Fields={{
+                      hosts: v3Hosts,
+                      selectedDeviceId: v3SelectedDeviceId,
+                      loading: v3HostsLoading,
+                      loadError: v3HostsError,
+                      available: v3Available,
+                      onSelectHost: selectV3Host,
                     }}
                     host={host}
                     port={port}

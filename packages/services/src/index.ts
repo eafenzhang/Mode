@@ -85,8 +85,8 @@ export {
   type LanAccessSetEnabledParams,
 } from "./lan-access/lanAccessService.js";
 
-// Mode Cloud 账号与设备目录（local-only RPC 频道；只在 Host 侧装载）
-export { ICloudAccountService } from "./cloud-account/cloudAccountService.js";
+// 远程控制 v3 Host 管理面（local-only RPC 频道；只在 Host 侧装载）
+export { IRemoteV3Service } from "./remote-v3/remoteV3Service.js";
 
 // 远程桌面被控设置面（local-only RPC 频道；主控会话在 LR-3 接入）
 export {

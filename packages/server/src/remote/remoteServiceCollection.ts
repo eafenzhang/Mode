@@ -11,7 +11,6 @@ import {
   IBotsService,
   IClientConfigService,
   IClientScenesService,
-  ICloudAccountService,
   ICodingPlanSubscriptionService,
   ICommandsService,
   IConversationMirrorService,
@@ -70,9 +69,6 @@ export function createRemoteServiceCollection(accessor: IServiceAccessor): Servi
   services.register(ICredentialService, accessor.credentialService);
   if (accessor.lanAccessService) {
     services.register(ILanAccessService, accessor.lanAccessService);
-  }
-  if (accessor.cloudAccountService) {
-    services.register(ICloudAccountService, accessor.cloudAccountService);
   }
   if (accessor.remoteDesktopService) {
     services.register(IRemoteDesktopService, accessor.remoteDesktopService);

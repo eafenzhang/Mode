@@ -11,6 +11,7 @@
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {
+    "@mode/remote-core": "workspace:*",
     "@mode/rpc": "workspace:*",
     "@mode/services": "workspace:*",
     "@mode/shared": "workspace:*"

@@ -95,6 +95,12 @@ export class ChunkStream {
     this.totalLength += chunk.byteLength;
   }
 
+  /** 传输重建时丢弃未成帧的半包，避免旧连接的残片污染新连接的 Initialize。 */
+  reset(): void {
+    this.chunks = [];
+    this.totalLength = 0;
+  }
+
   /**
    * 预览前 byteCount 字节，但不消费底层缓冲。
    *
@@ -251,6 +257,11 @@ export class SocketProtocol implements IMessagePassingProtocol {
 
   send(buffer: VSBuffer): void {
     this.writeMessage(new ProtocolMessage(ProtocolMessageType.Regular, 0, 0, buffer));
+  }
+
+  /** 底层 socket 重连后调用：清掉旧连接的半包，保留 protocol 本身与上层 ChannelClient。 */
+  reset(): void {
+    this.chunkStream.reset();
   }
 
   private writeMessage(msg: ProtocolMessage): void {

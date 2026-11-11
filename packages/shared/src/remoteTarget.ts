@@ -53,11 +53,21 @@ export interface LanConnectOptions {
   token?: string;
 }
 
+/** 远程控制 v3：目标 Host 由账号设备目录发现，传输走 Noise E2EE。 */
+export interface V3ConnectOptions {
+  kind: "v3";
+  /** Host 的稳定 deviceId（账号服务目录中的 id）。 */
+  deviceId: string;
+  /** 展示名；不参与身份判等。 */
+  deviceName?: string;
+}
+
 export type RemoteTarget =
   | SSHConnectOptions
   | WSLConnectOptions
   | DockerConnectOptions
-  | LanConnectOptions;
+  | LanConnectOptions
+  | V3ConnectOptions;
 
 /**
  * 解析 LAN 目标的连接端点：显式 `endpoints` 优先，否则用主端点构造一个。
@@ -138,8 +148,8 @@ export function isSameRemoteTarget(left: RemoteTarget, right: RemoteTarget): boo
         left.host.trim().toLowerCase() === right.host.trim().toLowerCase() &&
         left.port === right.port
       );
-    default:
-      return false;
+    case "v3":
+      return right.kind === "v3" && left.deviceId === right.deviceId;
   }
 }
 

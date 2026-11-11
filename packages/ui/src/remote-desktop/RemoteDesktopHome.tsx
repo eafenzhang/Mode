@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { LayoutGrid, List, MonitorSmartphone, Plus, RefreshCw, Settings2 } from "lucide-react";
-import type { LanPairedPeer } from "@mode/shared";
+import type { LanPairedPeer, RemoteV3DeviceSummary } from "@mode/shared";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import type { ModeAgentChatDevice } from "@/lib/workspaceSidePane.js";
 import type { RemoteDesktopQuality } from "@mode/shared/remote-desktop";
@@ -18,6 +18,8 @@ import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { useServices } from "@/hooks/useServices.js";
+import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
 import { logger } from "@/logger.js";
 import type { RemoteDesktopDeviceProbe } from "@/remote-desktop/deviceAvailability.js";
@@ -57,6 +59,10 @@ export function RemoteDesktopHome({
 }) {
   const { intl } = useModeIntl();
   const platform = usePlatform();
+  const services = useServices();
+  const baseServices = useOptionalBaseWorkspaceServices();
+  const v3Service = baseServices?.remoteV3Service ?? services.remoteV3Service;
+  const [v3Hosts, setV3Hosts] = useState<RemoteV3DeviceSummary[]>([]);
   const { viewMode, setViewMode } = useDeviceViewMode();
   // 与其它「跳设置分区」入口同款：先写入待消费分区意图，再由 tab store 打开设置 tab。
   const openSettingsTab = useOptionalTabStore((state) => state.openSettingsTab);
@@ -130,10 +136,22 @@ export function RemoteDesktopHome({
     }
   }, [platform, probePeer]);
 
+  const loadV3Hosts = useCallback(async () => {
+    if (!v3Service) {
+      setV3Hosts([]);
+      return;
+    }
+    try {
+      setV3Hosts(await v3Service.listHosts());
+    } catch {
+      // v3 未登录/服务不可达时不阻塞旧设备列表；账号弹窗负责展示登录错误。
+      setV3Hosts([]);
+    }
+  }, [v3Service]);
   const discovered = useDiscoveredLanPeers(loadPeers);
   const refreshAll = useCallback(async () => {
-    await Promise.all([loadPeers(), refreshModeAgents()]);
-  }, [loadPeers, refreshModeAgents]);
+    await Promise.all([loadPeers(), refreshModeAgents(), loadV3Hosts()]);
+  }, [loadPeers, refreshModeAgents, loadV3Hosts]);
 
   /** 行内「重新检测」：只重探该设备，不动列表与其它设备的探测结果。 */
   const reprobePeer = useCallback(
@@ -149,8 +167,19 @@ export function RemoteDesktopHome({
     if (active && !sessionTarget) {
       void loadPeers();
       void refreshModeAgents();
+      void loadV3Hosts();
     }
-  }, [active, sessionTarget, loadPeers, refreshModeAgents]);
+  }, [active, sessionTarget, loadPeers, refreshModeAgents, loadV3Hosts]);
+
+  // v3 Host 上下线由服务端 Control 连接决定，没有推送通道；页面可见时低频轮询目录，
+  // 避免被控端刚上线但列表一直显示离线，必须手动点刷新。
+  useEffect(() => {
+    if (!active || sessionTarget) return;
+    const timer = setInterval(() => {
+      void loadV3Hosts();
+    }, 15_000);
+    return () => clearInterval(timer);
+  }, [active, sessionTarget, loadV3Hosts]);
 
   const openLanAccessSettings = useCallback(() => {
     // 合并后统一指向「远程控制」设置分区（被控 + 本机共享同一分区）。
@@ -168,10 +197,22 @@ export function RemoteDesktopHome({
     });
   }, []);
 
+  const connectV3 = useCallback((host: RemoteV3DeviceSummary) => {
+    setSessionTarget({ serverId: host.deviceId, name: host.name });
+  }, []);
+
   const exitSession = useCallback(() => {
     // 回设备列表的刷新由上方 active/sessionTarget effect 统一触发（含本机被控状态重读）。
     setSessionTarget(null);
-  }, []);
+    // 本地断开后，被控端还要经历 bye → WS close → SessionClosed 的异步收口；
+    // effect 的首次重读可能早于它，导致“本机正在被远程控制”一直挂到手动刷新。
+    setTimeout(() => {
+      void platform
+        .rdGetControlledState()
+        .then(({ controlled }) => setLocallyControlled(controlled))
+        .catch(() => undefined);
+    }, 1000);
+  }, [platform]);
 
   /** 重命名（行内编辑提交）：只改本机记录的名称；成功后刷新列表。抛错由行转 onError。 */
   const renamePeer = useCallback(
@@ -227,6 +268,7 @@ export function RemoteDesktopHome({
     probes,
     modeAgents: modeAgentRecords,
     discovered: visibleDiscovered,
+    v3Hosts,
   });
   const hasDevices = devices.length > 0;
 
@@ -387,6 +429,7 @@ export function RemoteDesktopHome({
                 locallyControlled={locallyControlled}
                 busy={peerActionBusy}
                 onConnect={connect}
+                onConnectV3={connectV3}
                 onRename={renamePeer}
                 onDelete={deletePeer}
                 onReprobe={reprobePeer}

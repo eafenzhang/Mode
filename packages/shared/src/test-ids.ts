@@ -160,6 +160,12 @@ export const TID_REMOTE_KIND_WSL = "remote-kind-wsl";
 export const TID_REMOTE_KIND_DOCKER = "remote-kind-docker";
 /** 远程连接方式切换到局域网 */
 export const TID_REMOTE_KIND_LAN = "remote-kind-lan";
+/** 远程连接方式切换到远程控制 v3 */
+export const TID_REMOTE_KIND_V3 = "remote-kind-v3";
+/** v3：同账号 Host 设备列表（向导只允许选择在线设备） */
+export const TID_V3_HOST_LIST = "v3-host-list";
+/** v3：单个 Host 设备选项 */
+export const TID_V3_HOST_ITEM = "v3-host-item";
 /** 局域网：已配对设备列表（向导只允许选择已配对设备） */
 export const TID_LAN_PAIRED_PEER_LIST = "lan-paired-peer-list";
 /** 局域网：单个已配对设备（向导直选） */

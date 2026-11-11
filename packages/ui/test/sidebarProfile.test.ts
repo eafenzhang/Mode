@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { CloudAccountState, UserInfo } from "@mode/shared";
+import type { UserInfo } from "@mode/shared";
 import { resolveSidebarProfile } from "../src/lib/sidebarProfile.js";
 
 // 左下角账号区展示口径（docs/specs/user-profile-display.md）：
@@ -11,49 +11,32 @@ const OAUTH_USER: UserInfo = {
   displayName: "Alice",
 };
 
-function cloudState(overrides: Partial<CloudAccountState>): CloudAccountState {
-  return {
-    status: "unbound",
-    ...overrides,
-  };
-}
-
 test("未登录时显示 Mode，不把品牌名当作用户名", () => {
-  const profile = resolveSidebarProfile({ user: null, cloudAccount: null });
+  const profile = resolveSidebarProfile({ user: null });
   assert.equal(profile.hasAccount, false);
   assert.equal(profile.displayName, "Mode");
 });
 
-test("云账号只有 id 时保持 Mode，等待昵称或 GitHub 显示名", () => {
-  // 账号 id 是不透明标识（与旧微信 openid 同类）；footer 不能把它
-  // 当成显示名，应保持 Mode 等待昵称或云端 displayName。
-  const profile = resolveSidebarProfile({
+test("v3 已登录时使用账号展示名，reconnecting 仍算已登录", () => {
+  const online = resolveSidebarProfile({
     user: null,
-    cloudAccount: cloudState({
-      status: "bound",
-      account: { id: "acct-1" },
-    }),
+    remoteV3: { status: "online", accountName: "Alice GitHub" },
   });
-  assert.equal(profile.hasAccount, true);
-  assert.equal(profile.displayName, "Mode");
+  assert.equal(online.hasAccount, true);
+  assert.equal(online.displayName, "Alice GitHub");
+
+  const reconnecting = resolveSidebarProfile({
+    user: null,
+    remoteV3: { status: "reconnecting", accountName: "Alice GitHub" },
+  });
+  assert.equal(reconnecting.hasAccount, true);
+  assert.equal(reconnecting.displayName, "Alice GitHub");
 });
 
-test("Mode Cloud 已绑定时使用云端账号展示名", () => {
+test("v3 没有展示名时保持 Mode，等待昵称覆盖", () => {
   const profile = resolveSidebarProfile({
     user: null,
-    cloudAccount: cloudState({
-      status: "bound",
-      account: { id: "acct-1", displayName: "Alice Cloud" },
-    }),
-  });
-  assert.equal(profile.hasAccount, true);
-  assert.equal(profile.displayName, "Alice Cloud");
-});
-
-test("云账号没有展示名时保持 Mode，等待昵称覆盖", () => {
-  const profile = resolveSidebarProfile({
-    user: null,
-    cloudAccount: cloudState({ status: "bound", account: { id: "acct-1" } }),
+    remoteV3: { status: "online", accountName: null },
   });
   assert.equal(profile.hasAccount, true);
   assert.equal(profile.displayName, "Mode");

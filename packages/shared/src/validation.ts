@@ -109,11 +109,18 @@ export const lanConnectOptionsSchema = z.object({
   token: z.string().optional(),
 });
 
+export const v3ConnectOptionsSchema = z.object({
+  kind: z.literal("v3"),
+  deviceId: z.string().trim().min(1).max(128),
+  deviceName: z.string().trim().max(128).optional(),
+});
+
 export const remoteTargetSchema = z.discriminatedUnion("kind", [
   sshConnectOptionsSchema,
   wslConnectOptionsSchema,
   dockerConnectOptionsSchema,
   lanConnectOptionsSchema,
+  v3ConnectOptionsSchema,
 ]);
 
 export const helloMessageSchema = z.object({

@@ -1,7 +1,8 @@
-import type { LanDiscoveredPeer, LanPairedPeer } from "@mode/shared";
+import type { LanDiscoveredPeer, LanPairedPeer, RemoteV3DeviceSummary } from "@mode/shared";
 import { RemoteControlDiscoveredRow } from "@/remote-desktop/RemoteControlDiscoveredRow.js";
 import { RemoteControlLanPeerRow } from "@/remote-desktop/RemoteControlLanPeerRow.js";
 import { RemoteControlModeAgentRow } from "@/remote-desktop/RemoteControlModeAgentRow.js";
+import { RemoteControlV3Row } from "@/remote-desktop/RemoteControlV3Row.js";
 import type { ModeAgentServerRecord } from "@/remote-desktop/modeAgentPairing.js";
 import type { RemoteDevice } from "@/remote-desktop/remoteDeviceModel.js";
 import type { DeviceViewMode } from "@/remote-desktop/useDeviceViewMode.js";
@@ -16,6 +17,7 @@ export function RemoteControlDeviceList({
   locallyControlled,
   busy,
   onConnect,
+  onConnectV3,
   onRename,
   onDelete,
   onReprobe,
@@ -32,6 +34,7 @@ export function RemoteControlDeviceList({
   locallyControlled: boolean;
   busy: boolean;
   onConnect: (peer: LanPairedPeer) => void;
+  onConnectV3: (host: RemoteV3DeviceSummary) => void;
   onRename: (serverId: string, name: string) => Promise<void>;
   onDelete: (serverId: string) => Promise<void>;
   onReprobe: (serverId: string) => void;
@@ -68,6 +71,17 @@ export function RemoteControlDeviceList({
               onDelete={onDelete}
               onReprobe={onReprobe}
               onError={onError}
+            />
+          );
+        }
+        if (device.origin === "v3") {
+          return (
+            <RemoteControlV3Row
+              key={`v3-${device.id}`}
+              host={device.host}
+              presentation={viewMode}
+              locallyControlled={locallyControlled}
+              onConnect={onConnectV3}
             />
           );
         }

@@ -324,6 +324,8 @@ export function createOpenInEditorRemoteTarget(target: RemoteTarget): OpenInEdit
         host: target.host,
         port: target.port,
       };
+    case "v3":
+      throw new Error("v3 远程工作区不支持在外部编辑器中打开");
   }
 }
 

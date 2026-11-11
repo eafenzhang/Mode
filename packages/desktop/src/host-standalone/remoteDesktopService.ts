@@ -95,6 +95,15 @@ export interface CreateRemoteDesktopHostServiceOptions {
     quality?: Parameters<typeof openRemoteDesktopPeerSession>[2],
     codec?: Parameters<typeof openRemoteDesktopPeerSession>[3],
   ) => Promise<RemoteDesktopPeerSessionOpen | RemoteDesktopPeerSessionFailure>;
+  /**
+   * v3 设备路由：返回 null 表示不是 v3 Host，继续走既有 LAN openSession。
+   * 返回结果时 wsUrl/mediaUrl 已是本机回环代理地址。
+   */
+  openV3Session?: (
+    serverId: string,
+    quality?: Parameters<typeof openRemoteDesktopPeerSession>[2],
+    codec?: Parameters<typeof openRemoteDesktopPeerSession>[3],
+  ) => Promise<RemoteDesktopPeerSessionOpen | RemoteDesktopPeerSessionFailure | null>;
   /** 测试注入：媒体密钥/盐（64 hex / 16 hex）。 */
   createKeySalt?: () => { key: string; salt: string };
   /** 编码能力缓存路径覆写（缺省 = app config 下的 rd-encoder-capability.json）。 */
@@ -355,11 +364,21 @@ export async function createRemoteDesktopHostService(
     }
   };
 
+  const openLanSession =
+    options.openSession ??
+    ((
+      serverId: string,
+      quality?: Parameters<typeof openRemoteDesktopPeerSession>[2],
+      codec?: Parameters<typeof openRemoteDesktopPeerSession>[3],
+    ) => openRemoteDesktopPeerSession(credentials, serverId, quality, codec));
   const controller = createRemoteDesktopHostController({
-    openSession:
-      options.openSession ??
-      ((serverId, quality, codec) =>
-        openRemoteDesktopPeerSession(credentials, serverId, quality, codec)),
+    openSession: async (serverId, quality, codec) => {
+      if (options.openV3Session) {
+        const v3 = await options.openV3Session(serverId, quality, codec);
+        if (v3) return v3;
+      }
+      return openLanSession(serverId, quality, codec);
+    },
     logger: {
       info: (...args: unknown[]) => log(describeArgs(args)),
       warn: (...args: unknown[]) => log(`warn ${describeArgs(args)}`),

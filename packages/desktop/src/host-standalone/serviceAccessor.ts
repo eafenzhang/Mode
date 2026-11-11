@@ -45,6 +45,7 @@ import { resolveRemoteAssetDirs } from "./remoteAssets.js";
 import { applyHostResourcesPath } from "./runtimeResources.js";
 import { resolveWebStaticRoot } from "./webAssets.js";
 import { createWindowHostControllerRuntime } from "./windowController/windowHostControllerService.js";
+import { collectLanAccessWorkspaces } from "../host/lanWorkspaceList.js";
 import type { ScopedAttachmentRegistry } from "./scopedAttachments.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -149,20 +150,21 @@ export async function createHostServiceSurface(
       IModeTaskService,
       IWindowControllerService,
       IConversationShareService,
-      ICloudAccountService,
+      IRemoteV3Service,
+      ICredentialService,
       createModeAgentConnectionScope,
     },
     { createLanAccessHostService },
     { createRemoteDesktopHostService },
     { createRemoteWorkspaceHostService },
-    { createCloudAccountHostService },
+    { createRemoteV3HostService },
     { loadCloudDeploymentConfig },
   ] = await Promise.all([
     import("@mode/services"),
     import("./lanAccessService.js"),
     import("./remoteDesktopService.js"),
     import("./remoteWorkspaceService.js"),
-    import("../host/cloudAccountService.js"),
+    import("../host/remoteV3/service.js"),
     import("../host/cloudDeploymentConfig.js"),
   ]);
 
@@ -254,10 +256,27 @@ export async function createHostServiceSurface(
   const localOnly = new ServiceCollection();
   let lanAccess: Awaited<ReturnType<typeof createLanAccessHostService>> | null = null;
   // 远程桌面 server 先建：LAN 握手需要它的能力位与 hooks；它读 client 记录时再经闭包取 LAN。
+  let openV3RemoteDesktopSession:
+    | ((
+        serverId: string,
+        quality?: import("@mode/shared/remote-desktop").RemoteDesktopQuality,
+        codec?: import("@mode/shared/remote-desktop").RemoteDesktopCodec,
+      ) => Promise<
+        | { ok: true; wsUrl: string; mediaUrl: string }
+        | { ok: false; errorCode?: import("@mode/shared/remote-desktop").RemoteDesktopErrorCode; error: string }
+        | null
+      >)
+    | null = null;
+  // v3 Host 服务在 LAN 服务之后创建；LAN 直连入口与 remote registry 都用闭包现取。
+  let remoteV3: Awaited<ReturnType<typeof createRemoteV3HostService>> | null = null;
   const remoteDesktop = await createRemoteDesktopHostService({
     services,
     log: options.log,
     getActiveLanAccessServer: () => lanAccess?.getActiveServer() ?? null,
+    openV3Session: (serverId, quality, codec) =>
+      openV3RemoteDesktopSession
+        ? openV3RemoteDesktopSession(serverId, quality, codec)
+        : Promise.resolve(null),
   });
   remoteDesktopCapability = remoteDesktop;
   lanAccess = await createLanAccessHostService({
@@ -265,13 +284,21 @@ export async function createHostServiceSurface(
     log: options.log,
     getRemoteDesktop: () => remoteDesktop,
     webRoot: resolveWebStaticRoot(),
+    ...(env.MODE_LAN_ACCESS_PORT?.trim()
+      ? { port: Number.parseInt(env.MODE_LAN_ACCESS_PORT, 10) }
+      : {}),
     ...relayOptions,
+    v3Direct: {
+      attach: (input, socket) =>
+        remoteV3?.acceptDirectSocket(input.connectionId, input.ticket, socket) ?? false,
+    },
   });
   const remote = await createRemoteWorkspaceHostService({
     services,
     log: options.log,
     scopedAttachments: options.scopedAttachments,
     remoteAssets: resolveRemoteAssetDirs(),
+    getRemoteV3: () => remoteV3,
     guardChannel: (channelName, channel) =>
       options.guards.guardChannel(channelName, channel, options.log),
     onControllerSourceDisconnected: (scope) => {
@@ -349,14 +376,57 @@ export async function createHostServiceSurface(
       };
     },
   });
-  const cloudAccount = await createCloudAccountHostService({
-    services,
-    log: options.log,
-    deploymentConfig: deployment,
-    getLanAccessServer: () => lanAccess?.getActiveServer() ?? null,
-  });
+  try {
+    remoteV3 = await createRemoteV3HostService({
+      credentials: services.get(ICredentialService),
+      env,
+      log: options.log,
+      version: env.MODE_VERSION?.trim() || undefined,
+      listWorkspaces: () => collectLanAccessWorkspaces(services),
+      listLanAddresses: async () => {
+        const server = lanAccess?.getActiveServer();
+        if (!server) return [];
+        const state = server.getState();
+        return state.enabled ? state.addresses : [];
+      },
+      getLocalApi: async () => {
+        const server = lanAccess?.getActiveServer();
+        if (!server) return null;
+        const state = server.getState();
+        if (!state.enabled) return null;
+        return {
+          baseUrl: `http://127.0.0.1:${state.port}`,
+          token: await server.ensureCloudPeerToken(),
+        };
+      },
+    });
+  } catch (error) {
+    // v3 是新增的 local-only 管理面；初始化失败不能拖垮整个 Host。
+    options.log(
+      `remote_v3_init_failed error=${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  openV3RemoteDesktopSession = async (serverId, quality, codec) => {
+    if (!remoteV3) return null;
+    try {
+      const hosts = await remoteV3.listHosts();
+      if (!hosts.some((host) => host.deviceId === serverId)) return null;
+      const session = await remoteV3.startRemoteDesktop({
+        hostDeviceId: serverId,
+        ...(quality ? { quality } : {}),
+        ...(codec ? { codec } : {}),
+      });
+      return { ok: true, wsUrl: session.signalUrl, mediaUrl: session.mediaUrl };
+    } catch (error) {
+      return {
+        ok: false,
+        errorCode: "internal",
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  };
   localOnly.register(ILanAccessService, lanAccess);
-  localOnly.register(ICloudAccountService, cloudAccount);
+  if (remoteV3) localOnly.register(IRemoteV3Service, remoteV3);
   localOnly.register(IRemoteDesktopService, remoteDesktop);
   localOnly.register(IRemoteService, remote);
 
@@ -394,7 +464,6 @@ export async function createHostServiceSurface(
       // 先停 automation 轮询并释放其在途认领，再停局域网监听、收被控会话与远程工作区，
       // 最后释放普通服务资源：否则服务销毁后 automation 仍可能向已释放的 services 派发。
       await automationRuntime?.stop();
-      await cloudAccount.dispose();
       await lanAccess.dispose();
       await remoteDesktop.dispose();
       await remote.disposeHost();

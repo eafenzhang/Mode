@@ -557,6 +557,9 @@ importers:
 
   packages/client:
     dependencies:
+      '@mode/remote-core':
+        specifier: workspace:*
+        version: link:../remote-core
       '@mode/rpc':
         specifier: workspace:*
         version: link:../rpc
@@ -616,6 +619,9 @@ importers:
       '@mode/provider-node':
         specifier: workspace:*
         version: link:../provider-node
+      '@mode/remote-core':
+        specifier: workspace:*
+        version: link:../remote-core
       '@mode/rpc':
         specifier: workspace:*
         version: link:../rpc
@@ -674,6 +680,9 @@ importers:
         specifier: 4.6.5
         version: 4.6.5
     devDependencies:
+      '@mode/remote-server':
+        specifier: workspace:*
+        version: link:../remote-server
       '@tailwindcss/vite':
         specifier: ^4.2.2
         version: 4.2.2(vite@8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.9.0))
@@ -802,6 +811,56 @@ importers:
       '@types/node':
         specifier: ^25.5.0
         version: 25.6.0
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+
+  packages/remote-core:
+    dependencies:
+      '@noble/ciphers':
+        specifier: 1.3.0
+        version: 1.3.0
+      '@noble/curves':
+        specifier: 1.9.7
+        version: 1.9.7
+      '@noble/hashes':
+        specifier: 1.8.0
+        version: 1.8.0
+    devDependencies:
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.6.0
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      tsx:
+        specifier: ^4.19.4
+        version: 4.21.0
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+      ws:
+        specifier: ^8.20.0
+        version: 8.20.0
+
+  packages/remote-server:
+    dependencies:
+      '@mode/remote-core':
+        specifier: workspace:*
+        version: link:../remote-core
+      ws:
+        specifier: ^8.20.0
+        version: 8.20.0
+    devDependencies:
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.6.0
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      tsx:
+        specifier: ^4.19.4
+        version: 4.21.0
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
@@ -1187,6 +1246,9 @@ importers:
       '@mode/client':
         specifier: workspace:*
         version: link:../client
+      '@mode/remote-core':
+        specifier: workspace:*
+        version: link:../remote-core
       '@mode/shared':
         specifier: workspace:*
         version: link:../shared

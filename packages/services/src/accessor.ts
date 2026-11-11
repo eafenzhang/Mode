@@ -8,7 +8,7 @@ import type { ITerminalService } from "./terminal/terminal.js";
 import type { ISettingService } from "./setting/setting.js";
 import type { ICredentialService } from "./credential/credential.js";
 import type { ILanAccessService } from "./lan-access/lanAccessService.js";
-import type { ICloudAccountService } from "./cloud-account/cloudAccountService.js";
+import type { IRemoteV3Service } from "./remote-v3/remoteV3Service.js";
 import type { IRemoteDesktopService } from "./remote-desktop/remoteDesktopService.js";
 import type { IRemoteService } from "./remote/remoteService.js";
 import type { IBroadcastService } from "./broadcast/broadcast.js";
@@ -62,8 +62,8 @@ export interface IServiceAccessor {
    * attachment 不提供。缺省即「该 Host 没有管理面」，调用方不得把它读成空状态。
    */
   readonly lanAccessService?: ILanAccessService;
-  /** Mode Cloud 账号与设备目录（local-only）；旧 Host / 远端 attachment 不提供。 */
-  readonly cloudAccountService?: ICloudAccountService;
+  /** 远程控制 v3 Host 管理面（local-only）；旧 Host / 远端 attachment 不提供。 */
+  readonly remoteV3Service?: IRemoteV3Service;
   /** 远程桌面被控设置面（local-only）；旧 Host / 远端 attachment 不提供。 */
   readonly remoteDesktopService?: IRemoteDesktopService;
   /** 远程工作区管理面（local-only）；旧 Host 不提供。 */

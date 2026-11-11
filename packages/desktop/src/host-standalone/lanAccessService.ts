@@ -20,6 +20,7 @@ import {
   type ServiceCollection,
 } from "@mode/services";
 
+import type { V3DirectEndpoint } from "@mode/server";
 import {
   startLanAccessServer,
   type LanAccessServerHandle,
@@ -74,10 +75,14 @@ export interface CreateLanAccessHostServiceOptions {
   getRemoteDesktop?: () => RemoteDesktopLanBridge | null;
   /** 测试注入点：默认 `startLanAccessServer`。 */
   startServer?: (params: StartLanAccessServerParams) => Promise<LanAccessServerHandle>;
+  /** 显式监听端口（多实例/验收隔离）；缺省 `LAN_ACCESS_DEFAULT_PORT`。 */
+  port?: number;
   /** 测试注入点：默认真实 UDP/Tailscale 探测。 */
   discover?: () => Promise<LanDiscoveredPeer[]>;
   /** 部署写入的内置中继配置；缺省由 startLanAccessServer 读 env。 */
   relay?: { baseUrl?: string; token?: string };
+  /** v3 LAN 直连入口；闭包延迟绑定到 v3 服务。 */
+  v3Direct?: V3DirectEndpoint;
   /** Web/手机远控静态资源目录；缺省不挂载静态资源。 */
   webRoot?: string;
   /**
@@ -172,6 +177,8 @@ export async function createLanAccessHostService(
           },
           ...(options.webRoot ? { webRoot: options.webRoot } : {}),
           ...(options.relay ? { relay: options.relay } : {}),
+          ...(options.v3Direct ? { v3Direct: options.v3Direct } : {}),
+          ...(options.port ? { port: options.port } : {}),
           ...(remoteDesktop ? { remoteDesktop: remoteDesktop.getLanHooks() } : {}),
           // 手机经本 Host 发起的 SSH/Docker 连接与桌面 renderer 使用同一份资产源解析
           //（含构建期内置 CDN 与开发态 mock-cdn）；不传则服务端只能读 env。

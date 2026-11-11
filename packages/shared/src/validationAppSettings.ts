@@ -108,6 +108,11 @@ const remoteWorkspaceTargetSchema = z.discriminatedUnion("kind", [
     serverId: nonEmptyStringSchema.optional(),
     serverName: z.string().optional(),
   }),
+  z.object({
+    kind: z.literal("v3"),
+    deviceId: z.string().trim().min(1).max(128),
+    deviceName: z.string().trim().max(128).optional(),
+  }),
 ]);
 
 const appWorkspaceSessionEntrySchema = z.discriminatedUnion("kind", [

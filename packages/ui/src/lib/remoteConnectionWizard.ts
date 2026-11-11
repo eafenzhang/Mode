@@ -1,4 +1,9 @@
-import type { LanPairedPeer, RemoteAssetInstallMode, RemoteTarget } from "@mode/shared";
+import type {
+  LanPairedPeer,
+  RemoteAssetInstallMode,
+  RemoteTarget,
+  RemoteV3DeviceSummary,
+} from "@mode/shared";
 import { isValidWslUser, normalizeRemoteResourcePackageSelection } from "@mode/shared";
 import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
 import { lanPeerToRemoteTarget } from "@/remote-desktop/remoteDeviceModel.js";
@@ -25,6 +30,8 @@ interface RemoteConnectionFormSnapshot {
   manualDockerContainer?: string;
   // 局域网：向导只允许选择已配对设备；地址、端点与身份都从该记录投影。
   lanPeer?: LanPairedPeer | null;
+  // v3：只允许选择账号目录里在线的 Host。
+  v3Host?: RemoteV3DeviceSummary | null;
 }
 
 export function getRemoteWizardStepCopy(
@@ -154,6 +161,24 @@ export function buildRemoteTarget(
           kind: "wsl",
           distro: snapshot.wslDistro || undefined,
           ...(wslUser ? { user: wslUser } : {}),
+        },
+      };
+    }
+    case "v3": {
+      // v3 设备由账号目录发现，向导只消费目录快照，不手填设备标识。
+      const host = snapshot.v3Host;
+      if (!host) {
+        return { errorMessage: intl.formatMessage({ id: "remote.v3.validation.selectHost" }) };
+      }
+      if (!host.online) {
+        return { errorMessage: intl.formatMessage({ id: "remote.v3.validation.hostOffline" }) };
+      }
+      const deviceName = host.name?.trim();
+      return {
+        target: {
+          kind: "v3",
+          deviceId: host.deviceId,
+          ...(deviceName ? { deviceName } : {}),
         },
       };
     }

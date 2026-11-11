@@ -14,5 +14,7 @@ export function buildRemoteEnvironmentKey(target: RemoteTarget): string {
       return `docker:${target.container.trim()}`;
     case "lan":
       return `lan:${target.host.trim().toLowerCase()}:${target.port}`;
+    case "v3":
+      return `v3:${target.deviceId}`;
   }
 }

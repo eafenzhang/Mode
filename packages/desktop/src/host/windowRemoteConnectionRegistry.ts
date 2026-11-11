@@ -125,6 +125,9 @@ function buildConnectionKey(target: RemoteTarget, remoteSessionId: string): stri
     case "lan":
       // 同一台对端复用一条 WS 通道，多个工作区会话共享（与 SSH 按 host 复用同构）。
       return `lan:${target.host.trim().toLowerCase()}:${target.port}`;
+    case "v3":
+      // v3 按设备复用一条 Noise 通道，同一设备的多个工作区会话共享。
+      return `v3:${target.deviceId}`;
   }
 }
 

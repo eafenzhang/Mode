@@ -42,6 +42,7 @@ import type {
   RemoteDesktopSignalMessage,
 } from "@mode/shared/remote-desktop";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
+import { WebV3Page } from "./v3/WebV3Page.js";
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
   const saved = localStorage.getItem("mode-theme");
@@ -1094,6 +1095,13 @@ async function needsLanPairing(basePath: string): Promise<boolean> {
 }
 
 async function bootstrapWebApp() {
+  // v3 Web 客户端是独立入口：不依赖 LAN Host 的 RPC bootstrap，也不消费 workspace 参数。
+  if (window.location.pathname.replace(/\/+$/u, "").endsWith("/v3")) {
+    document.title = "Mode - 远程控制 v3";
+    root.render(<WebV3Page />);
+    return;
+  }
+
   const params = new URLSearchParams(window.location.search);
   if (isWebOAuthCallback(params)) {
     renderWebAuthCallbackPage();

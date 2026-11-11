@@ -26,6 +26,12 @@ export class ChannelClient implements IChannelClient, IDisposable {
   private pendingRejections = new Map<number, (error: Error) => void>();
   private lastRequestId = 0;
   private protocolListener: IDisposable | null;
+  private initialized = false;
+  // 传输重建后需要重新向新 ChannelServer 订阅；事件监听本身保留在 activeRequests。
+  private eventRequests = new Map<
+    number,
+    { channelName: string; name: string; arg?: any; sent: boolean }
+  >();
 
   private readonly _onDidInitialize = new Emitter<void>();
   readonly onDidInitialize = this._onDidInitialize.event;
@@ -148,11 +154,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
   private requestEvent(channelName: string, name: string, arg?: any): Event<any> {
     const id = this.lastRequestId++;
+    const request = { channelName, name, arg, sent: false };
+    this.eventRequests.set(id, request);
     const emitter = new Emitter<any>({
       onWillAddFirstListener: () => {
         const doRequest = () => {
+          if (this.isDisposed || request.sent) return;
           this.activeRequests.add(emitter);
-          this.sendRequest(RequestType.EventListen, id, channelName, name, arg);
+          this.sendEventListen(id, request);
         };
 
         if (this.state === State.Idle) {
@@ -163,7 +172,8 @@ export class ChannelClient implements IChannelClient, IDisposable {
       },
       onDidRemoveLastListener: () => {
         this.activeRequests.delete(emitter);
-        this.sendCancelOrDispose(RequestType.EventDispose, id);
+        this.eventRequests.delete(id);
+        if (request.sent) this.sendCancelOrDispose(RequestType.EventDispose, id);
         this.handlers.delete(id);
       },
     });
@@ -231,12 +241,46 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
   private onResponse(response: IRawResponse): void {
     if (response.type === ResponseType.Initialize) {
+      const reconnected = this.initialized;
       this.state = State.Idle;
+      this.initialized = true;
       this._onDidInitialize.fire();
+      if (reconnected) {
+        // 新 ChannelServer 不知道旧连接的订阅，按原 id 重放 EventListen。
+        for (const [id, request] of this.eventRequests) {
+          if (!request.sent) this.sendEventListen(id, request);
+        }
+      }
       return;
     }
 
     this.handlers.get(response.id)?.(response);
+  }
+
+  /**
+   * 底层传输断开但 socket 正在重连：拒绝在途请求、回到 Uninitialized，
+   * 保留事件监听；新连接 Initialize 后由 onResponse 重放订阅。
+   */
+  notifyTransportClosed(reason = new Error("RPC transport closed")): void {
+    if (this.isDisposed) return;
+    this.state = State.Uninitialized;
+    for (const request of this.eventRequests.values()) {
+      request.sent = false;
+    }
+    for (const [id, reject] of this.pendingRejections) {
+      this.pendingRejections.delete(id);
+      this.handlers.delete(id);
+      reject(reason);
+    }
+  }
+
+  private sendEventListen(
+    id: number,
+    request: { channelName: string; name: string; arg?: any; sent: boolean },
+  ): void {
+    if (!this.eventRequests.has(id)) return;
+    request.sent = true;
+    this.sendRequest(RequestType.EventListen, id, request.channelName, request.name, request.arg);
   }
 
   private whenInitialized(): Promise<void> {
@@ -270,6 +314,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
     }
     this.activeRequests.clear();
     this.pendingRejections.clear();
+    this.eventRequests.clear();
     this._onDidInitialize.dispose();
   }
 }

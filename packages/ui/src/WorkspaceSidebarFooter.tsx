@@ -1,5 +1,5 @@
 /* oxlint-disable eslint(max-lines) -- footer 聚合账户、主题、模式和快捷键菜单。 */
-import type { CloudAccountState, Locale, UserInfo } from "@mode/shared";
+import type { Locale, RemoteV3HostState, UserInfo } from "@mode/shared";
 import { memo, useCallback, useEffect, useState } from "react";
 import { DesktopCommandIds, TID_LOGIN_TRIGGER, TID_TASK_SETTINGS_BUTTON } from "@mode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -99,42 +99,36 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const isRestoringOAuthSession = useModeStore((state) => state.isRestoringOAuthSession);
   const services = useServices();
   const baseServices = useOptionalBaseWorkspaceServices();
-  // Cloud 账号是 app-global、local-only 能力：优先读根 Host，避免远端 workspace
-  // 的 service 集合没有该频道时，首页/设置页一处显示账号、一处退回 Mode。
-  const cloudAccountService = baseServices?.cloudAccountService ?? services.cloudAccountService;
+  const remoteV3Service = baseServices?.remoteV3Service ?? services.remoteV3Service;
   const { settings: appSettings } = useSettings();
-  const [cloudAccount, setCloudAccount] = useState<CloudAccountState | null>(null);
+  const [remoteV3State, setRemoteV3State] = useState<RemoteV3HostState | null>(null);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   useEffect(() => {
-    if (!cloudAccountService) {
-      return;
-    }
+    if (!remoteV3Service) return;
     let cancelled = false;
-    void cloudAccountService
+    void remoteV3Service
       .getState()
       .then((next) => {
-        if (!cancelled) {
-          setCloudAccount(next);
-        }
+        if (!cancelled) setRemoteV3State(next);
       })
       .catch(() => undefined);
-    const subscription = cloudAccountService.onDidChange((next) => {
-      if (!cancelled) {
-        setCloudAccount(next);
-      }
+    const subscription = remoteV3Service.onDidChange((next) => {
+      if (!cancelled) setRemoteV3State(next);
     });
     return () => {
       cancelled = true;
       subscription.dispose();
     };
-  }, [cloudAccountService]);
+  }, [remoteV3Service]);
   const profile = resolveSidebarProfile({
     user,
-    cloudAccount,
+    remoteV3: remoteV3State,
     nickname: appSettings?.userNickname,
   });
+  const v3SignedIn =
+    remoteV3State?.status === "online" || remoteV3State?.status === "reconnecting";
   const profileBadge = profile.displayName;
-  const avatarKey = profile.avatarUrl ?? user?.id ?? cloudAccount?.account?.id ?? "guest";
+  const avatarKey = profile.avatarUrl ?? user?.id ?? "guest";
   const showAuthRestoreLoading = !profile.hasAccount && isRestoringOAuthSession;
   const usageSummaryState = useWorkspaceSidebarFooterUsageSummaryState({
     enabled: true,
@@ -353,17 +347,17 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
             >
               <UserRound className="size-4" />
               {intl.formatMessage({
-                id: cloudAccount?.status === "bound" ? "modeAccount.title" : "modeAccount.login",
+                id: v3SignedIn ? "modeAccount.title" : "modeAccount.login",
               })}
             </DropdownMenuItem>
-            {cloudAccount?.status === "bound" ? (
+            {v3SignedIn ? (
               <DropdownMenuItem
                 onSelect={() => {
-                  void cloudAccountService?.unbind();
+                  void remoteV3Service?.disconnectAccount();
                 }}
               >
                 <LogOut className="size-4" />
-                {intl.formatMessage({ id: "modeAccount.logout" })}
+                {intl.formatMessage({ id: "modeAccount.remoteV3.disconnect" })}
               </DropdownMenuItem>
             ) : null}
           </DropdownMenuContent>
@@ -374,7 +368,6 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
           user={user}
-          cloudAccount={cloudAccount}
         />
         <div className="flex shrink-0 items-center gap-1.5">
           {/* 远端工作区可能只有 workspaceIdentity、没有 workspacePath；两者任一有值都应显示入口。 */}

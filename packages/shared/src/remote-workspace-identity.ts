@@ -80,6 +80,8 @@ export function buildRemoteWorkspaceIdentity(
       return `remote:docker:${target.container}:${normalizedPath}`;
     case "lan":
       return `remote:lan:${target.host.trim().toLowerCase()}:${target.port}:${normalizedPath}`;
+    case "v3":
+      return `remote:v3:${target.deviceId}:${normalizedPath}`;
   }
 }
 

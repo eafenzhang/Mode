@@ -350,6 +350,23 @@ interface HttpServerOptions {
    * onMediaSocket 可选：媒体 WS（/ws/remote-desktop-media）的交接口，缺省时该端点 501。
    */
   remoteDesktop?: RemoteDesktopHooks;
+  /**
+   * 远程控制 v3 LAN 直连入口（`/ws/v1/direct`）。首帧 `{type:"direct.attach",
+   * connectionId,ticket}` 由 Host 校验；成功后才把 socket 交给 v3 ControlLink。
+   * 未提供时不暴露该端点。
+   */
+  v3Direct?: V3DirectEndpoint;
+}
+
+export interface V3DirectSocket {
+  send(text: string): void;
+  close(code?: number, reason?: string): void;
+  onMessage(callback: (text: string) => void): void;
+  onClose(callback: (code: number, reason: string) => void): void;
+}
+
+export interface V3DirectEndpoint {
+  attach(input: { connectionId: string; ticket: string }, socket: V3DirectSocket): boolean;
 }
 
 /** 远程桌面被控 hook：请求会话（可含被控同意）与升级后的信令 / 媒体 socket 交接。 */
@@ -698,6 +715,11 @@ export function createHttpServer(
       // 票据是令牌鉴权 POST 的产物，renderer 无对端长期令牌也不应持有，故豁免全局令牌校验
       // （票据校验在 media 专用中间件里单次消费）。
       if (pathname === "/ws/remote-desktop-media") {
+        await next();
+        return;
+      }
+      // v3 LAN 直连：没有长期令牌，凭首帧里的一次性 direct ticket 自证。
+      if (pathname === "/ws/v1/direct" && options.v3Direct) {
         await next();
         return;
       }
@@ -1133,6 +1155,80 @@ export function createHttpServer(
     await next();
   });
   app.get("/ws/host", upgradeTrustedHostWebSocket);
+
+  if (options.v3Direct) {
+    const v3Direct = options.v3Direct;
+    app.get(
+      "/ws/v1/direct",
+      upgradeWebSocket(() => ({
+        onOpen(_event, ws) {
+          const raw = ws.raw as WebSocket;
+          let attached = false;
+          let onMessage: ((text: string) => void) | null = null;
+          const buffered: string[] = [];
+          const closeListeners = new Set<(code: number, reason: string) => void>();
+          let closed = false;
+          let closeCode = 1006;
+          let closeReason = "direct socket closed";
+          const directSocket: V3DirectSocket = {
+            send(text) {
+              if (raw.readyState === 1) raw.send(text);
+            },
+            close(code = 1000, reason = "") {
+              raw.close(code, reason);
+            },
+            onMessage(callback) {
+              onMessage = callback;
+              for (const text of buffered.splice(0, buffered.length)) callback(text);
+            },
+            onClose(callback) {
+              closeListeners.add(callback);
+              if (closed) queueMicrotask(() => callback(closeCode, closeReason));
+            },
+          };
+
+          raw.on("message", (data, isBinary) => {
+            if (isBinary) return;
+            const text = data.toString();
+            if (!attached) {
+              try {
+                const frame = JSON.parse(text) as {
+                  type?: unknown;
+                  connectionId?: unknown;
+                  ticket?: unknown;
+                };
+                if (
+                  frame.type !== "direct.attach" ||
+                  typeof frame.connectionId !== "string" ||
+                  typeof frame.ticket !== "string"
+                ) {
+                  raw.close(1008, "direct.attach required");
+                  return;
+                }
+                attached = v3Direct.attach(
+                  { connectionId: frame.connectionId, ticket: frame.ticket },
+                  directSocket,
+                );
+                if (!attached) raw.close(1008, "invalid direct ticket");
+              } catch {
+                raw.close(1008, "invalid direct frame");
+              }
+              return;
+            }
+            if (onMessage) onMessage(text);
+            else buffered.push(text);
+          });
+          raw.on("close", (code, reason) => {
+            closed = true;
+            closeCode = code;
+            closeReason = reason.toString() || `direct ws closed ${code}`;
+            for (const listener of closeListeners) listener(closeCode, closeReason);
+            closeListeners.clear();
+          });
+        },
+      })),
+    );
+  }
 
   // 局域网远程桌面信令通道：票据单次消费升级（30s、绑定 clientId），
   // 之后宿主只做 JSON 单帧转发（RemoteDesktopSignalMessage），本模块不解析 SDP/ICE。

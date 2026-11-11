@@ -24,6 +24,7 @@ import {
   IClientConfigService,
   ICredentialService,
   IRemoteService,
+  type IRemoteV3Service,
   type IPromptAttachmentTransferService,
   type IServiceAccessor,
   type RemoteAttachmentDescriptor,
@@ -49,6 +50,7 @@ import {
   readLanPeerEndpoints,
 } from "../host/lanRemoteAttach.js";
 import { endpointsForLanTarget, selectReachableLanPeerEndpoint } from "../host/lanPeerEndpoints.js";
+import { attachV3RemoteWorkspace } from "../host/remoteV3/workspaceAttach.js";
 import {
   createLanPromptAttachmentTransferService,
   materializeLanPromptAttachments,
@@ -159,10 +161,15 @@ export interface CreateRemoteWorkspaceHostServiceOptions {
   ) => Promise<WindowRemoteConnectionHandle<ServiceCollection, RemoteCapabilities>>;
   /** 测试注入点：替换 SSH/WSL/Docker transport。 */
   connectStdio?: (
-    target: Exclude<RemoteTarget, { kind: "lan" }>,
+    target: Exclude<RemoteTarget, { kind: "lan" | "v3" }>,
     remoteAssets: RemoteAssetDirs,
     signal: AbortSignal,
   ) => Promise<WindowRemoteConnectionHandle<ServiceCollection, RemoteCapabilities>>;
+  /**
+   * v3 transport 的延迟绑定：v3 Host 服务在本服务之后创建，闭包现取；
+   * 未绑定或未登录时明确报错，不回退到 LAN/stdio。
+   */
+  getRemoteV3?: () => IRemoteV3Service | null;
   /** SSH/WSL/Docker 部署资源目录；缺省按 env/资源目录/mock-cdn 解析。 */
   remoteAssets?: RemoteAssetDirs;
   /** 测试注入点：替换真实 WS 挂接（用于覆盖关闭回调接线，不发起网络）。 */
@@ -392,8 +399,56 @@ export async function createRemoteWorkspaceHostService(
     }
   };
 
+  const connectV3Target = async (
+    target: Extract<RemoteTarget, { kind: "v3" }>,
+    signal: AbortSignal,
+  ): Promise<WindowRemoteConnectionHandle<ServiceCollection, RemoteCapabilities>> => {
+    const remoteV3 = options.getRemoteV3?.();
+    if (!remoteV3) {
+      throw new Error("远程控制 v3 服务不可用：请先在账号设置里登录");
+    }
+    const closeBridge = createRemoteCloseBridge();
+    const connection = await attachV3RemoteWorkspace({
+      remoteV3,
+      hostDeviceId: target.deviceId,
+      signal,
+      onClose: () => closeBridge.notify({ exitCode: null, signal: null }),
+    });
+    if (signal.aborted) {
+      await connection.dispose();
+      throw new Error("远程连接已取消");
+    }
+    const promptAttachmentTransferService = createLanPromptAttachmentTransferService({
+      channel: connection.services.modeAgentService,
+    });
+    try {
+      return createRemoteWorkspaceHandle({
+        connectionServices: connection.services,
+        sourceServices: services,
+        clientConfigService: services.get(IClientConfigService),
+        createRemoteWorkspaceServices:
+          options.createRemoteWorkspaceServices ?? createRemoteWorkspaceServiceCollection,
+        promptAttachmentTransferService,
+        materializePromptAttachments: async (request) => {
+          const result = await materializeLanPromptAttachments(request, {
+            fileService: connection.services.fileService,
+          });
+          return { content: result.content, attachments: result.attachments };
+        },
+        capabilities:
+          connection.info.capabilities.computerUse === true ? { computerUse: true } : undefined,
+        closeBridge,
+        disposeConnection: () => connection.dispose(),
+        log,
+      });
+    } catch (error) {
+      await connection.dispose();
+      throw error;
+    }
+  };
+
   const defaultConnectStdio = async (
-    target: Exclude<RemoteTarget, { kind: "lan" }>,
+    target: Exclude<RemoteTarget, { kind: "lan" | "v3" }>,
     remoteAssets: RemoteAssetDirs,
     signal: AbortSignal,
   ): Promise<WindowRemoteConnectionHandle<ServiceCollection, RemoteCapabilities>> => {
@@ -459,7 +514,7 @@ export async function createRemoteWorkspaceHostService(
   };
 
   const connectStdioTarget = async (
-    target: Exclude<RemoteTarget, { kind: "lan" }>,
+    target: Exclude<RemoteTarget, { kind: "lan" | "v3" }>,
     remoteAssets: RemoteAssetDirs,
     signal: AbortSignal,
   ): Promise<WindowRemoteConnectionHandle<ServiceCollection, RemoteCapabilities>> => {
@@ -471,6 +526,9 @@ export async function createRemoteWorkspaceHostService(
     connect: async (request) => {
       if (request.target.kind === "lan") {
         return await connectLanTarget(request.target, request.signal);
+      }
+      if (request.target.kind === "v3") {
+        return await connectV3Target(request.target, request.signal);
       }
       return await connectStdioTarget(
         request.target,

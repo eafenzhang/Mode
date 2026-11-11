@@ -31,6 +31,19 @@ modules:
     layers: { domain: domain, app: app, adapters: adapters }
     layerOrder: [domain, app, adapters]
     owner: desktop-settings
+  - id: remote-core
+    roots: [packages/remote-core/src]
+    managed: true
+    requires: []
+    publicEntrypoints:
+      [packages/remote-core/src/contract.ts, packages/remote-core/src/index.ts]
+    owner: remote-control
+  - id: remote-server
+    roots: [packages/remote-server/src]
+    managed: true
+    requires: [remote-core]
+    publicEntrypoints: [packages/remote-server/src/index.ts]
+    owner: remote-control
   - id: client
     roots: [packages/client/src]
     managed: false

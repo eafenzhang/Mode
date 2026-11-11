@@ -5,8 +5,9 @@
     "rootDir": "src",
     "lib": ["es2025", "dom", "dom.iterable"],
     "jsx": "react-jsx",
-    "noEmit": true
+    "noEmit": true,
+    "types": ["node"]
   },
   "include": ["src"],
-  "references": [{ "path": "../ui" }, { "path": "../client" }]
+  "references": [{ "path": "../ui" }, { "path": "../client" }, { "path": "../remote-core" }]
 }

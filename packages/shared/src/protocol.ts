@@ -170,11 +170,18 @@ export interface LanRemoteTargetSnapshot {
   serverName?: string;
 }
 
+export interface V3RemoteTargetSnapshot {
+  kind: "v3";
+  deviceId: string;
+  deviceName?: string;
+}
+
 export type RemoteTargetSnapshot =
   | SSHRemoteTargetSnapshot
   | WSLRemoteTargetSnapshot
   | DockerRemoteTargetSnapshot
-  | LanRemoteTargetSnapshot;
+  | LanRemoteTargetSnapshot
+  | V3RemoteTargetSnapshot;
 
 export interface RemoteWorkspaceSessionSnapshot {
   /** 远程 workspace 的真实绝对路径 */

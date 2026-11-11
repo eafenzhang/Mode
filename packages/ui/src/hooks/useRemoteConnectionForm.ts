@@ -8,6 +8,7 @@ import type {
 } from "@mode/shared";
 import { DEFAULT_REMOTE_ASSET_INSTALL_MODE } from "@mode/shared";
 import { useLanConnectionForm } from "@/hooks/useLanConnectionForm.js";
+import { useV3ConnectionForm } from "@/hooks/useV3ConnectionForm.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import {
   loadRemoteConnectionDockerOptions,
@@ -31,6 +32,8 @@ export function buildAvailableKinds(options: { isWindowsDesktop: boolean }): Rem
   // 局域网方式保留在向导里，但只列已配对设备；配对/发现仍在远程控制页
   // （docs/specs/remote-control-unified-pairing.md R2、lan-paired-devices.md §向导）。
   kinds.push("lan");
+  // v3 设备来自账号设备目录；未登录时在选择页显示空态，不隐藏入口。
+  kinds.push("v3");
   return kinds;
 }
 
@@ -48,6 +51,7 @@ export function useRemoteConnectionForm({
   const platform = usePlatform();
   const [kind, setKind] = useState<RemoteKind>("ssh");
   const lan = useLanConnectionForm({ open, kind });
+  const v3 = useV3ConnectionForm({ open, kind });
   const [host, setHostState] = useState("");
   const [port, setPortState] = useState("22");
   const [username, setUsernameState] = useState("");
@@ -344,6 +348,7 @@ export function useRemoteConnectionForm({
     dockerContainer,
     manualDockerContainer,
     ...lan,
+    ...v3,
     sshConfigAliases,
     sshConfigAliasesLoading,
     sshConfigAliasesError,

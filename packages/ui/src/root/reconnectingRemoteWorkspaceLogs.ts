@@ -26,6 +26,8 @@ function getRemoteWorkspaceReconnectLogTargetSuffix(
       return target.container;
     case "lan":
       return `${target.host}-${target.port}`;
+    case "v3":
+      return target.deviceId;
   }
 }
 

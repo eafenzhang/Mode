@@ -36,5 +36,10 @@ export async function createRemoteBackend(target: RemoteTarget): Promise<IRemote
       // （HTTP /api/server-info + /ws/host），不做上传/启动 stdio server，因此没有 backend。
       throw new Error("LAN 目标没有 stdio backend；请使用局域网挂接路径");
     }
+    case "v3": {
+      // v3 目标同样是在线实例，但连接面在桌面 Host 的账号设备目录与 Noise 通道里；
+      // 服务端没有设备私钥，无法替客户端建立后端。
+      throw new Error("v3 远程工作区仅在桌面 Host 支持；服务端没有设备身份");
+    }
   }
 }

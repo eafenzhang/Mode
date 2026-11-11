@@ -19,7 +19,7 @@ import {
   isModeCuaInternalFeatureEnabled,
 } from "@mode/shared";
 import type { RemoteDesktopErrorCode, RemoteDesktopQuality } from "@mode/shared/remote-desktop";
-import { createHttpServer } from "@mode/server";
+import { createHttpServer, type V3DirectEndpoint } from "@mode/server";
 import { LanPeerController } from "@mode/server/remote/lanPeerController.js";
 import { RemoteDesktopPeerController } from "@mode/server/remote/remoteDesktopPeerController.js";
 import { type ICredentialService, type ServiceCollection } from "@mode/services";
@@ -137,6 +137,8 @@ export interface StartLanAccessServerParams {
    * 并触发 onDidChange，让远控弹窗显示真实的「已连接」状态。
    */
   onWebSessionChange?: () => void;
+  /** v3 LAN 直连端点：Host 用 ControlLink 的 pending ticket 校验首帧。 */
+  v3Direct?: V3DirectEndpoint;
 }
 
 /** 定长比较；长度不同直接失败，不做 pad（令牌是 base64url 定长串）。 */
@@ -320,7 +322,7 @@ export async function startLanAccessServer(
     }
     const record: LanAccessClientRecord = {
       id: CLOUD_ACCOUNT_PEER_CLIENT_ID,
-      label: "Mode Cloud（同账号主控）",
+      label: "远程控制 v3（同账号设备）",
       createdAt: Date.now(),
       lastUsedAt: null,
     };
@@ -350,6 +352,7 @@ export async function startLanAccessServer(
         }
       : {}),
     verifyAuthToken,
+    ...(params.v3Direct ? { v3Direct: params.v3Direct } : {}),
     lanPairing: { redeem },
     lanPeers,
     remoteDesktopPeers,

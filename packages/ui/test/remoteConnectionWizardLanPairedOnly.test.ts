@@ -28,14 +28,20 @@ const baseSnapshot = {
   lanPeer: null as LanPairedPeer | null,
 };
 
-test("连接方式包含局域网，且排在 SSH/WSL/Docker 之后", () => {
+test("连接方式包含局域网与 v3，且排在 SSH/WSL/Docker 之后", () => {
   assert.deepEqual(buildAvailableKinds({ isWindowsDesktop: true }), [
     "ssh",
     "wsl",
     "docker",
     "lan",
+    "v3",
   ]);
-  assert.deepEqual(buildAvailableKinds({ isWindowsDesktop: false }), ["ssh", "docker", "lan"]);
+  assert.deepEqual(buildAvailableKinds({ isWindowsDesktop: false }), [
+    "ssh",
+    "docker",
+    "lan",
+    "v3",
+  ]);
 });
 
 test("未选择已配对设备时给出选择校验，不回落到手动地址", () => {

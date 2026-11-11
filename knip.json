@@ -57,6 +57,22 @@
         "test/**/*.ts"
       ]
     },
+    "packages/remote-core": {
+      "entry": [
+        "src/index.ts",
+        "src/contract.ts",
+        "src/module.ts",
+        "test/**/*.mts"
+      ]
+    },
+    "packages/remote-server": {
+      "entry": [
+        "src/index.ts",
+        "src/main.ts",
+        "src/module.ts",
+        "test/**/*.mts"
+      ]
+    },
     "packages/ui": {
       "entry": [
         "test/**/*.ts",

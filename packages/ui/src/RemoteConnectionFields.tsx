@@ -5,6 +5,7 @@ import type {
   LanPairedPeer,
   RemoteAssetInstallMode,
   RemoteTarget,
+  RemoteV3DeviceSummary,
   RemoteWorkspaceSessionEntry,
   SSHConfigAliasOption,
   WSLDistro,
@@ -20,6 +21,8 @@ import {
   TID_DOCKER_CONTAINER_INPUT,
   TID_LAN_PAIRED_PEER_ITEM,
   TID_LAN_PAIRED_PEER_LIST,
+  TID_V3_HOST_ITEM,
+  TID_V3_HOST_LIST,
   TID_DOCKER_CONTAINER_SELECT,
   TID_SSH_CONFIG_ALIAS_SELECT,
   TID_SSH_AUTH_PASSWORD,
@@ -58,6 +61,17 @@ import {
 } from "@/ui-foundation/adapters/select.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
+/** v3 字段：只允许在账号设备目录里选一台在线 Host。 */
+export interface RemoteConnectionV3FieldsProps {
+  hosts: RemoteV3DeviceSummary[];
+  selectedDeviceId: string;
+  loading: boolean;
+  loadError: string;
+  /** v3 服务是否可用（未登录或服务未装配时为 false）。 */
+  available: boolean;
+  onSelectHost: (host: RemoteV3DeviceSummary) => void;
+}
+
 /** 局域网页字段：只允许在已配对设备里选一台（配对仍在「远程控制」页）。 */
 export interface RemoteConnectionLanFieldsProps {
   /** 已配对设备（令牌由 Host 按 serverId 从凭据服务取）。 */
@@ -82,6 +96,7 @@ function formatSshConfigAliasSummary(aliasOption: SSHConfigAliasOption): string 
 export function RemoteConnectionFields({
   kind,
   lanFields,
+  v3Fields,
   host,
   port,
   username,
@@ -122,6 +137,8 @@ export function RemoteConnectionFields({
   kind: RemoteTarget["kind"];
   /** 局域网页的全部字段状态与回调（单独成组，避免再往这个组件塞十个平铺 prop）。 */
   lanFields: RemoteConnectionLanFieldsProps;
+  /** v3 页的全部字段状态与回调。 */
+  v3Fields: RemoteConnectionV3FieldsProps;
   host: string;
   port: string;
   username: string;
@@ -305,6 +322,83 @@ export function RemoteConnectionFields({
           ) : null}
           <p className="text-ui-xs text-foreground-subtlest">
             {intl.formatMessage({ id: "remote.lan.pairedOnlyHint" })}
+          </p>
+        </div>
+      );
+    }
+    case "v3": {
+      const empty =
+        v3Fields.available &&
+        !v3Fields.loading &&
+        !v3Fields.loadError &&
+        v3Fields.hosts.length === 0;
+      return (
+        <div className="space-y-3">
+          <p className="text-ui-base text-foreground-subtle">
+            {intl.formatMessage({ id: "remote.v3.description" })}
+          </p>
+          {!v3Fields.available ? (
+            <p className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-ui-base text-warning">
+              <AlertTriangleIcon className="size-3.5 shrink-0" />
+              {intl.formatMessage({ id: "remote.v3.loginRequired" })}
+            </p>
+          ) : null}
+          <span className="block text-ui-base text-foreground-subtle">
+            {intl.formatMessage({ id: "remote.v3.hostsTitle" })}
+          </span>
+          {v3Fields.hosts.length > 0 ? (
+            <div className="space-y-2" data-testid={TID_V3_HOST_LIST}>
+              {v3Fields.hosts.map((host) => {
+                const selected = v3Fields.selectedDeviceId === host.deviceId;
+                return (
+                  <button
+                    key={host.deviceId}
+                    type="button"
+                    data-testid={TID_V3_HOST_ITEM}
+                    disabled={!host.online}
+                    onClick={() => v3Fields.onSelectHost(host)}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-start transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                      selected
+                        ? "border-input-border-focused bg-surface-hover"
+                        : "border-card-border bg-card enabled:hover:border-input-border-hover enabled:hover:bg-surface-hover",
+                    )}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-ui-base text-foreground">
+                        {host.name?.trim() || host.deviceId}
+                      </span>
+                      <span className="block truncate text-ui-xs text-foreground-subtle">
+                        {`${host.deviceId.slice(0, 8)} · ${intl.formatMessage({
+                          id: host.online ? "remote.v3.online" : "remote.v3.offline",
+                        })}`}
+                      </span>
+                    </span>
+                    {selected ? <CheckIcon className="size-4 shrink-0 text-primary" /> : null}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          {v3Fields.loading ? (
+            <p className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-ui-base text-foreground-subtle">
+              <LoaderIcon className="size-3.5 animate-spin" />
+              {intl.formatMessage({ id: "remote.v3.loading" })}
+            </p>
+          ) : null}
+          {empty ? (
+            <p className="rounded-lg border border-dashed border-border px-3 py-2 text-ui-base text-foreground-subtle">
+              {intl.formatMessage({ id: "remote.v3.empty" })}
+            </p>
+          ) : null}
+          {v3Fields.loadError ? (
+            <p className="flex items-center gap-1.5 text-ui-base text-warning">
+              <AlertTriangleIcon className="size-3.5 shrink-0" />
+              {intl.formatMessage({ id: "remote.v3.loadFailed" })}
+            </p>
+          ) : null}
+          <p className="text-ui-xs text-foreground-subtlest">
+            {intl.formatMessage({ id: "remote.v3.e2eeHint" })}
           </p>
         </div>
       );

@@ -83,6 +83,8 @@ export function formatRemoteWorkspaceTargetSubtitle(
       return `Docker · ${target.container}`;
     case "lan":
       return `LAN · ${target.host}:${target.port}`;
+    case "v3":
+      return `v3 · ${target.deviceName?.trim() || target.deviceId}`;
   }
 }
 
@@ -98,6 +100,8 @@ export function formatRemoteWorkspaceHeaderHostLabel(
       return `docker:${target.container}`;
     case "lan":
       return `${target.host}:${target.port}`;
+    case "v3":
+      return target.deviceName?.trim() || target.deviceId;
   }
 }
 
@@ -147,7 +151,7 @@ function findMatchingRemoteWorkspaceSessionEntry(
   );
 }
 
-function createRemoteTargetSnapshot(
+export function createRemoteTargetSnapshot(
   workspaceKey: string,
   target: RemoteTarget,
   previousSnapshot?: RemoteTargetSnapshot,
@@ -200,6 +204,15 @@ function createRemoteTargetSnapshot(
         ...(target.serverId?.trim() ? { serverId: target.serverId.trim() } : {}),
         ...(target.serverName?.trim() ? { serverName: target.serverName.trim() } : {}),
       };
+    case "v3": {
+      // v3 只落设备标识；设备身份、凭据与信任锚都在设备侧，不写进历史快照。
+      const deviceName = target.deviceName?.trim();
+      return {
+        kind: "v3",
+        deviceId: target.deviceId,
+        ...(deviceName ? { deviceName } : {}),
+      };
+    }
   }
 }
 
@@ -246,6 +259,12 @@ export function createRemoteTargetFromSnapshot(
         ...(snapshot.endpoints?.length ? { endpoints: snapshot.endpoints } : {}),
         ...(snapshot.serverId ? { serverId: snapshot.serverId } : {}),
         ...(snapshot.serverName ? { serverName: snapshot.serverName } : {}),
+      };
+    case "v3":
+      return {
+        kind: "v3",
+        deviceId: snapshot.deviceId,
+        ...(snapshot.deviceName ? { deviceName: snapshot.deviceName } : {}),
       };
   }
 }

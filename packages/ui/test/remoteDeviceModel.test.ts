@@ -70,6 +70,34 @@ test("统一设备投影：LAN 同时具备 workspace/desktop，Mode Agent 只�
   assert.deepEqual(found?.channels, { workspace: false, desktop: false, conversation: false });
 });
 
+test("v3 Host 投影为 workspace/desktop 通道，端点为空", () => {
+  const devices = buildRemoteDevices({
+    lanPeers: [],
+    probes: {},
+    modeAgents: [],
+    discovered: [],
+    v3Hosts: [
+      {
+        deviceId: "019a0000-0000-7000-8000-000000000099",
+        name: "V3 Host",
+        role: "host",
+        platform: "desktop",
+        identityKey: "identity",
+        online: true,
+        addresses: [],
+      },
+    ],
+  });
+  assert.equal(devices.length, 1);
+  assert.equal(devices[0]?.origin, "v3");
+  assert.deepEqual(devices[0]?.channels, {
+    workspace: true,
+    desktop: true,
+    conversation: false,
+  });
+  assert.deepEqual(devices[0]?.endpoints, []);
+});
+
 test("LAN 设备转远程工作区目标：保留端点列表，主端点取公网", () => {
   const target = lanPeerToRemoteTarget(lanPeer);
   assert.equal(target?.kind, "lan");

@@ -4,6 +4,7 @@ import {
   type LanPairedPeer,
   type LanPeerEndpoint,
   type RemoteTarget,
+  type RemoteV3DeviceSummary,
 } from "@mode/shared";
 
 import type { RemoteDesktopDeviceProbe } from "@/remote-desktop/deviceAvailability.js";
@@ -34,7 +35,8 @@ export type RemoteDevice =
       probe?: RemoteDesktopDeviceProbe;
     })
   | (RemoteDeviceBase & { origin: "discovered"; peer: LanDiscoveredPeer })
-  | (RemoteDeviceBase & { origin: "mode-agent"; record: ModeAgentServerRecord });
+  | (RemoteDeviceBase & { origin: "mode-agent"; record: ModeAgentServerRecord })
+  | (RemoteDeviceBase & { origin: "v3"; host: RemoteV3DeviceSummary });
 
 function lanPeerEndpoints(peer: LanPairedPeer): LanPeerEndpoint[] {
   if (peer.endpoints?.length) {
@@ -60,6 +62,7 @@ export function buildRemoteDevices(params: {
   probes: Record<string, RemoteDesktopDeviceProbe>;
   modeAgents: ModeAgentServerRecord[];
   discovered: LanDiscoveredPeer[];
+  v3Hosts?: RemoteV3DeviceSummary[];
 }): RemoteDevice[] {
   const devices: RemoteDevice[] = [];
   for (const peer of params.lanPeers) {
@@ -92,6 +95,17 @@ export function buildRemoteDevices(params: {
       endpoints: [{ scheme: "http", host: peer.host, port: peer.port, kind: "lan" }],
       channels: { workspace: false, desktop: false, conversation: false },
       peer,
+    });
+  }
+  for (const host of params.v3Hosts ?? []) {
+    devices.push({
+      id: host.deviceId,
+      origin: "v3",
+      name: host.name,
+      endpoints: [],
+      // v3 复用同一账号目录：远程桌面与本机 `/ws/host` 工作区都走 E2EE 隧道。
+      channels: { workspace: true, desktop: true, conversation: false },
+      host,
     });
   }
   return devices;

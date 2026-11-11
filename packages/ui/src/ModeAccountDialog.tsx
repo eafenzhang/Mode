@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { UserRound } from "lucide-react";
-import type { CloudAccountState, UserInfo } from "@mode/shared";
+import type { RemoteV3HostState, UserInfo } from "@mode/shared";
 import { BotsDialog } from "@/BotsDialog.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import {
@@ -17,12 +17,11 @@ import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.j
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { resolveSidebarProfile } from "@/lib/sidebarProfile.js";
 import { logger } from "@/logger.js";
-import { RemoteControlCloudSection } from "@/remote-desktop/RemoteControlCloudSection.js";
+import { RemoteV3AccountSection } from "@/account/RemoteV3AccountSection.js";
 
 /**
- * 左下角 Mode 账号入口：绑定微信 Bot → Host 自动登录并同步 → 账号设备列表/配对。
- * 视觉沿用原版账号菜单的“头像 + 登录/退出”位置，具体云账号操作复用现有卡片。
- * 昵称只覆盖本机展示（AppSettings.userNickname），不修改 OAuth / 云端账号资料。
+ * 左下角 Mode 账号入口：远程控制 v3 账号登录、设备目录与本机昵称。
+ * 昵称只覆盖本机展示（AppSettings.userNickname），不修改账号资料。
  */
 export function ModeAccountDialog({
   open,
@@ -30,65 +29,43 @@ export function ModeAccountDialog({
   workspacePath,
   workspaceIdentity,
   user,
-  cloudAccount,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspacePath?: string;
   workspaceIdentity?: string;
   user?: UserInfo | null;
-  cloudAccount?: CloudAccountState | null;
 }) {
   const { intl } = useModeIntl();
   const services = useServices();
   const baseServices = useOptionalBaseWorkspaceServices();
-  const service = baseServices?.cloudAccountService ?? services.cloudAccountService;
+  const remoteV3Service = baseServices?.remoteV3Service ?? services.remoteV3Service;
   const { settings, update } = useSettings();
   const [botsOpen, setBotsOpen] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [nicknameSaving, setNicknameSaving] = useState(false);
   const [nicknameSaved, setNicknameSaved] = useState(false);
-  // footer 的云账号状态只在挂载/本进程事件时刷新；弹窗打开时补一次实时读取，
-  // 避免“云端已经绑定、昵称区仍提示未登录”（跨进程写入时 onDidChange 不会到当前窗口）。
-  const [liveCloudAccount, setLiveCloudAccount] = useState<CloudAccountState | null>(
-    cloudAccount ?? null,
-  );
+  const [remoteV3State, setRemoteV3State] = useState<RemoteV3HostState | null>(null);
   useEffect(() => {
-    if (!open || !service) {
-      return;
-    }
+    if (!open || !remoteV3Service) return;
     let cancelled = false;
-    void service
+    void remoteV3Service
       .getState()
       .then((next) => {
-        if (!cancelled) {
-          setLiveCloudAccount(next);
-        }
+        if (!cancelled) setRemoteV3State(next);
       })
       .catch(() => undefined);
-    const subscription = service.onDidChange((next) => {
-      if (!cancelled) {
-        setLiveCloudAccount(next);
-      }
+    const subscription = remoteV3Service.onDidChange((next) => {
+      if (!cancelled) setRemoteV3State(next);
     });
     return () => {
       cancelled = true;
       subscription.dispose();
     };
-  }, [open, service]);
-  const effectiveCloudAccount = liveCloudAccount ?? cloudAccount ?? null;
-  // 未部署 Mode Cloud（或当前 Host 没有该频道）时只提示部署缺失；
-  // 云账号登录（GitHub/用户名密码）入口在远程控制页的 Mode Cloud 分区。
-  const cloudUnavailable = !service || effectiveCloudAccount?.status === "unavailable";
-  const descriptionKey = cloudUnavailable
-    ? "modeAccount.description.unavailable"
-    : "modeAccount.description";
-  const bindHintKey = cloudUnavailable
-    ? "modeAccount.bindHint.unavailable"
-    : "modeAccount.bindHint";
+  }, [open, remoteV3Service]);
   const profile = resolveSidebarProfile({
     user,
-    cloudAccount: effectiveCloudAccount,
+    remoteV3: remoteV3State,
     nickname: settings?.userNickname,
   });
   const savedNickname = settings?.userNickname?.trim() ?? "";
@@ -134,7 +111,7 @@ export function ModeAccountDialog({
           <DialogHeader className="pe-10">
             <DialogTitle>{message("modeAccount.title")}</DialogTitle>
             <DialogDescription>
-              {message(descriptionKey)}
+              {message("modeAccount.description")}
             </DialogDescription>
           </DialogHeader>
           <section className="rounded-xl border border-border bg-card px-4 py-3">
@@ -144,7 +121,7 @@ export function ModeAccountDialog({
             <p className="mt-1 text-ui-base text-foreground-subtle">
               {message("modeAccount.nickname.description")}
             </p>
-            {profile.hasAccount ? (
+            {profile.hasAccount || remoteV3State?.status === "online" ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Input
                   value={nicknameDraft}
@@ -188,16 +165,10 @@ export function ModeAccountDialog({
                 {message("modeAccount.bindBot")}
               </Button>
               <p className="text-ui-xs text-foreground-subtle">
-                {message(bindHintKey)}
+                {message("modeAccount.bindHint")}
               </p>
             </div>
-            {service ? (
-              <RemoteControlCloudSection active={open} onPaired={() => undefined} />
-            ) : (
-              <p className="text-ui-base text-foreground-subtle">
-                {message("modeAccount.unsupported")}
-              </p>
-            )}
+            <RemoteV3AccountSection active={open} />
           </div>
         </DialogContent>
       </Dialog>

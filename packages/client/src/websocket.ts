@@ -100,6 +100,14 @@ export function connectViaWebSocket(
 }
 
 export function connectViaProtocol(protocol: IMessagePassingProtocol): IServiceAccessor {
+  return connectViaProtocolWithClient(protocol).accessor;
+}
+
+/** 需要感知传输重建（如可续传 socket）时使用：返回 accessor 与底层 ChannelClient。 */
+export function connectViaProtocolWithClient(protocol: IMessagePassingProtocol): {
+  accessor: IServiceAccessor;
+  client: ChannelClient;
+} {
   const client = new ChannelClient(protocol);
-  return new RemoteServiceAccess(client);
+  return { accessor: new RemoteServiceAccess(client), client };
 }
