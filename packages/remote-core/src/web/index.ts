@@ -39,7 +39,11 @@ export {
 } from "./pairing.js";
 export {
   clearWebAuth,
+  deleteWebProfile,
+  listWebProfiles,
   loadOrCreateWebProfile,
   normalizeWebServerUrl,
   saveWebProfile,
+  webProfileKey,
+  type WebAccountSummary,
 } from "./accountSupport.js";

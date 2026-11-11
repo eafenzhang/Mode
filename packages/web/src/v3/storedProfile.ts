@@ -1,4 +1,9 @@
-import { loadOrCreateWebProfile, type WebDeviceProfile } from "@mode/remote-core/web";
+import {
+  listWebProfiles,
+  loadOrCreateWebProfile,
+  type WebAccountSummary,
+  type WebDeviceProfile,
+} from "@mode/remote-core/web";
 
 import { createWebCredentialStore } from "./credentialStore.js";
 
@@ -19,4 +24,9 @@ export async function loadStoredV3Profile(): Promise<WebDeviceProfile | null> {
     deviceName: "Mode Web",
   });
   return profile.accessToken ? profile : null;
+}
+
+/** 已保存账号列表（多账号隔离：每个服务地址一份设备身份与 token）。 */
+export async function listStoredV3Accounts(): Promise<WebAccountSummary[]> {
+  return await listWebProfiles(createWebCredentialStore());
 }

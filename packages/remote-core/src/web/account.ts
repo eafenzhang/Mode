@@ -5,7 +5,7 @@ import type {
 } from "./accountTypes.js";
 import { generateWebIdentity, importWebIdentity, exportWebIdentity } from "./identity.js";
 import {
-  PROFILE_KEY,
+  deleteWebProfile,
   loadOrCreateWebProfile,
   normalizeWebServerUrl,
   readWebError,
@@ -215,7 +215,14 @@ export class WebAccountClient {
   }
 
   async logout(): Promise<void> {
-    await this.options.store.delete(PROFILE_KEY);
+    const current =
+      this.profile ??
+      (this.options.serverUrl
+        ? await loadOrCreateWebProfile(this.options.store, {
+            serverUrl: this.options.serverUrl,
+          })
+        : null);
+    if (current) await deleteWebProfile(this.options.store, current.serverUrl);
     this.profile = null;
   }
 

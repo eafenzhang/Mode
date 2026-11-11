@@ -25,6 +25,7 @@ pnpm typecheck && pnpm lint && pnpm architecture:check --changed
 | 2.2 | Host 刷新设备 | 目录只有本账号设备；不含 token/私钥 |
 | 2.3 | 退出登录 | 状态 unconfigured；本地 token 清除；目录清空 |
 | 2.4 | Web 页面与账号服务不同源（配置 `MODE_REMOTE_ALLOWED_ORIGINS`） | 登录请求的预检与实际响应带回 ACAO；未配置或来源不在白名单时浏览器拒绝读取 |
+| 2.5 | `/v3` 依次登录两个不同服务地址，再切换 | 两个账号各自保留身份与登录态；退出其中一个不影响另一个 |
 
 ## 3. 跨账号配对（docs/specs/remote-control-v3-pairing.md）
 

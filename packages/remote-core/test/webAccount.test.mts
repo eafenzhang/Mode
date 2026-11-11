@@ -3,7 +3,10 @@ import test from "node:test";
 
 import {
   WebAccountClient,
+  deleteWebProfile,
+  listWebProfiles,
   loadOrCreateWebProfile,
+  webProfileKey,
   type WebCredentialStore,
 } from "../src/web/index.js";
 
@@ -108,7 +111,7 @@ test("Web 账号登录注册设备，401 时刷新 token 后重试目录", async
   assert.equal(hosts.length, 1);
   assert.deepEqual(hosts[0]?.addresses, ["192.168.1.10:45880"]);
   assert.equal(hosts[0]?.identityKey, "identity", "目录投影保留设备公钥");
-  const persisted = JSON.parse(store.map.get("mode.remote.v3.web-profile")!) as {
+  const persisted = JSON.parse(store.map.get(webProfileKey("https://remote.example.com"))!) as {
     accessToken: string;
     refreshToken: string;
   };
@@ -225,7 +228,7 @@ test("配对：claim/status/redeem 换新 token，cancel 用新凭证", async ()
 
   await client.redeemPairing("p-1");
   assert.equal((await client.getProfile()).accessToken, "device-2");
-  const persisted = JSON.parse(store.map.get("mode.remote.v3.web-profile")!) as {
+  const persisted = JSON.parse(store.map.get(webProfileKey("https://remote.example.com"))!) as {
     accessToken: string;
   };
   assert.equal(persisted.accessToken, "device-2", "redeem 必须落盘新凭证");
@@ -272,4 +275,48 @@ test("配对：device token 401 时刷新一次再重试", async () => {
   assert.equal(claim.pairingId, "p-2");
   assert.equal(claimCalls, 2);
   assert.equal(refreshCalls, 1);
+});
+
+test("多账号隔离：不同服务地址各自保存身份，删除互不影响", async () => {
+  const store = createStore();
+  const first = await loadOrCreateWebProfile(store, { serverUrl: "https://a.example.com" });
+  const second = await loadOrCreateWebProfile(store, { serverUrl: "https://b.example.com" });
+  assert.notEqual(first.deviceId, second.deviceId);
+  assert.notEqual(first.privateKey, second.privateKey);
+  assert.deepEqual(
+    (await listWebProfiles(store)).map((entry) => entry.serverUrl),
+    ["https://a.example.com", "https://b.example.com"],
+  );
+
+  const reloadedFirst = await loadOrCreateWebProfile(store, { serverUrl: "https://a.example.com" });
+  assert.equal(reloadedFirst.deviceId, first.deviceId, "切回原账号必须复用同一身份");
+
+  await deleteWebProfile(store, "https://a.example.com");
+  assert.deepEqual(
+    (await listWebProfiles(store)).map((entry) => entry.serverUrl),
+    ["https://b.example.com"],
+  );
+  const reloadedSecond = await loadOrCreateWebProfile(store, { serverUrl: "https://b.example.com" });
+  assert.equal(reloadedSecond.deviceId, second.deviceId);
+});
+
+test("旧版单账号 profile 迁移到按服务地址分键", async () => {
+  const store = createStore();
+  const legacy = {
+    serverUrl: "https://legacy.example.com",
+    deviceId: "device-legacy",
+    deviceName: "Legacy Web",
+    privateKey: "pk",
+    accessToken: "access",
+    refreshToken: "refresh",
+  };
+  store.map.set("mode.remote.v3.web-profile", JSON.stringify(legacy));
+
+  const profile = await loadOrCreateWebProfile(store, {
+    serverUrl: "https://legacy.example.com",
+  });
+  assert.equal(profile.deviceId, "device-legacy");
+  assert.equal(profile.accessToken, "access");
+  assert.equal(store.map.has("mode.remote.v3.web-profile"), false, "旧 key 迁移后删除");
+  assert.ok(store.map.has(webProfileKey("https://legacy.example.com")));
 });

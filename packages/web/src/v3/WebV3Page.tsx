@@ -4,14 +4,16 @@ import {
   WebAccountClient,
   WebControlLink,
   importWebIdentity,
+  type WebAccountSummary,
   type WebDeviceProfile,
   type WebDeviceSummary,
   type WebGithubChallenge,
 } from "@mode/remote-core/web";
 
+import { SavedV3Accounts } from "./SavedV3Accounts.js";
 import { WebV3RemoteDesktop } from "./WebV3RemoteDesktop.js";
 import { createWebCredentialStore } from "./credentialStore.js";
-import { V3_SERVER_URL_KEY } from "./storedProfile.js";
+import { listStoredV3Accounts, V3_SERVER_URL_KEY } from "./storedProfile.js";
 
 const credentialStore = createWebCredentialStore();
 
@@ -23,6 +25,7 @@ export function WebV3Page() {
   const [hosts, setHosts] = useState<WebDeviceSummary[]>([]);
   const [challenge, setChallenge] = useState<WebGithubChallenge | null>(null);
   const [busy, setBusy] = useState(false);
+  const [accounts, setAccounts] = useState<WebAccountSummary[]>([]);
   const [error, setError] = useState("");
   const [testResult, setTestResult] = useState("");
   const [rdTarget, setRdTarget] = useState<{
@@ -30,6 +33,14 @@ export function WebV3Page() {
     hostDeviceId: string;
     name: string;
   } | null>(null);
+
+  const refreshAccounts = useCallback(async () => {
+    setAccounts(await listStoredV3Accounts());
+  }, []);
+
+  useEffect(() => {
+    void refreshAccounts();
+  }, [refreshAccounts]);
 
   const client = useMemo(() => {
     const url = serverUrl.trim();
@@ -126,6 +137,7 @@ export function WebV3Page() {
     setProfile(null);
     setHosts([]);
     setTestResult("");
+    await refreshAccounts();
   };
 
   const testWorkspace = async (host: WebDeviceSummary): Promise<void> => {
@@ -276,6 +288,17 @@ export function WebV3Page() {
               </button>
             )}
           </div>
+
+          {!profile ? (
+            <SavedV3Accounts
+              accounts={accounts}
+              disabled={busy}
+              onUse={(url) => {
+                localStorage.setItem(V3_SERVER_URL_KEY, url);
+                setServerUrl(url);
+              }}
+            />
+          ) : null}
 
           {challenge ? (
             <div className="space-y-2 rounded-lg border border-border bg-background p-3">

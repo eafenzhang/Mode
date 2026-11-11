@@ -59,9 +59,11 @@
 
 ## 待实现
 
-1. 多账号隔离仍待实现。私钥/token 落盘已加 AES-GCM 信封：密钥为不可导出的
+1. 多账号隔离已实现：profile 按服务地址分键（`profile:<serverUrl>`），账号索引
+   只存 serverUrl/deviceId/deviceName；旧单账号 key 首次读取自动迁移；`/v3` 登录前
+   展示已保存账号并可切换。私钥/token 落盘用 AES-GCM 信封：密钥为不可导出的
    `CryptoKey`（同存 IndexedDB），旧明文读取兼容并在下次写入升级；
-   localStorage 回落（无 IndexedDB）仍为明文，已在实现注释与本节声明。
+   localStorage 回落（无 IndexedDB）仍为明文。
 2. 传输：Relay WSS 已实现；LAN direct 在浏览器受混合内容限制，仅在 HTTPS 页面允许
    `wss` 直连，否则回落 Relay。
 3. UI：主 Web 已接通 v3 工作区（向导选 Host → 注册远程 session → 复用现有 tab/文件/
