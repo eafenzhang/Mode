@@ -1,6 +1,8 @@
 # 远程控制 v3：设备身份、端到端加密与账号设备目录（破坏性重做）
 
-状态：2026-11-11 立项。**本 spec 取代 v2 的远程控制与 Mode Cloud 账号方案**：
+状态：2026-11-12 主体实现完成（协议、账号服务、Host、桌面与 Web 客户端、配对 v1、
+远程桌面、远程工作区、隧道重连、凭据静态加密）；真机验收待执行；WebRTC/P2P/TURN 未实现。
+**本 spec 取代 v2 的远程控制与 Mode Cloud 账号方案**：
 v2 的「同账号即信任 + 目录下发被控端访问令牌 + 可信自建明文中继」整体退役，
 不做旧端点、旧令牌、旧凭据格式兼容。参考 `ds-harness-remote` 的公开协议与产品设计
 （Noise IK、Control/Relay 双平面、LAN/P2P/TURN/Relay 选路、设备身份固定、
@@ -34,9 +36,11 @@ membership、连接授权、信令与密文中继；业务数据只在两端之�
 ### 1.3 非目标（v3 首期）
 
 - 组织/团队/RBAC/SSO/计费。
-- 跨账号扫码配对（配对 v1 在 §10 定义，首期只实现同账号；跨账号后续独立迁移）。
 - 远程桌面像素编码算法本身（继续复用现有媒体管线，只替换其承载与信任边界）。
-- 浏览器 Web 端 Noise 实现（Web 客户端后续单独适配；首期客户端为 Desktop/CLI）。
+- WebRTC/P2P/TURN（LAN direct + Relay 已落地，选路不含 P2P）。
+- 移动端原生 App（移动浏览器复用同一 Web 客户端，未做专项验收）。
+- Web 页面 CSP（`connect-src` 需跟随用户自填的服务地址，单独设计）。
+- 配对 v2 及二维码（配对 v1 已实现：短票 + Host 本机验证码）。
 
 ## 2. 威胁模型与信任边界
 
@@ -341,18 +345,18 @@ GET    /api/v1/ice                          （预留 WebRTC）
 - Host 本地 API 只监听回环；LAN/公网不再直接暴露携带本机令牌的 HTTP 服务。
 - 设备名称、在线状态、UI 选中状态都不是身份凭据；身份只来自固定公钥。
 
-## 10. 配对 v1（跨账号/仅设备账号，后续实现）
+## 10. 配对 v1（跨账号/仅设备账号，已实现）
 
-保留协议位，首期不启用：
+实现细节与 API 见 [remote-control-v3-pairing.md](./remote-control-v3-pairing.md)。
 
 ```text
-Host 创建会话 -> 二维码/短 ticket -> Client 扫码确认 -> Server 生成 8 位验证码
+Host 创建会话 -> 短 ticket（二维码未实现） -> Client 认领 -> Server 生成 8 位验证码
 -> Host 本机人工输入确认 -> 建立 device_only 账号与单条 membership
--> 双端获得设备凭证
+-> 双端换新设备凭证
 ```
 
-- 服务端只存 ticket 的 SHA-256；会话 180 秒；确认一次性。
-- 私钥持有证明：X25519(devicePrivate, serverPublic) → HKDF → HMAC 绑定请求方法/路径/body。
+- 服务端只存 ticket 与验证码的 SHA-256；会话 180 秒；确认/领取各一次。
+- v1 设备鉴权沿用 access token；§10 原始设想的 X25519 私钥持有证明留待配对 v2。
 - Host 最终确认只能在本机 UI；模型工具/远程 Client 不得代提交。
 - 新 Host `inbound_only=true`；新 Client 无 Web/Admin 权限。
 - 不复用 v2 的 6 位 LAN 配对码。
@@ -366,6 +370,9 @@ Host 创建会话 -> 二维码/短 ticket -> Client 扫码确认 -> Server 生�
 | 远程桌面信令/媒体票据 `?token=` | 迁移到 Noise 通道后再删除 |
 | `docs/specs/cloud-personal-accounts.md` v2 | 已标记退役；v2 `ICloudAccountService` 与账号 UI 已删除 |
 | 旧 `MODE_CLOUD_*` 目录令牌配置 | 新服务不读取 |
+
+现状（2026-11-12）：`packages/cloud-relay` 的目录令牌与 LAN Bearer/远控票据仍被 LAN
+路径使用，不能先删；待 LAN 数据面完全切到 v3 后按上表执行。
 
 **不做**双写、token 翻译、旧设备自动迁移；旧客户端升级后重新登录注册。
 
