@@ -43,9 +43,8 @@
  * ```
  */
 import { spawn, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, realpathSync, rmSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -139,7 +138,11 @@ async function bundle(): Promise<number> {
  * 「env 档」绿灯下报「打包形态 OK」，而**打包形态真正要用的那一档**（资源目录）从没被走过。
  */
 async function verifyBundle(entryFile: string = OUT_FILE): Promise<string> {
-  const sandbox = join(tmpdir(), `mode-host-bundle-${process.pid}`);
+  // Windows 的 TMP 常是 8.3 短路径（...\ADMINI~1\...）；Node 的 fs-event 监听短路径会触发
+  // libuv assertion（src\win\fs-event.c）。自验沙箱固定落在仓库根的长路径下。
+  const sandboxRoot = join(repoRoot, ".host-bundle-verify", String(process.pid));
+  mkdirSync(sandboxRoot, { recursive: true });
+  const sandbox = realpathSync(sandboxRoot);
   const resources = join(sandbox, "resources");
   mkdirSync(join(resources, "config", "provider"), { recursive: true });
   // 用仓库里那份真配置（不是造一个空文件：服务可能真读它的内容）。
