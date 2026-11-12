@@ -3,5 +3,5 @@ export const remoteServerModule = {
   id: "remote-server",
   requires: ["remote-core"],
   provides: ["remote-account-service", "remote-connection-gateway"],
-  publicEntrypoints: ["index.ts"],
+  publicEntrypoints: ["contract.ts", "index.ts"],
 } as const;

@@ -3,6 +3,13 @@
 日期：2026-11-11。规格：[remote-control-v3.md](../specs/remote-control-v3.md)。
 参考对象：`ds-harness-remote` 的公开协议与产品文档（MIT）；只借鉴架构与行为，不复制实现。
 
+## 当前状态（2026-11-12）
+
+实现已完成：协议/账号服务/桌面 Host/Web（P2P → LAN → Relay、工作区、配对、
+凭据静态加密）、WebRTC/P2P（Node werift + 浏览器 RTCPeerConnection）、
+LAN TLS、fnOS 同源部署。自动化：`pnpm test:remote-v3`、`pnpm accept:remote-v3-web`
+（26 项本地模拟）。剩余：真机验收（远程桌面正常路径、TURN/跨 NAT、手机真机）。
+
 ## 原则
 
 - 不兼容 v2：不读写旧设备 token、不翻译旧凭据、不保留 `/d/<tunnelId>` 明文数据面。

@@ -68,6 +68,7 @@
     "packages/remote-server": {
       "entry": [
         "src/index.ts",
+        "src/contract.ts",
         "src/main.ts",
         "src/module.ts",
         "test/**/*.mts"
