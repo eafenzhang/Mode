@@ -113,7 +113,8 @@
     "plugin-sync:fixtures": "tsx scripts/generate-plugin-sync-fixtures.ts",
     "git-cli:fixtures": "tsx scripts/generate-git-cli-fixtures.ts",
     "git-service:fixtures": "tsx scripts/generate-git-service-fixtures.ts",
-    "git-checkpoint:fixtures": "tsx scripts/generate-git-checkpoint-fixtures.ts"
+    "git-checkpoint:fixtures": "tsx scripts/generate-git-checkpoint-fixtures.ts",
+    "accept:remote-v3-input": "tsx scripts/acceptance/remote-v3-desktop-input.mts"
   },
   "dependencies": {
     "border-beam": "^1.0.1",

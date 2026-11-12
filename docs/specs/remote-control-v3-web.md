@@ -104,8 +104,8 @@
 3. UI：主 Web 已接通 v3 工作区（向导选 Host → 注册远程 session → 复用现有 tab/文件/
    终端/Git），见 [remote-control-v3-web-workspace.md](./remote-control-v3-web-workspace.md)；
    `/v3` 独立页仍只提供目录与连通测试。远程桌面页面已挂载；真机两轮已过首帧、关闭释放、
-   画质切换与媒体断网重连（同账号设备不弹同意窗，见验收清单 §5.1、§5.4–5.5），
-   键鼠输入待测。
+   画质切换、媒体断网重连与键鼠输入（同账号设备不弹同意窗，见验收清单 §5.1、
+   §5.3–5.5）；移动视口 + 触控已模拟通过，真实手机待补。
 4. 移动端复用同一 Web 客户端，尚未接入。
 5. 安全：独立域名的 CSP 与安全响应头已上线（见上条「独立入口」）；`/api/v1/*` 的 CORS
    白名单已接（复用 `allowedOrigins` / `MODE_REMOTE_ALLOWED_ORIGINS`，未命中不回显 ACAO；
