@@ -1,25 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  ExternalLink,
-  Fingerprint,
-  LoaderIcon,
-  LogOut,
-  RefreshCw,
-  Server,
-  ShieldCheck,
-} from "lucide-react";
-import type {
-  RemoteV3DeviceSummary,
-  RemoteV3GithubChallenge,
-  RemoteV3HostState,
-} from "@mode/shared";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ExternalLink, Fingerprint, LoaderIcon, LogOut, Server, ShieldCheck } from "lucide-react";
+import type { RemoteV3GithubChallenge, RemoteV3HostState } from "@mode/shared";
 
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { RemoteV3PairingPanel } from "./RemoteV3PairingPanel.js";
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 
 const STATE_TIMEOUT_MS = 12_000;
 
@@ -33,12 +21,12 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
   const services = useServices();
   const baseServices = useOptionalBaseWorkspaceServices();
   const service = baseServices?.remoteV3Service ?? services.remoteV3Service;
+  const platform = useOptionalPlatform();
   const { intl } = useModeIntl();
   const [state, setState] = useState<RemoteV3HostState | null>(null);
   const [challenge, setChallenge] = useState<RemoteV3GithubChallenge | null>(null);
   const [serverUrl, setServerUrl] = useState("");
-  const [devices, setDevices] = useState<RemoteV3DeviceSummary[]>([]);
-  const [busy, setBusy] = useState<"login" | "refresh" | "disconnect" | null>(null);
+  const [busy, setBusy] = useState<"login" | "disconnect" | null>(null);
   const [error, setError] = useState("");
   const [available, setAvailable] = useState(true);
 
@@ -81,18 +69,29 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
     return () => subscription.dispose();
   }, [service]);
 
-  const refreshDevices = useCallback(async () => {
-    if (!service || state?.status !== "online") return;
-    try {
-      setDevices(await service.listDevices());
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
-    }
-  }, [service, state?.status]);
+  const openedCodes = useRef(new Set<string>());
+  const openAuthorization = useCallback(
+    (pendingLogin: { userCode: string; verificationUri: string }): void => {
+      if (openedCodes.current.has(pendingLogin.userCode)) return;
+      openedCodes.current.add(pendingLogin.userCode);
+      // 直接唤起系统浏览器；验证码同时放进剪贴板，用户只需粘贴 + 授权。
+      try {
+        if (platform) platform.openExternal(pendingLogin.verificationUri);
+        else window.open(pendingLogin.verificationUri, "_blank", "noopener,noreferrer");
+      } catch {
+        // 打开失败时保留页面上的链接兜底。
+      }
+      void navigator.clipboard?.writeText(pendingLogin.userCode).catch(() => undefined);
+    },
+    [platform],
+  );
 
   useEffect(() => {
-    if (active && state?.status === "online") void refreshDevices();
-  }, [active, state?.status, refreshDevices]);
+    if (!active) return;
+    const pendingLogin = challenge ?? state?.pendingLogin;
+    if (!pendingLogin) return;
+    openAuthorization(pendingLogin);
+  }, [active, challenge, state?.pendingLogin, openAuthorization]);
 
   if (!service || !available) return null;
 
@@ -103,10 +102,7 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
       ? {
           userCode: state.pendingLogin.userCode,
           verificationUri: state.pendingLogin.verificationUri,
-          expiresIn: Math.max(
-            0,
-            Math.floor((state.pendingLogin.expiresAt - Date.now()) / 1000),
-          ),
+          expiresIn: Math.max(0, Math.floor((state.pendingLogin.expiresAt - Date.now()) / 1000)),
           interval: 5,
         }
       : null);
@@ -116,7 +112,11 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
     setError("");
     setChallenge(null);
     try {
-      setChallenge(await service.beginGithubLogin({ serverUrl: serverUrl.trim() || undefined }));
+      const next = await service.beginGithubLogin({
+        serverUrl: serverUrl.trim() || undefined,
+      });
+      setChallenge(next);
+      openAuthorization(next);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
@@ -135,7 +135,6 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
     try {
       setState(await service.disconnectAccount());
       setChallenge(null);
-      setDevices([]);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
@@ -246,18 +245,6 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
             {message(`modeAccount.remoteV3.status.${status}`)}
           </span>
         </div>
-        {status === "online" ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={busy !== null}
-            onClick={() => void refreshDevices()}
-            title={message("modeAccount.remoteV3.refresh")}
-          >
-            <RefreshCw className="size-4" />
-          </Button>
-        ) : null}
       </div>
       <p className="mt-1 text-ui-base text-foreground-subtle">
         {message("modeAccount.remoteV3.description")}
@@ -322,47 +309,6 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
             </div>
           </div>
 
-          {status === "online" ? (
-            <div>
-              <h3 className="text-ui-base font-medium text-foreground">
-                {message("modeAccount.remoteV3.devices")}
-              </h3>
-              {devices.length > 0 ? (
-              <ul className="mt-2 space-y-2" data-testid="mode-account-remote-v3-devices">
-                {devices.map((device) => (
-                  <li
-                    key={device.deviceId}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate text-ui-base text-foreground">{device.name}</div>
-                      <div className="text-ui-xs text-foreground-subtle">
-                        {device.role === "host" ? "Host" : "Client"}
-                        {" · "}
-                        {device.platform}
-                        {" · "}
-                        {device.online
-                          ? message("modeAccount.remoteV3.online")
-                          : message("modeAccount.remoteV3.offline")}
-                      </div>
-                    </div>
-                    <span
-                      className={`size-2 rounded-full ${
-                        device.online ? "bg-emerald-500" : "bg-foreground-subtlest"
-                      }`}
-                      aria-hidden="true"
-                    />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-ui-base text-foreground-subtle">
-                {message("modeAccount.remoteV3.noDevices")}
-              </p>
-            )}
-            </div>
-          ) : null}
-          {status === "online" ? <RemoteV3PairingPanel service={service} /> : null}
           {error ? <p className="text-ui-base text-destructive">{error}</p> : null}
         </div>
       ) : null}

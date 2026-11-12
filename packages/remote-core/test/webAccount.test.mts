@@ -166,120 +166,6 @@ test("Web 账号客户端走服务端 Device Flow 代理并完成设备注册", 
   }
 });
 
-test("配对：claim/status/redeem 换新 token，cancel 用新凭证", async () => {
-  const store = createStore();
-  const calls: { url: string; method?: string; auth: string | null }[] = [];
-  let currentToken = "device-1";
-  const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    calls.push({
-      url,
-      method: init?.method,
-      auth: new Headers(init?.headers).get("authorization"),
-    });
-    if (url.endsWith("/api/v1/devices") && init?.method === "POST") {
-      return json({ accessToken: "device-1", refreshToken: "refresh-1" });
-    }
-    if (url.endsWith("/api/v1/pairing/sessions/claim")) {
-      assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${currentToken}`);
-      return json({
-        pairingId: "p-1",
-        verificationCode: "01234567",
-        hostName: "Desk",
-        expiresAt: 123,
-      });
-    }
-    if (url.endsWith("/api/v1/pairing/sessions/p-1/redeem")) {
-      currentToken = "device-2";
-      return json({
-        accessToken: "device-2",
-        refreshToken: "refresh-2",
-        accessExpiresAt: 10,
-        refreshExpiresAt: 20,
-      });
-    }
-    if (url.endsWith("/api/v1/pairing/sessions/p-1/cancel")) {
-      return json({ status: "canceled" });
-    }
-    if (url.endsWith("/api/v1/pairing/sessions/p-1")) {
-      return json({ status: "claimed", expiresAt: 123, hostName: "Desk", clientName: "Web" });
-    }
-    return json({ error: { message: "unexpected" } }, 500);
-  }) as typeof fetch;
-
-  const client = new WebAccountClient({
-    store,
-    serverUrl: "https://remote.example.com",
-    deviceName: "Web",
-    fetchImpl,
-  });
-  await client.loginWithSessionToken("web-session");
-
-  const claim = await client.claimPairing("ticket-1");
-  assert.deepEqual(claim, {
-    pairingId: "p-1",
-    verificationCode: "01234567",
-    hostName: "Desk",
-    expiresAt: 123,
-  });
-  assert.deepEqual(await client.getPairing("p-1"), {
-    status: "claimed",
-    expiresAt: 123,
-    hostName: "Desk",
-    clientName: "Web",
-  });
-
-  await client.redeemPairing("p-1");
-  assert.equal((await client.getProfile()).accessToken, "device-2");
-  const persisted = JSON.parse(store.map.get(webProfileKey("https://remote.example.com"))!) as {
-    accessToken: string;
-  };
-  assert.equal(persisted.accessToken, "device-2", "redeem 必须落盘新凭证");
-
-  await client.cancelPairing("p-1");
-  assert.equal(calls.at(-1)?.auth, "Bearer device-2", "cancel 使用轮换后的 token");
-});
-
-test("配对：device token 401 时刷新一次再重试", async () => {
-  const store = createStore();
-  let claimCalls = 0;
-  let refreshCalls = 0;
-  const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    if (url.endsWith("/api/v1/devices") && init?.method === "POST") {
-      return json({ accessToken: "device-1", refreshToken: "refresh-1" });
-    }
-    if (url.endsWith("/api/v1/pairing/sessions/claim")) {
-      claimCalls += 1;
-      const auth = new Headers(init?.headers).get("authorization");
-      if (auth === "Bearer device-1") return json({ error: { message: "expired" } }, 401);
-      return json({
-        pairingId: "p-2",
-        verificationCode: "11112222",
-        hostName: "Desk",
-        expiresAt: 9,
-      });
-    }
-    if (url.endsWith("/api/v1/devices/refresh")) {
-      refreshCalls += 1;
-      return json({ accessToken: "device-2", refreshToken: "refresh-2" });
-    }
-    return json({ error: { message: "unexpected" } }, 500);
-  }) as typeof fetch;
-
-  const client = new WebAccountClient({
-    store,
-    serverUrl: "https://remote.example.com",
-    deviceName: "Web",
-    fetchImpl,
-  });
-  await client.loginWithSessionToken("web-session");
-  const claim = await client.claimPairing("ticket-2");
-  assert.equal(claim.pairingId, "p-2");
-  assert.equal(claimCalls, 2);
-  assert.equal(refreshCalls, 1);
-});
-
 test("多账号隔离：不同服务地址各自保存身份，删除互不影响", async () => {
   const store = createStore();
   const first = await loadOrCreateWebProfile(store, { serverUrl: "https://a.example.com" });
@@ -299,7 +185,9 @@ test("多账号隔离：不同服务地址各自保存身份，删除互不影�
     (await listWebProfiles(store)).map((entry) => entry.serverUrl),
     ["https://b.example.com"],
   );
-  const reloadedSecond = await loadOrCreateWebProfile(store, { serverUrl: "https://b.example.com" });
+  const reloadedSecond = await loadOrCreateWebProfile(store, {
+    serverUrl: "https://b.example.com",
+  });
   assert.equal(reloadedSecond.deviceId, second.deviceId);
 });
 
@@ -356,8 +244,5 @@ test("Web 服务地址保留网关/反代路径前缀", async () => {
     normalizeWebServerUrl("https://nas.example/app/mode/"),
     "https://nas.example/app/mode",
   );
-  assert.equal(
-    normalizeWebServerUrl("https://remote.example.com/"),
-    "https://remote.example.com",
-  );
+  assert.equal(normalizeWebServerUrl("https://remote.example.com/"), "https://remote.example.com");
 });

@@ -89,26 +89,6 @@ export function migrateSchema(db: DatabaseSync): void {
       );
       CREATE INDEX IF NOT EXISTS idx_connections_host ON connections(host_device_id);
       CREATE INDEX IF NOT EXISTS idx_connections_client ON connections(client_device_id);
-      -- v2：跨账号配对会话（docs/specs/remote-control-v3-pairing.md）。
-      -- ticket 与验证码只存 SHA-256；状态机 pending→claimed→confirmed，canceled 为终态。
-      CREATE TABLE IF NOT EXISTS pairing_sessions (
-        id TEXT PRIMARY KEY,
-        ticket_hash TEXT NOT NULL UNIQUE,
-        host_device_id TEXT NOT NULL,
-        client_device_id TEXT,
-        code_hash TEXT,
-        status TEXT NOT NULL CHECK(status IN ('pending','claimed','confirmed','canceled')),
-        created_at INTEGER NOT NULL,
-        expires_at INTEGER NOT NULL,
-        claimed_at INTEGER,
-        confirmed_at INTEGER,
-        redeemed_at INTEGER,
-        attempts INTEGER NOT NULL DEFAULT 0,
-        FOREIGN KEY(host_device_id) REFERENCES devices(id),
-        FOREIGN KEY(client_device_id) REFERENCES devices(id)
-      );
-      CREATE INDEX IF NOT EXISTS idx_pairing_host ON pairing_sessions(host_device_id);
-      CREATE INDEX IF NOT EXISTS idx_pairing_client ON pairing_sessions(client_device_id);
     `);
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }

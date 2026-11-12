@@ -1,9 +1,5 @@
 import { parseDeviceDescriptor, type DeviceDescriptor } from "@mode/remote-core";
-import type {
-  RemoteV3DeviceSummary,
-  RemoteV3PairingStart,
-  RemoteV3PairingState,
-} from "@mode/shared";
+import type { RemoteV3DeviceSummary } from "@mode/shared";
 
 import type { RemoteV3Tokens } from "./identity.js";
 

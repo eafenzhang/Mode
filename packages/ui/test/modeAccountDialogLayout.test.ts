@@ -36,16 +36,13 @@ test("ModeAccountDialog 提供昵称编辑并写入 userNickname", () => {
 
 // v3 账号体系（docs/specs/remote-control-v3.md）：GitHub Device Flow 登录，
 // 登录后本机作为带 X25519 身份的 Host 上线；设备目录只读，不含业务令牌。
-test("v3 账号分区只提供 GitHub 登录与只读设备列表", () => {
+test("v3 账号分区只提供 GitHub 登录与账号状态", () => {
   const section = read("../src/account/RemoteV3AccountSection.tsx");
-  assert.match(
-    section,
-    /mode-account-remote-v3-github-login/,
-    "v3 账号分区提供 GitHub 登录按钮",
-  );
+  assert.match(section, /mode-account-remote-v3-github-login/, "v3 账号分区提供 GitHub 登录按钮");
   assert.doesNotMatch(section, /password-login/, "v3 不提供密码登录");
   assert.doesNotMatch(section, /pairDevice\(/, "v3 不提供配对码输入");
-  assert.match(section, /mode-account-remote-v3-devices/, "设备目录为只读列表");
+  assert.doesNotMatch(section, /mode-account-remote-v3-devices/, "账号分区不再展示设备列表");
+  assert.doesNotMatch(section, /RemoteV3PairingPanel/, "账号分区不提供配对入口");
   assert.match(section, /beginGithubLogin/, "登录必须走 GitHub Device Flow");
   const dialog = read("../src/ModeAccountDialog.tsx");
   assert.match(dialog, /RemoteV3AccountSection/, "账号弹窗必须渲染 v3 登录面");

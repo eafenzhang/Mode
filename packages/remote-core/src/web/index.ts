@@ -32,12 +32,6 @@ export {
   type WebGithubPoll,
 } from "./account.js";
 export {
-  type WebDeviceCredentials,
-  type WebPairingClaim,
-  type WebPairingState,
-  type WebPairingStatus,
-} from "./pairing.js";
-export {
   clearWebAuth,
   deleteWebProfile,
   listWebProfiles,

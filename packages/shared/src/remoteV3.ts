@@ -2,12 +2,7 @@ import type { RemoteDesktopCodec, RemoteDesktopQuality } from "./remote-desktop.
 
 /** 远程控制 v3 Host 管理面（docs/specs/remote-control-v3.md）。 */
 
-export type RemoteV3Status =
-  | "unconfigured"
-  | "connecting"
-  | "online"
-  | "reconnecting"
-  | "error";
+export type RemoteV3Status = "unconfigured" | "connecting" | "online" | "reconnecting" | "error";
 
 export interface RemoteV3PendingLogin {
   userCode: string;
@@ -114,32 +109,4 @@ export interface RemoteV3TunnelEvent {
   /** base64url；首字节 0=text、1=binary，其余为原始帧。 */
   data?: string;
   reason?: string;
-}
-
-/** 跨账号配对（docs/specs/remote-control-v3-pairing.md）。 */
-export interface RemoteV3PairingStart {
-  pairingId: string;
-  ticket: string;
-  expiresAt: number;
-}
-
-export interface RemoteV3PairingClaim {
-  pairingId: string;
-  verificationCode: string;
-  hostName: string;
-  expiresAt: number;
-}
-
-export type RemoteV3PairingStatus = "pending" | "claimed" | "confirmed" | "canceled" | "expired";
-
-export interface RemoteV3PairingState {
-  status: RemoteV3PairingStatus;
-  expiresAt: number;
-  hostName: string | null;
-  clientName: string | null;
-}
-
-export interface RemoteV3ConfirmPairingParams {
-  pairingId: string;
-  code: string;
 }

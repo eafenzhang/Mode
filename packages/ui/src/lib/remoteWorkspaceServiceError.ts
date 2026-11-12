@@ -3,7 +3,7 @@ export const REMOTE_WORKSPACE_DISCONNECTED_ERROR_CODE = "MODE_REMOTE_WORKSPACE_D
 export function createRemoteWorkspaceDisconnectedError(): Error & {
   code: typeof REMOTE_WORKSPACE_DISCONNECTED_ERROR_CODE;
 } {
-  const error = new Error(REMOTE_WORKSPACE_DISCONNECTED_ERROR_CODE) as Error & {
+  const error = new Error("远程工作区已断开，正在重连") as Error & {
     code: typeof REMOTE_WORKSPACE_DISCONNECTED_ERROR_CODE;
   };
   error.code = REMOTE_WORKSPACE_DISCONNECTED_ERROR_CODE;

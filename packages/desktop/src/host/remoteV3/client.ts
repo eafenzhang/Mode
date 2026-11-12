@@ -14,8 +14,6 @@ import type {
   RemoteV3DeviceSummary,
   RemoteV3HttpRequestParams,
   RemoteV3HttpResponse,
-  RemoteV3PairingClaim,
-  RemoteV3PairingState,
   RemoteV3RequestParams,
   RemoteV3RequestResult,
 } from "@mode/shared";
@@ -26,7 +24,6 @@ import {
   refreshRemoteV3Tokens,
   registerRemoteV3OwnedRole,
 } from "./api.js";
-import { createClientPairingMethods } from "./clientPairing.js";
 import {
   clearRemoteV3ClientTokens,
   loadOrCreateRemoteV3ClientProfile,
@@ -81,21 +78,8 @@ export class RemoteV3ClientRuntime {
   private clientRefreshInFlight: Promise<RemoteV3ClientProfile> | null = null;
   private generation = 0;
 
-  private readonly pairing: ReturnType<typeof createClientPairingMethods>;
-
   constructor(deps: RemoteV3ClientRuntimeDeps) {
     this.deps = deps;
-    this.pairing = createClientPairingMethods({
-      credentials: deps.credentials,
-      ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
-      getServerUrl: () => deps.getServerUrl(),
-      ensureProfile: (serverUrl) => this.ensureProfile(serverUrl),
-      refreshClient: (serverUrl, profile) => this.refreshClient(serverUrl, profile),
-      applyProfile: (profile) => {
-        this.profile = profile;
-      },
-      dispose: () => this.dispose(),
-    });
   }
 
   async request(params: RemoteV3RequestParams): Promise<RemoteV3RequestResult> {
@@ -119,45 +103,27 @@ export class RemoteV3ClientRuntime {
     return { result };
   }
 
-  async listDevicesForHost(): Promise<RemoteV3DeviceSummary[]> {
-    const serverUrl = this.deps.getServerUrl();
-    const accessToken = this.deps.getHostAccessToken();
-    if (!serverUrl || !accessToken) throw new Error("Host 尚未登录远程控制 v3");
-    try {
-      return await listRemoteV3Devices({
-        serverUrl,
-        accessToken,
-        fetchImpl: this.deps.fetchImpl,
-      });
-    } catch {
-      const refreshed = await this.deps.refreshHostTokens();
-      return await listRemoteV3Devices({
-        serverUrl,
-        accessToken: refreshed.accessToken,
-        fetchImpl: this.deps.fetchImpl,
-      });
-    }
-  }
-
   async listHosts(): Promise<RemoteV3DeviceSummary[]> {
     const serverUrl = this.deps.getServerUrl();
     if (!serverUrl) throw new Error("远程控制 v3 服务地址未配置");
     let profile = await this.ensureProfile(serverUrl);
     if (!profile.accessToken) throw new Error("Client access token 缺失");
     try {
-      return await listRemoteV3Devices({
+      const devices = await listRemoteV3Devices({
         serverUrl,
         accessToken: profile.accessToken,
         fetchImpl: this.deps.fetchImpl,
       });
+      return devices.filter((device) => device.role === "host");
     } catch {
       profile = await this.refreshClient(serverUrl, profile);
       if (!profile.accessToken) throw new Error("Client access token 缺失");
-      return await listRemoteV3Devices({
+      const devices = await listRemoteV3Devices({
         serverUrl,
         accessToken: profile.accessToken,
         fetchImpl: this.deps.fetchImpl,
       });
+      return devices.filter((device) => device.role === "host");
     }
   }
 
@@ -235,22 +201,6 @@ export class RemoteV3ClientRuntime {
       const refreshed = await this.refreshClient(serverUrl, profile);
       return await this.startClient(serverUrl, refreshed, hostDeviceId);
     }
-  }
-
-  async claimPairing(ticket: string): Promise<RemoteV3PairingClaim> {
-    return await this.pairing.claimPairing(ticket);
-  }
-
-  async getPairing(pairingId: string): Promise<RemoteV3PairingState> {
-    return await this.pairing.getPairing(pairingId);
-  }
-
-  async cancelPairing(pairingId: string): Promise<RemoteV3PairingState> {
-    return await this.pairing.cancelPairing(pairingId);
-  }
-
-  async redeemPairing(pairingId: string): Promise<RemoteV3PairingState> {
-    return await this.pairing.redeemPairing(pairingId);
   }
 
   private async ensureProfile(serverUrl: string): Promise<RemoteV3ClientProfile> {

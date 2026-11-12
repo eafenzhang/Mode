@@ -5,7 +5,7 @@
 
 ## 当前状态（2026-11-12）
 
-实现已完成：协议/账号服务/桌面 Host/Web（P2P → LAN → Relay、工作区、配对、
+实现已完成：协议/账号服务/桌面 Host/Web（P2P → LAN → Relay、工作区、
 凭据静态加密）、WebRTC/P2P（Node werift + 浏览器 RTCPeerConnection）、
 LAN TLS、fnOS 同源部署。自动化：`pnpm test:remote-v3`、`pnpm accept:remote-v3-web`
 （26 项本地模拟）。剩余：真机验收（远程桌面正常路径、TURN/跨 NAT、手机真机）。
@@ -137,16 +137,8 @@ packages/remote-server
   `allowRemoteWorkspace` 在 LAN 主控或存在 v3 账号时放开。真机双端验收未执行。
 - Web 工作区隧道级重连已落地：`/ws/host` 断开时 `SocketProtocol.reset` + 在途 RPC
   立即失败，按 300ms→5s 退避重开；新 Initialize 重放订阅，`services` 引用不变。
-- 跨账号配对 v1 服务端已落地：ticket → claim（8 位码）→ Host 确认 → 双端换凭证，
-  建 device_only 账号 + 单条 membership，Host `inbound_only` / Client
-  `pairing_restricted`；次数/过期/重复使用均有错误码。规格见
-  [remote-control-v3-pairing.md](../specs/remote-control-v3-pairing.md)，
-  浏览器 Client SDK（claim/status/redeem/cancel）与 `IRemoteV3Service` 配对方法已接：
-  桌面 Host 实现 begin/confirm/get/cancel（确认后轮换凭证并重建 Control），浏览器实现
-  claim/get/redeem/cancel；E2E 覆盖「桌面 Host × 浏览器 Client」全流程。
-  账号弹窗已挂配对面板（短票 + 本机验证码），状态机为纯函数并单测。
-  桌面 Client 角色也支持 claim/redeem（跨账号由对方发起时 get/cancel 自动回落到
-  Client 身份）；E2E 覆盖桌面 A ↔ 桌面 B。
+- 跨账号配对已下线（2026-11-12）：统一个人账号体系，同账号设备自动互见；服务端
+  配对接口/存储、客户端方法与账号弹窗面板均已删除，历史规格归档。
 - Web 凭据静态加密：IndexedDB 分支用不可导出 AES-GCM 密钥加密 profile（私钥/token），
   旧明文读取兼容并自动升级；localStorage 回落保持明文并在规格中声明。
 - Web 多账号隔离：profile 按服务地址分键并有账号索引，旧单账号自动迁移；
@@ -165,7 +157,7 @@ packages/remote-server
   `P2PResponder`、`P2PNegotiation` 状态机、`P2PChannel` 复用 relay 信封），选路顺序为
   p2p → lan → relay；协商失败或 8s 超时自动回落 Relay。桌面宿主用 werift 适配器
   （`p2pWerift.ts`）承载 DataChannel，`pnpm test:remote-v3` 中的 loopback E2E 已验证
-  跨账号配对后 RPC 实际走 `p2p`。
+  同账号两台 Host 之间 RPC 实际走 `p2p`。
 - WebRTC/P2P 阶段 3 已落地：浏览器 `WebControlLink` 在支持 `RTCPeerConnection` 时
   默认启用原生适配器（`web/p2pBrowser.ts`）并优先协商，失败/8s 超时回落 Relay；
   `p2p: false` 可强制 Relay。Control WS 的 hello/心跳/帧分发拆到 `WebControlChannel`，
@@ -204,7 +196,7 @@ packages/remote-server
 - 剩余：真机验收（两台真实设备 + 完整桌面 Host + coturn）。
 - 真机验收清单已固化：`pnpm test:remote-v3` 跑自动化全套，人工项见
   [remote-control-v3-acceptance.md](../specs/remote-control-v3-acceptance.md)
-  （账号/配对/工作区/桌面/断线/安全六组）。
+  （账号/工作区/桌面/断线/安全五组）。
 - 账号展示已接入：`/auth/me` 展示名落库并进入 Host 状态，侧边栏/账号弹窗优先显示
   v3 账号名，退出菜单直连 `disconnectAccount`。
 - P2 直连前置已落地：Host 注册上报 LAN 地址（≤8）并进入设备目录，远程控制页展示
@@ -213,7 +205,7 @@ packages/remote-server
   key/cert（`MODE_LAN_TLS_KEY_FILE` / `MODE_LAN_TLS_CERT_FILE`），地址以 `wss://` 前缀
   进入设备目录，发现广播带 `scheme`；未配置时保持明文 WS。
 - 测试：`pnpm test:remote-v3` 共 259 项（pass 256，3 项 skip），包含 WebRTC/P2P
-  loopback E2E（跨账号配对后 RPC 实际走 werift DataChannel）与浏览器
+  loopback E2E（同账号两台 Host 的 RPC 实际走 werift DataChannel）与浏览器
   `WebControlLink` P2P E2E（werift 替代原生 RTCPeerConnection，验证 capability →
   offer/answer → DataChannel → Noise → RPC 全链路、协商超时回落 Relay，
   以及 Host 重启后自动重连并重新协商 P2P）。分层计数见早前记录：

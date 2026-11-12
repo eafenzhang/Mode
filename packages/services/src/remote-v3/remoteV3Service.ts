@@ -2,13 +2,9 @@ import type { Event } from "@mode/rpc";
 import type {
   RemoteV3BeginLoginParams,
   RemoteV3ConfigureParams,
-  RemoteV3ConfirmPairingParams,
   RemoteV3DeviceSummary,
   RemoteV3GithubChallenge,
   RemoteV3HostState,
-  RemoteV3PairingClaim,
-  RemoteV3PairingStart,
-  RemoteV3PairingState,
   RemoteV3HttpRequestParams,
   RemoteV3HttpResponse,
   RemoteV3RemoteDesktopSession,
@@ -38,7 +34,6 @@ export interface IRemoteV3Service {
   /** 发起 GitHub Device Flow；Host 自动轮询并在授权后注册设备。 */
   beginGithubLogin(params?: RemoteV3BeginLoginParams): Promise<RemoteV3GithubChallenge>;
   /** 同账号异角色设备目录（只含 descriptor、在线状态与地址）。 */
-  listDevices(): Promise<RemoteV3DeviceSummary[]>;
   /** 本机 Client 角色可访问的同账号 Host 目录。 */
   listHosts(): Promise<RemoteV3DeviceSummary[]>;
   /** 发起 v3 远程桌面会话，返回本机回环信令/媒体代理地址。 */
@@ -65,23 +60,6 @@ export interface IRemoteV3Service {
   onTunnelEvent: Event<RemoteV3TunnelEvent>;
   /** 幂等状态快照。 */
   onDidChange: Event<RemoteV3HostState>;
-
-  // ---- 跨账号配对（docs/specs/remote-control-v3-pairing.md；按角色可选实现）----
-
-  /** Host 角色：创建配对会话，返回一次性票（二维码/短票由 UI 展示）。 */
-  beginPairing?(): Promise<RemoteV3PairingStart>;
-  /** Host 角色：本机输入验证码确认；成功后 Host 凭证已轮换，状态回到 online。 */
-  confirmPairing?(params: RemoteV3ConfirmPairingParams): Promise<RemoteV3HostState>;
-  /** Client 角色：认领配对票，拿到要在 Host 本机输入的 8 位验证码。 */
-  claimPairing?(ticket: string): Promise<RemoteV3PairingClaim>;
-  /** Client 角色：Host 确认后领取新凭证（一次性）；成功后本机凭证已落盘。 */
-  redeemPairing?(pairingId: string): Promise<RemoteV3PairingState>;
-  /** 参与方查询会话状态。 */
-  getPairing?(pairingId: string): Promise<RemoteV3PairingState>;
-  /** 参与方取消会话。 */
-  cancelPairing?(pairingId: string): Promise<RemoteV3PairingState>;
 }
 
-export const IRemoteV3Service = createServiceDescriptor<IRemoteV3Service>(
-  ServiceChannels.RemoteV3,
-);
+export const IRemoteV3Service = createServiceDescriptor<IRemoteV3Service>(ServiceChannels.RemoteV3);

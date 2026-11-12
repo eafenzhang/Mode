@@ -11,7 +11,6 @@ import {
   type ApiDeps,
 } from "./apiSupport.js";
 import { handleGithubDeviceRoute } from "./deviceAuth.js";
-import { handlePairingRoute } from "./pairingRoutes.js";
 import { descriptorOf, GatewayError, parseAddresses } from "./gateway.js";
 import { FixedWindowLimiter } from "./rateLimit.js";
 import { StoreError, type DeviceRow } from "./store.js";
@@ -40,9 +39,7 @@ export function createApiHandler(deps: ApiDeps) {
         throw new ApiError(429, "rate_limited", "请求过于频繁，请稍后重试");
       }
       if (url.pathname.startsWith("/api/v1/auth/")) {
-        const limiter = url.pathname.startsWith("/api/v1/auth/github/device/")
-          ? deviceAuth
-          : auth;
+        const limiter = url.pathname.startsWith("/api/v1/auth/github/device/") ? deviceAuth : auth;
         if (!limiter.allow(key)) {
           throw new ApiError(429, "rate_limited", "登录请求过于频繁，请稍后重试");
         }
@@ -63,11 +60,6 @@ async function route(
   const method = req.method ?? "GET";
   const path = url.pathname;
   if (await handleGithubDeviceRoute(deps, req, res, method, path)) return;
-  if (
-    await handlePairingRoute(deps, req, res, method, path, (request) => requireDevice(deps, request))
-  ) {
-    return;
-  }
 
   if (method === "POST" && path === "/api/v1/auth/github") {
     const body = await readJson(req);
@@ -88,7 +80,11 @@ async function route(
     const auth = requireWeb(deps, req);
     const rotated = deps.store.rotateWebSession(requireBearer(req));
     if (!rotated) throw new ApiError(401, "session_invalid", "Web 会话无效");
-    sendJson(res, 200, { sessionToken: rotated.token, expiresAt: rotated.expiresAt, account: { id: auth.accountId } });
+    sendJson(res, 200, {
+      sessionToken: rotated.token,
+      expiresAt: rotated.expiresAt,
+      account: { id: auth.accountId },
+    });
     return;
   }
 
@@ -102,7 +98,10 @@ async function route(
   if (method === "GET" && path === "/api/v1/auth/me") {
     const auth = requireAuth(deps, req);
     if (auth.kind === "web") {
-      sendJson(res, 200, { kind: "web", account: { id: auth.accountId, displayName: auth.displayName } });
+      sendJson(res, 200, {
+        kind: "web",
+        account: { id: auth.accountId, displayName: auth.displayName },
+      });
     } else {
       sendJson(res, 200, { kind: "device", device: descriptorOf(auth.device) });
     }
@@ -179,7 +178,8 @@ async function route(
     if (method === "GET") {
       const auth = requireDevice(deps, req);
       const target = deps.store.findDevice(targetId);
-      if (!target || target.revoked_at !== null) throw new ApiError(404, "device_not_found", "设备不存在");
+      if (!target || target.revoked_at !== null)
+        throw new ApiError(404, "device_not_found", "设备不存在");
       if (target.id !== auth.device.id && !deps.store.hasMembership(auth.device.id, target.id)) {
         throw new ApiError(403, "membership_required", "没有访问该设备的授权");
       }
@@ -195,7 +195,8 @@ async function route(
       const target = deps.store.findDevice(targetId);
       if (!target) throw new ApiError(404, "device_not_found", "设备不存在");
       if (auth.kind === "web") {
-        if (target.account_id !== auth.accountId) throw new ApiError(403, "forbidden", "无权撤销该设备");
+        if (target.account_id !== auth.accountId)
+          throw new ApiError(403, "forbidden", "无权撤销该设备");
       } else if (auth.device.id !== target.id) {
         throw new ApiError(403, "forbidden", "设备只能撤销自己");
       }
@@ -277,7 +278,10 @@ function requireBearer(req: IncomingMessage): string {
   return match[1]!;
 }
 
-function requireWeb(deps: ApiDeps, req: IncomingMessage): { accountId: string; displayName?: string } {
+function requireWeb(
+  deps: ApiDeps,
+  req: IncomingMessage,
+): { accountId: string; displayName?: string } {
   const found = deps.store.findWebSession(requireBearer(req));
   if (!found) throw new ApiError(401, "session_invalid", "Web 会话无效");
   return { accountId: found.account.id, displayName: found.account.display_name ?? undefined };
@@ -311,10 +315,7 @@ function parseAddressList(value: unknown): string[] | undefined {
   }
   const result: string[] = [];
   for (const entry of value) {
-    if (
-      typeof entry !== "string" ||
-      !/^(?:wss?:\/\/)?[A-Za-z0-9.:[\]-]+:\d{1,5}$/u.test(entry)
-    ) {
+    if (typeof entry !== "string" || !/^(?:wss?:\/\/)?[A-Za-z0-9.:[\]-]+:\d{1,5}$/u.test(entry)) {
       throw new ApiError(422, "invalid_message", "addresses 元素格式非法");
     }
     result.push(entry);
@@ -353,22 +354,8 @@ function mapStoreError(error: StoreError): ApiError {
       return new ApiError(401, error.code, error.message);
     case "github_unreachable":
       return new ApiError(502, error.code, error.message);
-    case "pairing_invalid_ticket":
     case "device_not_found":
       return new ApiError(404, error.code, error.message);
-    case "pairing_expired":
-      return new ApiError(410, error.code, error.message);
-    case "pairing_code_invalid":
-      return new ApiError(401, error.code, error.message);
-    case "pairing_attempts_exhausted":
-      return new ApiError(429, error.code, error.message);
-    case "pairing_already_used":
-    case "pairing_not_claimed":
-    case "pairing_not_confirmed":
-    case "same_account":
-      return new ApiError(409, error.code, error.message);
-    case "pairing_role_invalid":
-      return new ApiError(400, error.code, error.message);
     case "forbidden":
       return new ApiError(403, error.code, error.message);
     default:

@@ -10,15 +10,6 @@ import {
   saveWebProfile,
   webRandomUUID,
 } from "./accountSupport.js";
-import {
-  cancelPairing as cancelPairingRequest,
-  claimPairing as claimPairingRequest,
-  getPairing as getPairingRequest,
-  redeemPairing as redeemPairingRequest,
-  type WebDeviceCredentials,
-  type WebPairingClaim,
-  type WebPairingState,
-} from "./pairing.js";
 
 export type { WebCredentialStore, WebDeviceProfile, WebDeviceSummary } from "./accountTypes.js";
 
@@ -161,46 +152,18 @@ export class WebAccountClient {
     const fetchImpl = this.options.fetchImpl ?? fetch;
     let profile = await this.ensureProfile();
     if (!profile.accessToken) throw new Error("Web 设备尚未登录");
+    const filterSelf = (devices: WebDeviceSummary[]): WebDeviceSummary[] =>
+      devices.filter((device) => device.role === "host" && device.deviceId !== profile.deviceId);
     try {
-      return await this.listDevices(profile.serverUrl, profile.accessToken, fetchImpl);
+      return filterSelf(await this.listDevices(profile.serverUrl, profile.accessToken, fetchImpl));
     } catch (error) {
       if (!(error instanceof WebApiError) || error.status !== 401) throw error;
       profile = await this.refresh(profile, fetchImpl);
       // 刷新后要写回内存：/v3 随后用 getProfile() 取 token 建链，否则会拿旧 token。
       this.profile = profile;
       await saveWebProfile(this.options.store, profile);
-      return await this.listDevices(profile.serverUrl, profile.accessToken!, fetchImpl);
+      return filterSelf(await this.listDevices(profile.serverUrl, profile.accessToken!, fetchImpl));
     }
-  }
-
-  /** 认领 Host 出示的配对票（Client 角色）。 */
-  async claimPairing(ticket: string): Promise<WebPairingClaim> {
-    return await claimPairingRequest((path, init) => this.deviceRequest(path, init), ticket);
-  }
-
-  async getPairing(pairingId: string): Promise<WebPairingState> {
-    return await getPairingRequest((path, init) => this.deviceRequest(path, init), pairingId);
-  }
-
-  /** Host 确认后领取新设备凭证（一次性）；成功后本地 profile 立即换新 token。 */
-  async redeemPairing(pairingId: string): Promise<WebDeviceCredentials> {
-    const credentials = await redeemPairingRequest(
-      (path, init) => this.deviceRequest(path, init),
-      pairingId,
-    );
-    const profile = await this.ensureProfile();
-    const next: WebDeviceProfile = {
-      ...profile,
-      accessToken: credentials.accessToken,
-      refreshToken: credentials.refreshToken,
-    };
-    await saveWebProfile(this.options.store, next);
-    this.profile = next;
-    return credentials;
-  }
-
-  async cancelPairing(pairingId: string): Promise<void> {
-    await cancelPairingRequest((path, init) => this.deviceRequest(path, init), pairingId);
   }
 
   async refreshTokens(): Promise<WebDeviceProfile> {

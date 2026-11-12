@@ -1,6 +1,6 @@
 # 远程控制 v3：设备身份、端到端加密与账号设备目录（破坏性重做）
 
-状态：2026-11-12 主体实现完成（协议、账号服务、Host、桌面与 Web 客户端、配对 v1、
+状态：2026-11-12 主体实现完成（协议、账号服务、Host、桌面与 Web 客户端、
 远程桌面、远程工作区、隧道重连、凭据静态加密、WebRTC/P2P（Node 与浏览器））；
 真机验收待执行。
 **本 spec 取代 v2 的远程控制与 Mode Cloud 账号方案**：
@@ -41,7 +41,7 @@ membership、连接授权、信令与密文中继；业务数据只在两端之�
 - TURN 公网部署与真机弱网验证（信令、ICE、Node/浏览器 DataChannel 已落地）。
 - 移动端原生 App（移动浏览器复用同一 Web 客户端，未做专项验收）。
 - Web 页面 CSP（`connect-src` 需跟随用户自填的服务地址，单独设计）。
-- 配对 v2 及二维码（配对 v1 已实现：短票 + Host 本机验证码）。
+- 跨账号配对（2026-11-12 已下线，统一使用个人账号体系；见 §10）。
 
 ## 2. 威胁模型与信任边界
 
@@ -120,7 +120,7 @@ refreshToken  长 TTL（默认 30 天）的可轮换 token；服务端只存 SHA
 - `host ↔ client` 是唯一有效组合；同角色不建立。
 - 撤销单条 membership 只断开该设备对，不影响设备与其他设备的关系。
 - 设备重新注册可恢复被撤销的派生 membership；显式撤销的 pair 需要重新授权
-  （v3 首期：同账号重新注册即恢复；§10 配对 v1 不自动恢复其他 pair）。
+  （v3 首期：同账号重新注册即恢复）。
 
 ### 4.4 状态所有者
 
@@ -358,28 +358,17 @@ GET    /api/v1/ice                          （预留 WebRTC）
 
 ## 9. 限额与安全不变量
 
-- REST body ≤ 64 KiB；配对/登录/刷新/注册独立限速；Control hello 5 秒超时。
+- REST body ≤ 64 KiB；登录/刷新/注册独立限速；Control hello 5 秒超时。
 - Control frame ≤ 64 KiB；Relay frame ≤ 1 MiB；每连接有界队列，慢消费者断开。
 - 同一设备新 Control socket 替换旧 socket（`4003`）；撤销立即关闭相关连接。
 - Server 不记录 token、私钥、Noise 明文、ciphertext、业务方法名/参数。
 - Host 本地 API 只监听回环；LAN/公网不再直接暴露携带本机令牌的 HTTP 服务。
 - 设备名称、在线状态、UI 选中状态都不是身份凭据；身份只来自固定公钥。
 
-## 10. 配对 v1（跨账号/仅设备账号，已实现）
+## 10. 跨账号配对（已下线）
 
-实现细节与 API 见 [remote-control-v3-pairing.md](./remote-control-v3-pairing.md)。
-
-```text
-Host 创建会话 -> 短 ticket（二维码未实现） -> Client 认领 -> Server 生成 8 位验证码
--> Host 本机人工输入确认 -> 建立 device_only 账号与单条 membership
--> 双端换新设备凭证
-```
-
-- 服务端只存 ticket 与验证码的 SHA-256；会话 180 秒；确认/领取各一次。
-- v1 设备鉴权沿用 access token；§10 原始设想的 X25519 私钥持有证明留待配对 v2。
-- Host 最终确认只能在本机 UI；模型工具/远程 Client 不得代提交。
-- 新 Host `inbound_only=true`；新 Client 无 Web/Admin 权限。
-- 不复用 v2 的 6 位 LAN 配对码。
+2026-11-12 起取消跨账号配对：设备只通过**个人账号**归属，同账号下的 Host 自动出现在
+设备目录并可直连，不再需要短票/验证码/二次换凭证。历史配对数据与服务接口已移除。
 
 ## 11. 旧模块处置
 
@@ -527,9 +516,8 @@ P3 已接线的部分：
   `https/wss`，地址以 `wss://` 进入目录，自签名不支持），未配置时仍为明文 WS。Control 中断
   后的会话恢复走客户端路径：工作区重开 `/ws/host` 隧道并按新 Initialize 重放订阅，
   远程桌面按票据重连媒体/重新发起会话；服务端不保留业务 lease。
-- 跨账号配对 v1：服务端与两端 UI 均已实现（§10；
-  [配对规格](./remote-control-v3-pairing.md)）：Client 领取短票后显示 8 位验证码，
-  Host 本机确认后 redeem；二维码不在范围。
+- 跨账号配对已下线（2026-11-12）：统一个人账号体系。历史规格
+  [remote-control-v3-pairing.md](./remote-control-v3-pairing.md) 仅作归档。
 - v2 旧模块删除：v2 `ICloudAccountService` 与账号 UI 已删除；`packages/cloud-relay`
   目录令牌/`/d` 数据面、LAN Bearer、远控票据仍需 LAN 路径替代后删除。
 - 生产 TLS 已支持进程内终止（`tls.key/cert` 或 `MODE_REMOTE_TLS_*_FILE`，URL/Relay 自动

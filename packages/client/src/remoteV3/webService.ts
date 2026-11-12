@@ -13,7 +13,6 @@ import {
 } from "@mode/remote-core/web";
 import { Emitter } from "@mode/rpc";
 
-import { createWebPairingMethods } from "./webPairing.js";
 import { createWebRequestMethods } from "./webRequests.js";
 import type { IRemoteV3Service } from "@mode/services";
 import type {
@@ -304,7 +303,6 @@ export function createWebRemoteV3Service(options: WebRemoteV3ServiceOptions): IR
         interval: challenge.interval,
       };
     },
-    listDevices: async () => (await listDevices(null)).map(toSummary),
     listHosts: async () => (await listDevices("host")).map(toSummary),
     startRemoteDesktop: async (
       _params: RemoteV3RemoteDesktopStartParams,
@@ -339,22 +337,6 @@ export function createWebRemoteV3Service(options: WebRemoteV3ServiceOptions): IR
       setState({ ...INITIAL_STATE, status: "unconfigured" });
       return state;
     },
-    ...createWebPairingMethods({
-      requireProfile,
-      accountFor,
-      reloadProfile: () => options.loadProfile(),
-      applyProfile: (next) => {
-        profile = next;
-        setState({
-          status: "online",
-          serverUrl: next.serverUrl,
-          deviceId: next.deviceId,
-          deviceName: next.deviceName,
-          fingerprint: fingerprintOf(next),
-          error: null,
-        });
-      },
-    }),
     resetPeerPin: async (_params: RemoteV3ResetPinParams) => {
       throw new Error("浏览器端不保存 peer pin");
     },

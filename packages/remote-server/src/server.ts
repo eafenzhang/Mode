@@ -26,8 +26,6 @@ export interface RemoteServerOptions {
   githubDeviceBaseUrl?: string;
   /** 直接终止 TLS（生产也可由反向代理终止）；提供时 URL/Relay 会使用 https/wss。 */
   tls?: { key: string | Buffer; cert: string | Buffer };
-  /** 跨账号配对会话 TTL（缺省 180s；测试可缩短）。 */
-  pairingTtlMs?: number;
   /** WebRTC/P2P 选路的 ICE 配置；未配置时 connect.* 不带 iceServers。 */
   webrtc?: import("./gatewayTypes.js").WebRtcConfig;
   /** 提供时暴露 `GET /metrics`（Bearer / x-metrics-token）；未配置时返回 404。 */
@@ -70,16 +68,13 @@ export async function startRemoteServer(options: RemoteServerOptions): Promise<R
     gateway,
     pepper: options.pepper ?? options.secret,
     github: options.githubVerifier ?? createGithubVerifier(),
-    ...(options.pairingTtlMs ? { pairingTtlMs: options.pairingTtlMs } : {}),
     ...(options.allowedOrigins?.length ? { allowedOrigins: options.allowedOrigins } : {}),
     ...(options.webrtc ? { webrtc: options.webrtc } : {}),
     ...(options.githubClientId?.trim()
       ? {
           githubDevice: {
             clientId: options.githubClientId.trim(),
-            ...(options.githubDeviceBaseUrl
-              ? { baseUrl: options.githubDeviceBaseUrl }
-              : {}),
+            ...(options.githubDeviceBaseUrl ? { baseUrl: options.githubDeviceBaseUrl } : {}),
           },
         }
       : {}),
@@ -93,9 +88,7 @@ export async function startRemoteServer(options: RemoteServerOptions): Promise<R
       ...(metricsToken ? { metricsToken } : {}),
     });
   };
-  const server = options.tls
-    ? createHttpsServer(options.tls, handler)
-    : createServer(handler);
+  const server = options.tls ? createHttpsServer(options.tls, handler) : createServer(handler);
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", "http://remote.local");
     if (!gateway.handleUpgrade(req, socket, head, url)) {

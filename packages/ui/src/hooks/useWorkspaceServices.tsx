@@ -22,7 +22,7 @@ interface WorkspaceServiceTargetTab {
 
 function createDisconnectedRemoteServices(): IServiceAccessor {
   const createDisconnectedError = () => {
-    const error = new Error(REMOTE_WORKSPACE_DISCONNECTED_ERROR_CODE) as Error & {
+    const error = new Error("远程工作区已断开，正在重连") as Error & {
       code: string;
     };
     error.code = REMOTE_WORKSPACE_DISCONNECTED_ERROR_CODE;

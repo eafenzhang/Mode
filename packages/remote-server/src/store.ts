@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import type { DeviceDescriptor } from "@mode/remote-core";
 
 import { randomToken, sha256Hex } from "./crypto.js";
-import { PairingStore } from "./pairingStore.js";
+import { syncMemberships } from "./membershipSync.js";
 import { migrateSchema } from "./schema.js";
 
 import {
@@ -36,14 +36,13 @@ export type {
 } from "./storeTypes.js";
 export class CloudStore {
   private readonly db: DatabaseSync;
-  /** 跨账号配对会话：与账号/设备共用连接，状态机独立（pairingStore.ts）。 */
-  readonly pairing: PairingStore;
   constructor(dbPath: string) {
     if (dbPath !== ":memory:") mkdirSync(path.dirname(dbPath), { recursive: true });
     this.db = new DatabaseSync(dbPath);
-    this.db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+    this.db.exec(
+      "PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;",
+    );
     migrateSchema(this.db);
-    this.pairing = new PairingStore(this.db, this);
   }
   close(): void {
     this.db.close();
@@ -103,7 +102,9 @@ export class CloudStore {
       )
       .get(hash, Date.now()) as (AccountRow & { session_id: string }) | undefined;
     if (!row) return null;
-    this.db.prepare("UPDATE web_sessions SET last_used_at = ? WHERE id = ?").run(Date.now(), row.session_id);
+    this.db
+      .prepare("UPDATE web_sessions SET last_used_at = ? WHERE id = ?")
+      .run(Date.now(), row.session_id);
     const account: AccountRow = {
       id: row.id,
       provider: row.provider,
@@ -176,14 +177,15 @@ export class CloudStore {
             now,
           );
       }
-      this.syncMemberships(input.accountId, descriptor.deviceId);
+      syncMemberships(this.db, input.accountId, descriptor.deviceId);
       return this.findDevice(descriptor.deviceId)!;
     });
   }
   findDevice(deviceId: string): DeviceRow | null {
     return (
-      (this.db.prepare("SELECT * FROM devices WHERE id = ?").get(deviceId) as DeviceRow | undefined) ??
-      null
+      (this.db.prepare("SELECT * FROM devices WHERE id = ?").get(deviceId) as
+        | DeviceRow
+        | undefined) ?? null
     );
   }
   findDeviceByAccessToken(token: string): DeviceRow | null {
@@ -239,7 +241,15 @@ export class CloudStore {
            rotated_at = NULL,
            revoked_at = NULL`,
       )
-      .run(deviceId, sha256Hex(accessToken), accessExpiresAt, sha256Hex(refreshToken), refreshExpiresAt, familyId, now);
+      .run(
+        deviceId,
+        sha256Hex(accessToken),
+        accessExpiresAt,
+        sha256Hex(refreshToken),
+        refreshExpiresAt,
+        familyId,
+        now,
+      );
     return { accessToken, accessExpiresAt, refreshToken, refreshExpiresAt };
   }
 
@@ -250,9 +260,7 @@ export class CloudStore {
         .prepare(
           "SELECT * FROM device_credentials WHERE device_id = ? AND refresh_hash = ? AND revoked_at IS NULL AND refresh_expires_at > ?",
         )
-        .get(deviceId, hash, Date.now()) as
-        | { family_id: string; refresh_hash: string }
-        | undefined;
+        .get(deviceId, hash, Date.now()) as { family_id: string; refresh_hash: string } | undefined;
       if (current) {
         const next = this.issueDeviceCredentials(deviceId, current.family_id);
         this.db
@@ -263,7 +271,9 @@ export class CloudStore {
         return { kind: "rotated" as const, next };
       }
       const reused = this.db
-        .prepare("SELECT family_id FROM device_refresh_history WHERE refresh_hash = ? AND device_id = ?")
+        .prepare(
+          "SELECT family_id FROM device_refresh_history WHERE refresh_hash = ? AND device_id = ?",
+        )
         .get(hash, deviceId) as { family_id: string } | undefined;
       if (reused) {
         // 重放必须提交撤销，不能被外层事务回滚；事务内只写状态，抛错在事务外。
@@ -287,7 +297,9 @@ export class CloudStore {
 
   private revokeDeviceRows(deviceId: string): void {
     const now = Date.now();
-    this.db.prepare("UPDATE devices SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL").run(now, deviceId);
+    this.db
+      .prepare("UPDATE devices SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
+      .run(now, deviceId);
     this.db.prepare("DELETE FROM device_credentials WHERE device_id = ?").run(deviceId);
     this.db
       .prepare(
@@ -342,7 +354,9 @@ export class CloudStore {
 
   closeConnection(id: string, code: number): void {
     this.db
-      .prepare("UPDATE connections SET closed_at = ?, close_code = ? WHERE id = ? AND closed_at IS NULL")
+      .prepare(
+        "UPDATE connections SET closed_at = ?, close_code = ? WHERE id = ? AND closed_at IS NULL",
+      )
       .run(Date.now(), code, id);
   }
 
@@ -356,34 +370,6 @@ export class CloudStore {
 
   touchDevice(deviceId: string): void {
     this.db.prepare("UPDATE devices SET last_seen_at = ? WHERE id = ?").run(Date.now(), deviceId);
-  }
-  private syncMemberships(accountId: string, deviceId: string): void {
-    const device = this.findDevice(deviceId);
-    if (!device) return;
-    const oppositeRole = device.role === "host" ? "client" : "host";
-    const peers = this.db
-      .prepare(
-        "SELECT id FROM devices WHERE account_id = ? AND role = ? AND id <> ? AND revoked_at IS NULL",
-      )
-      .all(accountId, oppositeRole, deviceId) as Array<{ id: string }>;
-    const hostId = device.role === "host" ? deviceId : null;
-    const clientId = device.role === "client" ? deviceId : null;
-    for (const peer of peers) {
-      const host = hostId ?? peer.id;
-      const client = clientId ?? peer.id;
-      const existing = this.db
-        .prepare("SELECT id FROM memberships WHERE host_device_id = ? AND client_device_id = ?")
-        .get(host, client) as { id: string } | undefined;
-      if (existing) {
-        this.db.prepare("UPDATE memberships SET revoked_at = NULL WHERE id = ?").run(existing.id);
-      } else {
-        this.db
-          .prepare(
-            "INSERT INTO memberships (id, host_device_id, client_device_id, created_at) VALUES (?, ?, ?, ?)",
-          )
-          .run(randomUUID(), host, client, Date.now());
-      }
-    }
   }
   private transaction<T>(run: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");

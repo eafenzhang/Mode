@@ -55,8 +55,7 @@ function connectSocket(url: string): Promise<RemoteSocket> {
         ws.on("message", (data, isBinary) => {
           if (!isBinary) callback(data.toString());
         }),
-      onClose: (callback) =>
-        ws.on("close", (code, reason) => callback(code, reason.toString())),
+      onClose: (callback) => ws.on("close", (code, reason) => callback(code, reason.toString())),
     };
     ws.once("open", () => resolve(socket));
     ws.once("error", reject);
@@ -74,7 +73,10 @@ async function login(serverUrl: string, accessToken = "github-v3-test"): Promise
   return (JSON.parse(text) as { sessionToken: string }).sessionToken;
 }
 
-async function registerClient(serverUrl: string, sessionToken: string): Promise<{
+async function registerClient(
+  serverUrl: string,
+  sessionToken: string,
+): Promise<{
   descriptor: DeviceDescriptor;
   accessToken: string;
   identity: ReturnType<typeof generateIdentity>;
@@ -284,10 +286,7 @@ test("v3 Host 服务注册设备并通过加密通道响应 RPC allowlist", asyn
       hostDeviceId: configured.deviceId!,
       method: "remote.host.info",
     });
-    assert.equal(
-      (selfInfo.result as { deviceId?: string }).deviceId,
-      configured.deviceId,
-    );
+    assert.equal((selfInfo.result as { deviceId?: string }).deviceId, configured.deviceId);
     const selfEcho = await service.request({
       hostDeviceId: configured.deviceId!,
       method: "remote.echo",
@@ -310,9 +309,7 @@ test("v3 Host 服务注册设备并通过加密通道响应 RPC allowlist", asyn
       tunnelEvents.some(
         (event) =>
           event.kind === "message" &&
-          Buffer.from(decodeBase64Url(event.data!, "tunnel.data"))
-            .toString()
-            .includes("cap-123"),
+          Buffer.from(decodeBase64Url(event.data!, "tunnel.data")).toString().includes("cap-123"),
       ),
     );
     await service.sendTunnel(
@@ -363,9 +360,11 @@ test("v3 Host 服务注册设备并通过加密通道响应 RPC allowlist", asyn
     );
 
     const hosts = await service.listHosts();
-    const self = hosts.find((host) => host.deviceId === configured.deviceId);
-    assert.ok(self);
-    assert.deepEqual(self.addresses, ["192.168.1.50:45880"]);
+    assert.equal(
+      hosts.some((host) => host.deviceId === configured.deviceId),
+      false,
+      "个人账号体系下本机 Host 不出现在可连设备列表",
+    );
     const workspaces = await service.request({
       hostDeviceId: configured.deviceId!,
       method: "remote.workspace.list",
@@ -521,8 +520,7 @@ test("v3 Host 可同时接受多个 Client 的加密连接", async () => {
         accessToken: client.accessToken,
         identity: client.identity,
         connectSocket,
-        fetchPeer: (peerDeviceId) =>
-          fetchPeer(server.url, client.accessToken, peerDeviceId),
+        fetchPeer: (peerDeviceId) => fetchPeer(server.url, client.accessToken, peerDeviceId),
         connectTimeoutMs: 3_000,
       });
       await link.start();
@@ -665,8 +663,7 @@ test("v3 Host 被顶替后自动重连并恢复加密 RPC", async () => {
       accessToken: client.accessToken,
       identity: client.identity,
       connectSocket,
-      fetchPeer: (peerDeviceId) =>
-        fetchPeer(server.url, client.accessToken, peerDeviceId),
+      fetchPeer: (peerDeviceId) => fetchPeer(server.url, client.accessToken, peerDeviceId),
       connectTimeoutMs: 3_000,
     });
     await clientLink.start();

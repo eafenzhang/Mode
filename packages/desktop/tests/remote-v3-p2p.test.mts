@@ -65,14 +65,15 @@ async function startService(input: {
   return service;
 }
 
-test("配对后跨账号 RPC 走 werift DataChannel（p2p）", async () => {
+test("同账号两台 Host 之间 RPC 走 werift DataChannel（p2p）", async () => {
   const server = await startRemoteServer({
     port: 0,
     dbPath: ":memory:",
     secret: "p2p-e2e-secret-long-enough",
     githubVerifier: async (token) => {
-      if (token === "github-alice") return { providerUserId: "alice", login: "alice" };
-      if (token === "github-bob") return { providerUserId: "bob", login: "bob" };
+      if (token === "github-alice" || token === "github-bob") {
+        return { providerUserId: "p2p-user", login: "p2p-user" };
+      }
       throw new Error("invalid github token");
     },
   });
@@ -97,17 +98,9 @@ test("配对后跨账号 RPC 走 werift DataChannel（p2p）", async () => {
       transports: transportsB,
     });
 
-    const started = await serviceA.beginPairing();
-    const claim = await serviceB.claimPairing(started.ticket);
-    await serviceA.confirmPairing({
-      pairingId: started.pairingId,
-      code: claim.verificationCode,
-    });
-    await serviceB.redeemPairing(started.pairingId);
-
     const hosts = await serviceB.listHosts();
     const hostA = hosts.find((host) => host.name === "Host A");
-    assert.ok(hostA, "配对后 B 的目录必须能看到 A");
+    assert.ok(hostA, "同账号下 B 的目录必须能看到 A");
 
     const result = await serviceB.request({
       hostDeviceId: hostA.deviceId,
@@ -116,10 +109,7 @@ test("配对后跨账号 RPC 走 werift DataChannel（p2p）", async () => {
       timeoutMs: 15_000,
     });
     assert.deepEqual(result.result, { value: "p2p-hello" });
-    assert.ok(
-      transportsB.includes("p2p"),
-      `B 的选路必须命中 p2p，实际：${transportsB.join(",")}`,
-    );
+    assert.ok(transportsB.includes("p2p"), `B 的选路必须命中 p2p，实际：${transportsB.join(",")}`);
   } finally {
     if (serviceA) await serviceA.disconnectAccount();
     if (serviceB) await serviceB.disconnectAccount();

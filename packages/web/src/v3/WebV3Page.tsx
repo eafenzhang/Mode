@@ -16,6 +16,8 @@ import { createWebCredentialStore } from "./credentialStore.js";
 import { deleteWebProfile } from "@mode/remote-core/web";
 
 import { listStoredV3Accounts, V3_SERVER_URL_KEY } from "./storedProfile.js";
+import { openGitHubAuthorization } from "./githubAuthorizationPopup.js";
+import { useV3FocusRefresh } from "./useV3FocusRefresh.js";
 
 const credentialStore = createWebCredentialStore();
 
@@ -48,6 +50,8 @@ export function WebV3Page() {
       ? new WebAccountClient({ store: credentialStore, serverUrl: url, deviceName: "Mode Web" })
       : null;
   }, [serverUrl]);
+
+  useV3FocusRefresh(client, setProfile, setHosts);
 
   const refreshHosts = useCallback(async () => {
     if (!client) return;
@@ -127,10 +131,15 @@ export function WebV3Page() {
     setBusy(true);
     setError("");
     setTestResult("");
+    // 先同步打开空白窗口（用户手势内），拿到验证码后再导航，避免被弹窗拦截。
+    const popup = window.open("about:blank", "_blank");
     try {
       localStorage.setItem(V3_SERVER_URL_KEY, serverUrl.trim());
-      setChallenge(await client.beginGithubDeviceLogin());
+      const next = await client.beginGithubDeviceLogin();
+      setChallenge(next);
+      openGitHubAuthorization(popup, next.verificationUri, next.userCode);
     } catch (caught) {
+      popup?.close();
       setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
       setBusy(false);
@@ -272,7 +281,7 @@ export function WebV3Page() {
     <div className="min-h-screen bg-background px-4 py-6 text-foreground sm:py-10">
       <div className="mx-auto max-w-2xl space-y-5">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold">远程控制 v3 · Web</h1>
+          <h1 className="text-2xl font-semibold">远程控制 · Web</h1>
           <p className="text-ui-base text-foreground-subtle">
             浏览器设备身份 + Noise 端到端加密；优先 WebRTC P2P，失败自动回落 Relay。
           </p>

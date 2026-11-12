@@ -274,7 +274,7 @@ async function main(): Promise<void> {
     const page = await context.newPage();
     watch(page);
     await page.goto(WEB_URL, { waitUntil: "domcontentloaded" });
-    await page.getByRole("heading", { name: "远程控制 v3 · Web" }).waitFor();
+    await page.getByRole("heading", { name: "远程控制 · Web" }).waitFor();
 
     const initialText = await page.locator("body").innerText();
     record(
