@@ -1,50 +1,21 @@
-import type { LanDiscoveredPeer, LanPairedPeer, RemoteV3DeviceSummary } from "@mode/shared";
-import { RemoteControlDiscoveredRow } from "@/remote-desktop/RemoteControlDiscoveredRow.js";
-import { RemoteControlLanPeerRow } from "@/remote-desktop/RemoteControlLanPeerRow.js";
-import { RemoteControlModeAgentRow } from "@/remote-desktop/RemoteControlModeAgentRow.js";
+import type { RemoteV3DeviceSummary } from "@mode/shared";
 import { RemoteControlV3Row } from "@/remote-desktop/RemoteControlV3Row.js";
-import type { ModeAgentServerRecord } from "@/remote-desktop/modeAgentPairing.js";
-import type { RemoteDevice } from "@/remote-desktop/remoteDeviceModel.js";
 import type { DeviceViewMode } from "@/remote-desktop/useDeviceViewMode.js";
 
 /**
- * 远程控制页唯一设备列表（docs/specs/remote-control-device-model.md）：
- * 列表只消费统一 `RemoteDevice[]`；行按 `origin` 选择展示组件，动作按 `channels` 渲染。
+ * 远程控制页唯一设备列表（docs/specs/remote-control-unified-pairing.md R2）：
+ * 只渲染同账号 v3 Host，行内动作固定为「进入桌面」。
  */
 export function RemoteControlDeviceList({
-  devices,
+  hosts,
   viewMode,
   locallyControlled,
-  busy,
   onConnect,
-  onConnectV3,
-  onRename,
-  onDelete,
-  onReprobe,
-  onStartChat,
-  onRefreshModeAgent,
-  onRenameModeAgent,
-  onRemoveModeAgent,
-  onPairDiscovered,
-  onDismissDiscovered,
-  onError,
 }: {
-  devices: RemoteDevice[];
+  hosts: RemoteV3DeviceSummary[];
   viewMode: DeviceViewMode;
   locallyControlled: boolean;
-  busy: boolean;
-  onConnect: (peer: LanPairedPeer) => void;
-  onConnectV3: (host: RemoteV3DeviceSummary) => void;
-  onRename: (serverId: string, name: string) => Promise<void>;
-  onDelete: (serverId: string) => Promise<void>;
-  onReprobe: (serverId: string) => void;
-  onStartChat: (record: ModeAgentServerRecord) => Promise<void>;
-  onRefreshModeAgent: (record: ModeAgentServerRecord) => Promise<void>;
-  onRenameModeAgent: (record: ModeAgentServerRecord, name: string) => Promise<void>;
-  onRemoveModeAgent: (record: ModeAgentServerRecord) => Promise<void>;
-  onPairDiscovered: (peer: LanDiscoveredPeer, code: string) => Promise<void>;
-  onDismissDiscovered: (serverId: string) => void;
-  onError: (message: string) => void;
+  onConnect: (host: RemoteV3DeviceSummary) => void;
 }) {
   return (
     <ul
@@ -56,61 +27,15 @@ export function RemoteControlDeviceList({
       data-testid="remote-control-device-list"
       data-view={viewMode}
     >
-      {devices.map((device) => {
-        if (device.origin === "lan") {
-          return (
-            <RemoteControlLanPeerRow
-              key={`lan-${device.id}`}
-              peer={device.peer}
-              probe={device.probe}
-              presentation={viewMode}
-              locallyControlled={locallyControlled}
-              busy={busy}
-              onConnect={onConnect}
-              onRename={onRename}
-              onDelete={onDelete}
-              onReprobe={onReprobe}
-              onError={onError}
-            />
-          );
-        }
-        if (device.origin === "v3") {
-          return (
-            <RemoteControlV3Row
-              key={`v3-${device.id}`}
-              host={device.host}
-              presentation={viewMode}
-              locallyControlled={locallyControlled}
-              onConnect={onConnectV3}
-            />
-          );
-        }
-        if (device.origin === "mode-agent") {
-          return (
-            <RemoteControlModeAgentRow
-              key={`mode-agent-${device.id}`}
-              record={device.record}
-              presentation={viewMode}
-              busy={busy}
-              onStartChat={onStartChat}
-              onRefresh={onRefreshModeAgent}
-              onRename={onRenameModeAgent}
-              onRemove={onRemoveModeAgent}
-              onError={onError}
-            />
-          );
-        }
-        return (
-          <RemoteControlDiscoveredRow
-            key={`discovered-${device.id}`}
-            peer={device.peer}
-            presentation={viewMode}
-            busy={busy}
-            onPair={onPairDiscovered}
-            onDismiss={onDismissDiscovered}
-          />
-        );
-      })}
+      {hosts.map((host) => (
+        <RemoteControlV3Row
+          key={host.deviceId}
+          host={host}
+          presentation={viewMode}
+          locallyControlled={locallyControlled}
+          onConnect={onConnect}
+        />
+      ))}
     </ul>
   );
 }

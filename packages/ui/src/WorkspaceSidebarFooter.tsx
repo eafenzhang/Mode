@@ -39,6 +39,7 @@ import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.j
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { ModeAccountDialog } from "@/ModeAccountDialog.js";
 import { SidebarAppVersion } from "@/SidebarAppVersion.js";
+import { addModeAccountDialogOpenListener } from "@/lib/accountDialogNavigation.js";
 import { resolveSidebarProfile } from "@/lib/sidebarProfile.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { useModeStore } from "@/store/StoreProvider.js";
@@ -103,6 +104,8 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const { settings: appSettings } = useSettings();
   const [remoteV3State, setRemoteV3State] = useState<RemoteV3HostState | null>(null);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  // 远程控制页空态的「登录账号」经事件打开本弹窗（侧栏收起时菜单不可达）。
+  useEffect(() => addModeAccountDialogOpenListener(() => setAccountDialogOpen(true)), []);
   useEffect(() => {
     if (!remoteV3Service) return;
     let cancelled = false;

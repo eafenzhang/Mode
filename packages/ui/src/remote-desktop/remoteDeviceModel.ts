@@ -1,42 +1,25 @@
 import {
   sortLanPeerEndpoints,
-  type LanDiscoveredPeer,
   type LanPairedPeer,
   type LanPeerEndpoint,
   type RemoteTarget,
   type RemoteV3DeviceSummary,
 } from "@mode/shared";
 
-import type { RemoteDesktopDeviceProbe } from "@/remote-desktop/deviceAvailability.js";
-import type { ModeAgentServerRecord } from "@/remote-desktop/modeAgentPairing.js";
-
 /**
- * 远程控制统一设备模型（docs/specs/remote-control-device-model.md）：
- * Device 只有一层“设备”，Endpoint 是唯一地址事实源，Channel 表达可用能力。
- * 这里只做投影，不持有会话状态；会话仍归 registry / remote desktop controller。
+ * 远程控制设备页的投影（docs/specs/remote-control-unified-pairing.md R2）：
+ * 页面只展示同账号 v3 Host，不再有 LAN 已配对 / 发现 / Mode Agent 三类设备。
+ * 这里只做排序与 LAN 记录转换，不持有会话状态；会话仍归 registry / remote desktop controller。
  */
-interface RemoteDeviceChannels {
-  workspace: boolean;
-  desktop: boolean;
-  conversation: boolean;
-}
 
-interface RemoteDeviceBase {
-  id: string;
-  name: string;
-  endpoints: LanPeerEndpoint[];
-  channels: RemoteDeviceChannels;
+/** 在线优先，其次按名称（同名再按 deviceId）稳定排序；不修改入参。 */
+export function sortV3Hosts(hosts: readonly RemoteV3DeviceSummary[]): RemoteV3DeviceSummary[] {
+  return [...hosts].sort((left, right) => {
+    if (left.online !== right.online) return left.online ? -1 : 1;
+    const byName = left.name.localeCompare(right.name);
+    return byName !== 0 ? byName : left.deviceId.localeCompare(right.deviceId);
+  });
 }
-
-export type RemoteDevice =
-  | (RemoteDeviceBase & {
-      origin: "lan";
-      peer: LanPairedPeer;
-      probe?: RemoteDesktopDeviceProbe;
-    })
-  | (RemoteDeviceBase & { origin: "discovered"; peer: LanDiscoveredPeer })
-  | (RemoteDeviceBase & { origin: "mode-agent"; record: ModeAgentServerRecord })
-  | (RemoteDeviceBase & { origin: "v3"; host: RemoteV3DeviceSummary });
 
 function lanPeerEndpoints(peer: LanPairedPeer): LanPeerEndpoint[] {
   if (peer.endpoints?.length) {
@@ -45,70 +28,6 @@ function lanPeerEndpoints(peer: LanPairedPeer): LanPeerEndpoint[] {
   return peer.host && peer.port > 0
     ? [{ scheme: "http", host: peer.host, port: peer.port, kind: "lan" }]
     : [];
-}
-
-function lanChannels(probe: RemoteDesktopDeviceProbe | undefined): RemoteDeviceChannels {
-  const desktop =
-    probe?.status === "ok" &&
-    probe.capability.online &&
-    probe.capability.remoteDesktop &&
-    probe.capability.remoteDesktopNative;
-  // 远程工作区与远程桌面共用 LAN 令牌与端点；配对记录存在即支持工作区。
-  return { workspace: true, desktop: Boolean(desktop), conversation: false };
-}
-
-export function buildRemoteDevices(params: {
-  lanPeers: LanPairedPeer[];
-  probes: Record<string, RemoteDesktopDeviceProbe>;
-  modeAgents: ModeAgentServerRecord[];
-  discovered: LanDiscoveredPeer[];
-  v3Hosts?: RemoteV3DeviceSummary[];
-}): RemoteDevice[] {
-  const devices: RemoteDevice[] = [];
-  for (const peer of params.lanPeers) {
-    const endpoints = lanPeerEndpoints(peer);
-    devices.push({
-      id: peer.serverId,
-      origin: "lan",
-      name: peer.name?.trim() || peer.host || peer.serverId,
-      endpoints,
-      channels: lanChannels(params.probes[peer.serverId]),
-      peer,
-      ...(params.probes[peer.serverId] ? { probe: params.probes[peer.serverId] } : {}),
-    });
-  }
-  for (const record of params.modeAgents) {
-    devices.push({
-      id: record.serverName,
-      origin: "mode-agent",
-      name: record.name,
-      endpoints: [{ scheme: "http", host: record.host, port: record.port, kind: "lan" }],
-      channels: { workspace: false, desktop: false, conversation: true },
-      record,
-    });
-  }
-  for (const peer of params.discovered) {
-    devices.push({
-      id: peer.serverId,
-      origin: "discovered",
-      name: peer.name?.trim() || peer.host,
-      endpoints: [{ scheme: "http", host: peer.host, port: peer.port, kind: "lan" }],
-      channels: { workspace: false, desktop: false, conversation: false },
-      peer,
-    });
-  }
-  for (const host of params.v3Hosts ?? []) {
-    devices.push({
-      id: host.deviceId,
-      origin: "v3",
-      name: host.name,
-      endpoints: [],
-      // v3 复用同一账号目录：远程桌面与本机 `/ws/host` 工作区都走 E2EE 隧道。
-      channels: { workspace: true, desktop: true, conversation: false },
-      host,
-    });
-  }
-  return devices;
 }
 
 /** LAN 配对记录 → 远程工作区目标；端点列表原样带入，identity 仍取主端点。 */
@@ -133,4 +52,3 @@ export function lanPeerToRemoteTarget(
     ...(peer.name ? { serverName: peer.name } : {}),
   };
 }
-

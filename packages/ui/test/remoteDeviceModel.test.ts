@@ -1,12 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { LanDiscoveredPeer, LanPairedPeer } from "@mode/shared";
-import {
-  buildRemoteDevices,
-  lanPeerToRemoteTarget,
-} from "../src/remote-desktop/remoteDeviceModel.js";
-import type { ModeAgentServerRecord } from "../src/remote-desktop/modeAgentPairing.js";
+import type { LanPairedPeer, RemoteV3DeviceSummary } from "@mode/shared";
+import { lanPeerToRemoteTarget, sortV3Hosts } from "../src/remote-desktop/remoteDeviceModel.js";
 
 const lanPeer: LanPairedPeer = {
   serverId: "server-1",
@@ -19,83 +15,40 @@ const lanPeer: LanPairedPeer = {
   ],
 };
 
-const discovered: LanDiscoveredPeer = {
-  magic: "mode-lan",
-  protocolVersion: 1,
-  serverId: "server-2",
-  name: "客厅电脑",
-  host: "192.168.1.21",
-  port: 45880,
-  version: "1.0.0",
-  platform: "win32",
-  requiresPairing: true,
-};
+function host(deviceId: string, name: string, online: boolean): RemoteV3DeviceSummary {
+  return {
+    deviceId,
+    name,
+    role: "host",
+    platform: "desktop",
+    identityKey: `identity-${deviceId}`,
+    online,
+    addresses: [],
+  };
+}
 
-const modeAgent = {
-  serverName: "mode-agent-abc",
-  agentId: "abc",
-  name: "XP 工控机",
-  host: "192.168.1.30",
-  port: 47821,
-  server: {},
-} as unknown as ModeAgentServerRecord;
-
-test("统一设备投影：LAN 同时具备 workspace/desktop，Mode Agent 只有 conversation", () => {
-  const devices = buildRemoteDevices({
-    lanPeers: [lanPeer],
-    probes: {
-      "server-1": {
-        status: "ok",
-        capability: {
-          online: true,
-          remoteDesktop: true,
-          remoteDesktopNative: true,
-        },
-      },
-    },
-    modeAgents: [modeAgent],
-    discovered: [discovered],
-  });
-  assert.equal(devices.length, 3);
-  const lan = devices.find((device) => device.origin === "lan");
-  assert.deepEqual(lan?.channels, { workspace: true, desktop: true, conversation: false });
+test("账号目录投影：在线优先，其次按名称，最后按 deviceId 稳定排序", () => {
+  const sorted = sortV3Hosts([
+    host("b", "Beta", false),
+    host("a", "Alpha", true),
+    host("d", "Alpha", false),
+    host("c", "Gamma", true),
+  ]);
   assert.deepEqual(
-    lan?.endpoints.map((endpoint) => endpoint.kind),
-    ["public", "lan"],
-    "设备端点必须公网优先",
+    sorted.map((item) => item.deviceId),
+    ["a", "c", "d", "b"],
+    "在线 Host 前置，同名按 deviceId 兜底",
   );
-  const agent = devices.find((device) => device.origin === "mode-agent");
-  assert.deepEqual(agent?.channels, { workspace: false, desktop: false, conversation: true });
-  const found = devices.find((device) => device.origin === "discovered");
-  assert.deepEqual(found?.channels, { workspace: false, desktop: false, conversation: false });
 });
 
-test("v3 Host 投影为 workspace/desktop 通道，端点为空", () => {
-  const devices = buildRemoteDevices({
-    lanPeers: [],
-    probes: {},
-    modeAgents: [],
-    discovered: [],
-    v3Hosts: [
-      {
-        deviceId: "019a0000-0000-7000-8000-000000000099",
-        name: "V3 Host",
-        role: "host",
-        platform: "desktop",
-        identityKey: "identity",
-        online: true,
-        addresses: [],
-      },
-    ],
-  });
-  assert.equal(devices.length, 1);
-  assert.equal(devices[0]?.origin, "v3");
-  assert.deepEqual(devices[0]?.channels, {
-    workspace: true,
-    desktop: true,
-    conversation: false,
-  });
-  assert.deepEqual(devices[0]?.endpoints, []);
+test("账号目录投影不修改入参", () => {
+  const input = [host("b", "Beta", false), host("a", "Alpha", true)];
+  sortV3Hosts(input);
+  assert.deepEqual(
+    input.map((item) => item.deviceId),
+    ["b", "a"],
+    "排序必须是纯函数，页面轮询会复用同一份快照",
+  );
 });
 
 test("LAN 设备转远程工作区目标：保留端点列表，主端点取公网", () => {
@@ -109,6 +62,8 @@ test("LAN 设备转远程工作区目标：保留端点列表，主端点取公�
 
 test("旧配对记录没有 endpoints 时仍可构造 LAN 目标", () => {
   const target = lanPeerToRemoteTarget({ serverId: "legacy", host: "10.0.0.2", port: 45880 });
-  assert.deepEqual(target?.endpoints, [{ scheme: "http", host: "10.0.0.2", port: 45880, kind: "lan" }]);
+  assert.deepEqual(target?.endpoints, [
+    { scheme: "http", host: "10.0.0.2", port: 45880, kind: "lan" },
+  ]);
   assert.equal(target?.host, "10.0.0.2");
 });

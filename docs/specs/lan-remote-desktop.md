@@ -15,6 +15,11 @@
    mstsc 路径与其 `systemRdp` 能力位、连接选项、会话列表一并移除（同一次 `revert 54aeb907` 交付）。
    取代理由：应用内画面、家庭版可被控（RDP 主机需 Pro/Enterprise）、应用级同意/授权/指示。
 
-仍然有效且未变更：LAN 发现与配对（[lan-discovery.md](./lan-discovery.md)、
-[lan-remote-attach.md](./lan-remote-attach.md)、[lan-paired-devices.md](./lan-paired-devices.md)）、
-设备页与侧边栏入口、被控端 kill-switch 语义（[computer-use-enablement.md](./computer-use-enablement.md)）。
+仍然有效且未变更：被控端 kill-switch 语义
+（[computer-use-enablement.md](./computer-use-enablement.md)）、LAN 传输与令牌校验
+（[lan-remote-attach.md](./lan-remote-attach.md)、[lan-paired-devices.md](./lan-paired-devices.md)）。
+
+2026-11-13 起的产品 UI 口径（[remote-control-unified-pairing.md](./remote-control-unified-pairing.md)
+R1/R2）：远程控制页与远程控制设置页不再展示配对码、扫描发现、客户端清单；设置页只保留
+「允许局域网直连」「允许被远程控制」两个开关与编码能力/安全提示。LAN 发现与配对的服务端
+与 CLI 能力保留用于旧客户端兼容，不再作为产品入口。

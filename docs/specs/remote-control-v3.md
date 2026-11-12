@@ -382,6 +382,11 @@ GET    /api/v1/ice                          （预留 WebRTC）
 2026-11-12 起取消跨账号配对：设备只通过**个人账号**归属，同账号下的 Host 自动出现在
 设备目录并可直连，不再需要短票/验证码/二次换凭证。历史配对数据与服务接口已移除。
 
+2026-11-13 起：桌面端「远程控制」设备页只消费本账号目录
+（`remoteV3Service.listHosts()`），页面不再展示 LAN 配对码、扫描发现、Mode Agent 与
+LAN 已配对设备；「远程控制」设置页只保留「允许局域网直连」「允许被远程控制」两个开关
+（见 [remote-control-unified-pairing.md](./remote-control-unified-pairing.md) R1/R2）。
+
 ## 11. 旧模块处置
 
 | 旧路径 | 处置 |

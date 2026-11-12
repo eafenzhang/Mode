@@ -317,7 +317,6 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   handleOpenSubagentDirectory,
   handleSyncSubagentSessionTabs,
   handleOpenSelectionSideChat,
-  handleOpenModeAgentChat,
   handleModeAgentChatSessionCreated,
   handleCloseDraftModeAgentChatTabs,
   handleOpenPlanDetail,
@@ -1800,9 +1799,6 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                                 isDesktop={Boolean(isDesktop)}
                                 showWindowControls={usesInlineWindowControls && !isSidePaneVisible}
                                 active={workspaceMainView === "remote-desktop"}
-                                onCreateTask={handleCreateTaskInChat}
-                                onOpenModeAgentChat={handleOpenModeAgentChat}
-                                isRemoteWorkspace={Boolean(workspaceRemoteSessionId)}
                                 topOverlayClearancePaddingClass={
                                   resolveTopOverlayClearancePaddingClass({
                                     isSidebarVisible,

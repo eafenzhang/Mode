@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import type { McpServerStatus } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
-import type { RemoteDesktopDeviceStatusTone } from "@/remote-desktop/deviceAvailability.js";
 import type { DeviceViewMode } from "@/remote-desktop/useDeviceViewMode.js";
+
+/** 设备状态胶囊的语义档位；不依赖已删除的 LAN 能力位探测。 */
+export type RemoteDesktopDeviceStatusTone = "ready" | "attention" | "muted";
 
 const STATUS_TONES: Record<RemoteDesktopDeviceStatusTone, { pill: string; dot: string }> = {
   ready: { pill: "bg-success text-success-foreground", dot: "bg-success-foreground" },
@@ -109,38 +110,4 @@ export function DeviceIdentity({
       </p>
     </div>
   );
-}
-
-export function modeAgentStatus(status: McpServerStatus | undefined): {
-  labelId: string;
-  tone: RemoteDesktopDeviceStatusTone;
-  pulsing: boolean;
-} {
-  switch (status) {
-    case "connected":
-      return {
-        labelId: "remoteDesktop.modeAgents.statusConnected",
-        tone: "ready",
-        pulsing: false,
-      };
-    case "connecting":
-      return {
-        labelId: "remoteDesktop.modeAgents.statusConnecting",
-        tone: "muted",
-        pulsing: true,
-      };
-    case "error":
-    case "disconnected":
-      return {
-        labelId: "remoteDesktop.modeAgents.statusOffline",
-        tone: "attention",
-        pulsing: false,
-      };
-    default:
-      return {
-        labelId: "remoteDesktop.modeAgents.statusUnknown",
-        tone: "muted",
-        pulsing: false,
-      };
-  }
 }
