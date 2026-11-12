@@ -59,7 +59,7 @@ export class RemoteV3GithubLogin {
   async begin(): Promise<RemoteV3GithubChallenge> {
     if (this.pending) return this.challenge();
     const rawServerUrl = this.deps.getServerUrl() ?? this.deps.env.MODE_REMOTE_V3_URL ?? "";
-    if (!rawServerUrl.trim()) throw new Error("未配置远程控制 v3 服务地址");
+    if (!rawServerUrl.trim()) throw new Error("未配置远程控制服务地址");
     const serverUrl = normalizeRemoteServerUrl(rawServerUrl);
     try {
       const flow = await startGithubOAuthFlow({

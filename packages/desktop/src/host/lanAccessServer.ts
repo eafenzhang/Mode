@@ -322,7 +322,7 @@ export async function startLanAccessServer(
     }
     const record: LanAccessClientRecord = {
       id: CLOUD_ACCOUNT_PEER_CLIENT_ID,
-      label: "远程控制 v3（同账号设备）",
+      label: "远程控制（同账号设备）",
       createdAt: Date.now(),
       lastUsedAt: null,
     };

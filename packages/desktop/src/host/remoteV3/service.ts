@@ -606,7 +606,7 @@ export class RemoteV3HostService implements IRemoteV3Service {
   }
 
   private requireConfig(): RemoteV3StoredConfig {
-    if (!this.config) throw new Error("远程控制 v3 配置尚未初始化");
+    if (!this.config) throw new Error("远程控制配置尚未初始化");
     return this.config;
   }
 

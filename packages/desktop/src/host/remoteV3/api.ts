@@ -28,7 +28,7 @@ export function normalizeRemoteServerUrl(raw: string): string {
   const local =
     url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1";
   if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) {
-    throw new Error("远程控制 v3 服务必须使用 HTTPS（仅本机开发允许 HTTP）");
+    throw new Error("远程控制服务必须使用 HTTPS（仅本机开发允许 HTTP）");
   }
   // 保留路径前缀（fnOS 网关/反向代理子路径）；只去掉尾部斜杠。
   url.pathname = url.pathname.replace(/\/+$/u, "");

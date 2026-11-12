@@ -105,7 +105,7 @@ export class RemoteV3ClientRuntime {
 
   async listHosts(): Promise<RemoteV3DeviceSummary[]> {
     const serverUrl = this.deps.getServerUrl();
-    if (!serverUrl) throw new Error("远程控制 v3 服务地址未配置");
+    if (!serverUrl) throw new Error("远程控制服务地址未配置");
     let profile = await this.ensureProfile(serverUrl);
     if (!profile.accessToken) throw new Error("Client access token 缺失");
     try {
@@ -193,7 +193,7 @@ export class RemoteV3ClientRuntime {
 
   private async createConnection(hostDeviceId: string): Promise<ClientConnection> {
     const serverUrl = this.deps.getServerUrl();
-    if (!serverUrl) throw new Error("远程控制 v3 服务地址未配置");
+    if (!serverUrl) throw new Error("远程控制服务地址未配置");
     const profile = await this.ensureProfile(serverUrl);
     try {
       return await this.startClient(serverUrl, profile, hostDeviceId);

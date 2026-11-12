@@ -405,7 +405,7 @@ export async function createRemoteWorkspaceHostService(
   ): Promise<WindowRemoteConnectionHandle<ServiceCollection, RemoteCapabilities>> => {
     const remoteV3 = options.getRemoteV3?.();
     if (!remoteV3) {
-      throw new Error("远程控制 v3 服务不可用：请先在账号设置里登录");
+      throw new Error("远程控制服务不可用：请先在账号设置里登录");
     }
     const closeBridge = createRemoteCloseBridge();
     const connection = await attachV3RemoteWorkspace({
