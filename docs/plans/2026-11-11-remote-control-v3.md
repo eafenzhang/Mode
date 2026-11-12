@@ -71,7 +71,8 @@ packages/remote-server
 - P1 完成：`packages/remote-server` 账号/设备/token/membership/连接、Control WS、
   Relay WS、签名 ticket、撤销断连；5 项测试（含 Control+Relay E2E）。
 - P2 完成 LAN direct + Relay 双数据面与自动重连：Client 优先直连 Host `/ws/v1/direct`
-  （ticket 首帧校验），失败回落 Relay；WebRTC / TURN / lease 恢复未落地，未宣告对应 capability。
+  （ticket 首帧校验），失败回落 Relay。（WebRTC/P2P 与 TURN 配置在后续阶段落地，
+  见下方 WebRTC 阶段记录。）
 - P3 部分完成：`packages/desktop/src/host/remoteV3/` 已接进 Host（设备身份、GitHub
   Device Flow、注册、Control 常驻、pin、RPC allowlist）；同安装可注册独立 Client
   角色并通过 `IRemoteV3Service.request` 走 E2EE 执行 RPC。

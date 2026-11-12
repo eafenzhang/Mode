@@ -459,7 +459,8 @@ P3 已接线的部分：
 - 隧道事件在无订阅者时先缓存（上限 256），首个 `onTunnelEvent` 订阅者会收到补齐的
   `open`/首帧；避免渲染进程「先 openTunnel、再订阅」之间丢掉 `Initialize`。
 - Host 注册时上报本机 LAN 地址（最多 8 个 `host:port`，不含令牌），设备目录按设备返回；
-  远程控制页优先展示该地址。直连数据面仍未启用，地址目前只作为 P2 选路输入。
+  远程控制页优先展示该地址。LAN 直连数据面已启用（`/ws/v1/direct`，失败回落 Relay），
+  同一批地址也作为 P2P 主机候选前的 LAN 尝试输入。
 - `remote.workspace.list` 已接线到 `collectLanAccessWorkspaces`（工作区列表来自设置），
   不再返回 `METHOD_NOT_FOUND`。
 - 工作区隧道级重连：`attachV3RemoteWorkspace` 用稳定 ISocket 包住可重开的 `/ws/host`
@@ -518,8 +519,9 @@ P3 已接线的部分：
   `https/wss`，地址以 `wss://` 进入目录，自签名不支持），未配置时仍为明文 WS。Control 中断
   后的会话恢复走客户端路径：工作区重开 `/ws/host` 隧道并按新 Initialize 重放订阅，
   远程桌面按票据重连媒体/重新发起会话；服务端不保留业务 lease。
-- 跨账号配对 v1：服务端已实现（§10；[配对规格](./remote-control-v3-pairing.md)），
-  客户端扫码/Host 本机确认 UI 与 `IRemoteV3Service` 方法待接。
+- 跨账号配对 v1：服务端与两端 UI 均已实现（§10；
+  [配对规格](./remote-control-v3-pairing.md)）：Client 领取短票后显示 8 位验证码，
+  Host 本机确认后 redeem；二维码不在范围。
 - v2 旧模块删除：v2 `ICloudAccountService` 与账号 UI 已删除；`packages/cloud-relay`
   目录令牌/`/d` 数据面、LAN Bearer、远控票据仍需 LAN 路径替代后删除。
 - 生产 TLS 已支持进程内终止（`tls.key/cert` 或 `MODE_REMOTE_TLS_*_FILE`，URL/Relay 自动
