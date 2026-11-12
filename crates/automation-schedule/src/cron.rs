@@ -464,16 +464,17 @@ pub fn next_run(spec: &CronSpec, from_ms: i64, offset_secs: i32) -> Option<i64> 
         }
         let midnight = from_local(year, month as i64, day as i64, 0, 0, offset_secs);
         let lower_bound = if day_index == 0 { start } else { i64::MIN };
-        for hour in 0..24usize {
-            if !spec.hours[hour] {
+        // 用 enumerate 迭代布尔表，避免 clippy::needless_range_loop（CI -D warnings）。
+        for (hour, hour_enabled) in spec.hours.iter().enumerate() {
+            if !hour_enabled {
                 continue;
             }
-            for minute in 0..60usize {
-                if !spec.minutes[minute] {
+            for (minute, minute_enabled) in spec.minutes.iter().enumerate() {
+                if !minute_enabled {
                     continue;
                 }
-                for second in 0..60usize {
-                    if !spec.seconds[second] {
+                for (second, second_enabled) in spec.seconds.iter().enumerate() {
+                    if !second_enabled {
                         continue;
                     }
                     let candidate =
@@ -514,16 +515,16 @@ pub fn previous_runs(spec: &CronSpec, from_ms: i64, count: usize, offset_secs: i
 }
 
 fn prior_in_day(spec: &CronSpec, day_start: i64, upper_bound: i64) -> Option<i64> {
-    for hour in (0..24usize).rev() {
-        if !spec.hours[hour] {
+    for (hour, hour_enabled) in spec.hours.iter().enumerate().rev() {
+        if !hour_enabled {
             continue;
         }
-        for minute in (0..60usize).rev() {
-            if !spec.minutes[minute] {
+        for (minute, minute_enabled) in spec.minutes.iter().enumerate().rev() {
+            if !minute_enabled {
                 continue;
             }
-            for second in (0..60usize).rev() {
-                if !spec.seconds[second] {
+            for (second, second_enabled) in spec.seconds.iter().enumerate().rev() {
+                if !second_enabled {
                     continue;
                 }
                 let candidate =
