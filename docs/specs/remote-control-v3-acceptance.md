@@ -21,7 +21,7 @@ pnpm test:remote-v3     # core + remote-server + ui + desktop 全量
 pnpm typecheck && pnpm lint && pnpm architecture:check --changed
 ```
 
-### 1.1 本地模拟（2026-11-12 已执行，16 项通过 + 1 项预期限制）
+### 1.1 本地模拟（2026-11-12 已执行，17 项通过）
 
 用 `playwright-core` 驱动本机 Chrome（真实 `RTCPeerConnection`），加假 GitHub
 Device Flow、两套内存 remote-server 与轻量桌面 Host，按真人路径操作 `/v3`：
@@ -29,14 +29,15 @@ Device Flow、两套内存 remote-server 与轻量桌面 Host，按真人路径�
 - 未登录不展示「本机 Web 设备」区块；输入服务地址后登录入口仍可见；
 - Device Flow 登录、生成 Web 设备、目录发现 Host（在线 / host / desktop）；
 - 「加密 RPC」显示 `传输：p2p`，`remote.host.info` 返回设备名/平台/版本；
+- 「工作区隧道」经 Host 本机 `/ws/host` 桥接到真实 HTTP/WS 服务，
+  `systemService.info` 返回预期数据（P2P 数据面）；
 - 禁用浏览器 WebRTC 后自动回落 `relay`，同一 RPC 仍成功；
 - 两个服务地址（两个账号）各自保留身份；切回账号 A 时目录只显示 A 的 Host；
 - 退出后账号保留在「已保存的账号」，复用地址重新登录沿用同一 deviceId；
 - 「删除」只移除该地址，另一账号不受影响；退出时清空旧错误提示。
 
-预期限制：工作区隧道与远程桌面需要完整 desktop Host（stdio sidecar + 本机 LAN
-服务）；轻量 Host 下工作区返回 `HOST_LOCAL_API_UNAVAILABLE`。真机验收仍按下方
-2–7 节执行。
+仍未覆盖：远程桌面（同意窗、媒体采集/编码）需要完整 desktop Host；移动端布局与
+TURN/跨 NAT 仍需真机。真机验收仍按下方 2–7 节执行。
 
 ## 2. 账号与设备目录
 
