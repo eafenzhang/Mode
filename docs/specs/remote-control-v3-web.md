@@ -87,8 +87,8 @@
    HTTPS 页面只尝试 `wss://` 直连地址，明文 LAN 地址被跳过。
 3. UI：主 Web 已接通 v3 工作区（向导选 Host → 注册远程 session → 复用现有 tab/文件/
    终端/Git），见 [remote-control-v3-web-workspace.md](./remote-control-v3-web-workspace.md)；
-   `/v3` 独立页仍只提供目录与连通测试。远程桌面页面已挂载，还缺真机验收
-   （同意窗 → 首帧 → 键鼠输入 → 关闭释放）与弱网/断线复测。
+   `/v3` 独立页仍只提供目录与连通测试。远程桌面页面已挂载；真机首轮已过首帧/关闭释放
+   （同账号设备不弹同意窗，见验收清单 §5.1），键鼠输入/画质切换/断网重连待复测。
 4. 移动端复用同一 Web 客户端，尚未接入。
 5. 安全：CSP 仍待；`/api/v1/*` 的 CORS 白名单已接（复用 `allowedOrigins` /
    `MODE_REMOTE_ALLOWED_ORIGINS`，未命中不回显 ACAO；未配置时仅同源可用）。

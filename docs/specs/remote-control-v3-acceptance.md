@@ -1,6 +1,7 @@
 # 远程控制 v3 真机验收清单
 
-状态：2026-11-12 待执行。覆盖账号设备目录、远程工作区、远程桌面、传输选路、断线恢复与
+状态：2026-11-12 真机首轮已完成（见 §10），键鼠输入/画质切换/断网重连、移动端触控、
+TURN/跨 NAT 待补。覆盖账号设备目录、远程工作区、远程桌面、传输选路、断线恢复与
 安全边界；自动化部分先跑 `pnpm test:remote-v3`，本清单只列必须两台真实设备才能
 验证的项。
 
@@ -45,8 +46,8 @@ Device Flow、两套内存 remote-server 与轻量桌面 Host，按真人路径�
 - 390×844 手机视口无横向滚动，P2P RPC 仍可用；
 - 不可达服务地址返回可见错误（`Failed to fetch`），不卡在加载态。
 
-仍未覆盖：远程桌面正常路径（同意窗、媒体采集/编码）需要完整 desktop Host；
-移动端触控/软键盘、TURN/跨 NAT 仍需真机。真机验收仍按下方 2–7 节执行。
+仍未覆盖：远程桌面键鼠输入/画质切换/断网重连、移动端触控/软键盘、TURN/跨 NAT。
+真机验收进展见 §10。
 
 ## 2. 账号与设备目录
 
@@ -77,7 +78,8 @@ Device Flow、两套内存 remote-server 与轻量桌面 Host，按真人路径�
 
 | # | 操作 | 预期 |
 | --- | --- | --- |
-| 5.1 | `/v3` 或桌面端进入桌面 | Host 本机弹出同意窗；拒绝/超时返回 consent_denied/consent_timeout |
+| 5.1 | 同账号 v3 设备进入桌面 | 不弹同意窗：同账号设备（Noise 设备身份 + 账号凭证）视作已授权客户端（`cloud-account-peer`，见 cloud-personal-accounts.md「同账号即信任」），`rd_consent_authorized` 直通；LAN 未配对/未记住设备仍弹同意窗，拒绝/超时返回 consent_denied/consent_timeout |
+| 5.1a | LAN 未配对设备进入桌面 | Host 本机弹出同意窗；拒绝/超时返回 consent_denied/consent_timeout；「记住设备」后直通 |
 | 5.2 | 同意后首帧 | ≤5s 出画；状态条有 fps/RTT/分辨率 |
 | 5.3 | 键鼠输入 | Host 端正确响应；浏览器内焦点保持在画面 |
 | 5.4 | 切换画质档位 | bye + 重建会话；不二次弹同意窗 |
@@ -130,3 +132,35 @@ Client：设备名 / deviceId / 指纹：
   跨对称 NAT 可能只能走 Relay。
 - 浏览器不支持 `RTCPeerConnection`（或非安全上下文限制）时只走 Relay。
 - 跨账号配对已下线；不同账号设备之间不再互通。
+
+## 10. 真机验收记录（2026-11-12，Windows 桌面端 Host + Chrome Client，线上 remote.mymode.cloud）
+
+环境：Host = dev 构建桌面端（账号 eafenzhang，deviceId 43c1ba78…，
+指纹 a295692d…，LAN 100.90.96.50:45880）；Client = Chrome 持久 profile
+（deviceId 271953fe…）；服务地址 https://remote.mymode.cloud。
+
+已通过：
+
+- §2.1/2.2：Host 上线，账号名/指纹可见；Web 目录只显示同账号 Host，不显示本机 Web 设备。
+- §6.8：加密 RPC `传输：p2p`，`remote.host.info` 返回真实设备信息。
+- §4.1/4.2（连通面）：工作区隧道 `传输：p2p`，`systemService.info` 返回 Host 数据。
+- LAN direct（禁用 WebRTC 强制走 LAN）：RPC 与工作区均 `传输：lan`，真实命中
+  Host `/ws/v1/direct`（HTTPS 页面需 wss 地址，本次为 HTTP 页面 + 明文 LAN 地址）。
+- §5.1：同账号 Web 设备进入桌面**不弹同意窗**（按 5.1 修订口径，`cloud-account-peer`
+  已授权直通）；§5.2：首帧 ≤7.5s 出画，1920×1080，45–90 fps，码率/延迟正常。
+- §5.6：断开后回到设备列表，Host 释放会话，可再次建连。
+
+遗留（未执行/未通过）：
+
+- §5.3–5.5：键鼠输入、画质切换、媒体断网重连（键鼠实测会移动真实指针，未执行）。
+- §6.3/6.9：Host 重启、P2P 建立后断网恢复。
+- §6.6/6.7：TURN/跨 NAT（coturn 未部署）。
+- 手机真机（触控/软键盘）。
+
+首轮发现的缺陷与处置：
+
+- 远程桌面状态条端到端延迟显示 `~1.79e12 ms`：采集戳 u32 截断被直接当 Unix 毫秒相减；
+  已修复为按 32 位回绕取差值（`computeFrameAgeMs`，偏移失准返回 null 不进统计）。
+- Host 凭证被服务端 4002 拒绝后无限退避重连（access/refresh 均失效时不进错误态）：
+  已修复为 4002 触发 refresh 单飞恢复，成功重连、401/403 进错误态等重新登录。
+- 同意窗行为按 5.1 修订口径确认为设计预期，不改代码。

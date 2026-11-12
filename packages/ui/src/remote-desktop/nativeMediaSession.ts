@@ -22,7 +22,7 @@ export { codecStringFromAnnexB, probeHevcDecodeSupport } from "./codecString.js"
 export interface ParsedMediaFrame {
   seq: number;
   key: boolean;
-  /** 采集时刻（被控时钟 Unix 毫秒 u32 截断；0 = 未知）。帧龄 = now − capturedAtMs + 时钟偏移。 */
+  /** 采集时刻（被控时钟 Unix 毫秒 u32 截断；0 = 未知）。帧龄按 32 位回绕差 + 时钟偏移计算。 */
   capturedAtMs: number;
   body: Uint8Array;
 }
@@ -54,6 +54,28 @@ export function buildFrameIv(salt: Uint8Array, seq: number): Uint8Array {
  */
 export function shouldDropDeltaFrame(isKey: boolean, decodeQueueSize: number): boolean {
   return !isKey && decodeQueueSize > 2;
+}
+
+/** 采集戳是 u32 截断的 Unix 毫秒；真实帧龄 ≪ 2^32 ms，按 32 位回绕取差值。 */
+const CAPTURED_AT_MODULUS = 2 ** 32;
+/** 回绕后仍超过该值说明时钟偏移失准（或负帧龄回绕），不进入统计避免巨大读数。 */
+const MAX_PLAUSIBLE_FRAME_AGE_MS = 60_000;
+
+/**
+ * 帧龄（glass-to-glass 近似，纯函数供测试）：
+ * `now + 时钟偏移` 还原被控时钟的「现在」，再与 u32 截断的采集戳做 32 位回绕差。
+ * 偏移标定正确时截断不引入误差（真帧龄 < 2^32 ms）；偏移失准或负帧龄回绕会得到
+ * 巨大值，返回 null 让调用方跳过本帧读数。
+ */
+export function computeFrameAgeMs(
+  nowMs: number,
+  capturedAtMs: number,
+  clockOffsetMs: number,
+): number | null {
+  const wrapped =
+    (((nowMs + clockOffsetMs - capturedAtMs) % CAPTURED_AT_MODULUS) + CAPTURED_AT_MODULUS) %
+    CAPTURED_AT_MODULUS;
+  return wrapped <= MAX_PLAUSIBLE_FRAME_AGE_MS ? wrapped : null;
 }
 
 export interface NativeMediaSessionOptions {
@@ -328,9 +350,11 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
         }
         opts.onDecoded?.();
         // 帧龄 = 本端绘制时刻 − 被控采集时刻 + 时钟偏移（glass-to-glass 近似）；
-        // 缺采集戳（旧端/未知=0）或未标定偏移 → 跳过本帧读数。
+        // 采集戳是 u32 截断值，按 32 位回绕取差值；缺采集戳（旧端/未知=0）或
+        // 未标定偏移/偏移失准 → 跳过本帧读数。
         if (typeof capturedAtMs === "number" && capturedAtMs !== 0 && clockOffsetMs !== null) {
-          opts.onFrameAgeMs?.(Date.now() - capturedAtMs + clockOffsetMs);
+          const ageMs = computeFrameAgeMs(Date.now(), capturedAtMs, clockOffsetMs);
+          if (ageMs !== null) opts.onFrameAgeMs?.(ageMs);
         }
       },
       error: (e) => {

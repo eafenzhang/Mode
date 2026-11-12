@@ -89,6 +89,8 @@ export class RemoteV3HostService implements IRemoteV3Service {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private reconnectAttempt = 0;
   private refreshInFlight: Promise<{ accessToken: string; refreshToken: string }> | null = null;
+  /** 4002 凭证恢复单飞：与 start() 的 ack 失败并发时只走一次 refresh。 */
+  private recoveringCredentials = false;
   private readonly githubLogin: RemoteV3GithubLogin;
   private readonly p2pAdapter = createWeriftP2PAdapter();
   private readonly client: RemoteV3ClientRuntime;
@@ -461,12 +463,46 @@ export class RemoteV3HostService implements IRemoteV3Service {
     this.options.log(
       `remote_v3_control_closed code=${details.code} reason=${details.reason || "<none>"}`,
     );
+    if (details.code === 4002) {
+      // 4002 = 服务端拒绝设备凭证（过期/被撤销）。普通退避重连只会拿着同一失效
+      // token 无限打转；统一收口到 refresh 恢复流程。start() 的 ack 失败会与本
+      // 回调并发，由 recoveringCredentials 单飞兜底，不会重复刷新。
+      this.stateStore.patch({
+        status: "reconnecting",
+        error: "设备凭证已失效，正在刷新登录态",
+        activeConnections: 0,
+      });
+      void this.recoverAfterCredentialRejected();
+      return;
+    }
     this.stateStore.patch({
       status: "reconnecting",
       error: "Control 链路已断开，正在自动重连",
       activeConnections: 0,
     });
     this.scheduleReconnect();
+  }
+
+  /** 凭证被服务端拒绝后的恢复：refresh 成功即重连；401/403 进错误态等重新登录。 */
+  private async recoverAfterCredentialRejected(): Promise<void> {
+    if (this.recoveringCredentials) return;
+    this.recoveringCredentials = true;
+    try {
+      const config = this.config;
+      if (!config?.serverUrl || !config.tokens) {
+        this.failLink(new Error("设备凭证已失效"), false);
+        return;
+      }
+      await this.refreshHostTokens();
+      this.reconnectAttempt = 0;
+      await this.startLink();
+    } catch (error) {
+      // refresh 401/403 = token family 撤销/过期：进错误态等用户重新登录；
+      // 网络抖动等其他错误保持「重连中」继续退避。
+      this.failLink(error, !isRemoteV3AuthError(error));
+    } finally {
+      this.recoveringCredentials = false;
+    }
   }
 
   /**

@@ -693,3 +693,177 @@ test("v3 Host 被顶替后自动重连并恢复加密 RPC", async () => {
     await server.close();
   }
 });
+
+/** 假 Control socket：accept 模式回 hello.ack；reject 模式在 hello 后以 4002 关闭。 */
+class FakeControlSocket implements RemoteSocket {
+  readonly sent: string[] = [];
+  private messageHandler: ((text: string) => void) | null = null;
+  private closeHandler: ((code: number, reason: string) => void) | null = null;
+  private helloSeen = false;
+
+  constructor(
+    private readonly mode: "reject" | "accept",
+    private readonly onHello?: (payload: Record<string, unknown>) => void,
+  ) {}
+
+  send(text: string): void {
+    this.sent.push(text);
+    const frame = JSON.parse(text) as { type?: string; payload?: Record<string, unknown> };
+    if (frame.type !== "hello" || this.helloSeen) return;
+    this.helloSeen = true;
+    queueMicrotask(() => {
+      this.onHello?.(frame.payload ?? {});
+      if (this.mode === "reject") {
+        this.closeHandler?.(4002, "invalid device credential");
+        return;
+      }
+      this.messageHandler?.(
+        JSON.stringify({
+          v: 1,
+          id: randomUUID(),
+          timestamp: Date.now(),
+          type: "hello.ack",
+          payload: {
+            protocol: 1,
+            connectionSessionId: randomUUID(),
+            heartbeatIntervalMs: 25_000,
+            maxControlFrameBytes: 64 * 1024,
+            maxRelayFrameBytes: 1024 * 1024,
+            capabilities: [],
+          },
+        }),
+      );
+    });
+  }
+
+  close(): void {
+    this.closeHandler = null;
+  }
+
+  onMessage(callback: (text: string) => void): void {
+    this.messageHandler = callback;
+  }
+
+  onClose(callback: (code: number, reason: string) => void): void {
+    this.closeHandler = callback;
+  }
+}
+
+function seedHostCredentials(store: Map<string, string>): void {
+  store.set("remote:v3:server-url", "https://remote.test");
+  store.set("remote:v3:access-token", "expired-access");
+  store.set("remote:v3:refresh-token", "refresh-1");
+}
+
+test("v3 Host 凭证被拒（4002）后自动刷新并重连，不进退避循环", async () => {
+  const refreshCalls: string[] = [];
+  const helloTokens: string[] = [];
+  const logs: string[] = [];
+  let socketCount = 0;
+  const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith("/api/v1/devices/refresh")) {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { refreshToken?: string };
+      refreshCalls.push(body.refreshToken ?? "");
+      return new Response(
+        JSON.stringify({
+          accessToken: "fresh-access",
+          refreshToken: "refresh-2",
+          accessExpiresAt: Date.now() + 3_600_000,
+          refreshExpiresAt: Date.now() + 86_400_000,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response(JSON.stringify({ error: { message: `unexpected ${url}` } }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const { credentials, store } = createFakeCredentials();
+  seedHostCredentials(store);
+
+  const service = await createRemoteV3HostService({
+    credentials,
+    env: {},
+    fetchImpl,
+    connectSocket: async () => {
+      socketCount += 1;
+      return new FakeControlSocket(socketCount === 1 ? "reject" : "accept", (payload) => {
+        helloTokens.push(String(payload.accessToken));
+      });
+    },
+    log: (line) => logs.push(line),
+    deviceName: "V3 4002 Host",
+  });
+  try {
+    await waitForAsync(async () => (await service.getState()).status === "online", 5000);
+    assert.deepEqual(refreshCalls, ["refresh-1"], "4002 后必须用 refresh token 换新凭证");
+    assert.deepEqual(
+      helloTokens,
+      ["expired-access", "fresh-access"],
+      "重连必须携带刷新后的 access token",
+    );
+    assert.equal(store.get("remote:v3:access-token"), "fresh-access");
+    assert.equal(store.get("remote:v3:refresh-token"), "refresh-2");
+    assert.equal(
+      logs.filter((line) => line.includes("remote_v3_reconnect_scheduled")).length,
+      0,
+      "4002 恢复走 refresh，不进普通退避重连",
+    );
+  } finally {
+    await service.disconnectAccount().catch(() => undefined);
+  }
+});
+
+test("v3 Host 凭证被拒且 refresh 失效时进入错误态，不再无限重连", async () => {
+  const refreshCalls: string[] = [];
+  const logs: string[] = [];
+  const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith("/api/v1/devices/refresh")) {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { refreshToken?: string };
+      refreshCalls.push(body.refreshToken ?? "");
+      return new Response(JSON.stringify({ error: { message: "refresh token 无效或已过期" } }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({ error: { message: `unexpected ${url}` } }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const { credentials, store } = createFakeCredentials();
+  seedHostCredentials(store);
+
+  const service = await createRemoteV3HostService({
+    credentials,
+    env: {},
+    fetchImpl,
+    connectSocket: async () => new FakeControlSocket("reject"),
+    log: (line) => logs.push(line),
+    deviceName: "V3 Revoked Host",
+  });
+  try {
+    await waitForAsync(async () => (await service.getState()).status === "error", 5000);
+    assert.equal(refreshCalls.length, 1, "refresh 只尝试一次");
+    assert.equal(
+      logs.some((line) => line.includes("remote_v3_auth_failed")),
+      true,
+      "凭证失效必须进错误态并留日志",
+    );
+    assert.equal(
+      logs.filter((line) => line.includes("remote_v3_reconnect_scheduled")).length,
+      0,
+      "refresh 401 后不得继续退避重连",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 1_300));
+    assert.equal(refreshCalls.length, 1, "错误态下不再重复刷新");
+    assert.equal((await service.getState()).status, "error");
+  } finally {
+    await service.disconnectAccount().catch(() => undefined);
+  }
+});
