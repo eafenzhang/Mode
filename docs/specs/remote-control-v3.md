@@ -91,6 +91,11 @@ descriptor，交叉校验账号、角色、公钥和 membership。仅信令事�
 ### 4.1 账号
 
 - 身份来源：GitHub OAuth Device Flow（沿用产品既有登录方式；不带入 v2 令牌）。
+  桌面与浏览器都通过账号服务的 `/api/v1/auth/github/device/*` 代理：client id 只配置
+  在服务端（`MODE_GITHUB_CLIENT_ID`），客户端不持有、也不直连 github.com。
+  自建环境无法直连 `github.com`（但 `api.github.com` 可用）时，可用
+  `MODE_GITHUB_DEVICE_BASE_URL` 指向 `github.com` 登录端点的反向代理；代理只需转发
+  `/login/device/code` 与 `/login/oauth/access_token`。
 - 账号锚点：`HMAC-SHA256(pepper, "github:" + githubUserId)`；JIT 建号。
 - Web 会话：32 字节随机 token，服务端只存 SHA-256，默认 30 天，轮换与撤销。
 
@@ -446,7 +451,7 @@ Owner -- DELETE /devices/{id} --> 服务端撤 token/membership/连接
 
 P3 已接线的部分：
 
-- `packages/desktop/src/host/remoteV3/`：Host 设备身份持久化、GitHub Device Flow、
+- `packages/desktop/src/host/remoteV3/`：Host 设备身份持久化、GitHub Device Flow（服务端代理）、
   设备注册、Control 常驻、peer pinning、RPC allowlist（`remote.ping` / `remote.echo` /
   `remote.host.info` / `remote.workspace.list`）。
 - 同一安装可用 Host 设备凭证通过 `register-owned-role` 注册独立 Client 角色，

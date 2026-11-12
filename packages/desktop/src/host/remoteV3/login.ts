@@ -4,16 +4,10 @@ import type {
   RemoteV3PendingLogin,
 } from "@mode/shared";
 
-import {
-  exchangeGithubAccessToken,
-  normalizeRemoteServerUrl,
-  pollGithubDeviceFlow,
-  startGithubDeviceFlow,
-} from "./api.js";
+import { normalizeRemoteServerUrl, pollGithubDeviceFlow, startGithubDeviceFlow } from "./api.js";
 
 interface PendingGithubLogin {
   serverUrl: string;
-  clientId: string;
   deviceCode: string;
   userCode: string;
   verificationUri: string;
@@ -46,15 +40,12 @@ export class RemoteV3GithubLogin {
     const rawServerUrl = this.deps.getServerUrl() ?? this.deps.env.MODE_REMOTE_V3_URL ?? "";
     if (!rawServerUrl.trim()) throw new Error("未配置远程控制 v3 服务地址");
     const serverUrl = normalizeRemoteServerUrl(rawServerUrl);
-    const clientId =
-      this.deps.env.MODE_REMOTE_V3_GITHUB_CLIENT_ID ??
-      this.deps.env.MODE_REMOTE_GITHUB_CLIENT_ID ??
-      "";
-    if (!clientId) throw new Error("未配置 GitHub client id（MODE_REMOTE_GITHUB_CLIENT_ID）");
-    const flow = await startGithubDeviceFlow(clientId, this.deps.fetchImpl);
+    const flow = await startGithubDeviceFlow({
+      serverUrl,
+      ...(this.deps.fetchImpl ? { fetchImpl: this.deps.fetchImpl } : {}),
+    });
     this.pending = {
       serverUrl,
-      clientId,
       deviceCode: flow.deviceCode,
       userCode: flow.userCode,
       verificationUri: flow.verificationUri,
@@ -76,11 +67,11 @@ export class RemoteV3GithubLogin {
     if (this.busy) return;
     this.busy = true;
     try {
-      const result = await pollGithubDeviceFlow(
-        pending.clientId,
-        pending.deviceCode,
-        this.deps.fetchImpl,
-      );
+      const result = await pollGithubDeviceFlow({
+        serverUrl: pending.serverUrl,
+        deviceCode: pending.deviceCode,
+        ...(this.deps.fetchImpl ? { fetchImpl: this.deps.fetchImpl } : {}),
+      });
       if (result.status === "pending") return;
       if (result.status === "slow_down") {
         pending.interval = result.interval ?? pending.interval + 5;
@@ -90,13 +81,12 @@ export class RemoteV3GithubLogin {
         this.clear();
         throw new Error("GitHub 登录已过期，请重新发起");
       }
-      const accessToken = result.accessToken;
-      if (!accessToken) throw new Error("GitHub 登录响应缺少 access_token");
-      const webSessionToken = await exchangeGithubAccessToken({
-        serverUrl: pending.serverUrl,
-        accessToken,
-        fetchImpl: this.deps.fetchImpl,
-      });
+      if (result.status === "denied") {
+        this.clear();
+        throw new Error("GitHub 授权被拒绝");
+      }
+      const webSessionToken = result.sessionToken;
+      if (!webSessionToken) throw new Error("GitHub 登录响应缺少 sessionToken");
       const serverUrl = pending.serverUrl;
       this.clear();
       await this.deps.configure({ serverUrl, webSessionToken });
@@ -138,8 +128,14 @@ export class RemoteV3GithubLogin {
     if (!this.pending) return;
     this.pollTimer = setTimeout(() => {
       void this.poll().catch((error: unknown) => {
+        const cause =
+          error instanceof Error && error.cause
+            ? ((error.cause as { code?: string; message?: string }).code ??
+              (error.cause as { message?: string }).message ??
+              String(error.cause))
+            : "";
         this.deps.log(
-          `remote_v3_github_poll_failed error=${error instanceof Error ? error.message : String(error)}`,
+          `remote_v3_github_poll_failed error=${error instanceof Error ? error.message : String(error)}${cause ? ` cause=${cause}` : ""}`,
         );
       });
     }, this.pending.interval * 1000);

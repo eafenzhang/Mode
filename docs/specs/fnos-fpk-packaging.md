@@ -90,6 +90,9 @@
   - LAN 直连端口可用 `MODE_LAN_TLS_KEY_FILE` / `MODE_LAN_TLS_CERT_FILE` 启用 HTTPS/WSS
   （证书须被客户端信任）；v3 设备目录地址会带 `wss://` 前缀，LAN 发现广播携带 `scheme`。
   - remote-server 的 `MODE_REMOTE_PUBLIC_URL` 可设为网关子路径（如 `/app/mode`）：服务端下发**相对** Relay 路径，客户端按自己的服务地址解析；账号服务地址也支持带前缀（`https://<nas>/app/mode`）。
+  - 网络无法直连 `github.com`（但 `api.github.com` 可用）时，设置
+    `MODE_GITHUB_DEVICE_BASE_URL` 指向只转发 `/login/device/code` 与
+    `/login/oauth/access_token` 的反向代理；GitHub API 仍直连。
   - WebRTC/P2P 的 ICE 由 remote-server 下发：`MODE_REMOTE_STUN_URLS`（逗号分隔，
     如 `stun:<host>:3478`）与 `MODE_REMOTE_TURN_URLS`（如
     `turn:<host>:3478?transport=udp`）。TURN 使用 coturn REST 临时凭证：

@@ -98,7 +98,8 @@ export async function registerRemoteV3OwnedRole(input: {
     body: JSON.stringify({ device: input.descriptor }),
   });
   const body = await readJson(response);
-  if (!response.ok) throw new RemoteV3ApiError(response.status, readError(body, "注册相反角色失败"));
+  if (!response.ok)
+    throw new RemoteV3ApiError(response.status, readError(body, "注册相反角色失败"));
   if (
     typeof body.accessToken !== "string" ||
     typeof body.refreshToken !== "string" ||
@@ -155,7 +156,8 @@ export async function fetchRemoteV3Peer(input: {
     { headers: { authorization: `Bearer ${input.accessToken}` } },
   );
   const body = await readJson(response);
-  if (!response.ok) throw new RemoteV3ApiError(response.status, readError(body, "读取对端设备失败"));
+  if (!response.ok)
+    throw new RemoteV3ApiError(response.status, readError(body, "读取对端设备失败"));
   return parseDeviceDescriptor(body.device, "peerDevice");
 }
 
@@ -195,7 +197,8 @@ export async function listRemoteV3Devices(input: {
     headers: { authorization: `Bearer ${input.accessToken}` },
   });
   const body = await readJson(response);
-  if (!response.ok) throw new RemoteV3ApiError(response.status, readError(body, "读取设备目录失败"));
+  if (!response.ok)
+    throw new RemoteV3ApiError(response.status, readError(body, "读取设备目录失败"));
   const items = Array.isArray(body.items) ? body.items : [];
   return items.flatMap((entry) => {
     if (typeof entry !== "object" || entry === null) return [];
@@ -230,88 +233,73 @@ export interface GithubDeviceFlowStart {
 }
 
 export interface GithubDeviceFlowPoll {
-  status: "pending" | "slow_down" | "expired" | "ok";
-  accessToken?: string;
+  status: "pending" | "slow_down" | "expired" | "denied" | "ok";
+  sessionToken?: string;
   interval?: number;
 }
 
-export async function startGithubDeviceFlow(
-  clientId: string,
-  fetchImpl: typeof fetch = fetch,
-): Promise<GithubDeviceFlowStart> {
-  const response = await fetchImpl("https://github.com/login/device/code", {
+/**
+ * 桌面端也走服务端 GitHub Device Flow 代理：client id 只在服务端配置，
+ * 客户端不需要（也不再依赖 MODE_REMOTE_GITHUB_CLIENT_ID 环境变量）。
+ */
+export async function startGithubDeviceFlow(input: {
+  serverUrl: string;
+  fetchImpl?: typeof fetch;
+}): Promise<GithubDeviceFlowStart> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/github/device/start`, {
     method: "POST",
-    headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: clientId, scope: "read:user" }),
+    headers: { "content-type": "application/json" },
+    body: "{}",
   });
-  const body = (await response.json()) as Record<string, unknown>;
-  if (!response.ok || typeof body.device_code !== "string") {
+  const body = await readJson(response);
+  if (!response.ok || typeof body.deviceCode !== "string") {
     throw new Error(readError(body, "GitHub Device Flow 启动失败"));
   }
   return {
-    deviceCode: body.device_code,
-    userCode: typeof body.user_code === "string" ? body.user_code : "",
+    deviceCode: body.deviceCode,
+    userCode: typeof body.userCode === "string" ? body.userCode : "",
     verificationUri:
-      typeof body.verification_uri === "string"
-        ? body.verification_uri
+      typeof body.verificationUri === "string"
+        ? body.verificationUri
         : "https://github.com/login/device",
-    expiresIn: typeof body.expires_in === "number" ? body.expires_in : 900,
+    expiresIn: typeof body.expiresIn === "number" ? body.expiresIn : 900,
     interval: typeof body.interval === "number" ? body.interval : 5,
   };
 }
 
-export async function pollGithubDeviceFlow(
-  clientId: string,
-  deviceCode: string,
-  fetchImpl: typeof fetch = fetch,
-): Promise<GithubDeviceFlowPoll> {
-  const response = await fetchImpl("https://github.com/login/oauth/access_token", {
-    method: "POST",
-    headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      device_code: deviceCode,
-      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-    }),
-  });
-  const body = (await response.json()) as Record<string, unknown>;
-  if (typeof body.access_token === "string") {
-    return { status: "ok", accessToken: body.access_token };
-  }
-  if (body.error === "authorization_pending") return { status: "pending" };
-  if (body.error === "slow_down") {
-    return {
-      status: "slow_down",
-      interval: typeof body.interval === "number" ? body.interval : undefined,
-    };
-  }
-  if (body.error === "expired_token") return { status: "expired" };
-  throw new Error(readError(body, "GitHub Device Flow 轮询失败"));
-}
-
-export async function exchangeGithubAccessToken(input: {
+export async function pollGithubDeviceFlow(input: {
   serverUrl: string;
-  accessToken: string;
+  deviceCode: string;
   fetchImpl?: typeof fetch;
-}): Promise<string> {
+}): Promise<GithubDeviceFlowPoll> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/github`, {
+  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/github/device/poll`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ accessToken: input.accessToken, clientLabel: "desktop" }),
+    body: JSON.stringify({ deviceCode: input.deviceCode }),
   });
   const body = await readJson(response);
-  if (!response.ok) throw new RemoteV3ApiError(response.status, readError(body, "GitHub 登录失败"));
-  if (typeof body.sessionToken !== "string") throw new Error("GitHub 登录响应缺少 sessionToken");
-  return body.sessionToken;
+  const status = body.status;
+  if (status === "ok" && typeof body.sessionToken === "string") {
+    return { status: "ok", sessionToken: body.sessionToken };
+  }
+  if (status === "pending") return { status: "pending" };
+  if (status === "slow_down") {
+    return {
+      status: "slow_down",
+      ...(typeof body.interval === "number" ? { interval: body.interval } : {}),
+    };
+  }
+  if (status === "expired") return { status: "expired" };
+  if (status === "denied") return { status: "denied" };
+  throw new Error(readError(body, "GitHub Device Flow 轮询失败"));
 }
 
 export async function readJson(response: Response): Promise<Record<string, unknown>> {
   try {
     const parsed = (await response.json()) as unknown;
-    return typeof parsed === "object" && parsed !== null
-      ? (parsed as Record<string, unknown>)
-      : {};
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
   } catch {
     return {};
   }

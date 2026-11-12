@@ -12,6 +12,8 @@ const tlsKeyFile = process.env.MODE_REMOTE_TLS_KEY_FILE?.trim();
 const tlsCertFile = process.env.MODE_REMOTE_TLS_CERT_FILE?.trim();
 const metricsToken = process.env.MODE_REMOTE_METRICS_TOKEN?.trim();
 const githubClientId = process.env.MODE_GITHUB_CLIENT_ID?.trim();
+// github.com 的 Device Flow 端点走代理（限制网络/自建反代）；GitHub API 仍直连。
+const githubDeviceBaseUrl = process.env.MODE_GITHUB_DEVICE_BASE_URL?.trim();
 
 if (!secret) {
   console.error("MODE_REMOTE_SECRET 不能为空");
@@ -45,6 +47,7 @@ const handle = await startRemoteServer({
   ...(tls ? { tls } : {}),
   ...(metricsToken ? { metricsToken } : {}),
   ...(githubClientId ? { githubClientId } : {}),
+  ...(githubDeviceBaseUrl ? { githubDeviceBaseUrl } : {}),
 });
 
 const shutdown = async (): Promise<void> => {
@@ -55,9 +58,7 @@ process.on("SIGINT", () => void shutdown());
 process.on("SIGTERM", () => void shutdown());
 
 /** 从环境变量读取 WebRTC ICE 配置；未配置 TURN 时只下发 STUN。 */
-function buildWebRtcConfigFromEnv():
-  | import("./gatewayTypes.js").WebRtcConfig
-  | undefined {
+function buildWebRtcConfigFromEnv(): import("./gatewayTypes.js").WebRtcConfig | undefined {
   const stunUrls = (process.env.MODE_REMOTE_STUN_URLS ?? "")
     .split(",")
     .map((value) => value.trim())

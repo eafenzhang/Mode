@@ -195,7 +195,12 @@ packages/remote-server
   PlatformProvider 会直接崩溃（改为 `useOptionalPlatform`，注入优先）；
   浏览器数据面缺少 Noise 明文分片层：Host → 浏览器 >48KB 的响应被丢弃、
   浏览器 → Host >64KB 的请求被拒绝（新增 `web/fragments.ts`，与 Node 同协议，
-  并用 200KB 回显/工作区响应覆盖 P2P 与 Relay 两条路径）。
+  并用 200KB 回显/工作区响应覆盖 P2P 与 Relay 两条路径）；
+  桌面 Host 的 GitHub 登录要求本地 `MODE_REMOTE_GITHUB_CLIENT_ID`，正式构建根本没注入，
+  导致登录不可用（改为复用服务端的 Device Flow 代理，客户端不再持有 client id）；
+  NAS 网络无法直连 github.com，设备流 `fetch failed`（新增
+  `MODE_GITHUB_DEVICE_BASE_URL`，线上用 Cloudflare Worker `gh.mymode.cloud` 只代理两个
+  登录端点）。
 - 剩余：真机验收（两台真实设备 + 完整桌面 Host + coturn）。
 - 真机验收清单已固化：`pnpm test:remote-v3` 跑自动化全套，人工项见
   [remote-control-v3-acceptance.md](../specs/remote-control-v3-acceptance.md)
