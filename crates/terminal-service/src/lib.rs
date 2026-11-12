@@ -397,17 +397,16 @@ fn is_executable_path(path: &Path) -> bool {
     let Ok(metadata) = std::fs::metadata(path) else {
         return false;
     };
-    if !metadata.is_file() {
-        return false;
-    }
+    // Windows 只看「是不是文件」；Unix 还要可执行位。写成两条独立分支，
+    // 避免 `if !is_file { return false } ... true` 触发 clippy::needless_bool（-D warnings 会拦 CI）。
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        metadata.permissions().mode() & 0o111 != 0
+        return metadata.is_file() && metadata.permissions().mode() & 0o111 != 0;
     }
     #[cfg(not(unix))]
     {
-        true
+        metadata.is_file()
     }
 }
 
