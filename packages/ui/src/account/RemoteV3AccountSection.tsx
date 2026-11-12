@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ExternalLink, Fingerprint, LoaderIcon, LogOut, Server, ShieldCheck } from "lucide-react";
 import type { RemoteV3GithubChallenge, RemoteV3HostState } from "@mode/shared";
+import { buildGithubDeviceAuthorizationUrl } from "@mode/shared";
 
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
@@ -74,10 +75,14 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
     (pendingLogin: { userCode: string; verificationUri: string }): void => {
       if (openedCodes.current.has(pendingLogin.userCode)) return;
       openedCodes.current.add(pendingLogin.userCode);
-      // 直接唤起系统浏览器；验证码同时放进剪贴板，用户只需粘贴 + 授权。
+      const authorizationUrl = buildGithubDeviceAuthorizationUrl(
+        pendingLogin.verificationUri,
+        pendingLogin.userCode,
+      );
+      // 验证码随链接预填；仍复制到剪贴板，浏览器未登录时可手动粘贴。
       try {
-        if (platform) platform.openExternal(pendingLogin.verificationUri);
-        else window.open(pendingLogin.verificationUri, "_blank", "noopener,noreferrer");
+        if (platform) platform.openExternal(authorizationUrl);
+        else window.open(authorizationUrl, "_blank", "noopener,noreferrer");
       } catch {
         // 打开失败时保留页面上的链接兜底。
       }
@@ -177,7 +182,7 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
           {pending.verificationUri.startsWith("https://github.com/") ? (
             <a
               className="mt-2 inline-flex items-center gap-1 text-ui-base text-sky-600 hover:underline dark:text-sky-400"
-              href={pending.verificationUri}
+              href={buildGithubDeviceAuthorizationUrl(pending.verificationUri, pending.userCode)}
               target="_blank"
               rel="noreferrer"
             >

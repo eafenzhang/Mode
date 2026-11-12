@@ -39,7 +39,9 @@
   descriptor/在线状态/地址。凭据通过可注入的 `WebCredentialStore` 保存。
 - 账号客户端测试：profile 复用、设备注册、401 刷新、目录投影。
 - 浏览器 GitHub Device Flow：`WebAccountClient.begin/pollGithubDeviceLogin` 调服务端
-  代理端点；GitHub access token 只在服务端换取账号会话，不返回浏览器。
+  代理端点；GitHub access token 只在服务端换取账号会话，不返回浏览器。授权页链接携带
+  `user_code`，GitHub 已登录时直接确认，不再要求手动抄写验证码；同时复制到剪贴板作为
+  浏览器未登录时的兜底。
 - `/v3` 独立入口（`packages/web/src/v3/WebV3Page.tsx`）：服务地址、GitHub Device Flow
   验证码、设备目录、在线状态、退出、以及选择 Host 执行 `remote.host.info` 的加密连通
   测试。

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { openWebWorkspace } from "@mode/client";
+import { buildGithubDeviceAuthorizationUrl as githubAuthUrl } from "@mode/shared";
 import {
   WebAccountClient,
   WebControlLink,
@@ -336,11 +337,13 @@ export function WebV3Page() {
 
           {challenge ? (
             <div className="space-y-2 rounded-lg border border-border bg-background p-3">
-              <p className="text-ui-base text-foreground">在 GitHub 输入验证码：</p>
+              <p className="text-ui-base text-foreground">
+                验证码已填入 GitHub 页面，点击 Authorize。
+              </p>
               <p className="text-2xl font-semibold tracking-[0.25em]">{challenge.userCode}</p>
               <a
                 className="text-ui-base text-sky-600 hover:underline dark:text-sky-400"
-                href={challenge.verificationUri}
+                href={githubAuthUrl(challenge.verificationUri, challenge.userCode)}
                 target="_blank"
                 rel="noreferrer"
               >

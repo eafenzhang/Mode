@@ -6585,7 +6585,7 @@ const enUS: Record<string, string> = {
   "modeAccount.remoteV3.serverUrlPlaceholder": "https://remote.example.com",
   "modeAccount.remoteV3.login": "Sign in with GitHub",
   "modeAccount.remoteV3.githubCodeTitle":
-    "The browser was opened and the code copied; paste it to authorize — this page refreshes automatically",
+    "The code is prefilled in the browser; click Authorize — this page refreshes automatically",
   "modeAccount.remoteV3.githubWaiting": "Waiting for GitHub authorization…",
   "modeAccount.remoteV3.githubOpenUri": "Open github.com/login/device",
   "modeAccount.remoteV3.cancel": "Cancel",

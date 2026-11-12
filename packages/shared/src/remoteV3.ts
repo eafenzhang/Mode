@@ -110,3 +110,20 @@ export interface RemoteV3TunnelEvent {
   data?: string;
   reason?: string;
 }
+
+/**
+ * GitHub Device Flow 授权地址：带上 `user_code`，GitHub 已登录时可直接确认，
+ * 不再要求用户手动抄写验证码。GitHub 忽略该参数时页面仍可手动输入。
+ */
+export function buildGithubDeviceAuthorizationUrl(
+  verificationUri: string,
+  userCode: string,
+): string {
+  try {
+    const url = new URL(verificationUri);
+    if (!url.searchParams.has("user_code")) url.searchParams.set("user_code", userCode);
+    return url.toString();
+  } catch {
+    return verificationUri;
+  }
+}

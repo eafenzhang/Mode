@@ -6276,7 +6276,7 @@ const zhCN: Record<string, string> = {
   "modeAccount.remoteV3.serverUrlPlaceholder": "https://remote.example.com",
   "modeAccount.remoteV3.login": "使用 GitHub 登录",
   "modeAccount.remoteV3.githubCodeTitle":
-    "已打开浏览器并复制验证码；粘贴后完成授权，本页会自动刷新",
+    "已在浏览器填入验证码；点击 Authorize 完成授权，本页会自动刷新",
   "modeAccount.remoteV3.githubWaiting": "等待 GitHub 授权…",
   "modeAccount.remoteV3.githubOpenUri": "打开 github.com/login/device",
   "modeAccount.remoteV3.cancel": "取消",
