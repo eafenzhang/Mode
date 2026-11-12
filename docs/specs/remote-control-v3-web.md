@@ -22,7 +22,8 @@
   WebRTC DataChannel / Relay WSS 数据面、Noise transport 与业务帧收发。
 - 浏览器 WebRTC：支持 `RTCPeerConnection` 时默认宣告 `transport.p2p` 并优先协商
   （`p2p.offer/answer/candidate`），失败或 8s 超时回落 Relay；`p2p: false` 可强制
-  只走 Relay。未接 LAN direct。
+  只走 Relay。服务端仅当 Host 也宣告 `transport.p2p` 时才在 `connect.accepted`
+  中确认 `p2pPreferred`，对端不支持时浏览器不会白等超时。未接 LAN direct。
 - E2E：浏览器 `WebControlLink` → 真实 remote-server Relay → Node Host，完成
   `remote.echo` RPC。
 - `WebAccountClient`：浏览器生成/持久化 X25519 设备身份；GitHub access token 换 Web

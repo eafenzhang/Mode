@@ -23,7 +23,6 @@ import {
   type WebSocketLike,
 } from "./transport.js";
 
-
 export interface WebRemoteConnection {
   send(frame: BusinessFrame): void;
   onFrame(callback: (frame: BusinessFrame) => void): () => void;
@@ -105,7 +104,11 @@ export class WebControlLink {
     this.shutdown();
   }
 
-  request(method: string, params: Record<string, unknown> = {}, timeoutMs = 15_000): Promise<unknown> {
+  request(
+    method: string,
+    params: Record<string, unknown> = {},
+    timeoutMs = 15_000,
+  ): Promise<unknown> {
     return this.streams.request(method, params, timeoutMs);
   }
 
@@ -169,16 +172,17 @@ export class WebControlLink {
     const timeoutMs = this.options.p2p === false ? undefined : this.options.p2p?.timeoutMs;
     // 每次连接（含重连）重新协商 P2P；未打通时保持 Relay 语义。
     this.p2pSession?.close();
-    const p2p = this.p2pAdapter
-      ? await openWebP2P({
-          adapter: this.p2pAdapter,
-          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-          connectionId,
-          iceServers,
-          send: (type, framePayload) => this.sendControl(type, framePayload),
-          onError: (error) => this.waiters.rejectAll(error),
-        })
-      : null;
+    const p2p =
+      this.p2pAdapter && payload.p2pPreferred === true
+        ? await openWebP2P({
+            adapter: this.p2pAdapter,
+            ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+            connectionId,
+            iceServers,
+            send: (type, framePayload) => this.sendControl(type, framePayload),
+            onError: (error) => this.waiters.rejectAll(error),
+          })
+        : null;
     this.p2pSession = p2p?.session ?? null;
     const dataSocket = p2p?.socket;
     this.dataSocket = dataSocket ?? null;
@@ -315,7 +319,9 @@ export class WebControlLink {
       case "pong":
         return;
       case "error":
-        this.waiters.rejectAll(new Error(String(frame.payload.message ?? frame.payload.code ?? "远程错误")));
+        this.waiters.rejectAll(
+          new Error(String(frame.payload.message ?? frame.payload.code ?? "远程错误")),
+        );
         return;
       default:
         return;

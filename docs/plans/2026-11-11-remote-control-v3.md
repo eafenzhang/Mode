@@ -162,6 +162,8 @@ packages/remote-server
   默认启用原生适配器（`web/p2pBrowser.ts`）并优先协商，失败/8s 超时回落 Relay；
   `p2p: false` 可强制 Relay。Control WS 的 hello/心跳/帧分发拆到 `WebControlChannel`，
   重连退避与等待器独立，保持文件行数门禁。
+- P2P capability 协商闭环：两端只在 hello 宣告 `transport.p2p` 后，服务端才确认
+  `connect.accepted.p2pPreferred`；对端不支持时不再产生 8s 空等。
 - coturn 部署示例与环境变量已写入
   [fnos-fpk-packaging.md](../specs/fnos-fpk-packaging.md)；真机验收清单加入
   P2P/TURN 选路与回落项。

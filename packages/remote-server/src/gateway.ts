@@ -80,7 +80,15 @@ export class RemoteGateway {
 
   /** 由 REST /api/v1/connections 与 Control connect.request 共用。 */
   openConnection(client: DeviceRow, hostDeviceId: string, p2pPreferred = false): ConnectionResult {
-    return openConnectionFor(this.connectionContext(), client, hostDeviceId, p2pPreferred);
+    // 只有 Host 在 hello 里宣告了 transport.p2p 才允许协商，避免对端等 8s 超时。
+    const hostSupportsP2P =
+      this.controlSockets.get(hostDeviceId)?.capabilities.includes("transport.p2p") ?? false;
+    return openConnectionFor(
+      this.connectionContext(),
+      client,
+      hostDeviceId,
+      p2pPreferred && hostSupportsP2P,
+    );
   }
 
   closeConnection(connectionId: string, code = 4001, reason = "connection closed"): void {
@@ -96,7 +104,12 @@ export class RemoteGateway {
     for (const deviceId of [active.row.host_device_id, active.row.client_device_id]) {
       this.send(deviceId, {
         type: "error",
-        payload: { code: "CONNECTION_FAILED", message: reason, connectionId, retryable: code === 4001 },
+        payload: {
+          code: "CONNECTION_FAILED",
+          message: reason,
+          connectionId,
+          retryable: code === 4001,
+        },
       });
     }
   }
@@ -227,7 +240,11 @@ export class RemoteGateway {
     }
     if (frame.type === "connect.request") {
       try {
-        const result = this.openConnection(device, frame.payload.hostDeviceId, frame.payload.preferredTransports.includes("p2p"));
+        const result = this.openConnection(
+          device,
+          frame.payload.hostDeviceId,
+          frame.payload.preferredTransports.includes("p2p"),
+        );
         this.sendFrame(ws, {
           v: 1,
           id: randomUUID(),
@@ -238,6 +255,7 @@ export class RemoteGateway {
             host: result.host,
             relay: result.relay,
             ...(result.direct ? { direct: result.direct } : {}),
+            ...(result.p2pPreferred ? { p2pPreferred: true } : {}),
             ...(result.iceServers ? { iceServers: result.iceServers } : {}),
           },
         });

@@ -111,7 +111,11 @@ test("connect 下发 ICE 服务器，p2p 信令在双方之间转发", async () 
     githubVerifier: async () => ({ providerUserId: "p2p", login: "p2p" }),
     webrtc: {
       stunUrls: ["stun:stun.example:3478"],
-      turn: { urls: ["turn:turn.example:3478?transport=udp"], secret: "turn-secret", ttlSeconds: 600 },
+      turn: {
+        urls: ["turn:turn.example:3478?transport=udp"],
+        secret: "turn-secret",
+        ttlSeconds: 600,
+      },
     },
   });
   const hostIdentity = generateIdentity();
@@ -183,11 +187,21 @@ test("connect 下发 ICE 服务器，p2p 信令在双方之间转发", async () 
     );
     const incoming = await hostWire.next((value) => value.type === "connect.incoming");
     const accepted = await clientWire.next((value) => value.type === "connect.accepted");
-    const connectionId =
-      incoming.type === "connect.incoming" ? incoming.payload.connectionId : "";
-    assert.equal(connectionId, accepted.type === "connect.accepted" ? accepted.payload.connectionId : "");
+    assert.equal(
+      accepted.type === "connect.accepted" ? accepted.payload.p2pPreferred : undefined,
+      true,
+      "Host 宣告 transport.p2p 后，accept 必须确认 p2pPreferred",
+    );
+    const connectionId = incoming.type === "connect.incoming" ? incoming.payload.connectionId : "";
+    assert.equal(
+      connectionId,
+      accepted.type === "connect.accepted" ? accepted.payload.connectionId : "",
+    );
 
-    const assertIce = (payload: import("@mode/remote-core").IceServerPayload[] | undefined, label: string) => {
+    const assertIce = (
+      payload: import("@mode/remote-core").IceServerPayload[] | undefined,
+      label: string,
+    ) => {
       assert.ok(payload && payload.length >= 2, `${label}: ${JSON.stringify(payload)}`);
       const stun = payload.find((server) => server.urls[0] === "stun:stun.example:3478");
       assert.ok(stun && !stun.username, label);
@@ -197,8 +211,14 @@ test("connect 下发 ICE 服务器，p2p 信令在双方之间转发", async () 
       const expected = createHmac("sha1", "turn-secret").update(turn.username).digest("base64");
       assert.equal(turn.credential, expected, label);
     };
-    assertIce(incoming.type === "connect.incoming" ? incoming.payload.iceServers : undefined, "host");
-    assertIce(accepted.type === "connect.accepted" ? accepted.payload.iceServers : undefined, "client");
+    assertIce(
+      incoming.type === "connect.incoming" ? incoming.payload.iceServers : undefined,
+      "host",
+    );
+    assertIce(
+      accepted.type === "connect.accepted" ? accepted.payload.iceServers : undefined,
+      "client",
+    );
 
     clientWire.send(frame("p2p.offer", { connectionId, sdp: "offer-sdp" }));
     const offer = await hostWire.next(
@@ -221,6 +241,92 @@ test("connect 下发 ICE 服务器，p2p 信令在双方之间转发", async () 
       "错误 connectionId 的信令不得转发",
     );
     void hostWire;
+  } finally {
+    hostWire.close();
+    clientWire.close();
+    await server.close();
+  }
+});
+
+test("Host 未宣告 transport.p2p 时不下发 p2pPreferred，避免无谓协商超时", async () => {
+  const server = await startRemoteServer({
+    port: 0,
+    dbPath: ":memory:",
+    secret: "p2p-gating-secret-long-enough",
+    githubVerifier: async () => ({ providerUserId: "gating", login: "gating" }),
+  });
+  const hostDesc: DeviceDescriptor = {
+    deviceId: HOST_ID,
+    name: "Relay Host",
+    role: "host",
+    platform: "desktop",
+    identityKey: generateIdentity().identityKey,
+  };
+  const clientDesc: DeviceDescriptor = {
+    deviceId: CLIENT_ID,
+    name: "P2P Client",
+    role: "client",
+    platform: "desktop",
+    identityKey: generateIdentity().identityKey,
+  };
+  const login = await fetch(`${server.url}/api/v1/auth/github`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ accessToken: "github-gating" }),
+  });
+  const { sessionToken } = (await login.json()) as { sessionToken: string };
+  const tokens = new Map<string, string>();
+  for (const device of [hostDesc, clientDesc]) {
+    const response = await fetch(`${server.url}/api/v1/devices`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${sessionToken}` },
+      body: JSON.stringify({ device }),
+    });
+    const body = (await response.json()) as { accessToken: string };
+    assert.equal(response.status, 201);
+    tokens.set(device.deviceId, body.accessToken);
+  }
+
+  const hostWire = new Wire(`ws://127.0.0.1:${server.port}/ws/v1/connect`);
+  const clientWire = new Wire(`ws://127.0.0.1:${server.port}/ws/v1/connect`);
+  try {
+    await Promise.all([hostWire.open(), clientWire.open()]);
+    hostWire.send(
+      frame("hello", {
+        role: "host",
+        deviceId: HOST_ID,
+        accessToken: tokens.get(HOST_ID)!,
+        protocols: [1],
+        capabilities: ["secure.noise-ik.v1", "transport.relay"],
+      }),
+    );
+    clientWire.send(
+      frame("hello", {
+        role: "client",
+        deviceId: CLIENT_ID,
+        accessToken: tokens.get(CLIENT_ID)!,
+        protocols: [1],
+        capabilities: ["secure.noise-ik.v1", "transport.relay", "transport.p2p"],
+      }),
+    );
+    await Promise.all([
+      hostWire.next((value) => value.type === "hello.ack"),
+      clientWire.next((value) => value.type === "hello.ack"),
+    ]);
+
+    clientWire.send(
+      frame("connect.request", { hostDeviceId: HOST_ID, preferredTransports: ["p2p", "relay"] }),
+    );
+    const incoming = await hostWire.next((value) => value.type === "connect.incoming");
+    const accepted = await clientWire.next((value) => value.type === "connect.accepted");
+    assert.equal(
+      accepted.type === "connect.accepted" ? accepted.payload.p2pPreferred : undefined,
+      undefined,
+    );
+    assert.equal(
+      incoming.type === "connect.incoming" ? incoming.payload.p2pPreferred : undefined,
+      undefined,
+    );
   } finally {
     hostWire.close();
     clientWire.close();

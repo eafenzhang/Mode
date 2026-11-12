@@ -65,6 +65,8 @@ export interface ConnectAcceptedPayload {
   host: DeviceDescriptor;
   relay?: RelayAssignment;
   direct?: DirectAssignment;
+  /** 服务端确认 Host 宣告了 `transport.p2p` 且 Client 首选 P2P；缺省表示不要协商。 */
+  p2pPreferred?: boolean;
   iceServers?: IceServerPayload[];
 }
 

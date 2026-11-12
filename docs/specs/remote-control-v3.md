@@ -164,7 +164,10 @@ WebRTC DataChannel (Noise)  ->  LAN direct (WS/WSS + Noise)  ->  Relay (WSS + No
 - Relay 分配独立 data WebSocket；双方用服务端签名 ticket `relay.attach` 后转发密文。
 - `transport.selected` 在 Noise 握手前由 Client 发送并经 Control 转发；Host 必须按
   消息顺序应用，不能在握手后切换已绑定数据面。
-- WebRTC/P2P 由 `transport.p2p` capability 宣告；P2P、LAN 均失败时回落 Relay。
+- WebRTC/P2P 由 `transport.p2p` capability 宣告：只有 Host 在 hello 里声明该
+  capability 时，服务端才在 `connect.accepted` 里确认 `p2pPreferred`；Client 仅在
+  确认后发起协商。对端不支持时直接走 LAN/Relay，不产生 8s 协商等待。
+  P2P、LAN 均失败时回落 Relay。
 
 ### 5.3 降级与恢复
 

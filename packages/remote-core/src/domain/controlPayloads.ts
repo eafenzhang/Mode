@@ -101,10 +101,7 @@ export function parseConnectRequest(payload: Record<string, unknown>): ConnectRe
   };
 }
 
-function parseDirectAssignment(
-  payload: Record<string, unknown>,
-  label: string,
-): DirectAssignment {
+function parseDirectAssignment(payload: Record<string, unknown>, label: string): DirectAssignment {
   exactKeys(payload, ["ticket", "addresses"], label);
   return {
     ticket: readString(payload, "ticket", label, { max: 4096 }),
@@ -139,15 +136,7 @@ function parseIceServers(value: unknown, label: string): IceServerPayload[] {
 export function parseConnectIncoming(payload: Record<string, unknown>): ConnectIncomingPayload {
   exactKeys(
     payload,
-    [
-      "connectionId",
-      "client",
-      "authorization",
-      "relay",
-      "direct",
-      "p2pPreferred",
-      "iceServers",
-    ],
+    ["connectionId", "client", "authorization", "relay", "direct", "p2pPreferred", "iceServers"],
     "connect.incoming",
   );
   if (payload.authorization !== "account") invalid("connect.incoming.authorization 非法");
@@ -172,7 +161,7 @@ export function parseConnectIncoming(payload: Record<string, unknown>): ConnectI
 export function parseConnectAccepted(payload: Record<string, unknown>): ConnectAcceptedPayload {
   exactKeys(
     payload,
-    ["connectionId", "host", "relay", "direct", "iceServers"],
+    ["connectionId", "host", "relay", "direct", "p2pPreferred", "iceServers"],
     "connect.accepted",
   );
   const result: ConnectAcceptedPayload = {
@@ -183,6 +172,9 @@ export function parseConnectAccepted(payload: Record<string, unknown>): ConnectA
   if (relay) result.relay = parseRelayAssignment(relay, "connect.accepted.relay");
   const direct = readObject(payload, "direct", "connect.accepted", true);
   if (direct) result.direct = parseDirectAssignment(direct, "connect.accepted.direct");
+  if (payload.p2pPreferred !== undefined) {
+    result.p2pPreferred = readBoolean(payload, "p2pPreferred", "connect.accepted");
+  }
   if (payload.iceServers !== undefined) {
     result.iceServers = parseIceServers(payload.iceServers, "connect.accepted.iceServers");
   }

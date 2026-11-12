@@ -44,6 +44,8 @@ export interface ConnectionResult {
   host: DeviceDescriptor;
   relay: RelayAssignment;
   direct?: { ticket: string; addresses: string[] };
+  /** Client 首选 P2P 且 Host 宣告了 `transport.p2p`。 */
+  p2pPreferred?: boolean;
   iceServers?: IceServerPayload[];
 }
 
@@ -127,6 +129,7 @@ export const SERVER_CAPABILITIES = [
   "secure.noise-ik.v1",
   "transport.lan",
   "transport.relay",
+  "transport.p2p",
 ];
 
 export function peerDeviceId(active: ActiveConnection, deviceId: string): string | null {

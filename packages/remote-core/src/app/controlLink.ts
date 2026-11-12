@@ -4,7 +4,6 @@ import { decodeBase64Url } from "../domain/base64url.js";
 import {
   decodeControlFrame,
   encodeControlFrame,
-  type ConnectAcceptedPayload,
   type ConnectIncomingPayload,
   type ControlFrame,
 } from "../domain/controlFrames.js";
@@ -20,8 +19,8 @@ import { AcceptedWaiters, FrameWaiters } from "./linkWaiters.js";
 import { P2PNegotiation } from "./p2pNegotiation.js";
 import type { ControlLinkOptions, RemoteConnection, RemoteSocket } from "./controlTypes.js";
 
-// WebRTC/TURN 未实现前不宣告对应 capability；LAN direct 只在 Host 上报地址时实际可用。
-const CAPABILITIES = ["secure.noise-ik.v1", "transport.lan", "transport.relay"];
+// capability 只声明本端确实能承载的传输；LAN direct 仍以 Host 上报地址为前提。
+const BASE_CAPABILITIES = ["secure.noise-ik.v1", "transport.lan", "transport.relay"];
 
 /** Host/Client 共用的 Control 链路：hello、连接授权、Noise 路由、Relay attach。 */
 export class ControlLink {
@@ -80,10 +79,7 @@ export class ControlLink {
       this.rejectAccepted(new Error("control closed"));
       this.options.onClose?.({ code, reason });
     });
-    const ackPromise = this.waiters.wait(
-      (frame) => frame.type === "hello.ack",
-      HELLO_TIMEOUT_MS,
-    );
+    const ackPromise = this.waiters.wait((frame) => frame.type === "hello.ack", HELLO_TIMEOUT_MS);
     this.sendFrame({
       type: "hello",
       payload: {
@@ -91,7 +87,7 @@ export class ControlLink {
         deviceId: this.options.deviceId,
         accessToken: this.options.accessToken,
         protocols: [1],
-        capabilities: CAPABILITIES,
+        capabilities: [...BASE_CAPABILITIES, ...(this.options.p2p ? ["transport.p2p"] : [])],
         clientVersion: this.options.clientVersion,
       },
     });
@@ -150,7 +146,7 @@ export class ControlLink {
       ...(this.options.onError ? { onError: this.options.onError } : {}),
     });
     let p2pSocket: RemoteSocket | undefined;
-    if (!directSocket && this.p2p) {
+    if (!directSocket && this.p2p && accepted.p2pPreferred) {
       p2pSocket = await this.p2p.negotiateAsInitiator(connectionId, accepted.iceServers ?? []);
     }
     const session = this.runtime.create("client", peer, connectionId);

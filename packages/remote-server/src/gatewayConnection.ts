@@ -1,8 +1,6 @@
 import type { ControlFrame, RelayAssignment } from "@mode/remote-core";
 
-import {
-  buildIceServers,
-} from "./webrtc.js";
+import { buildIceServers } from "./webrtc.js";
 import {
   GatewayError,
   descriptorOf,
@@ -19,10 +17,7 @@ export interface GatewayConnectionContext {
   options: GatewayOptions;
   connections: Map<string, ActiveConnection>;
   controlSockets: Map<string, ControlSocket>;
-  send(
-    deviceId: string,
-    frame: { type: ControlFrame["type"]; payload: unknown },
-  ): void;
+  send(deviceId: string, frame: { type: ControlFrame["type"]; payload: unknown }): void;
   closeConnection(connectionId: string, code: number, reason: string): void;
 }
 
@@ -124,7 +119,7 @@ export function openConnectionFor(
     host: descriptorOf(host),
     relay: clientAssignment,
     ...(direct ? { direct } : {}),
+    ...(p2pPreferred ? { p2pPreferred: true } : {}),
     ...(clientIceServers ? { iceServers: clientIceServers } : {}),
   };
 }
-
