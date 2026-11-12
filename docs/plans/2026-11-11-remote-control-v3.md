@@ -162,7 +162,10 @@ packages/remote-server
   默认启用原生适配器（`web/p2pBrowser.ts`）并优先协商，失败/8s 超时回落 Relay；
   `p2p: false` 可强制 Relay。Control WS 的 hello/心跳/帧分发拆到 `WebControlChannel`，
   重连退避与等待器独立，保持文件行数门禁。
-- 剩余：coturn 部署示例与真机验收。
+- coturn 部署示例与环境变量已写入
+  [fnos-fpk-packaging.md](../specs/fnos-fpk-packaging.md)；真机验收清单加入
+  P2P/TURN 选路与回落项。
+- 剩余：真机验收（两台真实设备 + 浏览器 `/v3`）。
 - 真机验收清单已固化：`pnpm test:remote-v3` 跑自动化全套，人工项见
   [remote-control-v3-acceptance.md](../specs/remote-control-v3-acceptance.md)
   （账号/配对/工作区/桌面/断线/安全六组）。
