@@ -18,8 +18,11 @@
   - 依赖 `@noble/curves`、`@noble/ciphers`、`@noble/hashes`。
 - 互通测试：Node Initiator ↔ Web Responder、Web Initiator ↔ Node Responder 完成
   握手与双向 transport；错误 static key 被拒绝。
-- `WebControlLink`：浏览器 Control WS（hello/connect/secure.handshake/ping）、Relay WSS
-  attach、Noise transport 与业务帧收发；首期只走 Relay，不做 LAN direct。
+- `WebControlLink`：浏览器 Control WS（hello/connect/secure.handshake/ping）、
+  WebRTC DataChannel / Relay WSS 数据面、Noise transport 与业务帧收发。
+- 浏览器 WebRTC：支持 `RTCPeerConnection` 时默认宣告 `transport.p2p` 并优先协商
+  （`p2p.offer/answer/candidate`），失败或 8s 超时回落 Relay；`p2p: false` 可强制
+  只走 Relay。未接 LAN direct。
 - E2E：浏览器 `WebControlLink` → 真实 remote-server Relay → Node Host，完成
   `remote.echo` RPC。
 - `WebAccountClient`：浏览器生成/持久化 X25519 设备身份；GitHub access token 换 Web
@@ -64,8 +67,9 @@
    展示已保存账号并可切换。私钥/token 落盘用 AES-GCM 信封：密钥为不可导出的
    `CryptoKey`（同存 IndexedDB），旧明文读取兼容并在下次写入升级；
    localStorage 回落（无 IndexedDB）仍为明文。
-2. 传输：Relay WSS 已实现；LAN direct 在浏览器受混合内容限制，仅在 HTTPS 页面允许
-   `wss` 直连，否则回落 Relay。
+2. 传输：P2P（浏览器 `RTCPeerConnection`）与 Relay WSS 已实现，选路顺序
+   `p2p -> relay`；P2P 不可用或超时回落 Relay。LAN direct 仍未接（浏览器受混合内容
+   限制，仅在 HTTPS 页面允许 `wss` 直连）。
 3. UI：主 Web 已接通 v3 工作区（向导选 Host → 注册远程 session → 复用现有 tab/文件/
    终端/Git），见 [remote-control-v3-web-workspace.md](./remote-control-v3-web-workspace.md)；
    `/v3` 独立页仍只提供目录与连通测试。远程桌面页面已挂载，还缺真机验收
@@ -80,5 +84,6 @@
 
 - `@mode/remote-core/web` 与 Node Host 完成真实 Noise 握手并通过 Relay 收发 RPC。
 - 刷新页面后身份与登录态恢复；登出后 IndexedDB 中无可用凭据。
-- 浏览器直连失败时回落 Relay，不静默重放业务请求。
+- 浏览器 P2P 协商失败时回落 Relay，不静默重放业务请求。
+- `pnpm --filter @mode/remote-core test` 覆盖 P2P 会话（offer/answer/超时/ICE 解析）。
 - 与桌面 Host 的远程桌面/工作区共用同一 allowlist 与 `remote.ws` 隧道语义。

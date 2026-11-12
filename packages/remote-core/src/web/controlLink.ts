@@ -1,15 +1,21 @@
+import type { RemoteSocket } from "../app/controlTypes.js";
+import type { P2PAdapter } from "../app/p2p.js";
 import type { BusinessFrame } from "../domain/businessFrames.js";
 import { resolveRelayEndpoint } from "../domain/relayEndpoint.js";
-import { MAX_SECURE_MESSAGE_BYTES } from "../domain/limits.js";
 import { decodeBase64Url, encodeBase64Url } from "./base64url.js";
+import { decryptBusinessFrame, encryptBusinessFrame } from "./businessFrames.js";
+import { sendEnvelope, WebControlChannel } from "./controlChannel.js";
 import type { WebIdentity } from "./identity.js";
-import { WebNoiseHandshake, WebNoiseTransport } from "./noise.js";
-import { buildWebPrologue } from "./prologue.js";
+import { WebNoiseTransport } from "./noise.js";
+import { WebLinkWaiters } from "./linkWaiters.js";
+import { runInitiatorHandshake } from "./noiseSetup.js";
+import { browserP2PSupported, createWebP2PAdapter } from "./p2pBrowser.js";
+import { openWebP2P, readIceServers, type WebP2PSession } from "./p2pSession.js";
+import { ReconnectScheduler } from "./reconnect.js";
 import { BusinessStreams, type WebBusinessStream } from "./streams.js";
 import {
   openBrowserSocket,
   parseControlEnvelope,
-  randomId,
   requireString,
   toControlUrl,
   withTimeout,
@@ -35,33 +41,47 @@ export interface WebControlLinkOptions {
   reconnectBaseMs?: number;
   /** 测试注入点；缺省使用 globalThis.WebSocket。 */
   createSocket?: (url: string) => Promise<WebSocketLike>;
+  /** 浏览器 WebRTC：缺省在支持 RTCPeerConnection 时启用；传 false 强制走 Relay。 */
+  p2p?: { adapter?: P2PAdapter; timeoutMs?: number } | false;
 }
 
 /** 浏览器 v3 Client：Control WS + Relay WSS + Noise，带自动重连。 */
 export class WebControlLink {
   private readonly options: WebControlLinkOptions;
-  private control: WebSocketLike | null = null;
+  private control: WebControlChannel | null = null;
   private relay: WebSocketLike | null = null;
   private transport: WebNoiseTransport | null = null;
   private frameListeners = new Set<(frame: BusinessFrame) => void>();
   private readonly streams = new BusinessStreams((frame) => this.sendBusiness(frame));
   private closeListeners = new Set<() => void>();
-  private accepted: { resolve: (payload: Record<string, unknown>) => void; reject: (error: Error) => void } | null =
-    null;
-  private helloAck: { resolve: () => void; reject: (error: Error) => void } | null = null;
-  private step2: { resolve: (data: Uint8Array) => void; reject: (error: Error) => void } | null = null;
-  private relayReady: { resolve: () => void; reject: (error: Error) => void } | null = null;
-  private heartbeat: ReturnType<typeof setInterval> | null = null;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private attempts = 0;
+  private readonly waiters = new WebLinkWaiters();
+  private readonly reconnector: ReconnectScheduler;
+  private readonly p2pAdapter: P2PAdapter | null;
+  private p2pSession: WebP2PSession | null = null;
+  private dataSocket: RemoteSocket | null = null;
+
   private shuttingDown = false;
   private closed = false;
   private activeHostId = "";
   private currentConnectionId = "";
+  private hostDeviceId = "";
   private relayCounter = 0;
 
   constructor(options: WebControlLinkOptions) {
     this.options = options;
+    // 缺省启用浏览器原生 WebRTC；显式 false 或环境不支持时只走 Relay。
+    const p2p = options.p2p;
+    this.p2pAdapter =
+      p2p === false
+        ? null
+        : (p2p?.adapter ?? (browserP2PSupported() ? createWebP2PAdapter() : null));
+    this.reconnector = new ReconnectScheduler({
+      ...(options.reconnectBaseMs !== undefined ? { baseMs: options.reconnectBaseMs } : {}),
+      schedule: () => {
+        void this.reconnect();
+      },
+      giveUp: () => this.shutdown(),
+    });
   }
 
   async start(): Promise<void> {
@@ -72,7 +92,7 @@ export class WebControlLink {
     this.activeHostId = hostDeviceId;
     try {
       const connection = await this.establish(hostDeviceId);
-      this.attempts = 0;
+      this.reconnector.reset();
       return connection;
     } catch (error) {
       this.shutdown();
@@ -93,38 +113,44 @@ export class WebControlLink {
     return this.streams.openStream(service, metadata);
   }
   private async openControl(): Promise<void> {
-    const control = await this.openSocket(toControlUrl(this.options.serverUrl));
+    const control = new WebControlChannel({
+      url: toControlUrl(this.options.serverUrl),
+      openSocket: (url) => this.openSocket(url),
+      hello: {
+        role: "client",
+        deviceId: this.options.deviceId,
+        accessToken: this.options.accessToken,
+        protocols: [1],
+        capabilities: [
+          "secure.noise-ik.v1",
+          "transport.relay",
+          ...(this.p2pAdapter ? ["transport.p2p"] : []),
+        ],
+      },
+      timeoutMs: this.options.connectTimeoutMs ?? 5_000,
+      onFrame: (frame) => this.handleControl(frame),
+      onLost: () => this.handleLoss("control"),
+    });
+    await control.open();
     if (this.shuttingDown) {
       control.close();
       return;
     }
     this.control = control;
-    control.addEventListener("message", (event) => {
-      if (typeof event.data === "string") this.handleControl(event.data);
-    });
-    control.addEventListener("close", () => this.handleLoss("control"));
-    const ack = new Promise<void>((resolve, reject) => {
-      this.helloAck = { resolve, reject };
-    });
-    this.sendControl("hello", {
-      role: "client",
-      deviceId: this.options.deviceId,
-      accessToken: this.options.accessToken,
-      protocols: [1],
-      capabilities: ["secure.noise-ik.v1", "transport.relay"],
-    });
-    await withTimeout(ack, this.options.connectTimeoutMs ?? 5_000, "等待 hello.ack 超时");
-    this.startHeartbeat();
   }
+
   private async establish(hostDeviceId: string): Promise<WebRemoteConnection> {
     if (!this.control) throw new Error("Control 链路未连接");
     this.hostDeviceId = hostDeviceId;
     this.currentConnectionId = "";
     this.relayCounter = 0;
     const accepted = new Promise<Record<string, unknown>>((resolve, reject) => {
-      this.accepted = { resolve, reject };
+      this.waiters.accepted = { resolve, reject };
     });
-    const preferred = { hostDeviceId, preferredTransports: ["relay"] };
+    const preferred = {
+      hostDeviceId,
+      preferredTransports: this.p2pAdapter ? ["p2p", "relay"] : ["relay"],
+    };
     this.sendControl("connect.request", preferred);
     const payload = await withTimeout(
       accepted,
@@ -139,51 +165,72 @@ export class WebControlLink {
     const rawEndpoint = requireString(relay?.endpoint, "relay.endpoint");
     const endpoint = resolveRelayEndpoint(rawEndpoint, this.options.serverUrl);
     const ticket = requireString(relay?.ticket, "relay.ticket");
-
-    const relaySocket = await this.openSocket(endpoint);
-    if (this.shuttingDown) {
-      relaySocket.close();
-      throw new Error("链路已关闭");
+    const iceServers = readIceServers(payload.iceServers);
+    const timeoutMs = this.options.p2p === false ? undefined : this.options.p2p?.timeoutMs;
+    // 每次连接（含重连）重新协商 P2P；未打通时保持 Relay 语义。
+    this.p2pSession?.close();
+    const p2p = this.p2pAdapter
+      ? await openWebP2P({
+          adapter: this.p2pAdapter,
+          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+          connectionId,
+          iceServers,
+          send: (type, framePayload) => this.sendControl(type, framePayload),
+          onError: (error) => this.waiters.rejectAll(error),
+        })
+      : null;
+    this.p2pSession = p2p?.session ?? null;
+    const dataSocket = p2p?.socket;
+    this.dataSocket = dataSocket ?? null;
+    if (dataSocket) {
+      dataSocket.onMessage((text) => this.handleRelay(text));
+      dataSocket.onClose(() => this.handleLoss("p2p"));
     }
-    this.relay = relaySocket;
-    relaySocket.addEventListener("message", (event) => {
-      if (typeof event.data === "string") this.handleRelay(event.data);
-    });
-    relaySocket.addEventListener("close", () => this.handleLoss("relay"));
+    const transport: "p2p" | "relay" = dataSocket ? "p2p" : "relay";
 
-    const handshake = new WebNoiseHandshake({
-      initiator: true,
-      localIdentity: this.options.identity,
-      responderStaticKey: hostIdentityKey,
-      prologue: buildWebPrologue({
-        connectionId,
-        hostDeviceId,
-        clientDeviceId: this.options.deviceId,
-      }),
-    });
     const step2Promise = new Promise<Uint8Array>((resolve, reject) => {
-      this.step2 = { resolve, reject };
+      this.waiters.step2 = { resolve, reject };
     });
-    this.sendControl("transport.selected", { connectionId, transport: "relay" });
-    this.sendSecureHandshake(connectionId, 1, handshake.writeMessage());
-    const step2 = await withTimeout(
-      step2Promise,
-      this.options.connectTimeoutMs ?? 10_000,
-      "等待 Noise 握手超时",
-    );
-    handshake.readMessage(step2);
-    this.transport = new WebNoiseTransport(handshake.split());
-
-    const ready = new Promise<void>((resolve, reject) => {
-      this.relayReady = { resolve, reject };
-    });
-    this.sendOn(relaySocket, "relay.attach", {
+    this.sendControl("transport.selected", { connectionId, transport });
+    this.transport = await runInitiatorHandshake({
+      identity: this.options.identity,
+      responderStaticKey: hostIdentityKey,
       connectionId,
-      deviceId: this.options.deviceId,
-      peerDeviceId: hostDeviceId,
-      ticket,
+      hostDeviceId,
+      clientDeviceId: this.options.deviceId,
+      timeoutMs: this.options.connectTimeoutMs ?? 10_000,
+      sendStep: (step, data) =>
+        this.sendControl("secure.handshake", {
+          connectionId,
+          targetDeviceId: hostDeviceId,
+          step,
+          data: encodeBase64Url(data),
+        }),
+      waitStep2: () => step2Promise,
     });
-    await withTimeout(ready, this.options.connectTimeoutMs ?? 10_000, "等待 relay.ready 超时");
+
+    if (transport === "relay") {
+      const relaySocket = await this.openSocket(endpoint);
+      if (this.shuttingDown) {
+        relaySocket.close();
+        throw new Error("链路已关闭");
+      }
+      this.relay = relaySocket;
+      relaySocket.addEventListener("message", (event) => {
+        if (typeof event.data === "string") this.handleRelay(event.data);
+      });
+      relaySocket.addEventListener("close", () => this.handleLoss("relay"));
+      const ready = new Promise<void>((resolve, reject) => {
+        this.waiters.relayReady = { resolve, reject };
+      });
+      sendEnvelope(relaySocket, "relay.attach", {
+        connectionId,
+        deviceId: this.options.deviceId,
+        peerDeviceId: hostDeviceId,
+        ticket,
+      });
+      await withTimeout(ready, this.options.connectTimeoutMs ?? 10_000, "等待 relay.ready 超时");
+    }
     return {
       send: (frame) => this.sendBusiness(frame),
       onFrame: (callback) => {
@@ -200,10 +247,13 @@ export class WebControlLink {
       },
     };
   }
-  private handleLoss(source: "control" | "relay"): void {
+  private handleLoss(source: "control" | "relay" | "p2p"): void {
     if (this.shuttingDown || this.closed) return;
-    this.clearHeartbeat();
     this.transport = null;
+    this.dataSocket?.close(1000, `${source} lost`);
+    this.dataSocket = null;
+    this.p2pSession?.close();
+    this.p2pSession = null;
     this.streams.closeAll(new Error("远程链路断开，正在重连"));
     const relay = this.relay;
     this.relay = null;
@@ -211,7 +261,7 @@ export class WebControlLink {
     const control = this.control;
     this.control = null;
     control?.close(1000, `${source} lost`);
-    this.rejectWaiters(new Error("远程链路断开，正在重连"));
+    this.waiters.rejectAll(new Error("远程链路断开，正在重连"));
     if (!this.activeHostId) {
       this.shutdown();
       return;
@@ -220,21 +270,8 @@ export class WebControlLink {
   }
 
   private scheduleReconnect(): void {
-    if (this.shuttingDown || this.reconnectTimer) return;
-    this.attempts += 1;
-    if (this.attempts > 10) {
-      this.shutdown();
-      return;
-    }
-    const base = Math.min(
-      (this.options.reconnectBaseMs ?? 500) * 2 ** (this.attempts - 1),
-      5_000,
-    );
-    const delay = Math.max(300, Math.round(base * (0.5 + Math.random() * 0.5)));
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      void this.reconnect();
-    }, delay);
+    if (this.shuttingDown) return;
+    this.reconnector.schedule();
   }
 
   private async reconnect(): Promise<void> {
@@ -242,34 +279,43 @@ export class WebControlLink {
     try {
       await this.openControl();
       await this.establish(this.activeHostId);
-      this.attempts = 0;
+      this.reconnector.reset();
     } catch {
       this.scheduleReconnect();
     }
   }
 
-  private handleControl(text: string): void {
-    const frame = parseControlEnvelope(text);
-    if (!frame) return;
+  private handleControl(frame: ControlEnvelope): void {
+    if (this.closed) return;
+    this.p2pSession?.dispatch(frame);
     switch (frame.type) {
-      case "hello.ack":
-        this.helloAck?.resolve();
-        this.helloAck = null;
-        return;
       case "connect.accepted":
-        this.accepted?.resolve(frame.payload);
-        this.accepted = null;
+        this.waiters.accepted?.resolve(frame.payload);
+        this.waiters.accepted = null;
         return;
       case "secure.handshake": {
         if (frame.payload.step !== 2 || typeof frame.payload.data !== "string") return;
-        this.step2?.resolve(decodeBase64Url(frame.payload.data, "secure.handshake.data"));
-        this.step2 = null;
+        this.waiters.step2?.resolve(decodeBase64Url(frame.payload.data, "secure.handshake.data"));
+        this.waiters.step2 = null;
+        return;
+      }
+      case "p2p.candidate": {
+        const connectionId = frame.payload.connectionId;
+        const candidate = frame.payload.candidate;
+        if (typeof connectionId === "string" && typeof candidate === "string") {
+          const sdpMid = frame.payload.sdpMid;
+          this.p2pSession?.handleCandidate(
+            connectionId,
+            candidate,
+            typeof sdpMid === "string" ? sdpMid : undefined,
+          );
+        }
         return;
       }
       case "pong":
         return;
       case "error":
-        this.rejectWaiters(new Error(String(frame.payload.message ?? frame.payload.code ?? "远程错误")));
+        this.waiters.rejectAll(new Error(String(frame.payload.message ?? frame.payload.code ?? "远程错误")));
         return;
       default:
         return;
@@ -281,20 +327,17 @@ export class WebControlLink {
     if (!frame) return;
     switch (frame.type) {
       case "relay.ready":
-        this.relayReady?.resolve();
-        this.relayReady = null;
+        this.waiters.relayReady?.resolve();
+        this.waiters.relayReady = null;
         return;
       case "relay": {
         if (!this.transport || typeof frame.payload.ciphertext !== "string") return;
         try {
-          const plaintext = this.transport.receive(
-            decodeBase64Url(frame.payload.ciphertext, "relay.ciphertext"),
-          );
-          const business = JSON.parse(new TextDecoder().decode(plaintext)) as BusinessFrame;
+          const business = decryptBusinessFrame(frame.payload.ciphertext, this.transport);
           if (this.streams.handleFrame(business)) return;
           for (const listener of this.frameListeners) listener(business);
         } catch {
-          this.rejectWaiters(new Error("Noise transport 认证失败"));
+          this.waiters.rejectAll(new Error("Noise transport 认证失败"));
         }
         return;
       }
@@ -307,40 +350,19 @@ export class WebControlLink {
   }
 
   private sendBusiness(frame: BusinessFrame): void {
-    if (!this.transport || !this.relay) throw new Error("Noise 通道未就绪");
-    const bytes = new TextEncoder().encode(JSON.stringify(frame));
-    if (bytes.length > MAX_SECURE_MESSAGE_BYTES) throw new Error("业务消息超过上限");
-    this.sendOn(this.relay, "relay", {
+    const target = this.dataSocket ?? this.relay;
+    if (!this.transport || !target) throw new Error("Noise 通道未就绪");
+    sendEnvelope(target, "relay", {
       connectionId: this.currentConnectionId,
       targetDeviceId: this.hostDeviceId,
       counter: this.relayCounter++,
-      ciphertext: encodeBase64Url(this.transport.send(bytes)),
-    });
-  }
-
-  private sendSecureHandshake(connectionId: string, step: 1 | 2, data: Uint8Array): void {
-    this.sendControl("secure.handshake", {
-      connectionId,
-      targetDeviceId: this.hostDeviceId,
-      step,
-      data: encodeBase64Url(data),
+      ciphertext: encryptBusinessFrame(frame, this.transport),
     });
   }
 
   private sendControl(type: string, payload: Record<string, unknown>): void {
     if (!this.control) throw new Error("Control 链路未连接");
-    this.sendOn(this.control, type, payload);
-  }
-
-  private sendOn(socket: WebSocketLike, type: string, payload: Record<string, unknown>): void {
-    const frame: ControlEnvelope = {
-      v: 1,
-      id: randomId(),
-      timestamp: Date.now(),
-      type,
-      payload,
-    };
-    socket.send(JSON.stringify(frame));
+    this.control.send(type, payload);
   }
 
   private async openSocket(url: string): Promise<WebSocketLike> {
@@ -348,44 +370,18 @@ export class WebControlLink {
     return await openBrowserSocket(url);
   }
 
-  private startHeartbeat(): void {
-    this.clearHeartbeat();
-    this.heartbeat = setInterval(() => {
-      if (this.closed || !this.control) return;
-      try {
-        this.sendControl("ping", {});
-      } catch {
-        this.handleLoss("control");
-      }
-    }, 25_000);
-  }
-
-  private clearHeartbeat(): void {
-    if (this.heartbeat) clearInterval(this.heartbeat);
-    this.heartbeat = null;
-  }
-
-  private rejectWaiters(error: Error): void {
-    this.helloAck?.reject(error);
-    this.accepted?.reject(error);
-    this.step2?.reject(error);
-    this.relayReady?.reject(error);
-    this.helloAck = null;
-    this.accepted = null;
-    this.step2 = null;
-    this.relayReady = null;
-  }
-
   private shutdown(): void {
     if (this.closed) return;
     this.closed = true;
     this.shuttingDown = true;
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = null;
-    this.clearHeartbeat();
-    this.rejectWaiters(new Error("链路已关闭"));
+    this.reconnector.cancel();
+    this.waiters.rejectAll(new Error("链路已关闭"));
     this.streams.closeAll(new Error("链路已关闭"));
     this.transport = null;
+    this.dataSocket?.close(1000, "client closed");
+    this.dataSocket = null;
+    this.p2pSession?.close();
+    this.p2pSession = null;
     this.control?.close(1000, "client closed");
     this.control = null;
     this.relay?.close(1000, "client closed");
@@ -393,7 +389,4 @@ export class WebControlLink {
     for (const listener of this.closeListeners) listener();
     this.closeListeners.clear();
   }
-
-  private hostDeviceId = "";
 }
-

@@ -1,8 +1,8 @@
 # 远程控制 v3：设备身份、端到端加密与账号设备目录（破坏性重做）
 
 状态：2026-11-12 主体实现完成（协议、账号服务、Host、桌面与 Web 客户端、配对 v1、
-远程桌面、远程工作区、隧道重连、凭据静态加密、WebRTC/P2P（Node 侧））；
-真机验收待执行；浏览器 `RTCPeerConnection` 适配待接。
+远程桌面、远程工作区、隧道重连、凭据静态加密、WebRTC/P2P（Node 与浏览器））；
+真机验收待执行。
 **本 spec 取代 v2 的远程控制与 Mode Cloud 账号方案**：
 v2 的「同账号即信任 + 目录下发被控端访问令牌 + 可信自建明文中继」整体退役，
 不做旧端点、旧令牌、旧凭据格式兼容。参考 `ds-harness-remote` 的公开协议与产品设计
@@ -38,8 +38,7 @@ membership、连接授权、信令与密文中继；业务数据只在两端之�
 
 - 组织/团队/RBAC/SSO/计费。
 - 远程桌面像素编码算法本身（继续复用现有媒体管线，只替换其承载与信任边界）。
-- WebRTC/TURN 的实际网络部署（信令、ICE 与 Node 侧 DataChannel 已落地；
-  浏览器适配与真机验收不在首期范围）。
+- TURN 公网部署与真机弱网验证（信令、ICE、Node/浏览器 DataChannel 已落地）。
 - 移动端原生 App（移动浏览器复用同一 Web 客户端，未做专项验收）。
 - Web 页面 CSP（`connect-src` 需跟随用户自填的服务地址，单独设计）。
 - 配对 v2 及二维码（配对 v1 已实现：短票 + Host 本机验证码）。
@@ -156,8 +155,9 @@ WebRTC DataChannel (Noise)  ->  LAN direct (WS/WSS + Noise)  ->  Relay (WSS + No
   LAN 不可用再回落 Relay。Host 按 `transport.selected` 应用结果。
 - DataChannel 承载与 LAN direct 完全相同的 `relay` 信封帧（Noise 密文），因此
   runtime 无需区分 P2P 与直连；信令走服务端 Control 转发，服务端不见明文。
-- 浏览器侧暂未接 `RTCPeerConnection`；Node 侧（桌面 Host/客户端）用 werift 适配器，
-  loopback E2E 已覆盖，未接前浏览器不宣告 `transport.p2p` capability。
+- Node 侧（桌面 Host/客户端）用 werift 适配器，浏览器侧在支持
+  `RTCPeerConnection` 时默认启用；不支持或显式 `p2p: false` 时只走 Relay，
+  loopback E2E 与浏览器 P2P 单元测试已覆盖。
 - LAN 服务默认明文 WS；提供受信任 key/cert 时升级 `https/wss`（地址带 `wss://` 前缀，
   自签名不支持）。直连内容仍由 Noise 加密。
 - Host 在设备目录上报 LAN 地址（`addresses`，最多 8 个 `host:port`），直连选路使用。
@@ -508,7 +508,7 @@ P3 已接线的部分：
   已落地（HTTP 桥 + 双 `remote.ws` 隧道 + `nativeMediaSession.openSocket` 注入，
   信令状态机与桌面 Host 共用），`/v3` 已挂载远程桌面页并复用现有会话面；
   完整工作区页面仍待实现，见 [remote-control-v3-web.md](./remote-control-v3-web.md)。
-- WebRTC/P2P：Node 侧已落地（信令、ICE、werift DataChannel、回落）；浏览器适配待接。
+- WebRTC/P2P：Node（werift）与浏览器（RTCPeerConnection）均已落地，含回落。
   LAN direct 已落地；LAN 监听可选 TLS（提供受信任 key/cert 时
   `https/wss`，地址以 `wss://` 进入目录，自签名不支持），未配置时仍为明文 WS。Control 中断
   后的会话恢复走客户端路径：工作区重开 `/ws/host` 隧道并按新 Initialize 重放订阅，

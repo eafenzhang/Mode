@@ -158,7 +158,11 @@ packages/remote-server
   p2p → lan → relay；协商失败或 8s 超时自动回落 Relay。桌面宿主用 werift 适配器
   （`p2pWerift.ts`）承载 DataChannel，`pnpm test:remote-v3` 中的 loopback E2E 已验证
   跨账号配对后 RPC 实际走 `p2p`。
-- 剩余：浏览器 `RTCPeerConnection` 适配器（阶段 3）、coturn 部署示例与真机验收。
+- WebRTC/P2P 阶段 3 已落地：浏览器 `WebControlLink` 在支持 `RTCPeerConnection` 时
+  默认启用原生适配器（`web/p2pBrowser.ts`）并优先协商，失败/8s 超时回落 Relay；
+  `p2p: false` 可强制 Relay。Control WS 的 hello/心跳/帧分发拆到 `WebControlChannel`，
+  重连退避与等待器独立，保持文件行数门禁。
+- 剩余：coturn 部署示例与真机验收。
 - 真机验收清单已固化：`pnpm test:remote-v3` 跑自动化全套，人工项见
   [remote-control-v3-acceptance.md](../specs/remote-control-v3-acceptance.md)
   （账号/配对/工作区/桌面/断线/安全六组）。
