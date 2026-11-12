@@ -175,8 +175,8 @@ packages/remote-server
   Device Flow + 轻量桌面 Host，13 项通过；真实 Chrome `RTCPeerConnection` 与
   werift Host 建 P2P 并完成 `remote.host.info`；禁用 WebRTC 回落 relay 可用；
   双账号隔离/切换/删除、工作区 `/ws/host` 隧道经真实 HTTP/WS 服务返回
-  `systemService.info`、远程桌面缺服务时优雅退出、手机视口无横向滚动、不可达
-  地址给出错误（22 项通过）。
+  `systemService.info`、远程桌面缺服务时优雅退出、Host 下线/恢复的目录状态与
+  按钮禁用、手机视口无横向滚动、不可达地址给出错误（25 项通过）。
   过程中发现并修复：
   未登录时输入服务地址会误显示「已登录」区块（登录入口被隐藏）；
   退出登录改为保留设备身份（`signOut`），并新增「删除」账号；
