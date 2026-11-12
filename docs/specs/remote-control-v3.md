@@ -186,6 +186,15 @@ WebRTC DataChannel (Noise)  ->  LAN direct (WS/WSS + Noise)  ->  Relay (WSS + No
 - Relay 分配独立 data WebSocket；双方用服务端签名 ticket `relay.attach` 后转发密文。
 - `transport.selected` 在 Noise 握手前由 Client 发送并经 Control 转发；Host 必须按
   消息顺序应用，不能在握手后切换已绑定数据面。
+- `connect.accepted.iceServers` 由服务端组装：STUN 静态配置 + 可选 TURN 凭证。
+  TURN 有两种来源——
+  - coturn REST（`MODE_REMOTE_TURN_URLS` + `MODE_REMOTE_TURN_SECRET`）：username =
+    `<过期时间戳>:<deviceId>`，credential = HMAC-SHA1，需自建 coturn 并暴露公网端口；
+  - Cloudflare TURN（`MODE_REMOTE_TURN_KEY_ID` + `MODE_REMOTE_TURN_KEY_SECRET`）：
+    服务端用 key id + TURN key secret 向 `rtc.live.cloudflare.com` 换短期凭证（响应是
+    单个 `iceServers` 对象），进程内缓存并在过期前 60s 续期（`IceServerProvider`）。
+    适合 NAS 这类没有公网 IP、无法自建 coturn 的部署。
+  两条路径失败都只记日志，连接照常回落 LAN/Relay，不阻塞建立。
 - WebRTC/P2P 由 `transport.p2p` capability 宣告：只有 Host 在 hello 里声明该
   capability 时，服务端才在 `connect.accepted` 里确认 `p2pPreferred`；Client 仅在
   确认后发起协商。对端不支持时直接走 LAN/Relay，不产生 8s 协商等待。

@@ -269,7 +269,15 @@ export class ControlLink {
       if (prefersP2P) {
         // P2P：等对端 offer/通道（本端有适配器）或 client 回落 relay 的选路；
         // 不提前 return——连接 ready 后仍要注册业务监听（onConnection）。
-        markDirectPending(active, (this.options.p2p?.timeoutMs ?? 8000) + 1500);
+        //
+        // 窗口必须覆盖客户端**完整选路预算**：P2P 超时（默认 8s）之后，客户端还要逐个
+        // 试 Host 上报的 LAN 地址（每个 3s）才回落到 Relay。原来只给 p2p+1.5s，弱网或
+        // LAN 地址不可达时会在客户端仍在选路时误判 `transport_timeout`（真机验收复现：
+        // 第二个客户端进桌面 100% 超时）。
+        markDirectPending(
+          active,
+          (this.options.p2p?.timeoutMs ?? 8000) + (this.options.connectTimeoutMs ?? 10_000),
+        );
         this.maybeAttachP2P(incoming.connectionId);
       } else {
         const earlySelection = this.pendingTransport.get(incoming.connectionId);

@@ -65,6 +65,11 @@ export interface GatewayOptions {
   allowedOrigins?: string[];
   /** WebRTC/P2P 选路的 ICE 配置；未配置时 connect.* 不带 iceServers。 */
   webrtc?: WebRtcConfig;
+  /**
+   * 已就绪的 ICE 服务器（含 Cloudflare 等需要异步换取的临时凭证）。
+   * 提供时优先于 `webrtc` 的同步拼装；返回 undefined 表示当前无可用配置。
+   */
+  iceServers?: (deviceId: string) => IceServerPayload[] | undefined;
   metrics?: GatewayMetrics;
   log?: (line: string) => void;
 }

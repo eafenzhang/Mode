@@ -5,6 +5,7 @@ import { createServer as createHttpsServer } from "node:https";
 import { createApiHandler } from "./api.js";
 import { RemoteGateway } from "./gateway.js";
 import { createGithubVerifier, type GitHubVerifier } from "./github.js";
+import { IceServerProvider } from "./webrtc.js";
 import { RemoteMetrics } from "./metrics.js";
 import { CloudStore } from "./store.js";
 
@@ -36,6 +37,8 @@ export interface RemoteServerOptions {
   tls?: { key: string | Buffer; cert: string | Buffer };
   /** WebRTC/P2P 选路的 ICE 配置；未配置时 connect.* 不带 iceServers。 */
   webrtc?: import("./gatewayTypes.js").WebRtcConfig;
+  /** 测试注入：Cloudflare TURN 凭证请求使用的 fetch。 */
+  fetchImpl?: typeof fetch;
   /** 提供时暴露 `GET /metrics`（Bearer / x-metrics-token）；未配置时返回 404。 */
   metricsToken?: string;
   log?: (line: string) => void;
@@ -61,6 +64,10 @@ export async function startRemoteServer(options: RemoteServerOptions): Promise<R
   let relayEndpoint = options.publicUrl
     ? toWebSocketEndpoint(options.publicUrl)
     : `${secure ? "wss" : "ws"}://127.0.0.1:${options.port ?? 0}/ws/v1/relay`;
+  const iceServers = new IceServerProvider(options.webrtc, {
+    log,
+    ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+  });
   const gateway = new RemoteGateway({
     store,
     secret: options.secret,
@@ -68,6 +75,7 @@ export async function startRemoteServer(options: RemoteServerOptions): Promise<R
     nodeId: options.nodeId,
     allowedOrigins: options.allowedOrigins,
     ...(options.webrtc ? { webrtc: options.webrtc } : {}),
+    iceServers: (deviceId) => iceServers.get(deviceId),
     metrics,
     log,
   });
@@ -131,6 +139,11 @@ export async function startRemoteServer(options: RemoteServerOptions): Promise<R
     }
   });
 
+  // Cloudflare 凭证必须在外接连接前准备好；失败只记日志，不阻塞启动（无 TURN 时回落 Relay）。
+  await iceServers.warmup();
+  const turnRefreshTimer = setInterval(() => iceServers.maybeRefresh(), 5 * 60_000);
+  turnRefreshTimer.unref?.();
+
   await listen(server, options.port ?? 0, options.host ?? "127.0.0.1");
   const address = server.address();
   if (!address || typeof address === "string") {
@@ -152,6 +165,7 @@ export async function startRemoteServer(options: RemoteServerOptions): Promise<R
     store,
     gateway,
     async close() {
+      clearInterval(turnRefreshTimer);
       gateway.close();
       await closeServer(server);
       store.close();

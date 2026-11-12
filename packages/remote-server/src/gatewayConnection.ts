@@ -100,8 +100,10 @@ export function openConnectionFor(
     { connectionId: row.id, hostDeviceId: host.id, clientDeviceId: client.id },
     parseAddresses(host.addresses),
   );
-  const hostIceServers = buildIceServers(ctx.options.webrtc, host.id);
-  const clientIceServers = buildIceServers(ctx.options.webrtc, client.id);
+  const hostIceServers =
+    ctx.options.iceServers?.(host.id) ?? buildIceServers(ctx.options.webrtc, host.id);
+  const clientIceServers =
+    ctx.options.iceServers?.(client.id) ?? buildIceServers(ctx.options.webrtc, client.id);
   ctx.send(host.id, {
     type: "connect.incoming",
     payload: {

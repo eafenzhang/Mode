@@ -82,7 +82,13 @@ function buildWebRtcConfigFromEnv(): import("./gatewayTypes.js").WebRtcConfig | 
     .map((value) => value.trim())
     .filter(Boolean);
   const turnSecret = process.env.MODE_REMOTE_TURN_SECRET?.trim() ?? "";
-  if (stunUrls.length === 0 && turnUrls.length === 0) return undefined;
+  // Cloudflare TURN：NAS 没有公网 IP，自建 coturn 不可达；用 key id + key secret 换短期凭证。
+  const turnKeyId = process.env.MODE_REMOTE_TURN_KEY_ID?.trim() ?? "";
+  const turnKeySecret = process.env.MODE_REMOTE_TURN_KEY_SECRET?.trim() ?? "";
+  const ttlSeconds = Number(process.env.MODE_REMOTE_TURN_TTL_SECONDS ?? "3600") || 3600;
+  const cloudflareTurn =
+    turnKeyId && turnKeySecret ? { keyId: turnKeyId, secret: turnKeySecret, ttlSeconds } : null;
+  if (stunUrls.length === 0 && turnUrls.length === 0 && !cloudflareTurn) return undefined;
   return {
     ...(stunUrls.length > 0 ? { stunUrls } : {}),
     ...(turnUrls.length > 0 && turnSecret
@@ -90,9 +96,10 @@ function buildWebRtcConfigFromEnv(): import("./gatewayTypes.js").WebRtcConfig | 
           turn: {
             urls: turnUrls,
             secret: turnSecret,
-            ttlSeconds: Number(process.env.MODE_REMOTE_TURN_TTL_SECONDS ?? "3600") || 3600,
+            ttlSeconds,
           },
         }
       : {}),
+    ...(cloudflareTurn ? { cloudflareTurn } : {}),
   };
 }
