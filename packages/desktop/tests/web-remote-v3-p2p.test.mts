@@ -164,3 +164,55 @@ test("P2P 协商超时后回落 Relay，业务请求仍然成功", async () => {
     await fixture.server.close();
   }
 });
+
+test("Host 重启后浏览器自动重连并重新协商 P2P", async () => {
+  const fixture = await setup();
+  let link: WebControlLink | undefined;
+  try {
+    const result = await runFixture(fixture, {
+      adapter: createWeriftP2PAdapter(),
+      timeoutMs: 8_000,
+    });
+    link = result.link;
+    assert.deepEqual(result.transports, ["p2p"]);
+
+    // Host 下线再上线：Control 断开触发浏览器重连，重连后必须重新协商数据面。
+    await fixture.hostService.disconnectAccount();
+    const again = await fixture.hostService.configure({
+      serverUrl: fixture.server.url,
+      webSessionToken: await githubSession(fixture.server, "github-web-p2p"),
+      deviceName: "Web P2P Host",
+    });
+    assert.equal(again.status, "online", again.error ?? "");
+
+    const value = await waitForRpc(link, "after-p2p-reconnect", 15_000);
+    assert.deepEqual(value, { value: "after-p2p-reconnect" });
+    assert.equal(
+      result.transports.filter((transport) => transport === "p2p").length >= 2,
+      true,
+      `重连后应再次命中 p2p，实际：${result.transports.join(",")}`,
+    );
+  } finally {
+    link?.close();
+    await fixture.hostService.disconnectAccount();
+    await fixture.server.close();
+  }
+});
+
+async function waitForRpc(
+  link: WebControlLink,
+  value: string,
+  timeoutMs: number,
+): Promise<unknown> {
+  const deadline = Date.now() + timeoutMs;
+  let lastError: unknown;
+  while (Date.now() < deadline) {
+    try {
+      return await link.request("remote.echo", { value }, 2_000);
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("等待重连后的 RPC 超时");
+}
