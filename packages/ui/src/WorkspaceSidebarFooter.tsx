@@ -125,8 +125,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
     remoteV3: remoteV3State,
     nickname: appSettings?.userNickname,
   });
-  const v3SignedIn =
-    remoteV3State?.status === "online" || remoteV3State?.status === "reconnecting";
+  const v3SignedIn = remoteV3State?.status === "online" || remoteV3State?.status === "reconnecting";
   const profileBadge = profile.displayName;
   const avatarKey = profile.avatarUrl ?? user?.id ?? "guest";
   const showAuthRestoreLoading = !profile.hasAccount && isRestoringOAuthSession;
@@ -365,8 +364,6 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
         <ModeAccountDialog
           open={accountDialogOpen}
           onOpenChange={setAccountDialogOpen}
-          workspacePath={workspacePath}
-          workspaceIdentity={workspaceIdentity}
           user={user}
         />
         <div className="flex shrink-0 items-center gap-1.5">

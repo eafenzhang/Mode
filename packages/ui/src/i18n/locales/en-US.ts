@@ -1945,12 +1945,15 @@ const enUS: Record<string, string> = {
     "Choose an online device on your account; the connection uses end-to-end encryption and does not require LAN reachability.",
   "remote.v3.hostsTitle": "Devices on your account",
   "remote.v3.loading": "Loading device directory…",
-  "remote.v3.empty": "No online Host devices. Sign in to the same account on the controlled device first.",
+  "remote.v3.empty":
+    "No online Host devices. Sign in to the same account on the controlled device first.",
   "remote.v3.loadFailed": "Failed to load the device directory; check your account sign-in.",
-  "remote.v3.loginRequired": "Remote Control v3 is not signed in. Sign in from account settings first.",
+  "remote.v3.loginRequired":
+    "Remote Control v3 is not signed in. Sign in from account settings first.",
   "remote.v3.online": "Online",
   "remote.v3.offline": "Offline",
-  "remote.v3.e2eeHint": "Device identities are verified locally; the server only relays ciphertext.",
+  "remote.v3.e2eeHint":
+    "Device identities are verified locally; the server only relays ciphertext.",
   "remote.v3.validation.selectHost": "Select a v3 device",
   "remote.v3.validation.hostOffline": "That device is offline",
   "remote.lan.description":
@@ -6555,7 +6558,8 @@ const enUS: Record<string, string> = {
   "remoteDesktop.cloud.connected": "Connected {name}; the device is now in the paired list below.",
   "remoteDesktop.cloud.needsRelogin": "Re-login required",
   "remoteDesktop.cloud.githubLogin": "Sign in with GitHub",
-  "remoteDesktop.cloud.githubCodeTitle": "Your browser opened GitHub authorize; or open the link and enter this code",
+  "remoteDesktop.cloud.githubCodeTitle":
+    "Your browser opened GitHub authorize; or open the link and enter this code",
   "remoteDesktop.cloud.githubWaiting": "Waiting for GitHub authorization…",
   "remoteDesktop.cloud.githubOpenUri": "Open github.com/login/device",
   "remoteDesktop.cloud.githubCancel": "Cancel",
@@ -6566,11 +6570,6 @@ const enUS: Record<string, string> = {
     "This device is not connected to the Mode Cloud control plane. Deploy cloud-relay and configure cloud-deployment.json first.",
   "modeAccount.login": "Sign in to Mode account",
   "modeAccount.logout": "Sign out",
-  "modeAccount.bindBot": "Bind WeChat bot",
-  "modeAccount.bindHint":
-    "Binding a local WeChat bot only affects the local messaging channel; sign in to the cloud with GitHub or a username/password instead.",
-  "modeAccount.bindHint.unavailable":
-    "The bot can still be bound locally; cloud sign-in requires the Mode Cloud deployment config.",
   "modeAccount.nickname.title": "Nickname",
   "modeAccount.nickname.description":
     "Shown in the bottom-left account area and Settings. Stored on this device; leave empty to use the account name.",
@@ -6623,7 +6622,8 @@ const enUS: Record<string, string> = {
   "modeAccount.remoteV3.online": "Online",
   "modeAccount.remoteV3.offline": "Offline",
   "modeAccount.unsupported": "Mode account is not available in this environment.",
-  "remoteDesktop.cloud.description": "Devices signed in to the same account appear here automatically; click Connect to link directly, no pairing code.",
+  "remoteDesktop.cloud.description":
+    "Devices signed in to the same account appear here automatically; click Connect to link directly, no pairing code.",
   "remoteDesktop.cloud.loading": "Loading cloud devices…",
   "remoteDesktop.cloud.unavailable": "Mode Cloud is not available in this environment.",
   "remoteDesktop.cloud.unavailableHint":

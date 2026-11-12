@@ -6250,7 +6250,8 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.cloud.connected": "已连接 {name}，设备已进入下方列表。",
   "remoteDesktop.cloud.needsRelogin": "需重新登录",
   "remoteDesktop.cloud.githubLogin": "使用 GitHub 登录",
-  "remoteDesktop.cloud.githubCodeTitle": "已打开浏览器完成 GitHub 授权；也可手动打开链接输入下面的代码",
+  "remoteDesktop.cloud.githubCodeTitle":
+    "已打开浏览器完成 GitHub 授权；也可手动打开链接输入下面的代码",
   "remoteDesktop.cloud.githubWaiting": "等待 GitHub 授权…",
   "remoteDesktop.cloud.githubOpenUri": "打开 github.com/login/device",
   "remoteDesktop.cloud.githubCancel": "取消",
@@ -6260,10 +6261,6 @@ const zhCN: Record<string, string> = {
     "当前设备未连接 Mode Cloud 控制面；请先部署 cloud-relay 并配置 cloud-deployment.json。",
   "modeAccount.login": "登录 Mode 账号",
   "modeAccount.logout": "退出账号",
-  "modeAccount.bindBot": "绑定微信 Bot",
-  "modeAccount.bindHint": "绑定本机微信 Bot 只影响本机消息通道；云账号通过 GitHub 登录。",
-  "modeAccount.bindHint.unavailable":
-    "Bot 仍可绑定到本机；云账号登录需要先完成 Mode Cloud 部署配置。",
   "modeAccount.nickname.title": "昵称",
   "modeAccount.nickname.description":
     "显示在左下角账号区和设置页；只保存在本机，留空则使用账号名称。",
@@ -6278,7 +6275,8 @@ const zhCN: Record<string, string> = {
   "modeAccount.remoteV3.serverUrl": "服务地址",
   "modeAccount.remoteV3.serverUrlPlaceholder": "https://remote.example.com",
   "modeAccount.remoteV3.login": "使用 GitHub 登录",
-  "modeAccount.remoteV3.githubCodeTitle": "已打开浏览器完成 GitHub 授权；也可手动打开链接输入下面的代码",
+  "modeAccount.remoteV3.githubCodeTitle":
+    "已打开浏览器完成 GitHub 授权；也可手动打开链接输入下面的代码",
   "modeAccount.remoteV3.githubWaiting": "等待 GitHub 授权…",
   "modeAccount.remoteV3.githubOpenUri": "打开 github.com/login/device",
   "modeAccount.remoteV3.cancel": "取消",
@@ -6315,7 +6313,8 @@ const zhCN: Record<string, string> = {
   "modeAccount.remoteV3.online": "在线",
   "modeAccount.remoteV3.offline": "离线",
   "modeAccount.unsupported": "当前环境不支持 Mode 账号。",
-  "remoteDesktop.cloud.description": "登录同一账号的设备会自动出现在列表；点「连接」即可直连，无需配对码。",
+  "remoteDesktop.cloud.description":
+    "登录同一账号的设备会自动出现在列表；点「连接」即可直连，无需配对码。",
   "remoteDesktop.cloud.loading": "正在读取云设备…",
   "remoteDesktop.cloud.unavailable": "当前环境未启用 Mode Cloud。",
   "remoteDesktop.cloud.unavailableHint":

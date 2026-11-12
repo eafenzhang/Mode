@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import { UserRound } from "lucide-react";
 import type { RemoteV3HostState, UserInfo } from "@mode/shared";
-import { BotsDialog } from "@/BotsDialog.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   Dialog,
@@ -26,14 +24,10 @@ import { RemoteV3AccountSection } from "@/account/RemoteV3AccountSection.js";
 export function ModeAccountDialog({
   open,
   onOpenChange,
-  workspacePath,
-  workspaceIdentity,
   user,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspacePath?: string;
-  workspaceIdentity?: string;
   user?: UserInfo | null;
 }) {
   const { intl } = useModeIntl();
@@ -41,7 +35,6 @@ export function ModeAccountDialog({
   const baseServices = useOptionalBaseWorkspaceServices();
   const remoteV3Service = baseServices?.remoteV3Service ?? services.remoteV3Service;
   const { settings, update } = useSettings();
-  const [botsOpen, setBotsOpen] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [nicknameSaving, setNicknameSaving] = useState(false);
   const [nicknameSaved, setNicknameSaved] = useState(false);
@@ -110,9 +103,7 @@ export function ModeAccountDialog({
         >
           <DialogHeader className="pe-10">
             <DialogTitle>{message("modeAccount.title")}</DialogTitle>
-            <DialogDescription>
-              {message("modeAccount.description")}
-            </DialogDescription>
+            <DialogDescription>{message("modeAccount.description")}</DialogDescription>
           </DialogHeader>
           <section className="rounded-xl border border-border bg-card px-4 py-3">
             <h2 className="text-ui-lg font-medium text-foreground">
@@ -152,35 +143,9 @@ export function ModeAccountDialog({
               </p>
             )}
           </section>
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                data-testid="mode-account-bind-bot"
-                onClick={() => setBotsOpen(true)}
-              >
-                <UserRound className="size-4" />
-                {message("modeAccount.bindBot")}
-              </Button>
-              <p className="text-ui-xs text-foreground-subtle">
-                {message("modeAccount.bindHint")}
-              </p>
-            </div>
-            <RemoteV3AccountSection active={open} />
-          </div>
+          <RemoteV3AccountSection active={open} />
         </DialogContent>
       </Dialog>
-      {botsOpen ? (
-        <BotsDialog
-          open={botsOpen}
-          onOpenChange={setBotsOpen}
-          workspacePath={workspacePath ?? ""}
-          workspaceIdentity={workspaceIdentity}
-          entryProvider="weixin"
-        />
-      ) : null}
     </>
   );
 }
