@@ -90,6 +90,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
+      // rc.mymode.cloud 等独立域名以 v3 页为根入口；/v3 路径入口不受影响。
+      "__MODE_WEB_V3_ROOT__": JSON.stringify(env.MODE_WEB_V3_ROOT?.trim() === "1"),
       __MODE_ENDPOINT_ENV__: JSON.stringify(pickProductEndpointEnv(env)),
       __MODE_VERSION__: JSON.stringify(version),
       __MODE_COMMIT__: JSON.stringify(env.MODE_COMMIT || "unknown"),

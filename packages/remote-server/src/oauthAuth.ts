@@ -133,6 +133,9 @@ export async function handleGithubOAuthRoute(
     if (denied) {
       attempt.status = "denied";
       attempt.error = url.searchParams.get("error_description") ?? denied;
+      oauth.log?.(
+        `github_oauth_callback kind=github_error error=${denied} state=${state.slice(0, 6)}…`,
+      );
       finish(res, attempt, false, "你取消了 GitHub 授权。");
       return true;
     }
@@ -169,10 +172,14 @@ export async function handleGithubOAuthRoute(
       }
       attempt.session = await createGithubSession(deps, payload.access_token, "web-oauth");
       attempt.status = "authorized";
+      oauth.log?.(`github_oauth_callback kind=ok state=${state.slice(0, 6)}…`);
       finish(res, attempt, true, "GitHub 授权成功，已可返回应用。");
     } catch (error) {
       attempt.status = "error";
       attempt.error = error instanceof Error ? error.message : String(error);
+      oauth.log?.(
+        `github_oauth_callback kind=exchange_failed error=${attempt.error} state=${state.slice(0, 6)}…`,
+      );
       finish(res, attempt, false, "GitHub 授权失败，请回到应用重试。");
     }
     return true;

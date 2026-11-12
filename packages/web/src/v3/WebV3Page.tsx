@@ -5,6 +5,7 @@ import {
   WebAccountClient,
   WebControlLink,
   importWebIdentity,
+  normalizeWebServerUrl,
   type WebAccountSummary,
   type WebDeviceProfile,
   type WebDeviceSummary,
@@ -24,8 +25,21 @@ import { useV3FocusRefresh } from "./useV3FocusRefresh.js";
 
 const credentialStore = createWebCredentialStore();
 
+/** `?server=` 预填服务地址（站点入口可带参直达）；非法值静默忽略，回落 localStorage。 */
+function readInitialServerUrl(): string {
+  const requested = new URLSearchParams(window.location.search).get("server")?.trim();
+  if (requested) {
+    try {
+      return normalizeWebServerUrl(requested);
+    } catch {
+      // 非法参数不阻断页面，继续用上次输入的地址。
+    }
+  }
+  return localStorage.getItem(V3_SERVER_URL_KEY) ?? "";
+}
+
 export function WebV3Page() {
-  const [serverUrl, setServerUrl] = useState(() => localStorage.getItem(V3_SERVER_URL_KEY) ?? "");
+  const [serverUrl, setServerUrl] = useState(readInitialServerUrl);
   const [profile, setProfile] = useState<WebDeviceProfile | null>(null);
   const [hosts, setHosts] = useState<WebDeviceSummary[]>([]);
   const [challenge, setChallenge] = useState<WebGithubChallenge | null>(null);

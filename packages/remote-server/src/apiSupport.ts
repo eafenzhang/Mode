@@ -25,6 +25,8 @@ export interface ApiDeps {
     authorizeBaseUrl?: string;
     tokenBaseUrl?: string;
     fetchImpl?: typeof fetch;
+    /** 回调结果日志（排障用；不含任何密钥）。 */
+    log?: (line: string) => void;
   };
   /** 服务端公开地址，用于校验 OAuth returnUrl 来源。 */
   publicUrl?: string;

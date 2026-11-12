@@ -44,9 +44,10 @@
   轮询 `/oauth/poll` 完成登录，授权期间不需要输入验证码。服务端未配置 client secret
   时回退 Device Flow：`WebAccountClient.begin/pollGithubDeviceLogin` 调服务端代理端点；
   GitHub access token 只在服务端换取账号会话，不返回浏览器。
-- `/v3` 独立入口（`packages/web/src/v3/WebV3Page.tsx`）：服务地址、GitHub OAuth 登录（Device Flow 回退）
-  验证码、设备目录、在线状态、退出、以及选择 Host 执行 `remote.host.info` 的加密连通
-  测试。
+- 独立入口 `https://rc.mymode.cloud`（生产；`/v3` 路径入口仍支持，构建期
+  `MODE_WEB_V3_ROOT=1` 使独立域名以 v3 页为根；`packages/web/src/v3/WebV3Page.tsx`）：服务地址、GitHub OAuth 登录
+  （Device Flow 回退）、设备目录、在线状态、退出、以及选择 Host 执行 `remote.host.info`
+  的加密连通测试。服务地址支持 `?server=<url>` 预填（非法值忽略，回落上次输入）。
 - 默认凭据存储：优先 IndexedDB（`mode-remote-v3/kv`），不可用时回落 localStorage；
   登出删除整个 profile。
 - `WebControlLink` 支持业务 `request()` 与 `openStream()`；`@mode/client` 的

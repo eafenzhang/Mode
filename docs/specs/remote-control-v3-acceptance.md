@@ -137,7 +137,9 @@ Client：设备名 / deviceId / 指纹：
 
 环境：Host = dev 构建桌面端（账号 eafenzhang，deviceId 43c1ba78…，
 指纹 a295692d…，LAN 100.90.96.50:45880）；Client = Chrome 持久 profile
-（deviceId 271953fe…）；服务地址 https://remote.mymode.cloud。
+（deviceId 271953fe…）；服务地址 https://remote.mymode.cloud。独立 Web 入口为
+`https://rc.mymode.cloud`（首轮验收时尚为 mymode.cloud/v3，现已切换），
+生产 OAuth 登录已在 rc 域名复验通过（新设备 a5cd405f…，2026-11-13）。
 
 已通过：
 

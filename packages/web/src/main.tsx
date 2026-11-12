@@ -1104,7 +1104,8 @@ async function needsLanPairing(basePath: string): Promise<boolean> {
 
 async function bootstrapWebApp() {
   // v3 Web 客户端是独立入口：不依赖 LAN Host 的 RPC bootstrap，也不消费 workspace 参数。
-  if (window.location.pathname.replace(/\/+$/u, "").endsWith("/v3")) {
+  // 独立域名（__MODE_WEB_V3_ROOT__）以 v3 页为根；路径入口仍按 /v3 判定。
+  if (__MODE_WEB_V3_ROOT__ || window.location.pathname.replace(/\/+$/u, "").endsWith("/v3")) {
     document.title = "Mode - 远程控制 v3";
     root.render(<WebV3Page />);
     return;

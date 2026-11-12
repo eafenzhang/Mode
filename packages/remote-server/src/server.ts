@@ -106,6 +106,7 @@ export async function startRemoteServer(options: RemoteServerOptions): Promise<R
               ? { authorizeBaseUrl: options.githubOAuthAuthorizeBaseUrl }
               : {}),
             ...(oauthTokenBaseUrl ? { tokenBaseUrl: oauthTokenBaseUrl } : {}),
+            log,
           },
         }
       : {}),

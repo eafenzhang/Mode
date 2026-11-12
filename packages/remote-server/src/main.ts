@@ -1,6 +1,12 @@
 import { readFile } from "node:fs/promises";
+import net from "node:net";
 
 import { startRemoteServer } from "./server.js";
+
+// NAS 到部分 CDN（如 Cloudflare）的 TCP 握手可能超过 250ms；Node 默认的
+// autoSelectFamily 逐族尝试窗口太短（IPv6/IPv4 各 250ms），服务端 fetch
+// （GitHub OAuth token 交换、Device Flow 代理）会直接 ETIMEDOUT。放宽到 5s。
+net.setDefaultAutoSelectFamilyAttemptTimeout(5_000);
 
 const port = Number.parseInt(process.env.MODE_REMOTE_PORT ?? "45890", 10);
 const dbPath = process.env.MODE_REMOTE_DB ?? "./data/remote-v3.sqlite";

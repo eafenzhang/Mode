@@ -41,7 +41,9 @@ interface LoginContext {
 }
 
 export async function startGithubDeviceLogin(input: LoginContext): Promise<WebGithubChallenge> {
-  const response = await input.fetchImpl(`${input.serverUrl}/api/v1/auth/github/device/start`, {
+  // fetch 不能作为对象方法调用：浏览器里 `this` 会变成普通对象触发 Illegal invocation。
+  const { serverUrl, fetchImpl } = input;
+  const response = await fetchImpl(`${serverUrl}/api/v1/auth/github/device/start`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: "{}",
@@ -71,7 +73,8 @@ export async function startGithubDeviceLogin(input: LoginContext): Promise<WebGi
 export async function startGithubOAuthLogin(
   input: LoginContext & { returnUrl?: string },
 ): Promise<WebGithubChallenge | null> {
-  const response = await input.fetchImpl(`${input.serverUrl}/api/v1/auth/github/oauth/start`, {
+  const { serverUrl, fetchImpl } = input;
+  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/github/oauth/start`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input.returnUrl ? { returnUrl: input.returnUrl } : {}),
@@ -105,7 +108,8 @@ export async function pollGithubOAuthLogin(
     complete: (sessionToken: string) => Promise<WebDeviceProfile>;
   },
 ): Promise<WebGithubPoll> {
-  const response = await input.fetchImpl(`${input.serverUrl}/api/v1/auth/github/oauth/poll`, {
+  const { fetchImpl } = input;
+  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/github/oauth/poll`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ state: input.state, pollToken: input.pollToken }),
@@ -136,7 +140,8 @@ export async function pollGithubDeviceLogin(
     complete: (sessionToken: string) => Promise<WebDeviceProfile>;
   },
 ): Promise<WebGithubPoll> {
-  const response = await input.fetchImpl(`${input.serverUrl}/api/v1/auth/github/device/poll`, {
+  const { fetchImpl } = input;
+  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/github/device/poll`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ deviceCode: input.deviceCode }),

@@ -1,3 +1,6 @@
+// 构建期注入：独立域名部署时以 v3 页为根入口（vite.config define）。
+declare const __MODE_WEB_V3_ROOT__: boolean;
+
 declare module "*.css";
 declare module "@mode/ui/styles.css";
 
