@@ -21,7 +21,7 @@ pnpm test:remote-v3     # core + remote-server + ui + desktop 全量
 pnpm typecheck && pnpm lint && pnpm architecture:check --changed
 ```
 
-### 1.1 本地模拟（2026-11-12 已执行，20 项通过）
+### 1.1 本地模拟（2026-11-12 已执行，22 项通过）
 
 用 `playwright-core` 驱动本机 Chrome（真实 `RTCPeerConnection`），加假 GitHub
 Device Flow、两套内存 remote-server 与轻量桌面 Host，按真人路径操作 `/v3`：
@@ -34,12 +34,13 @@ Device Flow、两套内存 remote-server 与轻量桌面 Host，按真人路径�
 - 禁用浏览器 WebRTC 后自动回落 `relay`，同一 RPC 仍成功；
 - 两个服务地址（两个账号）各自保留身份；切回账号 A 时目录只显示 A 的 Host；
 - 退出后账号保留在「已保存的账号」，复用地址重新登录沿用同一 deviceId；
+- 「进入桌面」在 Host 无桌面服务时显示错误层与「返回设备列表」，不白屏；
 - 「删除」只移除该地址，另一账号不受影响；退出时清空旧错误提示；
 - 390×844 手机视口无横向滚动，P2P RPC 仍可用；
 - 不可达服务地址返回可见错误（`Failed to fetch`），不卡在加载态。
 
-仍未覆盖：远程桌面（同意窗、媒体采集/编码）需要完整 desktop Host；移动端触控/
-软键盘、TURN/跨 NAT 仍需真机。真机验收仍按下方 2–7 节执行。
+仍未覆盖：远程桌面正常路径（同意窗、媒体采集/编码）需要完整 desktop Host；
+移动端触控/软键盘、TURN/跨 NAT 仍需真机。真机验收仍按下方 2–7 节执行。
 
 ## 2. 账号与设备目录
 

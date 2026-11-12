@@ -175,11 +175,14 @@ packages/remote-server
   Device Flow + 轻量桌面 Host，13 项通过；真实 Chrome `RTCPeerConnection` 与
   werift Host 建 P2P 并完成 `remote.host.info`；禁用 WebRTC 回落 relay 可用；
   双账号隔离/切换/删除、工作区 `/ws/host` 隧道经真实 HTTP/WS 服务返回
-  `systemService.info`、手机视口无横向滚动、不可达地址给出错误（20 项通过）。
+  `systemService.info`、远程桌面缺服务时优雅退出、手机视口无横向滚动、不可达
+  地址给出错误（22 项通过）。
   过程中发现并修复：
   未登录时输入服务地址会误显示「已登录」区块（登录入口被隐藏）；
   退出登录改为保留设备身份（`signOut`），并新增「删除」账号；
-  `listHosts` 401 刷新后未写回内存，`/v3` 会用旧 token 建链（已修正并有单测）。
+  `listHosts` 401 刷新后未写回内存，`/v3` 会用旧 token 建链（已修正并有单测）；
+  远程桌面 hook 在注入 platform 时仍强制 `usePlatform()`，`/v3` 没有
+  PlatformProvider 会直接崩溃（改为 `useOptionalPlatform`，注入优先）。
 - 剩余：真机验收（两台真实设备 + 完整桌面 Host + coturn）。
 - 真机验收清单已固化：`pnpm test:remote-v3` 跑自动化全套，人工项见
   [remote-control-v3-acceptance.md](../specs/remote-control-v3-acceptance.md)

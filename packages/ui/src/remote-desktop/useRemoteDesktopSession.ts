@@ -25,14 +25,18 @@ import {
   type RemoteDesktopSignalMessage,
 } from "@mode/shared/remote-desktop";
 import type { IPlatformService } from "@mode/shared";
-import { usePlatform } from "@/hooks/usePlatform.js";
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { logger } from "@/logger.js";
 import { attachRemoteDesktopInput, type RemoteDesktopInputCapture } from "./InputCapture.js";
 import {
   createRemoteDesktopClipboardApplier,
   type RemoteDesktopClipboardApplier,
 } from "./clipboardSync.js";
-import { createNativeMediaSession, probeHevcDecodeSupport, type NativeMediaSession } from "./nativeMediaSession.js";
+import {
+  createNativeMediaSession,
+  probeHevcDecodeSupport,
+  type NativeMediaSession,
+} from "./nativeMediaSession.js";
 import {
   applyCodecProbe,
   INITIAL_CODEC_FALLBACK_STATE,
@@ -128,8 +132,12 @@ export function useRemoteDesktopSession(options: {
   openMediaSocket?: (url: string) => RemoteDesktopMediaSocket;
 }): UseRemoteDesktopSessionResult {
   const { serverId, quality } = options;
-  const fallbackPlatform = usePlatform();
+  // v3 Web 没有 PlatformProvider，直接注入平台子集；此时不能强制要求 Provider。
+  const fallbackPlatform = useOptionalPlatform();
   const platform = options.platform ?? fallbackPlatform;
+  if (!platform) {
+    throw new Error("远程桌面会话缺少平台能力：请注入 platform 或外层提供 PlatformProvider");
+  }
   const qualityPreset = REMOTE_DESKTOP_QUALITY_PRESETS[quality ?? DEFAULT_REMOTE_DESKTOP_QUALITY];
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
