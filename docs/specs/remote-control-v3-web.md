@@ -25,7 +25,13 @@
 - 浏览器 WebRTC：支持 `RTCPeerConnection` 时默认宣告 `transport.p2p` 并优先协商
   （`p2p.offer/answer/candidate`），失败或 8s 超时回落 Relay；`p2p: false` 可强制
   只走 Relay。服务端仅当 Host 也宣告 `transport.p2p` 时才在 `connect.accepted`
-  中确认 `p2pPreferred`，对端不支持时浏览器不会白等超时。未接 LAN direct。
+  中确认 `p2pPreferred`，对端不支持时浏览器不会白等超时。
+- 浏览器 LAN direct（`web/directSocket.ts`）：P2P 未协商成功且 `connect.accepted`
+  带 `direct: { ticket, addresses }` 时，按地址顺序逐个打开 `/ws/v1/direct`，首帧
+  `direct.attach` 自证 ticket，收到同一 `connectionId` 的 `relay.ready` 后把该 WS
+  当作数据面。任一步失败继续下一个地址，全部失败才回落 Relay；选路顺序为
+  `p2p -> lan -> relay`。HTTPS 页面跳过明文 `ws://`（混合内容），只连 Host 上报的
+  `wss://` 地址。
 - E2E：浏览器 `WebControlLink` → 真实 remote-server Relay → Node Host，完成
   `remote.echo` RPC。
 - `WebAccountClient`：浏览器生成/持久化 X25519 设备身份；GitHub access token 换 Web
@@ -72,9 +78,9 @@
    其他账号。首次输入服务地址时只生成设备身份，不展示「已登录」区块。
    私钥/token 落盘用 AES-GCM 信封：密钥为不可导出的 `CryptoKey`（同存 IndexedDB），
    旧明文读取兼容并在下次写入升级；localStorage 回落（无 IndexedDB）仍为明文。
-2. 传输：P2P（浏览器 `RTCPeerConnection`）与 Relay WSS 已实现，选路顺序
-   `p2p -> relay`；P2P 不可用或超时回落 Relay。LAN direct 仍未接（浏览器受混合内容
-   限制，仅在 HTTPS 页面允许 `wss` 直连）。
+2. 传输：P2P（浏览器 `RTCPeerConnection`）、LAN direct 与 Relay WSS 已实现，选路顺序
+   `p2p -> lan -> relay`；前两者不可用或超时回落 Relay。浏览器受混合内容限制，
+   HTTPS 页面只尝试 `wss://` 直连地址，明文 LAN 地址被跳过。
 3. UI：主 Web 已接通 v3 工作区（向导选 Host → 注册远程 session → 复用现有 tab/文件/
    终端/Git），见 [remote-control-v3-web-workspace.md](./remote-control-v3-web-workspace.md)；
    `/v3` 独立页仍只提供目录与连通测试。远程桌面页面已挂载，还缺真机验收
@@ -91,6 +97,7 @@
 - 刷新页面后身份与登录态恢复；登出后 IndexedDB 中无可用凭据。
 - 浏览器 P2P 协商失败时回落 Relay，不静默重放业务请求。
 - `pnpm --filter @mode/remote-core test` 覆盖 P2P 会话（offer/answer/超时/ICE 解析、
-  分片拼包）；`packages/desktop/tests/web-remote-v3-p2p.test.mts` 用 werift 替代
-  原生实现，验证浏览器链路 capability → 协商 → DataChannel → Noise → RPC。
+  分片拼包）与 LAN direct（地址构造、`direct.attach` 首帧、`relay.ready` 交握、
+  多地址回落、HTTPS 跳过明文 ws）；`packages/desktop/tests/web-remote-v3-p2p.test.mts`
+  用 werift 替代原生实现，验证浏览器链路 capability → 协商 → DataChannel → Noise → RPC。
 - 与桌面 Host 的远程桌面/工作区共用同一 allowlist 与 `remote.ws` 隧道语义。

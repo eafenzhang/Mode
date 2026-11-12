@@ -4,12 +4,13 @@ import type { BusinessFrame } from "../domain/businessFrames.js";
 import { resolveRelayEndpoint } from "../domain/relayEndpoint.js";
 import { decodeBase64Url, encodeBase64Url } from "./base64url.js";
 import { WebBusinessCodec } from "./businessFrames.js";
+import { selectWebDataPlane } from "./dataPlane.js";
 import { sendEnvelope, WebControlChannel } from "./controlChannel.js";
 import { WebNoiseTransport } from "./noise.js";
 import { WebLinkWaiters } from "./linkWaiters.js";
 import { runInitiatorHandshake } from "./noiseSetup.js";
 import { browserP2PSupported, createWebP2PAdapter } from "./p2pBrowser.js";
-import { openWebP2P, readIceServers, type WebP2PSession } from "./p2pSession.js";
+import type { WebP2PSession } from "./p2pSession.js";
 import { ReconnectScheduler } from "./reconnect.js";
 import { BusinessStreams, type WebBusinessStream } from "./streams.js";
 import {
@@ -151,34 +152,30 @@ export class WebControlLink {
     const rawEndpoint = requireString(relay?.endpoint, "relay.endpoint");
     const endpoint = resolveRelayEndpoint(rawEndpoint, this.options.serverUrl);
     const ticket = requireString(relay?.ticket, "relay.ticket");
-    const iceServers = readIceServers(payload.iceServers);
-    const timeoutMs = this.options.p2p === false ? undefined : this.options.p2p?.timeoutMs;
     // 每次连接（含重连）重新协商 P2P；未打通时保持 Relay 语义。
     this.p2pSession?.close();
-    const p2p =
-      this.p2pAdapter && payload.p2pPreferred === true
-        ? await openWebP2P({
-            adapter: this.p2pAdapter,
-            ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-            connectionId,
-            iceServers,
-            send: (type, framePayload) => this.sendControl(type, framePayload),
-            // P2P 失败只影响选路，不能 reject 握手/Relay 等待器。
-            onError: () => undefined,
-            // 必须先登记 session：answer/candidate 可能在 open 返回前到达。
-            onSession: (session) => {
-              this.p2pSession = session;
-            },
-          })
-        : null;
-    this.p2pSession = p2p?.session ?? null;
-    const dataSocket = p2p?.socket;
-    this.dataSocket = dataSocket ?? null;
-    if (dataSocket) {
-      dataSocket.onMessage((text) => this.handleRelay(text, "p2p"));
-      dataSocket.onClose(() => this.handleLoss("p2p"));
+    const p2pOptions = this.options.p2p === false ? undefined : this.options.p2p;
+    const plane = await selectWebDataPlane({
+      adapter: this.p2pAdapter,
+      payload,
+      connectionId,
+      p2pDisabled: this.options.p2p === false,
+      ...(p2pOptions?.timeoutMs !== undefined ? { p2pTimeoutMs: p2pOptions.timeoutMs } : {}),
+      ...(this.options.createSocket ? { createSocket: this.options.createSocket } : {}),
+      sendControl: (type, framePayload) => this.sendControl(type, framePayload),
+      // 必须先登记 session：answer/candidate 可能在 open 返回前到达。
+      onSession: (session) => {
+        this.p2pSession = session;
+      },
+    });
+    this.p2pSession = plane.p2pSession;
+    this.dataSocket = plane.dataSocket ?? null;
+    if (plane.dataSocket) {
+      const source = plane.transport === "p2p" ? "p2p" : "lan";
+      plane.dataSocket.onMessage((text) => this.handleRelay(text, source));
+      plane.dataSocket.onClose(() => this.handleLoss(source));
     }
-    const transport: "p2p" | "relay" = dataSocket ? "p2p" : "relay";
+    const transport = plane.transport;
     this.options.onTransport?.(transport);
 
     const step2Promise = new Promise<Uint8Array>((resolve, reject) => {
@@ -242,7 +239,7 @@ export class WebControlLink {
       },
     };
   }
-  private handleLoss(source: "control" | "relay" | "p2p"): void {
+  private handleLoss(source: "control" | "relay" | "p2p" | "lan"): void {
     if (this.shuttingDown || this.closed) return;
     this.transport = null;
     this.codec = null;
@@ -320,7 +317,7 @@ export class WebControlLink {
     }
   }
 
-  private handleRelay(text: string, source: "relay" | "p2p"): void {
+  private handleRelay(text: string, source: "relay" | "p2p" | "lan"): void {
     const frame = parseControlEnvelope(text);
     if (!frame) return;
     switch (frame.type) {
