@@ -12,11 +12,87 @@ export interface P2PChannel {
   close(reason?: string): void;
 }
 
+/** DataChannel 单条消息的安全上限（SCTP/浏览器常见限制 256KB）。 */
+const CHUNK_BYTES = 64 * 1024;
+const CHUNK_PREFIX = '{"__p2pChunk":1,';
+
+/**
+ * 业务帧超过单条 DataChannel 上限时按 UTF-8 字节切分；JSON 转义最坏放大 2 倍，
+ * 64KB 分片可稳定落在 256KB 以内。接收端按顺序拼回原文。
+ */
+function chunkText(text: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  while (start < text.length) {
+    let bytes = 0;
+    let end = start;
+    while (end < text.length) {
+      const code = text.codePointAt(end)!;
+      const width = code > 0xffff ? 2 : 1;
+      const cost = code <= 0x7f ? 1 : code <= 0x7ff ? 2 : code <= 0xffff ? 3 : 4;
+      if (bytes + cost > CHUNK_BYTES) break;
+      bytes += cost;
+      end += width;
+    }
+    // 单个码点就超限（不会发生）：至少前进一次，避免死循环。
+    if (end === start) end = Math.min(start + 2, text.length);
+    parts.push(text.slice(start, end));
+    start = end;
+  }
+  return parts;
+}
+
 export function p2pChannelAsSocket(channel: P2PChannel): RemoteSocket {
+  const listeners = new Set<(text: string) => void>();
+  let pending: { total: number; parts: string[]; next: number } | null = null;
+  const assemble = (text: string): string | undefined => {
+    if (!text.startsWith(CHUNK_PREFIX)) return text;
+    let frame: { i?: unknown; n?: unknown; d?: unknown };
+    try {
+      frame = JSON.parse(text) as { i?: unknown; n?: unknown; d?: unknown };
+    } catch {
+      return text;
+    }
+    if (
+      typeof frame.i !== "number" ||
+      typeof frame.n !== "number" ||
+      typeof frame.d !== "string"
+    ) {
+      return text;
+    }
+    if (!pending || pending.total !== frame.n || frame.i !== pending.next) {
+      // 分片缺失或乱序：丢弃半条消息，等待下一条完整消息。
+      pending = null;
+      if (frame.i !== 0) return undefined;
+      pending = { total: frame.n, parts: [], next: 0 };
+    }
+    pending.parts.push(frame.d);
+    pending.next += 1;
+    if (pending.next < pending.total) return undefined;
+    const full = pending.parts.join("");
+    pending = null;
+    return full;
+  };
+  channel.onData((text) => {
+    const payload = assemble(text);
+    if (payload === undefined) return;
+    for (const listener of listeners) listener(payload);
+  });
   return {
-    send: (text) => channel.send(text),
+    send: (text) => {
+      const parts = chunkText(text);
+      if (parts.length === 1) {
+        channel.send(text);
+        return;
+      }
+      parts.forEach((data, index) => {
+        channel.send(JSON.stringify({ __p2pChunk: 1, i: index, n: parts.length, d: data }));
+      });
+    },
     close: (code, reason) => channel.close(reason ?? `closed ${code ?? 1000}`),
-    onMessage: (callback) => channel.onData(callback),
+    onMessage: (callback) => {
+      listeners.add(callback);
+    },
     onClose: (callback) => channel.onClose((reason) => callback(1000, reason ?? "p2p closed")),
   };
 }

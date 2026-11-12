@@ -155,6 +155,8 @@ WebRTC DataChannel (Noise)  ->  LAN direct (WS/WSS + Noise)  ->  Relay (WSS + No
   LAN 不可用再回落 Relay。Host 按 `transport.selected` 应用结果。
 - DataChannel 承载与 LAN direct 完全相同的 `relay` 信封帧（Noise 密文），因此
   runtime 无需区分 P2P 与直连；信令走服务端 Control 转发，服务端不见明文。
+- 单条业务帧可能超过 DataChannel 的 ~256KB 上限：发送端按 64KB UTF-8 字节分片
+  （`__p2pChunk` 文本头），接收端按序拼回；缺片时丢弃半条消息，不影响后续帧。
 - Node 侧（桌面 Host/客户端）用 werift 适配器，浏览器侧在支持
   `RTCPeerConnection` 时默认启用；不支持或显式 `p2p: false` 时只走 Relay，
   loopback E2E 与浏览器 P2P 单元测试已覆盖。
