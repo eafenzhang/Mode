@@ -96,6 +96,8 @@ export async function openWebP2P(params: {
   iceServers: IceServerPayload[];
   send: (type: string, payload: Record<string, unknown>) => void;
   onError: (error: Error) => void;
+  /** 协商开始前回调：调用方需要先登记 session 才能收到 answer/candidate。 */
+  onSession?: (session: WebP2PSession) => void;
 }): Promise<{ session: WebP2PSession; socket: RemoteSocket | undefined }> {
   const session = new WebP2PSession({
     adapter: params.adapter,
@@ -103,6 +105,7 @@ export async function openWebP2P(params: {
     send: params.send,
     onError: params.onError,
   });
+  params.onSession?.(session);
   const socket = await session.open(params.connectionId, params.iceServers);
   return { session, socket };
 }
@@ -112,8 +115,6 @@ export function readIceServers(value: unknown): IceServerPayload[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is IceServerPayload => {
     const urls = (entry as { urls?: unknown } | null)?.urls;
-    return (
-      Array.isArray(urls) && urls.length > 0 && urls.every((url) => typeof url === "string")
-    );
+    return Array.isArray(urls) && urls.length > 0 && urls.every((url) => typeof url === "string");
   });
 }

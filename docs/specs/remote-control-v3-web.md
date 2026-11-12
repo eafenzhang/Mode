@@ -86,5 +86,7 @@
 - `@mode/remote-core/web` 与 Node Host 完成真实 Noise 握手并通过 Relay 收发 RPC。
 - 刷新页面后身份与登录态恢复；登出后 IndexedDB 中无可用凭据。
 - 浏览器 P2P 协商失败时回落 Relay，不静默重放业务请求。
-- `pnpm --filter @mode/remote-core test` 覆盖 P2P 会话（offer/answer/超时/ICE 解析）。
+- `pnpm --filter @mode/remote-core test` 覆盖 P2P 会话（offer/answer/超时/ICE 解析、
+  分片拼包）；`packages/desktop/tests/web-remote-v3-p2p.test.mts` 用 werift 替代
+  原生实现，验证浏览器链路 capability → 协商 → DataChannel → Noise → RPC。
 - 与桌面 Host 的远程桌面/工作区共用同一 allowlist 与 `remote.ws` 隧道语义。

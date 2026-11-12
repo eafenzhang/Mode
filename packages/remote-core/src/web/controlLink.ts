@@ -5,7 +5,6 @@ import { resolveRelayEndpoint } from "../domain/relayEndpoint.js";
 import { decodeBase64Url, encodeBase64Url } from "./base64url.js";
 import { decryptBusinessFrame, encryptBusinessFrame } from "./businessFrames.js";
 import { sendEnvelope, WebControlChannel } from "./controlChannel.js";
-import type { WebIdentity } from "./identity.js";
 import { WebNoiseTransport } from "./noise.js";
 import { WebLinkWaiters } from "./linkWaiters.js";
 import { runInitiatorHandshake } from "./noiseSetup.js";
@@ -30,19 +29,9 @@ export interface WebRemoteConnection {
   close(): void;
 }
 
-export interface WebControlLinkOptions {
-  serverUrl: string;
-  deviceId: string;
-  accessToken: string;
-  identity: WebIdentity;
-  connectTimeoutMs?: number;
-  /** 断线重连的首次退避；测试可调小。 */
-  reconnectBaseMs?: number;
-  /** 测试注入点；缺省使用 globalThis.WebSocket。 */
-  createSocket?: (url: string) => Promise<WebSocketLike>;
-  /** 浏览器 WebRTC：缺省在支持 RTCPeerConnection 时启用；传 false 强制走 Relay。 */
-  p2p?: { adapter?: P2PAdapter; timeoutMs?: number } | false;
-}
+import type { WebControlLinkOptions } from "./linkOptions.js";
+
+export type { WebControlLinkOptions } from "./linkOptions.js";
 
 /** 浏览器 v3 Client：Control WS + Relay WSS + Noise，带自动重连。 */
 export class WebControlLink {
@@ -181,6 +170,10 @@ export class WebControlLink {
             iceServers,
             send: (type, framePayload) => this.sendControl(type, framePayload),
             onError: (error) => this.waiters.rejectAll(error),
+            // 必须先登记 session：answer/candidate 可能在 open 返回前到达。
+            onSession: (session) => {
+              this.p2pSession = session;
+            },
           })
         : null;
     this.p2pSession = p2p?.session ?? null;
@@ -191,6 +184,7 @@ export class WebControlLink {
       dataSocket.onClose(() => this.handleLoss("p2p"));
     }
     const transport: "p2p" | "relay" = dataSocket ? "p2p" : "relay";
+    this.options.onTransport?.(transport);
 
     const step2Promise = new Promise<Uint8Array>((resolve, reject) => {
       this.waiters.step2 = { resolve, reject };

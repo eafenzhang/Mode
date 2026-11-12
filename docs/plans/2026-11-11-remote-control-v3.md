@@ -162,6 +162,8 @@ packages/remote-server
   默认启用原生适配器（`web/p2pBrowser.ts`）并优先协商，失败/8s 超时回落 Relay；
   `p2p: false` 可强制 Relay。Control WS 的 hello/心跳/帧分发拆到 `WebControlChannel`，
   重连退避与等待器独立，保持文件行数门禁。
+- 浏览器 P2P E2E 暴露并修复：`p2p.answer` 可能在 `WebP2PSession.open()` 返回前到达，
+  之前 session 尚未登记导致答案被丢弃、8s 后回落 Relay；现在协商前先登记 session。
 - DataChannel 分片：超过 64KB 的业务帧自动拆/拼（`__p2pChunk`），避免 4MB 上限
   的业务消息触发 SCTP 单帧限制；分片丢失时丢弃半条消息。
 - P2P capability 协商闭环：两端只在 hello 宣告 `transport.p2p` 后，服务端才确认
@@ -180,8 +182,10 @@ packages/remote-server
   P2 落地（`/ws/v1/direct` + 失败回落 Relay）。LAN 监听可选 TLS：运维提供受信任的
   key/cert（`MODE_LAN_TLS_KEY_FILE` / `MODE_LAN_TLS_CERT_FILE`），地址以 `wss://` 前缀
   进入设备目录，发现广播带 `scheme`；未配置时保持明文 WS。
-- 测试：`pnpm test:remote-v3` 共 256 项（pass 253，3 项 skip），包含 WebRTC/P2P
-  loopback E2E（跨账号配对后 RPC 实际走 werift DataChannel）。分层计数见早前记录：
+- 测试：`pnpm test:remote-v3` 共 257 项（pass 254，3 项 skip），包含 WebRTC/P2P
+  loopback E2E（跨账号配对后 RPC 实际走 werift DataChannel）与浏览器
+  `WebControlLink` P2P E2E（werift 替代原生 RTCPeerConnection，验证 capability →
+  offer/answer → DataChannel → Noise → RPC 全链路）。分层计数见早前记录：
   core 27 + remote-server 25 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
   配对 E2E 3 + 配对 UI 状态机 3 +
   ChannelClient 重连 1/Web 工作区 1/Web 工作区重连 1/Web 远程桌面 5/v3 工作区 attachment 2/
