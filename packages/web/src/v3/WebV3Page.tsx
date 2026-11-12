@@ -18,9 +18,7 @@ import { listStoredV3Accounts, V3_SERVER_URL_KEY } from "./storedProfile.js";
 const credentialStore = createWebCredentialStore();
 
 export function WebV3Page() {
-  const [serverUrl, setServerUrl] = useState(
-    () => localStorage.getItem(V3_SERVER_URL_KEY) ?? "",
-  );
+  const [serverUrl, setServerUrl] = useState(() => localStorage.getItem(V3_SERVER_URL_KEY) ?? "");
   const [profile, setProfile] = useState<WebDeviceProfile | null>(null);
   const [hosts, setHosts] = useState<WebDeviceSummary[]>([]);
   const [challenge, setChallenge] = useState<WebGithubChallenge | null>(null);
@@ -44,7 +42,9 @@ export function WebV3Page() {
 
   const client = useMemo(() => {
     const url = serverUrl.trim();
-    return url ? new WebAccountClient({ store: credentialStore, serverUrl: url, deviceName: "Mode Web" }) : null;
+    return url
+      ? new WebAccountClient({ store: credentialStore, serverUrl: url, deviceName: "Mode Web" })
+      : null;
   }, [serverUrl]);
 
   const refreshHosts = useCallback(async () => {
@@ -145,11 +145,15 @@ export function WebV3Page() {
     setBusy(true);
     setError("");
     setTestResult("正在建立工作区隧道…");
+    let transport = "未知";
     const link = new WebControlLink({
       serverUrl: profile.serverUrl,
       deviceId: profile.deviceId,
       accessToken: profile.accessToken,
       identity: importWebIdentity(profile.privateKey),
+      onTransport: (selected) => {
+        transport = selected;
+      },
     });
     try {
       await link.start();
@@ -157,7 +161,7 @@ export function WebV3Page() {
       const workspace = await openWebWorkspace({ link, hostDeviceId: host.deviceId });
       try {
         const info = await workspace.services.systemService.info();
-        setTestResult(JSON.stringify(info, null, 2));
+        setTestResult(`传输：${transport}\n${JSON.stringify(info, null, 2)}`);
       } finally {
         workspace.dispose();
       }
@@ -199,11 +203,15 @@ export function WebV3Page() {
     setBusy(true);
     setError("");
     setTestResult("正在建立 Noise 通道…");
+    let transport = "未知";
     const link = new WebControlLink({
       serverUrl: profile.serverUrl,
       deviceId: profile.deviceId,
       accessToken: profile.accessToken,
       identity: importWebIdentity(profile.privateKey),
+      onTransport: (selected) => {
+        transport = selected;
+      },
     });
     try {
       await link.start();
@@ -219,7 +227,7 @@ export function WebV3Page() {
         });
         connection.send({ v: 1, type: "rpc.request", id, method: "remote.host.info", params: {} });
       });
-      setTestResult(JSON.stringify(response, null, 2));
+      setTestResult(`传输：${transport}\n${JSON.stringify(response, null, 2)}`);
       connection.close();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));

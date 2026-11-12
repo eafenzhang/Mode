@@ -75,7 +75,7 @@ pnpm typecheck && pnpm lint && pnpm architecture:check --changed
 | 6.5 | 同局域网两台设备建连（未配 STUN/TURN） | 选路为 `p2p`；RPC/桌面/工作区正常，Relay 无业务密文以外的流量 |
 | 6.6 | 配置 coturn 后跨 NAT 建连 | 选路为 `p2p`；抓包可见 TURN 中继但内容仍为 Noise 密文 |
 | 6.7 | 停掉 coturn 或封锁 UDP 后建连 | 8s 内回落 `relay`，业务可用；日志有 p2p 失败原因 |
-| 6.8 | 浏览器 `/v3`（支持 RTCPeerConnection）连桌面 Host | 选路为 `p2p`；主动禁用 WebRTC（或 `p2p:false`）后为 `relay` |
+| 6.8 | 浏览器 `/v3`（支持 RTCPeerConnection）连桌面 Host | 连接测试结果首行显示 `传输：p2p`；主动禁用 WebRTC（或 `p2p:false`）后显示 `relay` |
 | 6.9 | P2P 建立后断网 10s 再恢复 | 数据面断开触发重连；恢复后重新协商，RPC 不重放 |
 
 ## 7. 安全边界
