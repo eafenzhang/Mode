@@ -54,6 +54,8 @@ export interface ConnectIncomingPayload {
   authorization: "account";
   relay?: RelayAssignment;
   direct?: DirectAssignment;
+  /** Client 在 connect.request 里声明了 p2p 优先；Host 据此推迟 Relay attach。 */
+  p2pPreferred?: boolean;
   /** WebRTC 选路所需的 ICE 服务器（含 coturn 临时凭证）；未启用 WebRTC 时缺省。 */
   iceServers?: IceServerPayload[];
 }

@@ -152,11 +152,16 @@ packages/remote-server
   `iceServers`（connect.* 下发）；remote-server 支持 STUN/TURN 配置（coturn REST
   临时凭证 HMAC），并转发双方 p2p 信令（错误 connectionId 丢弃）。环境变量：
   `MODE_REMOTE_STUN_URLS` / `MODE_REMOTE_TURN_URLS` / `MODE_REMOTE_TURN_SECRET` /
-  `MODE_REMOTE_TURN_TTL_SECONDS`。待接：Node/浏览器 DataChannel 传输与选路。
+  `MODE_REMOTE_TURN_TTL_SECONDS`。
+- WebRTC/P2P 阶段 2 已落地：remote-core 新增 P2P 框架（`P2PAdapter`/`P2PInitiator`/
+  `P2PResponder`、`P2PNegotiation` 状态机、`P2PChannel` 复用 relay 信封），选路顺序为
+  p2p → lan → relay；协商失败或 8s 超时自动回落 Relay。桌面宿主用 werift 适配器
+  （`p2pWerift.ts`）承载 DataChannel，`pnpm test:remote-v3` 中的 loopback E2E 已验证
+  跨账号配对后 RPC 实际走 `p2p`。
+- 剩余：浏览器 `RTCPeerConnection` 适配器（阶段 3）、coturn 部署示例与真机验收。
 - 真机验收清单已固化：`pnpm test:remote-v3` 跑自动化全套，人工项见
   [remote-control-v3-acceptance.md](../specs/remote-control-v3-acceptance.md)
   （账号/配对/工作区/桌面/断线/安全六组）。
-- 仍未开始：WebRTC/P2P/TURN。
 - 账号展示已接入：`/auth/me` 展示名落库并进入 Host 状态，侧边栏/账号弹窗优先显示
   v3 账号名，退出菜单直连 `disconnectAccount`。
 - P2 直连前置已落地：Host 注册上报 LAN 地址（≤8）并进入设备目录，远程控制页展示
@@ -164,11 +169,13 @@ packages/remote-server
   P2 落地（`/ws/v1/direct` + 失败回落 Relay）。LAN 监听可选 TLS：运维提供受信任的
   key/cert（`MODE_LAN_TLS_KEY_FILE` / `MODE_LAN_TLS_CERT_FILE`），地址以 `wss://` 前缀
   进入设备目录，发现广播带 `scheme`；未配置时保持明文 WS。
-- 测试：91 项（core 27 + remote-server 25 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
+- 测试：`pnpm test:remote-v3` 共 256 项（pass 253，3 项 skip），包含 WebRTC/P2P
+  loopback E2E（跨账号配对后 RPC 实际走 werift DataChannel）。分层计数见早前记录：
+  core 27 + remote-server 25 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
   配对 E2E 3 + 配对 UI 状态机 3 +
   ChannelClient 重连 1/Web 工作区 1/Web 工作区重连 1/Web 远程桌面 5/v3 工作区 attachment 2/
   Web v3 服务 6 + LAN TLS/scheme 3 +
-  server direct WS 2 + UI v3 目标/向导 3 + 侧边栏账号 2）。
+  server direct WS 2 + UI v3 目标/向导 3 + 侧边栏账号 2。
 - 门禁：`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`、
   `pnpm knip:gate` 全绿；新包测试已加入 `.github/workflows/release.yml` verify，
   Desktop Host 测试由既有 desktop tests glob 覆盖。

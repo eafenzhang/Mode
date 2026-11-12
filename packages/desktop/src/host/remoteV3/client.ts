@@ -34,6 +34,7 @@ import {
   verifyOrPinPeer,
   type RemoteV3ClientProfile,
 } from "./identity.js";
+import { createWeriftP2PAdapter } from "./p2pWerift.js";
 import { connectDirectWebSocket } from "./wsSocket.js";
 
 export interface RemoteV3ClientRuntimeDeps {
@@ -50,6 +51,9 @@ export interface RemoteV3ClientRuntimeDeps {
   getServerUrl: () => string | null;
   getHostAccessToken: () => string | null;
   refreshHostTokens: () => Promise<{ accessToken: string; refreshToken: string }>;
+  /** WebRTC P2P 适配器（werift）；提供后连接先协商 p2p，失败回落 Relay。 */
+  p2pAdapter?: import("@mode/remote-core").P2PAdapter;
+  onTransport?: (transport: import("@mode/remote-core").TransportKind) => void;
   log: (line: string) => void;
 }
 
@@ -69,6 +73,7 @@ interface PendingRequest {
 /** 本机作为 Client 角色：注册相反角色、缓存 E2EE 连接、执行一次 allowlist RPC。 */
 export class RemoteV3ClientRuntime {
   private readonly deps: RemoteV3ClientRuntimeDeps;
+  private readonly defaultP2pAdapter = createWeriftP2PAdapter();
   private profile: RemoteV3ClientProfile | null = null;
   private readonly connections = new Map<string, ClientConnection>();
   private readonly connecting = new Map<string, Promise<ClientConnection>>();
@@ -348,6 +353,9 @@ export class RemoteV3ClientRuntime {
       accessToken,
       identity: profile.identity,
       connectSocket: this.deps.connectSocket,
+      p2p: { adapter: this.deps.p2pAdapter ?? this.defaultP2pAdapter, timeoutMs: 8000 },
+      onTransport: (transport) => this.deps.onTransport?.(transport),
+      onError: (error) => this.deps.log(`remote_v3_client_error code=${error.code}`),
       fetchPeer: (deviceId) =>
         fetchRemoteV3Peer({
           serverUrl,
@@ -373,7 +381,6 @@ export class RemoteV3ClientRuntime {
         }
         throw lastError instanceof Error ? lastError : new Error("没有可用的 LAN 直连地址");
       },
-      onError: (error) => this.deps.log(`remote_v3_client_error code=${error.code}`),
     });
     try {
       await link.start();

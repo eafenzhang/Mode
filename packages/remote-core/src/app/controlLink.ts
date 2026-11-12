@@ -14,7 +14,10 @@ import { HELLO_TIMEOUT_MS } from "../domain/limits.js";
 import { ConnectionRuntime } from "./connectionRuntime.js";
 import { toControlUrl } from "./controlUrl.js";
 import { DirectAttachments, tryOpenDirectSocket } from "./directAttachments.js";
-import { markDirectPending, selectTransport } from "./transportSelection.js";
+import { applyTransportSelection, markDirectPending } from "./transportSelection.js";
+import { dispatchControlFrame } from "./controlFrameHandlers.js";
+import { AcceptedWaiters, FrameWaiters } from "./linkWaiters.js";
+import { P2PNegotiation } from "./p2pNegotiation.js";
 import type { ControlLinkOptions, RemoteConnection, RemoteSocket } from "./controlTypes.js";
 
 // WebRTC/TURN 未实现前不宣告对应 capability；LAN direct 只在 Host 上报地址时实际可用。
@@ -24,16 +27,9 @@ const CAPABILITIES = ["secure.noise-ik.v1", "transport.lan", "transport.relay"];
 export class ControlLink {
   private readonly options: ControlLinkOptions;
   private readonly runtime: ConnectionRuntime;
-  private readonly accepted = new Map<
-    string,
-    { resolve: (value: ConnectAcceptedPayload) => void; reject: (error: Error) => void }
-  >();
-  private readonly waiters: Array<{
-    predicate: (frame: ControlFrame) => boolean;
-    resolve: (frame: ControlFrame) => void;
-    reject: (error: Error) => void;
-    timer: NodeJS.Timeout;
-  }> = [];
+  private readonly accepted = new AcceptedWaiters();
+  private readonly waiters = new FrameWaiters();
+  private p2p: P2PNegotiation | null = null;
   private readonly direct: DirectAttachments;
   private readonly pendingTransport = new Map<string, "lan" | "p2p" | "turn" | "relay">();
   private socket: RemoteSocket | null = null;
@@ -56,6 +52,16 @@ export class ControlLink {
       timeoutMs: options.connectTimeoutMs ?? 10_000,
       send: (socket, frame) => this.sendOn(socket, frame),
     });
+    if (options.p2p) {
+      this.p2p = new P2PNegotiation({
+        adapter: options.p2p.adapter,
+        ...(options.p2p.timeoutMs !== undefined ? { timeoutMs: options.p2p.timeoutMs } : {}),
+        send: (frame) => this.sendFrame(frame),
+        waitForFrame: (predicate, timeoutMs) => this.waiters.wait(predicate, timeoutMs),
+        onError: (error) => this.options.onError?.(error),
+        onChannelReady: (connectionId) => this.maybeAttachP2P(connectionId),
+      });
+    }
   }
 
   async start(): Promise<void> {
@@ -74,7 +80,10 @@ export class ControlLink {
       this.rejectAccepted(new Error("control closed"));
       this.options.onClose?.({ code, reason });
     });
-    const ackPromise = this.waitFor((frame) => frame.type === "hello.ack", HELLO_TIMEOUT_MS);
+    const ackPromise = this.waiters.wait(
+      (frame) => frame.type === "hello.ack",
+      HELLO_TIMEOUT_MS,
+    );
     this.sendFrame({
       type: "hello",
       payload: {
@@ -117,10 +126,17 @@ export class ControlLink {
     if (this.options.role !== "client") {
       throw new RemoteError("role_required", "只有 Client 可以发起连接");
     }
-    const acceptedPromise = this.waitAccepted(hostDeviceId);
+    const acceptedPromise = this.accepted.wait(
+      hostDeviceId,
+      this.options.connectTimeoutMs ?? 15_000,
+    );
+    const prefersP2P = Boolean(this.options.p2p);
     this.sendFrame({
       type: "connect.request",
-      payload: { hostDeviceId, preferredTransports: ["lan", "relay"] },
+      payload: {
+        hostDeviceId,
+        preferredTransports: prefersP2P ? ["p2p", "lan", "relay"] : ["lan", "relay"],
+      },
     });
     const accepted = await acceptedPromise;
     const peer = accepted.host;
@@ -133,15 +149,25 @@ export class ControlLink {
       ...(this.options.openDirectSocket ? { open: this.options.openDirectSocket } : {}),
       ...(this.options.onError ? { onError: this.options.onError } : {}),
     });
+    let p2pSocket: RemoteSocket | undefined;
+    if (!directSocket && this.p2p) {
+      p2pSocket = await this.p2p.negotiateAsInitiator(connectionId, accepted.iceServers ?? []);
+    }
     const session = this.runtime.create("client", peer, connectionId);
     const active = this.runtime.sessions.get(connectionId)!;
     this.sendFrame({
       type: "transport.selected",
-      payload: { connectionId, transport: directSocket ? "lan" : "relay" },
+      payload: {
+        connectionId,
+        transport: directSocket ? "lan" : p2pSocket ? "p2p" : "relay",
+      },
     });
+    this.options.onTransport?.(directSocket ? "lan" : p2pSocket ? "p2p" : "relay");
     session.start();
     if (directSocket) {
       this.runtime.attachDirect(active, directSocket);
+    } else if (p2pSocket) {
+      this.runtime.attachDirect(active, p2pSocket);
     } else {
       await this.runtime.attachRelay(
         active,
@@ -163,6 +189,7 @@ export class ControlLink {
     this.clearHeartbeat();
     this.direct.closeAll(new Error("link closed"));
     this.pendingTransport.clear();
+    this.p2p?.close();
     this.runtime.closeAll("link closed");
     this.rejectAccepted(new Error("link closed"));
     this.socket?.close(1000, "link closed");
@@ -176,57 +203,48 @@ export class ControlLink {
     } catch {
       return;
     }
-    this.dispatchWaiters(frame);
-    switch (frame.type) {
-      case "hello.ack":
-        return;
-      case "connect.accepted": {
-        const waiter = this.accepted.get(frame.payload.host.deviceId);
-        if (waiter) {
-          this.accepted.delete(frame.payload.host.deviceId);
-          waiter.resolve(frame.payload);
-        }
-        return;
-      }
-      case "connect.incoming":
-        // 只有 Host 接受入站连接；Client 收到该帧说明服务端路由异常，直接忽略。
-        if (this.options.role === "host") void this.acceptIncoming(frame.payload);
-        return;
-      case "transport.selected":
-        this.handleTransportSelected(frame.payload.connectionId, frame.payload.transport);
-        return;
-      case "secure.handshake":
+    this.waiters.dispatch(frame);
+    dispatchControlFrame(frame, {
+      onConnectAccepted: (payload) => this.accepted.resolve(payload.host.deviceId, payload),
+      // 只有 Host 接受入站连接；Client 收到该帧说明服务端路由异常，直接忽略。
+      onConnectIncoming: (payload) => {
+        if (this.options.role === "host") void this.acceptIncoming(payload);
+      },
+      onTransportSelected: (payload) =>
+        this.handleTransportSelected(payload.connectionId, payload.transport),
+      onSecureHandshake: (payload) =>
         this.runtime.queueHandshake(
-          frame.payload.connectionId,
-          frame.payload.step,
-          decodeBase64Url(frame.payload.data, "secure.handshake.data"),
-        );
-        return;
-      case "relay.detach": {
-        const active = this.runtime.sessions.get(frame.payload.connectionId);
-        active?.session.close("relay detached");
-        return;
-      }
-      case "error":
-        if (frame.payload.connectionId) {
-          const active = this.runtime.sessions.get(frame.payload.connectionId);
-          active?.session.fail(new RemoteError(frame.payload.code, frame.payload.message));
-        } else {
-          this.options.onError?.(new RemoteError(frame.payload.code, frame.payload.message));
+          payload.connectionId,
+          payload.step,
+          decodeBase64Url(payload.data, "secure.handshake.data"),
+        ),
+      onRelayDetach: (connectionId) => {
+        this.runtime.sessions.get(connectionId)?.session.close("relay detached");
+      },
+      onError: (payload) => {
+        if (payload.connectionId) {
+          this.runtime.sessions
+            .get(payload.connectionId)
+            ?.session.fail(new RemoteError(payload.code, payload.message));
+          return;
         }
-        return;
-      case "ping":
-        this.sendFrame({
-          type: "pong",
-          payload: frame.payload.nonce ? { nonce: frame.payload.nonce } : {},
-        });
-        return;
-      case "pong":
+        this.options.onError?.(new RemoteError(payload.code, payload.message));
+      },
+      // 只有 Host 接受 WebRTC offer；Client 收到该帧说明路由异常，忽略。
+      onP2POffer: (payload) => {
+        if (this.options.role === "host") {
+          void this.p2p?.acceptOffer(payload.connectionId, payload.sdp);
+        }
+      },
+      onP2PCandidate: (payload) =>
+        this.p2p?.handleCandidate(payload.connectionId, payload.candidate, payload.sdpMid),
+      onPing: (nonce) => {
+        this.sendFrame({ type: "pong", payload: nonce ? { nonce } : {} });
+      },
+      onPong: () => {
         this.awaitingPong = false;
-        return;
-      default:
-        return;
-    }
+      },
+    });
   }
 
   private async acceptIncoming(incoming: ConnectIncomingPayload): Promise<void> {
@@ -237,24 +255,35 @@ export class ControlLink {
         this.direct.register(incoming.connectionId, incoming.direct.ticket);
       }
       await this.ensurePeer(incoming.client);
+      if (incoming.iceServers) {
+        this.p2p?.setIceServers(incoming.connectionId, incoming.iceServers);
+      }
       this.runtime.create("host", incoming.client, incoming.connectionId);
       const active = this.runtime.sessions.get(incoming.connectionId)!;
       // runtime.create 默认 Host 已选路（Relay 老路径）；出现直连候选时要等 Client 选择。
       if (incoming.direct) {
         markDirectPending(active, this.options.connectTimeoutMs ?? 10_000);
       }
+      const prefersP2P = incoming.p2pPreferred === true;
       active.relay = incoming.relay;
-      const earlySelection = this.pendingTransport.get(incoming.connectionId);
-      if (earlySelection) {
-        this.pendingTransport.delete(incoming.connectionId);
-        this.handleTransportSelected(incoming.connectionId, earlySelection);
-      } else if (!incoming.direct) {
-        active.transportSelected = true;
-        await this.runtime.attachRelay(
-          active,
-          incoming.relay,
-          this.options.connectTimeoutMs ?? 10_000,
-        );
+      if (prefersP2P) {
+        // P2P：等对端 offer/通道（本端有适配器）或 client 回落 relay 的选路；
+        // 不提前 return——连接 ready 后仍要注册业务监听（onConnection）。
+        markDirectPending(active, (this.options.p2p?.timeoutMs ?? 8000) + 1500);
+        this.maybeAttachP2P(incoming.connectionId);
+      } else {
+        const earlySelection = this.pendingTransport.get(incoming.connectionId);
+        if (earlySelection) {
+          this.pendingTransport.delete(incoming.connectionId);
+          this.handleTransportSelected(incoming.connectionId, earlySelection);
+        } else if (!incoming.direct) {
+          active.transportSelected = true;
+          await this.runtime.attachRelay(
+            active,
+            incoming.relay,
+            this.options.connectTimeoutMs ?? 10_000,
+          );
+        }
       }
       const connection = await active.ready;
       this.options.onConnection?.(connection);
@@ -279,7 +308,7 @@ export class ControlLink {
       return;
     }
     if (active.transportSelected) return;
-    void selectTransport({
+    applyTransportSelection({
       active,
       transport,
       direct: this.direct,
@@ -290,19 +319,30 @@ export class ControlLink {
         }
         return this.runtime.attachRelay(session, session.relay, timeoutMs);
       },
+      attachP2P:
+        this.p2p && transport === "p2p"
+          ? async () => {
+              // Host 可能在 p2p.offer 处理时已挂载同一通道；重复 attach 会关闭底层 dc。
+              await this.p2p!.attachTransport(
+                connectionId,
+                () => !active.dataSocket,
+                (socket) => this.runtime.attachDirect(active, socket),
+              );
+            }
+          : undefined,
       timeoutMs: this.options.connectTimeoutMs ?? 10_000,
-    })
-      .then(() => {
-        active.transportSelected = true;
-      })
-      .catch((error: unknown) => {
-        const normalized =
-          error instanceof RemoteError
-            ? error
-            : new RemoteError("transport_failed", "数据面建立失败", { cause: error });
-        active.session.fail(normalized);
-        this.direct.reject(connectionId, normalized);
-      });
+    });
+  }
+
+  /** Host：通道就绪且会话尚未选路时，把 P2P 通道挂到数据面。 */
+  private maybeAttachP2P(connectionId: string): void {
+    const active = this.runtime.sessions.get(connectionId);
+    if (!this.p2p || !active) return;
+    this.p2p.attachWhenReady(
+      connectionId,
+      () => this.runtime.sessions.get(connectionId) === active && !active.dataSocket,
+      (socket) => this.runtime.attachDirect(active, socket),
+    );
   }
 
   private async ensurePeer(peer: DeviceDescriptor): Promise<void> {
@@ -316,49 +356,6 @@ export class ControlLink {
     }
     if (this.options.verifyPeer && !(await this.options.verifyPeer(peer))) {
       throw new RemoteError("identity_mismatch", "对端身份与本地 pin 不一致");
-    }
-  }
-
-  private waitAccepted(hostDeviceId: string): Promise<ConnectAcceptedPayload> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.accepted.delete(hostDeviceId);
-        reject(new RemoteError("connect_timeout", "等待 connect.accepted 超时", { retryable: true }));
-      }, this.options.connectTimeoutMs ?? 15_000);
-      this.accepted.set(hostDeviceId, {
-        resolve: (value) => {
-          clearTimeout(timer);
-          resolve(value);
-        },
-        reject: (error) => {
-          clearTimeout(timer);
-          reject(error);
-        },
-      });
-    });
-  }
-
-  private waitFor(
-    predicate: (frame: ControlFrame) => boolean,
-    timeoutMs: number,
-  ): Promise<ControlFrame> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        const index = this.waiters.findIndex((entry) => entry.timer === timer);
-        if (index >= 0) this.waiters.splice(index, 1);
-        reject(new RemoteError("timeout", "等待 control frame 超时", { retryable: true }));
-      }, timeoutMs);
-      this.waiters.push({ predicate, resolve, reject, timer });
-    });
-  }
-
-  private dispatchWaiters(frame: ControlFrame): void {
-    for (let index = this.waiters.length - 1; index >= 0; index -= 1) {
-      const waiter = this.waiters[index]!;
-      if (!waiter.predicate(frame)) continue;
-      this.waiters.splice(index, 1);
-      clearTimeout(waiter.timer);
-      waiter.resolve(frame);
     }
   }
 
@@ -381,12 +378,8 @@ export class ControlLink {
   }
 
   private rejectAccepted(error: Error): void {
-    for (const waiter of this.accepted.values()) waiter.reject(error);
-    this.accepted.clear();
-    for (const waiter of this.waiters.splice(0, this.waiters.length)) {
-      clearTimeout(waiter.timer);
-      waiter.reject(error);
-    }
+    this.accepted.rejectAll(error);
+    this.waiters.rejectAll(error);
   }
 
   private clearHeartbeat(): void {

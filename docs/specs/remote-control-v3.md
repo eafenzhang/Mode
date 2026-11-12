@@ -1,7 +1,8 @@
 # 远程控制 v3：设备身份、端到端加密与账号设备目录（破坏性重做）
 
 状态：2026-11-12 主体实现完成（协议、账号服务、Host、桌面与 Web 客户端、配对 v1、
-远程桌面、远程工作区、隧道重连、凭据静态加密）；真机验收待执行；WebRTC/P2P/TURN 未实现。
+远程桌面、远程工作区、隧道重连、凭据静态加密、WebRTC/P2P（Node 侧））；
+真机验收待执行；浏览器 `RTCPeerConnection` 适配待接。
 **本 spec 取代 v2 的远程控制与 Mode Cloud 账号方案**：
 v2 的「同账号即信任 + 目录下发被控端访问令牌 + 可信自建明文中继」整体退役，
 不做旧端点、旧令牌、旧凭据格式兼容。参考 `ds-harness-remote` 的公开协议与产品设计
@@ -37,7 +38,8 @@ membership、连接授权、信令与密文中继；业务数据只在两端之�
 
 - 组织/团队/RBAC/SSO/计费。
 - 远程桌面像素编码算法本身（继续复用现有媒体管线，只替换其承载与信任边界）。
-- WebRTC/P2P/TURN（LAN direct + Relay 已落地，选路不含 P2P）。
+- WebRTC/TURN 的实际网络部署（信令、ICE 与 Node 侧 DataChannel 已落地；
+  浏览器适配与真机验收不在首期范围）。
 - 移动端原生 App（移动浏览器复用同一 Web 客户端，未做专项验收）。
 - Web 页面 CSP（`connect-src` 需跟随用户自填的服务地址，单独设计）。
 - 配对 v2 及二维码（配对 v1 已实现：短票 + Host 本机验证码）。
@@ -146,19 +148,23 @@ Control frame 是服务端可读 JSON，**不得含业务明文**。业务明文
 目标顺序：
 
 ```text
-LAN direct (WS + Noise)  ->  Relay (WSS + Noise)
+WebRTC DataChannel (Noise)  ->  LAN direct (WS/WSS + Noise)  ->  Relay (WSS + Noise)
 ```
 
-- LAN direct 已落地：双方宣告 `transport.lan`，Host 上报 LAN 地址；Client 先尝试
-  `/ws/v1/direct`，失败/超时回落 Relay。WebRTC / TURN 未实现前不得广告对应 capability。
-- LAN 服务目前是明文 WS；直连内容仍由 Noise 加密，ticket 与连接元数据在局域网可被观测，
-  这是当前 LAN 监听没有 TLS 的已知限制（WSS 待后续）。
+- Client 选路顺序为 `p2p -> lan -> relay`：先按 `connect.accepted.iceServers`
+  发起 WebRTC 协商（`p2p.offer/answer/candidate`），协商失败或 8s 超时回落 LAN，
+  LAN 不可用再回落 Relay。Host 按 `transport.selected` 应用结果。
+- DataChannel 承载与 LAN direct 完全相同的 `relay` 信封帧（Noise 密文），因此
+  runtime 无需区分 P2P 与直连；信令走服务端 Control 转发，服务端不见明文。
+- 浏览器侧暂未接 `RTCPeerConnection`；Node 侧（桌面 Host/客户端）用 werift 适配器，
+  loopback E2E 已覆盖，未接前浏览器不宣告 `transport.p2p` capability。
+- LAN 服务默认明文 WS；提供受信任 key/cert 时升级 `https/wss`（地址带 `wss://` 前缀，
+  自签名不支持）。直连内容仍由 Noise 加密。
 - Host 在设备目录上报 LAN 地址（`addresses`，最多 8 个 `host:port`），直连选路使用。
 - Relay 分配独立 data WebSocket；双方用服务端签名 ticket `relay.attach` 后转发密文。
 - `transport.selected` 在 Noise 握手前由 Client 发送并经 Control 转发；Host 必须按
   消息顺序应用，不能在握手后切换已绑定数据面。
-- P2 增加 LAN direct 后，Client 先尝试 `/ws/v1/direct`，失败/超时回落 Relay；
-  WebRTC/P2P/TURN 再以 `transport.webrtc.v1` capability 增加。
+- WebRTC/P2P 由 `transport.p2p` capability 宣告；P2P、LAN 均失败时回落 Relay。
 
 ### 5.3 降级与恢复
 
@@ -235,9 +241,10 @@ Host    connect.incoming {connectionId, clientDescriptor, authorization:"account
 Client  connect.accepted {connectionId, hostDescriptor,
                           relay:{...}, directTicket?}
 Host    用设备凭证 GET /api/v1/devices/{clientDeviceId} 交叉校验 + 本地 pin
-Client  发送 transport.selected {transport:"lan"|"relay"}
+Client  connect.accepted {..., iceServers?} 后先协商 WebRTC（p2p.offer/answer/candidate）
+Client  发送 transport.selected {transport:"p2p"|"lan"|"relay"}
 双方    经 Control 交换 Noise IK step 1/2（opaque）
-双方    Relay attach / LAN data socket ready
+双方    DataChannel / LAN data socket / Relay attach ready
         ===== Noise transport ciphertext =====
 ```
 
@@ -501,7 +508,8 @@ P3 已接线的部分：
   已落地（HTTP 桥 + 双 `remote.ws` 隧道 + `nativeMediaSession.openSocket` 注入，
   信令状态机与桌面 Host 共用），`/v3` 已挂载远程桌面页并复用现有会话面；
   完整工作区页面仍待实现，见 [remote-control-v3-web.md](./remote-control-v3-web.md)。
-- WebRTC/P2P/TURN。LAN direct 已落地；LAN 监听可选 TLS（提供受信任 key/cert 时
+- WebRTC/P2P：Node 侧已落地（信令、ICE、werift DataChannel、回落）；浏览器适配待接。
+  LAN direct 已落地；LAN 监听可选 TLS（提供受信任 key/cert 时
   `https/wss`，地址以 `wss://` 进入目录，自签名不支持），未配置时仍为明文 WS。Control 中断
   后的会话恢复走客户端路径：工作区重开 `/ws/host` 隧道并按新 Initialize 重放订阅，
   远程桌面按票据重连媒体/重新发起会话；服务端不保留业务 lease。

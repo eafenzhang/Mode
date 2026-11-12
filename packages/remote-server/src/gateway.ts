@@ -79,8 +79,8 @@ export class RemoteGateway {
   }
 
   /** 由 REST /api/v1/connections 与 Control connect.request 共用。 */
-  openConnection(client: DeviceRow, hostDeviceId: string): ConnectionResult {
-    return openConnectionFor(this.connectionContext(), client, hostDeviceId);
+  openConnection(client: DeviceRow, hostDeviceId: string, p2pPreferred = false): ConnectionResult {
+    return openConnectionFor(this.connectionContext(), client, hostDeviceId, p2pPreferred);
   }
 
   closeConnection(connectionId: string, code = 4001, reason = "connection closed"): void {
@@ -227,7 +227,7 @@ export class RemoteGateway {
     }
     if (frame.type === "connect.request") {
       try {
-        const result = this.openConnection(device, frame.payload.hostDeviceId);
+        const result = this.openConnection(device, frame.payload.hostDeviceId, frame.payload.preferredTransports.includes("p2p"));
         this.sendFrame(ws, {
           v: 1,
           id: randomUUID(),

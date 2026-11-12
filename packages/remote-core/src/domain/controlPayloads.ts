@@ -139,7 +139,15 @@ function parseIceServers(value: unknown, label: string): IceServerPayload[] {
 export function parseConnectIncoming(payload: Record<string, unknown>): ConnectIncomingPayload {
   exactKeys(
     payload,
-    ["connectionId", "client", "authorization", "relay", "direct", "iceServers"],
+    [
+      "connectionId",
+      "client",
+      "authorization",
+      "relay",
+      "direct",
+      "p2pPreferred",
+      "iceServers",
+    ],
     "connect.incoming",
   );
   if (payload.authorization !== "account") invalid("connect.incoming.authorization 非法");
@@ -152,6 +160,9 @@ export function parseConnectIncoming(payload: Record<string, unknown>): ConnectI
   if (relay) result.relay = parseRelayAssignment(relay, "connect.incoming.relay");
   const direct = readObject(payload, "direct", "connect.incoming", true);
   if (direct) result.direct = parseDirectAssignment(direct, "connect.incoming.direct");
+  if (payload.p2pPreferred !== undefined) {
+    result.p2pPreferred = readBoolean(payload, "p2pPreferred", "connect.incoming");
+  }
   if (payload.iceServers !== undefined) {
     result.iceServers = parseIceServers(payload.iceServers, "connect.incoming.iceServers");
   }

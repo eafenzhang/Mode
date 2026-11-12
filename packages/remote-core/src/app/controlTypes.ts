@@ -31,6 +31,8 @@ export interface ControlLinkOptions {
   verifyPeer?: (peer: DeviceDescriptor) => boolean | Promise<boolean>;
   onConnection?: (connection: RemoteConnection) => void;
   onError?: (error: RemoteError) => void;
+  /** Client 选路完成后回调（p2p/lan/relay）；用于观测与测试。 */
+  onTransport?: (transport: import("../domain/controlMessages.js").TransportKind) => void;
   /** Control WS 非主动关闭时回调；Host 用它触发重连，Client 用它清理缓存。 */
   onClose?: (details: { code: number; reason: string }) => void;
   /**
@@ -41,6 +43,15 @@ export interface ControlLinkOptions {
     direct: import("../domain/controlMessages.js").DirectAssignment,
     connectionId: string,
   ) => Promise<RemoteSocket>;
+  /**
+   * Client/Host 尝试 WebRTC P2P：提供适配器后连接先协商 p2p，失败回落 Relay。
+   * 两端都必须提供；只有一端提供时对端会在超时后回落。
+   */
+  p2p?: {
+    adapter: import("./p2p.js").P2PAdapter;
+    /** p2p 协商总超时（含 offer/answer/ICE）；缺省 8000ms。 */
+    timeoutMs?: number;
+  };
   clientVersion?: string;
   connectTimeoutMs?: number;
 }

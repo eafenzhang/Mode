@@ -66,6 +66,7 @@ import { attachHostConnection } from "./hostConnection.js";
 import { RemoteV3GithubLogin } from "./login.js";
 import { RemoteDesktopTunnelProxy } from "./rdProxy.js";
 import { startV3RemoteDesktopSession } from "./remoteDesktop.js";
+import { createWeriftP2PAdapter } from "./p2pWerift.js";
 import { RemoteV3HostStateStore } from "./stateStore.js";
 import { RemoteV3TunnelRuntime } from "./tunnels.js";
 
@@ -79,6 +80,10 @@ export interface RemoteV3HostServiceOptions {
   listWorkspaces?: () => Promise<Array<{ path: string; name?: string }>>;
   /** 本机 LAN 服务可达地址（host:port）；用于设备目录的直连候选。 */
   listLanAddresses?: () => Promise<string[]>;
+  /** WebRTC P2P 适配器（werift）；提供后连接先协商 p2p，失败回落 Relay。 */
+  p2pAdapter?: import("@mode/remote-core").P2PAdapter;
+  /** Client/Host 选路完成后回调；测试与观测用。 */
+  onTransport?: (transport: import("@mode/remote-core").TransportKind) => void;
   connectSocket?: (url: string) => Promise<RemoteSocket>;
   fetchImpl?: typeof fetch;
   /** 目标 Host 本机 LAN 服务地址与令牌；用于把 `/ws*` 隧道桥接到本机 HTTP/WS。 */
@@ -95,6 +100,7 @@ export class RemoteV3HostService implements IRemoteV3Service {
   private reconnectAttempt = 0;
   private refreshInFlight: Promise<{ accessToken: string; refreshToken: string }> | null = null;
   private readonly githubLogin: RemoteV3GithubLogin;
+  private readonly p2pAdapter = createWeriftP2PAdapter();
   private readonly client: RemoteV3ClientRuntime;
   private readonly tunnels: RemoteV3TunnelRuntime;
   private readonly rdProxy = new RemoteDesktopTunnelProxy();
@@ -108,6 +114,8 @@ export class RemoteV3HostService implements IRemoteV3Service {
       getServerUrl: () => this.config?.serverUrl ?? null,
       getHostAccessToken: () => this.config?.tokens?.accessToken ?? null,
       refreshHostTokens: () => this.refreshHostTokens(),
+      p2pAdapter: this.p2pAdapter,
+      ...(options.onTransport ? { onTransport: options.onTransport } : {}),
       log: options.log,
     });
     this.tunnels = new RemoteV3TunnelRuntime((hostDeviceId, service, metadata) =>
@@ -595,6 +603,8 @@ export class RemoteV3HostService implements IRemoteV3Service {
       identity: config.identity,
       clientVersion: this.options.version,
       connectSocket: this.options.connectSocket ?? connectWebSocket,
+      p2p: { adapter: this.p2pAdapter, timeoutMs: 8000 },
+      onTransport: (transport) => this.options.onTransport?.(transport),
       fetchPeer: (deviceId) =>
         fetchRemoteV3Peer({
           serverUrl,
@@ -605,7 +615,11 @@ export class RemoteV3HostService implements IRemoteV3Service {
       verifyPeer: (peer) => verifyOrPinPeer(this.options.credentials, peer),
       onConnection: (connection) => this.attachConnection(connection),
       onClose: (details) => this.handleLinkClosed(link, details),
-      onError: (error) => this.options.log(`remote_v3_error code=${error.code} error=${error.message}`),
+      onError: (error) =>
+        this.options.log(
+          `remote_v3_error code=${error.code} error=${error.message}` +
+            ` cause=${String((error as unknown as { cause?: { message?: string } }).cause?.message ?? "-")}`,
+        ),
     });
     return link;
   }

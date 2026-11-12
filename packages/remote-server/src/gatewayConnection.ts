@@ -31,6 +31,7 @@ export function openConnectionFor(
   ctx: GatewayConnectionContext,
   client: DeviceRow,
   hostDeviceId: string,
+  p2pPreferred: boolean,
 ): ConnectionResult {
   if (client.role !== "client") {
     throw new GatewayError(403, "role_required", "只有 Client 可以发起连接");
@@ -114,6 +115,7 @@ export function openConnectionFor(
       authorization: "account",
       relay: hostAssignment,
       ...(direct ? { direct } : {}),
+      ...(p2pPreferred ? { p2pPreferred: true } : {}),
       ...(hostIceServers ? { iceServers: hostIceServers } : {}),
     },
   });

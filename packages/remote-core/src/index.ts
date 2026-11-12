@@ -13,4 +13,5 @@ export * from "./app/secureSession.js";
 export * from "./app/streamMux.js";
 export * from "./app/controlLink.js";
 export * from "./app/controlTypes.js";
+export * from "./app/p2p.js";
 export * from "./app/connectionRuntime.js";
