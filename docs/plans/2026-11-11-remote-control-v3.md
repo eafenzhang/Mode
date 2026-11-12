@@ -172,6 +172,8 @@ packages/remote-server
 - coturn 部署示例与环境变量已写入
   [fnos-fpk-packaging.md](../specs/fnos-fpk-packaging.md)；真机验收清单加入
   P2P/TURN 选路与回落项。
+- 本地模拟真人验收可重复执行：`pnpm accept:remote-v3-web`（脚本
+  `scripts/acceptance/remote-v3-web.mts`，`--serve` 常驻供人工点选）。
 - 本地模拟真人验收已执行（2026-11-12）：Playwright + 本机 Chrome + 假 GitHub
   Device Flow + 轻量桌面 Host，13 项通过；真实 Chrome `RTCPeerConnection` 与
   werift Host 建 P2P 并完成 `remote.host.info`；禁用 WebRTC 回落 relay 可用；

@@ -23,6 +23,10 @@ pnpm typecheck && pnpm lint && pnpm architecture:check --changed
 
 ### 1.1 本地模拟（2026-11-12 已执行，26 项通过）
 
+可重复执行：先启动 `pnpm --filter @mode/web exec vite --port 5199 --strictPort`，
+再运行 `pnpm accept:remote-v3-web`（`--serve` 可常驻供人工点选；需要本机 Chrome，
+8787/8788 空闲）。脚本：`scripts/acceptance/remote-v3-web.mts`。
+
 用 `playwright-core` 驱动本机 Chrome（真实 `RTCPeerConnection`），加假 GitHub
 Device Flow、两套内存 remote-server 与轻量桌面 Host，按真人路径操作 `/v3`：
 
