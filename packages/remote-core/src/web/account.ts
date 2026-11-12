@@ -166,6 +166,8 @@ export class WebAccountClient {
     } catch (error) {
       if (!(error instanceof WebApiError) || error.status !== 401) throw error;
       profile = await this.refresh(profile, fetchImpl);
+      // 刷新后要写回内存：/v3 随后用 getProfile() 取 token 建链，否则会拿旧 token。
+      this.profile = profile;
       await saveWebProfile(this.options.store, profile);
       return await this.listDevices(profile.serverUrl, profile.accessToken!, fetchImpl);
     }

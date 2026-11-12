@@ -118,6 +118,8 @@ test("Web 账号登录注册设备，401 时刷新 token 后重试目录", async
   };
   assert.equal(persisted.accessToken, "access-2");
   assert.equal(persisted.refreshToken, "refresh-2");
+  // /v3 建链用 getProfile() 取 token；刷新结果必须回写到内存，不能返回旧 token。
+  assert.equal((await client.getProfile()).accessToken, "access-2");
 });
 
 test("Web 账号客户端走服务端 Device Flow 代理并完成设备注册", async () => {

@@ -173,9 +173,11 @@ packages/remote-server
   P2P/TURN 选路与回落项。
 - 本地模拟真人验收已执行（2026-11-12）：Playwright + 本机 Chrome + 假 GitHub
   Device Flow + 轻量桌面 Host，13 项通过；真实 Chrome `RTCPeerConnection` 与
-  werift Host 建 P2P 并完成 `remote.host.info`。过程中发现并修复：
+  werift Host 建 P2P 并完成 `remote.host.info`；禁用 WebRTC 回落 relay 可用；
+  双账号隔离/切换/删除均通过（16 项通过 + 1 项预期限制）。过程中发现并修复：
   未登录时输入服务地址会误显示「已登录」区块（登录入口被隐藏）；
-  退出登录改为保留设备身份（`signOut`），并新增「删除」账号。
+  退出登录改为保留设备身份（`signOut`），并新增「删除」账号；
+  `listHosts` 401 刷新后未写回内存，`/v3` 会用旧 token 建链（已修正并有单测）。
 - 剩余：真机验收（两台真实设备 + 完整桌面 Host + coturn）。
 - 真机验收清单已固化：`pnpm test:remote-v3` 跑自动化全套，人工项见
   [remote-control-v3-acceptance.md](../specs/remote-control-v3-acceptance.md)

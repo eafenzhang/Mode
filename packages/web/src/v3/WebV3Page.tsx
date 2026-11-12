@@ -72,7 +72,10 @@ export function WebV3Page() {
         if (!current.accessToken) return;
         setProfile(current);
         const next = await client.listHosts();
-        if (!cancelled) setHosts(next);
+        if (cancelled) return;
+        setHosts(next);
+        // listHosts 可能刷新过 access token；把最新 profile 写回页面状态。
+        setProfile(await client.getProfile());
       } catch {
         // 首次使用或服务地址不可达：保留登录表单。
       }
@@ -151,16 +154,17 @@ export function WebV3Page() {
   };
 
   const testWorkspace = async (host: WebDeviceSummary): Promise<void> => {
-    if (!profile?.accessToken) return;
+    const active = await client?.getProfile();
+    if (!active?.accessToken) return;
     setBusy(true);
     setError("");
     setTestResult("正在建立工作区隧道…");
     let transport = "未知";
     const link = new WebControlLink({
-      serverUrl: profile.serverUrl,
-      deviceId: profile.deviceId,
-      accessToken: profile.accessToken,
-      identity: importWebIdentity(profile.privateKey),
+      serverUrl: active.serverUrl,
+      deviceId: active.deviceId,
+      accessToken: active.accessToken,
+      identity: importWebIdentity(active.privateKey),
       onTransport: (selected) => {
         transport = selected;
       },
@@ -186,15 +190,16 @@ export function WebV3Page() {
 
   /** 进入远程桌面：先建 Control/Noise 连接，再交给会话面发起（同意窗在 Host 本机）。 */
   const enterDesktop = async (host: WebDeviceSummary): Promise<void> => {
-    if (!profile?.accessToken) return;
+    const active = await client?.getProfile();
+    if (!active?.accessToken) return;
     setBusy(true);
     setError("");
     setTestResult("");
     const link = new WebControlLink({
-      serverUrl: profile.serverUrl,
-      deviceId: profile.deviceId,
-      accessToken: profile.accessToken,
-      identity: importWebIdentity(profile.privateKey),
+      serverUrl: active.serverUrl,
+      deviceId: active.deviceId,
+      accessToken: active.accessToken,
+      identity: importWebIdentity(active.privateKey),
     });
     try {
       await link.start();
@@ -209,16 +214,17 @@ export function WebV3Page() {
   };
 
   const testConnection = async (host: WebDeviceSummary): Promise<void> => {
-    if (!profile?.accessToken) return;
+    const active = await client?.getProfile();
+    if (!active?.accessToken) return;
     setBusy(true);
     setError("");
     setTestResult("正在建立 Noise 通道…");
     let transport = "未知";
     const link = new WebControlLink({
-      serverUrl: profile.serverUrl,
-      deviceId: profile.deviceId,
-      accessToken: profile.accessToken,
-      identity: importWebIdentity(profile.privateKey),
+      serverUrl: active.serverUrl,
+      deviceId: active.deviceId,
+      accessToken: active.accessToken,
+      identity: importWebIdentity(active.privateKey),
       onTransport: (selected) => {
         transport = selected;
       },
