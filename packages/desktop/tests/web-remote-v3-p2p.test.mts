@@ -141,6 +141,13 @@ test("浏览器 WebControlLink 走 werift DataChannel 完成 P2P RPC", async () 
     assert.deepEqual(await link.request("remote.echo", { value: "web-p2p" }, 15_000), {
       value: "web-p2p",
     });
+    // 浏览器侧缺少分片层时，>48KB 的响应会被丢弃；200KB 同时覆盖双向分片。
+    const large = "x".repeat(200_000);
+    const echoed = (await link.request("remote.echo", { value: large }, 20_000)) as {
+      value?: string;
+    };
+    assert.equal(echoed.value?.length, large.length, "大响应必须完整分片重组");
+    assert.equal(echoed.value, large);
   } finally {
     link?.close();
     await fixture.hostService.disconnectAccount();
@@ -158,6 +165,11 @@ test("P2P 协商超时后回落 Relay，业务请求仍然成功", async () => {
     assert.deepEqual(await link.request("remote.echo", { value: "relay-fallback" }, 15_000), {
       value: "relay-fallback",
     });
+    const large = "y".repeat(200_000);
+    const echoed = (await link.request("remote.echo", { value: large }, 20_000)) as {
+      value?: string;
+    };
+    assert.equal(echoed.value, large, "Relay 路径同样需要分片重组");
   } finally {
     link?.close();
     await fixture.hostService.disconnectAccount();

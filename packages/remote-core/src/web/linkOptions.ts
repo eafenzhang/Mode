@@ -1,3 +1,4 @@
+import type { BusinessFrame } from "../domain/businessFrames.js";
 import type { P2PAdapter } from "../app/p2p.js";
 import type { TransportKind } from "../domain/controlMessages.js";
 import type { WebIdentity } from "./identity.js";
@@ -17,4 +18,11 @@ export interface WebControlLinkOptions {
   p2p?: { adapter?: P2PAdapter; timeoutMs?: number } | false;
   /** 选路结果（p2p/lan/relay）；用于观测、UI 展示与测试。 */
   onTransport?: (transport: TransportKind) => void;
+}
+
+export interface WebRemoteConnection {
+  send(frame: BusinessFrame): void;
+  onFrame(callback: (frame: BusinessFrame) => void): () => void;
+  onClose(callback: () => void): () => void;
+  close(): void;
 }

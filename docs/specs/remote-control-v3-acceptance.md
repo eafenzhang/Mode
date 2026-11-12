@@ -21,7 +21,7 @@ pnpm test:remote-v3     # core + remote-server + ui + desktop 全量
 pnpm typecheck && pnpm lint && pnpm architecture:check --changed
 ```
 
-### 1.1 本地模拟（2026-11-12 已执行，25 项通过）
+### 1.1 本地模拟（2026-11-12 已执行，26 项通过）
 
 用 `playwright-core` 驱动本机 Chrome（真实 `RTCPeerConnection`），加假 GitHub
 Device Flow、两套内存 remote-server 与轻量桌面 Host，按真人路径操作 `/v3`：
@@ -30,7 +30,8 @@ Device Flow、两套内存 remote-server 与轻量桌面 Host，按真人路径�
 - Device Flow 登录、生成 Web 设备、目录发现 Host（在线 / host / desktop）；
 - 「加密 RPC」显示 `传输：p2p`，`remote.host.info` 返回设备名/平台/版本；
 - 「工作区隧道」经 Host 本机 `/ws/host` 桥接到真实 HTTP/WS 服务，
-  `systemService.info` 返回预期数据（P2P 数据面）；
+  `systemService.info` 返回预期数据（P2P 数据面）；200KB 响应尾部标记完整返回
+  （验证 Noise 分片与 DataChannel 分片）；
 - 禁用浏览器 WebRTC 后自动回落 `relay`，同一 RPC 仍成功；
 - 两个服务地址（两个账号）各自保留身份；切回账号 A 时目录只显示 A 的 Host；
 - 退出后账号保留在「已保存的账号」，复用地址重新登录沿用同一 deviceId；

@@ -183,7 +183,10 @@ packages/remote-server
   退出登录改为保留设备身份（`signOut`），并新增「删除」账号；
   `listHosts` 401 刷新后未写回内存，`/v3` 会用旧 token 建链（已修正并有单测）；
   远程桌面 hook 在注入 platform 时仍强制 `usePlatform()`，`/v3` 没有
-  PlatformProvider 会直接崩溃（改为 `useOptionalPlatform`，注入优先）。
+  PlatformProvider 会直接崩溃（改为 `useOptionalPlatform`，注入优先）；
+  浏览器数据面缺少 Noise 明文分片层：Host → 浏览器 >48KB 的响应被丢弃、
+  浏览器 → Host >64KB 的请求被拒绝（新增 `web/fragments.ts`，与 Node 同协议，
+  并用 200KB 回显/工作区响应覆盖 P2P 与 Relay 两条路径）。
 - 剩余：真机验收（两台真实设备 + 完整桌面 Host + coturn）。
 - 真机验收清单已固化：`pnpm test:remote-v3` 跑自动化全套，人工项见
   [remote-control-v3-acceptance.md](../specs/remote-control-v3-acceptance.md)

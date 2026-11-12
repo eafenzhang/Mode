@@ -3,7 +3,7 @@ import type { P2PAdapter } from "../app/p2p.js";
 import type { BusinessFrame } from "../domain/businessFrames.js";
 import { resolveRelayEndpoint } from "../domain/relayEndpoint.js";
 import { decodeBase64Url, encodeBase64Url } from "./base64url.js";
-import { decryptBusinessFrame, encryptBusinessFrame } from "./businessFrames.js";
+import { WebBusinessCodec } from "./businessFrames.js";
 import { sendEnvelope, WebControlChannel } from "./controlChannel.js";
 import { WebNoiseTransport } from "./noise.js";
 import { WebLinkWaiters } from "./linkWaiters.js";
@@ -22,16 +22,9 @@ import {
   type WebSocketLike,
 } from "./transport.js";
 
-export interface WebRemoteConnection {
-  send(frame: BusinessFrame): void;
-  onFrame(callback: (frame: BusinessFrame) => void): () => void;
-  onClose(callback: () => void): () => void;
-  close(): void;
-}
+import type { WebControlLinkOptions, WebRemoteConnection } from "./linkOptions.js";
 
-import type { WebControlLinkOptions } from "./linkOptions.js";
-
-export type { WebControlLinkOptions } from "./linkOptions.js";
+export type { WebControlLinkOptions, WebRemoteConnection } from "./linkOptions.js";
 
 /** 浏览器 v3 Client：Control WS + Relay WSS + Noise，带自动重连。 */
 export class WebControlLink {
@@ -54,6 +47,7 @@ export class WebControlLink {
   private currentConnectionId = "";
   private hostDeviceId = "";
   private relayCounter = 0;
+  private codec: WebBusinessCodec | null = null;
 
   constructor(options: WebControlLinkOptions) {
     this.options = options;
@@ -181,7 +175,7 @@ export class WebControlLink {
     const dataSocket = p2p?.socket;
     this.dataSocket = dataSocket ?? null;
     if (dataSocket) {
-      dataSocket.onMessage((text) => this.handleRelay(text));
+      dataSocket.onMessage((text) => this.handleRelay(text, "p2p"));
       dataSocket.onClose(() => this.handleLoss("p2p"));
     }
     const transport: "p2p" | "relay" = dataSocket ? "p2p" : "relay";
@@ -191,7 +185,7 @@ export class WebControlLink {
       this.waiters.step2 = { resolve, reject };
     });
     this.sendControl("transport.selected", { connectionId, transport });
-    this.transport = await runInitiatorHandshake({
+    const noiseTransport = await runInitiatorHandshake({
       identity: this.options.identity,
       responderStaticKey: hostIdentityKey,
       connectionId,
@@ -207,6 +201,8 @@ export class WebControlLink {
         }),
       waitStep2: () => step2Promise,
     });
+    this.transport = noiseTransport;
+    this.codec = new WebBusinessCodec(noiseTransport);
 
     if (transport === "relay") {
       const relaySocket = await this.openSocket(endpoint);
@@ -216,7 +212,7 @@ export class WebControlLink {
       }
       this.relay = relaySocket;
       relaySocket.addEventListener("message", (event) => {
-        if (typeof event.data === "string") this.handleRelay(event.data);
+        if (typeof event.data === "string") this.handleRelay(event.data, "relay");
       });
       relaySocket.addEventListener("close", () => this.handleLoss("relay"));
       const ready = new Promise<void>((resolve, reject) => {
@@ -249,6 +245,7 @@ export class WebControlLink {
   private handleLoss(source: "control" | "relay" | "p2p"): void {
     if (this.shuttingDown || this.closed) return;
     this.transport = null;
+    this.codec = null;
     this.dataSocket?.close(1000, `${source} lost`);
     this.dataSocket = null;
     this.p2pSession?.close();
@@ -323,7 +320,7 @@ export class WebControlLink {
     }
   }
 
-  private handleRelay(text: string): void {
+  private handleRelay(text: string, source: "relay" | "p2p"): void {
     const frame = parseControlEnvelope(text);
     if (!frame) return;
     switch (frame.type) {
@@ -332,13 +329,15 @@ export class WebControlLink {
         this.waiters.relayReady = null;
         return;
       case "relay": {
-        if (!this.transport || typeof frame.payload.ciphertext !== "string") return;
+        if (!this.codec || typeof frame.payload.ciphertext !== "string") return;
         try {
-          const business = decryptBusinessFrame(frame.payload.ciphertext, this.transport);
+          const business = this.codec.decode(frame.payload.ciphertext);
+          if (!business) return;
           if (this.streams.handleFrame(business)) return;
           for (const listener of this.frameListeners) listener(business);
         } catch {
-          this.waiters.rejectAll(new Error("Noise transport 认证失败"));
+          // 认证/分片完整性失败：数据面不可继续，走重连而不是让业务 RPC 悬空。
+          this.handleLoss(source);
         }
         return;
       }
@@ -352,13 +351,15 @@ export class WebControlLink {
 
   private sendBusiness(frame: BusinessFrame): void {
     const target = this.dataSocket ?? this.relay;
-    if (!this.transport || !target) throw new Error("Noise 通道未就绪");
-    sendEnvelope(target, "relay", {
-      connectionId: this.currentConnectionId,
-      targetDeviceId: this.hostDeviceId,
-      counter: this.relayCounter++,
-      ciphertext: encryptBusinessFrame(frame, this.transport),
-    });
+    if (!this.codec || !target) throw new Error("Noise 通道未就绪");
+    for (const ciphertext of this.codec.encode(frame)) {
+      sendEnvelope(target, "relay", {
+        connectionId: this.currentConnectionId,
+        targetDeviceId: this.hostDeviceId,
+        counter: this.relayCounter++,
+        ciphertext,
+      });
+    }
   }
 
   private sendControl(type: string, payload: Record<string, unknown>): void {
@@ -379,6 +380,7 @@ export class WebControlLink {
     this.waiters.rejectAll(new Error("链路已关闭"));
     this.streams.closeAll(new Error("链路已关闭"));
     this.transport = null;
+    this.codec = null;
     this.dataSocket?.close(1000, "client closed");
     this.dataSocket = null;
     this.p2pSession?.close();

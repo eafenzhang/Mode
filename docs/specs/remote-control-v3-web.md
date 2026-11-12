@@ -20,6 +20,8 @@
   握手与双向 transport；错误 static key 被拒绝。
 - `WebControlLink`：浏览器 Control WS（hello/connect/secure.handshake/ping）、
   WebRTC DataChannel / Relay WSS 数据面、Noise transport 与业务帧收发。
+  业务帧在明文层按 48KB 分片（`web/fragments.ts`），与 Node `SecureSession`
+  同协议；否则 >48KB 的响应无法重组、>64KB 的请求无法编码。
 - 浏览器 WebRTC：支持 `RTCPeerConnection` 时默认宣告 `transport.p2p` 并优先协商
   （`p2p.offer/answer/candidate`），失败或 8s 超时回落 Relay；`p2p: false` 可强制
   只走 Relay。服务端仅当 Host 也宣告 `transport.p2p` 时才在 `connect.accepted`
