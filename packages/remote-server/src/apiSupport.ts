@@ -17,6 +17,17 @@ export interface ApiDeps {
     baseUrl?: string;
     fetchImpl?: typeof fetch;
   };
+  /** GitHub OAuth App 回调登录；client secret 只保存在服务端。 */
+  githubOAuth?: {
+    clientId: string;
+    clientSecret: string;
+    callbackUrl: string;
+    authorizeBaseUrl?: string;
+    tokenBaseUrl?: string;
+    fetchImpl?: typeof fetch;
+  };
+  /** 服务端公开地址，用于校验 OAuth returnUrl 来源。 */
+  publicUrl?: string;
   /** 跨账号配对会话 TTL（缺省 180s；测试可缩短）。 */
   /**
    * 浏览器跨源调用 `/api/v1/*` 的白名单（与 Control/Relay WS 同一份配置）。
@@ -46,11 +57,7 @@ export async function createGithubSession(
 }> {
   const identity = await deps.github(accessToken);
   const anchor = accountAnchor(deps.pepper, identity.providerUserId);
-  const account = deps.store.createOrFindAccount(
-    "github",
-    anchor,
-    identity.name ?? identity.login,
-  );
+  const account = deps.store.createOrFindAccount("github", anchor, identity.name ?? identity.login);
   const session = deps.store.createWebSession(account.id, clientLabel);
   return {
     sessionToken: session.token,

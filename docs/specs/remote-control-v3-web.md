@@ -38,11 +38,13 @@
   会话、注册 Client 设备、401 自动 refresh 重试、409 轮换身份重试；设备目录只返回
   descriptor/在线状态/地址。凭据通过可注入的 `WebCredentialStore` 保存。
 - 账号客户端测试：profile 复用、设备注册、401 刷新、目录投影。
-- 浏览器 GitHub Device Flow：`WebAccountClient.begin/pollGithubDeviceLogin` 调服务端
-  代理端点；GitHub access token 只在服务端换取账号会话，不返回浏览器。授权页链接携带
-  `user_code`，GitHub 已登录时直接确认，不再要求手动抄写验证码；同时复制到剪贴板作为
-  浏览器未登录时的兜底。
-- `/v3` 独立入口（`packages/web/src/v3/WebV3Page.tsx`）：服务地址、GitHub Device Flow
+- 浏览器 GitHub 登录：优先 OAuth App 回调（`beginGithubOAuthLogin`）。页面先调
+  `/api/v1/auth/github/oauth/start` 拿到带 `state` 的授权地址并整页跳转；GitHub 回调
+  服务端后重定向回 `/v3?oauth=1`，页面用 sessionStorage 里的 `state + pollToken`
+  轮询 `/oauth/poll` 完成登录，授权期间不需要输入验证码。服务端未配置 client secret
+  时回退 Device Flow：`WebAccountClient.begin/pollGithubDeviceLogin` 调服务端代理端点；
+  GitHub access token 只在服务端换取账号会话，不返回浏览器。
+- `/v3` 独立入口（`packages/web/src/v3/WebV3Page.tsx`）：服务地址、GitHub OAuth 登录（Device Flow 回退）
   验证码、设备目录、在线状态、退出、以及选择 Host 执行 `remote.host.info` 的加密连通
   测试。
 - 默认凭据存储：优先 IndexedDB（`mode-remote-v3/kv`），不可用时回落 localStorage；

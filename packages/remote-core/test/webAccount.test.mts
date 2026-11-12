@@ -157,6 +157,8 @@ test("Web 账号客户端走服务端 Device Flow 代理并完成设备注册", 
     serverUrl: "https://remote.example.com",
   });
   const challenge = await client.beginGithubDeviceLogin();
+  assert.equal(challenge.kind, "device");
+  if (challenge.kind !== "device") throw new Error("expected device challenge");
   assert.equal(challenge.userCode, "ABCD-1234");
   assert.equal((await client.pollGithubDeviceLogin(challenge.deviceCode)).status, "pending");
   const completed = await client.pollGithubDeviceLogin(challenge.deviceCode);
@@ -245,4 +247,49 @@ test("Web 服务地址保留网关/反代路径前缀", async () => {
     "https://nas.example/app/mode",
   );
   assert.equal(normalizeWebServerUrl("https://remote.example.com/"), "https://remote.example.com");
+});
+
+test("Web 账号客户端优先 OAuth 回调并完成设备注册", async () => {
+  const store = createStore();
+  let polls = 0;
+  const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith("/api/v1/auth/github/oauth/start")) {
+      return json({
+        authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
+        state: "oauth-state",
+        pollToken: "oauth-poll",
+        expiresIn: 600,
+        interval: 2,
+      });
+    }
+    if (url.endsWith("/api/v1/auth/github/oauth/poll")) {
+      polls += 1;
+      return polls === 1
+        ? json({ status: "pending" })
+        : json({ status: "ok", sessionToken: "oauth-session" });
+    }
+    if (url.endsWith("/api/v1/devices") && init?.method === "POST") {
+      return json(
+        { accessToken: "oauth-access", refreshToken: "oauth-refresh", accountId: "acct" },
+        201,
+      );
+    }
+    return json({ error: { message: `unexpected ${url}` } }, 500);
+  }) as typeof fetch;
+
+  const client = new WebAccountClient({
+    store,
+    fetchImpl,
+    serverUrl: "https://remote.example.com",
+  });
+  const challenge = await client.beginGithubOAuthLogin("http://localhost:5199/v3");
+  assert.equal(challenge?.kind, "oauth");
+  if (challenge?.kind !== "oauth") throw new Error("expected oauth challenge");
+  assert.match(challenge.authorizationUrl, /login\/oauth\/authorize/u);
+  const pending = await client.pollGithubOAuthLogin(challenge.state, challenge.pollToken);
+  assert.equal(pending.status, "pending");
+  const completed = await client.pollGithubOAuthLogin(challenge.state, challenge.pollToken);
+  assert.equal(completed.status, "ok");
+  if (completed.status === "ok") assert.equal(completed.profile.accessToken, "oauth-access");
 });

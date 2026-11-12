@@ -93,6 +93,12 @@
   - 网络无法直连 `github.com`（但 `api.github.com` 可用）时，设置
     `MODE_GITHUB_DEVICE_BASE_URL` 指向只转发 `/login/device/code` 与
     `/login/oauth/access_token` 的反向代理；GitHub API 仍直连。
+  - 推荐配置 GitHub OAuth App 回调登录：`MODE_GITHUB_CLIENT_SECRET` 保存 client
+    secret，`MODE_GITHUB_OAUTH_CALLBACK_URL` 指向
+    `https://<公开地址>/api/v1/auth/github/oauth/callback`（未配置时按
+    `MODE_REMOTE_PUBLIC_URL` 派生），并在 GitHub OAuth App 中登记同一回调地址；建议使用独立的 OAuth App，
+    避免与既有 Web 登录共用回调。
+    未配置 secret 时客户端自动回落 Device Flow。
   - WebRTC/P2P 的 ICE 由 remote-server 下发：`MODE_REMOTE_STUN_URLS`（逗号分隔，
     如 `stun:<host>:3478`）与 `MODE_REMOTE_TURN_URLS`（如
     `turn:<host>:3478?transport=udp`）。TURN 使用 coturn REST 临时凭证：

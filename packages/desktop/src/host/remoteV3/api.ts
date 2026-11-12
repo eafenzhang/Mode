@@ -292,6 +292,84 @@ export async function pollGithubDeviceFlow(input: {
   throw new Error(readError(body, "GitHub Device Flow 轮询失败"));
 }
 
+export interface GithubOAuthFlowStart {
+  authorizationUrl: string;
+  state: string;
+  pollToken: string;
+  expiresIn: number;
+  interval: number;
+}
+
+export interface GithubOAuthFlowPoll {
+  status: "pending" | "expired" | "denied" | "ok" | "error";
+  sessionToken?: string;
+  message?: string;
+}
+
+/** 服务端未配置 OAuth App（无 client secret/回调地址）时回落 Device Flow。 */
+export class GithubOAuthUnavailableError extends Error {
+  constructor() {
+    super("GitHub OAuth 回调登录未配置");
+    this.name = "GithubOAuthUnavailableError";
+  }
+}
+
+export async function startGithubOAuthFlow(input: {
+  serverUrl: string;
+  fetchImpl?: typeof fetch;
+}): Promise<GithubOAuthFlowStart> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/github/oauth/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  });
+  if (response.status === 503) throw new GithubOAuthUnavailableError();
+  const body = await readJson(response);
+  if (!response.ok || typeof body.authorizationUrl !== "string") {
+    throw new Error(readError(body, "GitHub OAuth 登录启动失败"));
+  }
+  if (typeof body.state !== "string" || typeof body.pollToken !== "string") {
+    throw new Error("GitHub OAuth 登录响应缺少 state/pollToken");
+  }
+  return {
+    authorizationUrl: body.authorizationUrl,
+    state: body.state,
+    pollToken: body.pollToken,
+    expiresIn: typeof body.expiresIn === "number" ? body.expiresIn : 600,
+    interval: typeof body.interval === "number" ? body.interval : 2,
+  };
+}
+
+export async function pollGithubOAuthFlow(input: {
+  serverUrl: string;
+  state: string;
+  pollToken: string;
+  fetchImpl?: typeof fetch;
+}): Promise<GithubOAuthFlowPoll> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/github/oauth/poll`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ state: input.state, pollToken: input.pollToken }),
+  });
+  const body = await readJson(response);
+  const status = body.status;
+  if (status === "ok" && typeof body.sessionToken === "string") {
+    return { status: "ok", sessionToken: body.sessionToken };
+  }
+  if (status === "pending") return { status: "pending" };
+  if (status === "expired") return { status: "expired" };
+  if (status === "denied") return { status: "denied" };
+  if (status === "error") {
+    return {
+      status: "error",
+      message: typeof body.message === "string" ? body.message : "GitHub 授权失败",
+    };
+  }
+  throw new Error(readError(body, "GitHub OAuth 轮询失败"));
+}
+
 export async function readJson(response: Response): Promise<Record<string, unknown>> {
   try {
     const parsed = (await response.json()) as unknown;

@@ -4,11 +4,9 @@ import type { RemoteDesktopCodec, RemoteDesktopQuality } from "./remote-desktop.
 
 export type RemoteV3Status = "unconfigured" | "connecting" | "online" | "reconnecting" | "error";
 
-export interface RemoteV3PendingLogin {
-  userCode: string;
-  verificationUri: string;
-  expiresAt: number;
-}
+export type RemoteV3PendingLogin =
+  | { kind: "device"; userCode: string; verificationUri: string; expiresAt: number }
+  | { kind: "oauth"; authorizationUrl: string; expiresAt: number };
 
 export interface RemoteV3HostState {
   status: RemoteV3Status;
@@ -44,12 +42,20 @@ export interface RemoteV3DeviceSummary {
   addresses: string[];
 }
 
-export interface RemoteV3GithubChallenge {
-  userCode: string;
-  verificationUri: string;
-  expiresIn: number;
-  interval: number;
-}
+export type RemoteV3GithubChallenge =
+  | {
+      kind: "device";
+      userCode: string;
+      verificationUri: string;
+      expiresIn: number;
+      interval: number;
+    }
+  | {
+      kind: "oauth";
+      authorizationUrl: string;
+      expiresIn: number;
+      interval: number;
+    };
 
 export interface RemoteV3ResetPinParams {
   deviceId: string;

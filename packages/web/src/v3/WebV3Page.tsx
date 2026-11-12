@@ -14,6 +14,8 @@ import {
 import { SavedV3Accounts } from "./SavedV3Accounts.js";
 import { WebV3RemoteDesktop } from "./WebV3RemoteDesktop.js";
 import { createWebCredentialStore } from "./credentialStore.js";
+import { useV3DeviceLogin } from "./useV3DeviceLogin.js";
+import { saveV3OAuthPending, useV3OAuthReturn } from "./useV3OAuthReturn.js";
 import { deleteWebProfile } from "@mode/remote-core/web";
 
 import { listStoredV3Accounts, V3_SERVER_URL_KEY } from "./storedProfile.js";
@@ -65,6 +67,8 @@ export function WebV3Page() {
     }
   }, [client]);
 
+  useV3OAuthReturn(client, setProfile, refreshHosts, setError);
+
   useEffect(() => {
     if (!client) return;
     let cancelled = false;
@@ -90,53 +94,26 @@ export function WebV3Page() {
     };
   }, [client]);
 
-  useEffect(() => {
-    if (!challenge || !client) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const poll = async (): Promise<void> => {
-      try {
-        const result = await client.pollGithubDeviceLogin(challenge.deviceCode);
-        if (cancelled) return;
-        if (result.status === "ok") {
-          setProfile(result.profile);
-          setChallenge(null);
-          await refreshHosts();
-          return;
-        }
-        if (result.status === "slow_down") {
-          timer = setTimeout(poll, (result.interval ?? challenge.interval + 5) * 1000);
-          return;
-        }
-        if (result.status === "expired" || result.status === "denied") {
-          setError(result.status === "expired" ? "授权码已过期" : "授权被拒绝");
-          setChallenge(null);
-          return;
-        }
-        timer = setTimeout(poll, challenge.interval * 1000);
-      } catch (caught) {
-        if (cancelled) return;
-        setError(caught instanceof Error ? caught.message : String(caught));
-        setChallenge(null);
-      }
-    };
-    timer = setTimeout(poll, challenge.interval * 1000);
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [challenge, client, refreshHosts]);
+  useV3DeviceLogin(challenge, client, setProfile, refreshHosts, setChallenge, setError);
 
   const beginLogin = async (): Promise<void> => {
     if (!client) return;
     setBusy(true);
     setError("");
     setTestResult("");
-    // 先同步打开空白窗口（用户手势内），拿到验证码后再导航，避免被弹窗拦截。
+    // 先同步打开空白窗口（用户手势内），Device Flow 回退时才使用；OAuth 走整页跳转。
     const popup = window.open("about:blank", "_blank");
     try {
       localStorage.setItem(V3_SERVER_URL_KEY, serverUrl.trim());
+      const oauth = await client.beginGithubOAuthLogin(window.location.href);
+      if (oauth?.kind === "oauth") {
+        popup?.close();
+        saveV3OAuthPending(serverUrl.trim(), oauth);
+        window.location.assign(oauth.authorizationUrl);
+        return;
+      }
       const next = await client.beginGithubDeviceLogin();
+      if (next.kind !== "device") throw new Error("GitHub 登录响应类型非法");
       setChallenge(next);
       openGitHubAuthorization(popup, next.verificationUri, next.userCode);
     } catch (caught) {
@@ -335,7 +312,7 @@ export function WebV3Page() {
             />
           ) : null}
 
-          {challenge ? (
+          {challenge?.kind === "device" ? (
             <div className="space-y-2 rounded-lg border border-border bg-background p-3">
               <p className="text-ui-base text-foreground">
                 验证码已填入 GitHub 页面，点击 Authorize。

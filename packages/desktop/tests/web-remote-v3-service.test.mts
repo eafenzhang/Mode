@@ -258,8 +258,12 @@ test("Device Flow 轮询瞬时失败后继续等待，不重开授权", async ()
   let polls = 0;
   const errors: string[] = [];
   const account = {
+    async beginGithubOAuthLogin() {
+      return null;
+    },
     async beginGithubDeviceLogin() {
       return {
+        kind: "device" as const,
         deviceCode: "device-code",
         userCode: "ABCD-1234",
         verificationUri: "https://github.example/device",
@@ -291,6 +295,8 @@ test("Device Flow 轮询瞬时失败后继续等待，不重开授权", async ()
   });
 
   const challenge = await service.beginGithubLogin({ serverUrl: "https://remote.example" });
+  assert.equal(challenge.kind, "device");
+  if (challenge.kind !== "device") throw new Error("expected device challenge");
   assert.equal(challenge.userCode, "ABCD-1234");
   await waitFor(() => polls >= 2, "第二次轮询");
   for (let attempt = 0; attempt < 200; attempt += 1) {
@@ -325,4 +331,49 @@ test("disconnectAccount 关闭连接并回到未配置", async () => {
   const next = await service.disconnectAccount();
   assert.equal(next.status, "unconfigured");
   assert.equal(state.closed, 1, "disconnect 必须关闭 Control 链路");
+});
+
+test("Web 远程控制服务优先 OAuth 回调，不启动 Device Flow", async () => {
+  const { link } = createFakeLink();
+  let deviceStarts = 0;
+  let oauthPolls = 0;
+  const account = {
+    async beginGithubOAuthLogin() {
+      return {
+        kind: "oauth" as const,
+        authorizationUrl: "https://github.com/login/oauth/authorize?state=state-1",
+        state: "state-1",
+        pollToken: "poll-1",
+        expiresIn: 600,
+        interval: 0,
+      };
+    },
+    async beginGithubDeviceLogin() {
+      deviceStarts += 1;
+      throw new Error("不应启动 Device Flow");
+    },
+    async pollGithubOAuthLogin() {
+      oauthPolls += 1;
+      return oauthPolls === 1 ? { status: "pending" } : { status: "ok", profile: PROFILE };
+    },
+    async listHosts() {
+      return DEVICES;
+    },
+  } as unknown as WebAccountClient;
+  const service = createWebRemoteV3Service({
+    store: { get: async () => null, set: async () => undefined, delete: async () => undefined },
+    loadProfile: async () => null,
+    createAccountClient: () => account,
+    createLoginClient: () => account,
+    createLink: () => link,
+  });
+  const challenge = await service.beginGithubLogin({ serverUrl: "https://remote.example" });
+  assert.equal(challenge.kind, "oauth");
+  assert.equal(deviceStarts, 0);
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if ((await service.getState()).status === "online") break;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.equal((await service.getState()).status, "online");
+  assert.equal(oauthPolls >= 2, true);
 });

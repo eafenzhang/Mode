@@ -90,12 +90,24 @@ descriptor，交叉校验账号、角色、公钥和 membership。仅信令事�
 
 ### 4.1 账号
 
-- 身份来源：GitHub OAuth Device Flow（沿用产品既有登录方式；不带入 v2 令牌）。
-  桌面与浏览器都通过账号服务的 `/api/v1/auth/github/device/*` 代理：client id 只配置
-  在服务端（`MODE_GITHUB_CLIENT_ID`），客户端不持有、也不直连 github.com。
-  自建环境无法直连 `github.com`（但 `api.github.com` 可用）时，可用
-  `MODE_GITHUB_DEVICE_BASE_URL` 指向 `github.com` 登录端点的反向代理；代理只需转发
-  `/login/device/code` 与 `/login/oauth/access_token`。
+- 身份来源：GitHub OAuth App 回调登录（主路径），Device Flow 作为未配置 OAuth 时的回退。
+  - 客户端调 `/api/v1/auth/github/oauth/start` 拿授权地址、`state` 与 `pollToken`；
+    浏览器完成授权后，GitHub 回调服务端 `/api/v1/auth/github/oauth/callback`，服务端用
+    `client_secret` 换 access token 并写入一次性会话；客户端用 `state + pollToken`
+    轮询 `/api/v1/auth/github/oauth/poll` 取 Web 会话。全程不需要用户抄写验证码。
+  - `client_secret` 只保存在服务端（`MODE_GITHUB_CLIENT_SECRET`），回调地址由
+    `MODE_GITHUB_OAUTH_CALLBACK_URL` 配置（缺省按 `MODE_REMOTE_PUBLIC_URL` 派生），
+    并需在 GitHub OAuth App 设置中登记同一地址；建议为远程控制单独创建 OAuth App，
+    避免覆盖既有 Web 登录的回调地址。
+  - `state` / `pollToken` 均为 32 字节随机值，服务端只存 SHA-256；10 分钟过期、
+    回调仅接受一次；`returnUrl` 只允许 `allowedOrigins` 或 `publicUrl` 的来源。
+  - 未配置 client secret 时 `oauth/start` 返回 503，客户端回落 Device Flow：
+    桌面与浏览器都通过 `/api/v1/auth/github/device/*` 代理，client id 只配置在服务端
+    （`MODE_GITHUB_CLIENT_ID`），客户端不持有、也不直连 github.com。
+  - 自建环境无法直连 `github.com`（但 `api.github.com` 可用）时，可用
+    `MODE_GITHUB_DEVICE_BASE_URL`（或 `MODE_GITHUB_OAUTH_TOKEN_BASE_URL`）指向
+    `github.com` 登录端点的反向代理；代理只需转发 `/login/device/code` 与
+    `/login/oauth/access_token`。授权页仍由用户浏览器直连 `github.com`。
 - 账号锚点：`HMAC-SHA256(pepper, "github:" + githubUserId)`；JIT 建号。
 - Web 会话：32 字节随机 token，服务端只存 SHA-256，默认 30 天，轮换与撤销。
 
@@ -440,14 +452,14 @@ Owner -- DELETE /devices/{id} --> 服务端撤 token/membership/连接
 
 P3 已接线的部分：
 
-- `packages/desktop/src/host/remoteV3/`：Host 设备身份持久化、GitHub Device Flow（服务端代理）、
+- `packages/desktop/src/host/remoteV3/`：Host 设备身份持久化、GitHub OAuth 回调/Device Flow 回退（服务端代理）、
   设备注册、Control 常驻、peer pinning、RPC allowlist（`remote.ping` / `remote.echo` /
   `remote.host.info` / `remote.workspace.list`）。
 - 同一安装可用 Host 设备凭证通过 `register-owned-role` 注册独立 Client 角色，
   `IRemoteV3Service.request` 直接走 E2EE 通道执行一次 RPC。
 - 服务以 local-only 频道 `remote-v3` 注册进 Host；初始化失败只记录日志，不阻断 Host 启动。
 - 账号登录 UI 已重做：`ModeAccountDialog` 改为 `RemoteV3AccountSection`（服务地址输入、
-  GitHub Device Flow 验证码/授权链接、在线状态、设备指纹、活动连接、只读设备目录、
+  GitHub OAuth 授权链接（Device Flow 回退显示验证码）、在线状态、设备指纹、活动连接、只读设备目录、
   退出远程控制）；v2 的 `RemoteControlCloudSection` 已删除。
 - 通用 E2EE WebSocket 隧道：Host 侧把 `remote.ws` stream 桥接到本机 LAN 的 `/ws*`
   （token 只进本机 Cookie，帧首字节区分 text/binary，可选握手头）；Client 侧通过

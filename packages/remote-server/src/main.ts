@@ -12,7 +12,11 @@ const tlsKeyFile = process.env.MODE_REMOTE_TLS_KEY_FILE?.trim();
 const tlsCertFile = process.env.MODE_REMOTE_TLS_CERT_FILE?.trim();
 const metricsToken = process.env.MODE_REMOTE_METRICS_TOKEN?.trim();
 const githubClientId = process.env.MODE_GITHUB_CLIENT_ID?.trim();
-// github.com 的 Device Flow 端点走代理（限制网络/自建反代）；GitHub API 仍直连。
+const githubClientSecret = process.env.MODE_GITHUB_CLIENT_SECRET?.trim();
+const githubOAuthCallbackUrl = process.env.MODE_GITHUB_OAUTH_CALLBACK_URL?.trim();
+const githubOAuthAuthorizeBaseUrl = process.env.MODE_GITHUB_OAUTH_AUTHORIZE_BASE_URL?.trim();
+const githubOAuthTokenBaseUrl = process.env.MODE_GITHUB_OAUTH_TOKEN_BASE_URL?.trim();
+// github.com 的 Device Flow / OAuth token 端点走代理（限制网络/自建反代）；GitHub API 仍直连。
 const githubDeviceBaseUrl = process.env.MODE_GITHUB_DEVICE_BASE_URL?.trim();
 
 if (!secret) {
@@ -47,6 +51,10 @@ const handle = await startRemoteServer({
   ...(tls ? { tls } : {}),
   ...(metricsToken ? { metricsToken } : {}),
   ...(githubClientId ? { githubClientId } : {}),
+  ...(githubClientSecret ? { githubClientSecret } : {}),
+  ...(githubOAuthCallbackUrl ? { githubOAuthCallbackUrl } : {}),
+  ...(githubOAuthAuthorizeBaseUrl ? { githubOAuthAuthorizeBaseUrl } : {}),
+  ...(githubOAuthTokenBaseUrl ? { githubOAuthTokenBaseUrl } : {}),
   ...(githubDeviceBaseUrl ? { githubDeviceBaseUrl } : {}),
 });
 

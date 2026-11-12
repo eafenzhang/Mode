@@ -45,11 +45,9 @@ export interface WebRemoteV3ServiceOptions {
   createLink?: (profile: WebDeviceProfile) => WebControlLink;
 }
 
-interface PendingLogin {
-  client: WebAccountClient;
-  deviceCode: string;
-  interval: number;
-}
+type PendingLogin =
+  | { kind: "device"; client: WebAccountClient; deviceCode: string; interval: number }
+  | { kind: "oauth"; client: WebAccountClient; state: string; pollToken: string; interval: number };
 
 interface HostAttachment {
   link: WebControlLink;
@@ -173,9 +171,12 @@ export function createWebRemoteV3Service(options: WebRemoteV3ServiceOptions): IR
     if (!current) return;
     let result: Awaited<ReturnType<WebAccountClient["pollGithubDeviceLogin"]>>;
     try {
-      result = await current.client.pollGithubDeviceLogin(current.deviceCode);
+      result =
+        current.kind === "oauth"
+          ? await current.client.pollGithubOAuthLogin(current.state, current.pollToken)
+          : await current.client.pollGithubDeviceLogin(current.deviceCode);
     } catch (error) {
-      // 瞬时网络失败不清掉 pending：保持「等待授权」并按原间隔重试，避免用户重开 Device Flow。
+      // 瞬时网络失败不清掉 pending：保持「等待授权」并按原间隔重试，避免用户重开登录。
       setState({ error: messageOf(error) });
       clearPoll();
       pollTimer = setTimeout(() => {
@@ -199,12 +200,17 @@ export function createWebRemoteV3Service(options: WebRemoteV3ServiceOptions): IR
       });
       return;
     }
-    if (result.status === "expired" || result.status === "denied") {
+    if (result.status === "expired" || result.status === "denied" || result.status === "error") {
       clearPoll();
       pending = null;
       setState({
         status: "error",
-        error: result.status === "expired" ? "授权码已过期" : "授权被拒绝",
+        error:
+          result.status === "error"
+            ? result.message
+            : result.status === "expired"
+              ? "授权码已过期"
+              : "授权被拒绝",
         pendingLogin: null,
       });
       return;
@@ -275,8 +281,36 @@ export function createWebRemoteV3Service(options: WebRemoteV3ServiceOptions): IR
       const client =
         options.createLoginClient?.(serverUrl, deviceName) ??
         new WebAccountClient({ store: options.store, serverUrl, deviceName });
-      const challenge: WebGithubChallenge = await client.beginGithubDeviceLogin();
+      // 优先 OAuth App 回调（无验证码）；服务端未配置时回落 Device Flow。
+      const oauth = await client.beginGithubOAuthLogin();
+      const challenge: WebGithubChallenge = oauth ?? (await client.beginGithubDeviceLogin());
+      if (challenge.kind === "oauth") {
+        pending = {
+          kind: "oauth",
+          client,
+          state: challenge.state,
+          pollToken: challenge.pollToken,
+          interval: challenge.interval,
+        };
+        setState({
+          status: "connecting",
+          serverUrl,
+          error: null,
+          pendingLogin: {
+            kind: "oauth",
+            authorizationUrl: challenge.authorizationUrl,
+            expiresAt: Date.now() + challenge.expiresIn * 1_000,
+          },
+        });
+        clearPoll();
+        pollTimer = setTimeout(() => {
+          pollTimer = null;
+          void pollOnce();
+        }, challenge.interval * 1_000);
+        return challenge;
+      }
       pending = {
+        kind: "device",
         client,
         deviceCode: challenge.deviceCode,
         interval: challenge.interval,
@@ -286,6 +320,7 @@ export function createWebRemoteV3Service(options: WebRemoteV3ServiceOptions): IR
         serverUrl,
         error: null,
         pendingLogin: {
+          kind: "device",
           userCode: challenge.userCode,
           verificationUri: challenge.verificationUri,
           expiresAt: Date.now() + challenge.expiresIn * 1_000,
@@ -296,12 +331,7 @@ export function createWebRemoteV3Service(options: WebRemoteV3ServiceOptions): IR
         pollTimer = null;
         void pollOnce();
       }, challenge.interval * 1_000);
-      return {
-        userCode: challenge.userCode,
-        verificationUri: challenge.verificationUri,
-        expiresIn: challenge.expiresIn,
-        interval: challenge.interval,
-      };
+      return challenge;
     },
     listHosts: async () => (await listDevices("host")).map(toSummary),
     startRemoteDesktop: async (

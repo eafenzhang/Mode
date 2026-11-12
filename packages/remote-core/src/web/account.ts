@@ -10,31 +10,20 @@ import {
   saveWebProfile,
   webRandomUUID,
 } from "./accountSupport.js";
+import {
+  pollGithubDeviceLogin as pollDeviceLogin,
+  pollGithubOAuthLogin as pollOAuthLogin,
+  startGithubDeviceLogin as startDeviceLogin,
+  startGithubOAuthLogin as startOAuthLogin,
+  WebApiError,
+  type WebGithubChallenge,
+  type WebGithubPoll,
+} from "./githubLogin.js";
+
+export type { WebGithubChallenge, WebGithubPoll } from "./githubLogin.js";
+export { WebApiError } from "./githubLogin.js";
 
 export type { WebCredentialStore, WebDeviceProfile, WebDeviceSummary } from "./accountTypes.js";
-
-export interface WebGithubChallenge {
-  deviceCode: string;
-  userCode: string;
-  verificationUri: string;
-  expiresIn: number;
-  interval: number;
-}
-
-export type WebGithubPoll =
-  | { status: "pending" | "expired" | "denied" }
-  | { status: "slow_down"; interval?: number }
-  | { status: "ok"; profile: WebDeviceProfile };
-
-export class WebApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = "WebApiError";
-  }
-}
 
 export async function exchangeGithubAccessToken(
   serverUrl: string,
@@ -75,57 +64,40 @@ export class WebAccountClient {
   }
 
   async beginGithubDeviceLogin(): Promise<WebGithubChallenge> {
-    const fetchImpl = this.options.fetchImpl ?? fetch;
     const profile = await this.ensureProfile();
-    const response = await fetchImpl(`${profile.serverUrl}/api/v1/auth/github/device/start`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}",
+    return await startDeviceLogin(this.loginContext(profile.serverUrl));
+  }
+
+  /** GitHub OAuth App 回调登录；服务端未配置时返回 null，调用方回落 Device Flow。 */
+  async beginGithubOAuthLogin(returnUrl?: string): Promise<WebGithubChallenge | null> {
+    const profile = await this.ensureProfile();
+    return await startOAuthLogin({
+      ...this.loginContext(profile.serverUrl),
+      ...(returnUrl ? { returnUrl } : {}),
     });
-    const body = await readWebJson(response);
-    if (!response.ok) {
-      throw new WebApiError(response.status, readWebError(body, "GitHub Device Flow 启动失败"));
-    }
-    if (
-      typeof body.deviceCode !== "string" ||
-      typeof body.userCode !== "string" ||
-      typeof body.verificationUri !== "string"
-    ) {
-      throw new Error("GitHub Device Flow 响应缺少字段");
-    }
-    return {
-      deviceCode: body.deviceCode,
-      userCode: body.userCode,
-      verificationUri: body.verificationUri,
-      expiresIn: typeof body.expiresIn === "number" ? body.expiresIn : 900,
-      interval: typeof body.interval === "number" ? body.interval : 5,
-    };
+  }
+
+  async pollGithubOAuthLogin(state: string, pollToken: string): Promise<WebGithubPoll> {
+    const profile = await this.ensureProfile();
+    return await pollOAuthLogin({
+      ...this.loginContext(profile.serverUrl),
+      state,
+      pollToken,
+      complete: (sessionToken) => this.loginWithSessionToken(sessionToken),
+    });
   }
 
   async pollGithubDeviceLogin(deviceCode: string): Promise<WebGithubPoll> {
-    const fetchImpl = this.options.fetchImpl ?? fetch;
     const profile = await this.ensureProfile();
-    const response = await fetchImpl(`${profile.serverUrl}/api/v1/auth/github/device/poll`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ deviceCode }),
+    return await pollDeviceLogin({
+      ...this.loginContext(profile.serverUrl),
+      deviceCode,
+      complete: (sessionToken) => this.loginWithSessionToken(sessionToken),
     });
-    const body = await readWebJson(response);
-    if (!response.ok) {
-      throw new WebApiError(response.status, readWebError(body, "GitHub Device Flow 轮询失败"));
-    }
-    const status = body.status;
-    if (status === "ok" && typeof body.sessionToken === "string") {
-      return { status: "ok", profile: await this.loginWithSessionToken(body.sessionToken) };
-    }
-    if (status === "slow_down") {
-      return {
-        status: "slow_down",
-        ...(typeof body.interval === "number" ? { interval: body.interval } : {}),
-      };
-    }
-    if (status === "expired" || status === "denied") return { status };
-    return { status: "pending" };
+  }
+
+  private loginContext(serverUrl: string): { serverUrl: string; fetchImpl: typeof fetch } {
+    return { serverUrl, fetchImpl: this.options.fetchImpl ?? fetch };
   }
 
   async loginWithSessionToken(sessionToken: string): Promise<WebDeviceProfile> {

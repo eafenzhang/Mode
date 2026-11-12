@@ -18,6 +18,10 @@ const STATE_TIMEOUT_MS = 12_000;
  * 与 v2 Mode Cloud 分区不同：登录后本机是带 X25519 设备身份的 Host；设备目录只返回
  * descriptor/在线状态/地址，不返回任何业务令牌。UI 只读快照并下发登录/退出命令。
  */
+type AuthorizationPrompt =
+  | { kind: "device"; userCode: string; verificationUri: string }
+  | { kind: "oauth"; authorizationUrl: string };
+
 export function RemoteV3AccountSection({ active }: { active: boolean }) {
   const services = useServices();
   const baseServices = useOptionalBaseWorkspaceServices();
@@ -72,21 +76,25 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
 
   const openedCodes = useRef(new Set<string>());
   const openAuthorization = useCallback(
-    (pendingLogin: { userCode: string; verificationUri: string }): void => {
-      if (openedCodes.current.has(pendingLogin.userCode)) return;
-      openedCodes.current.add(pendingLogin.userCode);
-      const authorizationUrl = buildGithubDeviceAuthorizationUrl(
-        pendingLogin.verificationUri,
-        pendingLogin.userCode,
-      );
-      // 验证码随链接预填；仍复制到剪贴板，浏览器未登录时可手动粘贴。
+    (pendingLogin: AuthorizationPrompt): void => {
+      const key =
+        pendingLogin.kind === "oauth" ? pendingLogin.authorizationUrl : pendingLogin.userCode;
+      if (openedCodes.current.has(key)) return;
+      openedCodes.current.add(key);
+      const authorizationUrl =
+        pendingLogin.kind === "oauth"
+          ? pendingLogin.authorizationUrl
+          : buildGithubDeviceAuthorizationUrl(pendingLogin.verificationUri, pendingLogin.userCode);
+      // OAuth 回调流无验证码；Device Flow 回退时把验证码随链接预填并复制到剪贴板。
       try {
         if (platform) platform.openExternal(authorizationUrl);
         else window.open(authorizationUrl, "_blank", "noopener,noreferrer");
       } catch {
         // 打开失败时保留页面上的链接兜底。
       }
-      void navigator.clipboard?.writeText(pendingLogin.userCode).catch(() => undefined);
+      if (pendingLogin.kind === "device") {
+        void navigator.clipboard?.writeText(pendingLogin.userCode).catch(() => undefined);
+      }
     },
     [platform],
   );
@@ -95,22 +103,38 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
     if (!active) return;
     const pendingLogin = challenge ?? state?.pendingLogin;
     if (!pendingLogin) return;
-    openAuthorization(pendingLogin);
+    openAuthorization(
+      pendingLogin.kind === "oauth"
+        ? { kind: "oauth", authorizationUrl: pendingLogin.authorizationUrl }
+        : {
+            kind: "device",
+            userCode: pendingLogin.userCode,
+            verificationUri: pendingLogin.verificationUri,
+          },
+    );
   }, [active, challenge, state?.pendingLogin, openAuthorization]);
 
   if (!service || !available) return null;
 
   const status = state?.status ?? "unconfigured";
-  const pending =
+  const pending: (AuthorizationPrompt & { expiresIn: number; interval: number }) | null =
     challenge ??
-    (state?.pendingLogin
+    (state?.pendingLogin?.kind === "oauth"
       ? {
-          userCode: state.pendingLogin.userCode,
-          verificationUri: state.pendingLogin.verificationUri,
+          kind: "oauth",
+          authorizationUrl: state.pendingLogin.authorizationUrl,
           expiresIn: Math.max(0, Math.floor((state.pendingLogin.expiresAt - Date.now()) / 1000)),
-          interval: 5,
+          interval: 2,
         }
-      : null);
+      : state?.pendingLogin
+        ? {
+            kind: "device",
+            userCode: state.pendingLogin.userCode,
+            verificationUri: state.pendingLogin.verificationUri,
+            expiresIn: Math.max(0, Math.floor((state.pendingLogin.expiresAt - Date.now()) / 1000)),
+            interval: 5,
+          }
+        : null);
 
   const beginLogin = async (): Promise<void> => {
     setBusy("login");
@@ -171,25 +195,37 @@ export function RemoteV3AccountSection({ active }: { active: boolean }) {
         <div className="rounded-lg border border-border bg-background px-3 py-3">
           <div className="flex items-center gap-2 text-ui-base text-foreground">
             <Fingerprint className="size-4 text-foreground-subtle" aria-hidden="true" />
-            {message("modeAccount.remoteV3.githubCodeTitle")}
+            {message(
+              pending.kind === "oauth"
+                ? "modeAccount.remoteV3.githubOauthTitle"
+                : "modeAccount.remoteV3.githubCodeTitle",
+            )}
           </div>
-          <div
-            className="mt-2 text-2xl font-semibold tracking-[0.3em] text-foreground"
-            data-testid="mode-account-remote-v3-github-code"
-          >
-            {pending.userCode}
-          </div>
-          {pending.verificationUri.startsWith("https://github.com/") ? (
-            <a
-              className="mt-2 inline-flex items-center gap-1 text-ui-base text-sky-600 hover:underline dark:text-sky-400"
-              href={buildGithubDeviceAuthorizationUrl(pending.verificationUri, pending.userCode)}
-              target="_blank"
-              rel="noreferrer"
+          {pending.kind === "device" ? (
+            <div
+              className="mt-2 text-2xl font-semibold tracking-[0.3em] text-foreground"
+              data-testid="mode-account-remote-v3-github-code"
             >
-              <ExternalLink className="size-3.5" aria-hidden="true" />
-              {message("modeAccount.remoteV3.githubOpenUri")}
-            </a>
+              {pending.userCode}
+            </div>
           ) : null}
+          <a
+            className="mt-2 inline-flex items-center gap-1 text-ui-base text-sky-600 hover:underline dark:text-sky-400"
+            href={
+              pending.kind === "oauth"
+                ? pending.authorizationUrl
+                : buildGithubDeviceAuthorizationUrl(pending.verificationUri, pending.userCode)
+            }
+            target="_blank"
+            rel="noreferrer"
+          >
+            <ExternalLink className="size-3.5" aria-hidden="true" />
+            {message(
+              pending.kind === "oauth"
+                ? "modeAccount.remoteV3.githubReopen"
+                : "modeAccount.remoteV3.githubOpenUri",
+            )}
+          </a>
           <p className="mt-2 flex items-center gap-2 text-ui-xs text-foreground-subtlest">
             <LoaderIcon className="size-3 animate-spin" />
             {message("modeAccount.remoteV3.githubWaiting")}

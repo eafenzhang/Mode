@@ -22,6 +22,14 @@ export interface RemoteServerOptions {
   githubVerifier?: GitHubVerifier;
   /** Browser GitHub Device Flow 代理所需 OAuth App client id。 */
   githubClientId?: string;
+  /** GitHub OAuth App client secret；只保存在服务端，用于回调换 token。 */
+  githubClientSecret?: string;
+  /** GitHub OAuth App 回调地址；未提供时按 publicUrl 派生。 */
+  githubOAuthCallbackUrl?: string;
+  /** 授权页基址（测试/自建代理用）；生产缺省 https://github.com。 */
+  githubOAuthAuthorizeBaseUrl?: string;
+  /** token 交换基址；缺省复用 githubDeviceBaseUrl 或 https://github.com。 */
+  githubOAuthTokenBaseUrl?: string;
   /** 测试/自建 GitHub 代理基址；生产缺省 https://github.com。 */
   githubDeviceBaseUrl?: string;
   /** 直接终止 TLS（生产也可由反向代理终止）；提供时 URL/Relay 会使用 https/wss。 */
@@ -63,22 +71,48 @@ export async function startRemoteServer(options: RemoteServerOptions): Promise<R
     metrics,
     log,
   });
+  const githubClientId = options.githubClientId?.trim() ?? "";
+  const githubClientSecret = options.githubClientSecret?.trim() ?? "";
+  const oauthCallbackUrl =
+    options.githubOAuthCallbackUrl?.trim() ||
+    (options.publicUrl
+      ? `${options.publicUrl.replace(/\/+$/u, "")}/api/v1/auth/github/oauth/callback`
+      : "");
+  const oauthTokenBaseUrl =
+    options.githubOAuthTokenBaseUrl?.trim() || options.githubDeviceBaseUrl?.trim();
   const api = createApiHandler({
     store,
     gateway,
     pepper: options.pepper ?? options.secret,
     github: options.githubVerifier ?? createGithubVerifier(),
     ...(options.allowedOrigins?.length ? { allowedOrigins: options.allowedOrigins } : {}),
+    ...(options.publicUrl ? { publicUrl: options.publicUrl } : {}),
     ...(options.webrtc ? { webrtc: options.webrtc } : {}),
-    ...(options.githubClientId?.trim()
+    ...(githubClientId
       ? {
           githubDevice: {
-            clientId: options.githubClientId.trim(),
+            clientId: githubClientId,
             ...(options.githubDeviceBaseUrl ? { baseUrl: options.githubDeviceBaseUrl } : {}),
           },
         }
       : {}),
+    ...(githubClientId && githubClientSecret && oauthCallbackUrl
+      ? {
+          githubOAuth: {
+            clientId: githubClientId,
+            clientSecret: githubClientSecret,
+            callbackUrl: oauthCallbackUrl,
+            ...(options.githubOAuthAuthorizeBaseUrl
+              ? { authorizeBaseUrl: options.githubOAuthAuthorizeBaseUrl }
+              : {}),
+            ...(oauthTokenBaseUrl ? { tokenBaseUrl: oauthTokenBaseUrl } : {}),
+          },
+        }
+      : {}),
   });
+  log(
+    `github_oauth=${githubClientId && githubClientSecret && oauthCallbackUrl ? "enabled" : "disabled"}`,
+  );
 
   const metricsToken = options.metricsToken?.trim() ?? "";
   const handler = (req: IncomingMessage, res: ServerResponse): void => {

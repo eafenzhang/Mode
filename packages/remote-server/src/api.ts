@@ -11,6 +11,7 @@ import {
   type ApiDeps,
 } from "./apiSupport.js";
 import { handleGithubDeviceRoute } from "./deviceAuth.js";
+import { GithubOAuthStore, handleGithubOAuthRoute } from "./oauthAuth.js";
 import { descriptorOf, GatewayError, parseAddresses } from "./gateway.js";
 import { FixedWindowLimiter } from "./rateLimit.js";
 import { StoreError, type DeviceRow } from "./store.js";
@@ -25,6 +26,7 @@ export function createApiHandler(deps: ApiDeps) {
   const general = new FixedWindowLimiter(120, 60_000);
   const auth = new FixedWindowLimiter(10, 60_000);
   const deviceAuth = new FixedWindowLimiter(60, 60_000);
+  const oauth = new GithubOAuthStore();
   return async (req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> => {
     try {
       applyCors(deps.allowedOrigins, req, res);
@@ -39,12 +41,16 @@ export function createApiHandler(deps: ApiDeps) {
         throw new ApiError(429, "rate_limited", "请求过于频繁，请稍后重试");
       }
       if (url.pathname.startsWith("/api/v1/auth/")) {
-        const limiter = url.pathname.startsWith("/api/v1/auth/github/device/") ? deviceAuth : auth;
+        const limiter =
+          url.pathname.startsWith("/api/v1/auth/github/device/") ||
+          url.pathname.startsWith("/api/v1/auth/github/oauth/")
+            ? deviceAuth
+            : auth;
         if (!limiter.allow(key)) {
           throw new ApiError(429, "rate_limited", "登录请求过于频繁，请稍后重试");
         }
       }
-      await route(deps, req, res, url);
+      await route(deps, oauth, req, res, url);
     } catch (error) {
       sendError(res, error);
     }
@@ -53,6 +59,7 @@ export function createApiHandler(deps: ApiDeps) {
 
 async function route(
   deps: ApiDeps,
+  oauth: GithubOAuthStore,
   req: IncomingMessage,
   res: ServerResponse,
   url: URL,
@@ -60,6 +67,7 @@ async function route(
   const method = req.method ?? "GET";
   const path = url.pathname;
   if (await handleGithubDeviceRoute(deps, req, res, method, path)) return;
+  if (await handleGithubOAuthRoute(deps, oauth, req, res, method, path, url)) return;
 
   if (method === "POST" && path === "/api/v1/auth/github") {
     const body = await readJson(req);
