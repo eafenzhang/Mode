@@ -10,7 +10,6 @@ import {
   registerRemoteWorkspaceSession,
   setStreamClientId,
   unregisterRemoteWorkspaceSession,
-  type Theme,
 } from "@mode/ui";
 import "@mode/ui/styles.css";
 import { connectViaWebSocket, createWebRemoteV3Service } from "@mode/client";
@@ -41,43 +40,14 @@ import type {
   RemoteDesktopQuality,
   RemoteDesktopSignalMessage,
 } from "@mode/shared/remote-desktop";
-import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
+import { applyWebThemeToDocument } from "./webThemeSeed.js";
 import { WebV3Page } from "./v3/WebV3Page.js";
 import { connectV3RemoteWorkspace } from "./v3/connectV3Workspace.js";
 import { createWebCredentialStore } from "./v3/credentialStore.js";
 import { loadStoredV3Profile } from "./v3/storedProfile.js";
 
-function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
-  const saved = localStorage.getItem("mode-theme");
-  return resolveWebInitialTheme({ storedTheme: saved, defaultTheme });
-}
-
-// 初始化主题：默认 Zai dark，后续由 useTheme hook 接管
-// system 模式下需要查询系统偏好；非 system 模式直接用存储值
-{
-  const saved = resolveWebThemePreference();
-  const resolved =
-    saved === "system"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light"
-      : saved === "dark" || saved === "zai-dark"
-        ? "dark"
-        : "light";
-  const appliedTheme =
-    saved === "system"
-      ? resolved === "dark"
-        ? "zai-dark"
-        : "zai-light"
-      : saved === "dark"
-        ? "zai-dark"
-        : saved === "light"
-          ? "zai-light"
-          : saved;
-  document.documentElement.classList.toggle("dark", resolved === "dark");
-  document.documentElement.classList.toggle("theme-zai-light", appliedTheme === "zai-light");
-  document.documentElement.classList.toggle("theme-zai-dark", appliedTheme === "zai-dark");
-}
+// 初始化主题：默认 Zai dark，后续由 useTheme hook 接管。
+applyWebThemeToDocument();
 
 const root = createRoot(document.getElementById("root")!);
 const webAuthService = createWebAuthService();

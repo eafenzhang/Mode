@@ -106,6 +106,11 @@ export default defineConfig(({ mode }) => {
     build: {
       // 生产不在浏览器产物暴露 sourceMappingURL，避免客户端侧还原业务源码。
       sourcemap: mode === "production" ? "hidden" : true,
+      // 独立远程控制域名以 v3.html 为唯一入口：只装远程控制所需模块，不把主应用
+      // shell（编辑器/预览/工作区）带进产物。部署时把 v3.html 重命名为 index.html。
+      ...(env.MODE_WEB_V3_ROOT?.trim() === "1"
+        ? { rollupOptions: { input: resolve(HERE, "v3.html") } }
+        : {}),
     },
   };
 });

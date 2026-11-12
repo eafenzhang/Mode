@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { openWebWorkspace } from "@mode/client";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { buildGithubDeviceAuthorizationUrl as githubAuthUrl } from "@mode/shared";
 import {
   WebAccountClient,
@@ -13,7 +12,11 @@ import {
 } from "@mode/remote-core/web";
 
 import { SavedV3Accounts } from "./SavedV3Accounts.js";
-import { WebV3RemoteDesktop } from "./WebV3RemoteDesktop.js";
+// 远程桌面会话面（含 @mode/ui 组件与解码/输入栈）体积最大，按需加载：
+// 设备列表页不应该为首屏付这份字节，只有点「进入桌面」时才拉取。
+const WebV3RemoteDesktop = lazy(() =>
+  import("./WebV3RemoteDesktop.js").then((module) => ({ default: module.WebV3RemoteDesktop })),
+);
 import { createWebCredentialStore } from "./credentialStore.js";
 import { useV3DeviceLogin } from "./useV3DeviceLogin.js";
 import { saveV3OAuthPending, useV3OAuthReturn } from "./useV3OAuthReturn.js";
@@ -173,6 +176,8 @@ export function WebV3Page() {
     try {
       await link.start();
       await link.connect(host.deviceId);
+      // 工作区隧道测试同样按需加载 @mode/client，避免列表页带上整条工作区栈。
+      const { openWebWorkspace } = await import("@mode/client");
       const workspace = await openWebWorkspace({ link, hostDeviceId: host.deviceId });
       try {
         const info = await workspace.services.systemService.info();
@@ -257,15 +262,23 @@ export function WebV3Page() {
 
   if (rdTarget) {
     return (
-      <WebV3RemoteDesktop
-        link={rdTarget.link}
-        hostDeviceId={rdTarget.hostDeviceId}
-        deviceName={rdTarget.name}
-        onExit={() => {
-          rdTarget.link.close();
-          setRdTarget(null);
-        }}
-      />
+      <Suspense
+        fallback={
+          <div className="flex h-screen w-screen items-center justify-center bg-background text-ui-base text-foreground-subtle">
+            正在载入远程桌面…
+          </div>
+        }
+      >
+        <WebV3RemoteDesktop
+          link={rdTarget.link}
+          hostDeviceId={rdTarget.hostDeviceId}
+          deviceName={rdTarget.name}
+          onExit={() => {
+            rdTarget.link.close();
+            setRdTarget(null);
+          }}
+        />
+      </Suspense>
     );
   }
 

@@ -44,10 +44,25 @@
   轮询 `/oauth/poll` 完成登录，授权期间不需要输入验证码。服务端未配置 client secret
   时回退 Device Flow：`WebAccountClient.begin/pollGithubDeviceLogin` 调服务端代理端点；
   GitHub access token 只在服务端换取账号会话，不返回浏览器。
-- 独立入口 `https://rc.mymode.cloud`（生产；`/v3` 路径入口仍支持，构建期
-  `MODE_WEB_V3_ROOT=1` 使独立域名以 v3 页为根；`packages/web/src/v3/WebV3Page.tsx`）：服务地址、GitHub OAuth 登录
-  （Device Flow 回退）、设备目录、在线状态、退出、以及选择 Host 执行 `remote.host.info`
-  的加密连通测试。服务地址支持 `?server=<url>` 预填（非法值忽略，回落上次输入）。
+- 独立入口 `https://rc.mymode.cloud`（生产；`/v3` 路径入口仍支持）：服务地址、GitHub
+  OAuth 登录（Device Flow 回退）、设备目录、在线状态、退出、以及选择 Host 执行
+  `remote.host.info` 的加密连通测试。服务地址支持 `?server=<url>` 预填（非法值忽略，
+  回落上次输入）。
+  - 独立域名用**专属轻量入口** `packages/web/v3.html` + `src/v3/entry.tsx`：构建期
+    `MODE_WEB_V3_ROOT=1` 时以它为唯一入口（产物 `v3.html`，部署时重命名为
+    `index.html`），不打包主应用 shell（编辑器/预览/工作区）。初始载荷从 55 个预载
+    chunk、1.6MB(gzip) 降到 10 个文件、约 250KB(gzip)。
+  - 页面内部再拆两处按需加载：远程桌面会话面（`WebV3RemoteDesktop`，含 `@mode/ui`
+    组件与解码/输入栈）与工作区隧道（`@mode/client` 的 `openWebWorkspace`），
+    设备列表首屏不再为它们付字节。
+  - 安全响应头随静态站下发（仅该域名，不影响主站）：`Content-Security-Policy`
+    (`default-src 'self'`、`script-src 'self' https://static.cloudflareinsights.com`、
+    `style-src 'self' 'unsafe-inline'`、`img/font/media/worker-src` 允许 `data:`/`blob:`、
+    `connect-src 'self' https: wss: ws:`、`frame-ancestors 'none'`、`object-src 'none'`)
+    以及 `X-Content-Type-Options`/`Referrer-Policy`/`Permissions-Policy`。入口 HTML 不写
+    内联脚本（主题由 `applyWebThemeToDocument` 在 JS 里落地），否则会被 `script-src` 拦。
+    `connect-src` 放开 ws/wss/https 协议是产品需要：账号服务地址由用户填写，数据面还要
+    连 Host 上报的局域网明文 `ws://` 直连地址。
 - 默认凭据存储：优先 IndexedDB（`mode-remote-v3/kv`），不可用时回落 localStorage；
   登出删除整个 profile。
 - `WebControlLink` 支持业务 `request()` 与 `openStream()`；`@mode/client` 的
@@ -88,12 +103,13 @@
    HTTPS 页面只尝试 `wss://` 直连地址，明文 LAN 地址被跳过。
 3. UI：主 Web 已接通 v3 工作区（向导选 Host → 注册远程 session → 复用现有 tab/文件/
    终端/Git），见 [remote-control-v3-web-workspace.md](./remote-control-v3-web-workspace.md)；
-   `/v3` 独立页仍只提供目录与连通测试。远程桌面页面已挂载；真机首轮已过首帧/关闭释放
-   （同账号设备不弹同意窗，见验收清单 §5.1），键鼠输入/画质切换/断网重连待复测。
+   `/v3` 独立页仍只提供目录与连通测试。远程桌面页面已挂载；真机两轮已过首帧、关闭释放、
+   画质切换与媒体断网重连（同账号设备不弹同意窗，见验收清单 §5.1、§5.4–5.5），
+   键鼠输入待测。
 4. 移动端复用同一 Web 客户端，尚未接入。
-5. 安全：CSP 仍待；`/api/v1/*` 的 CORS 白名单已接（复用 `allowedOrigins` /
-   `MODE_REMOTE_ALLOWED_ORIGINS`，未命中不回显 ACAO；未配置时仅同源可用）。
-   私钥/token 已做静态加密信封（IndexedDB），不写入 URL 或日志；
+5. 安全：独立域名的 CSP 与安全响应头已上线（见上条「独立入口」）；`/api/v1/*` 的 CORS
+   白名单已接（复用 `allowedOrigins` / `MODE_REMOTE_ALLOWED_ORIGINS`，未命中不回显 ACAO；
+   未配置时仅同源可用）。私钥/token 已做静态加密信封（IndexedDB），不写入 URL 或日志；
    localStorage 回落路径仍是明文。
 
 ## 验收
@@ -106,3 +122,8 @@
   多地址回落、HTTPS 跳过明文 ws）；`packages/desktop/tests/web-remote-v3-p2p.test.mts`
   用 werift 替代原生实现，验证浏览器链路 capability → 协商 → DataChannel → Noise → RPC。
 - 与桌面 Host 的远程桌面/工作区共用同一 allowlist 与 `remote.ws` 隧道语义。
+- `/v3` 独立页：设备目录 → 加密 RPC；进入桌面出画、切档（bye+重建）与断网 6s 恢复。
+- 独立域名构建：`MODE_WEB_V3_ROOT=1` 产物只有 `v3.html` + 少量 chunk（首屏约 250KB
+  gzip）；重命名为 `index.html` 部署后页面可用，HTML 无内联脚本；
+- 独立域名响应带 CSP 与 `nosniff`/`Referrer-Policy`/`Permissions-Policy`，生产构建在该
+  CSP 下目录、远程桌面与媒体链路正常，控制台无 CSP 违规。
