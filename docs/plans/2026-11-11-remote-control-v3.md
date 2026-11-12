@@ -182,10 +182,10 @@ packages/remote-server
   P2 落地（`/ws/v1/direct` + 失败回落 Relay）。LAN 监听可选 TLS：运维提供受信任的
   key/cert（`MODE_LAN_TLS_KEY_FILE` / `MODE_LAN_TLS_CERT_FILE`），地址以 `wss://` 前缀
   进入设备目录，发现广播带 `scheme`；未配置时保持明文 WS。
-- 测试：`pnpm test:remote-v3` 共 257 项（pass 254，3 项 skip），包含 WebRTC/P2P
+- 测试：`pnpm test:remote-v3` 共 258 项（pass 255，3 项 skip），包含 WebRTC/P2P
   loopback E2E（跨账号配对后 RPC 实际走 werift DataChannel）与浏览器
   `WebControlLink` P2P E2E（werift 替代原生 RTCPeerConnection，验证 capability →
-  offer/answer → DataChannel → Noise → RPC 全链路）。分层计数见早前记录：
+  offer/answer → DataChannel → Noise → RPC 全链路，以及协商超时回落 Relay）。分层计数见早前记录：
   core 27 + remote-server 25 + desktop Host 5/工作区 1/隧道 1/媒体重连 1/
   配对 E2E 3 + 配对 UI 状态机 3 +
   ChannelClient 重连 1/Web 工作区 1/Web 工作区重连 1/Web 远程桌面 5/v3 工作区 attachment 2/

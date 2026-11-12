@@ -1,19 +1,22 @@
 /**
- * 浏览器 WebControlLink 的 P2P 数据面（阶段 3 wiring）端到端：
- * 用 werift 适配器替换浏览器原生 RTCPeerConnection（Node 无 WebRTC），验证
- * hello capability → 服务端确认 p2pPreferred → offer/answer → DataChannel →
- * Noise → allowlist RPC 全链路，并断言选路事件为 p2p。
+ * 浏览器 WebControlLink 的 P2P 数据面（阶段 3 wiring）端到端。
+ *
+ * Node 没有原生 RTCPeerConnection，用 werift 适配器替换浏览器实现：
+ * 1. capability → 服务端确认 p2pPreferred → offer/answer → DataChannel → Noise → RPC；
+ * 2. 协商迟迟不开通道时按超时回落 Relay，业务不受影响。
  */
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { TransportKind } from "@mode/remote-core";
+import type { P2PAdapter, P2PInitiator, TransportKind } from "@mode/remote-core";
 import { WebControlLink, generateWebIdentity } from "@mode/remote-core/web";
 import { startRemoteServer, type RemoteServerHandle } from "@mode/remote-server";
 import type { ICredentialService } from "@mode/services";
 
 import { createWeriftP2PAdapter } from "../src/host/remoteV3/p2pWerift.js";
 import { createRemoteV3HostService } from "../src/host/remoteV3/service.js";
+
+const WEB_DEVICE_ID = "019a0000-0000-7000-8000-0000000000d2";
 
 function createFakeCredentials(): ICredentialService {
   const store = new Map<string, string>();
@@ -39,21 +42,15 @@ async function githubSession(server: RemoteServerHandle, token: string): Promise
   return ((await response.json()) as { sessionToken: string }).sessionToken;
 }
 
-async function registerClient(
-  server: RemoteServerHandle,
-  sessionToken: string,
-  device: Record<string, unknown>,
-): Promise<string> {
-  const response = await fetch(`${server.url}/api/v1/devices`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${sessionToken}` },
-    body: JSON.stringify({ device }),
-  });
-  assert.equal(response.status, 201, await response.clone().text());
-  return ((await response.json()) as { accessToken: string }).accessToken;
+interface Fixture {
+  server: RemoteServerHandle;
+  hostService: Awaited<ReturnType<typeof createRemoteV3HostService>>;
+  hostDeviceId: string;
+  identity: ReturnType<typeof generateWebIdentity>;
+  accessToken: string;
 }
 
-test("浏览器 WebControlLink 走 werift DataChannel 完成 P2P RPC", async () => {
+async function setup(): Promise<Fixture> {
   const server = await startRemoteServer({
     port: 0,
     dbPath: ":memory:",
@@ -67,47 +64,103 @@ test("浏览器 WebControlLink 走 werift DataChannel 完成 P2P RPC", async () 
     version: "0.0.1-test",
     deviceName: "Web P2P Host",
   });
+  const hostState = await hostService.configure({
+    serverUrl: server.url,
+    webSessionToken: await githubSession(server, "github-web-p2p"),
+    deviceName: "Web P2P Host",
+  });
+  assert.equal(hostState.status, "online", hostState.error ?? "");
+  assert.ok(hostState.deviceId);
   const identity = generateWebIdentity();
-  const webDeviceId = "019a0000-0000-7000-8000-0000000000d2";
-  const transports: TransportKind[] = [];
-  let link: WebControlLink | undefined;
-  try {
-    const hostState = await hostService.configure({
-      serverUrl: server.url,
-      webSessionToken: await githubSession(server, "github-web-p2p"),
-      deviceName: "Web P2P Host",
-    });
-    assert.equal(hostState.status, "online", hostState.error ?? "");
-    assert.ok(hostState.deviceId);
-    const accessToken = await registerClient(
-      server,
-      await githubSession(server, "github-web-p2p"),
-      {
-        deviceId: webDeviceId,
+  const response = await fetch(`${server.url}/api/v1/devices`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${await githubSession(server, "github-web-p2p")}`,
+    },
+    body: JSON.stringify({
+      device: {
+        deviceId: WEB_DEVICE_ID,
         name: "Web Client",
         role: "client",
         platform: "web",
         identityKey: identity.identityKey,
       },
-    );
+    }),
+  });
+  assert.equal(response.status, 201, await response.clone().text());
+  const { accessToken } = (await response.json()) as { accessToken: string };
+  return { server, hostService, hostDeviceId: hostState.deviceId, identity, accessToken };
+}
 
-    link = new WebControlLink({
-      serverUrl: server.url,
-      deviceId: webDeviceId,
-      accessToken,
-      identity,
-      p2p: { adapter: createWeriftP2PAdapter(), timeoutMs: 8_000 },
-      onTransport: (transport) => transports.push(transport),
+function deadAdapter(): P2PAdapter {
+  const initiator: P2PInitiator = {
+    createOffer: async () => "dead-offer-sdp",
+    acceptAnswer: async () => undefined,
+    onLocalCandidate: () => undefined,
+    addRemoteCandidate: () => undefined,
+    onChannel: () => undefined,
+    close: () => undefined,
+  };
+  return {
+    createInitiator: () => initiator,
+    createResponder: () => {
+      throw new Error("browser client 不创建 responder");
+    },
+  };
+}
+
+async function runFixture(
+  fixture: Fixture,
+  p2p: { adapter: P2PAdapter; timeoutMs: number },
+): Promise<{ transports: TransportKind[]; link: WebControlLink }> {
+  const transports: TransportKind[] = [];
+  const link = new WebControlLink({
+    serverUrl: fixture.server.url,
+    deviceId: WEB_DEVICE_ID,
+    accessToken: fixture.accessToken,
+    identity: fixture.identity,
+    p2p,
+    onTransport: (transport) => transports.push(transport),
+  });
+  await link.start();
+  await link.connect(fixture.hostDeviceId);
+  return { transports, link };
+}
+
+test("浏览器 WebControlLink 走 werift DataChannel 完成 P2P RPC", async () => {
+  const fixture = await setup();
+  let link: WebControlLink | undefined;
+  try {
+    const result = await runFixture(fixture, {
+      adapter: createWeriftP2PAdapter(),
+      timeoutMs: 8_000,
     });
-    await link.start();
-    await link.connect(hostState.deviceId);
-
-    assert.deepEqual(transports, ["p2p"], "浏览器链路必须命中 p2p 选路");
-    const result = await link.request("remote.echo", { value: "web-p2p" }, 15_000);
-    assert.deepEqual(result, { value: "web-p2p" });
+    link = result.link;
+    assert.deepEqual(result.transports, ["p2p"], "浏览器链路必须命中 p2p 选路");
+    assert.deepEqual(await link.request("remote.echo", { value: "web-p2p" }, 15_000), {
+      value: "web-p2p",
+    });
   } finally {
     link?.close();
-    await hostService.disconnectAccount();
-    await server.close();
+    await fixture.hostService.disconnectAccount();
+    await fixture.server.close();
+  }
+});
+
+test("P2P 协商超时后回落 Relay，业务请求仍然成功", async () => {
+  const fixture = await setup();
+  let link: WebControlLink | undefined;
+  try {
+    const result = await runFixture(fixture, { adapter: deadAdapter(), timeoutMs: 300 });
+    link = result.link;
+    assert.deepEqual(result.transports, ["relay"], "未打开 DataChannel 时必须回落 Relay");
+    assert.deepEqual(await link.request("remote.echo", { value: "relay-fallback" }, 15_000), {
+      value: "relay-fallback",
+    });
+  } finally {
+    link?.close();
+    await fixture.hostService.disconnectAccount();
+    await fixture.server.close();
   }
 });

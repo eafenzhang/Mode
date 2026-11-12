@@ -169,7 +169,8 @@ export class WebControlLink {
             connectionId,
             iceServers,
             send: (type, framePayload) => this.sendControl(type, framePayload),
-            onError: (error) => this.waiters.rejectAll(error),
+            // P2P 失败只影响选路，不能 reject 握手/Relay 等待器。
+            onError: () => undefined,
             // 必须先登记 session：answer/candidate 可能在 open 返回前到达。
             onSession: (session) => {
               this.p2pSession = session;
