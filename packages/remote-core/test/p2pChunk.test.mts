@@ -60,6 +60,13 @@ test("超过 64KB 的业务帧分片发送并在对端还原", () => {
   assert.equal(a.sent.length > 1, true, "超限消息必须拆成多条");
   assert.equal(a.sent[0]!.startsWith('{"__p2pChunk":1,'), true);
   assert.deepEqual(received, [payload]);
+  for (const frame of a.sent) {
+    assert.equal(
+      Buffer.byteLength(frame) <= 65_536,
+      true,
+      `单帧不得超过 SCTP 64KB 上限，实际 ${Buffer.byteLength(frame)}`,
+    );
+  }
 });
 
 test("小消息保持单帧直发，不做分片包装", () => {

@@ -12,13 +12,15 @@ export interface P2PChannel {
   close(reason?: string): void;
 }
 
-/** DataChannel 单条消息的安全上限（SCTP/浏览器常见限制 256KB）。 */
-const CHUNK_BYTES = 64 * 1024;
+/**
+ * DataChannel 单条消息上限：werift/浏览器协商的 SCTP max-message-size 常见为 64KB。
+ * 片段还要再套一层 JSON 字符串（引号/反斜杠转义最坏放大 2 倍），因此按 24KB 原文切分。
+ */
+const CHUNK_BYTES = 24 * 1024;
 const CHUNK_PREFIX = '{"__p2pChunk":1,';
 
 /**
- * 业务帧超过单条 DataChannel 上限时按 UTF-8 字节切分；JSON 转义最坏放大 2 倍，
- * 64KB 分片可稳定落在 256KB 以内。接收端按顺序拼回原文。
+ * 业务帧超过单条 DataChannel 上限时按 UTF-8 字节切分，接收端按顺序拼回原文。
  */
 function chunkText(text: string): string[] {
   const parts: string[] = [];
