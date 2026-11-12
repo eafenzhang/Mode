@@ -260,7 +260,11 @@ export class ControlLink {
       }
       this.runtime.create("host", incoming.client, incoming.connectionId);
       const active = this.runtime.sessions.get(incoming.connectionId)!;
-      // runtime.create 默认 Host 已选路（Relay 老路径）；出现直连候选时要等 Client 选择。
+      // runtime.create 把 Host 等同为已选路（Relay 老路径）。v3 客户端总会显式发
+      // transport.selected，且可能早于 connect.incoming 到达；保留默认 true 会忽略
+      // 早到的选路，Relay 两端都在等对方 attach（relay.ready 互等）。先置 false，
+      // 由下面的早到选路 / 直连候选 / 默认 Relay 分支决定。
+      active.transportSelected = false;
       if (incoming.direct) {
         markDirectPending(active, this.options.connectTimeoutMs ?? 10_000);
       }

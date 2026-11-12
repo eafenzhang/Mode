@@ -1,13 +1,17 @@
 # 远程控制 v3 真机验收清单
 
-状态：2026-11-11 待执行。覆盖配对、远程工作区、远程桌面、断线恢复与安全边界；
-自动化部分先跑 `pnpm test:remote-v3`，本清单只列必须两台真实设备才能验证的项。
+状态：2026-11-12 待执行。覆盖配对、远程工作区、远程桌面、传输选路、断线恢复与
+安全边界；自动化部分先跑 `pnpm test:remote-v3`，本清单只列必须两台真实设备才能
+验证的项。
 
 ## 1. 环境准备
 
 - 两台设备：Host（桌面端，账号 A）、Client（桌面端或浏览器 `/v3`，账号 B）。
 - 账号服务：`startRemoteServer` 实例，URL 使用 HTTPS（浏览器端必须安全上下文）。
 - 两端版本一致；Host 已开启本机 LAN 服务（远程桌面/工作区的本机 API 依赖它）。
+- WebRTC 验收：建议部署 coturn 并配置 `MODE_REMOTE_TURN_URLS` /
+  `MODE_REMOTE_TURN_SECRET`（见 [fnos-fpk-packaging.md](./fnos-fpk-packaging.md)）；
+  仅测同局域网可只配 STUN 或留空（主机候选即可连通）。
 - 记录：两端 deviceId、指纹（前 16 位）、服务地址、时间。
 
 自动化前置：
@@ -68,6 +72,11 @@ pnpm typecheck && pnpm lint && pnpm architecture:check --changed
 | 6.2 | Control 断链期间发起 RPC | 在途请求立即失败，不等到超时；重连后新请求成功 |
 | 6.3 | Host 重启 | Client 侧 Control 重连；既有 remote session 标记断开，可重新连接 |
 | 6.4 | 刷新浏览器 `/v3` 页面 | 账号与设备身份恢复（IndexedDB）；远程桌面/工作区会话不跨页面恢复 |
+| 6.5 | 同局域网两台设备建连（未配 STUN/TURN） | 选路为 `p2p`；RPC/桌面/工作区正常，Relay 无业务密文以外的流量 |
+| 6.6 | 配置 coturn 后跨 NAT 建连 | 选路为 `p2p`；抓包可见 TURN 中继但内容仍为 Noise 密文 |
+| 6.7 | 停掉 coturn 或封锁 UDP 后建连 | 8s 内回落 `relay`，业务可用；日志有 p2p 失败原因 |
+| 6.8 | 浏览器 `/v3`（支持 RTCPeerConnection）连桌面 Host | 选路为 `p2p`；主动禁用 WebRTC（或 `p2p:false`）后为 `relay` |
+| 6.9 | P2P 建立后断网 10s 再恢复 | 数据面断开触发重连；恢复后重新协商，RPC 不重放 |
 
 ## 7. 安全边界
 
@@ -96,5 +105,7 @@ Client：设备名 / deviceId / 指纹：
   HTTPS/WSS（证书须受信任，自签名不支持）。跨公网仍回落 Relay。
 - 浏览器 LAN direct 受混合内容限制（HTTPS 页面不能连 `ws://`），自动回落 Relay。
 - 浏览器 `localStorage` 回落路径的凭据不加密。
-- WebRTC/P2P/TURN 未实现；跨 NAT 连接依赖 Relay。
+- TURN 需自建 coturn（REST 临时凭证）；未配置或 UDP 不通时回落 Relay，
+  跨对称 NAT 可能只能走 Relay。
+- 浏览器不支持 `RTCPeerConnection`（或非安全上下文限制）时只走 Relay。
 - 二维码未实现，配对使用短票 + 手动输入验证码。

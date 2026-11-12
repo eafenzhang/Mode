@@ -90,6 +90,29 @@
   - LAN 直连端口可用 `MODE_LAN_TLS_KEY_FILE` / `MODE_LAN_TLS_CERT_FILE` 启用 HTTPS/WSS
   （证书须被客户端信任）；v3 设备目录地址会带 `wss://` 前缀，LAN 发现广播携带 `scheme`。
   - remote-server 的 `MODE_REMOTE_PUBLIC_URL` 可设为网关子路径（如 `/app/mode`）：服务端下发**相对** Relay 路径，客户端按自己的服务地址解析；账号服务地址也支持带前缀（`https://<nas>/app/mode`）。
+  - WebRTC/P2P 的 ICE 由 remote-server 下发：`MODE_REMOTE_STUN_URLS`（逗号分隔，
+    如 `stun:<host>:3478`）与 `MODE_REMOTE_TURN_URLS`（如
+    `turn:<host>:3478?transport=udp`）。TURN 使用 coturn REST 临时凭证：
+    `MODE_REMOTE_TURN_SECRET` 与 coturn `static-auth-secret` 一致，
+    `MODE_REMOTE_TURN_TTL_SECONDS` 控制有效期（默认 3600）。服务端按连接生成
+    `<expiry>:<deviceId>` 用户名与 HMAC-SHA1 凭证，不入库、不写日志。
+  - coturn 最小部署（与 fnOS 同机或同内网）：
+    ```ini
+    # /etc/turnserver.conf
+    listening-port=3478
+    relay-ip=<NAS 内网 IP>
+    external-ip=<公网 IP>/<内网 IP>    # 有 NAT 时必填
+    static-auth-secret=<与 MODE_REMOTE_TURN_SECRET 相同>
+    use-auth-secret
+    realm=mode.remote
+    min-port=49160
+    max-port=49200
+    fingerprint
+    no-multicast-peers
+    ```
+    防火墙放行 `3478/udp` 与 `49160-49200/udp`；`external-ip` 必须是客户端可达的
+    地址，否则 ICE 只会选中主机/STUN 候选。仅同局域网验收可只配 STUN（或留空）。
+  - 选路顺序 `p2p -> lan -> relay`；P2P 失败或 8s 超时自动回落，业务无需切换。
 - 环境注入：`MODE_DATA_BASE_DIR`、`MODE_CREDENTIAL_SECRET`、`HOME=$TRIM_PKGHOME`、`PATH` 前置 `runtime/bin`（agent 子进程内 `node` 即捆绑运行时）；在线升级另注入 `MODE_FNOS_UPDATE=1`、`MODE_FNOS_APPDEST`、`MODE_FNOS_MAIN_SCRIPT`、`MODE_FNOS_INFO_LOG`、`MODE_FNOS_INFO_LOG_ARCHIVE`、`MODE_FNOS_UPDATE_PUBLIC_KEY`（读取 `$TRIM_PKGETC/update-public-key`，缺失则为空 = 不启用验签），并透传 `TRIM_APPDEST` / `TRIM_PKGVAR` / `TRIM_PKGETC` / `TRIM_SERVICE_PORT` 等生命周期变量，供 `cmd/main restart` 与日志导出复用同一所有者。
 - `cmd/main` 子命令：`start` / `stop` / `status` / **`restart`**（restart 供应用内升级在载荷交换后调用，仍是 PID 唯一写入方）。
 - `info.log` 由 `cmd/main` 管理：Host 的 stdout/stderr 全部追加到 `$TRIM_PKGVAR/info.log`，每次 `start` 前检查大小，超过 10 MiB 改名为 `info.log.1`（只保留一份归档，磁盘上限约 20 MiB）。归档路径经 `MODE_FNOS_INFO_LOG_ARCHIVE` 交给服务进程，`/api/logs/export` 同时打包当前文件与归档；日志导出本身按文件 5 MiB / 总量 20 MiB 截尾。
