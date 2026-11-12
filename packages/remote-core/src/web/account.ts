@@ -1,10 +1,7 @@
-import type {
-  WebCredentialStore,
-  WebDeviceProfile,
-  WebDeviceSummary,
-} from "./accountTypes.js";
+import type { WebCredentialStore, WebDeviceProfile, WebDeviceSummary } from "./accountTypes.js";
 import { generateWebIdentity, importWebIdentity, exportWebIdentity } from "./identity.js";
 import {
+  clearWebAuth,
   deleteWebProfile,
   loadOrCreateWebProfile,
   normalizeWebServerUrl,
@@ -89,10 +86,11 @@ export class WebAccountClient {
   async beginGithubDeviceLogin(): Promise<WebGithubChallenge> {
     const fetchImpl = this.options.fetchImpl ?? fetch;
     const profile = await this.ensureProfile();
-    const response = await fetchImpl(
-      `${profile.serverUrl}/api/v1/auth/github/device/start`,
-      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
-    );
+    const response = await fetchImpl(`${profile.serverUrl}/api/v1/auth/github/device/start`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
     const body = await readWebJson(response);
     if (!response.ok) {
       throw new WebApiError(response.status, readWebError(body, "GitHub Device Flow 启动失败"));
@@ -116,14 +114,11 @@ export class WebAccountClient {
   async pollGithubDeviceLogin(deviceCode: string): Promise<WebGithubPoll> {
     const fetchImpl = this.options.fetchImpl ?? fetch;
     const profile = await this.ensureProfile();
-    const response = await fetchImpl(
-      `${profile.serverUrl}/api/v1/auth/github/device/poll`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ deviceCode }),
-      },
-    );
+    const response = await fetchImpl(`${profile.serverUrl}/api/v1/auth/github/device/poll`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deviceCode }),
+    });
     const body = await readWebJson(response);
     if (!response.ok) {
       throw new WebApiError(response.status, readWebError(body, "GitHub Device Flow 轮询失败"));
@@ -212,6 +207,12 @@ export class WebAccountClient {
     await saveWebProfile(this.options.store, next);
     this.profile = next;
     return next;
+  }
+
+  /** 退出登录但保留设备身份与账号记录，便于在 `/v3` 重新选择该账号。 */
+  async signOut(): Promise<void> {
+    await clearWebAuth(this.options.store, this.options.serverUrl);
+    this.profile = null;
   }
 
   async logout(): Promise<void> {
@@ -342,7 +343,8 @@ export class WebAccountClient {
       headers: { authorization: `Bearer ${accessToken}` },
     });
     const body = await readWebJson(response);
-    if (!response.ok) throw new WebApiError(response.status, readWebError(body, "读取设备目录失败"));
+    if (!response.ok)
+      throw new WebApiError(response.status, readWebError(body, "读取设备目录失败"));
     const items = Array.isArray(body.items) ? body.items : [];
     return items.flatMap((entry) => {
       if (!entry || typeof entry !== "object") return [];
@@ -377,4 +379,3 @@ export class WebAccountClient {
     });
   }
 }
-

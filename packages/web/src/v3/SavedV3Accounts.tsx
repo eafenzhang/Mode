@@ -5,10 +5,12 @@ export function SavedV3Accounts({
   accounts,
   disabled,
   onUse,
+  onDelete,
 }: {
   accounts: WebAccountSummary[];
   disabled: boolean;
   onUse: (serverUrl: string) => void;
+  onDelete?: (serverUrl: string) => void;
 }) {
   if (accounts.length === 0) return null;
   return (
@@ -21,14 +23,26 @@ export function SavedV3Accounts({
               <p className="truncate text-ui-base text-foreground">{account.serverUrl}</p>
               <p className="truncate text-ui-xs text-foreground-subtle">{account.deviceName}</p>
             </div>
-            <button
-              type="button"
-              className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-ui-sm hover:bg-surface-hover disabled:opacity-50"
-              disabled={disabled}
-              onClick={() => onUse(account.serverUrl)}
-            >
-              使用
-            </button>
+            <div className="flex shrink-0 gap-1.5">
+              <button
+                type="button"
+                className="rounded-lg border border-border px-3 py-1.5 text-ui-sm hover:bg-surface-hover disabled:opacity-50"
+                disabled={disabled}
+                onClick={() => onUse(account.serverUrl)}
+              >
+                使用
+              </button>
+              {onDelete ? (
+                <button
+                  type="button"
+                  className="rounded-lg border border-border px-3 py-1.5 text-ui-sm text-destructive hover:bg-surface-hover disabled:opacity-50"
+                  disabled={disabled}
+                  onClick={() => onDelete(account.serverUrl)}
+                >
+                  删除
+                </button>
+              ) : null}
+            </div>
           </li>
         ))}
       </ul>

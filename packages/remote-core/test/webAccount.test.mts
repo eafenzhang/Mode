@@ -6,6 +6,7 @@ import {
   deleteWebProfile,
   listWebProfiles,
   loadOrCreateWebProfile,
+  saveWebProfile,
   webProfileKey,
   type WebCredentialStore,
 } from "../src/web/index.js";
@@ -298,6 +299,32 @@ test("多账号隔离：不同服务地址各自保存身份，删除互不影�
   );
   const reloadedSecond = await loadOrCreateWebProfile(store, { serverUrl: "https://b.example.com" });
   assert.equal(reloadedSecond.deviceId, second.deviceId);
+});
+
+test("signOut 只清空 token：设备身份与账号记录保留，可再次登录", async () => {
+  const store = createStore();
+  const serverUrl = "https://signout.example.com";
+  const created = await loadOrCreateWebProfile(store, { serverUrl, deviceName: "Web" });
+  await saveWebProfile(store, { ...created, accessToken: "access", refreshToken: "refresh" });
+
+  const client = new WebAccountClient({ store, serverUrl });
+  await client.signOut();
+
+  const stored = JSON.parse(store.map.get(webProfileKey(serverUrl))!) as {
+    accessToken: string | null;
+    refreshToken: string | null;
+    deviceId: string;
+    privateKey: string;
+  };
+  assert.equal(stored.accessToken, null);
+  assert.equal(stored.refreshToken, null);
+  assert.equal(stored.deviceId, created.deviceId, "退出登录不轮换设备身份");
+  assert.equal(stored.privateKey, created.privateKey);
+  assert.deepEqual(
+    (await listWebProfiles(store)).map((entry) => entry.serverUrl),
+    [serverUrl],
+    "退出后账号仍保留在可选列表",
+  );
 });
 
 test("旧版单账号 profile 迁移到按服务地址分键", async () => {

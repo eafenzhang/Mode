@@ -13,6 +13,8 @@ import {
 import { SavedV3Accounts } from "./SavedV3Accounts.js";
 import { WebV3RemoteDesktop } from "./WebV3RemoteDesktop.js";
 import { createWebCredentialStore } from "./credentialStore.js";
+import { deleteWebProfile } from "@mode/remote-core/web";
+
 import { listStoredV3Accounts, V3_SERVER_URL_KEY } from "./storedProfile.js";
 
 const credentialStore = createWebCredentialStore();
@@ -65,11 +67,12 @@ export function WebV3Page() {
       try {
         const current = await client.getProfile();
         if (cancelled) return;
+        // ensureProfile 会为首次访问生成设备身份；没有 accessToken 时仍是未登录，
+        // 不能展示「已登录」区块，否则登录按钮会被隐藏、用户无从继续。
+        if (!current.accessToken) return;
         setProfile(current);
-        if (current.accessToken) {
-          const next = await client.listHosts();
-          if (!cancelled) setHosts(next);
-        }
+        const next = await client.listHosts();
+        if (!cancelled) setHosts(next);
       } catch {
         // 首次使用或服务地址不可达：保留登录表单。
       }
@@ -133,10 +136,17 @@ export function WebV3Page() {
 
   const logout = async (): Promise<void> => {
     if (!client) return;
-    await client.logout();
+    await client.signOut();
     setProfile(null);
     setHosts([]);
+    setError("");
     setTestResult("");
+    await refreshAccounts();
+  };
+
+  const removeAccount = async (url: string): Promise<void> => {
+    await deleteWebProfile(credentialStore, url);
+    if (serverUrl.trim() === url) setServerUrl("");
     await refreshAccounts();
   };
 
@@ -258,7 +268,7 @@ export function WebV3Page() {
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold">远程控制 v3 · Web</h1>
           <p className="text-ui-base text-foreground-subtle">
-            浏览器设备身份 + Noise 端到端加密；当前版本通过 Relay 建立连接。
+            浏览器设备身份 + Noise 端到端加密；优先 WebRTC P2P，失败自动回落 Relay。
           </p>
         </header>
 
@@ -305,6 +315,7 @@ export function WebV3Page() {
                 localStorage.setItem(V3_SERVER_URL_KEY, url);
                 setServerUrl(url);
               }}
+              onDelete={(url) => void removeAccount(url)}
             />
           ) : null}
 

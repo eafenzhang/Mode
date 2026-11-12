@@ -65,9 +65,11 @@
 
 1. 多账号隔离已实现：profile 按服务地址分键（`profile:<serverUrl>`），账号索引
    只存 serverUrl/deviceId/deviceName；旧单账号 key 首次读取自动迁移；`/v3` 登录前
-   展示已保存账号并可切换。私钥/token 落盘用 AES-GCM 信封：密钥为不可导出的
-   `CryptoKey`（同存 IndexedDB），旧明文读取兼容并在下次写入升级；
-   localStorage 回落（无 IndexedDB）仍为明文。
+   展示已保存账号并可切换。退出登录（`signOut`）只清空 token、保留设备身份，账号
+   仍留在列表里供再次选择；列表中的「删除」才会移除该服务地址的 profile，且不影响
+   其他账号。首次输入服务地址时只生成设备身份，不展示「已登录」区块。
+   私钥/token 落盘用 AES-GCM 信封：密钥为不可导出的 `CryptoKey`（同存 IndexedDB），
+   旧明文读取兼容并在下次写入升级；localStorage 回落（无 IndexedDB）仍为明文。
 2. 传输：P2P（浏览器 `RTCPeerConnection`）与 Relay WSS 已实现，选路顺序
    `p2p -> relay`；P2P 不可用或超时回落 Relay。LAN direct 仍未接（浏览器受混合内容
    限制，仅在 HTTPS 页面允许 `wss` 直连）。
