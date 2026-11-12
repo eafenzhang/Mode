@@ -130,9 +130,7 @@ export class P2PNegotiation {
 
   /** Host 侧：接受对端 offer，回 answer，等 DataChannel 打开后挂到会话。 */
   async acceptOffer(connectionId: string, sdp: string): Promise<void> {
-    const responder = this.options.adapter.createResponder(
-      this.iceServers.get(connectionId) ?? [],
-    );
+    const responder = this.options.adapter.createResponder(this.iceServers.get(connectionId) ?? []);
     const channelPromise = new Promise<P2PChannel>((resolve) => {
       responder.onChannel(resolve);
     });

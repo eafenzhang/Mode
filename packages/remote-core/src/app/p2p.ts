@@ -53,11 +53,7 @@ export function p2pChannelAsSocket(channel: P2PChannel): RemoteSocket {
     } catch {
       return text;
     }
-    if (
-      typeof frame.i !== "number" ||
-      typeof frame.n !== "number" ||
-      typeof frame.d !== "string"
-    ) {
+    if (typeof frame.i !== "number" || typeof frame.n !== "number" || typeof frame.d !== "string") {
       return text;
     }
     if (!pending || pending.total !== frame.n || frame.i !== pending.next) {
