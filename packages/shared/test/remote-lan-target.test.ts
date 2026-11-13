@@ -141,6 +141,47 @@ test("lan identity 的 posix 对端形态保持不变", () => {
   });
 });
 
+test("v3 workspace identity 往返：Windows 盘符路径与 posix 路径都能解析", () => {
+  // 线上故障形态：`remote:v3:<deviceId>:D:/ZCodium` 被旧解析器当成非法 identity，
+  // CLI 抛 Invalid remote workspace identity → 远端会话首发
+  // fault.command.executionFailed。
+  const deviceId = "43c1ba78-0531-40ac-bbd6-ee06475f27bb";
+  const windowsIdentity = buildRemoteWorkspaceIdentity(String.raw`D:\ZCodium`, {
+    kind: "v3",
+    deviceId,
+  });
+  assert.equal(windowsIdentity, `remote:v3:${deviceId}:D:/ZCodium`);
+  assert.deepEqual(parseRemoteWorkspaceIdentity(windowsIdentity), {
+    kind: "v3",
+    workspacePath: "D:/ZCodium",
+  });
+
+  const posixIdentity = buildRemoteWorkspaceIdentity("/home/dev/proj/", {
+    kind: "v3",
+    deviceId,
+  });
+  assert.equal(posixIdentity, `remote:v3:${deviceId}:/home/dev/proj`);
+  assert.deepEqual(parseRemoteWorkspaceIdentity(posixIdentity), {
+    kind: "v3",
+    workspacePath: "/home/dev/proj",
+  });
+});
+
+test("v3 identity 拒绝缺 deviceId 与相对路径，且不误吞其他 remote kind", () => {
+  assert.equal(parseRemoteWorkspaceIdentity("remote:v3"), null, "缺 deviceId 与路径");
+  assert.equal(
+    parseRemoteWorkspaceIdentity("remote:v3:43c1ba78-0531-40ac-bbd6-ee06475f27bb"),
+    null,
+    "缺路径段",
+  );
+  assert.equal(
+    parseRemoteWorkspaceIdentity("remote:v3:43c1ba78-0531-40ac-bbd6-ee06475f27bb:x"),
+    null,
+    "相对路径拒绝",
+  );
+  assert.equal(parseRemoteWorkspaceIdentity("remote:ftp:host:/x"), null, "未知 kind 拒绝");
+});
+
 test("parseRemoteWorkspaceIdentity 拒绝缺段或相对路径的 lan identity", () => {
   assert.equal(parseRemoteWorkspaceIdentity("remote:lan:192.168.1.20:/x"), null, "缺 port 段");
   assert.equal(parseRemoteWorkspaceIdentity("remote:lan:192.168.1.20:45880"), null, "缺路径段");

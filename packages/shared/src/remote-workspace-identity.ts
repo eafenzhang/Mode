@@ -6,6 +6,7 @@
 //   remote:wsl:<distro>[:<user>]:<posixPath>
 //   remote:docker:<container>:<posixPath>
 //   remote:lan:<host>:<port>:<path>
+//   remote:v3:<deviceId>:<path>
 // path 归一（normalizeWorkspacePathForIdentity）：分隔符 → "/"、折叠重复、去首尾斜杠；
 // ssh/wsl/docker（posix 对端）恒以 "/" 开头；lan 双形态——Windows 对端为盘符开头
 // （`D:/…`，前导斜杠会让 Windows cwd ENOENT），posix 对端照旧 "/" 开头；解析侧对 lan
@@ -17,7 +18,7 @@
 import type { RemoteTarget } from "./remoteTarget.js";
 import type { RemoteTargetSnapshot } from "./protocol.js";
 
-export type RemoteWorkspaceIdentityKind = "ssh" | "wsl" | "docker" | "lan";
+export type RemoteWorkspaceIdentityKind = "ssh" | "wsl" | "docker" | "lan" | "v3";
 
 export interface ParsedRemoteWorkspaceIdentity {
   kind: RemoteWorkspaceIdentityKind;
@@ -34,10 +35,14 @@ const AUTHORITY_SEGMENTS: Record<RemoteWorkspaceIdentityKind, number> = {
   docker: 1,
   // 局域网对端：host + port；host 禁止含 ":"，否则段推进解析会失真。
   lan: 2,
+  // v3 同账号 Host：authority 只有 deviceId。
+  v3: 1,
 };
 
 function isRemoteWorkspaceIdentityKind(value: string): value is RemoteWorkspaceIdentityKind {
-  return value === "ssh" || value === "wsl" || value === "docker" || value === "lan";
+  return (
+    value === "ssh" || value === "wsl" || value === "docker" || value === "lan" || value === "v3"
+  );
 }
 
 /**
@@ -126,7 +131,8 @@ export function parseRemoteWorkspaceIdentity(
     cursor = userEnd + 1;
   }
   const workspacePath = rest.slice(cursor);
-  if (kind === "lan") {
+  // lan / v3 对端可能是 Windows 也可能是 posix：盘符开头与 "/" 开头都接受。
+  if (kind === "lan" || kind === "v3") {
     // lan 双形态（docs/specs/remote-workspace-identity.md）：
     // 盘符开头（规范/野外形态）直接通过；`/D:/…` 旧规范形态归一为 `D:/…`；
     // posix 对端照旧要求绝对路径；其余一律 fail-closed。
