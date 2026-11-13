@@ -103,12 +103,20 @@ export class RemoteV3ClientRuntime {
       this.deps.log(
         `remote_v3_rpc_timeout host=${params.hostDeviceId.slice(0, 8)} method=${params.method} transport=${connection?.transport ?? "none"}`,
       );
-      if (!connection || connection.transport !== "p2p") throw error;
-      // 旧对端可能「P2P 握手成功但 DataChannel 不通」：帧发得出去、回不来，表现为 RPC 超时。
-      // 该 Host 本次会话内禁用 P2P，重连后走 LAN/Relay 再试一次；失败才把错误抛给调用方。
-      this.disableP2pFor(params.hostDeviceId);
+      // 缓存的连接可能已经「死而不僵」：对端重启控制链路/更换会话后，旧连接上的帧
+      // 发得出去、回不来，表现为所有 RPC 都超时（同一 Peer 用新连接则正常）。
+      // 连接缺席时同样重试一次：对端断开通常先触发 onClose 清掉缓存，等我们捕获超时
+      // 时已经查不到它——这恰恰是最典型的需要新建连接的情形。
+      // 若旧连接走的是 P2P，还顺带在本进程内禁用 P2P，避免又回到同一条不回帧的 DataChannel。
+      // 只在「数据面已不可信」时重试：连接已被移除（对端断开后的缓存残留）或走 P2P。
+      // 连接仍在且是 LAN/Relay 时，超时更可能是对端不响应；盲目重试会让非幂等 RPC 重复执行。
+      const stale = !connection || connection.transport === "p2p";
+      if (!stale) throw error;
+      this.resetConnection(params.hostDeviceId, {
+        disableP2p: connection?.transport === "p2p",
+      });
       this.deps.log(
-        `remote_v3_p2p_fallback host=${params.hostDeviceId.slice(0, 8)} reason=rpc_timeout`,
+        `remote_v3_rpc_retry host=${params.hostDeviceId.slice(0, 8)} reason=stale_connection transport=${connection?.transport ?? "none"}`,
       );
       return await this.requestOnce(params);
     }
@@ -217,8 +225,9 @@ export class RemoteV3ClientRuntime {
     await clearRemoteV3ClientTokens(this.deps.credentials);
   }
 
-  private disableP2pFor(hostDeviceId: string): void {
-    this.p2pDisabledHosts.add(hostDeviceId);
+  /** 丢弃缓存的连接（可选同时禁用 P2P）；下次 getConnection 会重新建链。 */
+  private resetConnection(hostDeviceId: string, options: { disableP2p: boolean }): void {
+    if (options.disableP2p) this.p2pDisabledHosts.add(hostDeviceId);
     const existing = this.connections.get(hostDeviceId);
     if (!existing) return;
     this.connections.delete(hostDeviceId);

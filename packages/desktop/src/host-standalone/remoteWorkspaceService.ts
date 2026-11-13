@@ -412,37 +412,48 @@ export async function createRemoteWorkspaceHostService(
     }
     const closeBridge = createRemoteCloseBridge();
     // 对端在线但隧道握手不返回时，connect() 会永久挂起（实测向导停在「正在连接…」且日志只有
-    // 一行“开始连接”）。给整条挂接一个上限，超时按可读失败收口并放弃在途隧道。
+    // 一行“开始连接”）。这里用 Promise.race 硬超时：只 abort 不够——挂接内部若卡在不监听
+    // signal 的 RPC 上，await 永远不会返回。
+    options.log(`remote_v3_workspace_attach_start host=${target.deviceId.slice(0, 8)}`);
     const abort = new AbortController();
     const forwardAbort = () => abort.abort();
     signal.addEventListener("abort", forwardAbort, { once: true });
-    let timedOut = false;
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      abort.abort();
-    }, V3_WORKSPACE_CONNECT_TIMEOUT_MS);
+    let timeout: NodeJS.Timeout | undefined;
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+      timeout = setTimeout(() => {
+        abort.abort();
+        reject(
+          new Error(
+            `远程设备未在 ${V3_WORKSPACE_CONNECT_TIMEOUT_MS / 1000} 秒内完成工作区挂接：请确认对端在线、版本支持远程工作区，或改用局域网连接`,
+          ),
+        );
+      }, V3_WORKSPACE_CONNECT_TIMEOUT_MS);
+      timeout.unref?.();
+    });
     let connection: Awaited<ReturnType<typeof attachV3RemoteWorkspace>>;
     try {
-      connection = await attachV3RemoteWorkspace({
-        remoteV3,
-        hostDeviceId: target.deviceId,
-        signal: abort.signal,
-        onClose: () => closeBridge.notify({ exitCode: null, signal: null }),
-      });
+      connection = await Promise.race([
+        attachV3RemoteWorkspace({
+          remoteV3,
+          hostDeviceId: target.deviceId,
+          signal: abort.signal,
+          onClose: () => closeBridge.notify({ exitCode: null, signal: null }),
+        }),
+        timeoutPromise,
+      ]);
+      options.log(`remote_v3_workspace_attach_ok host=${target.deviceId.slice(0, 8)}`);
     } catch (error) {
-      if (timedOut) {
-        throw new Error(
-          `远程设备未在 ${V3_WORKSPACE_CONNECT_TIMEOUT_MS / 1000} 秒内完成工作区挂接：请确认对端在线、版本支持远程工作区，或改用局域网连接`,
-        );
-      }
+      options.log(
+        `remote_v3_workspace_attach_failed host=${target.deviceId.slice(0, 8)} error=${describeError(error)}`,
+      );
       throw error;
     } finally {
-      clearTimeout(timeout);
+      if (timeout) clearTimeout(timeout);
       signal.removeEventListener("abort", forwardAbort);
     }
     if (signal.aborted || abort.signal.aborted) {
       await connection.dispose();
-      throw new Error(timedOut ? "远程工作区挂接超时" : "远程连接已取消");
+      throw new Error("远程连接已取消");
     }
     const promptAttachmentTransferService = createLanPromptAttachmentTransferService({
       channel: connection.services.modeAgentService,
