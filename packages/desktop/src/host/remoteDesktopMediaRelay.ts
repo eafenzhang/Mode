@@ -1,3 +1,4 @@
+/* oxlint-disable eslint(max-lines) -- 分帧/路由/背压/IDR 去抖/剪贴板门共享同一条字节泵生命周期，拆散会分散收口路径。 */
 /**
  * 被控 host 侧**媒体中继**：本地管道（helper TCP ↔ host）与 media WS 之间的字节泵
  * （docs/specs/lan-remote-desktop-native-media.md 协议节：契约 B 管道、契约 C WS 消息）。
@@ -82,8 +83,12 @@ const MAX_PIPE_FRAME_BYTES = 16 * 1024 * 1024;
  * ping/输入不丢。128KB ≈ 8Mbps 下 130ms 缓冲——超过它继续排队的每一 KB 都是纯延迟。
  */
 const WS_BACKPRESSURE_BYTES = 128 * 1024;
-/** 紧急关键帧请求（kind3）去抖间隔：一次丢帧爆发只请求一枚，避免刷屏。 */
-const KEY_REQUEST_DEBOUNCE_MS = 300;
+/**
+ * kind3 去抖：一次丢帧爆发只请求一枚。2026-11-13 从 300ms 提到 1500ms——1080p IDR
+ * 是大突发，300ms 的「丢了就要」会造成「IDR → 更堵 → 再丢 → 再要」的正反馈
+ * （真机 8Mbps 档因此跑到 11.7Mbps）；renderer 的重同步门控会等关键帧，不怕慢一点。
+ */
+const KEY_REQUEST_DEBOUNCE_MS = 1500;
 
 export function createRemoteDesktopMediaRelay(
   options: RemoteDesktopMediaRelayOptions,
@@ -322,15 +327,22 @@ export function createRemoteDesktopMediaRelay(
     // renderer 侧解码落后/丢帧后的关键帧请求：下行到 helper（kind3）。
     if (message.t === "need-key") { requestHelperKey(); return; }
     if (message.t === "set-bitrate") {
-      // 自适应码率方向盘（renderer 采样 RTT/丢弃后决策）：下行到 helper（kind4）。
-      const bps = (message as { bps?: unknown }).bps;
-      if (typeof bps === "number" && Number.isInteger(bps) && bps >= 100_000 && bps <= 50_000_000) {
-        const payload = Buffer.alloc(4);
-        payload.writeUInt32BE(bps, 0);
-        writeHelperControl(4, payload);
-      } else {
-        logger.warn("[rd-media-relay] invalid set-bitrate bps, dropped");
+      // 自适应码率/帧率：下行到 helper（kind4）。fps 可选——缺省 len=5 只改码率，
+      // 给出时 len=9，helper 同时调 FramePacer（spec: remote-desktop-latency §2.1）。
+      const { bps, fps } = message as { bps?: unknown; fps?: unknown };
+      const validBps =
+        typeof bps === "number" && Number.isInteger(bps) && bps >= 100_000 && bps <= 50_000_000;
+      const validFps =
+        fps === undefined ||
+        (typeof fps === "number" && Number.isInteger(fps) && fps >= 5 && fps <= 240);
+      if (!validBps || !validFps) {
+        logger.warn("[rd-media-relay] invalid set-bitrate bps/fps, dropped");
+        return;
       }
+      const payload = Buffer.alloc(fps === undefined ? 4 : 8);
+      payload.writeUInt32BE(bps, 0);
+      if (typeof fps === "number") payload.writeUInt32BE(fps, 4);
+      writeHelperControl(4, payload);
       return;
     }
     try {

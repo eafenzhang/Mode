@@ -47,6 +47,56 @@ pub fn reduce(state: &mut EncoderState) -> EncoderAction {
 pub const FRAME_FLAG_KEY: u8 = 1;
 pub fn frame_flags(key: bool) -> u8 { if key { FRAME_FLAG_KEY } else { 0 } }
 
+/// 采集帧率节拍器（spec: docs/specs/remote-desktop-latency.md §2.1）。
+///
+/// WHY：采集循环原来是 `next_frame(16)` 的死循环，显示器刷新率就是编码帧率——
+/// 80/144Hz 屏会按 80/144fps 编，而编码器按预设 fps 配码率，直接造成码率超发与
+/// 链路排队。这里把「允许下一帧的时刻」变成显式状态，worker 只在到期后取帧/编码。
+///
+/// 语义与边界：
+/// - 间隔按 `ceil(1000/fps)` 取整，保证实际速率**不超过**预设（60 → 17ms、30 → 34ms）；
+/// - `on_emitted` 从本帧时刻重新排期，不承接欠账（落后时不会连发补帧）；
+/// - 改 fps 立即生效：`set_fps` 把到期时刻复位到当前，下一 tick 即可出帧。
+pub struct FramePacer {
+    fps: u32,
+    interval_ms: u64,
+    next_at_ms: u64,
+}
+
+fn interval_ms_for(fps: u32) -> u64 {
+    let fps = fps.max(1) as u64;
+    (1000 + fps - 1) / fps
+}
+
+impl FramePacer {
+    pub fn new(fps: u32, now_ms: u64) -> Self {
+        let fps = fps.max(1);
+        Self { fps, interval_ms: interval_ms_for(fps), next_at_ms: now_ms }
+    }
+
+    pub fn fps(&self) -> u32 { self.fps }
+    pub fn interval_ms(&self) -> u64 { self.interval_ms }
+
+    /// 距离允许下一帧还剩多少毫秒；0 = 可以立即出帧。
+    pub fn wait_ms(&self, now_ms: u64) -> u64 { self.next_at_ms.saturating_sub(now_ms) }
+
+    /// 改帧率：相同值不改排期；不同值从当前时刻重新开始，避免旧欠账拖慢新档。
+    pub fn set_fps(&mut self, fps: u32, now_ms: u64) {
+        let fps = fps.max(1);
+        if fps == self.fps {
+            return;
+        }
+        self.fps = fps;
+        self.interval_ms = interval_ms_for(fps);
+        self.next_at_ms = now_ms;
+    }
+
+    /// 本 tick 已把一帧交给编码器：按当前 fps 排下一帧。
+    pub fn on_emitted(&mut self, now_ms: u64) {
+        self.next_at_ms = now_ms.saturating_add(self.interval_ms);
+    }
+}
+
 /// 从 Annex-B 字节流中探测 IDR NAL（nal_unit_type == 5）。
 ///
 /// WHY：编码器侧的 keyframe 标志（`MFT_ENCODER_OUTPUT_DATA_PARAM_KEYFRAME`）在

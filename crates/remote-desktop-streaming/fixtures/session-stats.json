@@ -185,9 +185,9 @@
         },
         {
           "op": "sample",
-          "nowMs": 0,
+          "nowMs": 3000,
           "expected": {
-            "fps": 60,
+            "fps": 20,
             "rttMs": null,
             "frameAgeMs": null,
             "width": null,
@@ -200,14 +200,14 @@
         },
         {
           "op": "sample",
-          "nowMs": 0,
+          "nowMs": 6000,
           "expected": {
             "fps": 0,
             "rttMs": null,
             "frameAgeMs": null,
             "width": null,
             "height": null,
-            "bitrateKbps": null,
+            "bitrateKbps": 0,
             "decodeDrops": 0,
             "decodeQueue": null,
             "freezeCount": 0
@@ -676,7 +676,7 @@
           "op": "sample",
           "nowMs": 1016,
           "expected": {
-            "fps": 1,
+            "fps": 63,
             "rttMs": 30.5,
             "frameAgeMs": 16,
             "width": 2560,

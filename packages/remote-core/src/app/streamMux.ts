@@ -12,6 +12,12 @@ export interface RemoteStream {
   readonly streamId: number;
   readonly service: string;
   readonly metadata: Record<string, unknown>;
+  /**
+   * 底层数据面的发送队列水位（字节）。媒体隧道据此丢旧视频帧，避免
+   * 「发送端内存无限排队 → 端到端延迟随时间上涨」（spec: remote-desktop-latency §2.3）。
+   * 无水位信息时为 0。
+   */
+  readonly bufferedAmount: number;
   send(data: Uint8Array): void;
   close(reason?: string): void;
   onData(callback: (data: Uint8Array) => void): () => void;
@@ -21,6 +27,8 @@ export interface RemoteStream {
 export interface StreamMuxOptions {
   send: (frame: BusinessFrame) => void;
   onStream: (stream: RemoteStream) => void;
+  /** 数据面发送队列水位；缺省 = 0（不提供背压观测）。 */
+  getBufferedAmount?: () => number;
 }
 
 const MAX_CONCURRENT_STREAMS = 64;
@@ -49,7 +57,13 @@ export class StreamMux {
       if (streamId > MAX_STREAM_ID) streamId = 1;
     }
     this.nextStreamId = streamId + 1;
-    const stream = new MutableStream(streamId, service, metadata, this.options.send);
+    const stream = new MutableStream(
+      streamId,
+      service,
+      metadata,
+      this.options.send,
+      this.options.getBufferedAmount,
+    );
     this.streams.set(streamId, stream);
     this.options.send({ v: 1, type: "stream.open", streamId, service, metadata });
     return stream;
@@ -112,6 +126,7 @@ export class StreamMux {
       frame.service,
       frame.metadata,
       this.options.send,
+      this.options.getBufferedAmount,
     );
     this.streams.set(frame.streamId, stream);
     this.options.onStream(stream);
@@ -123,6 +138,7 @@ class MutableStream implements RemoteStream {
   readonly service: string;
   readonly metadata: Record<string, unknown>;
   private readonly sendFrame: (frame: BusinessFrame) => void;
+  private readonly getBufferedAmount: () => number;
   private readonly dataListeners = new Set<(data: Uint8Array) => void>();
   private readonly closeListeners = new Set<(reason: string) => void>();
   private closed = false;
@@ -132,11 +148,17 @@ class MutableStream implements RemoteStream {
     service: string,
     metadata: Record<string, unknown>,
     sendFrame: (frame: BusinessFrame) => void,
+    getBufferedAmount?: () => number,
   ) {
     this.streamId = streamId;
     this.service = service;
     this.metadata = metadata;
     this.sendFrame = sendFrame;
+    this.getBufferedAmount = getBufferedAmount ?? (() => 0);
+  }
+
+  get bufferedAmount(): number {
+    return this.getBufferedAmount();
   }
 
   send(data: Uint8Array): void {

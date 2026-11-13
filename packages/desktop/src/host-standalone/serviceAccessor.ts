@@ -262,7 +262,12 @@ export async function createHostServiceSurface(
         quality?: import("@mode/shared/remote-desktop").RemoteDesktopQuality,
         codec?: import("@mode/shared/remote-desktop").RemoteDesktopCodec,
       ) => Promise<
-        | { ok: true; wsUrl: string; mediaUrl: string }
+        | {
+            ok: true;
+            wsUrl: string;
+            mediaUrl: string;
+            transport?: import("@mode/shared/remote-desktop").RemoteDesktopTransport;
+          }
         | { ok: false; errorCode?: import("@mode/shared/remote-desktop").RemoteDesktopErrorCode; error: string }
         | null
       >)
@@ -426,7 +431,12 @@ export async function createHostServiceSurface(
         ...(quality ? { quality } : {}),
         ...(codec ? { codec } : {}),
       });
-      return { ok: true, wsUrl: session.signalUrl, mediaUrl: session.mediaUrl };
+      return {
+        ok: true,
+        wsUrl: session.signalUrl,
+        mediaUrl: session.mediaUrl,
+        ...(session.transport ? { transport: session.transport } : {}),
+      };
     } catch (error) {
       return {
         ok: false,

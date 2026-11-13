@@ -339,10 +339,16 @@ if (process.env[SERVER_CASE_ENV] === "1") {
       relay.handleWsMessage(JSON.stringify({ t: "need-key" }), false);
       relay.handleWsMessage(JSON.stringify({ t: "set-bitrate", bps: 4_000_000 }), false);
       relay.handleWsMessage(JSON.stringify({ t: "set-bitrate", bps: 123 }), false);
+      // 带 fps 的 kind4（len=9）：生产者帧率降档（spec: remote-desktop-latency §2.1）。
+      relay.handleWsMessage(JSON.stringify({ t: "set-bitrate", bps: 2_500_000, fps: 30 }), false);
+      // 非法 fps 整条丢弃（不静默降级成只改码率）。
+      relay.handleWsMessage(JSON.stringify({ t: "set-bitrate", bps: 2_500_000, fps: 0 }), false);
       const expected = Buffer.concat([
         Buffer.from([0, 0, 0, 1, 2]), // kind2 开流
         Buffer.from([0, 0, 0, 1, 3]), // kind3 紧急关键帧
         Buffer.from([0, 0, 0, 5, 4, 0x00, 0x3d, 0x09, 0x00]), // kind4 + 4_000_000
+        // kind4 len=9 + 2_500_000 + 30
+        Buffer.from([0, 0, 0, 9, 4, 0x00, 0x26, 0x25, 0xa0, 0x00, 0x00, 0x00, 0x1e]),
       ]);
       await waitFor(
         () => Buffer.concat(helperFrames).length >= expected.length,

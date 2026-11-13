@@ -17,6 +17,7 @@ import {
   type RemoteDesktopCodec,
   type RemoteDesktopErrorCode,
   type RemoteDesktopQuality,
+  type RemoteDesktopTransport,
 } from "@mode/shared/remote-desktop";
 import type { ICredentialService } from "@mode/services";
 import { fetchLanPeerInfo, readLanPeerEndpoints } from "./lanRemoteAttach.js";
@@ -140,7 +141,13 @@ export async function openRemoteDesktopPeerSession(
   quality: RemoteDesktopQuality = DEFAULT_REMOTE_DESKTOP_QUALITY,
   codec: RemoteDesktopCodec = DEFAULT_REMOTE_DESKTOP_CODEC,
 ): Promise<
-  | { ok: true; wsUrl: string; mediaUrl: string }
+  | {
+      ok: true;
+      wsUrl: string;
+      mediaUrl: string;
+      /** 会话建立命中的链路（LAN 直连路径恒为 lan；v3 由上层补齐）。 */
+      transport?: RemoteDesktopTransport;
+    }
   | { ok: false; errorCode?: RemoteDesktopErrorCode; error: string }
 > {
   const target = await readPeerTarget(credentials, serverId.trim());
@@ -264,5 +271,12 @@ export async function openRemoteDesktopPeerSession(
   const mediaUrl = new URL(buildLanApiUrl(base, "/ws/remote-desktop-media"));
   mediaUrl.protocol = `${toWebSocketScheme(endpoint.scheme)}:`;
   mediaUrl.searchParams.set("mediaTicket", mediaTicket);
-  return { ok: true, wsUrl: wsUrl.toString(), mediaUrl: mediaUrl.toString() };
+  // transport=lan：这条路径是主控直连被控的 LAN/公网端点（不经 v3 数据面），
+  // 供会话状态条展示（spec: remote-desktop-latency §2.6）。
+  return {
+    ok: true,
+    wsUrl: wsUrl.toString(),
+    mediaUrl: mediaUrl.toString(),
+    transport: "lan" as const,
+  };
 }

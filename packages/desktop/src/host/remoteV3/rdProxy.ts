@@ -5,6 +5,13 @@ import type { RemoteStream } from "@mode/remote-core";
 
 type ProxyKind = "signal" | "media";
 
+/**
+ * renderer 本地 WS 的背压线（spec: remote-desktop-latency §2.3）：超过 128KB
+ * （≈8Mbps 下 130ms）就丢**二进制**视频帧；文本（pong/freeze/clip）不丢。
+ * 丢帧造成 seq 缺口，renderer 会进入重同步并请求关键帧。
+ */
+const MEDIA_BACKPRESSURE_BYTES = 128 * 1024;
+
 interface ProxySession {
   signal: RemoteStream;
   /** 媒体流可因瞬断重开；信令存活期间为 null 表示等待 renderer 重连。 */
@@ -128,9 +135,13 @@ export class RemoteDesktopTunnelProxy {
   private bindMedia(session: ProxySession, stream: RemoteStream): void {
     stream.onData((frame) => {
       const socket = session.sockets.media;
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(Buffer.from(frame.subarray(1)), { binary: (frame[0] ?? 1) === 1 });
+      const binary = (frame[0] ?? 1) === 1;
+      if (socket?.readyState !== WebSocket.OPEN) return;
+      if (binary && (socket.bufferedAmount ?? 0) > MEDIA_BACKPRESSURE_BYTES) {
+        // 本地接收端跟不上：丢最旧视频帧，绝不把延迟转成内存队列。
+        return;
       }
+      socket.send(Buffer.from(frame.subarray(1)), { binary });
     });
     stream.onClose(() => {
       if (session.media !== stream) return;

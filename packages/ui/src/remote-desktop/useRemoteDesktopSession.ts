@@ -23,6 +23,7 @@ import {
   type RemoteDesktopPointerEvent,
   type RemoteDesktopMediaSocket,
   type RemoteDesktopSignalMessage,
+  type RemoteDesktopTransport,
 } from "@mode/shared/remote-desktop";
 import type { IPlatformService } from "@mode/shared";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
@@ -51,6 +52,11 @@ import {
   INITIAL_QUALITY_DOWNSHIFT_STATE,
   type QualityDownshiftState,
 } from "./adaptiveBitrate.js";
+import {
+  INITIAL_PRODUCER_RATE_STATE,
+  stepProducerRate,
+  type ProducerRateState,
+} from "./producerRate.js";
 import {
   createSessionReconnectController,
   type SessionReconnectController,
@@ -87,6 +93,8 @@ export interface UseRemoteDesktopSessionResult {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** 原生媒体画面（解码即画）：输入坐标映射的参照面。 */
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  /** 会话建立命中的链路（状态条只读展示；旧 Host/未知为 null）。 */
+  transport: RemoteDesktopTransport | null;
   selectMonitor: (displayId: string) => void;
   /** 本端主动断开（先带出 bye，等 main 收口）。 */
   disconnect: () => void;
@@ -155,6 +163,8 @@ export function useRemoteDesktopSession(options: {
     INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE,
   );
   const [stats, setStats] = useState<RemoteDesktopSessionStats>(EMPTY_REMOTE_DESKTOP_SESSION_STATS);
+  // 本次会话实际链路（spec: remote-desktop-latency §2.6）：高 RTT 时先区分物理链路与排队。
+  const [transport, setTransport] = useState<RemoteDesktopTransport | null>(null);
   // 自适应码率 v1（P1-2）：pong 节拍上采样 RTT + 上拍以来的解码丢弃数 → 两档 + 滞回
   // → 下行 {t:"set-bitrate"}（中继 → helper → ICodecAPI MeanBitRate）。两档取自本会话
   // 画质档位预设（P1-3）：高档 = 预设码率、低档 = 预设低码率，拥塞时不越级到其它档。
@@ -162,6 +172,9 @@ export function useRemoteDesktopSession(options: {
     initialAdaptiveBitrateState(qualityPreset.bitrateBps, qualityPreset.minBitrateBps),
   );
   const droppedSinceAdaptiveSample = useRef(0);
+  // 生产者帧率回调（spec: remote-desktop-latency §2.1）：解码端跟不上时降被控采集 fps，
+  // 比「只降码率」更能压住端到端延迟；改档重建即复位。
+  const producerRateRef = useRef<ProducerRateState>(INITIAL_PRODUCER_RATE_STATE);
   // 断线重连（P2-1）：媒体票请求的等待者（media-ticket 信令回复唤醒）；
   // 会话级重连期间的媒体失败抑制位（旧媒体面静默收口，不触发失败归因）。
   const pendingMediaTicketRef = useRef<((ticket: string | null) => void) | null>(null);
@@ -387,10 +400,11 @@ export function useRemoteDesktopSession(options: {
         sessionRef.current = null;
         dispatchRef.current({ type: "media", status: "reconnecting" });
       },
-      onRecovered: (mediaUrl) => {
+      onRecovered: (mediaUrl, nextTransport) => {
         // 后续 connecting→connected→hello→monitors→media-open 由事件流驱动；
         // 新媒体面建立（open-media effect）时解除失败抑制并恢复画面。
         mediaUrlRef.current = mediaUrl;
+        setTransport(nextTransport ?? null);
       },
       onGiveUp: (error) => {
         suppressMediaFailureRef.current = false;
@@ -440,6 +454,7 @@ export function useRemoteDesktopSession(options: {
           return;
         }
         mediaUrlRef.current = result.mediaUrl ?? null;
+        setTransport(result.transport ?? null);
         if (!result.mediaUrl) {
           // 契约 E 未给出连接地址（旧 main / 未贯通）：媒体面无法建立，立即按不支持收口。
           dispatchRef.current({
@@ -507,9 +522,26 @@ export function useRemoteDesktopSession(options: {
           Date.now(),
         );
         adaptiveRef.current = outcome.state;
+        // 生产者帧率（spec: remote-desktop-latency §2.1）：同一采样窗、同一份丢弃计数。
+        // 解码端持续跟不上时把采集 fps 减半（最低 15），恢复逐级翻倍回预设。
+        const baseFps =
+          REMOTE_DESKTOP_QUALITY_PRESETS[qualityRef.current ?? DEFAULT_REMOTE_DESKTOP_QUALITY]
+            .fps;
+        const producer = stepProducerRate(
+          producerRateRef.current,
+          { baseFps, droppedFrames: dropped, rttMs },
+          Date.now(),
+        );
+        producerRateRef.current = producer.state;
         droppedSinceAdaptiveSample.current = 0;
-        if (outcome.nextBps !== null) {
-          sessionRef.current?.send({ t: "set-bitrate", bps: outcome.nextBps });
+        // 码率与 fps 合并下发：fps 只在降档/恢复时携带；bps 跟随自适应当前档。
+        if (outcome.nextBps !== null || producer.nextFps !== null) {
+          const fps = producer.nextFps ?? producer.state.fps;
+          sessionRef.current?.send({
+            t: "set-bitrate",
+            bps: outcome.nextBps ?? adaptiveRef.current.currentBps,
+            ...(fps !== null ? { fps } : {}),
+          });
         }
         // 动态降档（spec 画质档位·动态降档 2026-10-13）：低档码率仍持续拥塞 →
         // 自动以更低画质档重建会话（复用改档重建链路；pong 只在媒体存活时到达，
@@ -596,6 +628,7 @@ export function useRemoteDesktopSession(options: {
       const preset = REMOTE_DESKTOP_QUALITY_PRESETS[next];
       adaptiveRef.current = initialAdaptiveBitrateState(preset.bitrateBps, preset.minBitrateBps);
       droppedSinceAdaptiveSample.current = 0;
+      producerRateRef.current = INITIAL_PRODUCER_RATE_STATE;
       qualityDownshiftRef.current = INITIAL_QUALITY_DOWNSHIFT_STATE;
       // 先进入重连编排：mediaStatus=reconnecting 把紧随其后的本地 closed 事件遮成
       // 「正在恢复」（避免关闭态闪层），首档尝试在 250ms 后——届时 bye 已过一个 RTT、
@@ -679,6 +712,7 @@ export function useRemoteDesktopSession(options: {
   return {
     view,
     stats,
+    transport,
     containerRef,
     canvasRef,
     selectMonitor,

@@ -1,5 +1,7 @@
 export interface WebSocketLike {
   readonly readyState: number;
+  /** 发送队列水位（浏览器 WebSocket 原生提供）；媒体面据它做背压丢弃。 */
+  readonly bufferedAmount?: number;
   send(data: string): void;
   close(code?: number, reason?: string): void;
   addEventListener(type: string, listener: (event: { data?: unknown; code?: number }) => void): void;

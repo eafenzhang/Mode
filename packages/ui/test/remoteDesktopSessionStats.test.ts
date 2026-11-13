@@ -2,17 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 // 状态条读数采集器（docs/specs/lan-remote-desktop-native-media.md，Task 11）：
-// 数据源从 getStats 换成自有计数——fps = 采样间隔内 onDecoded 次数（sample 后清零），
+// 数据源从 getStats 换成自有计数——fps = 采样窗内 onDecoded 次数 ÷ 实际经过秒数
+// （sample 后清零；2026-11-13 修正：旧口径把 3s 计数直接当 fps），
 // RTT = 最近一次 pong 的往返毫秒（无则 null），帧龄 = 采样窗口内中位数（无则 null），
 // 分辨率 = 最近一次 decoder 配置尺寸（无则 null）。
 const { createNativeSessionStatsCollector, EMPTY_REMOTE_DESKTOP_SESSION_STATS } =
   await import("../src/remote-desktop/sessionStats.js");
 
-test("fps = 采样间隔内解码帧数；连续采样重置计数", () => {
-  const c = createNativeSessionStatsCollector();
+test("fps = 采样窗内解码帧数 ÷ 经过秒数；连续采样重置计数", () => {
+  let t = 1_000_000;
+  const c = createNativeSessionStatsCollector({ now: () => t });
+  // 3 秒窗内 60 帧 = 20fps（旧口径会显示 60，正是真机 80 实际约 27 的来源）。
   for (let i = 0; i < 60; i++) c.onDecoded();
-  const s = c.sample();
-  assert.equal(s.fps, 60);
+  t += 3000;
+  assert.equal(c.sample().fps, 20);
+  t += 3000;
   assert.equal(c.sample().fps, 0, "第二次采样无新帧 → 0");
 });
 

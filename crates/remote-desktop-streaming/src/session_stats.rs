@@ -71,6 +71,8 @@ impl SessionStats {
 
 #[derive(Debug, Default)]
 pub struct SessionStatsCollector {
+    /// 首窗的分母起点（与 TS 侧构造时 `now()` 对齐；fixture 从 0 起算）。
+    created_at_ms: f64,
     decoded_since_last_sample: i64,
     last_rtt_ms: Option<f64>,
     frame_ages_since_last_sample: Vec<f64>,
@@ -134,7 +136,13 @@ impl SessionStatsCollector {
     ///
     /// 有副作用（清零计数与窗口），只能由唯一的轮询消费者按固定节拍调用。
     pub fn sample(&mut self, now_ms: f64) -> SessionStats {
-        let fps = self.decoded_since_last_sample;
+        // fps 是速率不是计数：窗口内帧数 ÷ 实际经过秒数（2026-11-13 修正）。
+        let elapsed_ms = now_ms - self.last_sample_at_ms.unwrap_or(self.created_at_ms);
+        let fps = if elapsed_ms > 0.0 {
+            (self.decoded_since_last_sample as f64 * 1000.0 / elapsed_ms).round() as i64
+        } else {
+            0
+        };
         self.decoded_since_last_sample = 0;
         let frame_age_ms = if self.frame_ages_since_last_sample.is_empty() {
             None
@@ -175,13 +183,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fps_counts_within_window_and_resets() {
+    fn fps_is_a_rate_not_a_window_count() {
         let mut c = SessionStatsCollector::new();
         for _ in 0..60 {
             c.on_decoded();
         }
-        assert_eq!(c.sample(0.0).fps, 60);
-        assert_eq!(c.sample(0.0).fps, 0);
+        // 3 秒窗内 60 帧 = 20fps（旧口径返回 60，是状态条读数放大的根因）。
+        assert_eq!(c.sample(3_000.0).fps, 20);
+        assert_eq!(c.sample(6_000.0).fps, 0);
     }
 
     #[test]

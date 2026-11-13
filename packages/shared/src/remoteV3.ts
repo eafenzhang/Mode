@@ -107,6 +107,8 @@ export interface RemoteV3RemoteDesktopSession {
   signalUrl: string;
   /** 本机回环媒体 WS；现有 renderer 媒体客户端直接连接。 */
   mediaUrl: string;
+  /** 本次会话选中的数据面链路（状态条展示；缺省/旧 Host = unknown）。 */
+  transport?: import("./remote-desktop.js").RemoteDesktopTransport;
 }
 
 export interface RemoteV3TunnelEvent {

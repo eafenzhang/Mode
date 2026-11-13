@@ -22,6 +22,7 @@ import type {
   RemoteDesktopErrorCode,
   RemoteDesktopQuality,
   RemoteDesktopSignalMessage,
+  RemoteDesktopTransport,
 } from "./remote-desktop.js";
 import type {
   LoadCliMcpFromUserDirectoryRequest,
@@ -1073,7 +1074,10 @@ export interface IPlatformService {
     serverId: string,
     quality?: RemoteDesktopQuality,
     codec?: RemoteDesktopCodec,
-  ): Promise<{ ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }>;
+  ): Promise<
+    | { ok: true; mediaUrl?: string; transport?: RemoteDesktopTransport }
+    | { error: RemoteDesktopErrorCode }
+  >;
 
   /**
    * 读取本机是否处于被控状态（被控会话状态机 phase !== "idle"，含同意弹窗中）。

@@ -231,6 +231,33 @@ test("关键帧 + delta：解码次数、chunk 类型与时间戳单调", async 
   assert.ok(second!.timestamp > first!.timestamp, "时间戳必须单调递增");
 });
 
+test("seq 缺口进入重同步：缺口后的 delta 全部丢弃，直到关键帧到达", async () => {
+  const h = createHarness();
+  h.ws.fireOpen();
+  h.ws.deliver(frameBytes(1, true, [...SPS, ...KEY_NAL]));
+  await waitForDecoded(1);
+  // seq2 丢失（中继/传输/本地背压丢帧），seq3 到达：参考帧链已断，不能解码。
+  h.ws.deliver(frameBytes(3, false, DELTA_NAL));
+  await settle();
+  assert.deepEqual(
+    StubVideoDecoder.decoded.map((d) => d.type),
+    ["key"],
+    "缺口后的 delta 不得继续解码（旧实现会解出残影）",
+  );
+  // 重同步期间后续 delta 也丢弃，避免把坏链越解越长。
+  h.ws.deliver(frameBytes(4, false, DELTA_NAL));
+  await settle();
+  assert.equal(StubVideoDecoder.decoded.length, 1);
+  // 关键帧到达即重同步点：恢复解码，后续 delta 正常跟随。
+  h.ws.deliver(frameBytes(5, true, [...SPS, ...KEY_NAL]));
+  h.ws.deliver(frameBytes(6, false, DELTA_NAL));
+  await waitForDecoded(3);
+  assert.deepEqual(
+    StubVideoDecoder.decoded.map((d) => d.type),
+    ["key", "key", "delta"],
+  );
+});
+
 test("解密完成顺序颠倒时仍按到达顺序处理：delta 不越过在途关键帧", async () => {
   const h = createHarness();
   h.ws.fireOpen();

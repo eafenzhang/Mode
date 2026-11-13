@@ -6234,6 +6234,7 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.session.fullscreen": "全屏",
   "remoteDesktop.session.exitFullscreen": "退出全屏",
   "remoteDesktop.session.disconnect": "断开",
+  "remoteDesktop.session.transport": "链路 {value}",
   "remoteDesktop.session.fps": "{value} fps",
   "remoteDesktop.session.bitrate": "码率 {value} Mbps",
   "remoteDesktop.session.drops": "丢帧 {count}",

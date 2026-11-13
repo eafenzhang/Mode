@@ -70,10 +70,16 @@ export class ConnectionRuntime {
       resolveReady = resolve;
       rejectReady = reject;
     });
+    // 捕获 sessions：对象字面量里的 `this` 是 connection 自身，不是 ConnectionRuntime。
+    const sessions = this.sessions;
     const connection: RemoteConnection = {
       connectionId,
       peer,
       role,
+      // 惰性读取：socket 在选路完成后才 attach（create 时还是 null）。
+      get bufferedAmount() {
+        return sessions.get(connectionId)?.dataSocket?.bufferedAmount ?? 0;
+      },
       send: (frame) => session.send(frame),
       onFrame: (callback) => {
         listeners.add(callback);

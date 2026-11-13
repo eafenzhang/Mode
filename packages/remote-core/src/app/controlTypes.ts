@@ -8,12 +8,20 @@ export interface RemoteSocket {
   close(code?: number, reason?: string): void;
   onMessage(callback: (text: string) => void): void;
   onClose(callback: (code: number, reason: string) => void): void;
+  /**
+   * 数据面发送队列水位（字节）：WS 用 `bufferedAmount`，werift 用 DataChannel 同名属性。
+   * 可选：测试桩/旧适配器不实现时上层按 0 处理（= 不丢帧，保持旧行为）。
+   * 媒体面靠它在真正积压的地方丢旧视频帧（spec: remote-desktop-latency §2.3）。
+   */
+  readonly bufferedAmount?: number;
 }
 
 export interface RemoteConnection {
   readonly connectionId: string;
   readonly peer: DeviceDescriptor;
   readonly role: "host" | "client";
+  /** 当前数据面 socket 的发送队列水位；未选路/未 attach 时为 0。 */
+  readonly bufferedAmount: number;
   send(frame: BusinessFrame): void;
   onFrame(callback: (frame: BusinessFrame) => void): () => void;
   onClose(callback: () => void): () => void;

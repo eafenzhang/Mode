@@ -82,6 +82,9 @@ function openOne(
     const timer = setTimeout(() => fail(new Error("LAN direct ready timeout")), timeoutMs);
 
     const socket: RemoteSocket = {
+      get bufferedAmount() {
+        return ws?.bufferedAmount ?? 0;
+      },
       send(text) {
         if (ws && ws.readyState === 1) ws.send(text);
       },

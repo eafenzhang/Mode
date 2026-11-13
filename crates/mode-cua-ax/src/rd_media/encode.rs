@@ -44,10 +44,12 @@ use windows::Win32::Graphics::Dxgi::Common::{
   DXGI_FORMAT_NV12, DXGI_RATIONAL,
 };
 use windows::Win32::Media::MediaFoundation::{
-  eAVEncH264VProfile, eAVEncH264VProfile_Base, eAVEncH264VProfile_Main,
-  CODECAPI_AVEncCommonMeanBitRate, CODECAPI_AVEncCommonRealTime,
-  CODECAPI_AVEncMPVDefaultBPictureCount, CODECAPI_AVEncVideoForceKeyFrame,
-  CODECAPI_AVLowLatencyMode, ICodecAPI,
+  eAVEncCommonRateControlMode_CBR, eAVEncH264VProfile, eAVEncH264VProfile_Base,
+  eAVEncH264VProfile_Main, CODECAPI_AVEncCommonBufferSize, CODECAPI_AVEncCommonMaxBitRate,
+  CODECAPI_AVEncCommonMeanBitRate, CODECAPI_AVEncCommonRateControlMode,
+  CODECAPI_AVEncCommonRealTime, CODECAPI_AVEncMPVDefaultBPictureCount,
+  CODECAPI_AVEncVideoForceKeyFrame, CODECAPI_AVEncVideoMaxNumRefFrame, CODECAPI_AVLowLatencyMode,
+  ICodecAPI,
   IMFDXGIDeviceManager, IMFMediaEventGenerator, MFCreateDXGIDeviceManager,
   MFCreateDXGISurfaceBuffer, MFCreateMemoryBuffer, MFCreateMediaType, MFCreateSample,
   MFSTARTUP_FULL, MF_E_TRANSFORM_NEED_MORE_INPUT, MF_E_TRANSFORM_TYPE_NOT_SET,
@@ -378,7 +380,7 @@ impl Encoder {
       profile = final_profile.unwrap_or(eAVEncH264VProfile_Main);
     }
     // 低延迟/免丢帧编码参数（ICodecAPI；逐项尽力而为，不可用则运行期全走回退）。
-    let codec_api = apply_codec_api(&mf);
+    let codec_api = apply_codec_api(&mf, bitrate_bps);
     let force_key_mode = if codec_api.is_some() { ForceKeyMode::CodecApi } else { ForceKeyMode::Flush };
     // unsafe 依据（块级）：IMFTransform 方法均为 COM FFI；transform 持有至 Drop。
     unsafe {
@@ -447,8 +449,9 @@ impl Encoder {
     let Some(api) = self.codec_api.as_ref() else {
       return false;
     };
-    // unsafe 依据（块级）：ICodecAPI FFI；VARIANT 为本调用临时值。
-    unsafe { api.SetValue(&CODECAPI_AVEncCommonMeanBitRate, &VARIANT::from(bitrate_bps)) }.is_ok()
+    // Mean/Max/Buffer 同步改：只改 Mean 时驱动仍可按旧的 max/VBV 突发，
+    // 复杂画面会把链路打满（真机实测 8Mbps 档跑到 11.7Mbps）。
+    apply_rate_control(api, bitrate_bps)
   }
 
   /// 一帧进、零或一帧出：状态机冻结 → `None`（不喂编码器）；编码器流水未吐
@@ -882,7 +885,7 @@ impl Encoder {
       },
     )?;
     // 类型重协商可能重置 codec 级设置：重放（QI 不可用则强制降级 flush 模式）。
-    self.codec_api = apply_codec_api(&self.mf);
+    self.codec_api = apply_codec_api(&self.mf, self.bitrate_bps);
     if self.codec_api.is_none() {
       self.force_key_mode = ForceKeyMode::Flush;
     }
@@ -1280,11 +1283,15 @@ fn set_codec_media_types(
 /// - `AVLowLatencyMode=TRUE`（Win8+，2026-10-13 补）：硬件编码器的**权威低时延开关**
 ///   （禁 lookahead/流水缓冲类优化），与 RealTime 互补——前者被拒时它是主抓手；
 /// - `AVEncMPVDefaultBPictureCount=0`：显式禁 B 帧（Main/High 下保持输入输出 1:1
-///   配对与最低延迟；Baseline 本无 B 帧，接受或忽略均无害）。
+///   配对与最低延迟；Baseline 本无 B 帧，接受或忽略均无害）；
+/// - `AVEncCommonRateControlMode=CBR` + Mean/Max/Buffer（2026-11-13，spec
+///   remote-desktop-latency §2.5）：只设 Mean 时驱动默认 VBR 会按内容超发，
+///   8Mbps 档实测 11.7Mbps；CBR + 200ms VBV 把突发压回预算内；
+/// - `AVEncVideoMaxNumRefFrame=1`：单参考帧，减少重排与长参考链（低延迟优先）。
 ///
-/// 返回接口实例供运行期 `CODECAPI_AVEncVideoForceKeyFrame`；QI 失败 = `None`
-/// （运行期全回退：强制 IDR 走 flush 路径）。
-fn apply_codec_api(mf: &IMFTransform) -> Option<ICodecAPI> {
+/// 返回接口实例供运行期 `CODECAPI_AVEncVideoForceKeyFrame` 与动态码率；QI 失败 =
+/// `None`（运行期全回退：强制 IDR 走 flush 路径）。
+fn apply_codec_api(mf: &IMFTransform, bitrate_bps: u32) -> Option<ICodecAPI> {
   let api: ICodecAPI = mf.cast().ok()?;
   let set = |guid: &GUID, value: VARIANT| -> bool {
     // unsafe 依据（块级）：ICodecAPI FFI；guid/value 为本调用临时值（仅读取）。
@@ -1299,7 +1306,36 @@ fn apply_codec_api(mf: &IMFTransform) -> Option<ICodecAPI> {
   if !set(&CODECAPI_AVEncMPVDefaultBPictureCount, VARIANT::from(0u32)) {
     warn("编码器拒绝 B 帧数设置（继续）");
   }
+  // CBR 是主抓手：显式声明帧级码控模式，否则部分驱动按「质量优先 VBR」跑。
+  if !set(
+    &CODECAPI_AVEncCommonRateControlMode,
+    VARIANT::from(eAVEncCommonRateControlMode_CBR.0 as u32),
+  ) {
+    warn("编码器拒绝 CBR 码控（继续，按驱动默认码控）");
+  }
+  if !apply_rate_control(&api, bitrate_bps) {
+    warn("编码器未完全接受码率上/下限或 VBV（继续）");
+  }
+  // 单参考帧：失败不警告（部分硬件 MFT 只接受驱动默认值）。
+  let _ = set(&CODECAPI_AVEncVideoMaxNumRefFrame, VARIANT::from(1u32));
   Some(api)
+}
+
+/// 同步写 Mean/Max/Buffer 三个码控参数；返回 Mean 是否生效（上层只看主参数）。
+/// `BufferSize` 单位是字节：取 200ms 预算（bitrate/8*0.2 = bitrate/40），
+/// 再小会让复杂画面频繁掉质量，再大则起不到压制突发的作用。
+fn apply_rate_control(api: &ICodecAPI, bitrate_bps: u32) -> bool {
+  let set = |guid: &GUID, value: VARIANT| -> bool {
+    // unsafe 依据（块级）：ICodecAPI FFI；guid/value 为本调用临时值（仅读取）。
+    unsafe { api.SetValue(guid, &value) }.is_ok()
+  };
+  let mean_ok = set(&CODECAPI_AVEncCommonMeanBitRate, VARIANT::from(bitrate_bps));
+  let _ = set(&CODECAPI_AVEncCommonMaxBitRate, VARIANT::from(bitrate_bps));
+  let _ = set(
+    &CODECAPI_AVEncCommonBufferSize,
+    VARIANT::from((bitrate_bps / 40).max(32 * 1024)),
+  );
+  mean_ok
 }
 
 /// 从 `IMFSample` 读出连续 ES 字节。

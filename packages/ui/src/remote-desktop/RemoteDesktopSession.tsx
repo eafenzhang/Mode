@@ -97,6 +97,7 @@ export function RemoteDesktopSession({
   const {
     view,
     stats,
+    transport,
     containerRef,
     canvasRef,
     selectMonitor,
@@ -399,6 +400,15 @@ export function RemoteDesktopSession({
           <ScreenShare className="size-3.5 shrink-0" />
           {intl.formatMessage({ id: statusText })}
         </span>
+        {/* 链路只读展示（spec: remote-desktop-latency §2.6）：RTT 高时先区分物理链路/排队。 */}
+        {transport ? (
+          <span>
+            {intl.formatMessage(
+              { id: "remoteDesktop.session.transport" },
+              { value: transport.toUpperCase() },
+            )}
+          </span>
+        ) : null}
         {stats.fps !== null ? (
           <span>
             {intl.formatMessage({ id: "remoteDesktop.session.fps" }, { value: String(stats.fps) })}

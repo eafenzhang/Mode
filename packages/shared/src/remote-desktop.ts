@@ -332,9 +332,16 @@ export type RemoteDesktopSessionEvent =
     }
   | { kind: "signal"; message: RemoteDesktopSignalMessage };
 
-/** 主控发起结果：成功时携带媒体面地址（契约 E）。 */
+/**
+ * 会话建立命中的数据面链路（只读观测）：lan = 直连；p2p = WebRTC DataChannel；
+ * turn = 经 TURN 的 P2P；relay = 云端中继。状态条据此展示（spec:
+ * remote-desktop-latency §2.6）——高 RTT 时先看是不是走了 relay/turn。
+ */
+export type RemoteDesktopTransport = "lan" | "p2p" | "turn" | "relay";
+
+/** 主控发起结果：成功时携带媒体面地址（契约 E）与实际链路。 */
 export type RemoteDesktopStartSessionResult =
-  | { ok: true; mediaUrl?: string }
+  | { ok: true; mediaUrl?: string; transport?: RemoteDesktopTransport }
   | { error: RemoteDesktopErrorCode };
 
 /** 被控同意请求（Host → renderer；60s 无响应按超时拒绝）。 */

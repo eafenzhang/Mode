@@ -7,6 +7,7 @@ import {
   type RemoteDesktopSessionEvent,
   type RemoteDesktopSignalMessage,
   type RemoteDesktopStartSessionResult,
+  type RemoteDesktopTransport,
 } from "@mode/shared/remote-desktop";
 
 const SIGNAL_SOCKET_OPEN = 1;
@@ -46,6 +47,8 @@ export interface RemoteDesktopPeerSessionOpen {
   ok: true;
   wsUrl: string;
   mediaUrl?: string;
+  /** 会话命中的链路（LAN 直连 / v3 lan|p2p|turn|relay），透传给 renderer 状态条。 */
+  transport?: RemoteDesktopTransport;
 }
 
 export interface RemoteDesktopPeerSessionFailure {
@@ -311,7 +314,11 @@ export function createRemoteDesktopHostController(
       options.logger.info(
         `[remote-desktop] controller session requested (serverId=${params.serverId})`,
       );
-      return { ok: true, ...(result.mediaUrl ? { mediaUrl: result.mediaUrl } : {}) };
+      return {
+        ok: true,
+        ...(result.mediaUrl ? { mediaUrl: result.mediaUrl } : {}),
+        ...(result.transport ? { transport: result.transport } : {}),
+      };
     },
 
     sendSignal(message: RemoteDesktopSignalMessage): void {

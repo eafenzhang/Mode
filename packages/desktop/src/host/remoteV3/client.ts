@@ -197,6 +197,15 @@ export class RemoteV3ClientRuntime {
     return mux.open(service, metadata);
   }
 
+  /** 当前（或刚建立的）连接实际选中的链路；无连接返回 null。 */
+  getTransport(hostDeviceId: string): "lan" | "p2p" | "turn" | "relay" | null {
+    const transport = this.connections.get(hostDeviceId)?.transport ?? null;
+    if (transport === "lan" || transport === "p2p" || transport === "turn" || transport === "relay") {
+      return transport;
+    }
+    return null;
+  }
+
   dispose(): void {
     for (const entry of this.connections.values()) {
       entry.mux.dispose();
@@ -445,6 +454,8 @@ export class RemoteV3ClientRuntime {
       const mux = new StreamMux({
         send: (frame) => connection.send(frame),
         onStream: () => undefined,
+        // 媒体隧道按数据面真实水位丢旧帧（spec: remote-desktop-latency §2.3）。
+        getBufferedAmount: () => connection.bufferedAmount,
       });
       const entry: ClientConnection = {
         link,

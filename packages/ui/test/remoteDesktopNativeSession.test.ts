@@ -102,10 +102,12 @@ test("codecStringFromAnnexB：HEVC 码流派生 hev1.*（码流自描述，HEVC 
   );
 });
 
-test("解码队列门控：队列 >2 丢 delta、关键帧永远放行", () => {
+test("解码队列门控：队列 >4 丢 delta、关键帧永远放行", () => {
+  // 2026-11-13（spec: remote-desktop-latency §2.4）：阈值从 2 放宽到 4——
+  // 硬解正常波动不该触发整段重同步；超阈后进入「只等 IDR」而不是继续解坏链。
   assert.equal(shouldDropDeltaFrame(false, 0), false, "空队列不丢");
-  assert.equal(shouldDropDeltaFrame(false, 2), false, "水位 2 内不丢");
-  assert.equal(shouldDropDeltaFrame(false, 3), true, "队列 >2 丢 delta");
+  assert.equal(shouldDropDeltaFrame(false, 4), false, "水位 4 内不丢");
+  assert.equal(shouldDropDeltaFrame(false, 5), true, "队列 >4 丢 delta");
   assert.equal(shouldDropDeltaFrame(true, 10), false, "关键帧不受队列门控（重同步点）");
 });
 

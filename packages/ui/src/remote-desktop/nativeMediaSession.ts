@@ -49,11 +49,22 @@ export function buildFrameIv(salt: Uint8Array, seq: number): Uint8Array {
 
 /**
  * 解码队列门控（纯函数，测试见 remoteDesktopNativeSession.test.ts）：
- * delta 帧在解码排队 >2 时丢弃（解码跟不上到达时继续排队只会累计端到端延迟）；
- * 关键帧永远放行——它是丢帧后的重同步点。丢弃方需上报 need-key（调用点在会话胶水）。
+ * delta 帧在解码排队超过 `MAX_DECODE_QUEUE` 时丢弃（继续排队只会累计端到端延迟）；
+ * 关键帧永远放行——它是重同步点。
+ *
+ * 2026-11-13（spec: remote-desktop-latency §2.2/§2.4）：门控从「>2 就丢、下一次采样
+ * 又继续解」改成「进入重同步，只等关键帧」。原口径丢了 delta 仍继续解后续 delta，
+ * 参考帧链已断、画面带残影，而且 300/500ms 的 need-key 去抖会把 IDR 刷成风暴。
+ * 阈值也放宽到 4：硬解正常波动不应该触发整段重同步。
  */
+const MAX_DECODE_QUEUE = 4;
+/** 待处理的已到达帧上限（含正在解密的一帧）：超过即丢最旧 delta 并重同步。 */
+const MAX_QUEUED_FRAMES = 2;
+/** 关键帧请求去抖：一次重同步只请求一枚，避免 IDR 反噬链路（spec §2.4）。 */
+const KEY_REQUEST_COOLDOWN_MS = 2_000;
+
 export function shouldDropDeltaFrame(isKey: boolean, decodeQueueSize: number): boolean {
-  return !isKey && decodeQueueSize > 2;
+  return !isKey && decodeQueueSize > MAX_DECODE_QUEUE;
 }
 
 /** 采集戳是 u32 截断的 Unix 毫秒；真实帧龄 ≪ 2^32 ms，按 32 位回绕取差值。 */
@@ -158,9 +169,13 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   ]);
   let lastSubmittedSeq = -1;
   let lastKeyRequestAt = 0;
-  // 帧处理串行化：并发 WebCrypto decrypt 的完成顺序无保证（CI Linux 实证 delta 先于关键帧
-  // 完成，使 delta 在 decoder 建立前被丢弃）；WS 到达顺序即 seq 顺序，逐帧串行即恢复契约。
-  let framePipeline: Promise<void> = Promise.resolve();
+  // 有界帧队列（spec: remote-desktop-latency §2.3/§2.4）：并发 WebCrypto decrypt 的完成
+  // 顺序无保证，必须串行处理；但旧实现用无界 promise 链，主线程一卡就把「已到达帧」
+  // 全排进内存。这里改成「处理 1 帧 + 最多排 2 帧」，溢出时丢最旧 delta 并进入重同步，
+  // 用一次 IDR 换回低延迟，而不是让延迟随会话时长单调上涨。
+  const frameQueue: ParsedMediaFrame[] = [];
+  let processing = false;
+  let resyncing = false;
   // 帧龄：提交时按 chunk 时间戳记采集时刻，绘制时领回算出端到端年龄；
   // 时钟偏移由 pong 标定（未标定前只跳过帧龄读数，画面不受影响）。
   const capturedAtByTimestamp = new Map<number, number>();
@@ -202,11 +217,11 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
     },
   });
 
-  /** 紧急关键帧请求（丢帧恢复/重连重同步）：ws 上行 {t:"need-key"}；500ms 去抖
-   *  （中继侧另有 300ms 去抖）；force = 重连路径绕过去抖（断流后的第一诉求）。 */
+  /** 紧急关键帧请求（重同步/重连）：ws 上行 {t:"need-key"}；2s 去抖
+   *  （中继侧另有 1.5s 去抖）；force = 重连路径绕过去抖（断流后的第一诉求）。 */
   const requestKey = (force = false): void => {
     const now = Date.now();
-    if (!force && now - lastKeyRequestAt < 500) {
+    if (!force && now - lastKeyRequestAt < KEY_REQUEST_COOLDOWN_MS) {
       return;
     }
     lastKeyRequestAt = now;
@@ -386,6 +401,56 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
     }
     configuredCodec = codec;
   };
+  /** 进入重同步：丢掉队列里的非关键帧，只等下一个 IDR；请求按 2s 去抖。 */
+  const enterResync = (): void => {
+    if (resyncing) return;
+    resyncing = true;
+    for (let index = frameQueue.length - 1; index >= 0; index -= 1) {
+      if (!frameQueue[index]!.key) {
+        frameQueue.splice(index, 1);
+        opts.onFrameDropped?.();
+      }
+    }
+    requestKey();
+  };
+
+  /** 入队并排空：溢出时丢最旧 delta 并重同步，队列长度恒 ≤ MAX_QUEUED_FRAMES+1。 */
+  const enqueueFrame = (frame: ParsedMediaFrame): void => {
+    // 关键帧是重同步点：它之前的 delta 参考链已缺，直接丢掉，保证关键帧先被处理。
+    // 不在入队时丢「重同步期间的 delta」——关键帧还在解密时紧跟的 delta 可能已经
+    // 以关键帧为参考（真机 60fps 下很常见），交给有界队列 + 处理顺序即可。
+    if (frame.key && resyncing) {
+      for (let index = frameQueue.length - 1; index >= 0; index -= 1) {
+        if (!frameQueue[index]!.key) {
+          frameQueue.splice(index, 1);
+          opts.onFrameDropped?.();
+        }
+      }
+    }
+    frameQueue.push(frame);
+    if (frameQueue.length > MAX_QUEUED_FRAMES) {
+      const dropIndex = frameQueue.findIndex((item) => !item.key);
+      frameQueue.splice(dropIndex >= 0 ? dropIndex : 0, 1);
+      opts.onFrameDropped?.();
+      enterResync();
+    }
+    void drainFrames();
+  };
+
+  /** 串行处理队列（解密完成顺序无保证，必须按到达顺序逐帧走）。 */
+  const drainFrames = async (): Promise<void> => {
+    if (processing) return;
+    processing = true;
+    try {
+      while (frameQueue.length > 0 && !stopped) {
+        const frame = frameQueue.shift()!;
+        await processFrame(frame);
+      }
+    } finally {
+      processing = false;
+    }
+  };
+
   // ws 一开就发 ready：helper 的 ready 门控只认第一条开流指令，而被控状态机保证首帧必为 IDR
   // （先 IDR 后 delta），所以不必等任何上行事件——否则画面要等用户首次移动鼠标/按键才出流，开局全黑。
   // （ready 发送在 attachSocket 的 onopen 里，初连与重连共用同一幂等位。）
@@ -421,8 +486,8 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
     opts.onBytesReceived?.(receivedBytes);
     // 防乱序/迟到：按 seq 水位过滤已提交的帧（廉价前置，省一次解密）。
     if (parsed.seq <= lastSubmittedSeq) return;
-    // 按到达顺序串行处理：并发 decrypt 的完成顺序无保证（见 framePipeline 注释）。
-    framePipeline = framePipeline.then(() => processFrame(parsed)).catch(() => teardown());
+    // 有界队列 + 串行处理：见 frameQueue 注释（spec: remote-desktop-latency §2.3）。
+    enqueueFrame(parsed);
   };
 
   /** 单帧后续处理：解密 → 关键帧建/换 decoder → 队列门控 → 提交解码。 */
@@ -444,8 +509,20 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
     // 重连后的重同步（P2-1）：断流期间中继丢帧，delta 引用缺失数据——只放行关键帧，
     // 否则解码器吃到坏帧整条会话被 error 收口。
     if (awaitingKeyAfterReconnect) {
-      if (!parsed.key) return;
+      if (!parsed.key) {
+        opts.onFrameDropped?.();
+        return;
+      }
       awaitingKeyAfterReconnect = false;
+    }
+    // seq 缺口（中继/传输/本地背压丢帧）：参考帧链已断，继续解只会出残影。
+    // 缺口本身就是关键帧时它即是重同步点，不必再要一枚 IDR。
+    if (lastSubmittedSeq >= 0 && parsed.seq > lastSubmittedSeq + 1 && !parsed.key) {
+      enterResync();
+    }
+    if (resyncing && !parsed.key) {
+      opts.onFrameDropped?.();
+      return;
     }
     if (parsed.key) {
       const codec = codecStringFromAnnexB(plain);
@@ -460,14 +537,18 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
         logger.warn("[rd-media] keyframe without SPS; decoder not configured");
       }
       forceReconfigureNextKey = false;
+      // 关键帧到达即完成重同步（后续 delta 的参考链从这里重新建立）。
+      resyncing = false;
     }
     // 非关键帧在 decoder 未配置前丢弃（delta 无法独立解码，等下一个关键帧）。
     if (!decoder || decoder.state !== "configured") return;
-    // 解码队列门控：跟不上到达的 delta 丢弃并请关键帧（继续排队 = 累计端到端延迟）。
-    opts.onDecodeQueue?.(decoder.decodeQueueSize);
-    if (shouldDropDeltaFrame(parsed.key, decoder.decodeQueueSize)) {
+    // 解码队列门控：解码器跟不上时进入重同步，只等下一个 IDR；不再「丢一帧、
+    // 继续解坏链、再要一枚 IDR」（spec: remote-desktop-latency §2.4）。
+    const decodeQueue = decoder.decodeQueueSize ?? 0;
+    opts.onDecodeQueue?.(decodeQueue);
+    if (shouldDropDeltaFrame(parsed.key, decodeQueue)) {
       opts.onFrameDropped?.();
-      requestKey();
+      enterResync();
       return;
     }
     lastSubmittedSeq = parsed.seq;
@@ -492,6 +573,8 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       reconnectTimer = null;
     }
     capturedAtByTimestamp.clear();
+    frameQueue.length = 0;
+    resyncing = false;
     try {
       decoder?.close();
     } catch {

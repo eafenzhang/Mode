@@ -5,6 +5,8 @@ import type { IceServerPayload } from "../domain/controlMessages.js";
 interface NativeDataChannelLike {
   send(data: string): void;
   close(): void;
+  /** 浏览器 RTCDataChannel 的发送队列水位（字节）。 */
+  readonly bufferedAmount?: number;
   addEventListener(type: "message", listener: (event: { data: unknown }) => void): void;
   addEventListener(type: "open", listener: () => void): void;
   addEventListener(type: "close", listener: () => void): void;
@@ -72,15 +74,26 @@ function bindDataChannel(dc: NativeDataChannelLike): P2PChannel {
   });
   dc.addEventListener("close", () => emitClose());
   return {
+    get bufferedAmount() {
+      return dc.bufferedAmount ?? 0;
+    },
     send: (text) => {
       if (closed) return;
       dc.send(text);
     },
     onData: (callback) => {
       dataListeners.push(callback);
+      return () => {
+        const index = dataListeners.indexOf(callback);
+        if (index >= 0) dataListeners.splice(index, 1);
+      };
     },
     onClose: (callback) => {
       closeListeners.push(callback);
+      return () => {
+        const index = closeListeners.indexOf(callback);
+        if (index >= 0) closeListeners.splice(index, 1);
+      };
     },
     close: (reason) => {
       try {

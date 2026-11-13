@@ -7,9 +7,11 @@ import type { RemoteSocket } from "./controlTypes.js";
  */
 export interface P2PChannel {
   send(text: string): void;
-  onData(callback: (text: string) => void): void;
-  onClose(callback: (reason: string) => void): void;
+  onData(callback: (text: string) => void): () => void;
+  onClose(callback: (reason: string) => void): () => void;
   close(reason?: string): void;
+  /** DataChannel 发送队列水位（字节）；适配器不提供时上层按 0 处理。 */
+  readonly bufferedAmount?: number;
 }
 
 /**
@@ -77,6 +79,9 @@ export function p2pChannelAsSocket(channel: P2PChannel): RemoteSocket {
     for (const listener of listeners) listener(payload);
   });
   return {
+    get bufferedAmount() {
+      return channel.bufferedAmount ?? 0;
+    },
     send: (text) => {
       const parts = chunkText(text);
       if (parts.length === 1) {

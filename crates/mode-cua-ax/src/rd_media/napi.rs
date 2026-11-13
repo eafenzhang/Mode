@@ -19,6 +19,7 @@ use napi_derive::napi;
 
 use super::capture::{CaptureFrame, ComScope, DuplicationOutput};
 use super::encode::{Encoder, RdEncodeCodec, RdEncoderKind};
+use super::state::FramePacer;
 use super::warn;
 use crate::error::{AxError, AxResult};
 
@@ -141,6 +142,16 @@ pub fn rd_media_set_bitrate_napi(bitrate_bps: u32) {
   PENDING_BITRATE.store(bitrate_bps, Ordering::Relaxed);
 }
 
+/// 运行期采集帧率（spec: docs/specs/remote-desktop-latency.md §2.1）：主控在解码跟不上
+/// 时经同一控制面下调，worker 下一 tick 应用 `FramePacer`；0 = 无请求。
+/// 只影响采集/编码输入速率，编码器的媒体类型仍按会话起始 fps 配置。
+static PENDING_FPS: AtomicU32 = AtomicU32::new(0);
+
+#[napi(js_name = "rd_media_set_fps")]
+pub fn rd_media_set_fps_napi(fps: u32) {
+  PENDING_FPS.store(fps, Ordering::Relaxed);
+}
+
 /// 测试专用：无 start 时 stop 幂等（不触 DUPL/MF，无桌面会话也能跑）。
 pub fn stop_for_tests() { stop(); }
 
@@ -174,6 +185,10 @@ fn start(opts: RdMediaStartOptions) -> AxResult<RdEncoderKind> {
     }
   };
   stop(); // 已在跑先 stop 再起新线程（简报 Step 4）
+  // 运行期控制量不跨会话继承：上一条会话的自适应 fps/码率/键请求不能落到新会话上。
+  PENDING_KEY.store(false, Ordering::Relaxed);
+  PENDING_BITRATE.store(0, Ordering::Relaxed);
+  PENDING_FPS.store(0, Ordering::Relaxed);
   let stop_flag = Arc::new(AtomicBool::new(false));
   let pending_rect = Arc::new(Mutex::new(None));
   let worker_id = NEXT_WORKER_ID.fetch_add(1, Ordering::Relaxed);
@@ -328,6 +343,10 @@ fn worker_loop(
     return;
   }
   let mut frozen = false;
+  // 采集节拍（spec: remote-desktop-latency §2.1）：初始 fps = 会话预设，运行期可下调。
+  let started_at = std::time::Instant::now();
+  let now_ms = || started_at.elapsed().as_millis() as u64;
+  let mut pacer = FramePacer::new(fps, 0);
   while !stop.load(Ordering::Relaxed) {
     // 紧急关键帧请求：一次性消费（丢帧恢复 / renderer 请求都不允许积压）；
     // 冻结期也照常置位——解冻路径本就 force_idr，置位只可能有冗余、不会有害。
@@ -339,6 +358,18 @@ fn worker_loop(
     let want_bps = PENDING_BITRATE.swap(0, Ordering::Relaxed);
     if want_bps > 0 && !enc.set_bitrate(want_bps) {
       warn(&format!("动态码率 {want_bps} 未生效（编码器不支持或拒绝），保持原码率"));
+    }
+    // 动态帧率：同上；只改采集节拍，编码器媒体类型保持会话起始 fps。
+    let want_fps = PENDING_FPS.swap(0, Ordering::Relaxed);
+    if want_fps > 0 {
+      pacer.set_fps(want_fps, now_ms());
+    }
+    // 节拍未到：分段休眠（≤50ms）以保持对 stop/键请求的响应。这里不取帧——
+    // 让 DUPL 合并期间的更新，到期后直接取「当前最新」帧，而不是先取再丢。
+    let wait = pacer.wait_ms(now_ms());
+    if wait > 0 {
+      thread::sleep(Duration::from_millis(wait.min(50)));
+      continue;
     }
     // ① 消费换屏请求。
     if let Some(new_rect) = locked(&pending_rect).take() {
@@ -415,7 +446,14 @@ fn worker_loop(
         }
         // 取帧时刻打点：帧龄（glass-to-glass 近似）的起点，随帧一路传到主控绘制处。
         let captured_at_ms = unix_ms_u32();
-        match enc.push(&texture, captured_at_ms) {
+        let emitted_at_ms = now_ms();
+        let pushed = enc.push(&texture, captured_at_ms);
+        if pushed.is_ok() {
+          // 本 tick 已向编码器送帧：按当前 fps 排下一帧（不承接旧欠账）。
+          // Ok(None)（异步 MFT 尚未吐帧）同样算「已输入」，否则会把帧率翻倍。
+          pacer.on_emitted(emitted_at_ms);
+        }
+        match pushed {
           Ok(Some(chunk)) => {
             let payload = RdMediaFrameNapi {
               seq: chunk.seq,

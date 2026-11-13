@@ -9,7 +9,9 @@
 //                （避免中继在 media WS 未就绪时缓冲堆积）。
 //                kind3 紧急关键帧 = [u32BE 1][0x03]（renderer 解码落后 / 中继背压丢帧时请求；
 //                只读 flag 语义、无 payload；ready 前忽略）。
-//                kind4 动态码率 = [u32BE 5][0x04][u32BE bps]（自适应链路的下行方向盘；ready 前忽略）。
+//                kind4 动态码率/帧率 = [u32BE 5|9][0x04][u32BE bps]([u32BE fps]?)
+//                （自适应链路的下行方向盘；len=5 旧口径只改码率，len=9 同时改采集帧率；
+//                 ready 前忽略）。
 //                kind6 剪贴板写入 = [u32BE 1+n][0x06][UTF-8 文本]（host 采纳主控文本后要求落到
 //                本端剪贴板；写入失败只丢本次，下一次轮询会重新上报真实值）。
 // 分帧总口径：[u32 len 大端][u8 kind][payload]，len = 1 + payload.length（与 host 中继同契约）。
@@ -120,14 +122,25 @@ export function createMediaPump(addon, options = {}) {
           } catch {
             /* 单次控制面失败不影响推流 */
           }
-        } else if (kind === 4 && body.length === 5 && session.ready) {
-          // 动态码率：napi 侧记录，worker 下一 tick 消费（ICodecAPI 直接改 MeanBitRate）。
+        } else if (kind === 4 && (body.length === 5 || body.length === 9) && session.ready) {
+          // 动态码率：napi 侧记录，worker 下一 tick 消费（ICodecAPI 改 Mean/Max/VBV）。
           const bps = body.readUInt32BE(1);
           if (bps > 0) {
             try {
               addon.rd_media_set_bitrate?.(bps);
             } catch {
               /* 同上：失败只丢本次调整，保持原码率 */
+            }
+          }
+          // len=9：第二段是采集帧率，worker 用 FramePacer 限速（不是编码器重配）。
+          if (body.length === 9) {
+            const fps = body.readUInt32BE(5);
+            if (fps > 0) {
+              try {
+                addon.rd_media_set_fps?.(fps);
+              } catch {
+                /* 帧率调整失败只丢本次，下一次采样会重试 */
+              }
             }
           }
         } else if (kind === 6 && body.length > 1 && session.ready) {

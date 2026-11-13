@@ -23,6 +23,7 @@ export function attachHostConnection(
   const mux = new StreamMux({
     send: (frame) => connection.send(frame),
     onStream: (stream) => void handleIncomingStream(stream, deps),
+    getBufferedAmount: () => connection.bufferedAmount,
   });
   connection.onFrame((frame) => {
     if (mux.handle(frame)) return;

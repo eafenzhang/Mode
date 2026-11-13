@@ -2,9 +2,11 @@
  * 会话状态条统计采集器（纯计数，单测见 packages/ui/test/remoteDesktopSessionStats.test.ts）。
  *
  * 旧媒体面（WebRTC）的 getStats 读数随 P4 直替清理一并移除，改为自有事件计数：
- * - fps：`onDecoded` 由原生媒体面每次绘制一帧时回调，`sample()` 返回距上次采样的解码帧数并清零
- *   （3s 轮询 ⇒ 读数即「近 3s 解码帧数 ≈ 帧率」；首次采样前无解码返回 0 而非 null——
- *   「画面未连」由上层区分：hook 只在会话进行中采样）；
+ * - fps：`onDecoded` 由原生媒体面每次绘制一帧时回调，`sample()` 按「窗口内解码帧数 ÷
+ *   实际经过秒数」折算成**每秒帧率**并清零（2026-11-13 修正：旧口径直接把 3s 计数当 fps，
+ *   真机 80 实际约 27；见 docs/specs/remote-desktop-latency.md §2.6）。首窗从采集器创建
+ *   时刻起算；首次采样前无解码返回 0 而非 null——「画面未连」由上层区分（hook 只在会话
+ *   进行中采样）；
  * - RTT：`onPong` 由控制通道 pong 回调（RTT = 收到时刻 - ping 时间戳），取最近一次；
  * - 帧龄：`onFrameAge` 由原生媒体面每绘制一帧回调（glass-to-glass 近似，被控采集 →
  *   本端绘制，时钟偏移由 pong 标定），`sample()` 返回窗口内中位数（采样后清窗）；
@@ -84,6 +86,8 @@ export function createNativeSessionStatsCollector(
   options: { now?: () => number } = {},
 ): NativeSessionStatsCollector {
   const now = options.now ?? (() => Date.now());
+  // 首窗的分母：从创建时刻起算，避免第一次采样拿不到时间基准而报 0。
+  const createdAtMs = now();
   let decodedSinceLastSample = 0;
   let lastRttMs: number | null = null;
   let frameAgesSinceLastSample: number[] = [];
@@ -122,13 +126,15 @@ export function createNativeSessionStatsCollector(
       freezeCount += 1;
     },
     sample() {
-      // 快照并清零：下一次采样只统计新解码的帧（轮询间隔内的增量）。
-      const fps = decodedSinceLastSample;
+      const sampleAtMs = now();
+      // fps 是速率而不是计数：3s 窗口内 60 帧应显示 20，不是 60。
+      const elapsedMs = sampleAtMs - (lastSampleAtMs ?? createdAtMs);
+      const fps =
+        elapsedMs > 0 ? Math.round((decodedSinceLastSample * 1000) / elapsedMs) : 0;
       decodedSinceLastSample = 0;
       const frameAgeMs =
         frameAgesSinceLastSample.length > 0 ? median(frameAgesSinceLastSample) : null;
       frameAgesSinceLastSample = [];
-      const sampleAtMs = now();
       // 码率 = 字节 × 8 / 间隔秒；首拍（无间隔基准）没有可用的时间分母 → null。
       const intervalMs = lastSampleAtMs === null ? 0 : sampleAtMs - lastSampleAtMs;
       const bitrateKbps =

@@ -55,11 +55,14 @@ export async function startV3RemoteDesktopSession(
   const media = await client.openStream(params.hostDeviceId, "remote.ws", {
     path: `/ws/remote-desktop-media?mediaTicket=${encodeURIComponent(mediaTicket)}`,
   });
-  return proxy.register(signal, media, {
+  const urls = await proxy.register(signal, media, {
     // renderer 收到 media-ticket 后会用新票据重连同一回环 URL；代理据此重开媒体隧道。
     reopenMedia: (ticket) =>
       client.openStream(params.hostDeviceId, "remote.ws", {
         path: `/ws/remote-desktop-media?mediaTicket=${encodeURIComponent(ticket)}`,
       }),
   });
+  // 两条 stream 打开时连接已缓存，transport 即本次数据面实际选路；
+  // 拿不到时按 relay 展示（最保守的归因，状态条主要用于排障）。
+  return { ...urls, transport: client.getTransport(params.hostDeviceId) ?? "relay" };
 }

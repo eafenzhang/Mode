@@ -6539,6 +6539,7 @@ const enUS: Record<string, string> = {
   "remoteDesktop.session.fullscreen": "Full screen",
   "remoteDesktop.session.exitFullscreen": "Exit full screen",
   "remoteDesktop.session.disconnect": "Disconnect",
+  "remoteDesktop.session.transport": "{value} link",
   "remoteDesktop.session.fps": "{value} fps",
   "remoteDesktop.session.bitrate": "Bitrate {value} Mbps",
   "remoteDesktop.session.drops": "Dropped {count}",

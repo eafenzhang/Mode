@@ -124,6 +124,9 @@ export async function probeHevcDecodeSupport(): Promise<boolean> {
       codec: "hev1.1.6.L120.90",
       codedWidth: 1280,
       codedHeight: 720,
+      // 2026-11-13（spec: remote-desktop-latency §2.7）：只问 supported 会把「软解可用」
+      // 也当成通过——1080p HEVC 软解在真机上只有 ~27fps。要求硬解优先，不满足回 H.264。
+      hardwareAcceleration: "prefer-hardware",
     });
     return result.supported === true;
   } catch {

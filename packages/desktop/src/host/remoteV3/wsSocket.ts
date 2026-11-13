@@ -8,6 +8,11 @@ export function connectWebSocket(url: string): Promise<RemoteSocket> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
     const socket: RemoteSocket = {
+      // 媒体面背压观测（spec: remote-desktop-latency §2.3）：ws.send 先入内存队列，
+      // bufferedAmount 是唯一能反映「真正积压」的读数。
+      get bufferedAmount() {
+        return ws.bufferedAmount;
+      },
       send: (text) => ws.send(text),
       close: (code, reason) => ws.close(code, reason),
       onMessage: (callback) =>
@@ -73,6 +78,9 @@ export function connectDirectWebSocket(
     timer.unref?.();
 
     const socket: RemoteSocket = {
+      get bufferedAmount() {
+        return ws.bufferedAmount;
+      },
       send(text) {
         if (ws.readyState === WebSocket.OPEN) ws.send(text);
       },

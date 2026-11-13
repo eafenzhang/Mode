@@ -20,6 +20,8 @@ interface WeriftDataChannel {
   onopen: (() => void) | null;
   onclose: (() => void) | null;
   close(): void;
+  /** SCTP 发送队列水位（werift DataChannel 提供）；媒体面据它丢旧视频帧。 */
+  readonly bufferedAmount?: number;
 }
 
 function toWeriftIceServers(servers: IceServerPayload[]) {
@@ -49,6 +51,9 @@ function bindChannel(dc: WeriftDataChannel): P2PChannel {
   };
   dc.onclose = () => emitClose();
   return {
+    get bufferedAmount() {
+      return dc.bufferedAmount ?? 0;
+    },
     send: (text) => {
       if (closed) return;
       dc.send(text);

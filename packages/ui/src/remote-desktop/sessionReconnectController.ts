@@ -6,7 +6,11 @@
  * 明确拒绝（disabled/consent_denied 等）立即回调收口。纯编排，不碰 React 与平台层
  * （startSession 由调用方注入，测试可完全离线驱动）。
  */
-import type { RemoteDesktopErrorCode } from "@mode/shared/remote-desktop";
+import type {
+  RemoteDesktopErrorCode,
+  RemoteDesktopStartSessionResult,
+  RemoteDesktopTransport,
+} from "@mode/shared/remote-desktop";
 import { nextReconnectDelayMs, RECONNECT_MAX_ATTEMPTS } from "./reconnectPolicy.js";
 
 export interface SessionReconnectController {
@@ -17,14 +21,12 @@ export interface SessionReconnectController {
 }
 
 export function createSessionReconnectController(options: {
-  /** 一轮重连：即 platform.rdStartSession（成功时携新媒体地址）。 */
-  startSession: () => Promise<
-    { ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }
-  >;
+  /** 一轮重连：即 platform.rdStartSession（成功时携新媒体地址与链路）。 */
+  startSession: () => Promise<RemoteDesktopStartSessionResult>;
   /** 进入重连的即时处理（调用方：静默停旧媒体面 + 状态「正在恢复」）。 */
   onBegin: () => void;
   /** 重连成功（新 mediaUrl 已拿到，后续连接/媒体事件走正常事件流）。 */
-  onRecovered: (mediaUrl: string) => void;
+  onRecovered: (mediaUrl: string, transport?: RemoteDesktopTransport) => void;
   /** 失败收口（明确拒绝 / 退避耗尽 / 成功但缺 mediaUrl）。 */
   onGiveUp: (error: RemoteDesktopErrorCode) => void;
 }): SessionReconnectController {
@@ -53,7 +55,7 @@ export function createSessionReconnectController(options: {
       return;
     }
     attempts += 1;
-    let result: { ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode };
+    let result: RemoteDesktopStartSessionResult;
     try {
       result = await options.startSession();
     } catch {
@@ -73,7 +75,7 @@ export function createSessionReconnectController(options: {
       options.onGiveUp("unsupported");
       return;
     }
-    options.onRecovered(result.mediaUrl);
+    options.onRecovered(result.mediaUrl, result.transport);
   };
 
   return {

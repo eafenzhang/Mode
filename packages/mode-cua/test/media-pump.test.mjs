@@ -89,6 +89,9 @@ function fakeAddon(listeners) {
     rd_media_set_bitrate(bps) {
       listeners.bitrates = [...(listeners.bitrates ?? []), bps];
     },
+    rd_media_set_fps(fps) {
+      listeners.fps = [...(listeners.fps ?? []), fps];
+    },
     // P1.1 剪贴板面（契约 A 的 napi 导出）：读取可注入（listeners.clipboardRead），
     // 写入记录到 listeners.clipboardWrites，并可选回调 listeners.clipboardWrite——需要
     // 「写入后读回就是新值」的真剪贴板语义时用它把读取接上去（泵的行为才是被测对象）。
@@ -203,6 +206,17 @@ test("控制面 kind3/kind4：ready 前忽略；ready 后触发 napi；kind4 分
     host.write(keyFrame);
     await waitFor(() => listeners.bitrates?.length === 1 && listeners.keyRequests === 1);
     assert.equal(listeners.bitrates[0], 4_000_000, "kind4 携带码率送达 napi");
+
+    // len=9 的 kind4：第二段是采集帧率 → rd_media_set_fps（producerRate 的落点）。
+    const rateFrame = Buffer.alloc(13);
+    rateFrame.writeUInt32BE(9, 0);
+    rateFrame.writeUInt8(4, 4);
+    rateFrame.writeUInt32BE(2_500_000, 5);
+    rateFrame.writeUInt32BE(30, 9);
+    host.write(rateFrame);
+    await waitFor(() => listeners.fps?.length === 1);
+    assert.equal(listeners.fps[0], 30, "kind4 len=9 的 fps 送达 napi");
+    assert.equal(listeners.bitrates.at(-1), 2_500_000, "同一帧的码率也生效");
   });
 });
 

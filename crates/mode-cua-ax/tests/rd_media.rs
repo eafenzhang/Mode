@@ -274,3 +274,35 @@ fn pointer_snapshot_equality_covers_every_field() {
     assert_ne!(base, PointerSnapshot { x: 10, y: 20, shape: 2048, visible: true });
     assert_ne!(base, PointerSnapshot { x: 10, y: 20, shape: 4096, visible: false });
 }
+
+#[test]
+fn frame_pacer_caps_rate_and_never_accumulates_debt() {
+    use mode_cua_ax::rd_media::state::FramePacer;
+    // 60fps → ceil(1000/60)=17ms：允许刚好满速，不允许超过预设。
+    let mut p = FramePacer::new(60, 0);
+    assert_eq!(p.interval_ms(), 17);
+    assert_eq!(p.wait_ms(0), 0, "首帧立即放行");
+    assert_eq!(p.wait_ms(5), 0, "未 emit 前不排期");
+    p.on_emitted(0);
+    assert_eq!(p.wait_ms(5), 12);
+    assert_eq!(p.wait_ms(17), 0);
+    // 落后到 100ms 才出帧：下一帧从 100ms 起排，不补发欠账（避免连发）。
+    p.on_emitted(100);
+    assert_eq!(p.wait_ms(100), 17, "从本帧重新排期，不累积欠账");
+}
+
+#[test]
+fn frame_pacer_set_fps_applies_immediately() {
+    use mode_cua_ax::rd_media::state::FramePacer;
+    let mut p = FramePacer::new(60, 0);
+    p.on_emitted(0);
+    assert_eq!(p.wait_ms(10), 7);
+    p.set_fps(30, 10);
+    assert_eq!(p.interval_ms(), 34, "30fps → ceil(1000/30)=34ms");
+    assert_eq!(p.wait_ms(10), 0, "改档立即生效，不等旧排期");
+    p.on_emitted(10);
+    assert_eq!(p.wait_ms(43), 1);
+    // 相同 fps 不重置排期：避免每 tick 的重复下发把帧率意外拉高。
+    p.set_fps(30, 20);
+    assert_eq!(p.wait_ms(43), 1);
+}

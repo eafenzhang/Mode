@@ -1,6 +1,8 @@
 # 应用内远程桌面（自研媒体面 · 与系统 RDP 并存）
 
 状态：已拍板（2026-10-15，用户决定「参考 RustDesk 重新自研」，并明确**不再保留系统 RDP 路径**）。
+延迟治理（采集节流、有界队列、seq 缺口重同步、IDR 去抖、CBR 码控、fps 读数）见
+[remote-desktop-latency.md](./remote-desktop-latency.md)（2026-11-13）。
 本文是远程桌面的**唯一权威**；v0.0.42 引入的系统 RDP（mstsc）路径随本决定一并移除
 （见「取代系统 RDP」），其历史 spec 与实现见 `54aeb907`。
 

@@ -255,8 +255,9 @@ const sessionStatsFixture = {
   cases: [
     sessionStatsCase("fps-resets-between-samples", [
       ...Array.from({ length: 60 }, () => ({ op: "onDecoded" as const })),
-      { op: "sample", nowMs: 0, expected: {} },
-      { op: "sample", nowMs: 0, expected: {} },
+      // 3 秒窗内 60 帧 = 20fps；旧口径（直接用计数）会得到 60。
+      { op: "sample", nowMs: 3_000, expected: {} },
+      { op: "sample", nowMs: 6_000, expected: {} },
     ]),
     sessionStatsCase("fps-zero-before-any-decode", [
       { op: "sample", nowMs: 0, expected: {} },
