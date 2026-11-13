@@ -83,11 +83,15 @@ export interface RemoteV3HostServiceOptions {
 /** Desktop Host 的远程控制 v3 管理面：设备身份、Control 常驻、加密 RPC allowlist。 */
 export class RemoteV3HostService implements IRemoteV3Service {
   private readonly options: RemoteV3HostServiceOptions;
+  /** access token 有效期约 1h；半小时续一次，避免「链路在、API 全 401」窗口。 */
+  private static readonly TOKEN_REFRESH_INTERVAL_MS = 30 * 60_000;
+
   private readonly stateStore = new RemoteV3HostStateStore();
   private config: RemoteV3StoredConfig | null = null;
   private link: ControlLink | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private reconnectAttempt = 0;
+  private tokenRefreshTimer: NodeJS.Timeout | null = null;
   private refreshInFlight: Promise<{ accessToken: string; refreshToken: string }> | null = null;
   /** 4002 凭证恢复单飞：与 start() 的 ack 失败并发时只走一次 refresh。 */
   private recoveringCredentials = false;
@@ -282,6 +286,7 @@ export class RemoteV3HostService implements IRemoteV3Service {
     this.tunnels.closeAll();
     await this.client.clearCredentials();
     this.stopLink();
+    this.clearTokenRefreshTimer();
     await clearRemoteV3Tokens(this.options.credentials);
     await clearRemoteV3AccountName(this.options.credentials);
     if (this.config) {
@@ -414,6 +419,30 @@ export class RemoteV3HostService implements IRemoteV3Service {
   private markOnline(): void {
     this.reconnectAttempt = 0;
     this.stateStore.patch({ status: "online", error: null });
+    this.ensureTokenRefreshTimer();
+  }
+
+  /**
+   * 控制链路建立后定时续期 access token。服务端不会在连接存续期间主动踢掉过期 token，
+   * 只靠 4002 才刷新会让 Host 每小时出现一段「链路在、API 全 401」的窗口：
+   * 拉取对端描述失败 → incoming_failed（设备凭证无效）→ 远程工作区/桌面连不上。
+   */
+  private ensureTokenRefreshTimer(): void {
+    if (this.tokenRefreshTimer) return;
+    this.tokenRefreshTimer = setInterval(() => {
+      void this.refreshHostTokens().catch((error: unknown) => {
+        this.options.log(
+          `remote_v3_token_refresh_failed error=${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+    }, RemoteV3HostService.TOKEN_REFRESH_INTERVAL_MS);
+    this.tokenRefreshTimer.unref?.();
+  }
+
+  private clearTokenRefreshTimer(): void {
+    if (!this.tokenRefreshTimer) return;
+    clearInterval(this.tokenRefreshTimer);
+    this.tokenRefreshTimer = null;
   }
 
   private failLink(error: unknown, retry: boolean): void {
@@ -560,13 +589,26 @@ export class RemoteV3HostService implements IRemoteV3Service {
       connectSocket: this.options.connectSocket ?? connectWebSocket,
       p2p: { adapter: this.p2pAdapter, timeoutMs: 8000 },
       onTransport: (transport) => this.options.onTransport?.(transport),
-      fetchPeer: (deviceId) =>
-        fetchRemoteV3Peer({
-          serverUrl,
-          accessToken: this.config?.tokens?.accessToken ?? accessToken,
-          deviceId,
-          fetchImpl: this.options.fetchImpl,
-        }),
+      fetchPeer: async (deviceId) => {
+        const requestPeer = () =>
+          fetchRemoteV3Peer({
+            serverUrl,
+            accessToken: this.config?.tokens?.accessToken ?? accessToken,
+            deviceId,
+            fetchImpl: this.options.fetchImpl,
+          });
+        try {
+          return await requestPeer();
+        } catch (error) {
+          if (!isRemoteV3AuthError(error)) throw error;
+          // access token 过期但服务端还没用 4002 关闭控制链路时，401 会先在拉取对端
+          // 描述这里出现——旧实现直接把它当成「设备凭证无效」拒掉整条 incoming 连接，
+          // 表现为远程工作区/桌面在一段时间内怎么都连不上（每小时都会重演）。
+          // 刷新一次 token 再重试；refresh 也失败才把错误上抛。
+          await this.refreshHostTokens();
+          return await requestPeer();
+        }
+      },
       verifyPeer: (peer) => verifyOrPinPeer(this.options.credentials, peer),
       onConnection: (connection) => this.attachConnection(connection),
       onClose: (details) => this.handleLinkClosed(link, details),
