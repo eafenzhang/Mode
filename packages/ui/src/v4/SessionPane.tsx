@@ -350,6 +350,18 @@ export interface SessionPaneProps {
   searchResultHighlightRequest?: ChatSearchResultHighlightRequest | null;
   onSearchResultHighlightDone?: (requestId: number) => void;
 }
+/**
+ * 命令被拒时把 reasonCode 与 Host 的真实 message 一起抛出：
+ * 只带 fault code 时用户展开详情只能看到 `fault.command.executionFailed`，
+ * 无法判断是模型未就绪、会话冲突还是 Host 侧异常。
+ */
+function describeCommandRejection(ack: CommandAck, fallback: string): string {
+  const code = ack.reasonCode?.trim() || fallback;
+  const message = ack.message?.trim();
+  if (!message || message === code) return code;
+  return message.includes(code) ? message : `${code}：${message}`;
+}
+
 function createSessionErrorKey(
   sessionId: string | null | undefined,
   error: SessionErrorInfo,
@@ -2548,7 +2560,7 @@ export function SessionPane({
           null,
         );
         if (createAck.status !== "accepted") {
-          throw new Error(createAck.reasonCode ?? "createSession 被拒绝");
+          throw new Error(describeCommandRejection(createAck, "createSession 被拒绝"));
         }
         const createResult = createAck.result;
         if (!createResult || createResult.type !== "createSession") {
@@ -2594,7 +2606,7 @@ export function SessionPane({
             logger.warn(
               `[v4-draft-prewarm] 预热会话首发未 accepted（${ack.reasonCode ?? ack.status}），禁止自动重发`,
             );
-            throw new Error(ack.reasonCode ?? "预热会话首发未 accepted");
+            throw new Error(describeCommandRejection(ack, "预热会话首发未 accepted"));
           } catch (error) {
             if (isProviderNotReadyError(error)) throw error;
             if (readyAttachments.length > 0) throw error;
@@ -2631,7 +2643,7 @@ export function SessionPane({
             createSourceAtSend,
           );
           if (ack.status !== "accepted") {
-            throw new Error(ack.reasonCode ?? "createSession 被拒绝");
+            throw new Error(describeCommandRejection(ack, "createSession 被拒绝"));
           }
           const result = ack.result;
           if (!result || result.type !== "createSession") {
@@ -2649,7 +2661,7 @@ export function SessionPane({
           null,
         );
         if (createAck.status !== "accepted") {
-          throw new Error(createAck.reasonCode ?? "createSession 被拒绝");
+          throw new Error(describeCommandRejection(createAck, "createSession 被拒绝"));
         }
         const createResult = createAck.result;
         if (!createResult || createResult.type !== "createSession") {
@@ -3909,6 +3921,8 @@ export function SessionPane({
     );
     const operationId = `share-operation-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
     let activePhase = "collecting";
+
+
     let collectedWarnings: ConversationShareDisplayWarnings | null = null;
     const progressSubscription = conversationShareService.onDynamicPublishProgress(operationId)((
       progress,
