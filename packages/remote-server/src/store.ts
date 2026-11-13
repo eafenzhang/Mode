@@ -142,12 +142,13 @@ export class CloudStore {
         if (existing.role !== descriptor.role || existing.identity_key !== descriptor.identityKey) {
           throw new StoreError("device_conflict", "同一 deviceId 不允许更换角色或身份公钥");
         }
-        if (existing.revoked_at !== null) {
-          throw new StoreError("device_revoked", "设备已撤销，不能重新注册");
-        }
+        // 撤销只吊销凭据，不是永封：设备被误撤销（例如 refresh token 重放触发 family 撤销）
+        // 后，账号本人用同一身份重新登录/注册应当能回到目录。能走到这里的调用方已通过
+        // 账号 web 会话或同账号 Host token 授权，身份公钥与角色也与记录一致；
+        // 撤销后的旧凭据已失效，这里会重新签发一套新凭据（由调用方完成）。
         this.db
           .prepare(
-            "UPDATE devices SET name = ?, platform = ?, client_version = ?, host_version = ?, addresses = ?, last_seen_at = ? WHERE id = ?",
+            "UPDATE devices SET name = ?, platform = ?, client_version = ?, host_version = ?, addresses = ?, last_seen_at = ?, revoked_at = NULL WHERE id = ?",
           )
           .run(
             descriptor.name,

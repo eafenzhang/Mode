@@ -391,6 +391,17 @@ GET    /api/v1/ice                          （预留 WebRTC）
 2026-11-12 起取消跨账号配对：设备只通过**个人账号**归属，同账号下的 Host 自动出现在
 设备目录并可直连，不再需要短票/验证码/二次换凭证。历史配对数据与服务接口已移除。
 
+### 4.2.1 设备撤销与恢复
+
+- 撤销设备（`DELETE /api/v1/devices/:id` 或 refresh token 重放触发的 family 撤销）会吊销
+  该设备全部凭据、membership 与在途连接；旧 access/refresh token 立即失效。
+- 撤销不是永封：账号本人（web 会话或同账号 Host token）用**相同 deviceId + 角色 +
+  身份公钥**重新注册时，服务端清除 `revoked_at` 并重新签发一套凭据（`upsertDevice`）。
+  身份公钥变更仍按 `device_conflict` 拒绝，因此恢复不会把设备交给别的身份。
+- 桌面客户端在目录/连接遇到 401/403/409 或 Control 4002 时，清空 client 令牌后自动
+  重新注册一次（`remote_v3_client_reregister`），不需要用户手动退出登录；`409` 表示
+  deviceId 已不可恢复时换一套 client 身份重试（`remote_v3_client_identity_rotated`）。
+
 2026-11-13 起：桌面端「远程控制」设备页只消费本账号目录
 （`remoteV3Service.listHosts()`），页面不再展示 LAN 配对码、扫描发现、Mode Agent 与
 LAN 已配对设备；「远程控制」设置页只保留「允许局域网直连」「允许被远程控制」两个开关

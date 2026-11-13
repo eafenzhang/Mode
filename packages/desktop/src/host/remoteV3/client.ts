@@ -19,6 +19,7 @@ import type {
 } from "@mode/shared";
 
 import {
+  RemoteV3ApiError,
   fetchRemoteV3Peer,
   listRemoteV3Devices,
   refreshRemoteV3Tokens,
@@ -27,10 +28,12 @@ import {
 import {
   clearRemoteV3ClientTokens,
   loadOrCreateRemoteV3ClientProfile,
+  rotateRemoteV3ClientIdentity,
   saveRemoteV3ClientTokens,
   verifyOrPinPeer,
   type RemoteV3ClientProfile,
 } from "./identity.js";
+import { describeFailure, isClientCredentialFailure } from "./clientErrors.js";
 import { createWeriftP2PAdapter } from "./p2pWerift.js";
 import { connectDirectWebSocket } from "./wsSocket.js";
 
@@ -115,8 +118,14 @@ export class RemoteV3ClientRuntime {
         fetchImpl: this.deps.fetchImpl,
       });
       return devices.filter((device) => device.role === "host");
-    } catch {
-      profile = await this.refreshClient(serverUrl, profile);
+    } catch (error) {
+      if (isClientCredentialFailure(error)) {
+        // 凭证被撤销/设备被服务端撤销时，refresh 也必然失败；直接清空 client 令牌重新注册，
+        // 服务端允许账号本人用同一身份恢复（无需用户手动退出登录）。
+        profile = await this.reRegisterClient(serverUrl, describeFailure(error));
+      } else {
+        profile = await this.refreshClient(serverUrl, profile);
+      }
       if (!profile.accessToken) throw new Error("Client access token 缺失");
       const devices = await listRemoteV3Devices({
         serverUrl,
@@ -228,14 +237,19 @@ export class RemoteV3ClientRuntime {
         descriptor: describe(),
         fetchImpl: this.deps.fetchImpl,
       });
-    } catch {
-      const refreshedHost = await this.deps.refreshHostTokens();
-      registration = await registerRemoteV3OwnedRole({
-        serverUrl,
-        accessToken: refreshedHost.accessToken,
-        descriptor: describe(),
-        fetchImpl: this.deps.fetchImpl,
-      });
+    } catch (error) {
+      if (error instanceof RemoteV3ApiError && error.status === 409) {
+        // deviceId 已不可用（被账号主撤销到无法恢复，或属于其他账号）：换一套 client 身份重试。
+        registration = await this.registerWithFreshClientIdentity(serverUrl);
+      } else {
+        const refreshedHost = await this.deps.refreshHostTokens();
+        registration = await registerRemoteV3OwnedRole({
+          serverUrl,
+          accessToken: refreshedHost.accessToken,
+          descriptor: describe(),
+          fetchImpl: this.deps.fetchImpl,
+        });
+      }
     }
     if (generation !== this.generation) {
       throw new Error("Client 身份已切换，请重试");
@@ -247,6 +261,44 @@ export class RemoteV3ClientRuntime {
       refreshToken: registration.refreshToken,
     };
     return this.profile;
+  }
+
+  /** 清空 client 令牌后重新注册（服务端会把被撤销的同身份设备恢复）。 */
+  private async reRegisterClient(
+    serverUrl: string,
+    reason: string,
+  ): Promise<RemoteV3ClientProfile> {
+    this.deps.log(`remote_v3_client_reregister reason=${reason}`);
+    await clearRemoteV3ClientTokens(this.deps.credentials);
+    this.profile = null;
+    this.generation += 1;
+    const profile = await this.ensureProfile(serverUrl);
+    if (!profile.accessToken) throw new Error("Client 重新注册未返回 access token");
+    this.profile = profile;
+    return profile;
+  }
+
+  /** 409（deviceId 被占用/不可恢复）时换 client 身份后只重试一次。 */
+  private async registerWithFreshClientIdentity(serverUrl: string) {
+    this.deps.log("remote_v3_client_identity_rotated reason=device_conflict");
+    await rotateRemoteV3ClientIdentity(this.deps.credentials);
+    this.profile = null;
+    this.generation += 1;
+    const fresh = await loadOrCreateRemoteV3ClientProfile(this.deps.credentials);
+    const hostAccessToken = this.deps.getHostAccessToken();
+    if (!hostAccessToken) throw new Error("Host 尚未登录，无法注册 Client 角色");
+    return registerRemoteV3OwnedRole({
+      serverUrl,
+      accessToken: hostAccessToken,
+      descriptor: {
+        deviceId: fresh.deviceId,
+        name: "Mode Client",
+        role: "client",
+        platform: "desktop",
+        identityKey: fresh.identity.identityKey,
+      },
+      fetchImpl: this.deps.fetchImpl,
+    });
   }
 
   /** refresh token 单次使用；并发刷新会被服务端判定为重放并撤销 token family。 */

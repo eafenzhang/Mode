@@ -188,5 +188,27 @@ test("owner 撤销设备后设备凭证与授权关系全部失效", async () =>
     });
     assert.equal(revokedAgain.status, 409);
     assert.equal(revokedAgain.body.error.code, "device_conflict");
+
+    // 撤销只吊销凭据：账号本人用同一身份重新注册应当恢复设备，并拿到一套新凭据。
+    const oldTokenStillDead = await call(server, "/api/v1/devices", { token: credentials.accessToken });
+    assert.equal(oldTokenStillDead.status, 401);
+
+    const revived = await call(server, "/api/v1/devices", {
+      method: "POST",
+      token: alice,
+      body: { device: client },
+    });
+    assert.equal(revived.status, 201);
+    assert.notEqual(revived.body.accessToken, credentials.accessToken);
+    const directoryAfterRevive = await call(server, "/api/v1/devices", {
+      token: revived.body.accessToken,
+    });
+    assert.equal(directoryAfterRevive.status, 200);
+    assert.ok(
+      (directoryAfterRevive.body.items ?? []).some(
+        (item: { device: { deviceId: string } }) => item.device.deviceId === HOST_ID,
+      ),
+      "恢复后应重新看到同账号 Host（目录不包含自己）",
+    );
   });
 });

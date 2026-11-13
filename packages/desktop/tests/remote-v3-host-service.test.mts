@@ -584,14 +584,15 @@ test("v3 Host 设备被账号主撤销后可轮换身份重新配置", async () 
     });
     assert.equal(revoked.status, 200, await revoked.text());
 
-    // 同 deviceId 再注册会 409 device_revoked；Host 应轮换身份而不是停在错误态。
+    // 撤销只吊销凭据：账号本人重新配置时服务端恢复同一设备（保留 deviceId 与 peer pin），
+    // 并签发新凭据；Host 不应停在错误态，也不需要轮换身份。
     const second = await service.configure({
       serverUrl: server.url,
       webSessionToken: sessionToken,
       deviceName: "V3 Revoked Host",
     });
     assert.equal(second.status, "online", second.error ?? "");
-    assert.notEqual(second.deviceId, first.deviceId);
+    assert.equal(second.deviceId, first.deviceId);
     await service.disconnectAccount();
   } finally {
     await server.close();
