@@ -50,9 +50,11 @@
 - **不再出现**：本机配对码面板、添加设备/扫描入口、发现的未配对设备行、Mode Agent 设备行、
   LAN 已配对设备行。后端配对与登记能力按 R1 保留，但不进入产品 UI。
 
-新建连接向导（「添加工作区 → 选择连接方式」）仍是远程工作区的**唯一入口**，其「局域网」
-方式继续读取 `getLanPairedPeers()` 的历史记录（兼容已存在的配对记录），但不再由远程控制页
-产生新记录；向导不写入任何配对记录。本页设备行不提供「连接工作区」按钮。
+新建连接向导（「添加工作区 → 选择连接方式」）仍是远程工作区的**唯一入口**。
+2026-11-13 起向导的「局域网」方式也已下线：不再读取 `getLanPairedPeers()`，不再向用户
+展示已配对 LAN 设备，连接方式只剩 SSH / WSL（Windows 桌面）/ Docker / 远程控制（v3）。
+历史 LAN 远程工作区仍可按持久化 target 重连，但产品 UI 不再产生新的 LAN 工作区。
+本页设备行不提供「连接工作区」按钮。
 
 列表视觉：标题独占一行，描述与右侧动作（列表/宫格、刷新）按插件市场页的头部样式对齐；
 列表模式为单卡片 + 分隔线行，宫格模式为两列卡片，动作按钮在两种模式下都右对齐。
@@ -119,7 +121,7 @@
 后端保留、产品 UI 不再调用：
 
 - `createLanAccessPairCode`、`POST /api/lan/pair`、`POST /api/remote-agent/enroll`
-- `getLanPairedPeers`（新建连接向导仍用）/ `pairLanPeer` / `removeLanPairedPeer` / `renameLanPairedPeer`
+- `getLanPairedPeers` / `pairLanPeer` / `removeLanPairedPeer` / `renameLanPairedPeer`
 - `discoverLanPeers` / `rdGetPeerCapability`
 - MCP store：`loadMcpFromUserDirectory` / `toggleServer` / `deleteScopedMcpServer`
 

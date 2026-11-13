@@ -63,9 +63,9 @@ interface RemoteDevice {
    - `workspace` → 本页不提供入口（远程工作区从新建连接向导进入）；
    - `desktop` → “进入桌面”；
    - `conversation` → “发起对话”。
-   新建连接向导负责 SSH/WSL/Docker，以及**只读选择已配对设备**的 LAN 方式；
-   LAN 的发现/配对/管理仍只在本页（[lan-paired-devices.md](./lan-paired-devices.md) §向导），
-   向导不得写入配对记录或提供手动地址/配对码。
+   新建连接向导负责 SSH/WSL/Docker 与远程控制（v3）设备；
+   2026-11-13 起向导不再提供 LAN 方式，LAN 配对记录仅供历史工作区重连
+   （[lan-paired-devices.md](./lan-paired-devices.md) §向导）。
 2. **配对码唯一**：6 位十六进制、5 分钟 TTL、单次消费；同时服务
    `/api/lan/pair` 与 `/api/remote-agent/enroll`（[remote-control-unified-pairing.md](./remote-control-unified-pairing.md)）。
    云端微信登录的 6 位十进制码与 Bot `/bind` 码不叫“配对码”，UI 必须区分文案。
@@ -134,11 +134,12 @@ Web 首次进入：浏览器打开 / → 输入被控端 6 位码
 
 ## 验收场景
 
-1. 远程控制页是唯一配对/设备管理入口；LAN 行只保留“进入桌面”（能力位满足时），
-   不再出现“连接工作区”按钮。远程工作区统一从新建连接向导选已配对 LAN 设备进入。
-2. 同一台已配对设备保存 LAN + 公网端点；公网可达时工作区（向导）与桌面（本页）
+1. 远程控制页是唯一设备管理入口；LAN 行只保留“进入桌面”（能力位满足时），
+   不再出现“连接工作区”按钮。新建连接向导不再提供 LAN 方式，历史 LAN 工作区按持久化
+   target 重连。
+2. 同一台已配对设备保存 LAN + 公网端点；公网可达时历史 LAN 工作区与桌面（本页）
    都命中公网，公网断开后回退 LAN，`https → wss`，不出现明文降级。
-3. 仅公网端点的设备可以在新建连接向导里连接工作区、在远程控制页进入桌面，不被过滤。
+3. 仅公网端点的历史设备可以在远程控制页进入桌面，不被过滤。
 4. Tauri Host 下 SSH/WSL/Docker 向导可以建立远程工作区，目录选择、文件、终端、
    会话与 LAN 工作区行为一致。
 5. 桌面 LAN 服务 `GET /` 返回 Web 应用；浏览器输入 6 位配对码后建立

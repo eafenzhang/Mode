@@ -111,12 +111,6 @@ export function RemoteConnectionDialog({
     wslUser,
     dockerContainer,
     manualDockerContainer,
-    lanPairedPeers,
-    lanSelectedPeer,
-    lanPairedSelectedId,
-    lanPairedLoading,
-    lanPairedError,
-    selectPairedPeer,
     v3Hosts,
     v3SelectedHost,
     v3SelectedDeviceId,
@@ -331,7 +325,6 @@ export function RemoteConnectionDialog({
       wslUser,
       dockerContainer,
       manualDockerContainer,
-      lanPeer: lanSelectedPeer,
       v3Host: v3SelectedHost,
     });
     if (!nextTarget) {
@@ -518,13 +511,6 @@ export function RemoteConnectionDialog({
                 {currentStep === "settings" ? (
                   <RemoteConnectionSettingsStep
                     kind={kind}
-                    lanFields={{
-                      pairedPeers: lanPairedPeers,
-                      pairedSelectedId: lanPairedSelectedId,
-                      loading: lanPairedLoading,
-                      loadError: lanPairedError,
-                      onSelectPairedPeer: selectPairedPeer,
-                    }}
                     v3Fields={{
                       hosts: v3Hosts,
                       selectedDeviceId: v3SelectedDeviceId,

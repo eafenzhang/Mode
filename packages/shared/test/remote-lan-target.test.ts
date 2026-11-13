@@ -311,3 +311,16 @@ test("lan 访问状态 schema 与配对码格式", async () => {
   assert.equal(isLanAccessPairCodeFormat("A1B2C3D"), false, "长度超限");
   assert.equal(isLanAccessPairCodeFormat("ZZZZZZ"), false, "非十六进制");
 });
+
+test("createOpenInEditorRemoteTarget 对 v3 返回 undefined，不用抛错表达不支持", () => {
+  // v3 没有本机编辑器可消费的 URI/UNC 映射；该函数在 UI 渲染期被调用，
+  // 抛错会击穿 workspace-header 的错误边界（spec: remote-workspace-file-manager-entry）。
+  assert.equal(
+    createOpenInEditorRemoteTarget({
+      kind: "v3",
+      deviceId: "019a0000-0000-7000-8000-000000000099",
+      deviceName: "书房主机",
+    }),
+    undefined,
+  );
+});

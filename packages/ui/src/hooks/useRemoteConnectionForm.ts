@@ -7,7 +7,6 @@ import type {
   WSLDistro,
 } from "@mode/shared";
 import { DEFAULT_REMOTE_ASSET_INSTALL_MODE } from "@mode/shared";
-import { useLanConnectionForm } from "@/hooks/useLanConnectionForm.js";
 import { useV3ConnectionForm } from "@/hooks/useV3ConnectionForm.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import {
@@ -29,9 +28,8 @@ export function buildAvailableKinds(options: { isWindowsDesktop: boolean }): Rem
   // 当探测能力暂时不可用、或用户还没切到 Docker 时，入口会直接消失，
   // 用户甚至不知道这里支持 Docker 连接。改为始终展示入口，切换后再懒加载探测结果。
   kinds.push("docker");
-  // 局域网方式保留在向导里，但只列已配对设备；配对/发现仍在远程控制页
-  // （docs/specs/remote-control-unified-pairing.md R2、lan-paired-devices.md §向导）。
-  kinds.push("lan");
+  // 局域网配对的产品入口已随远程控制页改版下线，向导不再提供「局域网」方式。
+  // 历史配对记录仍保留在凭据里，已有远程工作区可继续通过历史入口重连。
   // v3 设备来自账号设备目录；未登录时在选择页显示空态，不隐藏入口。
   kinds.push("v3");
   return kinds;
@@ -50,7 +48,6 @@ export function useRemoteConnectionForm({
 }) {
   const platform = usePlatform();
   const [kind, setKind] = useState<RemoteKind>("ssh");
-  const lan = useLanConnectionForm({ open, kind });
   const v3 = useV3ConnectionForm({ open, kind });
   const [host, setHostState] = useState("");
   const [port, setPortState] = useState("22");
@@ -347,7 +344,6 @@ export function useRemoteConnectionForm({
     wslUser,
     dockerContainer,
     manualDockerContainer,
-    ...lan,
     ...v3,
     sshConfigAliases,
     sshConfigAliasesLoading,

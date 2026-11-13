@@ -71,7 +71,7 @@ WebSocket 固定 `ws://`，且一个已配对设备只保存一个地址。用�
    `server-info`、`/api/rpc-host-capability`、`/ws/host` 全部按选中端点的
    `scheme`/`path` 拼接，`https → wss`。远程工作区与远程桌面共享端点排序、探测预算
    （公网 8s、LAN 2.5s）、401/403 立即收口与“会话阶段不换端点”的语义。仅公网端点的
-   设备必须能连接工作区，不再被向导过滤。
+   历史配对记录必须能连接工作区，不被端点过滤（2026-11-13 起向导不再提供 LAN 新建入口）。
 
 ## 状态所有者
 
@@ -232,8 +232,8 @@ RemoteTarget.endpoints → 按同一顺序探测 /api/server-info
    令牌与全部端点。
 7. LAN 发现、配对码、Tailscale 直连、既有 LAN 远程工作区挂接不回归。
 7'. 远程工作区：同一设备公网可达时 `/api/server-info`、`/api/rpc-host-capability` 与
-   `/ws/host` 全部命中公网端点并使用 `wss`；公网断开后回退 LAN；仅公网端点的设备
-   可以完成目录选择与工作区打开，不再被向导过滤。
+   `/ws/host` 全部命中公网端点并使用 `wss`；公网断开后回退 LAN；仅公网端点的历史
+   工作区仍可完成目录选择与工作区打开（向导新建入口已于 2026-11-13 下线）。
 8. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 与相关 Node 测试全绿。
 9. 内置中继：被控端配置中继令牌后，配对响应带 `publicRelay`；主控自动出现公网端点且
    排在 LAN 之前，用户不需要手填地址。

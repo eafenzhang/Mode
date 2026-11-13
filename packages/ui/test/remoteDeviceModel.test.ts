@@ -1,19 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { LanPairedPeer, RemoteV3DeviceSummary } from "@mode/shared";
-import { lanPeerToRemoteTarget, sortV3Hosts } from "../src/remote-desktop/remoteDeviceModel.js";
-
-const lanPeer: LanPairedPeer = {
-  serverId: "server-1",
-  host: "192.168.1.20",
-  port: 45880,
-  name: "书房电脑",
-  endpoints: [
-    { scheme: "http", host: "192.168.1.20", port: 45880, kind: "lan" },
-    { scheme: "https", host: "relay.example.com", port: 443, kind: "public", path: "/d/t1" },
-  ],
-};
+import type { RemoteV3DeviceSummary } from "@mode/shared";
+import { sortV3Hosts } from "../src/remote-desktop/remoteDeviceModel.js";
 
 function host(deviceId: string, name: string, online: boolean): RemoteV3DeviceSummary {
   return {
@@ -49,21 +38,4 @@ test("账号目录投影不修改入参", () => {
     ["b", "a"],
     "排序必须是纯函数，页面轮询会复用同一份快照",
   );
-});
-
-test("LAN 设备转远程工作区目标：保留端点列表，主端点取公网", () => {
-  const target = lanPeerToRemoteTarget(lanPeer);
-  assert.equal(target?.kind, "lan");
-  assert.equal(target?.host, "192.168.1.20", "identity 仍取配对记录的主地址投影");
-  assert.equal(target?.endpoints?.length, 2);
-  assert.equal(target?.endpoints?.[0]?.kind, "public");
-  assert.equal(target?.endpoints?.[0]?.path, "/d/t1");
-});
-
-test("旧配对记录没有 endpoints 时仍可构造 LAN 目标", () => {
-  const target = lanPeerToRemoteTarget({ serverId: "legacy", host: "10.0.0.2", port: 45880 });
-  assert.deepEqual(target?.endpoints, [
-    { scheme: "http", host: "10.0.0.2", port: 45880, kind: "lan" },
-  ]);
-  assert.equal(target?.host, "10.0.0.2");
 });

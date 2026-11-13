@@ -1,12 +1,10 @@
 import type {
-  LanPairedPeer,
   RemoteAssetInstallMode,
   RemoteTarget,
   RemoteV3DeviceSummary,
 } from "@mode/shared";
 import { isValidWslUser, normalizeRemoteResourcePackageSelection } from "@mode/shared";
 import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
-import { lanPeerToRemoteTarget } from "@/remote-desktop/remoteDeviceModel.js";
 import type { RemoteWizardStep } from "@/RemoteConnectionWizardChrome.js";
 
 type WizardIntlLike = {
@@ -28,8 +26,6 @@ interface RemoteConnectionFormSnapshot {
   wslUser?: string;
   dockerContainer: string;
   manualDockerContainer?: string;
-  // 局域网：向导只允许选择已配对设备；地址、端点与身份都从该记录投影。
-  lanPeer?: LanPairedPeer | null;
   // v3：只允许选择账号目录里在线的 Host。
   v3Host?: RemoteV3DeviceSummary | null;
 }
@@ -78,19 +74,10 @@ export function buildRemoteTarget(
   snapshot: RemoteConnectionFormSnapshot,
 ): { target?: RemoteTarget; errorMessage?: string } {
   switch (snapshot.kind) {
-    case "lan": {
-      // 配对在「远程控制」页完成，向导只消费已配对记录（spec: lan-paired-devices.md §向导）。
-      if (!snapshot.lanPeer) {
-        return { errorMessage: intl.formatMessage({ id: "remote.lan.validation.pairedRequired" }) };
-      }
-      const target = lanPeerToRemoteTarget(snapshot.lanPeer);
-      if (!target) {
-        return {
-          errorMessage: intl.formatMessage({ id: "remote.lan.validation.pairedUnavailable" }),
-        };
-      }
-      return { target };
-    }
+    case "lan":
+      // 「局域网」方式已随配对入口下线，向导不再产生 lan 目标；
+      // 这里保留兜底，避免旧调用方把 lan 目标直接送进连接流程。
+      return { errorMessage: intl.formatMessage({ id: "remote.kind.unavailable" }) };
     case "ssh":
       if (!snapshot.host || !snapshot.username) {
         return {

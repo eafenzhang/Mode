@@ -1937,8 +1937,6 @@ const enUS: Record<string, string> = {
   "remote.kind.ssh.wizardDescription": "Remote host",
   "remote.kind.wsl.wizardDescription": "Windows Subsystem for Linux",
   "remote.kind.docker.wizardDescription": "Local container",
-  "remote.kind.lan": "LAN",
-  "remote.kind.lan.wizardDescription": "Paired LAN devices",
   "remote.kind.v3": "Remote Control",
   "remote.kind.v3.wizardDescription": "Online devices on your account (end-to-end encrypted)",
   "remote.v3.description":
@@ -1956,17 +1954,7 @@ const enUS: Record<string, string> = {
     "Device identities are verified locally; the server only relays ciphertext.",
   "remote.v3.validation.selectHost": "Select a device",
   "remote.v3.validation.hostOffline": "That device is offline",
-  "remote.lan.description":
-    "Choose a device that is already paired in Remote Control; pairing is done there.",
-  "remote.lan.pairedTitle": "Paired devices",
-  "remote.lan.pairedLoading": "Loading paired devices…",
-  "remote.lan.pairedEmpty": "No paired devices yet. Pair one in Remote Control first.",
-  "remote.lan.pairedLoadFailed": "Could not load paired devices. Try again later.",
-  "remote.lan.pairedOnlyHint":
-    "Pairing happens on the Remote Control page; this step only lists paired devices.",
-  "remote.lan.validation.pairedRequired": "Select a paired device.",
-  "remote.lan.validation.pairedUnavailable":
-    "This pairing has no address information. Pair the device again.",
+  "remote.kind.unavailable": "This connection method is no longer available. Choose another one.",
   "remote.connect": "Connect",
   "remote.connecting": "Connecting...",
   "remote.minimize": "Minimize remote connection window",

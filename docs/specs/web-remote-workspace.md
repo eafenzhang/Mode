@@ -76,19 +76,21 @@ POST /api/remote-workspace/:id/release -> { ok }
      （2026-10-28 起，不再返回 unsupported）。
 - `disposeRemoteSession` → `unregisterRemoteWorkspaceSession` + 关闭 WS + POST release。
 - `pairLanPeer` / `getLanPairedPeers` / `getLanPeerWorkspaces` / `removeLanPairedPeer`
-  映射到 HTTP 面；`allowRemoteWorkspace=true`。
-- 现有 `RemoteConnectionDialog` 的 LAN 步骤与目录浏览器不改；它读取的
-  `remoteWorkspaceSessionStore` 已由平台注册。
+  映射到 HTTP 面；`allowRemoteWorkspace=true`。这些接口 2026-11-13 起只服务 CLI /
+  旧客户端与历史记录，产品 UI 不再调用。
+- `RemoteConnectionDialog` 2026-11-13 起不再提供 LAN 步骤；Web 的平台实现保留
+  `connectRemote({kind:"lan"})` 供历史 target 重连，目录浏览器与
+  `remoteWorkspaceSessionStore` 逻辑不变。
 
 ### 4.4 事件顺序
 
 ```text
-向导选择已配对 LAN 对端
+历史 LAN 远程工作区重连（向导不再提供 LAN 方式）
   → platform.connectRemote({kind:"lan", serverId})
   → POST /api/connect-remote-lan（server attach /ws/host + Initialize）
   → 浏览器 /ws/remote/<id>（完整 services）
   → registerRemoteWorkspaceSession
-  → 向导目录浏览器读远端 fileService
+  → 目录浏览器读远端 fileService
   → 选目录 → addTab(remoteSessionId)
   → 关闭 tab / dispose → WS close → server release → 对端 attachment 释放
 ```
@@ -106,7 +108,7 @@ POST /api/remote-workspace/:id/release -> { ok }
 
 ### 4.6 验收
 
-1. 两台 Mode：NAS/Web 配对 LAN 对端，向导出现该设备；选目录后打开远程 tab。
+1. 两台 Mode：NAS/Web 已存在 LAN 配对记录时，历史远程工作区可重连并打开远程 tab；向导不再提供 LAN 新建入口。
 2. 远程 tab 的任务、终端、文件树、Git 读取均命中远端；本地 tab 不受影响。
 3. 关闭远程 tab / 断网：对端 `/ws/host` 连接关闭，NAS 无残留 remote 连接。
 4. 令牌失效：向导提示重新配对，不进入半连接状态。

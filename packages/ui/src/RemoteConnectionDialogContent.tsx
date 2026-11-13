@@ -8,7 +8,7 @@ import type {
   SSHConfigAliasOption,
   WSLDistro,
 } from "@mode/shared";
-import {TID_REMOTE_KIND_DOCKER, TID_REMOTE_KIND_LAN, TID_REMOTE_KIND_SSH, TID_REMOTE_KIND_V3, TID_REMOTE_KIND_WSL} from "@mode/shared";
+import {TID_REMOTE_KIND_DOCKER, TID_REMOTE_KIND_SSH, TID_REMOTE_KIND_V3, TID_REMOTE_KIND_WSL} from "@mode/shared";
 import type {
   IMcpSyncService,
   IPluginSyncService,
@@ -20,7 +20,6 @@ import { AlertTriangleIcon, ChevronRightIcon, LoaderIcon, MonitorCogIcon, Monito
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
 import {
   RemoteConnectionFields,
-  type RemoteConnectionLanFieldsProps,
   type RemoteConnectionV3FieldsProps,
 } from "@/RemoteConnectionFields.js";
 import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
@@ -81,11 +80,9 @@ export function RemoteConnectionKindStep({
                   ? TID_REMOTE_KIND_SSH
                   : value === "wsl"
                     ? TID_REMOTE_KIND_WSL
-                    : value === "lan"
-                      ? TID_REMOTE_KIND_LAN
-                      : value === "v3"
-                        ? TID_REMOTE_KIND_V3
-                        : TID_REMOTE_KIND_DOCKER
+                    : value === "v3"
+                      ? TID_REMOTE_KIND_V3
+                      : TID_REMOTE_KIND_DOCKER
               }
               className={cn(
                 "flex min-h-32 flex-col items-start gap-4 rounded-2xl border p-4 text-start transition-colors",
@@ -140,7 +137,6 @@ export function RemoteConnectionKindStep({
 
 export function RemoteConnectionSettingsStep({
   kind,
-  lanFields,
   v3Fields,
   host,
   port,
@@ -190,7 +186,6 @@ export function RemoteConnectionSettingsStep({
   username: string;
   sshAuthMethod: SSHAuthMethod;
   assetInstallMode: RemoteAssetInstallMode;
-  lanFields: RemoteConnectionLanFieldsProps;
   v3Fields: RemoteConnectionV3FieldsProps;
   password: string;
   privateKeyPath: string;
@@ -248,7 +243,6 @@ export function RemoteConnectionSettingsStep({
 
         <RemoteConnectionFields
           kind={kind}
-          lanFields={lanFields}
           v3Fields={v3Fields}
           host={host}
           port={port}

@@ -294,7 +294,9 @@ export interface PrintPageToPdfResult {
   error?: string;
 }
 
-export function createOpenInEditorRemoteTarget(target: RemoteTarget): OpenInEditorRemoteTarget {
+export function createOpenInEditorRemoteTarget(
+  target: RemoteTarget,
+): OpenInEditorRemoteTarget | undefined {
   switch (target.kind) {
     case "ssh":
       // openInEditor 只需要构造 VS Code Remote-SSH URI 的连接标识，
@@ -326,7 +328,10 @@ export function createOpenInEditorRemoteTarget(target: RemoteTarget): OpenInEdit
         port: target.port,
       };
     case "v3":
-      throw new Error("v3 远程工作区不支持在外部编辑器中打开");
+      // v3 只能经账号设备目录 + E2EE 隧道访问，没有本机编辑器可消费的 URI/UNC 映射。
+      // 这里必须返回 undefined 而不是抛错：该函数被 UI 渲染期的能力解析调用，
+      // 抛错会击穿局部错误边界，把整块界面替换成崩溃提示。
+      return undefined;
   }
 }
 

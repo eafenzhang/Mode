@@ -2,7 +2,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DockerContainerInfo,
-  LanPairedPeer,
   RemoteAssetInstallMode,
   RemoteTarget,
   RemoteV3DeviceSummary,
@@ -19,8 +18,6 @@ import {
 } from "lucide-react";
 import {
   TID_DOCKER_CONTAINER_INPUT,
-  TID_LAN_PAIRED_PEER_ITEM,
-  TID_LAN_PAIRED_PEER_LIST,
   TID_V3_HOST_ITEM,
   TID_V3_HOST_LIST,
   TID_DOCKER_CONTAINER_SELECT,
@@ -72,17 +69,6 @@ export interface RemoteConnectionV3FieldsProps {
   onSelectHost: (host: RemoteV3DeviceSummary) => void;
 }
 
-/** 局域网页字段：只允许在已配对设备里选一台（配对仍在「远程控制」页）。 */
-export interface RemoteConnectionLanFieldsProps {
-  /** 已配对设备（令牌由 Host 按 serverId 从凭据服务取）。 */
-  pairedPeers: LanPairedPeer[];
-  /** 当前选中的已配对设备 serverId（空 = 未选择）。 */
-  pairedSelectedId: string;
-  loading: boolean;
-  loadError: string;
-  onSelectPairedPeer: (peer: LanPairedPeer) => void;
-}
-
 const DEFAULT_WSL_DISTRO_VALUE = "__default_wsl_distro__";
 const NO_SSH_CONFIG_ALIAS_VALUE = "__ssh_config_alias_none__";
 
@@ -95,7 +81,6 @@ function formatSshConfigAliasSummary(aliasOption: SSHConfigAliasOption): string 
 
 export function RemoteConnectionFields({
   kind,
-  lanFields,
   v3Fields,
   host,
   port,
@@ -135,8 +120,6 @@ export function RemoteConnectionFields({
   setManualDockerContainer,
 }: {
   kind: RemoteTarget["kind"];
-  /** 局域网页的全部字段状态与回调（单独成组，避免再往这个组件塞十个平铺 prop）。 */
-  lanFields: RemoteConnectionLanFieldsProps;
   /** v3 页的全部字段状态与回调。 */
   v3Fields: RemoteConnectionV3FieldsProps;
   host: string;
@@ -262,69 +245,9 @@ export function RemoteConnectionFields({
 
   switch (kind) {
     case "lan": {
-      const empty =
-        !lanFields.loading && !lanFields.loadError && lanFields.pairedPeers.length === 0;
-      return (
-        <div className="space-y-3">
-          <p className="text-ui-base text-foreground-subtle">
-            {intl.formatMessage({ id: "remote.lan.description" })}
-          </p>
-          <span className="block text-ui-base text-foreground-subtle">
-            {intl.formatMessage({ id: "remote.lan.pairedTitle" })}
-          </span>
-          {lanFields.pairedPeers.length > 0 ? (
-            <div className="space-y-2" data-testid={TID_LAN_PAIRED_PEER_LIST}>
-              {lanFields.pairedPeers.map((peer) => {
-                const selected = lanFields.pairedSelectedId === peer.serverId;
-                return (
-                  <button
-                    key={peer.serverId}
-                    type="button"
-                    data-testid={TID_LAN_PAIRED_PEER_ITEM}
-                    onClick={() => lanFields.onSelectPairedPeer(peer)}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-start transition-colors",
-                      selected
-                        ? "border-input-border-focused bg-surface-hover"
-                        : "border-card-border bg-card hover:border-input-border-hover hover:bg-surface-hover",
-                    )}
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-ui-base text-foreground">
-                        {peer.name?.trim() || peer.serverId}
-                      </span>
-                      <span className="block truncate text-ui-xs text-foreground-subtle">
-                        {`${peer.host}:${peer.port}`}
-                      </span>
-                    </span>
-                    {selected ? <CheckIcon className="size-4 shrink-0 text-primary" /> : null}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-          {lanFields.loading ? (
-            <p className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-ui-base text-foreground-subtle">
-              <LoaderIcon className="size-3.5 animate-spin" />
-              {intl.formatMessage({ id: "remote.lan.pairedLoading" })}
-            </p>
-          ) : null}
-          {empty ? (
-            <p className="rounded-lg border border-dashed border-border px-3 py-2 text-ui-base text-foreground-subtle">
-              {intl.formatMessage({ id: "remote.lan.pairedEmpty" })}
-            </p>
-          ) : null}
-          {lanFields.loadError ? (
-            <p className="flex items-center gap-1.5 text-ui-base text-warning">
-              <AlertTriangleIcon className="size-3.5 shrink-0" />
-              {intl.formatMessage({ id: "remote.lan.pairedLoadFailed" })}
-            </p>
-          ) : null}
-          <p className="text-ui-xs text-foreground-subtlest">
-            {intl.formatMessage({ id: "remote.lan.pairedOnlyHint" })}
-          </p>
-        </div>
-      );
+      // 向导已不再提供「局域网」方式；保留该分支只为穷尽 RemoteTarget["kind"] 类型，
+      // 实际 availableKinds 不会返回 lan。
+      return null;
     }
     case "v3": {
       const empty =
