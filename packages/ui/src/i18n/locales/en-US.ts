@@ -5598,6 +5598,8 @@ const enUS: Record<string, string> = {
   "chat.attachments.upload.waitingSession": "Waiting for session",
   "chat.attachments.upload.queued": "Waiting to upload",
   "chat.attachments.upload.uploading": "Uploading {progress}%",
+  "chat.attachments.upload.stageTimeout":
+    "Upload timed out: the remote side did not acknowledge within 60 seconds. Retry or use a smaller file.",
   "chat.attachments.upload.committing": "Finishing upload",
   "chat.attachments.upload.ready": "Upload complete",
   "chat.attachments.upload.failed": "Upload failed: {message}",

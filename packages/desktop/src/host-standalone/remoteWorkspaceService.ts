@@ -227,6 +227,9 @@ type MaterializePromptAttachments = (request: {
   attachments?: ModePromptAttachment[];
 }) => Promise<{ content: string; attachments?: ModePromptAttachment[] }>;
 
+/** v3 远程工作区挂接上限：覆盖 capability → 隧道 → Initialize 全过程。 */
+const V3_WORKSPACE_CONNECT_TIMEOUT_MS = 30_000;
+
 function createRemoteWorkspaceHandle(params: {
   connectionServices: IServiceAccessor;
   sourceServices: ServiceCollection;
@@ -408,15 +411,38 @@ export async function createRemoteWorkspaceHostService(
       throw new Error("远程控制服务不可用：请先在账号设置里登录");
     }
     const closeBridge = createRemoteCloseBridge();
-    const connection = await attachV3RemoteWorkspace({
-      remoteV3,
-      hostDeviceId: target.deviceId,
-      signal,
-      onClose: () => closeBridge.notify({ exitCode: null, signal: null }),
-    });
-    if (signal.aborted) {
+    // 对端在线但隧道握手不返回时，connect() 会永久挂起（实测向导停在「正在连接…」且日志只有
+    // 一行“开始连接”）。给整条挂接一个上限，超时按可读失败收口并放弃在途隧道。
+    const abort = new AbortController();
+    const forwardAbort = () => abort.abort();
+    signal.addEventListener("abort", forwardAbort, { once: true });
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      abort.abort();
+    }, V3_WORKSPACE_CONNECT_TIMEOUT_MS);
+    let connection: Awaited<ReturnType<typeof attachV3RemoteWorkspace>>;
+    try {
+      connection = await attachV3RemoteWorkspace({
+        remoteV3,
+        hostDeviceId: target.deviceId,
+        signal: abort.signal,
+        onClose: () => closeBridge.notify({ exitCode: null, signal: null }),
+      });
+    } catch (error) {
+      if (timedOut) {
+        throw new Error(
+          `远程设备未在 ${V3_WORKSPACE_CONNECT_TIMEOUT_MS / 1000} 秒内完成工作区挂接：请确认对端在线、版本支持远程工作区，或改用局域网连接`,
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+      signal.removeEventListener("abort", forwardAbort);
+    }
+    if (signal.aborted || abort.signal.aborted) {
       await connection.dispose();
-      throw new Error("远程连接已取消");
+      throw new Error(timedOut ? "远程工作区挂接超时" : "远程连接已取消");
     }
     const promptAttachmentTransferService = createLanPromptAttachmentTransferService({
       channel: connection.services.modeAgentService,

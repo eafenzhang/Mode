@@ -5349,6 +5349,8 @@ const zhCN: Record<string, string> = {
   "chat.attachments.upload.waitingSession": "正在等待会话",
   "chat.attachments.upload.queued": "等待上传",
   "chat.attachments.upload.uploading": "正在上传 {progress}%",
+  "chat.attachments.upload.stageTimeout":
+    "上传超时：远端未在 60 秒内确认接收，请重试或改用较小的文件。",
   "chat.attachments.upload.committing": "正在完成上传",
   "chat.attachments.upload.ready": "上传完成",
   "chat.attachments.upload.failed": "上传失败：{message}",

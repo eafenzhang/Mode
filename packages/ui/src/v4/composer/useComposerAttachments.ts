@@ -62,6 +62,12 @@ const COMPOSER_ATTACHMENT_COMPLETE_VISIBLE_MS = 300;
  * 取 5 留余量；它只防 Helper 反复崩溃时的无限重传，正常使用不该触达。
  */
 const COMPOSER_ATTACHMENT_REBUILD_RETRY_LIMIT = 5;
+/**
+ * 远端附件 stage 的看门狗。对端会话未就绪或 RPC 被吞时，stage() 会永久 pending，
+ * UI 只剩一个 0% 的环且发送被 hasUnreadyAttachments 挡住（实际观测到的「卡 0%」）。
+ * 超时后按可重试失败收口，至少让用户看到原因并能重试/移除。
+ */
+const REMOTE_ATTACHMENT_STAGE_TIMEOUT_MS = 60_000;
 const EMPTY_COMPOSER_ATTACHMENTS: ComposerAttachmentUploadItem[] = [];
 const REMOTE_ATTACHMENT_NOT_STAGED_ERROR_CODE = "remoteAttachmentNotStaged";
 export type {
@@ -164,6 +170,13 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.cause !== undefined ? isAbortError(error.cause) : false;
 }
 
+class RemoteAttachmentStageTimeoutError extends Error {
+  constructor() {
+    super("远端附件上传超时（对端未响应）");
+    this.name = "RemoteAttachmentStageTimeoutError";
+  }
+}
+
 class RemoteAttachmentNotStagedError extends Error {
   readonly code = REMOTE_ATTACHMENT_NOT_STAGED_ERROR_CODE;
 }
@@ -195,6 +208,9 @@ function isTransientAttachmentUploadError(error: unknown): boolean {
 
 /** 上传失败文案：结构化错误按当前 locale 展开，未知错误保留原文便于诊断。 */
 function formatAttachmentUploadErrorMessage(error: unknown, intl: IntlInstance): string {
+  if (error instanceof RemoteAttachmentStageTimeoutError) {
+    return intl.formatMessage({ id: "chat.attachments.upload.stageTimeout" });
+  }
   if (error instanceof OversizedInlineImageAttachmentError) {
     return intl.formatMessage(
       { id: "chat.attachments.oversizedInlineImage" },
@@ -418,17 +434,28 @@ export function useComposerAttachments(
               }));
             },
           );
-          const result = await target.transferService.stage({
-            operationId: item.operationId,
-            sessionId: target.sessionId,
-            workspacePath: target.workspacePath,
-            ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
-            remoteSessionId: target.remoteSessionId,
-            localPath: item.localPath,
-            fileName: item.filename,
-            mime: item.mimeType,
-            sizeBytes: item.sizeBytes,
-          });
+          let stageTimer: number | undefined;
+          const result = await Promise.race([
+            target.transferService.stage({
+              operationId: item.operationId,
+              sessionId: target.sessionId,
+              workspacePath: target.workspacePath,
+              ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+              remoteSessionId: target.remoteSessionId,
+              localPath: item.localPath,
+              fileName: item.filename,
+              mime: item.mimeType,
+              sizeBytes: item.sizeBytes,
+            }),
+            new Promise<never>((_resolve, reject) => {
+              stageTimer = window.setTimeout(() => {
+                // 收口远端在途事务，避免超时后对端继续占着 uploadId。
+                void target.transferService.cancel(item.operationId).catch(() => undefined);
+                reject(new RemoteAttachmentStageTimeoutError());
+              }, REMOTE_ATTACHMENT_STAGE_TIMEOUT_MS);
+            }),
+          ]);
+          if (stageTimer !== undefined) window.clearTimeout(stageTimer);
           if (controllersRef.current.get(controllerKey) !== controller) return;
           // 远端 ServiceAccessor 曾错误注入本地 transfer service，并返回
           // staged:false + host localPath。远端 Agent 无法读取该路径，因此必须阻止发送。
