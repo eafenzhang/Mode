@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Client runtime 聚合注册、刷新、连接与 RPC 超时回退；一条请求的失败/回退路径跨文件会让「何时禁用 P2P」难以审计。 */
 import { randomUUID } from "node:crypto";
 
 import {
@@ -61,6 +62,8 @@ interface ClientConnection {
   link: ControlLink;
   connection: RemoteConnection;
   mux: StreamMux;
+  /** 本次连接实际选中的数据面；RPC 超时时据此判断是否值得禁用 P2P 重试。 */
+  readonly transport: string | null;
 }
 
 interface PendingRequest {
@@ -70,12 +73,18 @@ interface PendingRequest {
   timer: NodeJS.Timeout;
 }
 
+function isRpcTimeout(error: unknown): boolean {
+  return error instanceof Error && error.message === "远程 RPC 超时";
+}
+
 /** 本机作为 Client 角色：注册相反角色、缓存 E2EE 连接、执行一次 allowlist RPC。 */
 export class RemoteV3ClientRuntime {
   private readonly deps: RemoteV3ClientRuntimeDeps;
   private readonly defaultP2pAdapter = createWeriftP2PAdapter();
   private profile: RemoteV3ClientProfile | null = null;
   private readonly connections = new Map<string, ClientConnection>();
+  /** 该 Host 的 P2P 数据面在本进程内已被证实不可用（RPC 超时一次即禁用）。 */
+  private readonly p2pDisabledHosts = new Set<string>();
   private readonly connecting = new Map<string, Promise<ClientConnection>>();
   private readonly pending = new Map<string, PendingRequest>();
   private clientRefreshInFlight: Promise<RemoteV3ClientProfile> | null = null;
@@ -86,6 +95,26 @@ export class RemoteV3ClientRuntime {
   }
 
   async request(params: RemoteV3RequestParams): Promise<RemoteV3RequestResult> {
+    try {
+      return await this.requestOnce(params);
+    } catch (error) {
+      if (!isRpcTimeout(error)) throw error;
+      const connection = this.connections.get(params.hostDeviceId);
+      this.deps.log(
+        `remote_v3_rpc_timeout host=${params.hostDeviceId.slice(0, 8)} method=${params.method} transport=${connection?.transport ?? "none"}`,
+      );
+      if (!connection || connection.transport !== "p2p") throw error;
+      // 旧对端可能「P2P 握手成功但 DataChannel 不通」：帧发得出去、回不来，表现为 RPC 超时。
+      // 该 Host 本次会话内禁用 P2P，重连后走 LAN/Relay 再试一次；失败才把错误抛给调用方。
+      this.disableP2pFor(params.hostDeviceId);
+      this.deps.log(
+        `remote_v3_p2p_fallback host=${params.hostDeviceId.slice(0, 8)} reason=rpc_timeout`,
+      );
+      return await this.requestOnce(params);
+    }
+  }
+
+  private async requestOnce(params: RemoteV3RequestParams): Promise<RemoteV3RequestResult> {
     const { connection } = await this.getConnection(params.hostDeviceId);
     const id = randomUUID();
     const timeoutMs = params.timeoutMs ?? 15_000;
@@ -186,6 +215,15 @@ export class RemoteV3ClientRuntime {
     this.profile = null;
     this.generation += 1;
     await clearRemoteV3ClientTokens(this.deps.credentials);
+  }
+
+  private disableP2pFor(hostDeviceId: string): void {
+    this.p2pDisabledHosts.add(hostDeviceId);
+    const existing = this.connections.get(hostDeviceId);
+    if (!existing) return;
+    this.connections.delete(hostDeviceId);
+    existing.mux.dispose();
+    existing.link.close();
   }
 
   private getConnection(hostDeviceId: string): Promise<ClientConnection> {
@@ -348,15 +386,22 @@ export class RemoteV3ClientRuntime {
   ): Promise<ClientConnection> {
     if (!profile.accessToken) throw new Error("Client access token 缺失");
     const accessToken = profile.accessToken;
-    const link = new ControlLink({
+    let selectedTransport: string | null = null;
+    const linkOptions: ConstructorParameters<typeof ControlLink>[0] = {
       role: "client",
       serverUrl,
       deviceId: profile.deviceId,
       accessToken,
       identity: profile.identity,
       connectSocket: this.deps.connectSocket,
-      p2p: { adapter: this.deps.p2pAdapter ?? this.defaultP2pAdapter, timeoutMs: 8000 },
-      onTransport: (transport) => this.deps.onTransport?.(transport),
+      // 不传 p2p 即等价于禁用：该 Host 一旦出现 P2P RPC 超时，本次会话内只走 LAN/Relay。
+      ...(this.p2pDisabledHosts.has(hostDeviceId)
+        ? {}
+        : { p2p: { adapter: this.deps.p2pAdapter ?? this.defaultP2pAdapter, timeoutMs: 8000 } }),
+      onTransport: (transport) => {
+        selectedTransport = transport;
+        this.deps.onTransport?.(transport);
+      },
       onError: (error) => this.deps.log(`remote_v3_client_error code=${error.code}`),
       fetchPeer: (deviceId) =>
         fetchRemoteV3Peer({
@@ -383,7 +428,8 @@ export class RemoteV3ClientRuntime {
         }
         throw lastError instanceof Error ? lastError : new Error("没有可用的 LAN 直连地址");
       },
-    });
+    };
+    const link = new ControlLink(linkOptions);
     try {
       await link.start();
       const connection = await link.connect(hostDeviceId);
@@ -391,7 +437,14 @@ export class RemoteV3ClientRuntime {
         send: (frame) => connection.send(frame),
         onStream: () => undefined,
       });
-      const entry: ClientConnection = { link, connection, mux };
+      const entry: ClientConnection = {
+        link,
+        connection,
+        mux,
+        get transport() {
+          return selectedTransport;
+        },
+      };
       this.connections.set(hostDeviceId, entry);
       connection.onFrame((frame) => {
         if (!mux.handle(frame)) this.dispatch(frame);
