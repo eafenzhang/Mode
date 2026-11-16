@@ -35,10 +35,13 @@ const DONE_SENTINEL: &str = "[DONE]";
 /// OpenAI Chat Completions 端点的连接配置。
 ///
 /// `base_url` 是 API 根（如 `https://api.openai.com/v1`，兼容网关同形），适配器在其后拼
-/// `/chat/completions`，末尾多余的 `/` 会被去掉。`extra_headers` 在默认头
-/// （`Authorization: Bearer` / `Content-Type: application/json`）之后追加，因此可以覆盖
-/// 它们（网关自定鉴权头等）。`Debug` 不打印密钥：`api_key` 恒为掩码，`extra_headers`
-/// 只显示头名（值可能是另一把凭据）。
+/// `/chat/completions`，末尾多余的 `/` 会被去掉。`extra_headers` 对默认头
+/// （`Authorization: Bearer` / `Content-Type: application/json`）是**替换**语义：头名
+/// 大小写不敏感地命中默认头时，默认值不发（见 [`stream_once`] 的取舍说明），网关因此可以
+/// 自带鉴权头而不必担心默认 Bearer 静默并存；`extra_headers` 之外的同名默认头照常发送。
+/// reqwest 的 `header()` 本身是追加语义，同名头在 `extra_headers` 内部出现多次会原样
+/// 多发（多值头留给调用方自己负责）。`Debug` 不打印密钥：`api_key` 恒为掩码，
+/// `extra_headers` 只显示头名（值可能是另一把凭据）。
 #[derive(Clone)]
 pub struct OpenAiChatConfig {
     pub base_url: String,
@@ -198,6 +201,13 @@ fn chat_completions_url(base_url: &str) -> String {
     format!("{}/chat/completions", base_url.trim_end_matches('/'))
 }
 
+/// `extra_headers` 是否覆盖了某个默认头（头名按 HTTP 语义大小写不敏感比较）。
+fn overrides_default(extra_headers: &[(String, String)], name: &str) -> bool {
+    extra_headers
+        .iter()
+        .any(|(header_name, _)| header_name.eq_ignore_ascii_case(name))
+}
+
 /// 一次完整流式请求：发请求 → 读 SSE → 累积 delta → 收口工具调用 → 汇总终态。
 async fn stream_once(
     client: &reqwest::Client,
@@ -209,12 +219,18 @@ async fn stream_once(
     let url = chat_completions_url(&config.base_url);
     let payload = serde_json::to_vec(&body)
         .map_err(|error| error::local(format!("模型请求体序列化失败：{error}")))?;
-    let mut builder = client
-        .post(&url)
-        .header(reqwest::header::CONTENT_TYPE, "application/json")
-        .bearer_auth(&config.api_key)
-        .body(payload);
-    // extra_headers 在默认头之后追加，允许覆盖默认鉴权头（网关自定头）。
+    // 默认头与 extra_headers 的取舍在构造请求前决定，而不是依赖追加顺序「覆盖」：
+    // reqwest 的 `header()` 是追加语义，同名头会真的发出两条（HTTP/1.1 服务端通常取
+    // 第一条），网关自带 Authorization 时就会静默用错凭据。因此默认头（当前只有
+    // authorization / content-type 两个）被 extra_headers 大小写不敏感命中时直接跳过，
+    // 同名行只发 extra_headers 的那一条；新增默认头时必须同时在这里登记取舍。
+    let mut builder = client.post(&url).body(payload);
+    if !overrides_default(&config.extra_headers, "content-type") {
+        builder = builder.header(reqwest::header::CONTENT_TYPE, "application/json");
+    }
+    if !overrides_default(&config.extra_headers, "authorization") {
+        builder = builder.bearer_auth(&config.api_key);
+    }
     for (name, value) in &config.extra_headers {
         builder = builder.header(name, value);
     }

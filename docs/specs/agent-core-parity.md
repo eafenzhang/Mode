@@ -217,6 +217,10 @@ accepted → turn.started → model.streaming×N
   → reasoning，OpenAI 无 cache 写入字段，兼容网关透传的 `cache_creation_input_tokens` 有则收；
   连接在事件中间结束（无 `[DONE]`、无空行收尾）时补发尾部载荷，正常收尾不改变，被截断的
   坏载荷由上层报出明确的 JSON 解析错误；HTTP 200 但流内出现 `error` 帧同样显式报错。
+- C1 请求头语义：默认 `Authorization: Bearer <api_key>` 与 `Content-Type: application/json`；
+  网关配置的 `extra_headers` 对同名默认头是**替换**语义（头名大小写不敏感，默认值直接不发，
+  同名行绝不允许重复——reqwest 的 header() 是追加语义，重复 Authorization 会让网关静默
+  用错凭据）；默认头之外的同名多值仅当调用方在 `extra_headers` 内部显式给出时才原样多发。
 - C2：Anthropic Messages、OpenAI Responses。
 - provider 配置来自 `provider-config` / `provider-resolver`；凭据来自
   `credential-store` 或请求级 `requestAuth`；不连接官方平台。

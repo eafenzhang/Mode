@@ -37,6 +37,14 @@ impl CapturedRequest {
             .find(|(header_name, _)| header_name == name)
             .map(|(_, value)| value.as_str())
     }
+
+    /// 同名头的行数（默认头被 extra_headers 覆盖时必须恰好 1，不允许重复行）。
+    fn header_count(&self, name: &str) -> usize {
+        self.headers
+            .iter()
+            .filter(|(header_name, _)| header_name == name)
+            .count()
+    }
 }
 
 /// 起一个一次性 loopback server：读一个请求存进捕获区，回写固定字节后关连接。
@@ -227,7 +235,13 @@ async fn text_stream_emits_deltas_usage_and_stop_response() {
         .take()
         .expect("server 已捕获请求");
     assert_eq!(request.path, "/v1/chat/completions");
+    assert_eq!(
+        request.header_count("authorization"),
+        1,
+        "默认 Bearer 恰好一条，不允许重复行"
+    );
     assert_eq!(request.header("authorization"), Some("Bearer sk-test"));
+    assert_eq!(request.header_count("content-type"), 1);
     assert_eq!(request.header("content-type"), Some("application/json"));
     assert_eq!(request.body["model"], json!("glm-4.6"));
     assert_eq!(request.body["stream"], json!(true));
@@ -624,6 +638,84 @@ async fn extra_headers_and_trailing_slash_base_url_reach_the_wire() {
         json!(1024),
         "配置了 max_output_tokens 时必须带 max_tokens"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn extra_headers_replace_same_name_defaults_without_duplicates() {
+    let chunks = vec![
+        sse(r#"{"choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}"#),
+        b"data: [DONE]\n\n".to_vec(),
+    ];
+    // 覆盖 authorization / content-type：同名默认头必须被替换——线上恰好一条同名头，
+    // 值是 extra_headers 的（reqwest 的 header() 是追加语义，重复行会让网关静默用错凭据）。
+    let (address, captured) =
+        spawn_server("HTTP/1.1 200 OK", "text/event-stream", chunks.clone()).await;
+    let config = OpenAiChatConfig {
+        base_url: format!("http://{address}/v1"),
+        api_key: "sk-test".to_string(),
+        model: "glm-4.6".to_string(),
+        max_output_tokens: None,
+        extra_headers: vec![
+            (
+                "Authorization".to_string(),
+                "Bearer gateway-token".to_string(),
+            ),
+            (
+                "Content-Type".to_string(),
+                "application/json; charset=utf-8".to_string(),
+            ),
+        ],
+    };
+    let provider = OpenAiChatProvider::new(config).expect("client build");
+    let (tx, _rx) = mpsc::unbounded_channel();
+    run_stream(
+        &provider,
+        simple_request(vec![ModelMessage::User("hi".to_string())], Vec::new()),
+        tx,
+    )
+    .await
+    .expect("流式应答成功");
+    let request = captured
+        .lock()
+        .expect("capture lock")
+        .take()
+        .expect("server 已捕获请求");
+    assert_eq!(
+        request.header_count("authorization"),
+        1,
+        "Authorization 被覆盖时只发 extra_headers 一条"
+    );
+    assert_eq!(
+        request.header("authorization"),
+        Some("Bearer gateway-token")
+    );
+    assert_eq!(request.header_count("content-type"), 1);
+    assert_eq!(
+        request.header("content-type"),
+        Some("application/json; charset=utf-8")
+    );
+
+    // 未覆盖默认头：Bearer 与 application/json 各恰好一条。
+    let (address, captured) = spawn_server("HTTP/1.1 200 OK", "text/event-stream", chunks).await;
+    let provider =
+        OpenAiChatProvider::new(test_config(format!("http://{address}/v1"))).expect("client build");
+    let (tx, _rx) = mpsc::unbounded_channel();
+    run_stream(
+        &provider,
+        simple_request(vec![ModelMessage::User("hi".to_string())], Vec::new()),
+        tx,
+    )
+    .await
+    .expect("流式应答成功");
+    let request = captured
+        .lock()
+        .expect("capture lock")
+        .take()
+        .expect("server 已捕获请求");
+    assert_eq!(request.header_count("authorization"), 1);
+    assert_eq!(request.header("authorization"), Some("Bearer sk-test"));
+    assert_eq!(request.header_count("content-type"), 1);
+    assert_eq!(request.header("content-type"), Some("application/json"));
 }
 
 // ---------- 请求体映射（纯函数） ----------
