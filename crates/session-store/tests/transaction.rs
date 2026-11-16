@@ -162,3 +162,26 @@ fn lock_file_records_owner_pid_and_open_time() {
     drop(store);
     assert!(!lock_path(&db_path).exists());
 }
+
+#[test]
+fn path_alias_cannot_bypass_write_lock() {
+    let root = TempRoot::new("tx-lock-alias");
+    let db_path = root.db_path();
+    create_baseline_database(&db_path, &FixtureOptions::default());
+
+    // `nested/../db.sqlite` 与 `db.sqlite` 是同一个文件；锁必须按 realpath 派生。
+    std::fs::create_dir_all(root.path().join("nested")).expect("创建 nested");
+    let alias = root.path().join("nested").join("..").join("db.sqlite");
+
+    let first = SessionStore::open(&db_path).expect("第一个 writer");
+    let error = SessionStore::open(&alias).expect_err("路径别名不能绕过写锁");
+    assert!(
+        matches!(error, StoreError::StorageLocked { .. }),
+        "别名打开第二个 writer 应报 StorageLocked，实际：{error:?}"
+    );
+
+    drop(first);
+    let third = SessionStore::open(&alias).expect("锁释放后别名可以打开");
+    drop(third);
+    assert!(!lock_path(&db_path).exists());
+}

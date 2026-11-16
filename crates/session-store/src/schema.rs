@@ -93,7 +93,9 @@ pub(crate) struct WriteLock {
 impl WriteLock {
     pub(crate) fn acquire(db_path: &Path) -> Result<Self, StoreError> {
         static SEQUENCE: AtomicU64 = AtomicU64::new(0);
-        let path = lock_path_for(db_path);
+        // realpath 后再派生锁文件：`..`、symlink、Windows 路径别名不能绕过互斥。
+        let canonical = fs::canonicalize(db_path)?;
+        let path = lock_path_for(&canonical);
         let content = format!(
             "pid={}\nopened_at_ms={}\nsequence={}\n",
             std::process::id(),

@@ -163,30 +163,35 @@ fn create_get_and_list_sessions() {
 }
 
 #[test]
-fn list_sessions_accepts_workspace_path_or_project_id() {
-    let (_root, store) = open_fixture("crud-list-project-id");
+fn list_sessions_matches_directory_only_and_not_project_id() {
+    let (_root, store) = open_fixture("crud-list-directory-only");
 
-    let by_directory = sample_session("by-directory", r"C:\ws\a", 100, false);
-    let mut by_project = sample_session("by-project", r"C:\ws\other", 200, false);
-    by_project.project_id = "proj_c-ws-a".to_owned();
-    store
-        .create_session(by_directory)
-        .expect("写入 directory 会话");
-    store
-        .create_session(by_project)
-        .expect("写入 project_id 会话");
+    // A 的 project_id 恰好等于 B 的 directory：按该值列出时只能命中 B。
+    let mut session_a = sample_session("session-a", r"C:\ws\a", 100, false);
+    session_a.project_id = r"C:\ws\b".to_owned();
+    let session_b = sample_session("session-b", r"C:\ws\b", 200, false);
+    store.create_session(session_a).expect("写入 session-a");
+    store.create_session(session_b).expect("写入 session-b");
 
     assert_eq!(
         ids(store
-            .list_sessions(r"C:\ws\a", false, None)
-            .expect("按 directory 查询")),
-        vec!["by-directory".to_owned()]
+            .list_sessions(r"C:\ws\b", false, None)
+            .expect("按 directory 精确匹配")),
+        vec!["session-b".to_owned()],
+        "project_id 与查询值相同的 session-a 不能被带出来"
+    );
+    assert!(
+        store
+            .list_sessions("proj_c-ws-b", false, None)
+            .expect("project_id 查询")
+            .is_empty(),
+        "project_id 是派生 scope，不是 workspace key"
     );
     assert_eq!(
         ids(store
-            .list_sessions("proj_c-ws-a", false, None)
-            .expect("按 project_id 查询")),
-        vec!["by-project".to_owned()]
+            .list_sessions(r"C:\ws\a", false, None)
+            .expect("按 session-a 自己的 directory 查询")),
+        vec!["session-a".to_owned()]
     );
 }
 
@@ -253,6 +258,16 @@ fn append_messages_and_parts_preserve_order_and_limit() {
         .messages("s1", Some("m2"), None)
         .expect("after last")
         .is_empty());
+
+    // 无 after + limit 时取最新 N 条，但结果仍按升序返回（Node store 语义）。
+    let latest_two = store.messages("s1", None, Some(2)).expect("latest 2");
+    assert_eq!(
+        latest_two
+            .iter()
+            .map(|message| message.message.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["m1", "m2"]
+    );
     assert!(store
         .messages("s1", None, Some(0))
         .expect("limit 0")

@@ -16,7 +16,7 @@ use rusqlite::{Connection, OpenFlags};
 use serde_json::{json, Map, Value};
 use session_store::{MessageRecord, PartRecord, SessionEntryRecord, SessionRecord};
 
-const LEDGER_DDL: &str = "CREATE TABLE schema_migration (
+const LEDGER_DDL: &str = "CREATE TABLE IF NOT EXISTS schema_migration (
     id text primary key,
     checksum text not null,
     app_version text,
@@ -120,17 +120,24 @@ pub fn create_baseline_database(path: &Path, options: &FixtureOptions) {
                 .unwrap_or_else(|error| panic!("创建索引失败：{error}"));
         }
     }
+    drop(connection);
     if options.ledger {
-        connection.execute_batch(LEDGER_DDL).expect("创建账本");
-        for index in 0..options.ledger_rows {
-            connection
-                .execute(
-                    "INSERT INTO schema_migration (id, checksum, app_version, time_applied) \
-                     VALUES (?1, 'fixture-checksum', '0.0.0', 1)",
-                    [format!("000{index}_fixture")],
-                )
-                .expect("写入账本行");
-        }
+        create_ledger(path, options.ledger_rows);
+    }
+}
+
+/// 单独补账本（用于先让 open 失败、再修复库验证锁文件的用例）。
+pub fn create_ledger(path: &Path, rows: usize) {
+    let connection = Connection::open(path).expect("打开测试库写账本");
+    connection.execute_batch(LEDGER_DDL).expect("创建账本");
+    for index in 0..rows {
+        connection
+            .execute(
+                "INSERT INTO schema_migration (id, checksum, app_version, time_applied) \
+                 VALUES (?1, 'fixture-checksum', '0.0.0', 1)",
+                [format!("000{index}_fixture")],
+            )
+            .expect("写入账本行");
     }
 }
 

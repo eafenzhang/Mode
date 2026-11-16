@@ -117,8 +117,10 @@ impl SessionStore {
 
     /// 列出某 workspace 的会话，按 `time_updated DESC, id DESC`。
     ///
-    /// `workspace_key` 同时匹配 `session.directory`（本地 workspace 路径）与
-    /// `session.project_id`（由路径归一化出的项目 id），调用方传哪一个都能命中。
+    /// `workspace_key` 只匹配 `session.directory`（实际 workspace 目录）。`project_id`
+    /// 是 `proj_` + 归一化 cwd 的派生 scope，不是 `workspaceIdentity?.trim() ||
+    /// workspacePath` 口径的 workspace key；用 OR 同时匹配会把其他 workspace 的会话串进
+    /// 列表（见 `agent-server-c1-contract.md` §3.2）。
     /// `include_archived=false` 时排除 `time_archived` 非空的行。
     pub fn list_sessions(
         &self,
@@ -129,7 +131,7 @@ impl SessionStore {
         let connection = self.connection();
         let sql = format!(
             "SELECT {SESSION_COLUMNS} FROM session \
-             WHERE (directory = ?1 OR project_id = ?1) \
+             WHERE directory = ?1 \
                AND (?2 = 1 OR time_archived IS NULL) \
              ORDER BY time_updated DESC, id DESC LIMIT ?3"
         );

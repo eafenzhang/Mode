@@ -13,8 +13,9 @@
 //! # 单写者
 //!
 //! 打开时在数据库旁创建 `<db>.agent-write.lock`（`create_new`，内容含 owner PID 与
-//! 打开时间），Drop 时删除；第二个 Rust `SessionStore` 打开同一文件会得到
-//! [`StoreError::StorageLocked`]。这是 Rust 侧的 backstop：
+//! 打开时间；锁路径按数据库 realpath 派生，路径别名不能绕过），Drop 时删除；第二个
+//! Rust `SessionStore` 打开同一文件会得到 [`StoreError::StorageLocked`]。这是 Rust 侧的
+//! backstop：
 //!
 //! - Node 运行时不识别这个锁文件，**不能**用它阻止 Node 与 Rust 同时写同一数据根；
 //!   真正的唯一所有者保证来自 `AgentRuntimeRegistry` / `agent-process` 的进程调度。

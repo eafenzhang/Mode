@@ -66,9 +66,11 @@ impl SessionStore {
         })
     }
 
-    /// 读取会话的 messages（含 parts），按顺序返回。
+    /// 读取会话的 messages（含 parts），按升序返回。
     ///
-    /// `after` 为 message id 游标（不含该条）；`limit` 作用于 message 数量。
+    /// `after` 为 message id 游标（不含该条）：此时 `limit` 是从游标之后最早的 N 条。
+    /// 无 `after` 且给 `limit` 时取**最新** N 条（与 Node store 的 `limit` 语义一致），
+    /// 结果仍按 `sequence, time_created, id` 升序返回；`limit=0` 返回空。
     pub fn messages(
         &self,
         session_id: &str,
@@ -116,9 +118,14 @@ impl SessionStore {
                 rows.collect::<Result<Vec<_>, _>>()?
             }
             None => {
+                // Node store 的 limit 语义是「最新 N 条」：先在派生表里倒序截取，
+                // 再由外层按同一排序键翻回升序，不能直接 LIMIT 升序查询。
                 let sql = format!(
-                    "SELECT {MESSAGE_COLUMNS} FROM message WHERE session_id = ?1 \
-                     ORDER BY {MESSAGE_ORDER} LIMIT ?2"
+                    "SELECT {MESSAGE_COLUMNS} FROM ( \
+                         SELECT {MESSAGE_COLUMNS} FROM message WHERE session_id = ?1 \
+                         ORDER BY COALESCE(sequence, -1) DESC, time_created DESC, id DESC \
+                         LIMIT ?2\
+                     ) ORDER BY {MESSAGE_ORDER}"
                 );
                 let mut statement = connection.prepare(&sql)?;
                 let rows = statement.query_map(params![session_id, limit], message_from_row)?;

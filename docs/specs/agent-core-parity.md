@@ -136,8 +136,8 @@ C1 必须实现：
 | `session/send`                                     | 严格解析；`CommandInbox` 准入；返回 `{sessionId, accepted:true, stateRevision}`；turn 异步执行                       |
 | `session/subscribe`                                | 先订阅通知再发请求；返回 replay + 可选 snapshot；live 只投递本会话                                                   |
 | `session/read`                                     | 从活跃 runtime 或 `session-store` 冷读；返回快照                                                                     |
-| `session/messages`                                 | 按 `afterMessageId`/`limit` 返回 `{info, parts}`；part 13 种按协议镜像                                               |
-| `session/list`                                     | `includeArchived` 恒发；`limit`/`sessionIds` 缺省省略                                                                |
+| `session/messages`                                 | 按 `afterMessageId`/`limit` 返回 `{info, parts}`；part 13 种按协议镜像。无 `after` 且给 `limit` 时取**最新** N 条（与 Node store 的 `limit` 语义一致），结果仍按升序返回 |
+| `session/list`                                     | `includeArchived` 恒发；`limit`/`sessionIds` 缺省省略。按 workspace 的 `directory` 精确匹配；`project_id`（`proj_` + 归一化 cwd）不作为 workspace key，避免跨工作区串列表 |
 | `session/close`                                    | 关闭 runtime；`persistence` 语义按参数；不删除事实                                                                   |
 | `session/resume`                                   | 冷会话恢复为活跃 runtime；返回快照                                                                                   |
 | `session/setModel` / `setThoughtLevel` / `setMode` | 更新 runtime 设置并返回快照；`persistAsWorkspaceLastUsed` 按协议省略/下发                                            |

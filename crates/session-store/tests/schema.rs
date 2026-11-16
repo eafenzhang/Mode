@@ -2,7 +2,7 @@
 
 mod common;
 
-use common::{create_baseline_database, lock_path, FixtureOptions, TempRoot};
+use common::{create_baseline_database, create_ledger, lock_path, FixtureOptions, TempRoot};
 use session_store::{SessionStore, StoreError};
 
 #[test]
@@ -102,4 +102,30 @@ fn empty_migration_ledger_is_schema_unsupported() {
         error.to_string().contains("schema_migration"),
         "空账本错误信息必须点出账本：{error}"
     );
+}
+
+#[test]
+fn failed_schema_check_releases_lock_and_allows_retry() {
+    let root = TempRoot::new("schema-lock-release");
+    let db_path = root.db_path();
+    create_baseline_database(
+        &db_path,
+        &FixtureOptions {
+            ledger: false,
+            ..FixtureOptions::default()
+        },
+    );
+
+    let error = SessionStore::open(&db_path).expect_err("缺账本必须 fail-closed");
+    assert!(matches!(error, StoreError::StorageSchemaUnsupported { .. }));
+    assert!(
+        !lock_path(&db_path).exists(),
+        "ensure_supported_schema 失败必须删除已抢占的锁文件"
+    );
+
+    // 补上账本后必须能立即打开：失败路径不能留下 stale lock。
+    create_ledger(&db_path, 1);
+    let store = SessionStore::open(&db_path).expect("补齐账本后应打开");
+    drop(store);
+    assert!(!lock_path(&db_path).exists());
 }
