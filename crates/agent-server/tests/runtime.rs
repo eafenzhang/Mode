@@ -267,6 +267,7 @@ impl agent_server::ProviderSource for FixedSource {
         &self,
         _provider_id: &str,
         _model_id: &str,
+        _context: Option<&agent_server::ProviderRequestContext>,
     ) -> Result<Arc<dyn ModelProvider>, String> {
         Ok(Arc::clone(&self.0))
     }
@@ -278,6 +279,7 @@ fn spawn_runtime(fixture: &Fixture, provider: Arc<dyn ModelProvider>) -> Session
         Arc::clone(&fixture.store),
         Arc::new(FixedSource(provider)),
         runtime_config(),
+        agent_server::RuntimeWiring::default(),
     )
     .expect("构造运行时")
 }
@@ -287,6 +289,20 @@ async fn settle() {
     for _ in 0..20 {
         tokio::task::yield_now().await;
     }
+}
+
+/// 等 turn 的终态收口完成（Task 8：turn 跑在 `spawn_blocking` 线程上，终态事件
+/// 先于 worker 的状态收口可被订阅者观察到——「terminal 发布后快照短暂仍是
+/// Running」是跨线程执行的可观察窗口，收口随后完成）。bounded 轮询到 Idle/Error。
+async fn wait_settled(runtime: &SessionRuntime) {
+    for _ in 0..200 {
+        let status = runtime.snapshot().projection.status;
+        if !matches!(status, agent_protocol::session_read::SessionStatus::Running) {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    panic!("终态收口未在 1s 内完成");
 }
 
 async fn within<F: std::future::Future>(future: F) -> F::Output {
@@ -1062,6 +1078,7 @@ async fn snapshot_reflects_live_state_and_serializes() {
         .submit(SessionInput::text("count my tokens"))
         .expect("提交");
     drain_until_terminal(&mut receiver).await;
+    wait_settled(&runtime).await;
 
     let after: SessionStateSnapshot = runtime.snapshot();
     assert_eq!(

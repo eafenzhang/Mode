@@ -26,7 +26,7 @@ provider-resolver = { path = "../provider-resolver" }
 serde.workspace = true
 serde_json.workspace = true
 session-store = { path = "../session-store" }
-tokio = { workspace = true, features = ["io-std", "io-util"] }
+tokio = { workspace = true, features = ["io-std", "io-util", "time"] }
 uuid.workspace = true
 
 [dev-dependencies]

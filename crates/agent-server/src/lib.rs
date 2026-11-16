@@ -6,29 +6,37 @@
 //! 事件总线、session-store 持久化）；Task 7 接入 session 方法表
 //! （`session/create|send|subscribe|read|messages|list|close|resume|setModel|
 //! setThoughtLevel|setMode`）、启动存储门（`startup/storageState` 通知）与
-//! `session/subscribe` 的 live 转发。未支持的方法（含 `session/compact`、
-//! `session/goal`）显式返回 `-32601`。
+//! `session/subscribe` 的 live 转发；Task 8 接入反向请求（[`ReverseHub`]：审批
+//! `interaction/requestPermission`、偏好 `session/requestRuntimePreferences`、账号
+//! 凭据 `interaction/requestProviderRuntimeHeaders`；pending 应答/超时/关闭均
+//! fail-closed）。未支持的方法（含 `session/compact`、`session/goal`）显式返回
+//! `-32601`。
 //!
 //! 行为依据：`docs/specs/agent-core-parity.md` §2/§5.4、
 //! `docs/specs/mode-protocol-client.md`「帧」、`docs/specs/agent-process.md`
-//! 「存储启动门」「Account Provider Config 交付」、
-//! `docs/specs/agent-server-c1-contract.md`。
+//! 「存储启动门」「Account Provider Config 交付」「反向请求」、
+//! `docs/specs/tauri-agent-runtime.md` §1.3、`docs/specs/agent-server-c1-contract.md`。
 
 mod dispatch;
 mod lifecycle;
 mod methods;
 mod provider_config;
+mod reverse;
 mod runtime;
 mod server;
 mod state;
 
-pub use dispatch::{AgentServer, ServerConfig};
+pub use dispatch::{AgentServer, HubProviderSource, ServerConfig};
 pub use lifecycle::{parse_startup_args, run_main, StartupArgs, APP_SERVER_MODE, STDIO_FLAG};
 pub use provider_config::{
-    ApiFormat, ProviderConfigError, ProviderConfigHub, ResolvedProvider,
-    PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
+    AccountRuntimeHeadersTarget, ApiFormat, ProviderConfigError, ProviderConfigHub, Resolution,
+    ResolvedProvider, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
-pub use runtime::{ProviderSource, SessionRuntime};
+pub use reverse::{
+    ProtocolPermissionHandler, ReverseHub, ReverseRequestError, RuntimePreferences, RuntimeWiring,
+    REVERSE_REPLY_TIMEOUT, RUNTIME_PREFERENCES_METHOD,
+};
+pub use runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
 pub use state::{Accepted, RuntimeConfig, RuntimeError, SessionInput};
 // 线上帧类型的唯一所有者是 `agent-protocol`；这里只做转出，避免第二套帧定义。
 pub use agent_protocol::{

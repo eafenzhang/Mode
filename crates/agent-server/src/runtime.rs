@@ -1,4 +1,4 @@
-//! 会话运行时（LT-1 C1 Task 6/7）：per-session 的 turn 串行执行、事件总线与持久化。
+//! 会话运行时（LT-1 C1 Task 6/7/8）：per-session 的 turn 串行执行、事件总线与持久化。
 //!
 //! # 所有权与事件顺序
 //!
@@ -6,9 +6,12 @@
 //! submit() ──(std Mutex<Live>：幂等/revision/CommandInbox 准入)──> UnboundedSender
 //!                                                                    │
 //! per-session worker（tokio task，持有 Session/Arc<SessionStore>/Arc<dyn ProviderSource>）
-//!     └─ 逐条消费队列 ──(读 Shared.config：mode/model/能力)──> Session::run_turn
+//!     ├─ 物化后发一次 session/requestRuntimePreferences（Task 8，应答/回退缓存进 Shared）
+//!     └─ 逐条消费队列 ──(读 Shared.config：mode/model/能力)──> spawn_blocking + block_on：
+//!         Session::run_turn（审批 handler 的反向请求等待在阻塞线程上，不占 tokio worker）
 //!                                                   └─ TurnRecorder: EventSink
-//!                                                       ├─ Shared::publish：内存事件日志（有界）
+//!                                                       ├─ 先观察落库再 publish（Task 8 起倒转）：
+//!                                                       │   Shared::publish：内存事件日志（有界）
 //!                                                       │   + broadcast 总线（同一临界区内）
 //!                                                       └─ 观察事件 → session-store 落库
 //!                                                           （turn.started → user message+part；
@@ -33,9 +36,11 @@
 //! - **取消**（控制器裁决 4）：`cancel_turn()` 只作用于**当前** turn 的
 //!   [`CancelToken`]；排队中的输入照常执行（含 close 后的收尾 drain——已接受的
 //!   输入由 CommandInbox 串行准入，不中途丢弃）。
-//! - **阻塞 IO**：`SessionStore` 内部是 `Mutex<Connection>` + 短 `BEGIN IMMEDIATE`
-//!   事务（控制器裁决 2 的「短临界区」路线）；运行时在 sink/worker 里同步调用，
-//!   不引入 `spawn_blocking` 的句柄搬运。
+//! - **阻塞 IO 与审批等待**（Task 8）：`SessionStore` 内部是 `Mutex<Connection>` +
+//!   短 `BEGIN IMMEDIATE` 事务（控制器裁决 2 的「短临界区」路线）。turn 跑在
+//!   `spawn_blocking` 线程上：同步 [`agent_core::PermissionHandler`] 的反向请求等待
+//!   会阻塞当前线程，不能占 tokio worker（否则与 stdio 单写者互等死锁）；provider
+//!   解析（账号型凭据钩子）同理。
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard, RwLock};
@@ -52,18 +57,38 @@ use session_store::{
     MessageRecord, PartRecord, SessionRecord, SessionStore, ToolUsageRecord, TurnUsageRecord,
 };
 
+use crate::reverse::{RuntimePreferences, RuntimeWiring};
 use crate::state::{
     build_snapshot, fresh_id, Accepted, LiveView, RuntimeConfig, RuntimeError, RuntimeStatus,
     SessionInput,
 };
+
+/// provider 装配的会话上下文（Task 8）：账号型 provider 的宿主钩子
+/// （`interaction/requestProviderRuntimeHeaders`）需要会话与工作区事实。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderRequestContext {
+    pub session_id: String,
+    pub workspace_path: String,
+    /// workspace identity（`WorkspaceRef` 的 identity 字段；缺省 `None`）。
+    pub workspace_identity: Option<String>,
+}
 
 /// provider 装配源：按会话当前的模型事实解析出可执行的 [`ModelProvider`]。
 ///
 /// 生产实现走 `ProviderConfigHub`（builtin/personal/account 三层合并 →
 /// `OpenAiChatProvider`）；测试注入脚本化 fake。错误文案只带 provider/model 与
 /// 缺失字段名（`ProviderConfigError` 的掩码纪律），不含凭据。
+///
+/// `context` 缺省 `None`：账号型 provider 在没有会话上下文时不发起宿主钩子，
+/// 直接按「缺 `access.apiKey`」显式失败。**可能阻塞**（等待宿主反向请求应答）：
+/// worker 把解析放在 `spawn_blocking` 上跑。
 pub trait ProviderSource: Send + Sync {
-    fn resolve(&self, provider_id: &str, model_id: &str) -> Result<Arc<dyn ModelProvider>, String>;
+    fn resolve(
+        &self,
+        provider_id: &str,
+        model_id: &str,
+        context: Option<&ProviderRequestContext>,
+    ) -> Result<Arc<dyn ModelProvider>, String>;
 }
 
 /// worker 队列的一项：已接受、等待串行执行的输入。
@@ -99,14 +124,17 @@ struct Live {
 ///
 /// `config` 用 `RwLock`：setter（Task 7 方法层）原位更新，worker 在每个 turn 开始前
 /// 读取（mode/能力进系统提示，模型事实决定 provider 装配），快照读取最新事实。
-/// `drained` 是 worker 的退出信号（队列清空且发送端关闭后置 true）：
-/// `session/close` 的 closing 台账靠它感知 drain 完成（Task 7 复评裁决 2）。
+/// `preferences` 是宿主对 `session/requestRuntimePreferences` 的缓存应答（每运行时
+/// 一次，Task 8 控制器裁决 3；取到前为 `None`）。`drained` 是 worker 的退出信号
+/// （队列清空且发送端关闭后置 true）：`session/close` 的 closing 台账靠它感知
+/// drain 完成（Task 7 复评裁决 2）。
 struct Shared {
     live: Mutex<Live>,
     config: RwLock<RuntimeConfig>,
     bus: tokio::sync::broadcast::Sender<SessionEvent>,
     drained: tokio::sync::watch::Sender<bool>,
     record: SessionRecord,
+    preferences: RwLock<Option<RuntimePreferences>>,
 }
 
 impl Shared {
@@ -143,7 +171,10 @@ impl Shared {
 /// 一个会话的运行时：准入（`submit`）→ 串行 worker → 事件（`subscribe`/`snapshot`）。
 ///
 /// Drop 本结构不会打断正在跑的 turn：worker 在队列清空且发送端关闭后自然退出
-/// （`JoinHandle` 保留在此，供后续任务的显式 close 接线）。
+/// （`JoinHandle` 保留在此，供后续任务的显式 close 接线）。turn 的执行体运行在
+/// `spawn_blocking` 线程上（Task 8）：同步的 [`PermissionHandler`] 审批等待
+/// （反向请求）不能占 tokio worker 线程，否则 current-thread runtime 下与 stdio
+/// 写者互等死锁。
 pub struct SessionRuntime {
     shared: Arc<Shared>,
     queue: tokio::sync::mpsc::UnboundedSender<QueuedInput>,
@@ -153,6 +184,10 @@ pub struct SessionRuntime {
 impl SessionRuntime {
     /// 构造运行时并启动 per-session worker。
     ///
+    /// `wiring`（Task 8）：审批 handler / `allow_project` 规则库 / 偏好请求 hub。
+    /// `rule_db_path` 与 store 同库（`local_setting` 行）；审批缺省走
+    /// `agent-core` 的 `AutoAllow`（不经 stdio）。
+    ///
     /// `next_message_sequence` 按库内已有 message 行的**最大序号 +1** 初始化（Task 7
     /// 控制器裁决 6）：在已有历史的会话上重开运行时（resume）时，新行的 `sequence`
     /// 接着旧行编号。用 `len()` 会在序号有洞（旧版本/迁移数据）时与历史撞号。
@@ -161,6 +196,7 @@ impl SessionRuntime {
         store: Arc<SessionStore>,
         source: Arc<dyn ProviderSource>,
         config: RuntimeConfig,
+        wiring: RuntimeWiring,
     ) -> Result<Self, RuntimeError> {
         let existing = store
             .messages(&record.id, None, None)
@@ -195,6 +231,7 @@ impl SessionRuntime {
             config: RwLock::new(config),
             bus,
             drained,
+            preferences: RwLock::new(None),
             record,
         });
 
@@ -204,12 +241,19 @@ impl SessionRuntime {
         if let Some(data_root) = data_root {
             session = session.with_data_root(data_root);
         }
+        if let Some(handler) = wiring.permission_handler {
+            session = session.with_permission_handler(handler);
+        }
+        if let Some(rule_db_path) = wiring.rule_db_path {
+            session = session.with_sqlite_rules(rule_db_path);
+        }
         let worker = tokio::spawn(worker_loop(
             receiver,
             Arc::clone(&shared),
             session,
             store,
             source,
+            wiring.reverse,
         ));
         Ok(Self {
             shared,
@@ -375,12 +419,31 @@ impl SessionRuntime {
     pub fn config(&self) -> RuntimeConfig {
         self.shared.read_config()
     }
+
+    /// 宿主对 `session/requestRuntimePreferences` 的缓存应答（Task 8 控制器裁决 3）。
+    ///
+    /// 每运行时只发一次请求：取到宿主应答或登记回退默认后为 `Some`；
+    /// worker 尚未完成请求（或没有连接级 hub，不发请求）时为 `None`。
+    pub fn runtime_preferences(&self) -> Option<RuntimePreferences> {
+        self.shared
+            .preferences
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
 }
 
 /// worker 主体：串行消费队列直到发送端关闭且队列清空。
 ///
+/// 启动时（Task 8 控制器裁决 3）向宿主发一次 `session/requestRuntimePreferences`
+/// （物化即发；create 与冷 resume 各一次，send 不重发），应答/回退缓存进
+/// [`Shared::preferences`]——首个输入的 turn 在此之后才开始（与 oracle 的 create
+/// 等待偏好应答同序）。
+///
 /// provider 按「(providerId, modelId)」缓存：配置未变的连续 turn 复用同一个 provider
-/// 实例；setter 改了模型事实后才重新解析。配置失败（无模型 / 解析失败）走
+/// 实例；setter 改了模型事实后才重新解析。解析放在 `spawn_blocking` 上：账号型
+/// provider 的宿主凭据钩子会**阻塞**等待反向请求应答（Task 8 控制器裁决 4），
+/// 不能占 tokio worker。配置失败（无模型 / 解析失败）走
 /// [`run_configuration_failure`]，不静默用默认模型兜底（Task 7 控制器裁决 7）。
 async fn worker_loop(
     mut receiver: tokio::sync::mpsc::UnboundedReceiver<QueuedInput>,
@@ -388,7 +451,15 @@ async fn worker_loop(
     mut session: Session,
     store: Arc<SessionStore>,
     source: Arc<dyn ProviderSource>,
+    reverse: Option<Arc<crate::reverse::ReverseHub>>,
 ) {
+    if let Some(reverse) = &reverse {
+        let preferences = reverse.request_runtime_preferences(&shared.record.id).await;
+        *shared
+            .preferences
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(preferences);
+    }
     let mut current: Option<(String, String, Arc<dyn ModelProvider>)> = None;
     while let Some(item) = receiver.recv().await {
         // 每个 turn 开始前同步配置：mode/能力进系统提示，模型事实决定装配。
@@ -405,25 +476,48 @@ async fn worker_loop(
         let provider = match cached {
             Some(provider) => Some(provider),
             None if config.provider_id.is_empty() || config.model_id.is_empty() => None,
-            None => match source.resolve(&config.provider_id, &config.model_id) {
-                Ok(provider) => {
-                    current = Some((
-                        config.provider_id.clone(),
-                        config.model_id.clone(),
-                        Arc::clone(&provider),
-                    ));
-                    Some(provider)
+            None => {
+                // 阻塞解析放阻塞线程：宿主钩子的等待不占 tokio worker（Task 8）。
+                let context = Some(ProviderRequestContext {
+                    session_id: shared.record.id.clone(),
+                    workspace_path: shared.record.directory.clone(),
+                    workspace_identity: shared.record.workspace_id.clone(),
+                });
+                let blocking_source = Arc::clone(&source);
+                let provider_id = config.provider_id.clone();
+                let model_id = config.model_id.clone();
+                match tokio::task::spawn_blocking(move || {
+                    blocking_source.resolve(&provider_id, &model_id, context.as_ref())
+                })
+                .await
+                {
+                    Ok(Ok(provider)) => {
+                        current = Some((
+                            config.provider_id.clone(),
+                            config.model_id.clone(),
+                            Arc::clone(&provider),
+                        ));
+                        Some(provider)
+                    }
+                    Ok(Err(message)) => {
+                        current = None;
+                        run_configuration_failure(&mut session, &shared, &store, &item, &message)
+                            .await;
+                        continue;
+                    }
+                    Err(join_error) => {
+                        current = None;
+                        let message = format!("provider 装配任务失败: {join_error}");
+                        run_configuration_failure(&mut session, &shared, &store, &item, &message)
+                            .await;
+                        continue;
+                    }
                 }
-                Err(message) => {
-                    current = None;
-                    run_configuration_failure(&mut session, &shared, &store, &item, &message).await;
-                    continue;
-                }
-            },
+            }
         };
         match provider {
             Some(provider) => {
-                run_one_input(&mut session, &shared, &store, provider.as_ref(), item).await
+                session = run_one_input(session, &shared, &store, provider, item).await;
             }
             // 没有配置模型：显式配置错误，不启动模型请求。
             None => {
@@ -487,17 +581,27 @@ async fn run_configuration_failure(
 
 /// 跑一个输入（串行；前后维护 running 状态与取消令牌）。
 ///
+/// turn 执行体**连同终态收口**在 `spawn_blocking` 线程上经 `Handle::block_on` 驱动
+/// （Task 8 控制器裁决 1）：同步 [`PermissionHandler`] 的审批等待（反向请求）会
+/// **阻塞**当前线程，而 stdio 单写者循环必须留在 tokio worker 上继续写帧/读应答——
+/// 阻塞线程 + runtime 线程分工，current-thread 测试 runtime 下也不死锁
+/// （`spawn_blocking` 的线程不进 runtime 的 worker 池，`block_on` 在其上合法）。
+/// 收口放在同一闭包里：终态事件发布时状态已收口（先前「同任务内 publish→收口→
+/// 才让出」的观察顺序不因搬运而改变，订阅者不会看到 `turn.completed` 后快照仍是
+/// Running 的窗口）。
+///
 /// 终态收口：`run_turn` 的 `Err(cancelled)` 表示终态已由它自己发出
 /// （`turn.completed`，`resultType:"cancelled"`），worker 不补发；其余 `Err` 由
-/// worker 补发唯一的 `turn.failed`。成功与取消路径的终态事件经 recorder 走同一套
-/// publish 与 persist。
+/// 本闭包补发唯一的 `turn.failed`。成功与取消路径的终态事件经 recorder 走同一套
+/// publish 与 persist。返回会话（阻塞任务的所有权往返：Session/recorder 移入、
+/// 移出）。
 async fn run_one_input(
-    session: &mut Session,
+    session: Session,
     shared: &Arc<Shared>,
     store: &Arc<SessionStore>,
-    provider: &dyn ModelProvider,
+    provider: Arc<dyn ModelProvider>,
     item: QueuedInput,
-) {
+) -> Session {
     let token = CancelToken::new();
     {
         let mut live = shared.lock();
@@ -505,48 +609,64 @@ async fn run_one_input(
         live.current_cancel = Some(token.clone());
     }
 
-    let mut recorder = TurnRecorder::new(Arc::clone(shared), Arc::clone(store), &item);
-    let result = session
-        .run_turn(&item.input.content, provider, &mut recorder, &token)
-        .await;
+    let recorder = TurnRecorder::new(Arc::clone(shared), Arc::clone(store), &item);
+    let content = item.input.content.clone();
+    let input_id = item.input_id.clone();
+    let session_id = shared.record.id.clone();
+    let shared_for_turn = Arc::clone(shared);
+    let handle = tokio::runtime::Handle::current();
+    let (session, _recorder) = tokio::task::spawn_blocking(move || {
+        handle.block_on(async move {
+            // 捕获进 async block 后重绑 `mut`：run_turn 需要 `&mut self` / `&mut sink`。
+            let mut session = session;
+            let mut recorder = recorder;
+            let result = session
+                .run_turn(&content, provider.as_ref(), &mut recorder, &token)
+                .await;
 
-    let failure_message = match &result {
-        Ok(()) => None,
-        // 取消：终态已由 run_turn 发出，不再补第二个终态。
-        Err(error) if error.is_cancelled() => None,
-        Err(error) => {
-            let event = session.emit_turn_failed(
-                recorder.turn_id().map(String::as_str),
-                "runtime_error",
-                &error.message,
-                "model",
-            );
-            recorder.emit(event);
-            // Task 7 控制器裁决 6：失败 turn 的 usage 行记**已知**累计值，不清零。
-            recorder.record_failure_progress(&error.progress);
-            Some(error.message.clone())
-        }
-    };
-
-    let mut live = shared.lock();
-    live.current_cancel = None;
-    // running 完成对账；迟到的 complete 由 CommandInbox 自己挡（Stale 不动队列）。
-    let completion = live.inbox.complete(&shared.record.id, &item.input_id);
-    live.turn_count += 1;
-    live.revision += 1;
-    live.updated_at = now_ms();
-    live.total_token_count += recorder.turn_total_tokens();
-    // Task 7 控制器裁决 6：队首被提升（还有已接受输入在等）时不能闪回 idle。
-    live.status = match (&failure_message, completion) {
-        (Some(_), _) => RuntimeStatus::Error,
-        (None, Completion::Promoted(_)) => RuntimeStatus::Running,
-        (None, Completion::Idle) => RuntimeStatus::Idle,
-        // Stale：对账被拒（不应发生——worker 是唯一 complete 的写入方）；状态不动。
-        (None, Completion::Stale) => live.status,
-    };
-    if let Some(message) = failure_message.or(recorder.persist_error.clone()) {
-        live.last_error = Some(message);
-    }
+            // —— 终态收口（与旧内联路径逐行同序，只是在阻塞线程上）——
+            let failure_message = match &result {
+                Ok(()) => None,
+                // 取消：终态已由 run_turn 发出，不再补第二个终态。
+                Err(error) if error.is_cancelled() => None,
+                Err(error) => {
+                    let event = session.emit_turn_failed(
+                        recorder.turn_id().map(String::as_str),
+                        "runtime_error",
+                        &error.message,
+                        "model",
+                    );
+                    recorder.emit(event);
+                    // Task 7 控制器裁决 6：失败 turn 的 usage 行记**已知**累计值，不清零。
+                    recorder.record_failure_progress(&error.progress);
+                    Some(error.message.clone())
+                }
+            };
+            let mut live = shared_for_turn.lock();
+            live.current_cancel = None;
+            // running 完成对账；迟到的 complete 由 CommandInbox 自己挡（Stale 不动队列）。
+            let completion = live.inbox.complete(&session_id, &input_id);
+            live.turn_count += 1;
+            live.revision += 1;
+            live.updated_at = now_ms();
+            live.total_token_count += recorder.turn_total_tokens();
+            // Task 7 控制器裁决 6：队首被提升（还有已接受输入在等）时不能闪回 idle。
+            live.status = match (&failure_message, completion) {
+                (Some(_), _) => RuntimeStatus::Error,
+                (None, Completion::Promoted(_)) => RuntimeStatus::Running,
+                (None, Completion::Idle) => RuntimeStatus::Idle,
+                // Stale：对账被拒（不应发生——worker 是唯一 complete 的写入方）；状态不动。
+                (None, Completion::Stale) => live.status,
+            };
+            if let Some(message) = failure_message.or(recorder.persist_error.clone()) {
+                live.last_error = Some(message);
+            }
+            (session, recorder)
+        })
+    })
+    .await
+    .expect("turn 执行任务不应 panic");
+    session
 }
 
 /// 一次 turn 的落库记录器：[`EventSink`] 的实现，先发布事件再观察落库。
@@ -1097,9 +1217,14 @@ impl TurnRecorder {
 
 impl EventSink for TurnRecorder {
     fn emit(&mut self, event: SessionEvent) {
-        // 先发布（实时事件不被落库延迟拖住），再观察落库。
-        self.shared.publish(&event);
+        // 先观察落库，再发布（Task 8 起倒转顺序）：turn 跑在 `spawn_blocking` 线程上
+        // 后，订阅者与本线程**并行**，publish-then-persist 会让「看到 turn.completed
+        // 的订阅者读不到刚落库的行」（Task 7 之前单线程执行，publish→persist 之间
+        // 没有任何任务能让出，窗口不可观察）。倒转后「事件可见 ⇒ 行已提交」，
+        // 代价是实时事件落后落库一个本地 sqlite 写（短事务，亚毫秒级）——一致性
+        // 优先于这点延迟。落库失败仍不改变事件流（实时事件优先于存储失败面）。
         self.observe(&event);
+        self.shared.publish(&event);
     }
 }
 

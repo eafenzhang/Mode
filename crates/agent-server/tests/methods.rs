@@ -294,6 +294,7 @@ impl ProviderSource for ScriptedSource {
         &self,
         provider_id: &str,
         _model_id: &str,
+        _context: Option<&agent_server::ProviderRequestContext>,
     ) -> Result<Arc<dyn ModelProvider>, String> {
         if provider_id != "mock-chat" {
             return Err(format!("Provider 不存在: {provider_id}"));
@@ -346,6 +347,7 @@ impl ProviderSource for GatedSource {
         &self,
         provider_id: &str,
         _model_id: &str,
+        _context: Option<&agent_server::ProviderRequestContext>,
     ) -> Result<Arc<dyn ModelProvider>, String> {
         if provider_id != "mock-chat" {
             return Err(format!("Provider 不存在: {provider_id}"));
@@ -446,7 +448,35 @@ impl TestConn {
         within(self.reader.read_line(&mut line))
             .await
             .expect("读取失败：连接意外关闭或超时");
-        serde_json::from_str(line.trim_end()).expect("出站帧是合法 JSON")
+        let frame: Frame = serde_json::from_str(line.trim_end()).expect("出站帧是合法 JSON");
+        self.auto_answer_reverse(&frame).await;
+        frame
+    }
+
+    /// Task 8：物化即发的 `session/requestRuntimePreferences` 反向请求由宿主
+    /// （本测试）按 spec §1.3 的默认应答回掉；不回会让 worker 卡到 15s 超时。
+    /// 其余帧原样透传（本文件不审批工具）。
+    async fn auto_answer_reverse(&mut self, frame: &Frame) {
+        if let Frame::Request(request) = frame {
+            if request.method == "session/requestRuntimePreferences" {
+                let reply = agent_protocol::Frame::Response(agent_protocol::ResponseFrame {
+                    id: request.id.clone(),
+                    result: json!({
+                        "askUserQuestionAutoResolutionEnabled": true,
+                        "nativeSearchEnhancementsEnabled": false,
+                        "memoryEnabled": false,
+                        "modelContextBudgetStrategy": "preflight-v1",
+                    }),
+                });
+                let line = serde_json::to_string(&reply).expect("应答帧可序列化");
+                self.writer
+                    .write_all(line.as_bytes())
+                    .await
+                    .expect("写应答");
+                self.writer.write_all(b"\n").await.expect("写换行");
+                self.writer.flush().await.expect("flush");
+            }
+        }
     }
 
     /// 等指定请求的 result；错误应答直接 panic（正路径用）。

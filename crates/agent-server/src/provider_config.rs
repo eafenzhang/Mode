@@ -23,11 +23,12 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use agent_protocol::provider_runtime_headers::ProviderAccountAccess;
 use indexmap::IndexMap;
 use model_selection::ModelSelection;
 use provider_config::{
     parse_account_provider_config_map, AccountProviderState, AccountProviderStates, Field,
-    JsonValue, ProviderAccess, ProviderApiType, ProviderConfigMap,
+    JsonValue, ProviderAccess, ProviderApiType, ProviderConfigMap, ZhipuAccountAccess,
 };
 use provider_config_repository::{
     resolve_node_provider_runtime_paths, MODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
@@ -162,6 +163,35 @@ pub struct ResolvedProvider {
     pub context_window: Option<u64>,
     /// provider 配置 `api.headers`（保序）；构造 `OpenAiChatConfig` 的 `extra_headers`。
     pub headers: Vec<(String, String)>,
+}
+
+/// 解析的中间形态（Task 8 控制器裁决 4）：凭据来自进程内配置（`api-key`）还是
+/// 需要向宿主要运行时头（账号型 `zhipu-account` 族，OAuth→API Key 兑换归宿主）。
+///
+/// `resolve()` 对 [`Resolution::Account`] 保持既有口径（缺 `access.apiKey` 显式
+/// 报错）；账号钩子的发起方（`HubProviderSource`）经 [`ProviderConfigHub::
+/// resolve_account_target`] 拿到宿主请求所需事实，拿到 key 后用
+/// [`ProviderConfigHub::resolve_account_provider`] 拼回 [`ResolvedProvider`]。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Resolution {
+    ApiKey(ResolvedProvider),
+    Account(AccountRuntimeHeadersTarget),
+}
+
+/// 账号型 provider 的可执行事实（端点/能力 + 账号访问描述）。**不含** API key——
+/// key 由宿主经 `interaction/requestProviderRuntimeHeaders` 的应答提供。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccountRuntimeHeadersTarget {
+    pub provider_id: String,
+    pub model_id: String,
+    pub base_url: String,
+    pub api_format: ApiFormat,
+    pub max_output_tokens: Option<u64>,
+    pub context_window: Option<u64>,
+    /// provider 配置 `api.headers`（保序）。
+    pub headers: Vec<(String, String)>,
+    /// 反向请求 params 的 `accountAccess`（协议严格形状）。
+    pub account_access: ProviderAccountAccess,
 }
 
 impl ResolvedProvider {
@@ -393,11 +423,58 @@ impl ProviderConfigHub {
     /// 每次现读文件层（Personal 变更由壳侧 1s 轮询重交付账号快照，Personal 本身
     /// 由 Agent 自己读，现读即最新）；账号层取最近一次接受的快照。合并与 Personal
     /// 优先规则全部走 `provider-resolver` 公开 API，与壳侧 `AgentProviderSource`
-    /// 的事实链一致。
+    /// 的事实链一致。账号型 provider（`zhipu-account` 族）没有进程内 key：保持
+    /// 既有口径，按缺 `access.apiKey` 显式报错（宿主钩子见
+    /// [`Self::resolve_account_target`]）。
     pub fn resolve(
         &self,
         selection: &ModelSelection,
     ) -> Result<ResolvedProvider, ProviderConfigError> {
+        match self.resolve_inner(selection)? {
+            Resolution::ApiKey(resolved) => Ok(resolved),
+            Resolution::Account(_) => Err(missing_field(selection, "access.apiKey")),
+        }
+    }
+
+    /// 账号型 provider 的宿主钩子事实（Task 8 控制器裁决 4）。
+    ///
+    /// 只有账号型 provider（`access.type == "zhipu-account"`，`accountType`/`mode`
+    /// 齐备）才返回 [`AccountRuntimeHeadersTarget`]；`api-key` provider 走
+    /// [`Self::resolve`]，这里按同一「缺 `access.apiKey`」口径显式报错（不发起
+    /// 反向请求）。`entitled` 缺失按 `false`（保守；宿主可自行拒绝）。
+    pub fn resolve_account_target(
+        &self,
+        selection: &ModelSelection,
+    ) -> Result<AccountRuntimeHeadersTarget, ProviderConfigError> {
+        match self.resolve_inner(selection)? {
+            Resolution::ApiKey(_) => Err(missing_field(selection, "access.apiKey")),
+            Resolution::Account(target) => Ok(target),
+        }
+    }
+
+    /// 宿主回 `requestAuth.apiKey` 后把账号型事实拼回可执行端点。
+    ///
+    /// `api_format` 不是 OpenAI Chat Completions 时显式报不支持（与
+    /// [`ResolvedProvider::to_openai_chat_config`] 同一出口）。
+    pub fn resolve_account_provider(
+        &self,
+        target: &AccountRuntimeHeadersTarget,
+        api_key: String,
+    ) -> Result<ResolvedProvider, ProviderConfigError> {
+        Ok(ResolvedProvider {
+            provider_id: target.provider_id.clone(),
+            model_id: target.model_id.clone(),
+            base_url: target.base_url.clone(),
+            api_key,
+            api_format: target.api_format,
+            max_output_tokens: target.max_output_tokens,
+            context_window: target.context_window,
+            headers: target.headers.clone(),
+        })
+    }
+
+    /// 合并 + 端点事实的公共段；凭据来源分叉成 [`Resolution`]。
+    fn resolve_inner(&self, selection: &ModelSelection) -> Result<Resolution, ProviderConfigError> {
         let file_snapshot = self.read_file_snapshot()?;
         let account = self
             .state
@@ -476,19 +553,7 @@ impl ProviderConfigHub {
             .filter(|value| !value.is_empty())
             .ok_or_else(|| missing_field(selection, "api.baseUrl"))?;
 
-        // 3. API key：只认进程内可用的 `api-key` access；`zhipu-account` 族没有进程内
-        //    key（OAuth→API Key 兑换属后续任务），按缺失显式报错。
-        let api_key = match config.access.value() {
-            Some(ProviderAccess::ApiKey(access)) => access
-                .api_key
-                .value()
-                .map(|value| value.trim().to_owned())
-                .filter(|value| !value.is_empty()),
-            _ => None,
-        }
-        .ok_or_else(|| missing_field(selection, "access.apiKey"))?;
-
-        // 4. 模型能力（token 上限）：来自模型规则解析结果；没有规则 → None，不编数字。
+        // 3. 模型能力（token 上限）：来自模型规则解析结果；没有规则 → None，不编数字。
         let context_window = capability_u64(
             model
                 .config
@@ -518,16 +583,79 @@ impl ProviderConfigHub {
             })
             .unwrap_or_default();
 
-        Ok(ResolvedProvider {
-            provider_id: selection.provider_id.clone(),
-            model_id: selection.model_id.clone(),
-            base_url,
-            api_key,
-            api_format,
-            max_output_tokens,
-            context_window,
-            headers,
-        })
+        // 4. 凭据来源分叉：`api-key` 直接带 key；账号型（`zhipu-account` 族）没有
+        //    进程内 key（OAuth→API Key 兑换归宿主），交 [`Resolution::Account`]
+        //    由调用方决定「显式报错」还是「发起宿主钩子」。
+        match config.access.value() {
+            Some(ProviderAccess::ApiKey(access)) => {
+                let api_key = access
+                    .api_key
+                    .value()
+                    .map(|value| value.trim().to_owned())
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| missing_field(selection, "access.apiKey"))?;
+                Ok(Resolution::ApiKey(ResolvedProvider {
+                    provider_id: selection.provider_id.clone(),
+                    model_id: selection.model_id.clone(),
+                    base_url,
+                    api_key,
+                    api_format,
+                    max_output_tokens,
+                    context_window,
+                    headers,
+                }))
+            }
+            Some(ProviderAccess::ZhipuAccount(ZhipuAccountAccess {
+                account_type,
+                mode,
+                entitled,
+            })) => {
+                let account_type = account_type
+                    .value()
+                    .ok_or_else(|| missing_field(selection, "access.accountType"))?;
+                let mode = mode
+                    .value()
+                    .ok_or_else(|| missing_field(selection, "access.mode"))?;
+                Ok(Resolution::Account(AccountRuntimeHeadersTarget {
+                    provider_id: selection.provider_id.clone(),
+                    model_id: selection.model_id.clone(),
+                    base_url,
+                    api_format,
+                    max_output_tokens,
+                    context_window,
+                    headers,
+                    account_access: ProviderAccountAccess {
+                        access_type:
+                            agent_protocol::provider_runtime_headers::ProviderRuntimeAccessType::ZhipuAccount,
+                        account_type: match account_type {
+                            provider_config::ZhipuAccountType::Zai => {
+                                agent_protocol::provider_runtime_headers::ProviderRuntimeAccountType::Zai
+                            }
+                            provider_config::ZhipuAccountType::Bigmodel => {
+                                agent_protocol::provider_runtime_headers::ProviderRuntimeAccountType::Bigmodel
+                            }
+                        },
+                        mode: match mode {
+                            provider_config::ZhipuAccountMode::StartPlan => {
+                                agent_protocol::provider_runtime_headers::ProviderRuntimeAccountMode::StartPlan
+                            }
+                            provider_config::ZhipuAccountMode::IndividualCodingPlan => {
+                                agent_protocol::provider_runtime_headers::ProviderRuntimeAccountMode::IndividualCodingPlan
+                            }
+                            provider_config::ZhipuAccountMode::TeamCodingPlan => {
+                                agent_protocol::provider_runtime_headers::ProviderRuntimeAccountMode::TeamCodingPlan
+                            }
+                            provider_config::ZhipuAccountMode::OffPeak => {
+                                agent_protocol::provider_runtime_headers::ProviderRuntimeAccountMode::OffPeak
+                            }
+                        },
+                        entitled: entitled.value().copied().unwrap_or(false),
+                    },
+                }))
+            }
+            // access 缺失：与 `api-key` 缺 key 同一显式口径。
+            None => Err(missing_field(selection, "access.apiKey")),
+        }
     }
 
     fn read_file_snapshot(&self) -> Result<ProviderConfigSnapshot, ProviderConfigError> {

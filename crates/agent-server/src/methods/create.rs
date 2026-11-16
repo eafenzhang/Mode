@@ -118,6 +118,12 @@ pub(super) fn fallback_capabilities(
 }
 
 /// 组装并注册 runtime 的公共入口（供 resume 调用；create 在落行后调用）。
+///
+/// Task 8 接线：连接级反向请求 hub 存在时，审批经
+/// `ProtocolPermissionHandler` 走 `interaction/requestPermission`；
+/// `allow_project` 规则落在**与 store 同一个库**（`store.db_path()`）；
+/// 偏好/凭据钩子共用同一 hub。无 hub（不经 stdio 的构造）退回默认审批
+/// （`AutoAllow`）且不发偏好请求。
 pub(super) fn spawn_runtime(
     server: &crate::dispatch::AgentServer,
     record: SessionRecord,
@@ -128,8 +134,18 @@ pub(super) fn spawn_runtime(
     let store = server.store()?;
     let capabilities = fallback_capabilities(server, model);
     let config = runtime_config(server.data_root(), mode, model, capabilities, thought_level);
+    let reverse = server.reverse_hub();
+    let wiring = crate::reverse::RuntimeWiring {
+        permission_handler: reverse.as_ref().map(|hub| {
+            Box::new(crate::reverse::ProtocolPermissionHandler::new(Arc::clone(
+                hub,
+            ))) as Box<dyn agent_core::PermissionHandler>
+        }),
+        rule_db_path: Some(store.db_path().to_path_buf()),
+        reverse,
+    };
     let runtime = Arc::new(
-        SessionRuntime::new(record, store, server.provider_source(), config)
+        SessionRuntime::new(record, store, server.provider_source(), config, wiring)
             .map_err(runtime_error)?,
     );
     server.insert_runtime(Arc::clone(&runtime));

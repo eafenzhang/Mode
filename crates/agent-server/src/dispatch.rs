@@ -14,12 +14,18 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 
+use agent_protocol::message::MessageModel;
+use agent_protocol::provider_runtime_headers::ProviderRuntimeHeadersRequestParams;
+use agent_protocol::session::WorkspaceRef;
 use agent_protocol::NotificationFrame;
 
-use crate::provider_config::{ProviderConfigHub, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD};
-use crate::runtime::{ProviderSource, SessionRuntime};
+use crate::provider_config::{
+    ProviderConfigError, ProviderConfigHub, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
+};
+use crate::reverse::ReverseHub;
+use crate::runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
 use crate::server::ServerError;
-use provider_http::OpenAiChatProvider;
+use provider_http::{OpenAiChatConfig, OpenAiChatProvider};
 
 use agent_core::ModelCapabilities;
 use tokio::io::AsyncWrite;
@@ -62,8 +68,130 @@ impl ServerConfig {
 /// 生产 provider 装配源：hub 三层合并解析 → OpenAI Chat Completions 适配器。
 ///
 /// Anthropic / Responses 属 C2（`ResolvedProvider::to_openai_chat_config` 显式报不支持）。
-struct HubProviderSource {
+/// 账号型 provider（`zhipu-account` 族）的鉴权材料来自宿主反向请求
+/// `interaction/requestProviderRuntimeHeaders`（Task 8 控制器裁决 4）：连接级
+/// [`ReverseHub`] 存在且带会话上下文时发起请求；`headersApplied:true` 用
+/// `requestAuth.apiKey` 构造配置，`false` / 超时 / 错误应答 / 没有 hub 或上下文
+/// 一律落回「缺 `access.apiKey`」的既有显式错误。本结构不做任何网络请求、
+/// 不连官方平台；key 只进 Authorization 头路径，不进日志/错误。
+pub struct HubProviderSource {
     hub: Arc<ProviderConfigHub>,
+    reverse: Arc<RwLock<Option<Arc<ReverseHub>>>>,
+}
+
+impl HubProviderSource {
+    pub fn new(hub: Arc<ProviderConfigHub>, reverse: Arc<RwLock<Option<Arc<ReverseHub>>>>) -> Self {
+        Self { hub, reverse }
+    }
+
+    /// 解析成 OpenAI Chat Completions 配置（不含 provider 实例化；测试断言 key 用）。
+    ///
+    /// 阻塞等待宿主应答——调用方（worker）把 resolve 放在 `spawn_blocking` 上。
+    pub fn resolve_openai_config(
+        &self,
+        provider_id: &str,
+        model_id: &str,
+        context: Option<&ProviderRequestContext>,
+    ) -> Result<OpenAiChatConfig, String> {
+        let selection = model_selection::ModelSelection {
+            provider_id: provider_id.to_owned(),
+            model_id: model_id.to_owned(),
+            options: None,
+        };
+        let config = match self.hub.resolve(&selection) {
+            Ok(resolved) => resolved
+                .to_openai_chat_config()
+                .map_err(|error| error.to_string())?,
+            Err(ProviderConfigError::MissingEndpointField {
+                field: "access.apiKey",
+                ..
+            }) => {
+                // 账号型 provider：凭据在宿主手里（OAuth→API Key 兑换）。钩子不可用
+                // （无连接级 hub / 无会话上下文）或宿主拒绝时，落回既有显式错误。
+                self.resolve_account_via_host(&selection, context)?
+            }
+            Err(error) => return Err(error.to_string()),
+        };
+        Ok(config)
+    }
+
+    /// 账号型 provider 的宿主钩子路径（`interaction/requestProviderRuntimeHeaders`）。
+    fn resolve_account_via_host(
+        &self,
+        selection: &model_selection::ModelSelection,
+        context: Option<&ProviderRequestContext>,
+    ) -> Result<OpenAiChatConfig, String> {
+        let missing_key = || {
+            crate::provider_config::ProviderConfigError::MissingEndpointField {
+                provider_id: selection.provider_id.clone(),
+                model_id: selection.model_id.clone(),
+                field: "access.apiKey",
+            }
+            .to_string()
+        };
+        let reverse = self
+            .reverse
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        let (Some(reverse), Some(context)) = (reverse, context) else {
+            return Err(missing_key());
+        };
+        let target = self
+            .hub
+            .resolve_account_target(selection)
+            .map_err(|error| error.to_string())?;
+        let params = ProviderRuntimeHeadersRequestParams {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            session_id: context.session_id.clone(),
+            turn_id: None,
+            workspace: WorkspaceRef {
+                workspace_path: context.workspace_path.clone(),
+                workspace_key: context
+                    .workspace_identity
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or(&context.workspace_path)
+                    .to_owned(),
+                workspace_identity: context.workspace_identity.clone(),
+                remote_session_id: None,
+                extra: agent_protocol::ExtraFields::new(),
+            },
+            model_selection: MessageModel {
+                provider_id: selection.provider_id.clone(),
+                model_id: selection.model_id.clone(),
+                options: None,
+            },
+            provider_id: selection.provider_id.clone(),
+            account_access: Some(target.account_access),
+            reason:
+                agent_protocol::provider_runtime_headers::ProviderRuntimeHeadersReason::ModelRequest,
+        };
+        let response = match reverse.request_provider_runtime_headers(params) {
+            Ok(response) => response,
+            // 宿主拒绝 / 超时 / 连接关闭：不重试，落回显式缺 key（fail-closed）。
+            // 宿主的错误文案不并入我们的错误（避免把宿主侧内容当事实转发）。
+            Err(_reason) => return Err(missing_key()),
+        };
+        let api_key = response
+            .request_auth
+            .as_ref()
+            .and_then(|auth| auth.api_key.as_deref())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned);
+        let Some(api_key) = api_key else {
+            return Err(missing_key());
+        };
+        let resolved = self
+            .hub
+            .resolve_account_provider(&target, api_key)
+            .map_err(|error| error.to_string())?;
+        resolved
+            .to_openai_chat_config()
+            .map_err(|error| error.to_string())
+    }
 }
 
 impl ProviderSource for HubProviderSource {
@@ -71,19 +199,9 @@ impl ProviderSource for HubProviderSource {
         &self,
         provider_id: &str,
         model_id: &str,
+        context: Option<&ProviderRequestContext>,
     ) -> Result<Arc<dyn agent_core::ModelProvider>, String> {
-        let selection = model_selection::ModelSelection {
-            provider_id: provider_id.to_owned(),
-            model_id: model_id.to_owned(),
-            options: None,
-        };
-        let resolved = self
-            .hub
-            .resolve(&selection)
-            .map_err(|error| error.to_string())?;
-        let config = resolved
-            .to_openai_chat_config()
-            .map_err(|error| error.to_string())?;
+        let config = self.resolve_openai_config(provider_id, model_id, context)?;
         let provider = OpenAiChatProvider::new(config)
             .map_err(|error| format!("构建模型适配器失败: {error}"))?;
         Ok(Arc::new(provider))
@@ -108,6 +226,9 @@ pub(crate) struct PendingLiveForward {
 pub struct AgentServer {
     provider_config: Arc<ProviderConfigHub>,
     provider_source: RwLock<Arc<dyn ProviderSource>>,
+    /// 连接级反向请求 hub（Task 8）：`run_stdio` 启动时注入，退出时清除。
+    /// 装配源（账号型凭据钩子）与 runtime 接线经此共享。
+    reverse: Arc<RwLock<Option<Arc<ReverseHub>>>>,
     /// 门待用的存储配置；gate 跑完取走（一次性）。
     storage_config: Mutex<Option<ServerConfig>>,
     storage: Mutex<StorageState>,
@@ -143,11 +264,14 @@ impl AgentServer {
     /// 现有分派/分帧测试继续可用；生产入口用 [`Self::from_env`]。
     pub fn new() -> Self {
         let hub = Arc::new(ProviderConfigHub::from_env());
+        let reverse = Arc::new(RwLock::new(None));
         Self {
-            provider_source: RwLock::new(Arc::new(HubProviderSource {
-                hub: Arc::clone(&hub),
-            })),
+            provider_source: RwLock::new(Arc::new(HubProviderSource::new(
+                Arc::clone(&hub),
+                Arc::clone(&reverse),
+            ))),
             provider_config: hub,
+            reverse,
             storage_config: Mutex::new(None),
             storage: Mutex::new(StorageState::Pending),
             sessions: Mutex::new(HashMap::new()),
@@ -176,6 +300,7 @@ impl AgentServer {
         Self {
             provider_source: RwLock::new(source),
             provider_config: hub,
+            reverse: Arc::new(RwLock::new(None)),
             storage_config: Mutex::new(Some(config)),
             storage: Mutex::new(StorageState::Pending),
             sessions: Mutex::new(HashMap::new()),
@@ -240,6 +365,32 @@ impl AgentServer {
             .clone()
     }
 
+    /// 注入连接级反向请求 hub（`run_stdio` 启动时；同一 server 复用给新连接前
+    /// 先 [`Self::clear_reverse_hub`]）。此后物化的会话接审批/偏好/凭据钩子。
+    pub(crate) fn set_reverse_hub(&self, hub: Arc<ReverseHub>) {
+        *self
+            .reverse
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(hub);
+    }
+
+    /// 清除连接级 hub（`run_stdio` 退出时；pending 已由 hub 自身 close 失败）。
+    pub(crate) fn clear_reverse_hub(&self) {
+        *self
+            .reverse
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+    }
+
+    /// 当前连接级 hub（会话物化接线用；`None` = 不在 stdio 连接里，会话退回
+    /// `AutoAllow` 默认审批且不发偏好请求）。
+    pub(crate) fn reverse_hub(&self) -> Option<Arc<ReverseHub>> {
+        self.reverse
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+
     /// `.mode` 数据根（工具 artifact 落点）；门没跑/未配置时 `None`。
     pub(crate) fn data_root(&self) -> Option<std::path::PathBuf> {
         self.storage_config
@@ -266,8 +417,9 @@ impl AgentServer {
             .ok_or_else(|| ServerError::invalid_params(format!("会话不存在或未运行: {session_id}")))
     }
 
-    /// 取活跃 runtime（无则 `None`，不报错）。
-    pub(crate) fn find_runtime(&self, session_id: &str) -> Option<Arc<SessionRuntime>> {
+    /// 取活跃 runtime（无则 `None`，不报错）。公开给测试与嵌入方读取事件
+    /// （`session/subscribe` 之外的进程内订阅面，如连接关闭后的终态断言）。
+    pub fn find_runtime(&self, session_id: &str) -> Option<Arc<SessionRuntime>> {
         self.sessions
             .lock()
             .expect("sessions poisoned")

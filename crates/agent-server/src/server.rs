@@ -21,6 +21,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader
 use tokio::sync::mpsc;
 
 use crate::dispatch::{AgentServer, PendingLiveForward};
+use crate::reverse::ReverseHub;
 
 /// 单帧上限（防御异常刷屏）；与 `mode-protocol-client` 同口径，正常协议帧远小于此。
 pub const MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
@@ -137,6 +138,11 @@ impl From<io::Error> for ServerError {
 /// 存活到帧完成）：select 被出站帧打断时不会重建读取状态——`read_until` 已追加
 /// 进缓冲的字节与扫描进度都在，下一次 poll 从断点继续（取消安全）。
 ///
+/// 反向请求（Task 8）：启动时构造连接级 [`ReverseHub`] 并注入 server（此后物化的
+/// 会话接审批/偏好/凭据钩子）；入向 `Response` / `ErrorResponse` 帧交给 hub 认领
+/// pending。退出（EOF / 错误）时 `close()` 失败所有 pending——等待方按各自语义
+/// fail-closed（审批 deny、偏好回退默认），不会悬挂。
+///
 /// 启动顺序：**先跑存储门**（`startup/storageState` 通知直接写出，保证它们是本
 /// 连接的第一批帧），再进循环。EOF 干净返回 `Ok(())`；非法 JSON / 非法帧返回
 /// 错误并关闭连接。
@@ -152,6 +158,37 @@ where
     server.run_storage_gate(&mut writer).await?;
 
     let (outbound, mut outbound_rx) = mpsc::unbounded_channel::<Frame>();
+    let reverse = ReverseHub::new(outbound.clone());
+    server.set_reverse_hub(Arc::clone(&reverse));
+    let result = stdio_loop(
+        reader,
+        &mut writer,
+        Arc::clone(&server),
+        outbound,
+        &mut outbound_rx,
+        &reverse,
+    )
+    .await;
+    // 连接结束（EOF/错误/非法帧）：失败所有 pending 反向请求（审批 deny 等），
+    // 并把 hub 从 server 摘除——同一 server 复用给新连接时不残留旧通道。
+    reverse.close();
+    server.clear_reverse_hub();
+    result
+}
+
+/// stdio 主循环（[`run_stdio`] 的主体；hub 的生命周期由外层管理）。
+async fn stdio_loop<R, W>(
+    reader: R,
+    writer: &mut W,
+    server: Arc<AgentServer>,
+    outbound: mpsc::UnboundedSender<Frame>,
+    outbound_rx: &mut mpsc::UnboundedReceiver<Frame>,
+    reverse: &Arc<ReverseHub>,
+) -> Result<(), ServerError>
+where
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
+{
     let mut reader = BufReader::new(reader);
     let mut line = Vec::new();
     loop {
@@ -162,7 +199,7 @@ where
             tokio::select! {
                 biased;
                 read = &mut read_frame => break read,
-                Some(frame) = outbound_rx.recv() => write_frame(&mut writer, &frame).await?,
+                Some(frame) = outbound_rx.recv() => write_frame(writer, &frame).await?,
             }
         };
         // `read_frame` 在此作用域结束自然释放（Pin<&mut> 不需要显式 drop）。
@@ -206,16 +243,17 @@ where
                         },
                     }),
                 };
-                write_frame(&mut writer, &response).await?;
+                write_frame(writer, &response).await?;
                 // response 已落盘才 spawn live 转发：订阅的 replay（response 内）
                 // 永远先于 live 通知。
                 for forward in server.take_pending_forwards() {
                     tokio::spawn(run_live_forward(forward, outbound.clone()));
                 }
             }
-            // 通知（宿主→server）暂无订阅者；应答/错误应答要等反向请求（后续任务）才有 pending 可匹配。
+            // 通知（宿主→server）暂无订阅者。
             Frame::Notification(_) => {}
-            Frame::Response(_) | Frame::ErrorResponse(_) => {}
+            // 反向请求的应答：交给 hub 按 id 认领 pending（审批/偏好/凭据）。
+            Frame::Response(_) | Frame::ErrorResponse(_) => reverse.deliver(&frame),
         }
     }
 }
