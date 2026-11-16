@@ -30,5 +30,15 @@ tokio = { workspace = true, features = ["io-std", "io-util", "time"] }
 uuid.workspace = true
 
 [dev-dependencies]
+# Task 9 切换测试：跨包拿不到本包二进制的 CARGO_BIN_EXE，由本包集成测试驱动
+# agent-process 的 spawn API（MODE_AGENT_SERVER_COMMAND 指向本二进制）。
+agent-process = { path = "../agent-process" }
 rusqlite.workspace = true
 tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "time"] }
+
+# 切换测试的无孤儿断言：Toolhelp 快照枚举 pid/父 pid/映像名（进程树观测）。
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_System_Diagnostics_ToolHelp",
+] }

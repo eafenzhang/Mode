@@ -66,6 +66,7 @@ name = "agent-server"
 version = "0.1.0"
 dependencies = [
  "agent-core",
+ "agent-process",
  "agent-protocol",
  "indexmap 2.14.2",
  "model-selection",
@@ -80,6 +81,7 @@ dependencies = [
  "session-store",
  "tokio",
  "uuid",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

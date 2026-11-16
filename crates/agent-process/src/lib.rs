@@ -70,7 +70,7 @@ pub use registry::{
 };
 pub use resolve::{
     resolve_agent_command, AgentCommandSource, AgentResolveContext, AgentResolveError,
-    ResolvedAgentCommand,
+    ResolvedAgentCommand, RuntimeKind,
 };
 pub use runtime_preferences::{
     default_runtime_preferences, default_runtime_preferences_handler,
@@ -102,6 +102,9 @@ pub struct AgentProcessSpec {
     pub request_timeout: Duration,
     /// 该入口是否上报 `startup/storageState`；为 true 时 `prepare_storage` 会等待 ready。
     pub supports_storage_startup: bool,
+    /// 命令归属的运行时（健康面只读；`resolve_agent_command` 按选中来源填充）。
+    /// 直接构造 spec 时是手工指定的命令——按原生二进制口径默认 `Rust`。
+    pub runtime: RuntimeKind,
 }
 
 impl AgentProcessSpec {
@@ -113,6 +116,7 @@ impl AgentProcessSpec {
             env: Vec::new(),
             request_timeout: mode_protocol_client::DEFAULT_REQUEST_TIMEOUT,
             supports_storage_startup: false,
+            runtime: RuntimeKind::Rust,
         }
     }
 }
@@ -199,6 +203,15 @@ pub struct SpawnedAgent {
     pub stderr: broadcast::Receiver<String>,
 }
 
+/// spawn 观测日志行（`agent-process: spawn runtime=rust pid=… command=…`）。
+/// 纯函数便于锁定 `runtime=` 字段形状（Task 9 健康观测面）。
+fn spawn_log_line(runtime: RuntimeKind, pid: u32, command: &str) -> String {
+    format!(
+        "agent-process: spawn runtime={} pid={pid} command={command}",
+        runtime.as_str()
+    )
+}
+
 pub async fn spawn(spec: AgentProcessSpec) -> Result<SpawnedAgent, AgentProcessError> {
     let mut command = Command::new(&spec.command);
     command
@@ -221,6 +234,9 @@ pub async fn spawn(spec: AgentProcessSpec) -> Result<SpawnedAgent, AgentProcessE
         message: error.to_string(),
     })?;
     let pid = child.id().unwrap_or_default();
+    // 观测面（agent-core-parity.md §7）：每次 spawn 记录解析出的 runtime 归属，
+    // 与 agent-server 启动日志（`agent runtime=rust`）构成同一条观测链。
+    eprintln!("{}", spawn_log_line(spec.runtime, pid, &spec.command));
     let stdin = child.stdin.take().expect("stdin piped");
     let stdout = child.stdout.take().expect("stdout piped");
     let stderr = child.stderr.take().expect("stderr piped");
@@ -352,5 +368,22 @@ pub fn pid_is_alive(pid: u32) -> bool {
     #[cfg(not(any(windows, unix)))]
     {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn spawn_log_line_contains_runtime_kind_pid_and_command() {
+        let line = spawn_log_line(RuntimeKind::Rust, 42, "C:/bin/agent-server.exe");
+        assert!(line.contains("runtime=rust"), "实际：{line}");
+        assert!(line.contains("pid=42"), "实际：{line}");
+        assert!(line.contains("agent-server.exe"), "实际：{line}");
+        assert!(line.starts_with("agent-process: "), "实际：{line}");
+
+        let node = spawn_log_line(RuntimeKind::Node, 7, "node");
+        assert!(node.contains("runtime=node"), "实际：{node}");
     }
 }

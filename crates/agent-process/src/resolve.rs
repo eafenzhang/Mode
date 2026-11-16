@@ -37,6 +37,43 @@ pub enum AgentCommandSource {
     NativeBinary,
 }
 
+/// 解析出的 Agent 命令归属的运行时（健康面只读字段，`agent-core-parity.md` §7
+/// 观测面；serde 值恒为 `"rust"` / `"node"`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RuntimeKind {
+    /// 原生 Rust 二进制：native binary 兜底，或 env 显式命令带
+    /// `MODE_AGENT_RUNTIME=rust` 提示。
+    Rust,
+    /// Node 解释执行：dev dist / dev 源码 / 打包 `mode.cjs`；env 显式命令没有
+    /// runtime 提示（unknown origin）时也收敛为 Node。
+    Node,
+}
+
+impl RuntimeKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Rust => "rust",
+            Self::Node => "node",
+        }
+    }
+
+    /// `MODE_AGENT_RUNTIME` 提示解析（env 显式命令的 runtime 归属）：
+    /// `rust` / `node`（值大小写与首尾空白宽容）；未设置 = unknown origin，
+    /// 按 `Node` 收敛；其它值是配置错误 → `Err(原始值)`，调用方按 `Node` 收敛
+    /// 并记录警告（见 [`resolve_agent_command`]）。
+    pub fn from_hint(hint: Option<&str>) -> Result<Self, String> {
+        match hint.map(str::trim).filter(|value| !value.is_empty()) {
+            None => Ok(Self::Node),
+            Some(value) => match value.to_ascii_lowercase().as_str() {
+                "rust" => Ok(Self::Rust),
+                "node" => Ok(Self::Node),
+                _ => Err(value.to_string()),
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AgentResolveContext {
     pub workspace_path: PathBuf,
@@ -62,6 +99,8 @@ pub struct ResolvedAgentCommand {
     pub spec: AgentProcessSpec,
     pub storage_preparation_entry: Option<PathBuf>,
     pub source: AgentCommandSource,
+    /// 选中来源归属的运行时（健康面只读；`spec.runtime` 同值）。
+    pub runtime: RuntimeKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -192,6 +231,7 @@ fn finish(
     storage_preparation_entry: Option<PathBuf>,
     source: AgentCommandSource,
 ) -> ResolvedAgentCommand {
+    let runtime = runtime_kind(source, context);
     let args = apply_presentation_surface(args, context.presentation_surface.as_deref());
     ResolvedAgentCommand {
         spec: AgentProcessSpec {
@@ -207,9 +247,36 @@ fn finish(
                     | AgentCommandSource::DevSource
                     | AgentCommandSource::Packaged
             ),
+            runtime,
         },
         storage_preparation_entry,
         source,
+        runtime,
+    }
+}
+
+/// `AgentCommandSource` → `RuntimeKind` 映射（Task 9 控制器裁决 1）：
+/// - `NativeBinary` → `Rust`；
+/// - dev dist / dev 源码 / 打包 `mode.cjs` → `Node`；
+/// - `Env` → `MODE_AGENT_RUNTIME` 提示（`rust`/`node`）；未设置按 unknown origin
+///   收敛 `Node`；非法值收敛 `Node` 并记录警告（不失败、不猜测）。
+fn runtime_kind(source: AgentCommandSource, context: &AgentResolveContext) -> RuntimeKind {
+    match source {
+        AgentCommandSource::NativeBinary => RuntimeKind::Rust,
+        AgentCommandSource::DevDist
+        | AgentCommandSource::DevSource
+        | AgentCommandSource::Packaged => RuntimeKind::Node,
+        AgentCommandSource::Env => {
+            match RuntimeKind::from_hint(env_get(&context.env, "MODE_AGENT_RUNTIME")) {
+                Ok(kind) => kind,
+                Err(value) => {
+                    eprintln!(
+                        "agent-process: invalid MODE_AGENT_RUNTIME={value:?}; expecting rust|node, falling back to node"
+                    );
+                    RuntimeKind::Node
+                }
+            }
+        }
     }
 }
 

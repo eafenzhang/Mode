@@ -3,7 +3,9 @@
 
 use std::sync::Arc;
 
-use agent_process::{AgentControlClient, AgentRuntimeRegistry, SpecFactory};
+use agent_process::{
+    AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, RuntimeKind, SpecFactory,
+};
 use host_channels::{AgentHealthChannel, AGENT_HEALTH_CHANNEL, DESCRIBE, LIST};
 use rpc_host::{CancellationToken, ChannelError, ServerChannel};
 use rpc_wire::Value;
@@ -85,4 +87,61 @@ async fn unknown_command_is_rejected() {
         .await
         .expect_err("未知命令");
     assert!(error.contains("unknown command"), "{error}");
+}
+
+/// 跨包拿不到 agent-process 夹具的 `CARGO_BIN_EXE`；用平台自带的常驻命令占位一个
+/// 活进程，锁「agent-health list/describe 输出包含 additive 的 runtime 字段」
+/// （Task 9 控制器裁决 1）。命令本身与断言无关——runtime kind 由 spec 显式标注。
+#[tokio::test]
+async fn list_and_describe_include_runtime_kind_for_live_entry() {
+    let (command, args): (&str, Vec<&str>) = if cfg!(windows) {
+        ("cmd", vec!["/c", "ping", "-n", "30", "127.0.0.1"])
+    } else {
+        ("sleep", vec!["30"])
+    };
+    let factory: SpecFactory = Arc::new(move |_target| {
+        let mut spec = AgentProcessSpec::new(command);
+        spec.args = args.iter().map(|arg| arg.to_string()).collect();
+        spec.runtime = RuntimeKind::Node;
+        Ok(spec)
+    });
+    let registry = Arc::new(AgentRuntimeRegistry::new(factory));
+    let control = Arc::new(AgentControlClient::new(Arc::clone(&registry)));
+    let channel = AgentHealthChannel::new(Arc::clone(&control));
+
+    let target = agent_process::WorkspaceTarget::new("D:/ws/health-channel-runtime");
+    registry
+        .get_or_spawn(&target)
+        .await
+        .expect("占位进程必须能拉起");
+
+    // describe：health.runtime 随既有形状一起出现（additive，不改既有字段）。
+    let value = parse(
+        call(
+            &channel,
+            DESCRIBE,
+            object_arg(r#"{"workspacePath":"D:/ws/health-channel-runtime"}"#),
+        )
+        .await
+        .expect("describe"),
+    );
+    assert_eq!(
+        value["workspaceKey"],
+        serde_json::json!("D:/ws/health-channel-runtime")
+    );
+    assert_eq!(value["runtime"], serde_json::json!("node"));
+    assert_eq!(value["state"], serde_json::json!("ready"));
+
+    // list：health 条目同样带 runtime。
+    let items = parse(call(&channel, LIST, object_arg("[]")).await.expect("list"));
+    assert_eq!(items.as_array().expect("list 是数组").len(), 1);
+    assert_eq!(
+        items[0]["workspacePath"],
+        serde_json::json!("D:/ws/health-channel-runtime")
+    );
+    assert_eq!(items[0]["health"]["runtime"], serde_json::json!("node"));
+
+    registry
+        .shutdown_all(std::time::Duration::from_secs(5))
+        .await;
 }

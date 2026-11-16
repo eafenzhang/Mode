@@ -55,6 +55,13 @@ pub fn run_main() -> ExitCode {
     if !startup.ignored.is_empty() {
         eprintln!("agent-server: ignoring arguments: {:?}", startup.ignored);
     }
+    // 观测面（agent-core-parity.md §7）：本二进制恒为 Rust runtime；启动日志带
+    // 解析出的二进制路径（current_exe），与壳侧 spawn 日志（`agent-process: spawn
+    // runtime=…`）构成同一条 `runtime=` 观测链。放在 ignoring-arguments 之后，
+    // 保证既有「首行 stderr」断言的日志顺序不变。
+    if let Ok(exe) = std::env::current_exe() {
+        eprintln!("agent-server: agent runtime=rust binary={}", exe.display());
+    }
 
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()

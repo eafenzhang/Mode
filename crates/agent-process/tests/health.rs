@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use agent_process::{
     AgentControlClient, AgentProcessSpec, AgentRuntimeRegistry, AgentWorkspaceTarget,
-    RuntimeHealthState, SpecFactory, WorkspaceTarget,
+    RuntimeHealthState, RuntimeKind, SpecFactory, WorkspaceTarget,
 };
 
 const FIXTURE: &str = env!("CARGO_BIN_EXE_agent-process-fixture");
@@ -106,6 +106,46 @@ async fn health_waits_for_storage_gate_and_reports_failure() {
         tokio::time::sleep(Duration::from_millis(20)).await;
     };
     assert!(failed.last_error.is_some(), "storage 失败必须带 last_error");
+}
+
+#[tokio::test]
+async fn health_reports_runtime_kind_for_both_kinds_via_control_client() {
+    // Rust：fixture 是原生二进制，`AgentProcessSpec::new` 默认 runtime=Rust；
+    // 经 `AgentControlClient::runtime_health`（facade）读出，JSON 字段 additive。
+    let client = control("");
+    let target = AgentWorkspaceTarget::new("/ws/health-runtime-rust");
+    client
+        .read_workspace_presentation(&target)
+        .await
+        .expect("spawn + read");
+    let health = client.runtime_health(&target).expect("健康快照");
+    assert_eq!(health.state, RuntimeHealthState::Ready);
+    assert_eq!(health.runtime, RuntimeKind::Rust);
+    let json = serde_json::to_value(&health).expect("健康快照可序列化");
+    assert_eq!(json["runtime"], serde_json::json!("rust"));
+    assert_eq!(
+        json["workspaceKey"],
+        serde_json::json!("/ws/health-runtime-rust")
+    );
+
+    // Node：不真拉 node——用 fixture 占位进程，仅把 spec.runtime 标成 Node，
+    // 锁「spec → registry entry → health」的管道（Task 9）。
+    let factory: SpecFactory = Arc::new(|_target| {
+        let mut spec = AgentProcessSpec::new(FIXTURE);
+        spec.runtime = RuntimeKind::Node;
+        Ok(spec)
+    });
+    let registry = AgentRuntimeRegistry::new(factory);
+    let target = WorkspaceTarget::new("/ws/health-runtime-node");
+    registry.get_or_spawn(&target).await.expect("spawn");
+    let health = registry.health(&target).expect("条目存在");
+    assert_eq!(health.runtime, RuntimeKind::Node);
+    let json = serde_json::to_value(&health).expect("健康快照可序列化");
+    assert_eq!(json["runtime"], serde_json::json!("node"));
+    assert_eq!(
+        json["workspaceKey"],
+        serde_json::json!("/ws/health-runtime-node")
+    );
 }
 
 #[tokio::test]
