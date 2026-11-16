@@ -142,6 +142,10 @@ materialization 建好，turn 复用现有 runtime。`session/close` 也没有�
 本用例的 `Read` 是只读工具，没有 `interaction/requestPermission`。反向请求的参数只有
 `{sessionId, scope}`。
 
+C1 落地（Task 10）：`runtime-materialization` 在物化时发、`user-execution` 在每运行时首个
+turn 开始前发——create 路径与本节时序一致；resume 路径的第二次请求延到首个 send
+（登记为 `tauri-agent-runtime.md` §C1.4-1）。
+
 > 早期 `probe-tool-surface.mts` 的「一次会话只出现两次」对应**单 turn** 场景；本夹具进一步
 > 钉住触发边界：新 runtime（create 或 resume）materialize 时一对，之后复用的 turn 不再发。
 
@@ -399,7 +403,7 @@ C1 不能把本机 Git Bash 的路径写成固定值。
 | 7   | `session/close` / `resume` / `read` / `messages` / `list` 不产生 session 事件                                                            | 事件流在 close 后不出现终态类事件；订阅方不能等事件判断 close 完成。                                             |
 | 8   | `session/messages` 的投影比 DB 窄（见 §3.7）                                                                                             | 对拍要分「wire 投影」与「DB 行」两层，不能拿 `messages` 结果反推 `part.data`。                                   |
 
-## 5. 回放状态（Task 0 Step 3）
+## 5. 回放状态（Task 0 Step 3 → Task 10 落地）
 
 命令：
 
@@ -407,7 +411,7 @@ C1 不能把本机 Git Bash 的路径写成固定值。
 pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-session-lifecycle.mts --replay
 ```
 
-在 `crates/agent-server` 尚未实现时，观察到的**红**：
+Task 0（binary 未实现时）的红：
 
 ```text
 exit code 1
@@ -415,8 +419,18 @@ exit code 1
 target/{debug,release}/{agent-server,mode-agent} 均不存在）；C1 Task 1 之后才会产出该二进制
 ```
 
-这是按计划的「binary 不存在」红因；Task 10 再把 `--replay` 扩展成三层同构回放。
-`--replay` 现在只校验夹具可读与二进制可拉起，不把 oracle 的期望值当成 Rust 已通过。
+Task 10（2026-11-17）已把 `--replay` 落成**方法序回放**：Rust `agent-server` 按夹具的同一
+方法序走 create → send ×2 → close → resume → read → messages → list，校验方法序、反向请求
+scope 序列与 DB 行数。结果（本机实跑）：方法序逐字一致；差异均为**已登记项**并显式放行
+（见 `tauri-agent-runtime.md` §C1 差异登记）：
+
+- 反向请求 scope `[M, U, M]` vs oracle `[M, U, M, U]`（resume 路径的 `user-execution`
+  时机差，§C1.4-1）；
+- `message`/`part` 各 −1（合成 timeline 行）、`session_entry` −1（`bash_shell_selection`），
+  §C1.3-5。
+
+三层逐载荷对拍归 `agent-server-replay.test.mts`（`fixtures/*.json` 行为夹具，
+`replay-agent-server.mts` harness），不是本探针的职责。
 
 ## 6. 复现证据
 

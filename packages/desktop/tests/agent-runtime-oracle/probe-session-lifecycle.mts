@@ -14,15 +14,14 @@
 // 夹具落点：`fixtures/session-lifecycle/`。**不放在 fixtures/ 根下**：fixtures.test.mts 会把根下
 // 每个 `*.json` 当作三层行为夹具（`loadFixtures`）并要求 case 名与 `FIXTURE_CASES` 逐字相等；
 // 生命周期夹具是方法序/行形状夹具，不是三层行为夹具，放子目录可避免污染那套回放。
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { seedWorkspace, startOracleRuntime } from "./driver.mjs";
 import type { MockStep } from "./mock-provider.mjs";
+import { runLifecycleReplay } from "./probe-session-lifecycle-replay.mjs";
 import {
   FIXTURE_DIR,
   capture,
@@ -33,7 +32,6 @@ import {
   type PathContext,
 } from "./session-lifecycle-fixtures.mjs";
 
-const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const SEED = { "hello.txt": "hello\n" };
 const PROMPTS = ["first prompt", "Read hello.txt and summarize"];
 const SCRIPT: MockStep[] = [
@@ -67,6 +65,7 @@ async function waitForTerminals(
   }
   await delay(500);
 }
+
 
 function findRequest(requests: readonly JsonObject[], method: string): JsonObject {
   const found = requests.find((request) => request.method === method);
@@ -207,46 +206,7 @@ async function record(): Promise<void> {
   }
 }
 
-function resolveAgentServerBinary(): string | undefined {
-  const configured = process.env.MODE_AGENT_SERVER_COMMAND?.trim();
-  if (configured) return configured;
-  for (const name of ["agent-server", "mode-agent"]) {
-    for (const profile of ["debug", "release"]) {
-      for (const suffix of ["", ".exe"]) {
-        const candidate = join(REPO_ROOT, "target", profile, `${name}${suffix}`);
-        if (existsSync(candidate)) return candidate;
-      }
-    }
-  }
-  return undefined;
-}
 
-/** Step 3：回放用例。C1 的 `agent-server` 尚未实现时，这里必须以「binary 不存在」为红。 */
-async function replay(): Promise<void> {
-  const fixturePath = join(FIXTURE_DIR, "session-lifecycle-events.json");
-  const fixture = JSON.parse(await readFile(fixturePath, "utf8")) as {
-    expect: { requests: { method: string }[] };
-  };
-  const binary = resolveAgentServerBinary();
-  if (binary === undefined) {
-    throw new Error(
-      "回放为红：agent-server 二进制不存在（MODE_AGENT_SERVER_COMMAND 未设置，target/{debug,release}/" +
-        "{agent-server,mode-agent} 均不存在）；C1 Task 1 之后才会产出该二进制",
-    );
-  }
-  process.stdout.write(
-    `agent-server=${binary}\nfixture=${fixturePath}\n` +
-      `expectedMethods=${fixture.expect.requests.map((request) => request.method).join(",")}\n` +
-      "Task 0 只校验二进制可拉起与 fixture 可读；三层回放由 C1 Task 10 接管。\n",
-  );
-  const child = spawn(binary, ["app-server", "--stdio"], { cwd: REPO_ROOT, stdio: "pipe" });
-  await new Promise<void>((resolvePromise, rejectPromise) => {
-    child.once("error", rejectPromise);
-    child.once("spawn", () => resolvePromise());
-  });
-  child.stdin?.end();
-  await new Promise<void>((resolvePromise) => child.once("exit", () => resolvePromise()));
-}
 
 /** 补充观察：session_input 在 persistence/inputId 变体下是否写入（不产出夹具）。 */
 async function inputVariants(): Promise<void> {
@@ -309,7 +269,7 @@ async function inputVariants(): Promise<void> {
 }
 
 if (process.argv.includes("--replay")) {
-  await replay().catch((error: unknown) => {
+  await runLifecycleReplay().catch((error: unknown) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
   });

@@ -436,9 +436,16 @@ impl SessionRuntime {
 /// worker 主体：串行消费队列直到发送端关闭且队列清空。
 ///
 /// 启动时（Task 8 控制器裁决 3）向宿主发一次 `session/requestRuntimePreferences`
-/// （物化即发；create 与冷 resume 各一次，send 不重发），应答/回退缓存进
+/// （scope = `runtime-materialization`；create 与冷 resume 各一次），应答/回退缓存进
 /// [`Shared::preferences`]——首个输入的 turn 在此之后才开始（与 oracle 的 create
 /// 等待偏好应答同序）。
+///
+/// **首个 turn 开始前**再发第二次偏好请求（scope = `user-execution`，Task 10）：
+/// oracle 观察（`agent-server-c1-contract.md` §2.2）每次 materialize 是**一对**
+/// 偏好请求，第二次在首个 send 的 turn 开始运行前发出（`session/send` 受理与
+/// `turn.started` 之间）。C1 按此补齐：每运行时一次，取应答/回退后**覆盖**缓存
+/// （两次请求同形状，后者是最终事实）。resume 的时机差异（oracle 在 resume 后
+/// 立即成对发送、C1 仍等首个 turn）登记在 `tauri-agent-runtime.md` §C1 差异登记。
 ///
 /// provider 按「(providerId, modelId)」缓存：配置未变的连续 turn 复用同一个 provider
 /// 实例；setter 改了模型事实后才重新解析。解析放在 `spawn_blocking` 上：账号型
@@ -460,8 +467,35 @@ async fn worker_loop(
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(preferences);
     }
+    // user-execution 偏好只在每运行时的首个 turn 前发一次（见函数注释）。
+    let mut user_execution_requested = false;
     let mut current: Option<(String, String, Arc<dyn ModelProvider>)> = None;
     while let Some(item) = receiver.recv().await {
+        // 取消令牌在**取到输入时**就登记（Task 10）：`session/close` 可能落在
+        // 「准入已接受、turn 尚未开始」的等待窗口里（user-execution 偏好请求、
+        // provider 装配的宿主钩子）。令牌登记晚于 close 时，`cancel_turn` 落在
+        // `current_cancel: None` 上是一次 no-op——被 close 点名的运行中输入反而
+        // 照常跑完，drain 等不到终态（methods 的 close-drain 用例因此挂死）。
+        // 这里提前登记后，close 的取消必然命中本输入（终态 `cancelled`）；
+        // 排队中的后续输入照常执行（裁决 4 不变）。
+        let cancel = CancelToken::new();
+        {
+            let mut live = shared.lock();
+            live.status = RuntimeStatus::Running;
+            live.current_cancel = Some(cancel.clone());
+        }
+        if let Some(reverse) = &reverse {
+            if !user_execution_requested {
+                user_execution_requested = true;
+                let preferences = reverse
+                    .request_runtime_preferences_scoped(&shared.record.id, "user-execution")
+                    .await;
+                *shared
+                    .preferences
+                    .write()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(preferences);
+            }
+        }
         // 每个 turn 开始前同步配置：mode/能力进系统提示，模型事实决定装配。
         let config = shared.read_config();
         session.set_mode(config.mode.clone());
@@ -501,14 +535,14 @@ async fn worker_loop(
                     }
                     Ok(Err(message)) => {
                         current = None;
-                        run_configuration_failure(&mut session, &shared, &store, &item, &message)
+                        run_configuration_failure(&mut session, &shared, &store, &item, &message, cancel)
                             .await;
                         continue;
                     }
                     Err(join_error) => {
                         current = None;
                         let message = format!("provider 装配任务失败: {join_error}");
-                        run_configuration_failure(&mut session, &shared, &store, &item, &message)
+                        run_configuration_failure(&mut session, &shared, &store, &item, &message, cancel)
                             .await;
                         continue;
                     }
@@ -517,7 +551,7 @@ async fn worker_loop(
         };
         match provider {
             Some(provider) => {
-                session = run_one_input(session, &shared, &store, provider, item).await;
+                session = run_one_input(session, &shared, &store, provider, item, cancel).await;
             }
             // 没有配置模型：显式配置错误，不启动模型请求。
             None => {
@@ -527,6 +561,7 @@ async fn worker_loop(
                     &store,
                     &item,
                     "Select a model before continuing",
+                    cancel,
                 )
                 .await;
             }
@@ -538,20 +573,17 @@ async fn worker_loop(
 
 /// 配置失败的 turn：`turn.started` → `turn.failed`（`CONFIGURATION_ERROR`），
 /// `turn_usage(failed)` 记零值（没有任何模型请求可累计）。终态恰好一条，
-/// 与正常 turn 走同一套 publish / 状态收口。
+/// 与正常 turn 走同一套 publish / 状态收口。取消令牌由 worker 在取到输入时登记
+/// （本路径的 turn 即刻失败，令牌只随 `current_cancel` 清空）。
 async fn run_configuration_failure(
     session: &mut Session,
     shared: &Arc<Shared>,
     store: &Arc<SessionStore>,
     item: &QueuedInput,
     message: &str,
+    cancel: CancelToken,
 ) {
-    let token = CancelToken::new();
-    {
-        let mut live = shared.lock();
-        live.status = RuntimeStatus::Running;
-        live.current_cancel = Some(token.clone());
-    }
+    let _ = cancel;
     let mut recorder = TurnRecorder::new(Arc::clone(shared), Arc::clone(store), item);
     let started = session.begin_turn(&item.input.content);
     let turn_id = started.turn_id.clone();
@@ -607,13 +639,9 @@ async fn run_one_input(
     store: &Arc<SessionStore>,
     provider: Arc<dyn ModelProvider>,
     item: QueuedInput,
+    cancel: CancelToken,
 ) -> Session {
-    let token = CancelToken::new();
-    {
-        let mut live = shared.lock();
-        live.status = RuntimeStatus::Running;
-        live.current_cancel = Some(token.clone());
-    }
+    let token = cancel;
 
     let recorder = TurnRecorder::new(Arc::clone(shared), Arc::clone(store), &item);
     let content = item.input.content.clone();

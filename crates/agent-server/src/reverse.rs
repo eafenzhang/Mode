@@ -276,9 +276,25 @@ impl ReverseHub {
     /// （scope = `runtime-materialization`，控制器裁决 3：create/resume 各一次，
     /// 不随 send 重复）。`-32601` / 超时 / 关闭 / 应答解不开 → 登记保守默认。
     pub async fn request_runtime_preferences(&self, session_id: &str) -> RuntimePreferences {
+        self.request_runtime_preferences_scoped(session_id, "runtime-materialization")
+            .await
+    }
+
+    /// 运行时偏好的**带 scope** 形态（Task 10）。
+    ///
+    /// oracle 观察（`agent-server-c1-contract.md` §2.2）：每次 runtime materialize
+    /// 是**一对**偏好请求——`runtime-materialization` 之后还有一次 `user-execution`
+    /// （create 路径在首个 send 的 turn 开始前发出）。本方法按调用方给定的 scope
+    /// 发请求并把应答解析进 [`RuntimePreferences`]；失败一律保守默认（与
+    /// [`Self::request_runtime_preferences`] 同口径）。
+    pub async fn request_runtime_preferences_scoped(
+        &self,
+        session_id: &str,
+        scope: &str,
+    ) -> RuntimePreferences {
         let params = serde_json::json!({
             "sessionId": session_id,
-            "scope": "runtime-materialization",
+            "scope": scope,
         });
         match self.request_async(RUNTIME_PREFERENCES_METHOD, params).await {
             Ok(value) => RuntimePreferences::from_reply(&value),

@@ -1,6 +1,6 @@
 # Spec：Agent Core 行为对齐与 Rust 收口（LT-1）
 
-状态：**已批准方向（2026-11-16，用户选择「LT-1 全量」）**；C1 待实现。
+状态：**已批准方向（2026-11-16，用户选择「LT-1 全量」）**；C1 已交付（2026-11-17，Task 10 收口——三层回放与差异登记见 `tauri-agent-runtime.md` §C1 差异登记，验收记录见本文件 §9.2）。
 关联：`docs/plans/2026-11-16-upstream-capability-long-tasks.md`（LT-1）、
 `docs/plans/2026-11-16-lt1-c1-rust-agent-server.md`（C1 计划）、
 `docs/specs/clean-room-policy.md`、`docs/specs/tauri-agent-runtime.md`、
@@ -117,7 +117,7 @@ sequenceDiagram
 
 | 检查点                  | 交付                                                                                                                                                                   | 明确不做                                                                                                             |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **C1 最小闭环**         | `agent-server` + OpenAI Chat Completions + `session-store`（已有数据根）+ 6 个工具 + 权限 + create/send/subscribe/read/messages/list/close/resume + setter + 切换/回滚 | MCP/Skills/Plugins/Subagents/Workflows/附件/v4 帧；compact/memory/goal；Anthropic/Responses；fresh-install migration |
+| **C1 最小闭环**（已完成 2026-11-17） | `agent-server` + OpenAI Chat Completions + `session-store`（已有数据根）+ 6 个工具 + 权限 + create/send/subscribe/read/messages/list/close/resume + setter + 切换/回滚 | MCP/Skills/Plugins/Subagents/Workflows/附件/v4 帧；compact/memory/goal；Anthropic/Responses；fresh-install migration |
 | **C2 上下文/记忆/压缩** | 上下文装配、compact、memory、token 预算、会话快照齐全；Anthropic Messages / OpenAI Responses                                                                           | 生态面                                                                                                               |
 | **C3 恢复/目标/故障**   | stream recovery、retry、goal/target、后台通知、子代理基础面、终态收口                                                                                                  | 生态面                                                                                                               |
 | **C4 生态与默认翻转**   | MCP/Skills/Plugins/Subagents/Workflows/附件/v4；20 任务；默认 Rust；Node 仅显式回退                                                                                    | 新功能                                                                                                               |
@@ -181,8 +181,10 @@ accepted → turn.started → model.streaming×N
 - 事件信封复用 `agent_protocol::session_event::SessionEvent`；`eventId`/`sessionId`/
   `turnId`/`seq`/`timestamp`/`deliveryKind`/`type`/`payload` 严格。
 - C1 只产出已建模类型；其余类型不编造。
-- 反向请求：`session/requestRuntimePreferences`（默认值）、
-  `interaction/requestPermission`（三态）；未注册反向请求回 `-32601`。
+- 反向请求：`session/requestRuntimePreferences`（每运行时一对：物化时
+  `runtime-materialization` + 首个 turn 前 `user-execution`，Task 10 对齐 contract §2.2；
+  应答/超时回退默认）、`interaction/requestPermission`（三态）；未注册反向请求回
+  `-32601`。
 - `startup/storageState`：启动时按 `agent-process` 的存储门语义发 checking/ready/failed；
   `supportsStorageStartup` 与现有命令解析一致。
 
@@ -317,13 +319,23 @@ Rust `agent-server` 必须用**同一份**比较器（TS `compare.mts`）或与�
 
 - 脚本 provider 回放 `read-single` / `write-new` / `edit-*` / `bash-*` / `task-*` 夹具，
   三层全绿。
+  **Task 10 结果（2026-11-17）**：38 条三层夹具全部回放（read-*/write-*/edit-*/bash-*；
+  C1 未产出 `task-*` 夹具；`session-stream.json` 是投影快照，显式跳过）。**toolCalls 与 files 两层全绿**；events 层在「C1 登记缺省过滤」
+  （`tauri-agent-runtime.md` §C1 差异登记）之后仍有载荷级缺口（`cacheStats`、
+  `scheduled.assistantMessageId`、`canRunParallel`、`perf.detail`、`error.stack`、
+  `fullAccessSupported`、Bash started 档位）与权限口径差（C1.2），已逐条登记为 C1 差异，
+  回放用例以红呈现，不在运行时静默对齐。
 - 真实 provider smoke：OpenAI 兼容端点，文本 + 一次 `Read` 工具调用；事件、usage、
   落库可复现。
+  **Task 10 结果**：`scripts/agent-server-smoke.mts`（opt-in；`MODE_SMOKE_BASE_URL` /
+  `MODE_SMOKE_MODEL` / `MODE_SMOKE_API_KEY` / 可选 `MODE_SMOKE_DATA_ROOT`）。机制经本地
+  OpenAI 兼容 mock 演练通过（事件、usage、DB 行断言全绿）；**真实端点执行需持凭据的人运行**
+  （见 Task 10 报告的执行记录），不进 CI。
 - 会话生命周期往返：create → send → close → resume → list/read/messages；
-  `session/message/part` 行与 schema 基线一致；重启后不丢。
-- 切换/回滚：Rust 命令下无 Node 子进程；移除命令后 Node 正常；无孤儿。
+  `session/message/part` 行与 schema 基线一致；重启后不丢。（Task 7/9 集成测试覆盖。）
+- 切换/回滚：Rust 命令下无 Node 子进程；移除命令后 Node 正常；无孤儿。（Task 9 测试覆盖。）
 - `cargo clippy --all-targets -- -D warnings`、`pnpm typecheck`、`pnpm lint`、
-  `pnpm architecture:check --changed`。
+  `pnpm architecture:check --changed`。（Task 10 实跑结果见 Task 10 报告。）
 
 ### 9.3 C4 门禁
 
@@ -344,7 +356,7 @@ Rust `agent-server` 必须用**同一份**比较器（TS `compare.mts`）或与�
 | 工具面不足                | 20 任务需要 MCP/技能/子代理                                       | 明确属 C4；C1 只验 6 工具                                       |
 | 快照缺省面 vs oracle read/resume | C1 快照不产出 `runtime.contextUsage`（oracle 在 resume/read 携带 cache/usage 统计）、`settings.model.available` 为空数组（无模型目录事实源）、冷读 `projection.contextWindow` 为 0（不按历史重算，同 §4 观察 4 的口径） | Task 7 复评登记；Task 10 回放按本行分诊，不视为回归             |
 | 快照缺省面 vs oracle create | C1 create 快照不产出 `runtime.goalVerifications` / `runtime.goalVerificationTimeline`（目标验证属 goal 面，C1 未实现） | 同上；C4 接 goal 面时补齐                                       |
-| session/events / streamRecovery / session.updated 未产出 | C1 不产出 `session.updated`、`streamRecovery.updated`、`session.titleUpdated`（标题/仪表/恢复锚点需要模型层追踪数据） | 已在 `agent-server-c1-contract.md` §4-5 登记；Task 10 回放按合法差异折叠 |
+| session/events / streamRecovery / session.updated 未产出 | C1 不产出 `session.updated`、`streamRecovery.updated`、`session.titleUpdated`（标题/仪表/恢复锚点需要模型层追踪数据） | 已在 `agent-server-c1-contract.md` §4-5 登记；Task 10 回放按登记缺省过滤折叠，完整差异汇总见 `tauri-agent-runtime.md` §C1 差异登记 |
 
 ## 11. Clean-room 声明
 

@@ -733,14 +733,15 @@ async fn allow_once_reply_executes_tool_and_emits_permission_events() {
     let content = std::fs::read_to_string(&target).expect("读回文件");
     assert_eq!(content, "written-by-tool\n");
 
-    // 偏好请求只发过一次（物化时），审批发过一次。
+    // 偏好请求每运行时一对（物化时 `runtime-materialization` + 首个 turn 前
+    // `user-execution`，Task 10 对齐 oracle 的 §2.2 观察），审批发过一次。
     let preferences = connection
         .conn
         .seen_reverse
         .iter()
         .filter(|method| *method == "session/requestRuntimePreferences")
         .count();
-    assert_eq!(preferences, 1, "偏好反向请求每运行时一次");
+    assert_eq!(preferences, 2, "偏好反向请求每运行时一对（两个 scope 各一次）");
     let permissions = connection
         .conn
         .seen_reverse
@@ -1339,7 +1340,8 @@ async fn permission_reply_timeout_denies_with_batch_error() {
         .expect("提交");
 
     // 审批反向请求发出，宿主不应答 → 300ms 超时 → deny（fail-closed）。
-    // 偏好请求先到（worker 物化即发）：不应答，等它 300ms 超时回退后继续。
+    // 偏好请求先到（worker 物化即发 + 首个 turn 前的 user-execution，Task 10）：
+    // 均不应答，等各自 300ms 超时回退后继续。
     let request = loop {
         let frame = within(outbound_rx.recv()).await.expect("出站帧");
         let Frame::Request(request) = frame else {

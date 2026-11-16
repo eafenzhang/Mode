@@ -23,6 +23,7 @@ mod methods;
 mod provider_config;
 mod reverse;
 mod runtime;
+mod scripted;
 mod server;
 mod state;
 
@@ -37,6 +38,7 @@ pub use reverse::{
     REVERSE_REPLY_TIMEOUT, RUNTIME_PREFERENCES_METHOD,
 };
 pub use runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
+pub use scripted::{ScriptedFixtureSource, SCRIPTED_PROVIDER_ENV};
 pub use state::{Accepted, RuntimeConfig, RuntimeError, SessionInput};
 // 线上帧类型的唯一所有者是 `agent-protocol`；这里只做转出，避免第二套帧定义。
 pub use agent_protocol::{

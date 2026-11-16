@@ -262,14 +262,20 @@ impl Default for AgentServer {
 impl AgentServer {
     /// 骨架构造：provider 配置可用，**不配置存储**（session 方法显式报错）。
     /// 现有分派/分帧测试继续可用；生产入口用 [`Self::from_env`]。
+    ///
+    /// provider 装配源（Task 10）：`MODE_AGENT_SERVER_SCRIPTED_PROVIDER` 指向 oracle
+    /// 行为夹具时改用脚本化装配（**仅测试可达**，无默认路径）；否则生产恒为
+    /// [`HubProviderSource`]（三层合并 → OpenAI Chat Completions）。
     pub fn new() -> Self {
         let hub = Arc::new(ProviderConfigHub::from_env());
         let reverse = Arc::new(RwLock::new(None));
+        let source: Arc<dyn ProviderSource> = match crate::scripted::ScriptedFixtureSource::from_env()
+        {
+            Some(scripted) => Arc::new(scripted),
+            None => Arc::new(HubProviderSource::new(Arc::clone(&hub), Arc::clone(&reverse))),
+        };
         Self {
-            provider_source: RwLock::new(Arc::new(HubProviderSource::new(
-                Arc::clone(&hub),
-                Arc::clone(&reverse),
-            ))),
+            provider_source: RwLock::new(source),
             provider_config: hub,
             reverse,
             storage_config: Mutex::new(None),

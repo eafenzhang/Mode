@@ -952,6 +952,85 @@ oracle 同形的 `tool_not_found`」，并由行为夹具 `read-absent-search-to
    `tool_parity.rs` 因此只比 `truncated` / `budgetStrategy` / `display`，字节计数留给
    「同一隔离条件重录」的场景。**这不是产品差异**，不要在 Rust 侧为对齐数字改正文。
 
+## C1 差异登记（Rust `agent-server`，Task 10 汇总）
+
+状态：**C1 收口登记（2026-11-17）**。本节把 C1 各任务登记的合法差异与 Task 10 三层回放的
+发现汇总为一张表；逐条的观察出处见各任务报告与 `agent-core-parity.md` §10、
+`agent-server-c1-contract.md`。**规则**：这里只登记，不伪造——每一条都是「C1 现状 vs oracle
+观察」的事实差，修复任何一条都要先改 spec 再改实现。
+
+回放 harness：`packages/desktop/tests/agent-runtime-oracle/replay-agent-server.mts`
+（`agent-server-replay.test.mts` 进 `pnpm test:agent-runtime-oracle`）。它复用 §2/§3 的
+**同一份**投影/比较器（`normalize.mts` + `compare.mts`），唯一的附加口径是
+**C1 登记缺省过滤**：`session.updated` / `streamRecovery.updated` / `session.titleUpdated`
+三类事件在**两侧同删**（过滤器，不是第二张规则表）。前置条件：`cargo build -p agent-server`
+（缺失时自动构建）。夹具的 `inputByteLength` 等计数随工作目录绝对路径长度变化，harness 沿用
+`observeCase` 的 mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）。
+
+### C1.1 事件面缺省与载荷缺口
+
+| # | 差异 | oracle 观察 | C1 现状 | 出处 |
+| --- | --- | --- | --- | --- |
+| 1 | `session.updated` / `streamRecovery.updated` / `session.titleUpdated` 未产出 | 每个 turn 多条状态推送 + 流恢复锚点 + 标题事件（§1.2、contract §2.4） | 事件面只有 `turn.*` / `model.streaming` / `tool.updated` / `permission.*`；不伪造 | parity §10（Task 0/7）；回放按登记缺省过滤同删 |
+| 2 | `checkpoint.created` 未产出 | write/edit 成功路径在 batch 后、下一轮模型请求前发出（夹具 `write-new` / `edit-*`） | 无 git checkpoint 接线（`git-checkpoint-service` 属 Host 面，`agent-core` 不发） | Task 10 回放发现 |
+| 3 | `turn.started` 载荷缺 `messageId` / `foregroundExecutionId` / `queryId` | 三键存在（`<id>`） | 只发 `executionStartedAt` / `turnNumber` / `input` | Task 10 回放发现 |
+| 4 | `turn.completed` 载荷缺 `cacheStats` | `{totalMessages, cachedMessages, lastCacheHit}` | 省略（无消息级缓存统计事实源，不编数字） | Task 10 回放发现 |
+| 5 | `tool.updated(scheduled)` 缺 `assistantMessageId`；`canRunParallel` 恒 `true` | `assistantMessageId` 存在；`canRunParallel` **按工具**（Read `true`，Bash/Write/Edit `false`） | `assistantMessageId` 省略；`canRunParallel` 恒 `true` | Task 10 回放发现 |
+| 6 | `tool.updated(result)` 的 `perf` 缺工具级 `detail` 与 `permissionWaitMs` | `detail` 按 kind：`command`（runMs/noOutputMs/exitCode/timedOut/outputBytes/category/count/name/status/hash）与 `filesystem`（readMs/writeMs/fileCount/totalBytes/maxFileBytes/workspaceKind）；审批前有 `permissionWaitMs` | `perf` 只有 `totalMs` | Task 10 回放发现 |
+| 7 | `tool.updated(error)` 缺 `error.stack` | JS 栈（`dist` 行号随构建漂移——oracle 自回放基线红的来源之一，见下） | Rust 无 JS 栈，不伪造 | Task 10 回放发现；栈文本不参与跨实现对拍 |
+| 8 | `permission.requested` 缺 `fullAccessSupported` | `true` | 省略 | Task 10 回放发现 |
+| 9 | `Bash` 的 `started` 档位 | `readOnly:false`、`sideEffectScope:"system"` | `readOnly:true`、`sideEffectScope:"none"`（其余非只读档未观察，见 `agent-core` `started_event` 注释） | Task 10 回放发现 |
+| 10 | 失败 turn 的形态 | 本批夹具无失败 turn（无对照） | 恒先 `turn.started` 再补唯一 `turn.failed`（配置失败/取消/收口路径一致）；`turn.failed` 载荷只填协议必填字段 | Task 6/7 登记 |
+
+### C1.2 权限评估口径（Task 10 回放发现）
+
+| # | 场景 | oracle | C1 |
+| --- | --- | --- | --- |
+| 1 | schema 级非法入参（`Bash {}` 空入参、`Edit` 缺 `new_string`、`Read` offset 类型错误） | **先输入校验**：不产生审批对，也不产生 `started`，直接 `error`/`batch` | 先审批（`Ask`）+ `started`，校验在 invoke 内 → 多出 `permission.requested/resolved`（部分场景多 `started`） |
+| 2 | `Bash` 命令分级：`printf 'err' >&2`、`;` 复合命令、`sleep 5` | 不审批（allow） | 判 `Ask`（medium/high）→ 多出审批对 |
+
+工具调用与结果本身两层（toolCalls/files）逐字一致；差异只在「是否弹审批」与事件的编排顺序。
+
+### C1.3 快照与投影缺省面
+
+| # | 差异 | 出处 |
+| --- | --- | --- |
+| 1 | `runtime.contextUsage` / `settings.model.available`（空数组）/ 冷读 `projection.contextWindow`（0，不按历史重算）缺省 | parity §10（Task 7） |
+| 2 | `runtime.goalVerifications` / `goalVerificationTimeline` 缺省（goal 面属 C3） | parity §10（Task 7） |
+| 3 | `session/messages` wire 投影按协议镜像：C1 未建模的 part 类型与工具私有 `metadata`（如 `readFileState`）不进投影 | Task 7；contract §3.7 |
+| 4 | 快照 `session.title` 空串、无 `titleSource`（标题生成不实现；DB 行 title 亦空） | Task 7；contract §4-3 |
+| 5 | DB 行数缺口（probe `--replay` 观察）：oracle 在会话里多写 3 行——合成 timeline 消息行（`semantics.origin:"system"`）+ 其 timeline part + `runtime/bash_shell_selection` entry（shell 检测）；C1 均不写（未建模，message/part/session_entry 各 −1） | Task 10 发现（`probe-session-lifecycle.mts --replay`） |
+
+### C1.4 反向请求与偏好
+
+| # | 差异 | 出处 |
+| --- | --- | --- |
+| 1 | 偏好对：oracle 每 materialize **一对**（`runtime-materialization` + `user-execution`，resume 后立即成对）；C1 `materialization` 在物化时发、`user-execution` 在**每运行时首个 turn 开始前**发（Task 10 起；create 路径与 oracle 时序一致，resume 路径的第二次请求延到首个 send） | Task 8 + Task 10 |
+| 2 | `session/create` 的响应先于偏好反向请求帧落盘（oracle create 阻塞等偏好应答后才返回） | Task 8 报告 #2 |
+| 3 | 存储门通知常量 `attemptId:"attempt-1"` / `databaseId:"db-1"`（oracle 用真实尝试/库 id） | Task 1/7 |
+| 4 | 审批反向请求超时恒 15s（`REVERSE_REPLY_TIMEOUT`，观察值 `-32022`）；超时 → deny fail-closed | Task 8 |
+
+### C1.5 运行时与持久化边界
+
+| # | 差异 | 出处 |
+| --- | --- | --- |
+| 1 | `finish_reason` 的 `length` / `content_filter` → `"stop"`（折叠线上取值） | parity §5.6（Task 4） |
+| 2 | 内存事件日志有界（4096，超出丢最旧）；oracle 无此界 | Task 6 |
+| 3 | worker panic → `RuntimeClosed`（`-32603`；oracle 形态未观察） | Task 6/9 |
+| 4 | C1 存储门 fail-closed：缺账本报 `storage_schema_unsupported`、被占用报 `storage_locked` 等（错误码词表见 `packages/shared/src/database-startup.ts`）；fresh-install migration 归 C2 | parity §6/§8 |
+| 5 | `session_input` 在 v1 immediate/deferred 路径都不写行（oracle 0 行观察） | contract §3.5 |
+
+### C1.6 回放 harness 口径说明（**非运行时行为**）
+
+- **`tool_input_delta` 的 JSON 键序**：脚本化 provider（`MODE_AGENT_SERVER_SCRIPTED_PROVIDER`，
+  测试专用开关）用 `serde_json` 重新序列化夹具入参，默认按字典序输出键；TS mock 按
+  夹具字面量序（`JSON.stringify`）。多键工具入参（write/edit/offset+limit）的 delta
+  文本因此键序不同。真实 provider 场景不存在该差异（delta 字节来自线上）；不为此启用
+  `serde_json/preserve_order`（全局 feature 翻转会改变 DB JSON 列与协议帧的既有字节形状）。
+- **`stack` 不参与对拍**：oracle 录制的 `error.stack` 是 dist 构建的行号，重录即漂移
+  （oracle 套件既有基线红的一部分）；Rust 不产出栈，比较时两侧同删不在 harness 里做——
+  它作为 C1.1-#7 的载荷缺口如实报红。
+
 ## 验收场景（Task 0）
 
 1. `pnpm test:agent-runtime-oracle`（唯一入口；等价于
