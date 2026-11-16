@@ -483,3 +483,33 @@ fn usage_records_keep_message_data_shape() {
     assert_eq!(raw, raw_usage);
     assert_eq!(metadata, "{\"requestId\":\"r1\"}");
 }
+
+#[test]
+fn touch_session_updates_time_only_and_fails_on_missing_row() {
+    let (_root, store) = open_fixture("crud-touch-session");
+
+    store
+        .create_session(sample_session("s-touch", "/ws/touch", 1_000, false))
+        .expect("创建 session");
+
+    store
+        .touch_session("s-touch", 2_000)
+        .expect("touch 已存在的会话");
+    let record = store
+        .get_session("s-touch")
+        .expect("读取")
+        .expect("会话存在");
+    assert_eq!(record.time_updated, 2_000);
+    assert_eq!(record.time_created, 990, "其他列不变");
+    assert_eq!(record.title, "title-s-touch", "其他列不变");
+
+    // 不存在的会话：显式报错，不静默 Ok。
+    let error = store
+        .touch_session("s-missing", 3_000)
+        .expect_err("会话不存在应报错");
+    assert!(
+        matches!(error, StoreError::InvalidInput(_)),
+        "实际：{error:?}"
+    );
+    assert_eq!(error.code(), "invalid_input");
+}

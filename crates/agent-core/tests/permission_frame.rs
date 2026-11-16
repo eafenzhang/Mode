@@ -14,6 +14,7 @@ use serde_json::json;
 use agent_core::permission::FramePermissionHandler;
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::session::Session;
+use agent_core::CancelToken;
 use agent_core::{SessionEvent, SessionEventType};
 use agent_protocol::frame::{
     ErrorObject, ErrorResponseFrame, Frame, RequestId, ResponseFrame, ReverseRequestIds,
@@ -104,6 +105,7 @@ async fn frame_allow_round_trip_lets_the_tool_run() {
             "write it",
             &provider(&[path.to_string_lossy().to_string()]),
             &mut sink,
+            &CancelToken::new(),
         )
         .await
         .expect("turn 应成功");
@@ -143,6 +145,7 @@ async fn error_frame_fails_closed() {
             "deny it",
             &provider(&[path.to_string_lossy().to_string()]),
             &mut sink,
+            &CancelToken::new(),
         )
         .await
         .expect("turn 应成功");
@@ -175,6 +178,7 @@ async fn malformed_result_fails_closed() {
             "deny it",
             &provider(&[path.to_string_lossy().to_string()]),
             &mut sink,
+            &CancelToken::new(),
         )
         .await
         .expect("turn 应成功");
@@ -216,6 +220,7 @@ async fn responses_with_other_ids_are_ignored() {
             "deny it",
             &provider(&[path.to_string_lossy().to_string()]),
             &mut sink,
+            &CancelToken::new(),
         )
         .await
         .expect("turn 应成功");
@@ -240,6 +245,7 @@ async fn closed_frame_channel_fails_closed() {
             "closed",
             &provider(&[path.to_string_lossy().to_string()]),
             &mut sink,
+            &CancelToken::new(),
         )
         .await
         .expect("turn 应成功，不 panic");
@@ -277,6 +283,7 @@ async fn request_ids_are_monotonic_across_a_batch() {
                 second.to_string_lossy().to_string(),
             ]),
             &mut sink,
+            &CancelToken::new(),
         )
         .await
         .expect("turn 应成功");
@@ -295,6 +302,7 @@ async fn run_session(name: &str, dir: &Path, handler: FramePermissionHandler, pa
             "write it",
             &provider(&[path.to_string_lossy().to_string()]),
             &mut sink,
+            &CancelToken::new(),
         )
         .await
         .expect("turn 应成功");

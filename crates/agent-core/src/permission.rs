@@ -29,7 +29,11 @@ use agent_tools::{ModeToolFamily, ToolSpec};
 use crate::approval::Ruleset;
 
 /// 审批交互的消费端：会话循环拿到 [`PermissionRequest`] 后交给它，取回答复。
-pub trait PermissionHandler {
+///
+/// `Send` 上界（LT-1 C1 控制器裁决 1）：[`crate::session::Session`] 持有
+/// `Box<dyn PermissionHandler>`，而 Session 会被 move 进 tokio worker 的 turn future，
+/// 该 future 必须是 `Send`。
+pub trait PermissionHandler: Send {
     fn request(&mut self, request: &PermissionRequest) -> PermissionResponse;
 }
 

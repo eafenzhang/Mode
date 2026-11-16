@@ -115,6 +115,26 @@ impl SessionStore {
         Ok(record)
     }
 
+    /// 刷新 `session.time_updated`（LT-1 C1 Task 6：turn 终态后由运行时调用，让
+    /// `session/list` 的 `time_updated DESC` 排序看到最新活动）。
+    ///
+    /// 只更新时间列，不改其他列；会话行不存在时报 [`StoreError::InvalidInput`]
+    /// （fail-closed：静默 Ok 会把「runtime 指向了不存在的会话」藏起来）。
+    pub fn touch_session(&self, session_id: &str, time_updated: i64) -> Result<(), StoreError> {
+        self.with_write_transaction(|transaction| {
+            let updated = transaction.execute(
+                "UPDATE session SET time_updated = ?2 WHERE id = ?1",
+                params![session_id, time_updated],
+            )?;
+            if updated == 0 {
+                return Err(StoreError::InvalidInput(format!(
+                    "touch_session：会话不存在：{session_id}"
+                )));
+            }
+            Ok(())
+        })
+    }
+
     /// 列出某 workspace 的会话，按 `time_updated DESC, id DESC`。
     ///
     /// `workspace_key` 只匹配 `session.directory`（实际 workspace 目录）。`project_id`

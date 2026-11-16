@@ -51,10 +51,10 @@ use agent_protocol::permission::{
     PermissionResponse, PermissionRuleValue, PermissionUpdate, PermissionUpdateType, RuleBehavior,
 };
 use agent_protocol::session_event::{
-    DeliveryKind, ModelStreamingKind, ModelStreamingPayload, ProtocolInstant, SessionEvent,
-    SessionEventType, ToolBatchPayload, ToolCallIdentity, ToolErrorPayload, ToolResultPayload,
-    ToolSchedule, ToolScheduledPayload, ToolStartedPayload, ToolUpdatedPayload,
-    TurnCompletedPayload, TurnResultType, TurnStartedPayload,
+    DeliveryKind, ModelStreamingKind, ModelStreamingPayload, ProtocolErrorDetail, ProtocolInstant,
+    SessionEvent, SessionEventType, ToolBatchPayload, ToolCallIdentity, ToolErrorPayload,
+    ToolResultPayload, ToolSchedule, ToolScheduledPayload, ToolStartedPayload, ToolUpdatedPayload,
+    TurnCompletedPayload, TurnFailedPayload, TurnResultType, TurnStartedPayload,
 };
 use agent_protocol::ExtraFields;
 use agent_tools::{
@@ -63,10 +63,12 @@ use agent_tools::{
 };
 
 use crate::approval::Ruleset;
+use crate::cancel::CancelToken;
 use crate::permission::{AutoAllow, PermissionHandler, DENY_REASON};
 use crate::plugin_tools::{PluginToolDeclaration, PluginToolSource};
 use crate::provider::{
-    ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse, ModelUsage, ProviderError,
+    ModelCapabilities, ModelDelta, ModelMessage, ModelProvider, ModelResponse, ModelUsage,
+    ProviderError,
 };
 use crate::rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
 use crate::stream::{EventSink, TurnError};
@@ -118,6 +120,10 @@ pub struct Session {
     extra_tools: Vec<ToolSpec>,
     /// 插件工具的执行源；`None` = 没有插件宿主（插件工具不会出现在表里）。
     plugin_tools: Option<Arc<dyn PluginToolSource>>,
+    /// 当前模式（进系统提示；宿主层经 `with_mode` 接线，缺省 `build`）。
+    mode: String,
+    /// 模型能力（进系统提示的限额行；缺省 = provider 未上报）。
+    model_capabilities: ModelCapabilities,
 }
 
 impl Session {
@@ -141,7 +147,21 @@ impl Session {
             rule_store_error: None,
             extra_tools: Vec::new(),
             plugin_tools: None,
+            mode: "build".to_string(),
+            model_capabilities: ModelCapabilities::default(),
         }
+    }
+
+    /// 接线当前模式（进系统提示；LT-1 C1 的运行时从 `RuntimeConfig` 传入）。
+    pub fn with_mode(mut self, mode: impl Into<String>) -> Self {
+        self.mode = mode.into();
+        self
+    }
+
+    /// 接线模型能力（系统提示的「Model limits」行；缺省值 = provider 未上报）。
+    pub fn with_model_capabilities(mut self, capabilities: ModelCapabilities) -> Self {
+        self.model_capabilities = capabilities;
+        self
     }
 
     /// 接线插件工具源（M3 Task 3）：构造时拉一次 `listTools`，之后随会话使用。
@@ -280,15 +300,18 @@ impl Session {
     /// oracle 在忙时**直接丢弃**通知（spec §3.5）；因此调用方只能在空闲时调用本方法。
     /// `&mut self` 保证它不会与 [`Self::run_turn`] 并发；是否在忙时丢弃由调用方决定，
     /// 这里不偷偷替调用方排队。返回实际跑掉的通知条数。
+    ///
+    /// `cancel` 与 [`Self::run_turn`] 同源：调用方给同一个 token，通知 turn 也遵守取消。
     pub async fn run_pending_notifications(
         &mut self,
         provider: &dyn ModelProvider,
         sink: &mut dyn EventSink,
+        cancel: &CancelToken,
     ) -> Result<usize, TurnError> {
         let notifications = self.tasks.take_notifications();
         let count = notifications.len();
         for notification in notifications {
-            self.run_turn(&notification.to_xml(), provider, sink)
+            self.run_turn(&notification.to_xml(), provider, sink, cancel)
                 .await?;
         }
         Ok(count)
@@ -350,7 +373,7 @@ impl Session {
             foreground_execution_id: None,
             extra: ExtraFields::new(),
         };
-        self.emit(&turn_id, SessionEventType::TurnStarted, &payload)
+        self.emit(Some(&turn_id), SessionEventType::TurnStarted, &payload)
     }
 
     /// 跑完一个完整 turn：模型流 →（可选）工具批次 → 终态。
@@ -361,12 +384,26 @@ impl Session {
     /// 保证最后一批 delta 不丢。oracle 还会发若干 `session.updated` /
     /// `streamRecovery.updated`（需要消息计数与追踪 id），本步**不产出**，差异已登记。
     ///
+    /// # 取消边界（LT-1 C1 控制器裁决 4）
+    ///
+    /// `cancel` 在两类边界生效：
+    /// - **模型流中**：`select!` 的 cancel 分支在下一条 delta 边界停住——已到达的
+    ///   delta 已发事件、已累积进本步文本，不再消费后续 delta，provider future 随
+    ///   turn 一起放弃；
+    /// - **步之间**：下一次模型请求开始前（含工具批次之后）检查，命中即不再发请求。
+    ///
+    /// 取消的终态是**唯一的** `turn.completed`（`resultType:"cancelled"`，协议注释把
+    /// 用户中断归为正常结束），随后返回 [`TurnError::cancelled`] 让调用方知道 turn
+    /// 没有正常完成但**不要再发**第二个终态。provider 错误仍返回普通
+    /// [`TurnError`] 且不发终态——终态（`turn.failed`）由调用方负责。
+    ///
     /// 只实现 `desktop-continuous` 的实时语义；重放归 Host/relay（DR-T5-1）。
     pub async fn run_turn(
         &mut self,
         prompt: &str,
         provider: &dyn ModelProvider,
         sink: &mut dyn EventSink,
+        cancel: &CancelToken,
     ) -> Result<(), TurnError> {
         let started_at = std::time::Instant::now();
         sink.emit(self.begin_turn(prompt));
@@ -375,19 +412,34 @@ impl Session {
             .current_turn_id
             .clone()
             .expect("begin_turn 已设置 turn id");
-        // 工具声明与会话上下文装配共用同一份 `ToolSpec → ModelToolDefinition` 映射。
-        let tools = crate::context::tool_definitions(&self.tools());
+        // 请求装配走统一的上下文模块（见循环体内）：系统提示（身份/工作区/工具/安全
+        // 边界）在最前，随后是历史消息与本轮输入。系统提示不进 `self.messages`——它是
+        // **每次请求**装配的，不是会话历史的一部分；工具结果要进下一轮请求，所以
+        // 每次迭代都从当前历史重新装配。
 
         let mut usage = ModelUsage::default();
         let mut model_requests = 0_u64;
         let mut tool_call_count = 0_u64;
+        let mut cancelled = false;
+        // 取消时正在流的这一步已经到达的文本（终态如实携带，不丢已投递的 delta）。
+        let mut cancelled_response = String::new();
 
-        let response_text = loop {
+        let response_text = 'drive: loop {
+            // 取消边界：下一次模型请求开始前（首个请求、工具批次之后同样适用）。
+            // 此时没有「正在流的本步文本」，终态 response 保持为空。
+            if cancel.is_cancelled() {
+                cancelled = true;
+                break 'drive String::new();
+            }
             model_requests += 1;
-            let request = ModelRequest {
-                messages: self.messages.clone(),
-                tools: tools.clone(),
+            let context_input = crate::context::ContextInput {
+                cwd: &self.cwd,
+                mode: &self.mode,
+                tools: &self.tools(),
+                messages: &self.messages,
+                model: &self.model_capabilities,
             };
+            let request = crate::context::build_model_request(&context_input);
 
             // 一次模型请求一条 delta 通道：provider 产出一条就 send，会话侧随到随发。
             let (delta_sink, mut deltas) = tokio::sync::mpsc::unbounded_channel();
@@ -400,7 +452,8 @@ impl Session {
             while provider_result.is_none() {
                 tokio::select! {
                     // `biased` + delta 优先：已到达的 delta 先发，future 就绪后队列里的尾巴
-                    // 仍按顺序走完，不会被「future 先完成」抢掉。
+                    // 仍按顺序走完，不会被「future 先完成」抢掉；取消也只在 delta 边界
+                    // （没有立即可消费的 delta 时）生效，不会打断半条 delta。
                     biased;
                     maybe_delta = deltas.recv(), if delta_channel_open => {
                         match maybe_delta {
@@ -417,7 +470,15 @@ impl Session {
                         }
                     }
                     result = &mut provider_future => provider_result = Some(result),
+                    _ = cancel.cancelled() => {
+                        cancelled = true;
+                        break;
+                    }
                 }
+            }
+            if cancelled {
+                cancelled_response = text;
+                break 'drive String::new();
             }
 
             // future 结束前已经进入队列、但还没被 select 取走的 delta（tail）。
@@ -446,7 +507,7 @@ impl Session {
                     text: Some(text.clone()),
                     tool_calls: Vec::new(),
                 });
-                break text;
+                break 'drive text;
             }
 
             self.messages.push(ModelMessage::Assistant {
@@ -466,7 +527,38 @@ impl Session {
             for event in tool_events {
                 sink.emit(event);
             }
+            // 工具批次跑完后回到循环顶：若已取消，不再发起新的模型请求。
         };
+
+        if cancelled {
+            let total_tokens = usage.input_tokens + usage.output_tokens;
+            let payload = TurnCompletedPayload {
+                response: cancelled_response,
+                token_count: total_tokens,
+                usage: Some(serde_json::json!({
+                    "source": "provider",
+                    "modelRequestCount": model_requests,
+                    "inputTokens": usage.input_tokens,
+                    "outputTokens": usage.output_tokens,
+                    "totalTokens": total_tokens,
+                    "cacheReadTokens": usage.cache_read_tokens,
+                    "cacheWriteTokens": usage.cache_write_tokens,
+                    "reasoningTokens": usage.reasoning_tokens,
+                    "webFetchRequests": 0,
+                    "webSearchRequests": 0,
+                })),
+                tool_call_count,
+                history_round_count: Some(model_requests),
+                duration: started_at.elapsed().as_millis() as f64,
+                cache_stats: None,
+                input_id: None,
+                result_type: TurnResultType::Cancelled,
+                background_subagent_result_consumed: None,
+                extra: ExtraFields::new(),
+            };
+            sink.emit(self.emit(Some(&turn_id), SessionEventType::TurnCompleted, &payload));
+            return Err(TurnError::cancelled());
+        }
 
         let total_tokens = usage.input_tokens + usage.output_tokens;
         let payload = TurnCompletedPayload {
@@ -493,7 +585,7 @@ impl Session {
             background_subagent_result_consumed: None,
             extra: ExtraFields::new(),
         };
-        sink.emit(self.emit(&turn_id, SessionEventType::TurnCompleted, &payload));
+        sink.emit(self.emit(Some(&turn_id), SessionEventType::TurnCompleted, &payload));
         Ok(())
     }
 
@@ -607,7 +699,7 @@ impl Session {
                 extra: ExtraFields::new(),
             },
         };
-        self.emit(turn_id, SessionEventType::ModelStreaming, &payload)
+        self.emit(Some(turn_id), SessionEventType::ModelStreaming, &payload)
     }
 
     /// 把工具结果写回模型历史（下一轮请求要用）。
@@ -689,14 +781,14 @@ impl Session {
                         let request =
                             self.permission_request(&turn_id, call, spec, risk_level, reason);
                         events.push(self.emit(
-                            &turn_id,
+                            Some(&turn_id),
                             SessionEventType::PermissionRequested,
                             &request,
                         ));
                         let response = self.permission_handler.request(&request);
                         let decision = response.decision;
                         events.push(self.emit(
-                            &turn_id,
+                            Some(&turn_id),
                             SessionEventType::PermissionResolved,
                             &serde_json::json!({
                                 "requestId": request.request_id,
@@ -1024,16 +1116,17 @@ impl Session {
     /// 发一条 `tool.updated`：载荷是**带 `kind` 判别键的枚举**，所以包信封的是枚举而不是内部结构体
     /// （只序列化内部结构体会丢掉 `kind`，实测解回来报 `missing field «kind»`）。
     fn emit_tool(&mut self, turn_id: &str, payload: ToolUpdatedPayload) -> SessionEvent {
-        self.emit(turn_id, SessionEventType::ToolUpdated, &payload)
+        self.emit(Some(turn_id), SessionEventType::ToolUpdated, &payload)
     }
 
     /// 包一个会话事件信封。
     ///
     /// `eventId` 用单调 id 而不是 uuid：spec §3 把 `eventId` 归一成 `<id>`，它的真实形态不是
     /// 被对拍的行为，单调 id 反而让用例可以断言。`traceId` 留空（追踪 id 由模型/会话层给）。
+    /// `turn_id` 为 `None` 时信封省略 `turnId`（turn 尚未开始就失败的场景）。
     fn emit<T: Serialize>(
         &mut self,
-        turn_id: &str,
+        turn_id: Option<&str>,
         event_type: SessionEventType,
         payload: &T,
     ) -> SessionEvent {
@@ -1041,7 +1134,7 @@ impl Session {
         SessionEvent {
             event_id: format!("evt_{}", self.sequence),
             session_id: self.session_id.clone(),
-            turn_id: Some(turn_id.to_string()),
+            turn_id: turn_id.map(str::to_string),
             seq: self.sequence,
             trace_id: None,
             timestamp: now_ms(),
@@ -1051,6 +1144,43 @@ impl Session {
             event_type,
             payload: Some(serde_json::to_value(payload).expect("镜像类型可序列化")),
         }
+    }
+
+    /// 发一条 `turn.failed` 终态（LT-1 C1 控制器裁决 3：终态恰好一次）。
+    ///
+    /// 用于 provider 错误等 `run_turn` 自身没有发终态的失败路径：seq 归 [`Session`]
+    /// 统一分配，信封的 `turnId` 在 turn 尚未开始（如 turn 前持久化失败）时省略。
+    ///
+    /// 线上 `turn.failed` 的完整载荷尚未观察（见 [`crate::stream`] 的边界注释）；这里
+    /// 只填协议必填的 `error.message` 与 `turn_phase`（调用方按失败阶段给值，如
+    /// `"model"`），不编造 `error.code` / `error.type` 等未观察字段。
+    pub fn emit_turn_failed(
+        &mut self,
+        turn_id: Option<&str>,
+        error_message: &str,
+        turn_phase: &str,
+    ) -> SessionEvent {
+        let payload = TurnFailedPayload {
+            error: ProtocolErrorDetail {
+                // 协议必填但取值未观察：用中性的运行时标记，不为对拍编造供应商形状。
+                error_type: "runtime_error".to_string(),
+                message: error_message.to_string(),
+                stack: None,
+                code: None,
+                detail: None,
+                underlying_error_message: None,
+                underlying_error_detail: None,
+                attribution: None,
+                retryable: None,
+                data: None,
+                extra: ExtraFields::new(),
+            },
+            turn_phase: turn_phase.to_string(),
+            input_id: None,
+            background_subagent_result_consumed: None,
+            extra: ExtraFields::new(),
+        };
+        self.emit(turn_id, SessionEventType::TurnFailed, &payload)
     }
 }
 

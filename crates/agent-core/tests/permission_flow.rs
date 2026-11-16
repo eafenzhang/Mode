@@ -11,6 +11,7 @@ use serde_json::{json, Value};
 use agent_core::permission::PermissionHandler;
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::session::Session;
+use agent_core::CancelToken;
 use agent_core::{SessionEvent, SessionEventType};
 use agent_protocol::permission::{PermissionDecision, PermissionRequest, PermissionResponse};
 use agent_protocol::session_event::ToolBatchPayload;
@@ -96,7 +97,7 @@ async fn allow_runs_the_tool_after_the_permission_round_trip() {
     let mut sink = Vec::new();
 
     session
-        .run_turn("write it", &provider, &mut sink)
+        .run_turn("write it", &provider, &mut sink, &CancelToken::new())
         .await
         .expect("turn 应成功");
 
@@ -146,7 +147,7 @@ async fn deny_leaves_only_scheduled_and_batch() {
     let mut sink = Vec::new();
 
     session
-        .run_turn("deny it", &provider, &mut sink)
+        .run_turn("deny it", &provider, &mut sink, &CancelToken::new())
         .await
         .expect("turn 仍应成功");
 
@@ -197,7 +198,7 @@ async fn allow_project_stops_asking_for_the_same_path() {
     let mut sink = Vec::new();
 
     session
-        .run_turn("write three", &provider, &mut sink)
+        .run_turn("write three", &provider, &mut sink, &CancelToken::new())
         .await
         .expect("turn 应成功");
 

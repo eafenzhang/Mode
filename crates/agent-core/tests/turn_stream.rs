@@ -17,6 +17,7 @@ use agent_core::provider::{
     ProviderError, ScriptStep, ScriptToolCall, ScriptedProvider,
 };
 use agent_core::session::Session;
+use agent_core::CancelToken;
 use agent_core::{DeliveryKind, EventSink, SessionEvent, SessionEventType};
 use agent_protocol::session_event::{
     ModelStreamingKind, ModelStreamingPayload, TurnCompletedPayload,
@@ -52,7 +53,7 @@ async fn events_carry_the_requested_delivery_kind() {
     let mut sink = Vec::new();
 
     session
-        .run_turn("probe delivery", &provider, &mut sink)
+        .run_turn("probe delivery", &provider, &mut sink, &CancelToken::new())
         .await
         .expect("turn 应成功");
     assert!(!sink.is_empty());
@@ -81,7 +82,7 @@ async fn text_turn_streams_the_model_and_completes() {
     let mut sink = Vec::new();
 
     session
-        .run_turn("probe text turn", &provider, &mut sink)
+        .run_turn("probe text turn", &provider, &mut sink, &CancelToken::new())
         .await
         .expect("turn 应成功");
 
@@ -123,7 +124,7 @@ async fn tool_turn_interleaves_model_streaming_and_tool_events() {
     let mut sink = Vec::new();
 
     session
-        .run_turn("probe tool turn", &provider, &mut sink)
+        .run_turn("probe tool turn", &provider, &mut sink, &CancelToken::new())
         .await
         .expect("turn 应成功");
 
@@ -235,7 +236,8 @@ async fn model_streaming_is_emitted_before_the_provider_returns() {
     let mut session = Session::new("sess_stream", dir.to_string_lossy().to_string());
     let (events, mut received) = mpsc::unbounded_channel();
     let mut sink = ChannelSink(events);
-    let mut turn = Box::pin(session.run_turn("probe incremental", &provider, &mut sink));
+    let cancel = CancelToken::new();
+    let mut turn = Box::pin(session.run_turn("probe incremental", &provider, &mut sink, &cancel));
 
     let started = within(async {
         tokio::select! {

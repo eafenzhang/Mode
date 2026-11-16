@@ -9,6 +9,7 @@ use serde_json::json;
 use agent_core::plugin_tools::PluginToolSource;
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::session::Session;
+use agent_core::CancelToken;
 use agent_core::{SessionEvent, SessionEventType};
 use agent_protocol::session_event::ToolUpdatedPayload;
 use plugin_host::supervisor::{SidecarSupervisor, SupervisorConfig};
@@ -109,7 +110,7 @@ async fn session_runs_a_plugin_tool_end_to_end() {
     ]);
     let mut sink = Vec::new();
     session
-        .run_turn("run plugin tool", &provider, &mut sink)
+        .run_turn("run plugin tool", &provider, &mut sink, &CancelToken::new())
         .await
         .expect("turn 应成功");
     assert_eq!(tool_result(&sink), "e2e");

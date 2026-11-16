@@ -12,6 +12,7 @@ use serde_json::json;
 use agent_core::permission::ChannelPermissionHandler;
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::session::Session;
+use agent_core::CancelToken;
 use agent_core::{SessionEvent, SessionEventType};
 use agent_protocol::session_event::ToolUpdatedPayload;
 
@@ -73,7 +74,12 @@ async fn host_reply_allow_lets_the_tool_run() {
         .with_permission_handler(Box::new(handler));
     let mut sink = Vec::new();
     session
-        .run_turn("write it", &provider(&path_text), &mut sink)
+        .run_turn(
+            "write it",
+            &provider(&path_text),
+            &mut sink,
+            &CancelToken::new(),
+        )
         .await
         .expect("turn 应成功");
 
@@ -100,7 +106,12 @@ async fn host_reply_deny_keeps_the_observed_shape() {
         .with_permission_handler(Box::new(handler));
     let mut sink = Vec::new();
     session
-        .run_turn("deny it", &provider(&path_text), &mut sink)
+        .run_turn(
+            "deny it",
+            &provider(&path_text),
+            &mut sink,
+            &CancelToken::new(),
+        )
         .await
         .expect("turn 应成功");
     worker.join().expect("线程不应 panic");
@@ -121,7 +132,12 @@ async fn closed_channel_fails_closed() {
         .with_permission_handler(Box::new(handler));
     let mut sink = Vec::new();
     session
-        .run_turn("closed", &provider(&path_text), &mut sink)
+        .run_turn(
+            "closed",
+            &provider(&path_text),
+            &mut sink,
+            &CancelToken::new(),
+        )
         .await
         .expect("turn 应成功，不 panic");
 

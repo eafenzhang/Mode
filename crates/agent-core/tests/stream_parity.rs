@@ -14,6 +14,7 @@ use serde_json::{json, Map, Value};
 
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::session::Session;
+use agent_core::CancelToken;
 use agent_core::{SessionEvent, SessionEventType};
 use agent_protocol::session_event::{
     ModelStreamingKind, ModelStreamingPayload, ToolUpdatedPayload, TurnCompletedPayload,
@@ -214,6 +215,7 @@ async fn desktop_continuous_stream_matches_the_recorded_projection() {
                 case["prompt"].as_str().expect("case 有 prompt"),
                 &provider,
                 &mut sink,
+                &CancelToken::new(),
             )
             .await
             .expect("turn 应成功");

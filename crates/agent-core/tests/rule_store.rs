@@ -13,6 +13,7 @@ use agent_core::permission::PermissionHandler;
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::rule_store::{scope_id_for, RuleStore, SqliteRuleStore, LOCAL_SETTING_DDL};
 use agent_core::session::Session;
+use agent_core::CancelToken;
 use agent_core::SessionEventType;
 use agent_protocol::permission::{
     PermissionRequest, PermissionResponse, PermissionRuleValue, PermissionUpdate,
@@ -158,7 +159,12 @@ async fn allow_project_survives_into_a_new_session() {
         .with_permission_handler(Box::new(ProjectOnce));
     let mut first_sink = Vec::new();
     first
-        .run_turn("write once", &provider, &mut first_sink)
+        .run_turn(
+            "write once",
+            &provider,
+            &mut first_sink,
+            &CancelToken::new(),
+        )
         .await
         .expect("第一个 turn");
     assert_eq!(first.rule_store_error(), None, "落盘不应失败");
@@ -180,7 +186,12 @@ async fn allow_project_survives_into_a_new_session() {
         .with_sqlite_rules(db.clone());
     let mut second_sink = Vec::new();
     second
-        .run_turn("write again", &provider, &mut second_sink)
+        .run_turn(
+            "write again",
+            &provider,
+            &mut second_sink,
+            &CancelToken::new(),
+        )
         .await
         .expect("第二个 turn");
 

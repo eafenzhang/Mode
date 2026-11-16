@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use agent_core::plugin_tools::{PluginToolDeclaration, PluginToolError, PluginToolSource};
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::session::Session;
+use agent_core::CancelToken;
 use agent_core::{SessionEvent, SessionEventType};
 use agent_protocol::session_event::ToolUpdatedPayload;
 
@@ -149,7 +150,7 @@ async fn plugin_tools_are_injected_and_invoked() {
     }]);
     let mut sink = Vec::new();
     session
-        .run_turn("use plugin", &provider, &mut sink)
+        .run_turn("use plugin", &provider, &mut sink, &CancelToken::new())
         .await
         .expect("turn 应成功");
 
@@ -213,7 +214,7 @@ async fn plugin_tool_errors_map_to_tool_execution_failed() {
     }]);
     let mut sink = Vec::new();
     session
-        .run_turn("fail", &provider, &mut sink)
+        .run_turn("fail", &provider, &mut sink, &CancelToken::new())
         .await
         .expect("turn");
 
@@ -234,7 +235,7 @@ async fn unknown_plugin_names_stay_tool_not_found() {
     }]);
     let mut sink = Vec::new();
     session
-        .run_turn("missing", &provider, &mut sink)
+        .run_turn("missing", &provider, &mut sink, &CancelToken::new())
         .await
         .expect("turn");
 
@@ -267,7 +268,7 @@ async fn declared_high_risk_plugin_tool_uses_its_metadata() {
     }]);
     let mut sink = Vec::new();
     session
-        .run_turn("high", &provider, &mut sink)
+        .run_turn("high", &provider, &mut sink, &CancelToken::new())
         .await
         .expect("turn");
 
@@ -325,7 +326,7 @@ async fn sdk_error_shape_is_preserved() {
     }]);
     let mut sink = Vec::new();
     session
-        .run_turn("crash", &provider, &mut sink)
+        .run_turn("crash", &provider, &mut sink, &CancelToken::new())
         .await
         .expect("turn");
 
