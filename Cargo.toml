@@ -38,6 +38,7 @@ members = [
   "crates/protocol",
   "crates/rpc-wire",
   "crates/rpc-host",
+  "crates/session-store",
   "crates/settings-store",
   "crates/storage-usage",
   "crates/usage-stats",
