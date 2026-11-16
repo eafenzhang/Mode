@@ -13,4 +13,9 @@ mod server;
 
 pub use dispatch::AgentServer;
 pub use lifecycle::{parse_startup_args, run_main, StartupArgs, APP_SERVER_MODE, STDIO_FLAG};
-pub use server::{run_stdio, Frame, RequestId, ServerError, MAX_FRAME_BYTES};
+// 线上帧类型的唯一所有者是 `agent-protocol`；这里只做转出，避免第二套帧定义。
+pub use agent_protocol::{
+    ErrorObject, ErrorResponseFrame, Frame, NotificationFrame, RequestFrame, RequestId,
+    ResponseFrame, ReverseRequestIds,
+};
+pub use server::{frame_from_value, run_stdio, ServerError, MAX_FRAME_BYTES};

@@ -40,13 +40,17 @@ pub fn parse_startup_args(args: &[String]) -> StartupArgs {
 }
 
 /// 解析 `std::env::args()`（跳过程序名）并运行 stdio 服务。
+///
+/// 只接受 `app-server --stdio`；缺少必需 token 时以非零码退出，不启动 stdio。
+/// 必需 token 之后的额外参数（例如 `--surface desktop`）忽略并记录。
 pub fn run_main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let startup = parse_startup_args(&args);
     if !startup.supported {
         eprintln!(
-            "agent-server: expected `app-server --stdio`; starting stdio anyway (args: {args:?})"
+            "agent-server: unsupported invocation; expected `app-server --stdio` (args: {args:?})"
         );
+        return ExitCode::FAILURE;
     }
     if !startup.ignored.is_empty() {
         eprintln!("agent-server: ignoring arguments: {:?}", startup.ignored);

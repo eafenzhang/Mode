@@ -1,11 +1,12 @@
-//! 二进制生命周期：真实子进程拉起、一帧进一帧出、额外参数忽略并记录、EOF 干净退出。
+//! 二进制生命周期：真实子进程拉起、一帧进一帧出、额外参数忽略并记录、非法启动参数
+//! 与非 EOF 场景的退出码、EOF 干净退出。
 
 use std::process::Stdio;
 use std::time::Duration;
 
-use agent_server::{Frame, RequestId};
+use agent_server::{ErrorObject, ErrorResponseFrame, Frame, RequestId};
 use serde_json::json;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 
 const BIN: &str = env!("CARGO_BIN_EXE_agent-server");
@@ -52,12 +53,14 @@ async fn round_trip_then_eof_exits_successfully() {
     let frame: Frame = serde_json::from_str(&response).expect("应答必须是合法帧");
     assert_eq!(
         frame,
-        Frame::Error {
+        Frame::ErrorResponse(ErrorResponseFrame {
             id: RequestId::Number(1),
-            code: -32601,
-            message: "Method not found".to_string(),
-            data: None,
-        }
+            error: ErrorObject {
+                code: -32601,
+                message: "Method not found".to_string(),
+                data: None,
+            },
+        })
     );
 
     drop(stdin);
@@ -90,7 +93,10 @@ async fn extra_arguments_are_ignored_and_logged() {
         .expect("读取 stdout 必须成功")
         .expect("进程不得在应答前关闭 stdout");
     let frame: Frame = serde_json::from_str(&response).expect("应答必须是合法帧");
-    assert!(matches!(frame, Frame::Error { code: -32601, .. }));
+    assert!(matches!(
+        frame,
+        Frame::ErrorResponse(response) if response.error.code == -32601
+    ));
 
     let log = tokio::time::timeout(Duration::from_secs(5), stderr_lines.next_line())
         .await
@@ -107,6 +113,33 @@ async fn extra_arguments_are_ignored_and_logged() {
         .expect("EOF 后进程必须在有界时间内退出")
         .expect("等待子进程必须成功");
     assert!(status.success(), "EOF 必须干净退出，实际状态：{status}");
+}
+
+#[tokio::test]
+async fn unsupported_argv_exits_with_failure() {
+    let cases: &[&[&str]] = &[&[], &["app-server"], &["--stdio"], &["serve"]];
+    for args in cases {
+        let mut child = spawn(args);
+        let stderr = child.stderr.take().expect("stderr 必须被 pipe");
+        let status = tokio::time::timeout(Duration::from_secs(5), child.wait())
+            .await
+            .expect("不受支持的启动参数必须在有界时间内退出")
+            .expect("等待子进程必须成功");
+        assert!(
+            !status.success(),
+            "不受支持的启动参数必须以非零码退出，args={args:?}，实际状态：{status}"
+        );
+
+        let mut log = String::new();
+        BufReader::new(stderr)
+            .read_to_string(&mut log)
+            .await
+            .expect("读取 stderr 必须成功");
+        assert!(
+            log.contains("expected `app-server --stdio`"),
+            "args={args:?}，stderr 缺少明确错误：{log}"
+        );
+    }
 }
 
 #[tokio::test]

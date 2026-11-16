@@ -1,8 +1,13 @@
 //! 方法分派与帧形状：未知方法 `-32601`、非法 JSON 关闭连接、四类帧线上形状。
+//!
+//! 帧类型来自 `agent-protocol`（唯一所有者），这里验证复用后的线上形状与严格度。
 
 use std::sync::Arc;
 
-use agent_server::{run_stdio, AgentServer, Frame, RequestId, ServerError};
+use agent_server::{
+    frame_from_value, run_stdio, AgentServer, ErrorObject, ErrorResponseFrame, Frame,
+    NotificationFrame, RequestFrame, RequestId, ResponseFrame, ServerError,
+};
 use serde_json::json;
 
 #[test]
@@ -46,12 +51,14 @@ async fn stdio_request_gets_an_error_frame() {
     let frame: Frame = serde_json::from_slice(line).expect("应答必须是合法帧");
     assert_eq!(
         frame,
-        Frame::Error {
+        Frame::ErrorResponse(ErrorResponseFrame {
             id: RequestId::Number(1),
-            code: -32601,
-            message: "Method not found".to_string(),
-            data: None,
-        }
+            error: ErrorObject {
+                code: -32601,
+                message: "Method not found".to_string(),
+                data: None,
+            },
+        })
     );
 }
 
@@ -86,40 +93,44 @@ async fn non_object_frame_closes_the_connection() {
 
 #[test]
 fn frame_serialization_matches_wire_shapes() {
-    let request = Frame::Request {
+    let request = Frame::Request(RequestFrame {
         id: RequestId::Number(1),
         method: "session/read".to_string(),
-        params: json!({ "sessionId": "sess-1" }),
-    };
+        params: Some(json!({ "sessionId": "sess-1" })),
+        trace: None,
+    });
     assert_eq!(
         serde_json::to_value(&request).expect("request 可序列化"),
         json!({ "id": 1, "method": "session/read", "params": { "sessionId": "sess-1" } })
     );
 
-    let notification = Frame::Notification {
+    let notification = Frame::Notification(NotificationFrame {
         method: "session/event".to_string(),
-        params: json!({ "eventId": "ev-1" }),
-    };
+        params: Some(json!({ "eventId": "ev-1" })),
+        trace: None,
+    });
     assert_eq!(
         serde_json::to_value(&notification).expect("notification 可序列化"),
         json!({ "method": "session/event", "params": { "eventId": "ev-1" } })
     );
 
-    let response = Frame::Response {
+    let response = Frame::Response(ResponseFrame {
         id: RequestId::String("server-1".to_string()),
         result: json!({ "ok": true }),
-    };
+    });
     assert_eq!(
         serde_json::to_value(&response).expect("response 可序列化"),
         json!({ "id": "server-1", "result": { "ok": true } })
     );
 
-    let error = Frame::Error {
+    let error = Frame::ErrorResponse(ErrorResponseFrame {
         id: RequestId::Number(3),
-        code: -32601,
-        message: "Method not found".to_string(),
-        data: Some(json!({ "method": "session/unknown" })),
-    };
+        error: ErrorObject {
+            code: -32601,
+            message: "Method not found".to_string(),
+            data: Some(json!({ "method": "session/unknown" })),
+        },
+    });
     assert_eq!(
         serde_json::to_value(&error).expect("error 可序列化"),
         json!({
@@ -140,39 +151,43 @@ fn frame_deserialization_covers_all_wire_shapes() {
             json!({ "id": 1, "method": "session/read", "params": { "sessionId": "s" } })
         )
         .expect("request 可解析"),
-        Frame::Request {
+        Frame::Request(RequestFrame {
             id: RequestId::Number(1),
             method: "session/read".to_string(),
-            params: json!({ "sessionId": "s" }),
-        }
+            params: Some(json!({ "sessionId": "s" })),
+            trace: None,
+        })
     );
     assert_eq!(
         serde_json::from_value::<Frame>(json!({ "method": "session/event" }))
             .expect("notification 可解析"),
-        Frame::Notification {
+        Frame::Notification(NotificationFrame {
             method: "session/event".to_string(),
-            params: json!(null),
-        }
+            params: None,
+            trace: None,
+        })
     );
     assert_eq!(
         serde_json::from_value::<Frame>(json!({ "id": "server-1", "result": null }))
             .expect("response 可解析"),
-        Frame::Response {
+        Frame::Response(ResponseFrame {
             id: RequestId::String("server-1".to_string()),
             result: json!(null),
-        }
+        })
     );
     assert_eq!(
         serde_json::from_value::<Frame>(
             json!({ "id": 2, "error": { "code": -32601, "message": "Method not found" } })
         )
         .expect("error 可解析"),
-        Frame::Error {
+        Frame::ErrorResponse(ErrorResponseFrame {
             id: RequestId::Number(2),
-            code: -32601,
-            message: "Method not found".to_string(),
-            data: None,
-        }
+            error: ErrorObject {
+                code: -32601,
+                message: "Method not found".to_string(),
+                data: None,
+            },
+        })
     );
 }
 
@@ -188,10 +203,40 @@ fn malformed_frames_are_invalid_frames() {
         json!({ "id": 1, "error": { "code": "oops", "message": "bad" } }),
         json!({ "id": 1, "error": { "code": -1 } }),
     ] {
-        let error = Frame::from_value(value.clone()).expect_err("非法帧形状必须报错");
+        let error = frame_from_value(value.clone()).expect_err("非法帧形状必须报错");
         assert!(
             matches!(error, ServerError::InvalidFrame { .. }),
             "value={value}, error={error:?}"
         );
     }
+}
+
+#[test]
+fn frame_vocabulary_rejects_unknown_envelope_keys() {
+    // `agent-protocol` 的帧变体是 `deny_unknown_fields`；这是相对 Task 1 初版本地
+    // 宽松解析器的收紧，已知并在任务报告中登记。
+    for value in [
+        json!({ "method": "session/event", "unexpected": true }),
+        json!({ "id": 1, "method": "session/read", "unexpected": true }),
+        json!({ "id": 1, "result": {}, "unexpected": true }),
+        json!({ "id": 1, "error": { "code": -1, "message": "x", "unexpected": true } }),
+    ] {
+        let error = frame_from_value(value.clone()).expect_err("未知信封键必须被拒绝");
+        assert!(
+            matches!(error, ServerError::InvalidFrame { .. }),
+            "value={value}, error={error:?}"
+        );
+    }
+}
+
+#[test]
+fn trace_is_a_known_envelope_key() {
+    let frame = frame_from_value(json!({
+        "id": 1,
+        "method": "session/read",
+        "params": null,
+        "trace": { "traceId": "t1" }
+    }))
+    .expect("trace 是 agent-protocol 已建模的可选键");
+    assert!(matches!(frame, Frame::Request(_)));
 }

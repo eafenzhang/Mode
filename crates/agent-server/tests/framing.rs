@@ -29,16 +29,11 @@ async fn run(input: impl AsRef<[u8]>) -> (Result<(), ServerError>, Vec<Frame>) {
 
 fn assert_method_not_found(frame: &Frame, expected_id: RequestId) {
     match frame {
-        Frame::Error {
-            id,
-            code,
-            message,
-            data,
-        } => {
-            assert_eq!(*id, expected_id);
-            assert_eq!(*code, -32601);
-            assert_eq!(message, "Method not found");
-            assert_eq!(*data, None);
+        Frame::ErrorResponse(response) => {
+            assert_eq!(response.id, expected_id);
+            assert_eq!(response.error.code, -32601);
+            assert_eq!(response.error.message, "Method not found");
+            assert!(response.error.data.is_none());
         }
         other => panic!("期望 -32601 错误应答，实际 {other:?}"),
     }
@@ -98,8 +93,9 @@ fn u2028_and_u2029_survive_frame_parsing() {
     let frame: Frame = serde_json::from_str(&line).expect("帧必须可解析");
 
     match frame {
-        Frame::Request { id, params, .. } => {
-            assert_eq!(id, RequestId::Number(7));
+        Frame::Request(request) => {
+            assert_eq!(request.id, RequestId::Number(7));
+            let params = request.params.expect("请求必须带 params");
             assert_eq!(params["text"], text);
         }
         other => panic!("期望请求帧，实际 {other:?}"),

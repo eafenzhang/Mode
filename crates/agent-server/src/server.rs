@@ -1,5 +1,9 @@
 //! stdio 分帧与线上四类帧（请求 / 通知 / 应答 / 错误应答）。
 //!
+//! 帧类型与严格度由 `agent-protocol` 拥有（`Frame` / `RequestFrame` /
+//! `NotificationFrame` / `ResponseFrame` / `ErrorResponseFrame` / `RequestId`）；
+//! 本模块只负责分帧、把 `serde_json::Value` 映射成帧，以及把分派结果写回。
+//!
 //! 帧边界只认 `\n`：U+2028/U+2029 是 JSON 字符串里的普通字符，不能当换行；
 //! CRLF 在解析前去掉行尾 `\r`；空行忽略；读到 EOF 时残留缓冲区仍按一帧处理。
 //! 分帧口径与 `docs/specs/mode-protocol-client.md`「帧」一致（客户端与运行时
@@ -9,8 +13,8 @@ use std::fmt;
 use std::io;
 use std::sync::Arc;
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::{Map, Value};
+use agent_protocol::{ErrorObject, ErrorResponseFrame, Frame, RequestFrame, ResponseFrame};
+use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 
 use crate::dispatch::AgentServer;
@@ -18,174 +22,13 @@ use crate::dispatch::AgentServer;
 /// 单帧上限（防御异常刷屏）；与 `mode-protocol-client` 同口径，正常协议帧远小于此。
 pub const MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
 
-/// 请求 id：线上数字（host 发请求）与字符串（运行时发反向请求）都出现过。
+/// 把已解析的 JSON 值转成 `agent-protocol` 的帧；形状不合法映射为协议错误。
 ///
-/// 应答与请求靠 id 关联时不能假定是数字；两端共用同一个 id 空间。
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum RequestId {
-    Number(i64),
-    String(String),
-}
-
-impl RequestId {
-    fn from_value(value: &Value) -> Option<Self> {
-        match value {
-            Value::Number(number) => number.as_i64().map(Self::Number),
-            Value::String(text) => Some(Self::String(text.clone())),
-            _ => None,
-        }
-    }
-}
-
-/// 一条线上帧。四个变体覆盖 Mode Protocol 的全部帧形状：
-///
-/// | 线上形状 | 变体 |
-/// | --- | --- |
-/// | `{id, method, params}` | [`Frame::Request`] |
-/// | `{method, params}` | [`Frame::Notification`] |
-/// | `{id, result}` | [`Frame::Response`] |
-/// | `{id, error:{code, message, data?}}` | [`Frame::Error`] |
-///
-/// 解析时 `params` 缺省为 `Value::Null`；序列化时请求/通知总是写出 `params`。
-#[derive(Debug, Clone, PartialEq)]
-pub enum Frame {
-    Request {
-        id: RequestId,
-        method: String,
-        params: Value,
-    },
-    Notification {
-        method: String,
-        params: Value,
-    },
-    Response {
-        id: RequestId,
-        result: Value,
-    },
-    Error {
-        id: RequestId,
-        code: i64,
-        message: String,
-        data: Option<Value>,
-    },
-}
-
-impl Frame {
-    /// 从已解析的 JSON 值构造帧；形状不合法时返回 [`ServerError::InvalidFrame`]。
-    pub fn from_value(value: Value) -> Result<Self, ServerError> {
-        let Some(object) = value.as_object() else {
-            return Err(ServerError::invalid_frame("frame is not a JSON object"));
-        };
-        let id = match object.get("id") {
-            Some(value) => Some(RequestId::from_value(value).ok_or_else(|| {
-                ServerError::invalid_frame("frame id must be a number or string")
-            })?),
-            None => None,
-        };
-        let method = match object.get("method") {
-            Some(Value::String(method)) => Some(method.clone()),
-            Some(_) => return Err(ServerError::invalid_frame("frame method must be a string")),
-            None => None,
-        };
-
-        match (id, method) {
-            (Some(id), Some(method)) => Ok(Self::Request {
-                id,
-                method,
-                params: frame_params(object),
-            }),
-            (None, Some(method)) => Ok(Self::Notification {
-                method,
-                params: frame_params(object),
-            }),
-            (Some(id), None) => {
-                if let Some(result) = object.get("result") {
-                    return Ok(Self::Response {
-                        id,
-                        result: result.clone(),
-                    });
-                }
-                let Some(error) = object.get("error") else {
-                    return Err(ServerError::invalid_frame(
-                        "frame with id has neither result, error nor method",
-                    ));
-                };
-                let error = error
-                    .as_object()
-                    .ok_or_else(|| ServerError::invalid_frame("frame error must be an object"))?;
-                let code = error.get("code").and_then(Value::as_i64).ok_or_else(|| {
-                    ServerError::invalid_frame("frame error.code must be an integer")
-                })?;
-                let message = error
-                    .get("message")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| {
-                        ServerError::invalid_frame("frame error.message must be a string")
-                    })?
-                    .to_string();
-                Ok(Self::Error {
-                    id,
-                    code,
-                    message,
-                    data: error.get("data").cloned(),
-                })
-            }
-            (None, None) => Err(ServerError::invalid_frame(
-                "frame has neither id nor method",
-            )),
-        }
-    }
-
-    /// 转成线上 JSON。错误应答写成 `{id, error:{code, message, data?}}`。
-    pub fn to_value(&self) -> Value {
-        match self {
-            Self::Request { id, method, params } => {
-                serde_json::json!({ "id": id, "method": method, "params": params })
-            }
-            Self::Notification { method, params } => {
-                serde_json::json!({ "method": method, "params": params })
-            }
-            Self::Response { id, result } => serde_json::json!({ "id": id, "result": result }),
-            Self::Error {
-                id,
-                code,
-                message,
-                data,
-            } => {
-                let mut error = Map::new();
-                error.insert("code".to_string(), Value::from(*code));
-                error.insert("message".to_string(), Value::String(message.clone()));
-                if let Some(data) = data {
-                    error.insert("data".to_string(), data.clone());
-                }
-                serde_json::json!({ "id": id, "error": error })
-            }
-        }
-    }
-}
-
-fn frame_params(object: &Map<String, Value>) -> Value {
-    object.get("params").cloned().unwrap_or(Value::Null)
-}
-
-impl Serialize for Frame {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.to_value().serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for Frame {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = Value::deserialize(deserializer)?;
-        Frame::from_value(value).map_err(serde::de::Error::custom)
-    }
+/// `agent-protocol` 的帧变体带 `deny_unknown_fields`：信封上多一个未知键会被整体
+/// 拒绝。这是与 Task 1 初版本地宽松解析器的已知差异（见任务报告）。
+pub fn frame_from_value(value: Value) -> Result<Frame, ServerError> {
+    serde_json::from_value::<Frame>(value)
+        .map_err(|error| ServerError::invalid_frame(format!("invalid frame: {error}")))
 }
 
 /// Agent Server 的失败面。`code` 是 JSON-RPC 错误码，直接写进错误应答。
@@ -323,24 +166,29 @@ where
         }
         let value: Value = serde_json::from_slice(&line)
             .map_err(|error| ServerError::invalid_frame(format!("invalid JSON frame: {error}")))?;
-        let frame = Frame::from_value(value)?;
+        let frame = frame_from_value(value)?;
 
         match frame {
-            Frame::Request { id, method, params } => {
-                let response = match server.dispatch(&method, params) {
-                    Ok(result) => Frame::Response { id, result },
-                    Err(error) => Frame::Error {
+            Frame::Request(request) => {
+                let RequestFrame {
+                    id, method, params, ..
+                } = request;
+                let response = match server.dispatch(&method, params.unwrap_or(Value::Null)) {
+                    Ok(result) => Frame::Response(ResponseFrame { id, result }),
+                    Err(error) => Frame::ErrorResponse(ErrorResponseFrame {
                         id,
-                        code: error.code(),
-                        message: error.message(),
-                        data: error.data(),
-                    },
+                        error: ErrorObject {
+                            code: error.code(),
+                            message: error.message(),
+                            data: error.data(),
+                        },
+                    }),
                 };
                 write_frame(&mut writer, &response).await?;
             }
             // 通知暂无订阅者；应答/错误应答要等反向请求（后续任务）才有 pending 可匹配。
-            Frame::Notification { .. } => {}
-            Frame::Response { .. } | Frame::Error { .. } => {}
+            Frame::Notification(_) => {}
+            Frame::Response(_) | Frame::ErrorResponse(_) => {}
         }
     }
 }
