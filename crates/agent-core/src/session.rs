@@ -65,7 +65,9 @@ use agent_tools::{
 use crate::approval::Ruleset;
 use crate::permission::{AutoAllow, PermissionHandler, DENY_REASON};
 use crate::plugin_tools::{PluginToolDeclaration, PluginToolSource};
-use crate::provider::{ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelUsage};
+use crate::provider::{
+    ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse, ModelUsage, ProviderError,
+};
 use crate::rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
 use crate::stream::{EventSink, TurnError};
 use crate::tool::{error_object, result_object};
@@ -278,7 +280,7 @@ impl Session {
     /// oracle 在忙时**直接丢弃**通知（spec §3.5）；因此调用方只能在空闲时调用本方法。
     /// `&mut self` 保证它不会与 [`Self::run_turn`] 并发；是否在忙时丢弃由调用方决定，
     /// 这里不偷偷替调用方排队。返回实际跑掉的通知条数。
-    pub fn run_pending_notifications(
+    pub async fn run_pending_notifications(
         &mut self,
         provider: &dyn ModelProvider,
         sink: &mut dyn EventSink,
@@ -286,7 +288,8 @@ impl Session {
         let notifications = self.tasks.take_notifications();
         let count = notifications.len();
         for notification in notifications {
-            self.run_turn(&notification.to_xml(), provider, sink)?;
+            self.run_turn(&notification.to_xml(), provider, sink)
+                .await?;
         }
         Ok(count)
     }
@@ -353,11 +356,13 @@ impl Session {
     /// 跑完一个完整 turn：模型流 →（可选）工具批次 → 终态。
     ///
     /// 事件顺序按 spec §3.5：`turn.started` → `model.streaming` ×N →（工具事件）→
-    /// 下一轮模型流 → `turn.completed`。oracle 还会发若干 `session.updated` /
+    /// 下一轮模型流 → `turn.completed`。provider 的 delta **增量**消费：每到达一条就
+    /// 立刻发 `model.streaming`，不等 provider future 返回；future 结束后再排空一次队列，
+    /// 保证最后一批 delta 不丢。oracle 还会发若干 `session.updated` /
     /// `streamRecovery.updated`（需要消息计数与追踪 id），本步**不产出**，差异已登记。
     ///
     /// 只实现 `desktop-continuous` 的实时语义；重放归 Host/relay（DR-T5-1）。
-    pub fn run_turn(
+    pub async fn run_turn(
         &mut self,
         prompt: &str,
         provider: &dyn ModelProvider,
@@ -386,36 +391,58 @@ impl Session {
                 messages: self.messages.clone(),
                 tools: tools.clone(),
             };
-            let response = provider
-                .stream(&request)
+
+            // 一次模型请求一条 delta 通道：provider 产出一条就 send，会话侧随到随发。
+            let (delta_sink, mut deltas) = tokio::sync::mpsc::unbounded_channel();
+            let mut provider_future = provider.stream(request, delta_sink);
+            let mut provider_result: Option<Result<ModelResponse, ProviderError>> = None;
+            let mut delta_channel_open = true;
+            let mut text = String::new();
+            let mut tool_calls: Vec<ToolCallRequest> = Vec::new();
+
+            while provider_result.is_none() {
+                tokio::select! {
+                    // `biased` + delta 优先：已到达的 delta 先发，future 就绪后队列里的尾巴
+                    // 仍按顺序走完，不会被「future 先完成」抢掉。
+                    biased;
+                    maybe_delta = deltas.recv(), if delta_channel_open => {
+                        match maybe_delta {
+                            Some(delta) => self.absorb_model_delta(
+                                &turn_id,
+                                model_requests,
+                                delta,
+                                &mut text,
+                                &mut tool_calls,
+                                sink,
+                            ),
+                            // provider 提前关掉发送端但 future 还没结束：继续等 future。
+                            None => delta_channel_open = false,
+                        }
+                    }
+                    result = &mut provider_future => provider_result = Some(result),
+                }
+            }
+
+            // future 结束前已经进入队列、但还没被 select 取走的 delta（tail）。
+            while let Ok(delta) = deltas.try_recv() {
+                self.absorb_model_delta(
+                    &turn_id,
+                    model_requests,
+                    delta,
+                    &mut text,
+                    &mut tool_calls,
+                    sink,
+                );
+            }
+
+            let response = provider_result
+                .expect("循环只在 provider future 结束后退出")
                 .map_err(|error| TurnError::new(error.message))?;
             usage.input_tokens += response.usage.input_tokens;
             usage.output_tokens += response.usage.output_tokens;
             usage.cache_read_tokens += response.usage.cache_read_tokens;
             usage.cache_write_tokens += response.usage.cache_write_tokens;
             usage.reasoning_tokens += response.usage.reasoning_tokens;
-
-            let mut text = String::new();
-            let mut tool_calls: Vec<ToolCallRequest> = Vec::new();
-            for delta in &response.deltas {
-                if let ModelDelta::Text { text: chunk } = delta {
-                    text.push_str(chunk);
-                }
-                if let ModelDelta::ToolCall {
-                    tool_call_id,
-                    tool_name,
-                    input,
-                } = delta
-                {
-                    tool_calls.push(ToolCallRequest {
-                        tool_call_id: tool_call_id.clone(),
-                        name: tool_name.clone(),
-                        input: input.clone(),
-                    });
-                }
-                let event = self.model_streaming_event(&turn_id, model_requests, delta);
-                sink.emit(event);
-            }
 
             if tool_calls.is_empty() {
                 self.messages.push(ModelMessage::Assistant {
@@ -471,6 +498,36 @@ impl Session {
         };
         sink.emit(self.emit(&turn_id, SessionEventType::TurnCompleted, &payload));
         Ok(())
+    }
+
+    /// 消费一条模型 delta：先累积本轮文本/工具调用，再按到达顺序发 `model.streaming`。
+    ///
+    /// 这是 delta 的唯一消费点：流式阶段与 future 结束后的 tail 排空共用它，
+    /// 保证事件顺序与统计口径一致。
+    fn absorb_model_delta(
+        &mut self,
+        turn_id: &str,
+        request_index: u64,
+        delta: ModelDelta,
+        text: &mut String,
+        tool_calls: &mut Vec<ToolCallRequest>,
+        sink: &mut dyn EventSink,
+    ) {
+        match &delta {
+            ModelDelta::Text { text: chunk } => text.push_str(chunk),
+            ModelDelta::ToolCall {
+                tool_call_id,
+                tool_name,
+                input,
+            } => tool_calls.push(ToolCallRequest {
+                tool_call_id: tool_call_id.clone(),
+                name: tool_name.clone(),
+                input: input.clone(),
+            }),
+            _ => {}
+        }
+        let event = self.model_streaming_event(turn_id, request_index, &delta);
+        sink.emit(event);
     }
 
     /// 把模型 delta 投影成 `model.streaming` 事件（顺序即 delta 顺序）。

@@ -7,6 +7,9 @@
 use agent_protocol::session_event::SessionEvent;
 
 /// 会话事件的消费端。
+///
+/// `emit` 是同步调用：turn 循环在 provider delta **到达时**就调用它，而不是等模型流
+/// 结束。sink 的实现若需要异步投递，自己负责缓冲；这里不引入二次状态。
 pub trait EventSink {
     fn emit(&mut self, event: SessionEvent);
 }

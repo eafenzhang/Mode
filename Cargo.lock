@@ -38,6 +38,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -3650,6 +3651,7 @@ dependencies = [
  "agent-protocol",
  "plugin-host",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

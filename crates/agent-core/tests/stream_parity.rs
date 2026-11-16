@@ -159,8 +159,8 @@ fn project(events: &[SessionEvent], cwd: &str) -> Vec<Value> {
     projected
 }
 
-#[test]
-fn desktop_continuous_stream_matches_the_recorded_projection() {
+#[tokio::test]
+async fn desktop_continuous_stream_matches_the_recorded_projection() {
     let path = fixture_dir().join("session-stream.json");
     let raw = fs::read_to_string(&path).unwrap_or_else(|error| {
         panic!(
@@ -215,6 +215,7 @@ fn desktop_continuous_stream_matches_the_recorded_projection() {
                 &provider,
                 &mut sink,
             )
+            .await
             .expect("turn 应成功");
 
         let actual = project(&sink, &cwd);

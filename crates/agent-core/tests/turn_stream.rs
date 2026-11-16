@@ -6,12 +6,18 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
 
 use serde_json::json;
+use tokio::sync::{mpsc, Notify};
 
-use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
+use agent_core::provider::{
+    BoxFuture, DeltaSink, ModelDelta, ModelProvider, ModelRequest, ModelResponse, ModelUsage,
+    ProviderError, ScriptStep, ScriptToolCall, ScriptedProvider,
+};
 use agent_core::session::Session;
-use agent_core::{DeliveryKind, SessionEvent, SessionEventType};
+use agent_core::{DeliveryKind, EventSink, SessionEvent, SessionEventType};
 use agent_protocol::session_event::{
     ModelStreamingKind, ModelStreamingPayload, TurnCompletedPayload,
 };
@@ -37,8 +43,8 @@ fn completed(events: &[SessionEvent]) -> TurnCompletedPayload {
         .expect("应有 turn.completed")
 }
 
-#[test]
-fn events_carry_the_requested_delivery_kind() {
+#[tokio::test]
+async fn events_carry_the_requested_delivery_kind() {
     let dir = temp_dir("delivery");
     let provider = ScriptedProvider::new(vec![ScriptStep::Text("hi".to_string())]);
     let mut session = Session::new("sess_stream", dir.to_string_lossy().to_string())
@@ -47,6 +53,7 @@ fn events_carry_the_requested_delivery_kind() {
 
     session
         .run_turn("probe delivery", &provider, &mut sink)
+        .await
         .expect("turn 应成功");
     assert!(!sink.is_empty());
     assert!(
@@ -66,8 +73,8 @@ fn streaming(events: &[SessionEvent]) -> Vec<ModelStreamingPayload> {
         .collect()
 }
 
-#[test]
-fn text_turn_streams_the_model_and_completes() {
+#[tokio::test]
+async fn text_turn_streams_the_model_and_completes() {
     let dir = temp_dir("text");
     let provider = ScriptedProvider::new(vec![ScriptStep::Text("hello from mock".to_string())]);
     let mut session = Session::new("sess_stream", dir.to_string_lossy().to_string());
@@ -75,6 +82,7 @@ fn text_turn_streams_the_model_and_completes() {
 
     session
         .run_turn("probe text turn", &provider, &mut sink)
+        .await
         .expect("turn 应成功");
 
     assert_eq!(
@@ -99,8 +107,8 @@ fn text_turn_streams_the_model_and_completes() {
     let _ = fs::remove_dir_all(&dir);
 }
 
-#[test]
-fn tool_turn_interleaves_model_streaming_and_tool_events() {
+#[tokio::test]
+async fn tool_turn_interleaves_model_streaming_and_tool_events() {
     let dir = temp_dir("tool");
     fs::write(dir.join("hello.txt"), "hello\n").expect("写种子文件");
     let path = dir.join("hello.txt");
@@ -116,6 +124,7 @@ fn tool_turn_interleaves_model_streaming_and_tool_events() {
 
     session
         .run_turn("probe tool turn", &provider, &mut sink)
+        .await
         .expect("turn 应成功");
 
     assert_eq!(
@@ -162,6 +171,112 @@ fn tool_turn_interleaves_model_streaming_and_tool_events() {
 
     // 历史：User → Assistant(tool_calls) → ToolResult → Assistant(text)
     assert_eq!(session.messages().len(), 4);
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// 把事件转给测试侧的 sink，让用例能在 `run_turn` future 尚未完成时观察事件。
+struct ChannelSink(mpsc::UnboundedSender<SessionEvent>);
+
+impl EventSink for ChannelSink {
+    fn emit(&mut self, event: SessionEvent) {
+        let _ = self.0.send(event);
+    }
+}
+
+/// 发一条 delta 后卡在 `release` 上，直到测试确认已经看到 `model.streaming`。
+struct GatedProvider {
+    release: Arc<Notify>,
+}
+
+impl ModelProvider for GatedProvider {
+    fn stream(
+        &self,
+        _request: ModelRequest,
+        deltas: DeltaSink,
+    ) -> BoxFuture<'static, Result<ModelResponse, ProviderError>> {
+        let release = Arc::clone(&self.release);
+        Box::pin(async move {
+            deltas
+                .send(ModelDelta::Text {
+                    text: "incremental".to_string(),
+                })
+                .expect("会话应在 provider 返回前保持 delta 通道打开");
+            release.notified().await;
+            Ok(ModelResponse {
+                usage: ModelUsage {
+                    input_tokens: 3,
+                    output_tokens: 5,
+                    ..ModelUsage::default()
+                },
+                stop_reason: "stop",
+            })
+        })
+    }
+}
+
+/// 门控用例的失败上限：事件不按增量到达时用例应失败，而不是挂住测试进程。
+/// 它不是正确性证明——证明仍是 `release` 只在观察到事件之后才放行。
+async fn within<F: std::future::Future>(future: F) -> F::Output {
+    tokio::time::timeout(Duration::from_secs(5), future)
+        .await
+        .expect("门控超时：model.streaming 没有在 provider 返回前到达")
+}
+
+/// delta 到达即发事件：provider future 还卡在信号上时，sink 已经能看到
+/// `model.streaming`（不是收齐后再补发）。
+#[tokio::test]
+async fn model_streaming_is_emitted_before_the_provider_returns() {
+    let dir = temp_dir("incremental");
+    let release = Arc::new(Notify::new());
+    let provider = GatedProvider {
+        release: Arc::clone(&release),
+    };
+    let mut session = Session::new("sess_stream", dir.to_string_lossy().to_string());
+    let (events, mut received) = mpsc::unbounded_channel();
+    let mut sink = ChannelSink(events);
+    let mut turn = Box::pin(session.run_turn("probe incremental", &provider, &mut sink));
+
+    let started = within(async {
+        tokio::select! {
+            event = received.recv() => event.expect("turn.started 应先到达"),
+            result = &mut turn => panic!("turn 在首个事件前结束：{result:?}"),
+        }
+    })
+    .await;
+    assert_eq!(started.event_type, SessionEventType::TurnStarted);
+
+    let streaming = within(async {
+        tokio::select! {
+            event = received.recv() => event.expect("model.streaming 应增量到达"),
+            result = &mut turn => panic!("provider 尚未放行，turn 不应结束：{result:?}"),
+        }
+    })
+    .await;
+    assert_eq!(streaming.event_type, SessionEventType::ModelStreaming);
+    let payload = streaming
+        .payload_as::<ModelStreamingPayload>()
+        .expect("能解码")
+        .expect("类型匹配");
+    assert_eq!(payload.kind, ModelStreamingKind::TextDelta);
+    assert_eq!(payload.delta.as_deref(), Some("incremental"));
+
+    // 只有已经观察到 model.streaming 之后才放行 provider。
+    release.notify_one();
+    within(&mut turn).await.expect("turn 应成功");
+
+    let mut events = vec![started, streaming];
+    while let Ok(event) = received.try_recv() {
+        events.push(event);
+    }
+    assert_eq!(
+        event_kinds(&events),
+        vec!["turn.started", "model.streaming", "turn.completed"]
+    );
+    let payload = completed(&events);
+    assert_eq!(payload.response, "incremental");
+    assert_eq!(payload.token_count, 8);
+    assert_eq!(payload.history_round_count, Some(1));
 
     let _ = fs::remove_dir_all(&dir);
 }

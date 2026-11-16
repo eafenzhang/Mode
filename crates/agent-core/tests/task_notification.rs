@@ -95,8 +95,8 @@ fn completed_task_notification_matches_the_observed_xml() {
     ));
 }
 
-#[test]
-fn pending_notifications_run_as_a_new_turn_when_idle() {
+#[tokio::test]
+async fn pending_notifications_run_as_a_new_turn_when_idle() {
     let mut session = Session::new("sess_notify", temp_dir("run").to_string_lossy());
     let registry = session.tasks().clone();
     let (child, path) = spawn_script("run", "printf 'bg-done\\n'");
@@ -115,6 +115,7 @@ fn pending_notifications_run_as_a_new_turn_when_idle() {
     let mut sink = Vec::new();
     let count = session
         .run_pending_notifications(&provider, &mut sink)
+        .await
         .expect("通知 turn 应成功");
     assert_eq!(count, 1);
     assert_eq!(sink[0].event_type, SessionEventType::TurnStarted);

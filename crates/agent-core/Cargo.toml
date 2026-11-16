@@ -15,3 +15,9 @@ agent-tools = { path = "../agent-tools" }
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# 流式 provider 的 delta 通道（UnboundedSender）与 turn 循环的 select!。
+tokio = { workspace = true, features = ["macros", "sync"] }
+
+[dev-dependencies]
+# `#[tokio::test]`（当前线程运行时）、测试里的 Notify 门控与失败上限的 timeout。
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }

@@ -129,8 +129,8 @@ fn tool_result(events: &[SessionEvent]) -> (bool, String) {
     panic!("没有工具结果");
 }
 
-#[test]
-fn plugin_tools_are_injected_and_invoked() {
+#[tokio::test]
+async fn plugin_tools_are_injected_and_invoked() {
     let dir = temp_dir("invoke");
     let mut session = Session::new("sess_plugin", dir.to_string_lossy().to_string())
         .with_plugin_tools(Arc::new(FakeSource))
@@ -150,6 +150,7 @@ fn plugin_tools_are_injected_and_invoked() {
     let mut sink = Vec::new();
     session
         .run_turn("use plugin", &provider, &mut sink)
+        .await
         .expect("turn 应成功");
 
     let (ok, content) = tool_result(&sink);
@@ -200,8 +201,8 @@ fn plugin_tools_are_injected_and_invoked() {
     );
 }
 
-#[test]
-fn plugin_tool_errors_map_to_tool_execution_failed() {
+#[tokio::test]
+async fn plugin_tool_errors_map_to_tool_execution_failed() {
     let dir = temp_dir("fail");
     let mut session = Session::new("sess_plugin", dir.to_string_lossy().to_string())
         .with_plugin_tools(Arc::new(FakeSource))
@@ -213,6 +214,7 @@ fn plugin_tool_errors_map_to_tool_execution_failed() {
     let mut sink = Vec::new();
     session
         .run_turn("fail", &provider, &mut sink)
+        .await
         .expect("turn");
 
     let (ok, message) = tool_result(&sink);
@@ -220,8 +222,8 @@ fn plugin_tool_errors_map_to_tool_execution_failed() {
     assert_eq!(message, "boom");
 }
 
-#[test]
-fn unknown_plugin_names_stay_tool_not_found() {
+#[tokio::test]
+async fn unknown_plugin_names_stay_tool_not_found() {
     let dir = temp_dir("unknown");
     let mut session = Session::new("sess_plugin", dir.to_string_lossy().to_string())
         .with_plugin_tools(Arc::new(FakeSource))
@@ -233,6 +235,7 @@ fn unknown_plugin_names_stay_tool_not_found() {
     let mut sink = Vec::new();
     session
         .run_turn("missing", &provider, &mut sink)
+        .await
         .expect("turn");
 
     let (ok, message) = tool_result(&sink);
@@ -252,8 +255,8 @@ fn list_tools_failure_surfaces_to_the_caller() {
     assert_eq!(error, "sidecar unavailable");
 }
 
-#[test]
-fn declared_high_risk_plugin_tool_uses_its_metadata() {
+#[tokio::test]
+async fn declared_high_risk_plugin_tool_uses_its_metadata() {
     let dir = temp_dir("high");
     let mut session = Session::new("sess_plugin", dir.to_string_lossy().to_string())
         .with_plugin_tools(Arc::new(FakeSource))
@@ -265,6 +268,7 @@ fn declared_high_risk_plugin_tool_uses_its_metadata() {
     let mut sink = Vec::new();
     session
         .run_turn("high", &provider, &mut sink)
+        .await
         .expect("turn");
 
     let requests: Vec<agent_protocol::permission::PermissionRequest> = sink
@@ -309,8 +313,8 @@ fn declared_high_risk_plugin_tool_uses_its_metadata() {
     );
 }
 
-#[test]
-fn sdk_error_shape_is_preserved() {
+#[tokio::test]
+async fn sdk_error_shape_is_preserved() {
     let dir = temp_dir("sdk-error");
     let mut session = Session::new("sess_plugin", dir.to_string_lossy().to_string())
         .with_plugin_tools(Arc::new(FakeSource))
@@ -322,6 +326,7 @@ fn sdk_error_shape_is_preserved() {
     let mut sink = Vec::new();
     session
         .run_turn("crash", &provider, &mut sink)
+        .await
         .expect("turn");
 
     let error = sink

@@ -55,8 +55,8 @@ fn tool_kinds(events: &[SessionEvent]) -> Vec<&'static str> {
         .collect()
 }
 
-#[test]
-fn host_reply_allow_lets_the_tool_run() {
+#[tokio::test]
+async fn host_reply_allow_lets_the_tool_run() {
     let dir = temp_dir("allow");
     let path = dir.join("a.txt");
     let path_text = path.to_string_lossy().to_string();
@@ -74,6 +74,7 @@ fn host_reply_allow_lets_the_tool_run() {
     let mut sink = Vec::new();
     session
         .run_turn("write it", &provider(&path_text), &mut sink)
+        .await
         .expect("turn 应成功");
 
     let request = worker.join().expect("线程不应 panic");
@@ -82,8 +83,8 @@ fn host_reply_allow_lets_the_tool_run() {
     assert!(path.exists(), "allow 后应写入文件");
 }
 
-#[test]
-fn host_reply_deny_keeps_the_observed_shape() {
+#[tokio::test]
+async fn host_reply_deny_keeps_the_observed_shape() {
     let dir = temp_dir("deny");
     let path = dir.join("denied.txt");
     let path_text = path.to_string_lossy().to_string();
@@ -100,6 +101,7 @@ fn host_reply_deny_keeps_the_observed_shape() {
     let mut sink = Vec::new();
     session
         .run_turn("deny it", &provider(&path_text), &mut sink)
+        .await
         .expect("turn 应成功");
     worker.join().expect("线程不应 panic");
 
@@ -107,8 +109,8 @@ fn host_reply_deny_keeps_the_observed_shape() {
     assert_eq!(tool_kinds(&sink), vec!["scheduled", "batch"]);
 }
 
-#[test]
-fn closed_channel_fails_closed() {
+#[tokio::test]
+async fn closed_channel_fails_closed() {
     let dir = temp_dir("closed");
     let path = dir.join("closed.txt");
     let path_text = path.to_string_lossy().to_string();
@@ -120,6 +122,7 @@ fn closed_channel_fails_closed() {
     let mut sink = Vec::new();
     session
         .run_turn("closed", &provider(&path_text), &mut sink)
+        .await
         .expect("turn 应成功，不 panic");
 
     assert!(!path.exists(), "通道断开时应按 deny 处理");

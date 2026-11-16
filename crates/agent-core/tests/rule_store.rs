@@ -138,8 +138,8 @@ fn missing_db_file_is_a_save_error_not_a_panic() {
     assert!(store.append("proj_x", &[update("C:/ws/a.txt")]).is_err());
 }
 
-#[test]
-fn allow_project_survives_into_a_new_session() {
+#[tokio::test]
+async fn allow_project_survives_into_a_new_session() {
     let db = temp_db("session");
     let dir = std::env::temp_dir().join(format!("mode-rule-ws-{}", std::process::id()));
     fs::create_dir_all(&dir).expect("建工作目录");
@@ -159,6 +159,7 @@ fn allow_project_survives_into_a_new_session() {
     let mut first_sink = Vec::new();
     first
         .run_turn("write once", &provider, &mut first_sink)
+        .await
         .expect("第一个 turn");
     assert_eq!(first.rule_store_error(), None, "落盘不应失败");
     assert_eq!(fs::read_to_string(&path).expect("文件应存在"), "a\n");
@@ -180,6 +181,7 @@ fn allow_project_survives_into_a_new_session() {
     let mut second_sink = Vec::new();
     second
         .run_turn("write again", &provider, &mut second_sink)
+        .await
         .expect("第二个 turn");
 
     let permission_requests = second_sink

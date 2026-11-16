@@ -84,8 +84,8 @@ fn write_call(path: &str, content: &str) -> ScriptToolCall {
     }
 }
 
-#[test]
-fn allow_runs_the_tool_after_the_permission_round_trip() {
+#[tokio::test]
+async fn allow_runs_the_tool_after_the_permission_round_trip() {
     let dir = temp_dir("allow");
     let path = dir.join("a.txt");
     let provider = ScriptedProvider::new(vec![
@@ -97,6 +97,7 @@ fn allow_runs_the_tool_after_the_permission_round_trip() {
 
     session
         .run_turn("write it", &provider, &mut sink)
+        .await
         .expect("turn 应成功");
 
     assert_eq!(
@@ -132,8 +133,8 @@ fn allow_runs_the_tool_after_the_permission_round_trip() {
     assert_eq!(batch(&sink).success_count, 1);
 }
 
-#[test]
-fn deny_leaves_only_scheduled_and_batch() {
+#[tokio::test]
+async fn deny_leaves_only_scheduled_and_batch() {
     let dir = temp_dir("deny");
     let path = dir.join("denied.txt");
     let provider = ScriptedProvider::new(vec![
@@ -146,6 +147,7 @@ fn deny_leaves_only_scheduled_and_batch() {
 
     session
         .run_turn("deny it", &provider, &mut sink)
+        .await
         .expect("turn 仍应成功");
 
     let tool_kinds: Vec<&str> = sink
@@ -179,8 +181,8 @@ fn deny_leaves_only_scheduled_and_batch() {
     );
 }
 
-#[test]
-fn allow_project_stops_asking_for_the_same_path() {
+#[tokio::test]
+async fn allow_project_stops_asking_for_the_same_path() {
     let dir = temp_dir("project");
     let a = dir.join("a.txt");
     let b = dir.join("b.txt");
@@ -196,6 +198,7 @@ fn allow_project_stops_asking_for_the_same_path() {
 
     session
         .run_turn("write three", &provider, &mut sink)
+        .await
         .expect("turn 应成功");
 
     let requests = permission_requests(&sink);
