@@ -76,16 +76,22 @@ pub struct Accepted {
     pub admission: Admission,
 }
 
-/// 运行时配置：mode / 模型事实 / 容量。由 Task 7 的 `session/create` 组装。
+/// 运行时配置：mode / 模型事实 / 容量。由 Task 7 的 `session/create` 组装；
+/// setter（`setModel` / `setMode` / `setThoughtLevel`）经 [`SessionRuntime::set_config`]
+/// 原位更新（`Shared` 里的 `RwLock`），worker 在下个 turn 开始前读取。
 #[derive(Debug, Clone)]
 pub struct RuntimeConfig {
     /// 当前模式（`build` / `plan` / …；进系统提示与快照）。
     pub mode: String,
     /// 已解析的模型事实（进快照与持久化行；不带凭据）。
+    /// 两者都为空 = 会话还没有可用模型（`session/send` 的 turn 以
+    /// `CONFIGURATION_ERROR` 失败，不用默认模型兜底——控制器裁决 7）。
     pub provider_id: String,
     pub model_id: String,
     /// 模型能力（进系统提示；缺失保持 `None`，快照里缺省为 0 而不是编数字）。
     pub capabilities: ModelCapabilities,
+    /// 思考档位（`session/setThoughtLevel` 的事实；进快照 `settings.thoughtLevel.current`）。
+    pub thought_level: Option<String>,
     /// `.mode` 数据根（工具 artifact 落点）；`None` = 未接线，artifact 落临时目录。
     pub data_root: Option<PathBuf>,
     /// 内存事件日志上限（超过丢最旧）；订阅回放只服务窗口内的事件。
@@ -101,6 +107,7 @@ impl Default for RuntimeConfig {
             provider_id: String::new(),
             model_id: String::new(),
             capabilities: ModelCapabilities::default(),
+            thought_level: None,
             data_root: None,
             event_log_capacity: 4096,
             broadcast_capacity: 256,
@@ -193,16 +200,18 @@ pub(crate) fn build_snapshot(
 ) -> SessionStateSnapshot {
     let mode = parse_mode(&config.mode);
     let status = live.status.to_protocol();
-    let model = SessionModel {
+    // 没有模型事实（`session/create` 未带 model）时省略 model 键，不造空 provider。
+    let has_model = !config.provider_id.is_empty() && !config.model_id.is_empty();
+    let model = has_model.then(|| SessionModel {
         provider_id: config.provider_id.clone(),
         model_id: config.model_id.clone(),
         options: None,
-    };
-    let message_model = MessageModel {
+    });
+    let message_model = has_model.then(|| MessageModel {
         provider_id: config.provider_id.clone(),
         model_id: config.model_id.clone(),
         options: None,
-    };
+    });
     SessionStateSnapshot {
         protocol: ProtocolInfo {
             name: ProtocolName::ModeProtocol,
@@ -223,7 +232,7 @@ pub(crate) fn build_snapshot(
             title_source: None,
             mode,
             status,
-            model: Some(model),
+            model,
             target: None,
             created_at: epoch_ms_to_u64(record.time_created),
             updated_at: epoch_ms_to_u64(live.updated_at.max(record.time_updated)),
@@ -231,13 +240,13 @@ pub(crate) fn build_snapshot(
         },
         settings: SessionSettings {
             model: SessionModelSettings {
-                current: Some(message_model),
+                current: message_model,
                 available: Vec::new(),
                 last_used: None,
             },
             thought_level: ThoughtLevelSettings {
                 enabled: false,
-                current: None,
+                current: config.thought_level.clone(),
                 default_level: None,
                 available: Vec::<ThoughtLevelOption>::new(),
             },

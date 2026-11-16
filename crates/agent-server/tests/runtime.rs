@@ -252,9 +252,23 @@ fn runtime_config() -> RuntimeConfig {
             context_window: Some(128_000),
             max_output_tokens: Some(8_192),
         },
+        thought_level: None,
         data_root: None,
         event_log_capacity: 4096,
         broadcast_capacity: 256,
+    }
+}
+
+/// 固定 provider 的装配源（Task 7 的 `ProviderSource` 注入口）。
+struct FixedSource(Arc<dyn ModelProvider>);
+
+impl agent_server::ProviderSource for FixedSource {
+    fn resolve(
+        &self,
+        _provider_id: &str,
+        _model_id: &str,
+    ) -> Result<Arc<dyn ModelProvider>, String> {
+        Ok(Arc::clone(&self.0))
     }
 }
 
@@ -262,7 +276,7 @@ fn spawn_runtime(fixture: &Fixture, provider: Arc<dyn ModelProvider>) -> Session
     SessionRuntime::new(
         fixture.record.clone(),
         Arc::clone(&fixture.store),
-        provider,
+        Arc::new(FixedSource(provider)),
         runtime_config(),
     )
     .expect("构造运行时")

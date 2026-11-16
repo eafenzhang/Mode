@@ -55,4 +55,4 @@ pub use provider::{
     ScriptedProvider,
 };
 pub use rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
-pub use stream::{EventSink, TurnError};
+pub use stream::{EventSink, TurnError, TurnProgress};

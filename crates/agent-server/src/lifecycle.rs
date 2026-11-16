@@ -68,7 +68,9 @@ pub fn run_main() -> ExitCode {
     };
 
     runtime.block_on(async {
-        let server = Arc::new(AgentServer::new());
+        // 生产入口：数据根来自 env（`MODE_DATA_BASE_DIR` → 家目录），存储门在
+        // run_stdio 的启动段发出 `startup/storageState` 通知。
+        let server = Arc::new(AgentServer::from_env());
         match run_stdio(tokio::io::stdin(), tokio::io::stdout(), server).await {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {

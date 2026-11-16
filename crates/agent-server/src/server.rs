@@ -13,11 +13,14 @@ use std::fmt;
 use std::io;
 use std::sync::Arc;
 
-use agent_protocol::{ErrorObject, ErrorResponseFrame, Frame, RequestFrame, ResponseFrame};
+use agent_protocol::{
+    ErrorObject, ErrorResponseFrame, Frame, NotificationFrame, RequestFrame, ResponseFrame,
+};
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::sync::mpsc;
 
-use crate::dispatch::AgentServer;
+use crate::dispatch::{AgentServer, PendingLiveForward};
 
 /// 单帧上限（防御异常刷屏）；与 `mode-protocol-client` 同口径，正常协议帧远小于此。
 pub const MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
@@ -128,8 +131,15 @@ impl From<io::Error> for ServerError {
 
 /// 在任意异步双向流上跑 `app-server --stdio` 循环。
 ///
-/// 逐行读取（只认 `\n`）→ 解析 JSON → 分派 → 写回复；EOF 干净返回 `Ok(())`。
-/// 请求分派失败时写成错误应答继续服务；非法 JSON / 非法帧返回错误并关闭连接。
+/// 结构（Task 7）：主循环在「当前入站帧的读取」与「出站通知通道」之间 select。
+/// `session/subscribe` 的 live 事件由转发任务写进出站通道，主循环统一落盘，
+/// 应答与事件不会在 write 端交错。**读取 future 按帧持有**（`Pin<&mut …>` 一直
+/// 存活到帧完成）：select 被出站帧打断时不会重建读取状态——`read_until` 已追加
+/// 进缓冲的字节与扫描进度都在，下一次 poll 从断点继续（取消安全）。
+///
+/// 启动顺序：**先跑存储门**（`startup/storageState` 通知直接写出，保证它们是本
+/// 连接的第一批帧），再进循环。EOF 干净返回 `Ok(())`；非法 JSON / 非法帧返回
+/// 错误并关闭连接。
 pub async fn run_stdio<R, W>(
     reader: R,
     mut writer: W,
@@ -139,16 +149,27 @@ where
     R: AsyncRead + Unpin,
     W: AsyncWrite + Unpin,
 {
+    server.run_storage_gate(&mut writer).await?;
+
+    let (outbound, mut outbound_rx) = mpsc::unbounded_channel::<Frame>();
     let mut reader = BufReader::new(reader);
     let mut line = Vec::new();
     loop {
+        // 每帧一个读取 future；被出站分支打断不重建（见函数注释的取消安全说明）。
         line.clear();
-        let read = reader
-            .read_until(b'\n', &mut line)
-            .await
-            .map_err(ServerError::Io)?;
+        let mut read_frame = std::pin::pin!(reader.read_until(b'\n', &mut line));
+        let outcome = loop {
+            tokio::select! {
+                biased;
+                read = &mut read_frame => break read,
+                Some(frame) = outbound_rx.recv() => write_frame(&mut writer, &frame).await?,
+            }
+        };
+        // `read_frame` 在此作用域结束自然释放（Pin<&mut> 不需要显式 drop）。
+
+        let read = outcome.map_err(ServerError::Io)?;
         if read == 0 {
-            // EOF：`read_until` 已先把残留缓冲区交回（没有换行也会返回一帧），这里退出。
+            // EOF：`read_until` 已先把残留缓冲区交回（没有换行也会返回一帧）。
             return Ok(());
         }
         if line.len() > MAX_FRAME_BYTES {
@@ -167,6 +188,7 @@ where
         let value: Value = serde_json::from_slice(&line)
             .map_err(|error| ServerError::invalid_frame(format!("invalid JSON frame: {error}")))?;
         let frame = frame_from_value(value)?;
+        line.clear();
 
         match frame {
             Frame::Request(request) => {
@@ -185,15 +207,56 @@ where
                     }),
                 };
                 write_frame(&mut writer, &response).await?;
+                // response 已落盘才 spawn live 转发：订阅的 replay（response 内）
+                // 永远先于 live 通知。
+                for forward in server.take_pending_forwards() {
+                    tokio::spawn(run_live_forward(forward, outbound.clone()));
+                }
             }
-            // 通知暂无订阅者；应答/错误应答要等反向请求（后续任务）才有 pending 可匹配。
+            // 通知（宿主→server）暂无订阅者；应答/错误应答要等反向请求（后续任务）才有 pending 可匹配。
             Frame::Notification(_) => {}
             Frame::Response(_) | Frame::ErrorResponse(_) => {}
         }
     }
 }
 
-async fn write_frame<W>(writer: &mut W, frame: &Frame) -> Result<(), ServerError>
+/// `session/subscribe` 的 live 转发：broadcast 事件 → `session/event` 通知帧。
+///
+/// `afterSeq` 之前的迟到事件不转发（replay 已带）；广播 Lagged 时跳过被丢弃的
+/// 通知继续消费（`docs/specs/session-write-group.md` §2c 的口径）；runtime 关闭
+/// （广播通道 Closed）或出站通道失败（连接关闭）时退出。
+async fn run_live_forward(forward: PendingLiveForward, outbound: mpsc::UnboundedSender<Frame>) {
+    let PendingLiveForward {
+        after_seq,
+        mut receiver,
+    } = forward;
+    loop {
+        match receiver.recv().await {
+            Ok(event) => {
+                if let Some(after) = after_seq {
+                    if event.seq <= after {
+                        continue;
+                    }
+                }
+                let Ok(params) = serde_json::to_value(&event) else {
+                    continue;
+                };
+                let frame = Frame::Notification(NotificationFrame {
+                    method: "session/event".to_string(),
+                    params: Some(params),
+                    trace: None,
+                });
+                if outbound.send(frame).is_err() {
+                    return;
+                }
+            }
+            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+            Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+        }
+    }
+}
+
+pub(crate) async fn write_frame<W>(writer: &mut W, frame: &Frame) -> Result<(), ServerError>
 where
     W: AsyncWrite + Unpin,
 {

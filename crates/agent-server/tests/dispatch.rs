@@ -25,16 +25,18 @@ fn unknown_method_returns_method_not_found() {
 #[test]
 fn skeleton_does_not_fake_any_method() {
     let server = AgentServer::new();
+    // Task 7 已接入 create/send/read 等方法表（methods.rs 覆盖）；
+    // compact / goal 明确不在 C1 方法表内，保持显式未实现。
     for method in [
         "",
-        "session/create",
-        "session/send",
-        "session/read",
+        "session/unknown",
         "session/compact",
+        "session/goal",
+        "provider/unknown",
     ] {
         let error = server
             .dispatch(method, json!({}))
-            .expect_err("C1 之前所有方法都必须是显式未实现");
+            .expect_err("未接入方法必须显式未实现");
         assert_eq!(error.code(), -32601, "method={method}");
     }
 }

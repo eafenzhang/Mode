@@ -158,6 +158,22 @@ impl Session {
         self
     }
 
+    /// 就地更新模式（`session/setMode` 后由 worker 在下个 turn 前应用）。
+    pub fn set_mode(&mut self, mode: impl Into<String>) {
+        self.mode = mode.into();
+    }
+
+    /// 就地更新模型能力（`session/setModel` 后由 worker 在下个 turn 前应用）。
+    pub fn set_model_capabilities(&mut self, capabilities: ModelCapabilities) {
+        self.model_capabilities = capabilities;
+    }
+
+    /// 当前归属 turn 的 id（`begin_turn` 之后、终态之前有值；配置失败路径用它
+    /// 给 `turn.failed` 补 turnId）。
+    pub fn current_turn_id(&self) -> Option<&str> {
+        self.current_turn_id.as_deref()
+    }
+
     /// 接线模型能力（系统提示的「Model limits」行；缺省值 = provider 未上报）。
     pub fn with_model_capabilities(mut self, capabilities: ModelCapabilities) -> Self {
         self.model_capabilities = capabilities;
@@ -495,7 +511,18 @@ impl Session {
 
             let response = provider_result
                 .expect("循环只在 provider future 结束后退出")
-                .map_err(|error| TurnError::new(error.message))?;
+                .map_err(|error| {
+                    // 失败时刻的已知累计（Task 7 裁决 6）：本请求之前的成功请求用量、
+                    // 请求次数与工具调用数随错误带回，供 `turn_usage` 记录已知值。
+                    TurnError::with_progress(
+                        error.message,
+                        crate::stream::TurnProgress {
+                            usage: usage.clone(),
+                            model_requests,
+                            tool_calls: tool_call_count,
+                        },
+                    )
+                })?;
             usage.input_tokens += response.usage.input_tokens;
             usage.output_tokens += response.usage.output_tokens;
             usage.cache_read_tokens += response.usage.cache_read_tokens;
@@ -1151,19 +1178,21 @@ impl Session {
     /// 用于 provider 错误等 `run_turn` 自身没有发终态的失败路径：seq 归 [`Session`]
     /// 统一分配，信封的 `turnId` 在 turn 尚未开始（如 turn 前持久化失败）时省略。
     ///
-    /// 线上 `turn.failed` 的完整载荷尚未观察（见 [`crate::stream`] 的边界注释）；这里
-    /// 只填协议必填的 `error.message` 与 `turn_phase`（调用方按失败阶段给值，如
-    /// `"model"`），不编造 `error.code` / `error.type` 等未观察字段。
+    /// `error_type` 由调用方给：provider/模型请求失败用 `"runtime_error"`；缺模型等
+    /// 配置失败用 `"CONFIGURATION_ERROR"`（oracle 观察：缺 `model` → `turn.failed`
+    /// 携带 `CONFIGURATION_ERROR` / "Select a model before continuing"，见
+    /// `docs/specs/tauri-agent-runtime.md` §1.5）。其余未观察字段（`error.code` 等）
+    /// 仍然不编造。
     pub fn emit_turn_failed(
         &mut self,
         turn_id: Option<&str>,
+        error_type: &str,
         error_message: &str,
         turn_phase: &str,
     ) -> SessionEvent {
         let payload = TurnFailedPayload {
             error: ProtocolErrorDetail {
-                // 协议必填但取值未观察：用中性的运行时标记，不为对拍编造供应商形状。
-                error_type: "runtime_error".to_string(),
+                error_type: error_type.to_string(),
                 message: error_message.to_string(),
                 stack: None,
                 code: None,

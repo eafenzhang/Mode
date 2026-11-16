@@ -65,6 +65,7 @@ dependencies = [
 name = "agent-server"
 version = "0.1.0"
 dependencies = [
+ "agent-core",
  "agent-protocol",
  "indexmap 2.14.2",
  "model-selection",
@@ -73,9 +74,12 @@ dependencies = [
  "provider-config-source",
  "provider-http",
  "provider-resolver",
+ "rusqlite",
  "serde",
  "serde_json",
+ "session-store",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

@@ -165,6 +165,66 @@ impl SessionStore {
         Ok(records)
     }
 
+    /// 列出**全部**会话（`session/list` 不带 workspace 时的线上语义，Task 0 观察：
+    /// oracle 的 `session/list` params 可以只有 `{includeArchived}`）。
+    /// 排序与归档过滤同 [`Self::list_sessions`]。
+    pub fn list_all_sessions(
+        &self,
+        include_archived: bool,
+        limit: Option<usize>,
+    ) -> Result<Vec<SessionRecord>, StoreError> {
+        let connection = self.connection();
+        let sql = format!(
+            "SELECT {SESSION_COLUMNS} FROM session \
+             WHERE (?1 = 1 OR time_archived IS NULL) \
+             ORDER BY time_updated DESC, id DESC LIMIT ?2"
+        );
+        let mut statement = connection.prepare(&sql)?;
+        let records = statement
+            .query_map(
+                params![include_archived, crate::bound_limit(limit)],
+                session_from_row,
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(records)
+    }
+
+    /// 读取一个会话的全部 `session_entry`（`rowid` 序；C1 只用小体积的运行时条目）。
+    pub fn entries(&self, session_id: &str) -> Result<Vec<SessionEntryRecord>, StoreError> {
+        let connection = self.connection();
+        let mut statement = connection.prepare(
+            "SELECT id, session_id, type, time_created, time_updated, data \
+             FROM session_entry WHERE session_id = ?1 ORDER BY rowid",
+        )?;
+        let records = statement
+            .query_map([session_id], entry_from_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(records)
+    }
+
+    /// upsert 一条 `session_entry`（按主键 `id` 整行替换）。
+    ///
+    /// C1 的运行时条目（`runtime/model_selection` / `runtime-execution-state`）在
+    /// setter 时会更新同一 id 的行；`append_entry` 的纯 INSERT 会在第二次写时撞主键。
+    pub fn put_entry(&self, entry: SessionEntryRecord) -> Result<(), StoreError> {
+        let data = serde_json::to_string(&entry.data)?;
+        self.with_write_transaction(|transaction| {
+            transaction.execute(
+                "INSERT OR REPLACE INTO session_entry (id, session_id, type, time_created, time_updated, data) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    entry.id,
+                    entry.session_id,
+                    entry.entry_type,
+                    entry.time_created,
+                    entry.time_updated,
+                    data,
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
     /// 追加一条 `session_entry`。
     pub fn append_entry(&self, entry: SessionEntryRecord) -> Result<(), StoreError> {
         let data = serde_json::to_string(&entry.data)?;
@@ -213,5 +273,22 @@ fn session_from_row(row: &Row<'_>) -> rusqlite::Result<SessionRecord> {
         title_message_id: row.get(22)?,
         time_title_updated: row.get(23)?,
         trace_id: row.get(24)?,
+    })
+}
+
+fn entry_from_row(row: &Row<'_>) -> rusqlite::Result<SessionEntryRecord> {
+    Ok(SessionEntryRecord {
+        id: row.get(0)?,
+        session_id: row.get(1)?,
+        entry_type: row.get(2)?,
+        time_created: row.get(3)?,
+        time_updated: row.get(4)?,
+        data: serde_json::from_str(&row.get::<_, String>(5)?).map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                5,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?,
     })
 }

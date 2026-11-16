@@ -513,3 +513,75 @@ fn touch_session_updates_time_only_and_fails_on_missing_row() {
     );
     assert_eq!(error.code(), "invalid_input");
 }
+
+// ---------------------------------------------------------------------------
+// Task 7 追加面：全量 list、session_entry 读取与 upsert
+// ---------------------------------------------------------------------------
+
+#[test]
+fn list_all_sessions_covers_every_directory_with_archive_filter() {
+    let (_root, store) = open_fixture("crud-list-all");
+
+    store
+        .create_session(sample_session("s-all-1", "/ws/one", 100, false))
+        .expect("写入 s-all-1");
+    store
+        .create_session(sample_session("s-all-2", "/ws/two", 200, false))
+        .expect("写入 s-all-2");
+    store
+        .create_session(sample_session("s-all-archived", "/ws/three", 300, true))
+        .expect("写入归档会话");
+
+    assert_eq!(
+        ids(store.list_all_sessions(false, None).expect("全量列表")),
+        vec!["s-all-2".to_owned(), "s-all-1".to_owned()],
+        "不带 workspace 时列出全部未归档会话，time_updated DESC"
+    );
+    assert_eq!(
+        ids(store.list_all_sessions(true, None).expect("含归档")),
+        vec![
+            "s-all-archived".to_owned(),
+            "s-all-2".to_owned(),
+            "s-all-1".to_owned()
+        ]
+    );
+    assert_eq!(
+        ids(store.list_all_sessions(false, Some(1)).expect("limit=1")),
+        vec!["s-all-2".to_owned()]
+    );
+}
+
+#[test]
+fn entries_roundtrip_and_put_entry_replaces_same_id() {
+    let (_root, store) = open_fixture("crud-entries");
+
+    store
+        .create_session(sample_session("s-entry", "/ws/entry", 1_000, false))
+        .expect("创建 session");
+    let mut entry = sample_entry("s-entry:runtime-model-selection", "s-entry");
+    entry.entry_type = "runtime/model_selection".to_owned();
+    entry.data = json!({ "modelSelection": { "providerId": "p1", "modelId": "m1" } });
+    store.append_entry(entry.clone()).expect("首次写入");
+
+    let entries = store.entries("s-entry").expect("读取条目");
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].id, entry.id);
+    assert_eq!(entries[0].entry_type, "runtime/model_selection");
+    assert_eq!(entries[0].data["modelSelection"]["modelId"], json!("m1"));
+
+    // 同 id upsert：整行替换，不撞主键、不追加第二行。
+    let mut updated = entry.clone();
+    updated.data = json!({ "modelSelection": { "providerId": "p2", "modelId": "m2" } });
+    store.put_entry(updated).expect("upsert 同 id 条目");
+    let entries = store.entries("s-entry").expect("再读条目");
+    assert_eq!(entries.len(), 1, "同 id 只有一行");
+    assert_eq!(entries[0].data["modelSelection"]["providerId"], json!("p2"));
+
+    // 不同 id 正常追加。
+    let mut other = sample_entry("s-entry:runtime-execution-state", "s-entry");
+    other.entry_type = "runtime/execution_state".to_owned();
+    store.put_entry(other).expect("追加不同 id");
+    assert_eq!(store.entries("s-entry").expect("两条").len(), 2);
+    // 空会话没有条目。
+    assert!(store.entries("s-absent").expect("空条目").is_empty());
+}

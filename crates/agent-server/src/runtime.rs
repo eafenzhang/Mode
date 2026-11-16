@@ -1,18 +1,19 @@
-//! 会话运行时（LT-1 C1 Task 6）：per-session 的 turn 串行执行、事件总线与持久化。
+//! 会话运行时（LT-1 C1 Task 6/7）：per-session 的 turn 串行执行、事件总线与持久化。
 //!
 //! # 所有权与事件顺序
 //!
 //! ```text
 //! submit() ──(std Mutex<Live>：幂等/revision/CommandInbox 准入)──> UnboundedSender
 //!                                                                    │
-//! per-session worker（tokio task，持有 Session/Arc<SessionStore>/Arc<dyn ModelProvider>）
-//!     └─ 逐条消费队列 ──> Session::run_turn ──> TurnRecorder: EventSink
-//!                                                   ├─ Shared::publish：内存事件日志（有界）
-//!                                                   │   + broadcast 总线（同一临界区内）
-//!                                                   └─ 观察事件 → session-store 落库
-//!                                                       （turn.started → user message+part；
-//!                                                        tool batch → assistant 消息+parts+tool_usage；
-//!                                                        终态 → turn_usage + touch session）
+//! per-session worker（tokio task，持有 Session/Arc<SessionStore>/Arc<dyn ProviderSource>）
+//!     └─ 逐条消费队列 ──(读 Shared.config：mode/model/能力)──> Session::run_turn
+//!                                                   └─ TurnRecorder: EventSink
+//!                                                       ├─ Shared::publish：内存事件日志（有界）
+//!                                                       │   + broadcast 总线（同一临界区内）
+//!                                                       └─ 观察事件 → session-store 落库
+//!                                                           （turn.started → user message+part；
+//!                                                            tool batch → assistant 消息+parts+tool_usage；
+//!                                                            终态 → turn_usage + touch session）
 //! ```
 //!
 //! - **串行**：一个 worker 只有一个；turn 运行期间 `submit` 只入队（`CommandInbox`
@@ -27,17 +28,20 @@
 //! - **终态**：成功/取消的终态由 `run_turn` 发（`turn.completed`，取消为
 //!   `resultType:"cancelled"`）；provider 错误的 `turn.failed` 由 worker 补发（
 //!   [`Session::emit_turn_failed`]，seq 归 Session 分配）。每个 turn 恰好一条终态。
+//! - **配置失败**（Task 7 控制器裁决 7）：会话没有可用模型（或 provider 解析失败）时，
+//!   turn 以 `turn.failed`（`CONFIGURATION_ERROR`）结束，**不用默认模型兜底**。
 //! - **取消**（控制器裁决 4）：`cancel_turn()` 只作用于**当前** turn 的
-//!   [`CancelToken`]；排队中的输入照常执行。
+//!   [`CancelToken`]；排队中的输入照常执行（含 close 后的收尾 drain——已接受的
+//!   输入由 CommandInbox 串行准入，不中途丢弃）。
 //! - **阻塞 IO**：`SessionStore` 内部是 `Mutex<Connection>` + 短 `BEGIN IMMEDIATE`
 //!   事务（控制器裁决 2 的「短临界区」路线）；运行时在 sink/worker 里同步调用，
 //!   不引入 `spawn_blocking` 的句柄搬运。
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use agent_core::command_inbox::CommandInbox;
+use agent_core::command_inbox::{CommandInbox, Completion};
 use agent_core::session::Session;
 use agent_core::{CancelToken, EventSink, ModelProvider, SessionEvent, SessionEventType};
 use agent_protocol::session_event::{
@@ -53,6 +57,15 @@ use crate::state::{
     SessionInput,
 };
 
+/// provider 装配源：按会话当前的模型事实解析出可执行的 [`ModelProvider`]。
+///
+/// 生产实现走 `ProviderConfigHub`（builtin/personal/account 三层合并 →
+/// `OpenAiChatProvider`）；测试注入脚本化 fake。错误文案只带 provider/model 与
+/// 缺失字段名（`ProviderConfigError` 的掩码纪律），不含凭据。
+pub trait ProviderSource: Send + Sync {
+    fn resolve(&self, provider_id: &str, model_id: &str) -> Result<Arc<dyn ModelProvider>, String>;
+}
+
 /// worker 队列的一项：已接受、等待串行执行的输入。
 struct QueuedInput {
     input: SessionInput,
@@ -62,14 +75,15 @@ struct QueuedInput {
 /// 锁内的活跃状态。所有字段只有一个写入方（submit / worker），读方加锁短读。
 struct Live {
     status: RuntimeStatus,
-    /// 乐观并发版本：每次接受输入 +1，每个 turn 终态 +1。
+    /// 乐观并发版本：每次接受输入 +1，每个 turn 终态 +1，setter 成功 +1。
     revision: u64,
     updated_at: i64,
     last_error: Option<String>,
     turn_count: u64,
     total_token_count: u64,
     event_seq: u64,
-    /// 下一条持久化 message 行的 `sequence`（冷启动时按库内已有行数初始化）。
+    /// 下一条持久化 message 行的 `sequence`（冷启动时按库内已有行的最大序号 +1 初始化，
+    /// Task 7 控制器裁决 6：恢复历史时不得与旧行撞序号）。
     next_message_sequence: i64,
     /// 有界内存事件日志（订阅回放源；最旧先丢）。
     log: VecDeque<SessionEvent>,
@@ -81,12 +95,15 @@ struct Live {
     current_cancel: Option<CancelToken>,
 }
 
-/// 跨 submit/worker/snapshot 共享的不可变事实 + 锁内状态 + 事件总线。
+/// 跨 submit/worker/snapshot 共享的状态 + 事件总线。
+///
+/// `config` 用 `RwLock`：setter（Task 7 方法层）原位更新，worker 在每个 turn 开始前
+/// 读取（mode/能力进系统提示，模型事实决定 provider 装配），快照读取最新事实。
 struct Shared {
     live: Mutex<Live>,
+    config: RwLock<RuntimeConfig>,
     bus: tokio::sync::broadcast::Sender<SessionEvent>,
     record: SessionRecord,
-    config: RuntimeConfig,
 }
 
 impl Shared {
@@ -94,6 +111,13 @@ impl Shared {
         self.live
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn read_config(&self) -> RuntimeConfig {
+        self.config
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
     }
 
     /// 发布一条事件：先进内存日志（同一临界区），再上 broadcast。
@@ -104,7 +128,7 @@ impl Shared {
         let mut live = self.lock();
         live.event_seq = live.event_seq.max(event.seq);
         live.log.push_back(event.clone());
-        let capacity = self.config.event_log_capacity.max(1);
+        let capacity = self.read_config().event_log_capacity.max(1);
         while live.log.len() > capacity {
             live.log.pop_front();
         }
@@ -126,22 +150,29 @@ pub struct SessionRuntime {
 impl SessionRuntime {
     /// 构造运行时并启动 per-session worker。
     ///
-    /// `next_message_sequence` 按库内已有 message 行数初始化：在已有历史的会话上
-    /// 重开运行时（resume）时，新行的 `sequence` 接着旧行编号，不与恢复的历史冲突。
+    /// `next_message_sequence` 按库内已有 message 行的**最大序号 +1** 初始化（Task 7
+    /// 控制器裁决 6）：在已有历史的会话上重开运行时（resume）时，新行的 `sequence`
+    /// 接着旧行编号。用 `len()` 会在序号有洞（旧版本/迁移数据）时与历史撞号。
     pub fn new(
         record: SessionRecord,
         store: Arc<SessionStore>,
-        provider: Arc<dyn ModelProvider>,
+        source: Arc<dyn ProviderSource>,
         config: RuntimeConfig,
     ) -> Result<Self, RuntimeError> {
         let existing = store
             .messages(&record.id, None, None)
             .map_err(|error| RuntimeError::Store(error.to_string()))?;
-        let next_message_sequence = existing.len() as i64;
+        let next_message_sequence = existing
+            .iter()
+            .map(|message| message.message.sequence.unwrap_or(-1))
+            .max()
+            .unwrap_or(-1)
+            + 1;
 
         let (bus, _bus_receiver) =
             tokio::sync::broadcast::channel(config.broadcast_capacity.max(1));
         let (queue, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let data_root = config.data_root.clone();
         let shared = Arc::new(Shared {
             live: Mutex::new(Live {
                 status: RuntimeStatus::Idle,
@@ -157,23 +188,23 @@ impl SessionRuntime {
                 inbox: CommandInbox::new(),
                 current_cancel: None,
             }),
+            config: RwLock::new(config),
             bus,
             record,
-            config,
         });
 
         let mut session = Session::new(shared.record.id.clone(), shared.record.directory.clone())
-            .with_mode(shared.config.mode.clone())
-            .with_model_capabilities(shared.config.capabilities);
-        if let Some(data_root) = &shared.config.data_root {
-            session = session.with_data_root(data_root.clone());
+            .with_mode(shared.read_config().mode)
+            .with_model_capabilities(shared.read_config().capabilities);
+        if let Some(data_root) = data_root {
+            session = session.with_data_root(data_root);
         }
         let worker = tokio::spawn(worker_loop(
             receiver,
             Arc::clone(&shared),
             session,
             store,
-            provider,
+            source,
         ));
         Ok(Self {
             shared,
@@ -258,6 +289,49 @@ impl SessionRuntime {
         Ok(())
     }
 
+    /// 当前乐观并发版本（setter 的 `expectedRevision` 校验用）。
+    pub fn state_revision(&self) -> u64 {
+        self.shared.lock().revision
+    }
+
+    /// 当前事件 seq 高水位（`session/subscribe` 结果的 `eventSeq`）。
+    pub fn event_seq(&self) -> u64 {
+        self.shared.lock().event_seq
+    }
+
+    /// 应用一次 setter 的配置更新（Task 7 方法层）。
+    ///
+    /// `expected_revision` 与当前 `stateRevision` 不一致时报
+    /// [`RuntimeError::RevisionConflict`]（**不改配置**）；成功时原位替换配置并
+    /// 推进版本（状态面事实变了）。落库（`runtime/model_selection` 等 entry）由
+    /// 方法层负责——本方法只管内存事实。
+    pub fn update_config(
+        &self,
+        expected_revision: Option<u64>,
+        apply: impl FnOnce(&mut RuntimeConfig),
+    ) -> Result<u64, RuntimeError> {
+        let mut live = self.shared.lock();
+        if let Some(expected) = expected_revision {
+            if expected != live.revision {
+                return Err(RuntimeError::RevisionConflict {
+                    expected,
+                    current: live.revision,
+                });
+            }
+        }
+        {
+            let mut config = self
+                .shared
+                .config
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            apply(&mut config);
+        }
+        live.revision += 1;
+        live.updated_at = now_ms();
+        Ok(live.revision)
+    }
+
     /// worker 的 join 句柄（后续任务的显式 close 接线用；本结构 Drop 不打断在跑的 turn）。
     pub fn worker(&self) -> &tokio::task::JoinHandle<()> {
         &self.worker
@@ -265,7 +339,7 @@ impl SessionRuntime {
 
     /// 最小合法快照（形状对齐 `agent-process-fixture::minimal_snapshot`）：
     /// mode / model / status / turnCount / usage 反映活跃状态；`messages` 恒空
-    /// （冷读归 Task 7）。
+    /// （历史消息由 Task 7 的 `session/read` / `session/resume` 从 store 投影）。
     pub fn snapshot(&self) -> agent_protocol::snapshot::SessionStateSnapshot {
         let live = self.shared.lock();
         let view = LiveView {
@@ -277,21 +351,120 @@ impl SessionRuntime {
             total_token_count: live.total_token_count,
             event_seq: live.event_seq,
         };
-        build_snapshot(&self.shared.record, &self.shared.config, &view)
+        let config = self.shared.read_config();
+        build_snapshot(&self.shared.record, &config, &view)
+    }
+
+    /// 会话记录（方法层构造冷/热快照的 session 信息用）。
+    pub fn record(&self) -> &SessionRecord {
+        &self.shared.record
+    }
+
+    /// 当前配置快照（方法层判断「会话是否已有模型」用）。
+    pub fn config(&self) -> RuntimeConfig {
+        self.shared.read_config()
     }
 }
 
 /// worker 主体：串行消费队列直到发送端关闭且队列清空。
+///
+/// provider 按「(providerId, modelId)」缓存：配置未变的连续 turn 复用同一个 provider
+/// 实例；setter 改了模型事实后才重新解析。配置失败（无模型 / 解析失败）走
+/// [`run_configuration_failure`]，不静默用默认模型兜底（Task 7 控制器裁决 7）。
 async fn worker_loop(
     mut receiver: tokio::sync::mpsc::UnboundedReceiver<QueuedInput>,
     shared: Arc<Shared>,
     mut session: Session,
     store: Arc<SessionStore>,
-    provider: Arc<dyn ModelProvider>,
+    source: Arc<dyn ProviderSource>,
 ) {
+    let mut current: Option<(String, String, Arc<dyn ModelProvider>)> = None;
     while let Some(item) = receiver.recv().await {
-        run_one_input(&mut session, &shared, &store, provider.as_ref(), item).await;
+        // 每个 turn 开始前同步配置：mode/能力进系统提示，模型事实决定装配。
+        let config = shared.read_config();
+        session.set_mode(config.mode.clone());
+        session.set_model_capabilities(config.capabilities);
+
+        let cached = current
+            .as_ref()
+            .filter(|(provider_id, model_id, _)| {
+                provider_id == &config.provider_id && model_id == &config.model_id
+            })
+            .map(|(_, _, provider)| Arc::clone(provider));
+        let provider = match cached {
+            Some(provider) => Some(provider),
+            None if config.provider_id.is_empty() || config.model_id.is_empty() => None,
+            None => match source.resolve(&config.provider_id, &config.model_id) {
+                Ok(provider) => {
+                    current = Some((
+                        config.provider_id.clone(),
+                        config.model_id.clone(),
+                        Arc::clone(&provider),
+                    ));
+                    Some(provider)
+                }
+                Err(message) => {
+                    current = None;
+                    run_configuration_failure(&mut session, &shared, &store, &item, &message).await;
+                    continue;
+                }
+            },
+        };
+        match provider {
+            Some(provider) => {
+                run_one_input(&mut session, &shared, &store, provider.as_ref(), item).await
+            }
+            // 没有配置模型：显式配置错误，不启动模型请求。
+            None => {
+                run_configuration_failure(
+                    &mut session,
+                    &shared,
+                    &store,
+                    &item,
+                    "Select a model before continuing",
+                )
+                .await;
+            }
+        }
     }
+}
+
+/// 配置失败的 turn：`turn.started` → `turn.failed`（`CONFIGURATION_ERROR`），
+/// `turn_usage(failed)` 记零值（没有任何模型请求可累计）。终态恰好一条，
+/// 与正常 turn 走同一套 publish / 状态收口。
+async fn run_configuration_failure(
+    session: &mut Session,
+    shared: &Arc<Shared>,
+    store: &Arc<SessionStore>,
+    item: &QueuedInput,
+    message: &str,
+) {
+    let token = CancelToken::new();
+    {
+        let mut live = shared.lock();
+        live.status = RuntimeStatus::Running;
+        live.current_cancel = Some(token.clone());
+    }
+    let mut recorder = TurnRecorder::new(Arc::clone(shared), Arc::clone(store), item);
+    let started = session.begin_turn(&item.input.content);
+    let turn_id = started.turn_id.clone();
+    recorder.emit(started);
+    recorder.emit(session.emit_turn_failed(
+        turn_id.as_deref(),
+        "CONFIGURATION_ERROR",
+        message,
+        "configuration",
+    ));
+    recorder.record_failure_progress(&agent_core::TurnProgress::default());
+
+    let mut live = shared.lock();
+    live.current_cancel = None;
+    let _ = live.inbox.complete(&shared.record.id, &item.input_id);
+    live.turn_count += 1;
+    live.revision += 1;
+    live.updated_at = now_ms();
+    live.status = RuntimeStatus::Error;
+    live.last_error = Some(message.to_string());
 }
 
 /// 跑一个输入（串行；前后维护 running 状态与取消令牌）。
@@ -326,10 +499,13 @@ async fn run_one_input(
         Err(error) => {
             let event = session.emit_turn_failed(
                 recorder.turn_id().map(String::as_str),
+                "runtime_error",
                 &error.message,
                 "model",
             );
             recorder.emit(event);
+            // Task 7 控制器裁决 6：失败 turn 的 usage 行记**已知**累计值，不清零。
+            recorder.record_failure_progress(&error.progress);
             Some(error.message.clone())
         }
     };
@@ -337,15 +513,18 @@ async fn run_one_input(
     let mut live = shared.lock();
     live.current_cancel = None;
     // running 完成对账；迟到的 complete 由 CommandInbox 自己挡（Stale 不动队列）。
-    let _ = live.inbox.complete(&shared.record.id, &item.input_id);
+    let completion = live.inbox.complete(&shared.record.id, &item.input_id);
     live.turn_count += 1;
     live.revision += 1;
     live.updated_at = now_ms();
     live.total_token_count += recorder.turn_total_tokens();
-    live.status = if failure_message.is_some() {
-        RuntimeStatus::Error
-    } else {
-        RuntimeStatus::Idle
+    // Task 7 控制器裁决 6：队首被提升（还有已接受输入在等）时不能闪回 idle。
+    live.status = match (&failure_message, completion) {
+        (Some(_), _) => RuntimeStatus::Error,
+        (None, Completion::Promoted(_)) => RuntimeStatus::Running,
+        (None, Completion::Idle) => RuntimeStatus::Idle,
+        // Stale：对账被拒（不应发生——worker 是唯一 complete 的写入方）；状态不动。
+        (None, Completion::Stale) => live.status,
     };
     if let Some(message) = failure_message.or(recorder.persist_error.clone()) {
         live.last_error = Some(message);
@@ -595,10 +774,42 @@ impl TurnRecorder {
         self.touch_session();
     }
 
+    /// 失败 turn 的 usage 行（Task 7 控制器裁决 6）。
+    ///
+    /// 由 worker 在补发 `turn.failed` 后**显式**调用：错误自带的 `TurnProgress` 是
+    /// 失败时刻的已知累计，按它写行（配置失败为全零——没有模型请求可累计）。
+    /// 事件观察侧（`observe`）不再写 failed 行，避免同一 turn 落两行。
+    fn record_failure_progress(&mut self, progress: &agent_core::TurnProgress) {
+        if self.turn_id.is_none() {
+            return;
+        }
+        let record = TurnUsageRecord {
+            session_id: self.session_id.clone(),
+            turn_id: self.turn_id.clone().unwrap_or_default(),
+            started_at: self.turn_started_at.max(1),
+            status: "failed".to_string(),
+            completed_at: Some(now_ms()),
+            duration_ms: Some((now_ms() - self.turn_started_at.max(1)).max(0)),
+            cancelled_by_user: false,
+            input_tokens: progress.usage.input_tokens as i64,
+            output_tokens: progress.usage.output_tokens as i64,
+            computed_total_tokens: (progress.usage.input_tokens + progress.usage.output_tokens)
+                as i64,
+            model_request_count: progress.model_requests as i64,
+            tool_call_count: progress.tool_calls as i64,
+            tool_error_count: self.tool_error_count as i64,
+            user_message_id: self.user_message_id.clone(),
+            ..TurnUsageRecord::default()
+        };
+        if let Err(error) = self.store.record_turn_usage(record) {
+            self.record_store_failure(error);
+        }
+        self.touch_session();
+    }
+
     fn on_turn_failed(&mut self, _event: &SessionEvent) {
         // provider 错误：没有完成的 assistant 步可落库（本步累积内容不写半成品行）。
-        self.record_turn_usage("failed", false, None);
-        self.touch_session();
+        // usage 行由 `record_failure_progress` 在 worker 收口处写（带已知累计）。
     }
 
     /// 按 toolCallId 找当前步的工具记录；找不到且给了工具名就补建。
@@ -634,14 +845,16 @@ impl TurnRecorder {
         let message_id = fresh_id("msg");
         let sequence = self.take_sequence();
         let turn_id = self.turn_id.clone().unwrap_or_default();
+        // 落库行的模型事实取写入时刻的配置（setter 改模型后，新行记新值）。
+        let config = self.shared.read_config();
         let mut data = json!({
             "role": "user",
             "messageId": message_id,
             "sequence": sequence,
             "time": { "created": now },
             "model": {
-                "providerID": self.shared.config.provider_id,
-                "modelID": self.shared.config.model_id,
+                "providerID": config.provider_id,
+                "modelID": config.model_id,
             },
             "semantics": {
                 "origin": "real_user",
@@ -697,15 +910,16 @@ impl TurnRecorder {
             .last_message_id
             .clone()
             .unwrap_or_else(|| self.user_message_id.clone().unwrap_or_default());
+        let config = self.shared.read_config();
         let mut data = json!({
             "role": "assistant",
             "messageId": message_id,
             "sequence": sequence,
             "parentID": parent_id,
             "finish": finish,
-            "providerId": self.shared.config.provider_id,
-            "modelId": self.shared.config.model_id,
-            "mode": self.shared.config.mode,
+            "providerId": config.provider_id,
+            "modelId": config.model_id,
+            "mode": config.mode,
             "time": { "created": step.started_at, "completed": now },
             "anchor": { "turnId": turn_id },
             "semantics": {
@@ -895,27 +1109,37 @@ fn tokens_value_from_payload(payload: &TurnCompletedPayload) -> Value {
     })
 }
 
-/// tool part 的 `state`（观察形状见 `agent-server-c1-contract.md` §3.4；`readFileState`
-/// 等工具私有 metadata 不在这里重建）。
+/// tool part 的 `state`（观察形状见 `agent-server-c1-contract.md` §3.4：completed 带
+/// `title`/`metadata`；`readFileState` 等工具私有 metadata 不在这里重建，保持空对象）。
+/// `input` 恒为对象（线上形状；缺失入参投影成 `{}`）。
 fn tool_state_value(call: &ToolCallRecord, now: i64) -> Value {
     let started = call.started_at.unwrap_or(now);
     let finished = call.finished_at.unwrap_or(now);
+    let input = if call.input.is_null() {
+        json!({})
+    } else {
+        call.input.clone()
+    };
     match &call.outcome {
         Some(Ok(output)) => json!({
             "status": "completed",
-            "input": call.input,
+            "input": input,
             "output": output,
+            "title": call.tool_name,
+            "metadata": {},
             "time": { "start": started, "end": finished },
         }),
         Some(Err(message)) => json!({
             "status": "error",
-            "input": call.input,
+            "input": input,
             "error": message,
+            "title": call.tool_name,
+            "metadata": {},
             "time": { "start": started, "end": finished },
         }),
         None => json!({
             "status": "pending",
-            "input": call.input,
+            "input": input,
         }),
     }
 }
