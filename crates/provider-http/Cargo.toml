@@ -1,0 +1,22 @@
+[package]
+name = "provider-http"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "模型供应商 HTTP/SSE 适配：OpenAI Chat Completions 流式、工具调用累积与 usage 映射（LT-1 C1）"
+
+[lib]
+name = "provider_http"
+path = "src/lib.rs"
+
+[dependencies]
+agent-core = { path = "../agent-core" }
+futures-util.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+# 本地 TcpListener 回放 SSE + 多线程测试运行时（server 任务与 client 各占一个 worker）；
+# timeout 只做失败上限，workspace 基础 features 已含 rt-multi-thread / macros / sync。
+tokio = { workspace = true, features = ["io-util", "net", "time"] }

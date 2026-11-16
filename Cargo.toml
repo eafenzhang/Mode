@@ -32,6 +32,7 @@ members = [
   "crates/provider-balance",
   "crates/provider-model-listing",
   "crates/provider-source-chain",
+  "crates/provider-http",
   "crates/commands-service",
   "crates/mode-protocol-client",
   "crates/agent-process",
