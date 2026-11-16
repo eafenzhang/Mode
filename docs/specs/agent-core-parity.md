@@ -342,6 +342,9 @@ Rust `agent-server` 必须用**同一份**比较器（TS `compare.mts`）或与�
 | 双写/双 owner             | 切换期最大风险                                                    | 进程级单 owner + 单 DB 写者 + fail-closed                       |
 | 范围蔓延                  | C1 很容易被 MCP/Skills 拉大                                       | C1 清单写死“不做”；C4 消费 LT-2/LT-6                            |
 | 工具面不足                | 20 任务需要 MCP/技能/子代理                                       | 明确属 C4；C1 只验 6 工具                                       |
+| 快照缺省面 vs oracle read/resume | C1 快照不产出 `runtime.contextUsage`（oracle 在 resume/read 携带 cache/usage 统计）、`settings.model.available` 为空数组（无模型目录事实源）、冷读 `projection.contextWindow` 为 0（不按历史重算，同 §4 观察 4 的口径） | Task 7 复评登记；Task 10 回放按本行分诊，不视为回归             |
+| 快照缺省面 vs oracle create | C1 create 快照不产出 `runtime.goalVerifications` / `runtime.goalVerificationTimeline`（目标验证属 goal 面，C1 未实现） | 同上；C4 接 goal 面时补齐                                       |
+| session/events / streamRecovery / session.updated 未产出 | C1 不产出 `session.updated`、`streamRecovery.updated`、`session.titleUpdated`（标题/仪表/恢复锚点需要模型层追踪数据） | 已在 `agent-server-c1-contract.md` §4-5 登记；Task 10 回放按合法差异折叠 |
 
 ## 11. Clean-room 声明
 

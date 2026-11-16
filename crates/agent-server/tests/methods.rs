@@ -16,7 +16,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use agent_core::provider::{ModelProvider, ScriptStep, ScriptedProvider};
+use agent_core::provider::{
+    BoxFuture, DeltaSink, ModelDelta, ModelProvider, ModelRequest, ModelResponse, ModelUsage,
+    ProviderError, ScriptStep, ScriptedProvider,
+};
 use agent_protocol::message::MessageWithParts;
 use agent_protocol::snapshot::SessionStateSnapshot;
 use agent_server::{
@@ -25,6 +28,7 @@ use agent_server::{
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream, ReadHalf, WriteHalf};
+use tokio::sync::Notify;
 
 // ---------------------------------------------------------------------------
 // 基线测试库夹具（与 session-store/tests/common 同一口径）
@@ -298,6 +302,60 @@ impl ProviderSource for ScriptedSource {
     }
 }
 
+/// 门控 provider：每次模型请求都停在同一个 release 信号上（close-drain 用例需要
+/// 「turn 1 还在跑、turn 2 已排队」的确定性窗口）。
+struct GatedProvider {
+    release: Arc<Notify>,
+}
+
+impl ModelProvider for GatedProvider {
+    fn stream(
+        &self,
+        _request: ModelRequest,
+        deltas: DeltaSink,
+    ) -> BoxFuture<'static, Result<ModelResponse, ProviderError>> {
+        let release = Arc::clone(&self.release);
+        Box::pin(async move {
+            release.notified().await;
+            deltas
+                .send(ModelDelta::Text {
+                    text: "gated answer".to_string(),
+                })
+                .map_err(|_| ProviderError {
+                    message: "delta sink closed".to_string(),
+                })?;
+            Ok(ModelResponse {
+                usage: ModelUsage {
+                    input_tokens: 10,
+                    output_tokens: 12,
+                    ..ModelUsage::default()
+                },
+                stop_reason: "stop",
+            })
+        })
+    }
+}
+
+/// 门控装配源：`mock-chat` 的解析产出共享同一 release 信号的 provider。
+struct GatedSource {
+    release: Arc<Notify>,
+}
+
+impl ProviderSource for GatedSource {
+    fn resolve(
+        &self,
+        provider_id: &str,
+        _model_id: &str,
+    ) -> Result<Arc<dyn ModelProvider>, String> {
+        if provider_id != "mock-chat" {
+            return Err(format!("Provider 不存在: {provider_id}"));
+        }
+        Ok(Arc::new(GatedProvider {
+            release: Arc::clone(&self.release),
+        }))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // stdio 测试连接（duplex；门通知在 connect 内消费）
 // ---------------------------------------------------------------------------
@@ -333,6 +391,11 @@ struct Fixture {
 }
 
 fn fixture(label: &str, steps: Vec<ScriptStep>) -> Fixture {
+    fixture_with_source(label, Arc::new(ScriptedSource { steps }))
+}
+
+/// 自定义 provider 装配源的夹具变体（close-drain 用例注入门控 provider）。
+fn fixture_with_source(label: &str, source: Arc<dyn ProviderSource>) -> Fixture {
     let root = TempRoot::new(label);
     let mode_root = root.path().join(".mode");
     let db_dir = mode_root.join("cli").join("db");
@@ -348,11 +411,7 @@ fn fixture(label: &str, steps: Vec<ScriptStep>) -> Fixture {
         write_personal_file(root.path()),
     );
     let config = ServerConfig::from_data_base_dir(root.path());
-    let server = Arc::new(AgentServer::with_parts(
-        config,
-        hub,
-        Arc::new(ScriptedSource { steps }),
-    ));
+    let server = Arc::new(AgentServer::with_parts(config, hub, source));
     Fixture {
         server,
         db_path,
@@ -423,15 +482,23 @@ impl TestConn {
 
     /// 等指定请求的错误应答 → `(code, message, data)`。
     async fn error(&mut self, id: u64) -> (i64, String, Option<Value>) {
+        self.error_or_result(id)
+            .await
+            .expect_err("期望错误应答，实际返回 result")
+    }
+
+    /// 等指定请求的应答：`Ok(result)` 或 `Err((code, message, data))`。
+    async fn error_or_result(&mut self, id: u64) -> Result<Value, (i64, String, Option<Value>)> {
         let expected = RequestId::Number(id as i64);
         loop {
             match self.next_frame().await {
+                Frame::Response(response) if response.id == expected => return Ok(response.result),
                 Frame::ErrorResponse(response) if response.id == expected => {
-                    return (
+                    return Err((
                         response.error.code,
                         response.error.message,
                         response.error.data,
-                    );
+                    ));
                 }
                 _ => {}
             }
@@ -1428,13 +1495,9 @@ async fn storage_gate_emits_checking_then_ready_or_failed() {
     };
     assert_eq!(failed["schemaVersion"], json!(1));
     assert_eq!(failed["databaseKind"], json!("session"));
-    assert!(
-        failed["errorCode"]
-            .as_str()
-            .expect("errorCode")
-            .contains("schema"),
-        "schema 门失败带 schema 错误码：{failed}"
-    );
+    // 稳定错误码来自 session_store::StoreError::code()（agent-core-parity.md §6），
+    // agent-server 不另造取值。
+    assert_eq!(failed["errorCode"], json!("storage_schema_unsupported"));
 
     // fail-closed：session 方法显式内部错误，不静默降级。
     let id = conn
@@ -1552,4 +1615,130 @@ async fn send_without_model_fails_turn_with_configuration_error() {
         events.last().expect("终态")["type"],
         json!("turn.completed")
     );
+}
+
+// ---------------------------------------------------------------------------
+// 12. close 的 drain 窗口：resume / 同 id create 显式拒绝，drain 后恢复（复评裁决 2）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn resume_during_close_drain_rejects_then_recovers() {
+    let release = Arc::new(Notify::new());
+    let fixture = fixture_with_source(
+        "close-drain",
+        Arc::new(GatedSource {
+            release: Arc::clone(&release),
+        }),
+    );
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let id = conn
+        .send("session/create", create_params(&fixture.ws, true))
+        .await;
+    let created = conn.result(id).await;
+    let session_id = created["session"]["sessionId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    conn.subscribe_default(&session_id).await;
+
+    // in-1 立即 running（被 gate 卡住）；in-2 在 close 前已排队（CommandInbox 的
+    // FIFO 准入与 worker 进度无关：in-1 恒为 running，in-2 恒为 queued，因此
+    // close 时 drain 窗口是确定的，不依赖事件观察）。
+    let id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "will be cancelled", "inputId": "in-1" }),
+        )
+        .await;
+    let _ = conn.result(id).await;
+    let id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "queued behind", "inputId": "in-2" }),
+        )
+        .await;
+    assert_eq!(conn.result(id).await["accepted"], json!(true));
+
+    // close：runtime 进 drain 窗口（in-1 取消、in-2 照常 drain）。
+    let id = conn
+        .send("session/close", json!({ "sessionId": session_id }))
+        .await;
+    assert_eq!(conn.result(id).await, json!({ "closed": true }));
+
+    // drain 窗口内 resume：显式 -32603（不另起第二个 runtime owner）。
+    let id = conn
+        .send("session/resume", json!({ "sessionId": session_id }))
+        .await;
+    let (code, message, _) = conn.error(id).await;
+    assert_eq!(code, -32603);
+    assert!(message.contains("正在关闭"), "实际：{message}");
+
+    // 同 id create 同守卫。
+    let mut params = create_params(&fixture.ws, true);
+    params["sessionId"] = json!(session_id);
+    let id = conn.send("session/create", params).await;
+    let (code, message, _) = conn.error(id).await;
+    assert_eq!(code, -32603);
+    assert!(message.contains("正在关闭"), "实际：{message}");
+
+    // 放行 → in-1 取消收口、in-2 正常完成 → worker 退出 → drain 完成、台账清理。
+    release.notify_one();
+    // 轮询直到 drain 窗口关闭（旧订阅还能收到 in-2 的终态；resume 可用即台账已清）。
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let resumed = loop {
+        let id = conn
+            .send("session/resume", json!({ "sessionId": session_id }))
+            .await;
+        match tokio::time::timeout(Duration::from_secs(5), conn.error_or_result(id)).await {
+            Ok(Ok(value)) => break value,
+            Ok(Err((_, message, _))) if message.contains("正在关闭") => {
+                assert!(
+                    tokio::time::Instant::now() < deadline,
+                    "drain 窗口未在期限内关闭"
+                );
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            Ok(Err((code, message, _))) => panic!("resume 失败 ({code}): {message}"),
+            Err(_) => panic!("resume 轮询超时"),
+        }
+    };
+    serde_json::from_value::<SessionStateSnapshot>(resumed.clone()).expect("resume 快照可解析");
+    // drain 期间的行都在：in-1 只落 user（取消），in-2 user+assistant → 3 条。
+    assert_eq!(resumed["messages"].as_array().expect("messages").len(), 3);
+
+    // 恢复后的会话只有一个 runtime owner：继续 send 正常完成，序号接续不撞。
+    // （门控 provider 是一次性 permit：in-3 的模型请求需要再放行一次。）
+    conn.subscribe_default(&session_id).await;
+    let id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "after recovery", "inputId": "in-3" }),
+        )
+        .await;
+    let _ = conn.result(id).await;
+    release.notify_one();
+    conn.drain_until_terminal().await;
+
+    let connection = raw_connection(&fixture.db_path);
+    let mut sequences: Vec<i64> = {
+        let mut statement = connection
+            .prepare(&format!(
+                "SELECT COALESCE(sequence, -1) FROM message \
+                 WHERE session_id = '{session_id}' ORDER BY COALESCE(sequence, -1)"
+            ))
+            .expect("prepare");
+        statement
+            .query_map([], |row| row.get(0))
+            .expect("query")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("收集")
+    };
+    let duplicate_count = sequences.len() - {
+        sequences.sort();
+        sequences.dedup();
+        sequences.len()
+    };
+    drop(connection);
+    assert_eq!(sequences, vec![0, 1, 2, 3, 4], "序号接续");
+    assert_eq!(duplicate_count, 0, "无重复 message.sequence");
 }

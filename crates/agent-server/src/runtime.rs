@@ -99,10 +99,13 @@ struct Live {
 ///
 /// `config` 用 `RwLock`：setter（Task 7 方法层）原位更新，worker 在每个 turn 开始前
 /// 读取（mode/能力进系统提示，模型事实决定 provider 装配），快照读取最新事实。
+/// `drained` 是 worker 的退出信号（队列清空且发送端关闭后置 true）：
+/// `session/close` 的 closing 台账靠它感知 drain 完成（Task 7 复评裁决 2）。
 struct Shared {
     live: Mutex<Live>,
     config: RwLock<RuntimeConfig>,
     bus: tokio::sync::broadcast::Sender<SessionEvent>,
+    drained: tokio::sync::watch::Sender<bool>,
     record: SessionRecord,
 }
 
@@ -171,6 +174,7 @@ impl SessionRuntime {
 
         let (bus, _bus_receiver) =
             tokio::sync::broadcast::channel(config.broadcast_capacity.max(1));
+        let (drained, _drained_receiver) = tokio::sync::watch::channel(false);
         let (queue, receiver) = tokio::sync::mpsc::unbounded_channel();
         let data_root = config.data_root.clone();
         let shared = Arc::new(Shared {
@@ -190,6 +194,7 @@ impl SessionRuntime {
             }),
             config: RwLock::new(config),
             bus,
+            drained,
             record,
         });
 
@@ -297,6 +302,12 @@ impl SessionRuntime {
     /// 当前事件 seq 高水位（`session/subscribe` 结果的 `eventSeq`）。
     pub fn event_seq(&self) -> u64 {
         self.shared.lock().event_seq
+    }
+
+    /// worker 退出（drain 完成）信号的订阅端（`session/close` 的 closing 台账用；
+    /// `materialize` 直接 `borrow()` 判断 drain 是否已结束）。
+    pub(crate) fn drain_watcher(&self) -> tokio::sync::watch::Receiver<bool> {
+        self.shared.drained.subscribe()
     }
 
     /// 应用一次 setter 的配置更新（Task 7 方法层）。
@@ -427,6 +438,8 @@ async fn worker_loop(
             }
         }
     }
+    // 队列清空且发送端关闭：广播 drain 完成信号（closing 台账据此移除条目）。
+    let _ = shared.drained.send(true);
 }
 
 /// 配置失败的 turn：`turn.started` → `turn.failed`（`CONFIGURATION_ERROR`），
@@ -459,11 +472,16 @@ async fn run_configuration_failure(
 
     let mut live = shared.lock();
     live.current_cancel = None;
-    let _ = live.inbox.complete(&shared.record.id, &item.input_id);
+    let completion = live.inbox.complete(&shared.record.id, &item.input_id);
     live.turn_count += 1;
     live.revision += 1;
     live.updated_at = now_ms();
-    live.status = RuntimeStatus::Error;
+    // 与 `run_one_input` 的失败分支同形（失败恒 Error；Stale 不动状态），
+    // 保证两条收口路径的口径一致。
+    live.status = match completion {
+        Completion::Promoted(_) | Completion::Idle => RuntimeStatus::Error,
+        Completion::Stale => live.status,
+    };
     live.last_error = Some(message.to_string());
 }
 

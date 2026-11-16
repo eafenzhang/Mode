@@ -4,6 +4,12 @@
 //! 与 `runtime-execution-state`，两种分隔符都是线上事实，不归一）。没有 entry 的旧
 //! 会话回退到 params 的迁移 hint（`thoughtLevel`），模型缺失则保持「无模型」状态——
 //! send 时以 `CONFIGURATION_ERROR` 显式失败（控制器裁决 7），不编默认模型。
+//!
+//! **drain 窗口**（Task 7 复评裁决 2）：close 后已接受的输入仍由旧 runtime drain；
+//! 窗口内的 resume（以及同 id `session/create`，共用 [`materialize`]）显式报
+//! `-32603 会话正在关闭，请稍后重试`，不隐式重挂 drain 中的 runtime——否则会出现
+//! 两个 runtime owner，各自按 `max(sequence)+1` 续号产生重复序号。drain 完成后
+//! `closing` 台账条目被清理任务移除，resume 恢复可用。
 
 use std::sync::Arc;
 
@@ -65,6 +71,17 @@ pub(super) fn materialize(
 ) -> Result<Arc<SessionRuntime>, ServerError> {
     if let Some(resident) = server.find_runtime(&record.id) {
         return Ok(resident);
+    }
+    // drain 窗口守卫（Task 7 复评裁决 2）：close 后已接受的输入仍在旧 runtime 里
+    // drain，此时再物化会出现第二个 runtime owner（两条写路径、重复 sequence）。
+    // 显式报错而不是隐式重挂；drain 完成后台账已清，此后走冷恢复。
+    if let Some(watcher) = server.find_closing(&record.id) {
+        if *watcher.borrow() {
+            // 信号已到但清理任务尚未轮到：视为 drain 完成，按冷恢复继续。
+            server.remove_closing(&record.id);
+        } else {
+            return Err(ServerError::internal("会话正在关闭，请稍后重试"));
+        }
     }
     let store = server.store()?;
     let entries = store.entries(&record.id).map_err(store_error)?;

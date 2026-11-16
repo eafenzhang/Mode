@@ -168,12 +168,6 @@ impl Session {
         self.model_capabilities = capabilities;
     }
 
-    /// 当前归属 turn 的 id（`begin_turn` 之后、终态之前有值；配置失败路径用它
-    /// 给 `turn.failed` 补 turnId）。
-    pub fn current_turn_id(&self) -> Option<&str> {
-        self.current_turn_id.as_deref()
-    }
-
     /// 接线模型能力（系统提示的「Model limits」行；缺省值 = provider 未上报）。
     pub fn with_model_capabilities(mut self, capabilities: ModelCapabilities) -> Self {
         self.model_capabilities = capabilities;

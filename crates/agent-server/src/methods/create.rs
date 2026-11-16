@@ -5,7 +5,9 @@
 //!   `settings.model.current` 缺省省略（不造空 provider）。
 //! - `session.title` 在 create 时是**空串**（Task 0 观察：首条 send 后才写标题）。
 //! - 同 id 重复 create（远程镜像重导形态）：已有 runtime 直接复用；冷行按 resume
-//!   语义物化（§0a 的 runtime 顶替属 v4 面，C1 不复制）。
+//!   语义物化（§0a 的 runtime 顶替属 v4 面，C1 不复制）。close 后 drain 窗口内的
+//!   同 id create 与 resume 同守卫：显式 `-32603 会话正在关闭，请稍后重试`
+//!   （Task 7 复评裁决 2，见 `resume::materialize`）。
 
 use std::sync::Arc;
 

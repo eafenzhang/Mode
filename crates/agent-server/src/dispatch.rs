@@ -112,6 +112,10 @@ pub struct AgentServer {
     storage_config: Mutex<Option<ServerConfig>>,
     storage: Mutex<StorageState>,
     sessions: Mutex<HashMap<String, Arc<SessionRuntime>>>,
+    /// close 后仍在 drain 已接受输入的会话台账（Task 7 复评裁决 2）：
+    /// key = sessionId，value = worker 退出（drain 完成）信号。
+    /// Arc 包装让 drain 清理任务无需持有整个 server。
+    closing: Arc<Mutex<HashMap<String, tokio::sync::watch::Receiver<bool>>>>,
     pending_forwards: Mutex<Vec<PendingLiveForward>>,
 }
 
@@ -147,6 +151,7 @@ impl AgentServer {
             storage_config: Mutex::new(None),
             storage: Mutex::new(StorageState::Pending),
             sessions: Mutex::new(HashMap::new()),
+            closing: Arc::new(Mutex::new(HashMap::new())),
             pending_forwards: Mutex::new(Vec::new()),
         }
     }
@@ -174,6 +179,7 @@ impl AgentServer {
             storage_config: Mutex::new(Some(config)),
             storage: Mutex::new(StorageState::Pending),
             sessions: Mutex::new(HashMap::new()),
+            closing: Arc::new(Mutex::new(HashMap::new())),
             pending_forwards: Mutex::new(Vec::new()),
         }
     }
@@ -283,6 +289,46 @@ impl AgentServer {
             .remove(session_id)
     }
 
+    /// 登记「close 后 drain 中」的会话（`session/resume` / 同 id `session/create`
+    /// 据此显式拒绝，不另起第二个 runtime owner）。
+    pub(crate) fn insert_closing(
+        &self,
+        session_id: &str,
+        watcher: tokio::sync::watch::Receiver<bool>,
+    ) {
+        self.closing
+            .lock()
+            .expect("closing poisoned")
+            .insert(session_id.to_string(), watcher);
+    }
+
+    /// 取 drain 中会话的退出信号（`None` = 不在 closing 台账）。
+    pub(crate) fn find_closing(
+        &self,
+        session_id: &str,
+    ) -> Option<tokio::sync::watch::Receiver<bool>> {
+        self.closing
+            .lock()
+            .expect("closing poisoned")
+            .get(session_id)
+            .cloned()
+    }
+
+    /// 从 closing 台账移除（drain 完成后调用；此后 resume 走冷恢复）。
+    pub(crate) fn remove_closing(&self, session_id: &str) {
+        self.closing
+            .lock()
+            .expect("closing poisoned")
+            .remove(session_id);
+    }
+
+    /// closing 台账句柄（drain 清理任务用；任务只依赖台账，不持有 server）。
+    pub(crate) fn closing_map(
+        &self,
+    ) -> Arc<Mutex<HashMap<String, tokio::sync::watch::Receiver<bool>>>> {
+        Arc::clone(&self.closing)
+    }
+
     pub(crate) fn enqueue_live_forward(&self, forward: PendingLiveForward) {
         self.pending_forwards
             .lock()
@@ -351,7 +397,9 @@ impl AgentServer {
                 Ok(())
             }
             Err(error) => {
-                let error_code = storage_error_code(&error);
+                // 稳定错误码来自 `session_store::StoreError::code()`（`agent-core-parity.md`
+                // §6 的事实源），这里不另造取值。
+                let error_code = error.code();
                 self.notify_storage(writer, "failed", Some(error_code.to_owned()), started)
                     .await?;
                 *self.storage.lock().expect("storage poisoned") =
@@ -394,14 +442,5 @@ impl AgentServer {
             }),
         )
         .await
-    }
-}
-
-/// 存储门失败的稳定 `errorCode`（宿主透传为 `SQLite startup failed: <code>`）。
-fn storage_error_code(error: &session_store::StoreError) -> &'static str {
-    match error {
-        session_store::StoreError::StorageSchemaUnsupported { .. } => "schema_unsupported",
-        session_store::StoreError::StorageLocked { .. } => "storage_locked",
-        _ => "sql_failed",
     }
 }
