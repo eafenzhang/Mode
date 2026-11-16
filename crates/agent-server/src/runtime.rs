@@ -586,14 +586,20 @@ async fn run_configuration_failure(
 /// **阻塞**当前线程，而 stdio 单写者循环必须留在 tokio worker 上继续写帧/读应答——
 /// 阻塞线程 + runtime 线程分工，current-thread 测试 runtime 下也不死锁
 /// （`spawn_blocking` 的线程不进 runtime 的 worker 池，`block_on` 在其上合法）。
-/// 收口放在同一闭包里：终态事件发布时状态已收口（先前「同任务内 publish→收口→
-/// 才让出」的观察顺序不因搬运而改变，订阅者不会看到 `turn.completed` 后快照仍是
-/// Running 的窗口）。
+///
+/// **终态事件与收口的可观察顺序**：终态（`turn.completed`/`turn.failed`）在
+/// `run_turn` 内发布（阻塞线程），收口（Live 记账 / 状态回 Idle/Error）在其**之后**
+/// 的同一阻塞线程上进行——订阅者与其他线程并行，因此**可能短暂看到「终态已发布、
+/// 快照仍 Running」的窗口**（Task 8 前 turn 与订阅者同线程串行，窗口不可观察）。
+/// 收口与 turn 同闭包保证的是串行语义：收口完成后 worker 才取下一条已接受的输入
+/// （`CommandInbox` 对账不迟到）。事件与落库的顺序由 [`TurnRecorder`] 的
+/// 「先落库后发布」单独保证（事件可见 ⇒ 行已提交）。断言「终态后状态」的测试
+/// 必须等收口：`tests/runtime.rs` 的 `wait_settled`（bounded 轮询快照离开 Running）。
 ///
 /// 终态收口：`run_turn` 的 `Err(cancelled)` 表示终态已由它自己发出
 /// （`turn.completed`，`resultType:"cancelled"`），worker 不补发；其余 `Err` 由
 /// 本闭包补发唯一的 `turn.failed`。成功与取消路径的终态事件经 recorder 走同一套
-/// publish 与 persist。返回会话（阻塞任务的所有权往返：Session/recorder 移入、
+/// persist 与 publish。返回会话（阻塞任务的所有权往返：Session/recorder 移入、
 /// 移出）。
 async fn run_one_input(
     session: Session,
@@ -669,7 +675,9 @@ async fn run_one_input(
     session
 }
 
-/// 一次 turn 的落库记录器：[`EventSink`] 的实现，先发布事件再观察落库。
+/// 一次 turn 的落库记录器：[`EventSink`] 的实现，先观察落库再发布事件（Task 8：
+/// turn 跑在阻塞线程上，订阅者并行；「事件可见 ⇒ 行已提交」，见 [`EventSink`]
+/// 实现）。
 ///
 /// 观察规则（只在**完成边界**写行，裁决 3）：
 /// - `turn.started`：user message + text part 原子写入；
