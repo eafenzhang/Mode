@@ -38,6 +38,8 @@ pub struct ModelToolCall {
 /// 模型看到的一条消息。只放本轮事件契约需要的形状，不搬完整会话存储。
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModelMessage {
+    /// 系统提示（上下文装配产出的唯一一条，见 [`crate::context`]）。
+    System(String),
     User(String),
     Assistant {
         text: Option<String>,
@@ -49,12 +51,32 @@ pub enum ModelMessage {
     },
 }
 
+/// provider 中立的工具声明：名字、可选描述与入参 JSON Schema。
+///
+/// `description` 只有调用方确知时才填；本仓库不为了填满字段而复制上游提示词。
+/// 适配器（如 OpenAI Chat Completions）负责把它映射成供应商自己的 `function` 形状。
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModelToolDefinition {
+    pub name: String,
+    pub description: Option<String>,
+    pub input_schema: Value,
+}
+
+/// 模型能力（token）：上下文窗口与单次最大输出。
+///
+/// `None` = 模型目录没有给出该值；预算/压缩在 C2 按上限使用保守默认，这里不编数字。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ModelCapabilities {
+    pub context_window: Option<u64>,
+    pub max_output_tokens: Option<u64>,
+}
+
 /// 一次模型请求。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelRequest {
     pub messages: Vec<ModelMessage>,
-    /// 可用的工具名（schema 由会话层在 Task 2 接）。
-    pub tools: Vec<String>,
+    /// 可用的工具声明（名字 + 可选描述 + 入参 schema）。
+    pub tools: Vec<ModelToolDefinition>,
 }
 
 /// 模型流的一步。

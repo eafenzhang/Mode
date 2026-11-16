@@ -9,8 +9,8 @@ use serde_json::json;
 use tokio::sync::mpsc::unbounded_channel;
 
 use agent_core::provider::{
-    ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse, ScriptStep,
-    ScriptToolCall, ScriptedProvider,
+    ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse, ModelToolDefinition,
+    ScriptStep, ScriptToolCall, ScriptedProvider,
 };
 
 fn request(assistant_messages: usize) -> ModelRequest {
@@ -23,7 +23,18 @@ fn request(assistant_messages: usize) -> ModelRequest {
     }
     ModelRequest {
         messages,
-        tools: vec!["Read".to_string(), "Bash".to_string()],
+        tools: vec![
+            ModelToolDefinition {
+                name: "Read".to_string(),
+                description: None,
+                input_schema: json!({ "type": "object" }),
+            },
+            ModelToolDefinition {
+                name: "Bash".to_string(),
+                description: None,
+                input_schema: json!({ "type": "object" }),
+            },
+        ],
     }
 }
 

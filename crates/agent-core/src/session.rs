@@ -375,11 +375,8 @@ impl Session {
             .current_turn_id
             .clone()
             .expect("begin_turn 已设置 turn id");
-        let tools: Vec<String> = agent_tools::registry()
-            .iter()
-            .map(|spec| spec.name.clone())
-            .chain(self.extra_tools.iter().map(|spec| spec.name.clone()))
-            .collect();
+        // 工具声明与会话上下文装配共用同一份 `ToolSpec → ModelToolDefinition` 映射。
+        let tools = crate::context::tool_definitions(&self.tools());
 
         let mut usage = ModelUsage::default();
         let mut model_requests = 0_u64;

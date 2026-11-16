@@ -206,6 +206,9 @@ accepted → turn.started → model.streaming×N
 
 - C1：OpenAI Chat Completions 流式（`stream:true`）；解析 SSE `data:` 行、`[DONE]`、
   工具调用 delta（按 index/id 累积）、usage；错误映射为 `turn.failed`。
+- C1 工具声明走 provider 中立的 `ModelToolDefinition { name, description, input_schema }`
+  （`agent_core::provider`）：`input_schema` 逐字取 `ToolSpec.schema`，适配器再映射成
+  OpenAI `function` tools；`description` 缺失时不假装有值。
 - C2：Anthropic Messages、OpenAI Responses。
 - provider 配置来自 `provider-config` / `provider-resolver`；凭据来自
   `credential-store` 或请求级 `requestAuth`；不连接官方平台。
@@ -215,6 +218,12 @@ accepted → turn.started → model.streaming×N
 ### 5.7 上下文、记忆、压缩（C2）
 
 - 系统提示与模式指令由本仓库 spec 定义，**不复制上游提示词**；C1 只落最小系统提示。
+- C1 v0（`agent_core::context`）：`ContextInput` 收 cwd、mode、tools、messages 与
+  `ModelCapabilities`（context window / max output tokens，缺失即 `None`）；
+  `build_system_prompt` 固定为身份 → 工作区 → 工具使用 → 安全边界 → 输出约定，
+  工具行由 `ToolSpec` 元数据生成；提示词不含凭据、内部地址或上游文案。
+- C1 请求装配顺序：系统提示 → 历史消息 → 本轮输入；空历史不伪造 assistant 消息；
+  同一输入重复装配结果逐字段稳定。
 - 上下文装配顺序：系统提示 → 模式/工作区事实 → 工具 schema → 技能/记忆（C2）→
   历史消息 → 本轮输入/附件（C4）。
 - compact：阈值 = `contextWindow - maxOutputTokens` 的可配置比例；摘要落
