@@ -1090,6 +1090,8 @@ mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）
 | 8 | Responses `stop_reason`：`response.incomplete`（任何 `incomplete_details.reason`，含 `max_output_tokens`）一律折叠为 `"stop"`（会话层按 delta 决定工具批次）；`response.failed` → `ProviderError`；`completed` 按已产出工具调用推断 | C2 §4.2.1；T5（2026-11-17） |
 | 9 | Responses 流缺终态事件（`completed`/`incomplete`/`failed`）时显式 `ProviderError`（不把截断流当成功终态；delta 保留、turn.failed 一次归 C2 §8）；工具入参按 `output_index` 分键累积，不可解析入参显式报错 | C2 §4.2.1；T5（2026-11-17） |
 | 10 | `api_format=openai-responses` 由 `provider_config` 解析并在 `HubProviderSource` 装配 Responses provider；`to_openai_responses_config` 只接受 openai-responses，chat/anthropic 映射方向仍一一对应 | C2 §4.3；T5（2026-11-17） |
+| 11 | 快照顶层 9 键常驻（`slashCommands`/`todos`/`todoGroups` 空会话 `[]`）、`settings` 4 键、`model.available` 走 hub 目录投影、builtin slashCommands 4 条；create `stateRevision=0`（观察 2）、resume 后 `eventSeq=0`（观察 2）、read 不产出 `deliveryKind`、`contextUsage.breakdown` 不产出——四处登记缺省，不硬凑 | C2 §4.5；T6（2026-11-18） |
+| 12 | `reasoning.defaultLevel` 投影为档位列表最后一项（观察 `["disabled","enabled"]→"enabled"` 的单点假设；oracle 真实推导未观察）；`thoughtLevel.enabled` = 模型有档位；冷恢复 `thoughtLevel.current` 回退 entry 的 `options.reasoningLevel` | C2 §4.5；T6（2026-11-18） |
 
 ## 验收场景（Task 0）
 

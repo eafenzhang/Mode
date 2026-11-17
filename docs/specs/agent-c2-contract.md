@@ -584,6 +584,63 @@ settings, slashCommands, todos, todoGroups`。`runtime` 只有：
 - `slashCommands` 含内置 `compact`（`description:"Compact the current conversation with optional instructions."`、`inputHint:"/compact [instructions]"`）；
   该条目在 `context-usage-settings.json` 的 `createSnapshot.compactSlashCommand` 逐字记录。
 
+### 4.5 Rust C2 现状（T6，2026-11-18）
+
+Rust `agent-server` 的快照/读面按 §4 对齐后的形状（`crates/agent-server/src/state.rs`
+的 `build_snapshot` / `methods/mod.rs` 的 `cold_snapshot`；测试
+`crates/agent-server/tests/snapshot.rs`）。逐条对照：
+
+- **顶层 9 键常驻**：`slashCommands` / `todos` / `todoGroups` 恒出现（空会话为 `[]`）；
+  `runtime.goalVerifications` / `goalVerificationTimeline` 恒为 `[]`（C1 观察形状，
+  此前 Rust 缺省省略，T6 起补齐）。`session/goal` 仍是 `-32601`（分派表 default）。
+- **`target` 键恒在（显式 `null`）**：快照的 `session.target`（C1 契约 §2.1 观察键）
+  与 `projection.target`（`context-usage-settings.json` 的 projection 录制值）在无
+  goal 事实时为 `"target": null` 而不是缺键；`session/list` 行不带 target（观察的
+  `firstKeys` 无该键），两个投影面分开维护。
+- **`settings` 4 键**：`mode` / `model` / `permission` / `thoughtLevel`。
+  `permission` 为 `{mode}`（与 session 同源；无 `rulesRevision`）。
+- **`settings.model.available` = hub 目录投影**：`ProviderConfigHub::provider_catalog`
+  按会话 provider 取 resolver 全部模型（保序），逐条投影
+  `ref{providerId,modelId}`（不带 options）、`label=modelId`、
+  `providerLabel=providerName`、`contextWindow`/`maxOutputTokens`（模型规则数字）与
+  `properties{inputFormat,outputFormat}`（协议必填形状；未配置的 `supports*` 按
+  `false` 落，不编真值）。目录解析失败（文件层不可用等）退「无目录」：
+  `available:[]`，create 不阻断（与能力的 fail-soft 同口径）。
+- **`reasoning` 投影是登记的确定性选择**：`levels` 取
+  `optionSpecs.reasoningLevel.values`（`value`=`label`=档位原文）；
+  `defaultLevel` 取**最后一个档位**——与观察值 `["disabled","enabled"]→"enabled"`
+  一致，但 oracle 的真实推导规则未观察（单点假设，若后续出现不同观察需重录）。
+- **`thoughtLevel`**：`enabled` = 模型有档位（`levels` 非空；观察 `current:"disabled"`
+  且 `enabled:true` 的形状）；`available` 与 `reasoning.levels` 同源同序；
+  `current` 来自 thoughtLevel 事实（create/resume 参数、`session/setThoughtLevel`；
+  冷恢复时回退到 `runtime/model_selection` entry 的 `options.reasoningLevel`——
+  oracle 的真实恢复源未观察，Rust 用已持久化事实）；不产出 `defaultLevel`（观察无）。
+- **`current` / `lastUsed`**：`current` 带 `options.reasoningLevel`（模型选择事实，
+  create 参数 / entry / setModel 三处同源）；`lastUsed` 只有 `{providerId,modelId}`。
+  无模型会话缺省省略（C1 裁决 7 口径不变）。
+- **`projection.contextUsed` = 本 runtime 生命周期内最近一次模型请求的 total**
+  （观察 22；不是累计——`totalTokenCount` 才是累计 22/44/66）；冷物化归 0，
+  不从消息重算（与 `contextUsage.used` 的恢复语义不同源）。`currentTurnId` =
+  本 runtime 生命周期内最近一次已开始的 turn（`turn.started` 时写，终态不清）；
+  create/resume 后缺省省略。
+- **`slashCommands` builtin 数据契约**（逐字，`source:"builtin"`，按名排序）：
+  `goal`（`Show or set the current session goal.` / `/goal [pause|resume|clear|replace <objective>|<objective>]`）、
+  `compact`（`Compact the current conversation with optional instructions.` /
+  `/compact [instructions]`）、
+  `init`（`Create or update workspace AGENTS.md instructions.` / `/init [notes]`）、
+  `plan`（`Switch to Plan mode and optionally send a task.` / `/plan [task]`）。
+  没有 custom 来源（Rust 无自定义命令面）。
+
+登记差异（Rust ≠ oracle 观察，不硬凑）：
+
+| # | 项 | oracle 观察 | Rust 现状 |
+| - | -- | ----------- | --------- |
+| 1 | create `runtime.stateRevision` | `2` | `0`（revision 语义是「每次接受/终态 +1」，create 无接受动作） |
+| 2 | resume 后 `runtime.eventSeq` | `2` | `0`（物化不发事件；oracle 的 resume 产生 2 条事件） |
+| 3 | hot read `runtime.deliveryKind` | 有已投递输入后 `desktop-continuous`，resume 后没有 | 不产出（`session/subscribe` 的快照仍回显订阅链路，C1 口径不变） |
+| 4 | `contextUsage.breakdown` | 完整 read 带 6 段 chars | 不产出（键固定 `cache,cost,size,used`；T1 起登记） |
+| 5 | 冷读（close 后不 resume 的 read） | 未观察 | 顶层 9 键同面；`settings.model` 无事实（`available:[]`、无 current/lastUsed） |
+
 ## 5. Fresh-install 迁移账本
 
 `probe-c2-fresh-install.mts`：空隔离数据根启动 oracle（driver 会创建一次会话），只读

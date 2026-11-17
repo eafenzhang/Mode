@@ -248,11 +248,13 @@ fn runtime_config() -> RuntimeConfig {
         mode: "build".to_string(),
         provider_id: "fixture-provider".to_string(),
         model_id: "fixture-model".to_string(),
+        reasoning_level: None,
         capabilities: agent_core::ModelCapabilities {
             context_window: Some(128_000),
             max_output_tokens: Some(8_192),
         },
         thought_level: None,
+        model_catalog: None,
         data_root: None,
         event_log_capacity: 4096,
         broadcast_capacity: 256,

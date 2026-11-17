@@ -133,7 +133,22 @@ pub(super) fn spawn_runtime(
 ) -> Result<Arc<SessionRuntime>, ServerError> {
     let store = server.store()?;
     let capabilities = fallback_capabilities(server, model);
-    let config = runtime_config(server.data_root(), mode, model, capabilities, thought_level);
+    // `settings.model.available` 的目录投影（T6）：hub 目录解析失败退 `None`
+    // （快照 `available:[]`），与能力的 fail-soft 同口径，不阻断创建。
+    let model_catalog = model.and_then(|model| {
+        server
+            .provider_config()
+            .provider_catalog(&model.provider_id)
+            .ok()
+    });
+    let config = runtime_config(
+        server.data_root(),
+        mode,
+        model,
+        capabilities,
+        thought_level,
+        model_catalog,
+    );
     let reverse = server.reverse_hub();
     let wiring = crate::reverse::RuntimeWiring {
         permission_handler: reverse.as_ref().map(|hub| {

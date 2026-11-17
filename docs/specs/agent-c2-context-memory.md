@@ -353,6 +353,18 @@ goal/target（C3）；自动重试/退避（C3）；官方平台/遥测（永久
 - 未产出的 `session.updated`/`streamRecovery.updated` 仍在差异表登记；C2 不新增
   未观察事件。
 
+### 7.1 T6 实现注记（2026-11-18）
+
+- 快照面按 `agent-c2-contract.md` §4.5 对齐：顶层 9 键常驻（`slashCommands`/`todos`/
+  `todoGroups` 空会话为 `[]`）、`settings` 4 键、`settings.model.available` 走
+  `ProviderConfigHub::provider_catalog`（provider 全部模型，未知字段不伪造）、
+  `slashCommands` 内置 4 条为数据契约。
+- `projection.contextUsed` 与 `totalTokenCount` 是两个事实：前者是本 runtime 生命周期
+  内最近一次模型请求 total（resume 归 0），后者保持 C1 累计口径。
+- 与观察的差异（create `stateRevision`、resume `eventSeq`、read `deliveryKind`、
+  `contextUsage.breakdown`）登记在 `agent-c2-contract.md` §4.5 与
+  `tauri-agent-runtime.md` §C1.7，不硬凑。
+
 ## 8. 所有权与失败语义
 
 | 场景                              | 行为                                                      |

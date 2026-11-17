@@ -101,13 +101,16 @@ pub(super) fn materialize(
     let mode = entry_mode
         .or(fallback_mode)
         .unwrap_or_else(|| "build".to_string());
-    let runtime = create::spawn_runtime(
-        server,
-        record.clone(),
-        &mode,
-        model.as_ref(),
-        fallback_thought,
-    )?;
+    // thoughtLevel 恢复：params 优先；没有时回退模型选择 entry 的
+    // `options.reasoningLevel`（已持久化事实；oracle 的真实恢复源未观察，
+    // 观察值两处一致——`agent-c2-contract.md` §4.5 登记）。
+    let thought = fallback_thought.or_else(|| {
+        model
+            .as_ref()
+            .and_then(|model| model.options.as_ref())
+            .and_then(|options| options.reasoning_level.clone())
+    });
+    let runtime = create::spawn_runtime(server, record.clone(), &mode, model.as_ref(), thought)?;
 
     // 物化后把生效事实写回 entry（幂等 upsert）：重启后 resume 可再次恢复。
     let now = create::now_ms();

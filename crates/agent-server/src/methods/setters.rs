@@ -28,12 +28,23 @@ pub(crate) fn handle_set_model(
 
     let capabilities =
         server.resolve_capabilities(&params.model.provider_id, &params.model.model_id)?;
+    // 目录随模型选择一起刷新（T6：`settings.model.available` 跟 provider 走）；
+    // 解析失败退 `None`（`available:[]`），与能力的 fail-soft 同口径。
+    let model_catalog = server
+        .provider_config()
+        .provider_catalog(&params.model.provider_id)
+        .ok();
     let model = params.model.clone();
     runtime
         .update_config(params.expected_revision, |config| {
             config.provider_id = model.provider_id.clone();
             config.model_id = model.model_id.clone();
+            config.reasoning_level = model
+                .options
+                .as_ref()
+                .and_then(|options| options.reasoning_level.clone());
             config.capabilities = capabilities;
+            config.model_catalog = model_catalog;
         })
         .map_err(runtime_error)?;
 

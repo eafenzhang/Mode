@@ -341,6 +341,12 @@ struct Live {
     last_error: Option<String>,
     turn_count: u64,
     total_token_count: u64,
+    /// 本 runtime 生命周期内最近一次模型请求的 total（`projection.contextUsed`；
+    /// T0 观察 22 且 resume 归 0，与 `totalTokenCount` 的累计口径是两个事实）。
+    context_used: u64,
+    /// 本 runtime 生命周期内最近一次已开始的 turn（`turn.started` 写入，终态不清；
+    /// 观察的 read 视图在 turn 后仍带 `currentTurnId`）。
+    current_turn_id: Option<String>,
     event_seq: u64,
     /// 下一条持久化 message 行的 `sequence`（冷启动时按库内已有行的最大序号 +1 初始化，
     /// Task 7 控制器裁决 6：恢复历史时不得与旧行撞序号）。
@@ -481,6 +487,10 @@ impl SessionRuntime {
                 last_error: None,
                 turn_count: 0,
                 total_token_count: 0,
+                // 冷物化：投影计数与 currentTurnId 都归 0/None（T0 观察 resume 后
+                // projection 归 0），contextUsage 由 `usage` 单独恢复。
+                context_used: 0,
+                current_turn_id: None,
                 event_seq: 0,
                 next_message_sequence,
                 log: VecDeque::new(),
@@ -696,9 +706,10 @@ impl SessionRuntime {
         let _ = worker.await;
     }
 
-    /// 最小合法快照（形状对齐 `agent-process-fixture::minimal_snapshot`）：
-    /// mode / model / status / turnCount / usage 反映活跃状态；`messages` 恒空
-    /// （历史消息由 Task 7 的 `session/read` / `session/resume` 从 store 投影）。
+    /// 活跃快照：mode / model / status / turnCount / usage 反映活跃状态；
+    /// `messages` 恒空（历史消息由 `session/read` / `session/resume` 从 store 投影）。
+    /// settings / slashCommands / projection 的事实面按 C2 T6 对齐（见
+    /// `state::build_snapshot` 与 `agent-c2-contract.md` §4）。
     pub fn snapshot(&self) -> agent_protocol::snapshot::SessionStateSnapshot {
         let live = self.shared.lock();
         self.snapshot_locked(&live)
@@ -718,7 +729,9 @@ impl SessionRuntime {
             last_error: live.last_error.clone(),
             turn_count: live.turn_count,
             total_token_count: live.total_token_count,
+            context_used: live.context_used,
             event_seq: live.event_seq,
+            current_turn_id: live.current_turn_id.clone(),
             context_usage: live.usage.context_usage(config.capabilities.context_window),
             active_turn: live
                 .compact
@@ -2294,6 +2307,11 @@ impl TurnRecorder {
         }
         self.turn_id = event.turn_id.clone();
         self.turn_started_at = event.timestamp;
+        // `projection.currentTurnId`：本 runtime 生命周期内最近一次已开始的 turn
+        // （T0 观察的 read 视图在 turn 终态后仍带该键；resume 后无）。
+        if let Some(turn_id) = &event.turn_id {
+            self.shared.lock().current_turn_id = Some(turn_id.clone());
+        }
         if self.persist_user {
             let content = self.content.clone();
             self.persist_user_message(&content);
@@ -2769,10 +2787,12 @@ impl EventSink for TurnRecorder {
         // 请求完成的 usage 只交给落库侧（assistant 步骤 tokens），不进入事件流。
         self.last_step_usage = Some(usage.clone());
         // `runtime.contextUsage` 的唯一运行期写入点：每个完成的请求累计一次。
-        self.shared
-            .lock()
-            .usage
-            .observe(&RequestUsage::from_model_usage(usage));
+        // 同一把锁里更新 `projection.contextUsed`（最近一次请求 total；T0 观察它
+        // 跟随 used=22 而不是累计 44/66）。
+        let request = RequestUsage::from_model_usage(usage);
+        let mut live = self.shared.lock();
+        live.usage.observe(&request);
+        live.context_used = request.total_tokens;
     }
 }
 

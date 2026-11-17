@@ -1,29 +1,35 @@
-//! 会话运行时的对外状态面（LT-1 C1 Task 6）：输入、回执、配置、错误与最小快照。
+//! 会话运行时的对外状态面（LT-1 C1 Task 6；C2 T6 起为完整读面）：输入、回执、
+//! 配置、错误与快照。
 //!
 //! 这里只放**数据**与纯函数；锁与 worker 的所有权归 [`crate::runtime`]。
-//! 快照形状对齐 `crates/agent-process/src/bin/agent-process-fixture.rs` 的
-//! `minimal_snapshot()`（协议 `modeSessionStateSnapshotSchema` 的最小合法投影）：
-//! `session.messages` 的冷读归 Task 7，运行时快照只反映**活跃状态**
-//! （mode / model / status / turnCount / usage），`messages` 恒为空。
+//! 快照形状：C1 起是协议 `modeSessionStateSnapshotSchema` 的活跃状态投影
+//! （mode / model / status / turnCount / usage；`messages` 恒为空，冷读归
+//! `methods::read`），C2 T6 按 `agent-c2-contract.md` §4 补齐 `settings`（含
+//! `model.available` 的 hub 目录投影）、`slashCommands` builtin 数据契约与
+//! `projection` 的 `contextUsed`/`currentTurnId` 事实；与 oracle 观察的登记缺省
+//! 见契约 §4.5。
 
 use std::fmt;
 use std::path::PathBuf;
 
 use agent_core::context::{ContextCacheUsage, ContextUsage};
 use agent_core::{Admission, ModelCapabilities};
-use agent_protocol::message::MessageModel;
+use agent_protocol::message::{MessageModel, ModelOptions};
 use agent_protocol::session_read::{
     SessionInfo, SessionKind, SessionMode, SessionModel, SessionStatus, SessionWorkspaceRef,
 };
 use agent_protocol::snapshot::{
     ActiveTurnKind, ContextCacheUsage as ProtocolContextCacheUsage,
-    ContextCost as ProtocolContextCost, ProtocolInfo, ProtocolName, SessionContextUsage,
-    SessionLastError, SessionModeSettings, SessionModelSettings, SessionProjection,
-    SessionRuntimeState, SessionSettings, SessionStateSnapshot, ThoughtLevelOption,
-    ThoughtLevelSettings,
+    ContextCost as ProtocolContextCost, ModelInputFormat, ModelOption, ModelOutputFormat,
+    ModelProperties, ModelReasoningOptions, PermissionSettings, ProtocolInfo, ProtocolName,
+    SessionContextUsage, SessionLastError, SessionModeSettings, SessionModelSettings,
+    SessionProjection, SessionRuntimeState, SessionSettings, SessionStateSnapshot, SlashCommand,
+    SlashCommandSource, ThoughtLevelOption, ThoughtLevelSettings,
 };
 use serde_json::Number;
 use session_store::SessionRecord;
+
+use crate::provider_config::{ModelCatalogEntry, ProviderCatalog};
 
 /// 运行时内部的状态档位（快照时投影成协议的 [`SessionStatus`]）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,10 +110,16 @@ pub struct RuntimeConfig {
     /// `CONFIGURATION_ERROR` 失败，不用默认模型兜底——控制器裁决 7）。
     pub provider_id: String,
     pub model_id: String,
+    /// 模型选择里的 reasoning 档位（`settings.model.current.options.reasoningLevel`
+    /// 的事实源；create 参数 / entry / setModel 三处同源）。
+    pub reasoning_level: Option<String>,
     /// 模型能力（进系统提示；缺失保持 `None`，快照里缺省为 0 而不是编数字）。
     pub capabilities: ModelCapabilities,
     /// 思考档位（`session/setThoughtLevel` 的事实；进快照 `settings.thoughtLevel.current`）。
     pub thought_level: Option<String>,
+    /// 会话 provider 的模型目录（`settings.model.available` 的投影输入；
+    /// `None` = 无模型或 hub 目录解析失败，`available` 为空，登记缺省）。
+    pub model_catalog: Option<ProviderCatalog>,
     /// `.mode` 数据根（工具 artifact 落点）；`None` = 未接线，artifact 落临时目录。
     pub data_root: Option<PathBuf>,
     /// 内存事件日志上限（超过丢最旧）；订阅回放只服务窗口内的事件。
@@ -122,8 +134,10 @@ impl Default for RuntimeConfig {
             mode: "build".to_string(),
             provider_id: String::new(),
             model_id: String::new(),
+            reasoning_level: None,
             capabilities: ModelCapabilities::default(),
             thought_level: None,
+            model_catalog: None,
             data_root: None,
             event_log_capacity: 4096,
             broadcast_capacity: 256,
@@ -186,7 +200,13 @@ pub(crate) struct LiveView {
     pub last_error: Option<String>,
     pub turn_count: u64,
     pub total_token_count: u64,
+    /// 本 runtime 生命周期内最近一次模型请求的 total（T0 观察 `contextUsed:22`，
+    /// 不是累计；冷物化归 0，不从消息重算——`agent-c2-contract.md` §4.3）。
+    pub context_used: u64,
     pub event_seq: u64,
+    /// 本 runtime 生命周期内最近一次已开始的 turn（`turn.started` 写入，终态不清；
+    /// create/resume 后为 `None`，快照省略该键）。
+    pub current_turn_id: Option<String>,
     /// `runtime.contextUsage`；没有任何模型请求时为 `None`（create 快照不带该键）。
     pub context_usage: Option<ContextUsage>,
     /// 活跃 turn（compact 执行窗口；观察值 `activeTurnId` + `activeTurnKind:"compact"`）。
@@ -223,10 +243,11 @@ pub(crate) fn workspace_key(record: &SessionRecord) -> String {
         .unwrap_or_else(|| record.directory.clone())
 }
 
-/// 组装最小合法快照（`agent-process-fixture::minimal_snapshot` 的形状）。
+/// 组装热快照（活跃 runtime 的 `session/create`/`read`/`resume`/setter/compact 面）。
 ///
-/// 热快照保留 `workspaceIdentity` 并以 `identity?.trim() || path` 作为 `workspaceKey`
-/// （最终评审 I5：此前热快照把 identity 丢掉、key 退回 directory）。
+/// 形状依据：C1 的最小合法投影 + C2 T6 的读面对齐（`agent-c2-contract.md` §4、
+/// 登记缺省 §4.5）。热快照保留 `workspaceIdentity` 并以 `identity?.trim() || path`
+/// 作为 `workspaceKey`（最终评审 I5：此前热快照把 identity 丢掉、key 退回 directory）。
 pub(crate) fn build_snapshot(
     record: &SessionRecord,
     config: &RuntimeConfig,
@@ -241,7 +262,16 @@ pub(crate) fn build_snapshot(
         model_id: config.model_id.clone(),
         options: None,
     });
+    // `current` 带模型选择的 reasoning 档位（观察 `{providerId,modelId,options:{reasoningLevel}}`，
+    // `agent-c2-contract.md` §4.4）；`lastUsed` 只有 `{providerId,modelId}`（无 options）。
     let message_model = has_model.then(|| MessageModel {
+        provider_id: config.provider_id.clone(),
+        model_id: config.model_id.clone(),
+        options: config.reasoning_level.clone().map(|level| ModelOptions {
+            reasoning_level: Some(level),
+        }),
+    });
+    let last_used_model = has_model.then(|| MessageModel {
         provider_id: config.provider_id.clone(),
         model_id: config.model_id.clone(),
         options: None,
@@ -267,7 +297,9 @@ pub(crate) fn build_snapshot(
             mode,
             status,
             model,
-            target: None,
+            // 观察形状：create 快照的 session 带 `target:null`（C1 契约 §2.1；
+            // list 行不带 target——投影面不同，`session_info` 保持省略）。
+            target: Some(None),
             created_at: epoch_ms_to_u64(record.time_created),
             updated_at: epoch_ms_to_u64(live.updated_at.max(record.time_updated)),
             archived_at: record.time_archived.map(epoch_ms_to_u64),
@@ -275,17 +307,15 @@ pub(crate) fn build_snapshot(
         settings: SessionSettings {
             model: SessionModelSettings {
                 current: message_model,
-                available: Vec::new(),
-                last_used: None,
+                available: project_available_models(config),
+                last_used: last_used_model,
             },
-            thought_level: ThoughtLevelSettings {
-                enabled: false,
-                current: config.thought_level.clone(),
-                default_level: None,
-                available: Vec::<ThoughtLevelOption>::new(),
-            },
+            thought_level: project_thought_level(config),
             mode: SessionModeSettings { current: mode },
-            permission: None,
+            permission: Some(PermissionSettings {
+                mode: Some(mode),
+                rules_revision: None,
+            }),
         },
         projection: SessionProjection {
             session_id: record.id.clone(),
@@ -293,14 +323,18 @@ pub(crate) fn build_snapshot(
             mode,
             turn_count: live.turn_count,
             total_token_count: live.total_token_count,
-            context_used: live.total_token_count,
+            // 观察口径（契约 §4.2/§4.3）：`contextUsed` 是最近一次请求 total
+            // （不是累计；resume 归 0），`totalTokenCount` 才是累计值。
+            context_used: live.context_used,
             // 上限未由 provider 配置给出时按 0（「未上报」），不编默认窗口。
             context_window: config.capabilities.context_window.unwrap_or(0),
-            current_turn_id: None,
+            current_turn_id: live.current_turn_id.clone(),
             pending_permissions: Vec::new(),
             active_tool_calls: Vec::new(),
             background_jobs: Vec::new(),
-            target: None,
+            // 观察形状（`context-usage-settings.json` 的 projection）：键恒在，
+            // 无 goal 事实时为显式 `null`（不是缺键）。
+            target: Some(None),
             // 活跃事实：最近一次失败（provider 错误 / 落库失败）原样带出。
             last_error: live.last_error.clone().map(|message| SessionLastError {
                 error_type: "runtime_error".to_owned(),
@@ -325,15 +359,173 @@ pub(crate) fn build_snapshot(
             pending_request_ids: Vec::new(),
             api_retry: None,
             context_usage: live.context_usage.as_ref().map(project_context_usage),
-            goal_verifications: None,
-            goal_verification_timeline: None,
+            // C1 观察形状（`agent-server-c1-contract.md` §2.1）：create 的 runtime
+            // 恒带这两个空数组，缺省省略是登记过的 T6 前缺口。
+            goal_verifications: Some(Vec::new()),
+            goal_verification_timeline: Some(Vec::new()),
         },
         // 活跃快照不带历史消息；冷读（store → 消息行）归 Task 7 的 session/read。
         messages: Vec::new(),
         goal_stats: None,
-        todos: None,
-        todo_groups: None,
-        slash_commands: None,
+        // 顶层 9 键常驻（T0 观察 `resultKeys`）：todos / todoGroups 空会话为 `[]`。
+        todos: Some(Vec::new()),
+        todo_groups: Some(Vec::new()),
+        slash_commands: Some(builtin_slash_commands()),
+    }
+}
+
+/// builtin `slashCommands` 数据契约（逐字；`agent-c2-contract.md` §4.4 与
+/// `context-usage-settings.json` 的 `slashCommands` 录制值）。按名排序，无 custom 来源。
+pub(crate) fn builtin_slash_commands() -> Vec<SlashCommand> {
+    const BUILTINS: [(&str, &str, &str); 4] = [
+        (
+            "goal",
+            "Show or set the current session goal.",
+            "/goal [pause|resume|clear|replace <objective>|<objective>]",
+        ),
+        (
+            "compact",
+            "Compact the current conversation with optional instructions.",
+            "/compact [instructions]",
+        ),
+        (
+            "init",
+            "Create or update workspace AGENTS.md instructions.",
+            "/init [notes]",
+        ),
+        (
+            "plan",
+            "Switch to Plan mode and optionally send a task.",
+            "/plan [task]",
+        ),
+    ];
+    BUILTINS
+        .into_iter()
+        .map(|(name, description, input_hint)| SlashCommand {
+            name: name.to_owned(),
+            description: description.to_owned(),
+            input_hint: Some(input_hint.to_owned()),
+            source: Some(SlashCommandSource::Builtin),
+        })
+        .collect()
+}
+
+/// `settings.model.available`：hub 目录投影（`agent-c2-contract.md` §4.4）。
+///
+/// 目录里每个模型一条（resolver 保序）；`label` 取 modelId（目录无独立 label 事实），
+/// `ref` 不带 options，`reasoning.levels` 取 `optionSpecs.reasoningLevel.values`，
+/// `defaultLevel` 取最后一个档位（观察 `["disabled","enabled"]→"enabled"` 的单点
+/// 投影，登记在契约 §4.5），`properties` 的未配置 `supports*` 按 `false` 落
+/// （协议必填形状的中性值，不编真值）。无目录（无模型/解析失败）退空数组。
+fn project_available_models(config: &RuntimeConfig) -> Vec<ModelOption> {
+    let Some(catalog) = &config.model_catalog else {
+        return Vec::new();
+    };
+    catalog
+        .models
+        .iter()
+        .map(|entry| project_model_option(&catalog.provider_id, &catalog.provider_label, entry))
+        .collect()
+}
+
+fn project_model_option(
+    provider_id: &str,
+    provider_label: &Option<String>,
+    entry: &ModelCatalogEntry,
+) -> ModelOption {
+    let reasoning = (!entry.reasoning_levels.is_empty()).then(|| ModelReasoningOptions {
+        levels: entry
+            .reasoning_levels
+            .iter()
+            .map(|level| ThoughtLevelOption {
+                value: level.clone(),
+                label: level.clone(),
+                description: None,
+            })
+            .collect(),
+        default_level: entry.reasoning_levels.last().cloned(),
+    });
+    ModelOption {
+        model: MessageModel {
+            provider_id: provider_id.to_owned(),
+            model_id: entry.model_id.clone(),
+            options: None,
+        },
+        label: entry.model_id.clone(),
+        provider_label: provider_label.clone(),
+        description: None,
+        context_window: entry.context_window,
+        max_output_tokens: entry.max_output_tokens,
+        reasoning,
+        properties: ModelProperties {
+            input_format: ModelInputFormat {
+                supports_text: entry
+                    .input_format
+                    .as_ref()
+                    .and_then(|format| format.supports_text)
+                    .unwrap_or(false),
+                supports_image: entry
+                    .input_format
+                    .as_ref()
+                    .and_then(|format| format.supports_image)
+                    .unwrap_or(false),
+                supports_video: entry
+                    .input_format
+                    .as_ref()
+                    .and_then(|format| format.supports_video)
+                    .unwrap_or(false),
+                supports_audio: entry
+                    .input_format
+                    .as_ref()
+                    .and_then(|format| format.supports_audio)
+                    .unwrap_or(false),
+                supports_pdf: entry
+                    .input_format
+                    .as_ref()
+                    .and_then(|format| format.supports_pdf)
+                    .unwrap_or(false),
+            },
+            output_format: ModelOutputFormat {
+                supports_text: entry
+                    .output_format
+                    .as_ref()
+                    .and_then(|format| format.supports_text)
+                    .unwrap_or(false),
+            },
+        },
+        disabled_reason: None,
+    }
+}
+
+/// `settings.thoughtLevel`：`enabled` = 模型有档位（观察 `current:"disabled"` 且
+/// `enabled:true`），`available` 与 `reasoning.levels` 同源同序，`current` 来自
+/// thoughtLevel 事实。不产出 `defaultLevel`（观察无）。
+fn project_thought_level(config: &RuntimeConfig) -> ThoughtLevelSettings {
+    let levels: Vec<ThoughtLevelOption> = config
+        .model_catalog
+        .as_ref()
+        .and_then(|catalog| {
+            catalog.models.iter().find(|entry| {
+                entry.model_id == config.model_id && !entry.reasoning_levels.is_empty()
+            })
+        })
+        .map(|entry| {
+            entry
+                .reasoning_levels
+                .iter()
+                .map(|level| ThoughtLevelOption {
+                    value: level.clone(),
+                    label: level.clone(),
+                    description: None,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    ThoughtLevelSettings {
+        enabled: !levels.is_empty(),
+        current: config.thought_level.clone(),
+        default_level: None,
+        available: levels,
     }
 }
 

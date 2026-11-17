@@ -38,7 +38,7 @@ use provider_config_repository::{
 };
 use provider_config_source::{read_snapshot, ProviderConfigSnapshot};
 use provider_http::{AnthropicMessagesConfig, OpenAiChatConfig, OpenAiResponsesConfig};
-use provider_resolver::ProviderConfigResolverInput;
+use provider_resolver::{ProviderConfigResolution, ProviderConfigResolverInput};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -320,6 +320,49 @@ impl fmt::Display for ResolvedProvider {
     }
 }
 
+/// 目录投影里的一个模型条目（C2 T6：`settings.model.available` 的事实源）。
+///
+/// 只带快照面需要的事实（`agent-c2-contract.md` §4.4 观察字段）；目录没有的
+/// 字段（独立 label、description 等）不伪造。`reasoning_levels` 是
+/// `optionSpecs.reasoningLevel.values` 的保序原文。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelCatalogEntry {
+    pub model_id: String,
+    pub context_window: Option<u64>,
+    pub max_output_tokens: Option<u64>,
+    pub reasoning_levels: Vec<String>,
+    pub input_format: Option<ModelInputFormatFacts>,
+    pub output_format: Option<ModelOutputFormatFacts>,
+}
+
+/// `properties.inputFormat` 的已观察事实（缺档位按无事实，投影时落中性 `false`）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelInputFormatFacts {
+    pub supports_text: Option<bool>,
+    pub supports_image: Option<bool>,
+    pub supports_video: Option<bool>,
+    pub supports_audio: Option<bool>,
+    pub supports_pdf: Option<bool>,
+}
+
+/// `properties.outputFormat` 的已观察事实。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelOutputFormatFacts {
+    pub supports_text: Option<bool>,
+}
+
+/// 一个 provider 的模型目录（`settings.model.available` 的投影输入）。
+///
+/// 不含凭据与端点；目录解析失败时调用方退「无目录」（快照 `available:[]`）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderCatalog {
+    pub provider_id: String,
+    /// `providerName` 的已观察事实；缺失按 `None`（快照省略 `providerLabel`）。
+    pub provider_label: Option<String>,
+    /// resolver 保序的全部模型（builtin + personal 的 owned-order）。
+    pub models: Vec<ModelCatalogEntry>,
+}
+
 /// `provider/updateAccountConfig` 的信封。信封级 `deny_unknown_fields`（严格解析）；
 /// `states` 按 TS 交付快照「缺省空表」。
 #[derive(Debug, Deserialize)]
@@ -556,8 +599,11 @@ impl ProviderConfigHub {
         })
     }
 
-    /// 合并 + 端点事实的公共段；凭据来源分叉成 [`Resolution`]。
-    fn resolve_inner(&self, selection: &ModelSelection) -> Result<Resolution, ProviderConfigError> {
+    /// 三层合并的公共段：文件层现读 + 账号层快照 → resolver 输出。
+    ///
+    /// `resolve_inner`（端点解析）与 [`Self::provider_catalog`]（目录投影）共用，
+    /// 保证两条读取路径看到同一份合并事实。
+    fn merged_resolution(&self) -> Result<ProviderConfigResolution, ProviderConfigError> {
         let file_snapshot = self.read_file_snapshot()?;
         let account = self
             .state
@@ -580,7 +626,76 @@ impl ProviderConfigHub {
             account_states,
             personal_provider_order: Some(&file_snapshot.personal_provider_order),
         };
-        let resolution = provider_resolver::ProviderConfigResolver.resolve(&input);
+        Ok(provider_resolver::ProviderConfigResolver.resolve(&input))
+    }
+
+    /// 会话 provider 的模型目录（C2 T6：`settings.model.available` 的投影输入）。
+    ///
+    /// 只做合并与查找，不做端点/凭据校验（目录面与可执行面是两件事：目录里的
+    /// 模型即使缺凭据也进快照，turn 才按 resolve 的显式错误暴露）。
+    pub fn provider_catalog(
+        &self,
+        provider_id: &str,
+    ) -> Result<ProviderCatalog, ProviderConfigError> {
+        let resolution = self.merged_resolution()?;
+        let resolved = resolution
+            .resolved_providers
+            .iter()
+            .find(|provider| provider.provider_id == provider_id)
+            .ok_or_else(|| ProviderConfigError::ProviderNotFound {
+                provider_id: provider_id.to_owned(),
+            })?;
+        let models = resolved
+            .models
+            .iter()
+            .map(|model| {
+                let config = &model.config;
+                let properties = config.properties.value();
+                let option_specs = config.option_specs.value();
+                ModelCatalogEntry {
+                    model_id: model.model_id.clone(),
+                    context_window: capability_u64(
+                        properties
+                            .and_then(|properties| properties.context_window.value())
+                            .copied(),
+                    ),
+                    max_output_tokens: capability_u64(
+                        option_specs
+                            .and_then(|specs| specs.max_output_tokens.value())
+                            .and_then(|limit| limit.max.value())
+                            .copied(),
+                    ),
+                    reasoning_levels: option_specs
+                        .and_then(|specs| specs.reasoning_level.value())
+                        .and_then(|spec| spec.values.value().cloned())
+                        .unwrap_or_default(),
+                    input_format: properties
+                        .and_then(|properties| properties.input_format.value())
+                        .map(|format| ModelInputFormatFacts {
+                            supports_text: format.supports_text.value().copied(),
+                            supports_image: format.supports_image.value().copied(),
+                            supports_video: format.supports_video.value().copied(),
+                            supports_audio: format.supports_audio.value().copied(),
+                            supports_pdf: format.supports_pdf.value().copied(),
+                        }),
+                    output_format: properties
+                        .and_then(|properties| properties.output_format.value())
+                        .map(|format| ModelOutputFormatFacts {
+                            supports_text: format.supports_text.value().copied(),
+                        }),
+                }
+            })
+            .collect();
+        Ok(ProviderCatalog {
+            provider_id: provider_id.to_owned(),
+            provider_label: resolved.provider_name.value().cloned(),
+            models,
+        })
+    }
+
+    /// 合并 + 端点事实的公共段；凭据来源分叉成 [`Resolution`]。
+    fn resolve_inner(&self, selection: &ModelSelection) -> Result<Resolution, ProviderConfigError> {
+        let resolution = self.merged_resolution()?;
 
         let resolved = resolution
             .resolved_providers
