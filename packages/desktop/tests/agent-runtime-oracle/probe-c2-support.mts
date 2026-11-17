@@ -300,6 +300,8 @@ export type C2Harness = {
   dbPath: string;
   /** 原始请求体（内存探针要检查完整注入文本）。 */
   rawBodies: JsonObject[];
+  /** 原始请求体到达时的会话事件位置（用于证明「记忆抽取请求在 turn 终态之后」）。 */
+  rawBodyMeta: JsonObject[];
   /** 已投影的请求体（compact/context 探针用）。 */
   bodies: JsonObject[];
   isolation(): JsonObject;
@@ -318,6 +320,7 @@ export async function startC2Harness(options: C2HarnessOptions): Promise<C2Harne
   const captureState = capture();
   const hooks = recordFrames(captureState, context);
   const rawBodies: JsonObject[] = [];
+  const rawBodyMeta: JsonObject[] = [];
   const bodies: JsonObject[] = [];
   const session = await startOracleRuntime({
     dataRoot,
@@ -329,6 +332,12 @@ export async function startC2Harness(options: C2HarnessOptions): Promise<C2Harne
     onMockRequestBody: (path, body) => {
       const raw = body as JsonObject;
       rawBodies.push(raw);
+      rawBodyMeta.push({
+        index: rawBodies.length - 1,
+        path,
+        terminalCountAtArrival: terminalCount(captureState.events),
+        lastEventTypeAtArrival: captureState.events.at(-1)?.type ?? null,
+      });
       bodies.push({
         path,
         body: projectModelRequest(raw, (value) => normalizeC2String(value, context)),
@@ -343,6 +352,7 @@ export async function startC2Harness(options: C2HarnessOptions): Promise<C2Harne
     cwd,
     dbPath: join(dataRoot, ".mode", "cli", "db", "db.sqlite"),
     rawBodies,
+    rawBodyMeta,
     bodies,
     isolation() {
       return {

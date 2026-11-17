@@ -29,6 +29,8 @@
         "text": "post compact answer: continuing after summary"
       }
     ],
+    "inputId": "input_compact_manual_1",
+    "compactInput": "/compact Focus on decisions and open questions; keep identifiers verbatim.",
     "instructions": "Focus on decisions and open questions; keep identifiers verbatim."
   },
   "expect": {
@@ -113,6 +115,11 @@
       "messageCount": 9
     },
     "expectedRevision": 10,
+    "inputIdEcho": {
+      "requested": "input_compact_manual_1",
+      "returned": "input_compact_manual_1",
+      "equal": true
+    },
     "compactResponse": {
       "response": "",
       "compact": {
@@ -555,8 +562,17 @@
       "session.updated",
       "turn.completed"
     ],
+    "terminalObserved": true,
+    "timeUpdated": {
+      "before": "<time>",
+      "after": "<time>",
+      "changed": true,
+      "increased": true
+    },
     "timeCompactingSamples": {
       "sampled": true,
+      "sampleCount": "<count>",
+      "sampledUntilTerminal": true,
       "distinctValues": ["null"]
     },
     "timeCompactingNonEmptySamples": 0,
@@ -6788,10 +6804,6 @@
           ]
         }
       }
-    ],
-    "notes": {
-      "compactInput": "/compact Focus on decisions and open questions; keep identifiers verbatim.",
-      "instructions": "Focus on decisions and open questions; keep identifiers verbatim."
-    }
+    ]
   }
 }

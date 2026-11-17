@@ -29,6 +29,11 @@
           "invalidStdoutLines": 0,
           "mockRequestPaths": ["/v1/messages", "/v1/messages", "/v1/messages"]
         },
+        "inputIdEcho": {
+          "requested": ["input_compact_trial_1_1", "input_compact_trial_1_2"],
+          "returned": ["input_compact_trial_1_1", "input_compact_trial_1_2"],
+          "allEqual": true
+        },
         "results": [
           {
             "status": "fulfilled",
@@ -1324,8 +1329,11 @@
           "session.updated",
           "turn.completed"
         ],
+        "terminalObserved": true,
         "timeCompactingSamples": {
           "sampled": true,
+          "sampleCount": "<count>",
+          "sampledUntilTerminal": true,
           "distinctValues": ["null"]
         },
         "timeCompactingNonEmptySamples": 0,
@@ -1334,7 +1342,31 @@
           "compactSummaryMessages": 1,
           "skippedTimelineMessages": 0
         },
-        "modelRequestCount": 3
+        "dbSkippedRows": {
+          "messages": [],
+          "compactionParts": []
+        },
+        "modelRequestCount": 3,
+        "rawBodyMeta": [
+          {
+            "index": 0,
+            "path": "/v1/messages",
+            "terminalCountAtArrival": 0,
+            "lastEventTypeAtArrival": "session.updated"
+          },
+          {
+            "index": 1,
+            "path": "/v1/messages",
+            "terminalCountAtArrival": 1,
+            "lastEventTypeAtArrival": "session.updated"
+          },
+          {
+            "index": 2,
+            "path": "/v1/messages",
+            "terminalCountAtArrival": 2,
+            "lastEventTypeAtArrival": "session.updated"
+          }
+        ]
       },
       {
         "trial": 2,
@@ -1344,6 +1376,11 @@
           "invalidStdoutLines": 0,
           "mockRequestPaths": ["/v1/messages", "/v1/messages", "/v1/messages"]
         },
+        "inputIdEcho": {
+          "requested": ["input_compact_trial_2_1", "input_compact_trial_2_2"],
+          "returned": ["input_compact_trial_2_1", "input_compact_trial_2_2"],
+          "allEqual": true
+        },
         "results": [
           {
             "status": "fulfilled",
@@ -1422,35 +1459,74 @@
             "status": "fulfilled",
             "response": "",
             "compact": {
-              "state": "accepted",
+              "state": "already_running",
               "inputId": "<id>"
             },
             "compactKeys": ["state", "inputId"],
             "snapshotRuntime": {
+              "activeTurnId": "<turn-id>",
+              "activeTurnKind": "compact",
               "deliveryKind": "desktop-continuous",
-              "eventSeq": 24,
+              "eventSeq": 19,
               "pendingRequestIds": [],
               "contextUsage": {
+                "cache": {
+                  "inputTokens": 10,
+                  "cacheReadTokens": 0,
+                  "cacheWriteTokens": 0,
+                  "latestHitRate": 0,
+                  "hitRate": 0,
+                  "hitRateRequestCount": 2,
+                  "totalInputTokens": 20,
+                  "totalCacheReadTokens": 0,
+                  "totalCacheWriteTokens": 0
+                },
                 "cost": null,
                 "size": 200000,
-                "used": 2843
+                "used": 22,
+                "breakdown": [
+                  {
+                    "source": "system_prompt",
+                    "chars": "<count>"
+                  },
+                  {
+                    "source": "meta_user_context",
+                    "chars": "<count>"
+                  },
+                  {
+                    "source": "skills",
+                    "chars": "<count>"
+                  },
+                  {
+                    "source": "system_tool_schemas",
+                    "chars": "<count>"
+                  },
+                  {
+                    "source": "mcp_tool_schemas",
+                    "chars": "<count>"
+                  },
+                  {
+                    "source": "messages",
+                    "chars": "<count>"
+                  }
+                ]
               },
               "goalVerifications": [],
               "goalVerificationTimeline": [],
-              "stateRevision": 9
+              "stateRevision": 7
             },
             "snapshotProjection": {
               "activeToolCalls": [],
               "backgroundJobs": [],
-              "contextUsed": 2843,
+              "contextUsed": 22,
               "contextWindow": 200000,
               "currentTurnId": "<turn-id>",
               "mode": "build",
               "pendingPermissions": [],
               "sessionId": "<id>",
-              "status": "idle",
+              "status": "running",
               "target": null,
-              "totalTokenCount": 66,
+              "totalTokenCount": 44,
               "turnCount": 3
             }
           }
@@ -2242,7 +2318,7 @@
                     "info": {
                       "agent": "mode-agent",
                       "cost": 0,
-                      "finish": "completed",
+                      "finish": "started",
                       "messageId": "<id>",
                       "model": {
                         "providerId": "oracle-mock",
@@ -2263,8 +2339,7 @@
                       },
                       "sessionId": "<id>",
                       "time": {
-                        "created": "<time>",
-                        "completed": "<time>"
+                        "created": "<time>"
                       },
                       "tokens": {
                         "input": 0,
@@ -2281,22 +2356,17 @@
                         "messageId": "<id>",
                         "partId": "part_<part-id>_timeline",
                         "sessionId": "<id>",
-                        "boundaryId": "<id>",
                         "compactReason": "user_requested",
                         "display": "separator",
                         "operationId": "<id>",
                         "phase": "standalone_turn",
-                        "postCompactTokenCount": 22,
                         "preCompactTokenCount": 2713,
-                        "status": "completed",
-                        "summaryMessageId": "<id>",
+                        "status": "started",
                         "time": {
-                          "start": "<time>",
-                          "end": "<time>"
+                          "start": "<time>"
                         },
                         "timelineType": "context_compaction",
                         "trigger": "manual",
-                        "truePostCompactTokenCount": 2843,
                         "type": "timeline"
                       },
                       {
@@ -2305,65 +2375,12 @@
                         "sessionId": "<id>",
                         "auto": false,
                         "metadata": {
-                          "boundaryId": "<id>",
                           "compactReason": "user_requested",
-                          "endedAt": "<time>",
                           "operationId": "<id>",
                           "phase": "standalone_turn",
-                          "postCompactTokenCount": 22,
                           "preCompactTokenCount": 2713,
-                          "replace": true,
                           "startedAt": "<time>",
-                          "summaryMessageId": "<id>",
-                          "timelineStatus": "completed",
-                          "truePostCompactTokenCount": 2843,
-                          "trigger": "manual"
-                        },
-                        "summaryMessageId": "<id>",
-                        "type": "compaction"
-                      }
-                    ]
-                  },
-                  {
-                    "info": {
-                      "agent": "mode-agent",
-                      "messageId": "<id>",
-                      "model": {
-                        "providerId": "oracle-mock",
-                        "modelId": "mock-1"
-                      },
-                      "role": "user",
-                      "semantics": {
-                        "origin": "agent_runtime",
-                        "kind": "compact_summary",
-                        "uiVisibility": "hidden",
-                        "providerVisibility": "visible",
-                        "transcriptVisibility": "hidden"
-                      },
-                      "sessionId": "<id>",
-                      "time": {
-                        "created": "<time>"
-                      },
-                      "tools": "<tool-flags>"
-                    },
-                    "parts": [
-                      {
-                        "messageId": "<id>",
-                        "partId": "<part-id>",
-                        "sessionId": "<id>",
-                        "synthetic": true,
-                        "text": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nlater turn answer\nContinue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
-                        "type": "text"
-                      },
-                      {
-                        "messageId": "<id>",
-                        "partId": "<part-id>",
-                        "sessionId": "<id>",
-                        "auto": false,
-                        "metadata": {
-                          "compactReason": "user_requested",
-                          "operationId": "<id>",
-                          "phase": "standalone_turn",
+                          "timelineStatus": "started",
                           "trigger": "manual"
                         },
                         "type": "compaction"
@@ -2374,15 +2391,15 @@
                 "projection": {
                   "activeToolCalls": [],
                   "backgroundJobs": [],
-                  "contextUsed": 2843,
+                  "contextUsed": 22,
                   "contextWindow": 200000,
                   "currentTurnId": "<turn-id>",
                   "mode": "build",
                   "pendingPermissions": [],
                   "sessionId": "<id>",
-                  "status": "idle",
+                  "status": "running",
                   "target": null,
-                  "totalTokenCount": 66,
+                  "totalTokenCount": 44,
                   "turnCount": 3
                 },
                 "protocol": {
@@ -2390,17 +2407,56 @@
                   "version": 1
                 },
                 "runtime": {
+                  "activeTurnId": "<turn-id>",
+                  "activeTurnKind": "compact",
                   "deliveryKind": "desktop-continuous",
-                  "eventSeq": 24,
+                  "eventSeq": 19,
                   "pendingRequestIds": [],
                   "contextUsage": {
+                    "cache": {
+                      "inputTokens": 10,
+                      "cacheReadTokens": 0,
+                      "cacheWriteTokens": 0,
+                      "latestHitRate": 0,
+                      "hitRate": 0,
+                      "hitRateRequestCount": 2,
+                      "totalInputTokens": 20,
+                      "totalCacheReadTokens": 0,
+                      "totalCacheWriteTokens": 0
+                    },
                     "cost": null,
                     "size": 200000,
-                    "used": 2843
+                    "used": 22,
+                    "breakdown": [
+                      {
+                        "source": "system_prompt",
+                        "chars": "<count>"
+                      },
+                      {
+                        "source": "meta_user_context",
+                        "chars": "<count>"
+                      },
+                      {
+                        "source": "skills",
+                        "chars": "<count>"
+                      },
+                      {
+                        "source": "system_tool_schemas",
+                        "chars": "<count>"
+                      },
+                      {
+                        "source": "mcp_tool_schemas",
+                        "chars": "<count>"
+                      },
+                      {
+                        "source": "messages",
+                        "chars": "<count>"
+                      }
+                    ]
                   },
                   "goalVerifications": [],
                   "goalVerificationTimeline": [],
-                  "stateRevision": 9
+                  "stateRevision": 7
                 },
                 "session": {
                   "createdAt": "<time>",
@@ -2412,7 +2468,7 @@
                   "traceId": "<id>",
                   "sessionId": "<id>",
                   "sessionKind": "interactive",
-                  "status": "idle",
+                  "status": "running",
                   "target": null,
                   "title": "first prompt",
                   "titleSource": "first_input",
@@ -2524,7 +2580,7 @@
                 "todoGroups": []
               },
               "compact": {
-                "state": "accepted",
+                "state": "already_running",
                 "inputId": "<id>"
               }
             }
@@ -2607,50 +2663,6 @@
               },
               "inputId": "<id>"
             }
-          },
-          {
-            "type": "turn.started",
-            "payload": {
-              "turnNumber": 3,
-              "input": "/compact",
-              "inputId": "<id>",
-              "inputVisibility": "model-only"
-            }
-          },
-          {
-            "type": "session.updated",
-            "payload": {
-              "operationId": "<id>",
-              "messageId": "<id>",
-              "partId": "<part-id>",
-              "status": "skipped",
-              "trigger": "manual",
-              "phase": "standalone_turn",
-              "compactReason": "user_requested",
-              "display": "separator",
-              "preCompactTokenCount": 2843,
-              "sourceCommandId": "input_compact_trial_2_2",
-              "startedAt": "<time>",
-              "replace": true,
-              "endedAt": "<time>"
-            }
-          },
-          {
-            "type": "turn.completed",
-            "payload": {
-              "response": "Context is up to date; no compression needed",
-              "tokenCount": 2843,
-              "toolCallCount": 0,
-              "historyRoundCount": 1,
-              "duration": "<time>",
-              "resultType": "success",
-              "cacheStats": {
-                "totalMessages": 6,
-                "cachedMessages": 5,
-                "lastCacheHit": false
-              },
-              "inputId": "<id>"
-            }
           }
         ],
         "eventTypes": [
@@ -2662,22 +2674,46 @@
           "session.updated",
           "session.updated",
           "session.updated",
-          "turn.completed",
-          "turn.started",
-          "session.updated",
           "turn.completed"
         ],
+        "terminalObserved": true,
         "timeCompactingSamples": {
           "sampled": true,
+          "sampleCount": "<count>",
+          "sampledUntilTerminal": true,
           "distinctValues": ["null"]
         },
         "timeCompactingNonEmptySamples": 0,
         "dbCounts": {
-          "compactionParts": 3,
+          "compactionParts": 2,
           "compactSummaryMessages": 1,
-          "skippedTimelineMessages": 1
+          "skippedTimelineMessages": 0
         },
-        "modelRequestCount": 3
+        "dbSkippedRows": {
+          "messages": [],
+          "compactionParts": []
+        },
+        "modelRequestCount": 3,
+        "rawBodyMeta": [
+          {
+            "index": 0,
+            "path": "/v1/messages",
+            "terminalCountAtArrival": 0,
+            "lastEventTypeAtArrival": "session.updated"
+          },
+          {
+            "index": 1,
+            "path": "/v1/messages",
+            "terminalCountAtArrival": 1,
+            "lastEventTypeAtArrival": "session.updated"
+          },
+          {
+            "index": 2,
+            "path": "/v1/messages",
+            "terminalCountAtArrival": 2,
+            "lastEventTypeAtArrival": "session.updated"
+          }
+        ]
       },
       {
         "trial": 3,
@@ -2686,6 +2722,11 @@
           "cliLayoutSentinel": true,
           "invalidStdoutLines": 0,
           "mockRequestPaths": ["/v1/messages", "/v1/messages", "/v1/messages"]
+        },
+        "inputIdEcho": {
+          "requested": ["input_compact_trial_3_1", "input_compact_trial_3_2"],
+          "returned": ["input_compact_trial_3_1", "input_compact_trial_3_2"],
+          "allEqual": true
         },
         "results": [
           {
@@ -3982,8 +4023,11 @@
           "session.updated",
           "turn.completed"
         ],
+        "terminalObserved": true,
         "timeCompactingSamples": {
           "sampled": true,
+          "sampleCount": "<count>",
+          "sampledUntilTerminal": true,
           "distinctValues": ["null"]
         },
         "timeCompactingNonEmptySamples": 0,
@@ -3992,7 +4036,31 @@
           "compactSummaryMessages": 1,
           "skippedTimelineMessages": 0
         },
-        "modelRequestCount": 3
+        "dbSkippedRows": {
+          "messages": [],
+          "compactionParts": []
+        },
+        "modelRequestCount": 3,
+        "rawBodyMeta": [
+          {
+            "index": 0,
+            "path": "/v1/messages",
+            "terminalCountAtArrival": 0,
+            "lastEventTypeAtArrival": "session.updated"
+          },
+          {
+            "index": 1,
+            "path": "/v1/messages",
+            "terminalCountAtArrival": 1,
+            "lastEventTypeAtArrival": "session.updated"
+          },
+          {
+            "index": 2,
+            "path": "/v1/messages",
+            "terminalCountAtArrival": 2,
+            "lastEventTypeAtArrival": "session.updated"
+          }
+        ]
       },
       {
         "trial": 4,
@@ -4001,6 +4069,11 @@
           "cliLayoutSentinel": true,
           "invalidStdoutLines": 0,
           "mockRequestPaths": ["/v1/messages", "/v1/messages", "/v1/messages"]
+        },
+        "inputIdEcho": {
+          "requested": ["input_compact_trial_4_1", "input_compact_trial_4_2"],
+          "returned": ["input_compact_trial_4_1", "input_compact_trial_4_2"],
+          "allEqual": true
         },
         "results": [
           {
@@ -5325,8 +5398,11 @@
           "session.updated",
           "turn.completed"
         ],
+        "terminalObserved": true,
         "timeCompactingSamples": {
           "sampled": true,
+          "sampleCount": "<count>",
+          "sampledUntilTerminal": true,
           "distinctValues": ["null"]
         },
         "timeCompactingNonEmptySamples": 0,
@@ -5335,12 +5411,105 @@
           "compactSummaryMessages": 1,
           "skippedTimelineMessages": 1
         },
-        "modelRequestCount": 3
+        "dbSkippedRows": {
+          "messages": [
+            {
+              "id": "<id>",
+              "session_id": "<id>",
+              "time_created": "<time>",
+              "time_updated": "<time>",
+              "data": {
+                "role": "assistant",
+                "time": {
+                  "created": "<time>",
+                  "completed": "<time>"
+                },
+                "parentID": "<id>",
+                "modelId": "mock-1",
+                "providerId": "oracle-mock",
+                "mode": "build",
+                "planEnabled": false,
+                "agent": "mode-agent",
+                "path": {
+                  "cwd": "<cwd>",
+                  "root": "<cwd>"
+                },
+                "cost": 0,
+                "tokens": {
+                  "input": 0,
+                  "output": 0,
+                  "reasoning": 0,
+                  "cache": {
+                    "read": 0,
+                    "write": 0
+                  }
+                },
+                "finish": "skipped",
+                "semantics": {
+                  "origin": "system",
+                  "kind": "timeline_event",
+                  "uiVisibility": "visible",
+                  "providerVisibility": "hidden",
+                  "transcriptVisibility": "visible"
+                }
+              },
+              "sequence": 7
+            }
+          ],
+          "compactionParts": [
+            {
+              "id": "<id>",
+              "message_id": "<id>",
+              "session_id": "<id>",
+              "time_created": "<time>",
+              "time_updated": "<time>",
+              "data": {
+                "type": "compaction",
+                "auto": false,
+                "trigger": "manual",
+                "phase": "standalone_turn",
+                "compactReason": "user_requested",
+                "operationId": "<id>",
+                "timelineStatus": "skipped",
+                "timelineDisplay": "separator",
+                "replace": true,
+                "preCompactTokenCount": 2843,
+                "time": {
+                  "start": "<time>",
+                  "end": "<time>"
+                }
+              },
+              "sequence": 1,
+              "messageSequence": 7
+            }
+          ]
+        },
+        "modelRequestCount": 3,
+        "rawBodyMeta": [
+          {
+            "index": 0,
+            "path": "/v1/messages",
+            "terminalCountAtArrival": 0,
+            "lastEventTypeAtArrival": "session.updated"
+          },
+          {
+            "index": 1,
+            "path": "/v1/messages",
+            "terminalCountAtArrival": 1,
+            "lastEventTypeAtArrival": "session.updated"
+          },
+          {
+            "index": 2,
+            "path": "/v1/messages",
+            "terminalCountAtArrival": 2,
+            "lastEventTypeAtArrival": "session.updated"
+          }
+        ]
       }
     ],
     "outcomes": [
       "accepted+already_running",
-      "accepted+accepted",
+      "accepted+already_running",
       "accepted+already_running",
       "accepted+accepted"
     ],

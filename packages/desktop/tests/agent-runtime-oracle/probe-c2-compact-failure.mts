@@ -82,6 +82,7 @@ async function runFailure(mode: "tool-call" | "empty", prefix: string): Promise<
       failureEvent: events.find((event) => event.type === "turn.failed") ?? null,
       dbBefore: summaryCounts(before),
       dbAfter: summaryCounts(after),
+      dbAfterRows: after,
       sessionAfter: ((after.session as JsonObject).rows as JsonObject[])[0],
       turnUsageLast: ((after.turn_usage as JsonObject).rows as JsonObject[]).at(-1),
       modelUsageLast: ((after.model_usage as JsonObject).rows as JsonObject[]).at(-1),

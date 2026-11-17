@@ -139,6 +139,38 @@
         }
       },
       "settingsModelKeys": ["available", "current", "lastUsed"],
+      "slashCommands": [
+        {
+          "description": "Show or set the current session goal.",
+          "inputHint": "/goal [pause|resume|clear|replace <objective>|<objective>]",
+          "name": "goal",
+          "source": "builtin"
+        },
+        {
+          "description": "Compact the current conversation with optional instructions.",
+          "inputHint": "/compact [instructions]",
+          "name": "compact",
+          "source": "builtin"
+        },
+        {
+          "description": "Create or update workspace AGENTS.md instructions.",
+          "inputHint": "/init [notes]",
+          "name": "init",
+          "source": "builtin"
+        },
+        {
+          "description": "Switch to Plan mode and optionally send a task.",
+          "inputHint": "/plan [task]",
+          "name": "plan",
+          "source": "builtin"
+        }
+      ],
+      "compactSlashCommand": {
+        "description": "Compact the current conversation with optional instructions.",
+        "inputHint": "/compact [instructions]",
+        "name": "compact",
+        "source": "builtin"
+      },
       "messageCount": 0,
       "messageRoles": [],
       "messagePartTypes": []
@@ -372,6 +404,38 @@
             }
           },
           "settingsModelKeys": ["available", "current", "lastUsed"],
+          "slashCommands": [
+            {
+              "description": "Show or set the current session goal.",
+              "inputHint": "/goal [pause|resume|clear|replace <objective>|<objective>]",
+              "name": "goal",
+              "source": "builtin"
+            },
+            {
+              "description": "Compact the current conversation with optional instructions.",
+              "inputHint": "/compact [instructions]",
+              "name": "compact",
+              "source": "builtin"
+            },
+            {
+              "description": "Create or update workspace AGENTS.md instructions.",
+              "inputHint": "/init [notes]",
+              "name": "init",
+              "source": "builtin"
+            },
+            {
+              "description": "Switch to Plan mode and optionally send a task.",
+              "inputHint": "/plan [task]",
+              "name": "plan",
+              "source": "builtin"
+            }
+          ],
+          "compactSlashCommand": {
+            "description": "Compact the current conversation with optional instructions.",
+            "inputHint": "/compact [instructions]",
+            "name": "compact",
+            "source": "builtin"
+          },
           "messageCount": 3,
           "messageRoles": ["assistant", "user", "assistant"],
           "messagePartTypes": [["timeline"], ["text"], ["step-start", "text", "step-finish"]]
@@ -589,6 +653,38 @@
             }
           },
           "settingsModelKeys": ["available", "current", "lastUsed"],
+          "slashCommands": [
+            {
+              "description": "Show or set the current session goal.",
+              "inputHint": "/goal [pause|resume|clear|replace <objective>|<objective>]",
+              "name": "goal",
+              "source": "builtin"
+            },
+            {
+              "description": "Compact the current conversation with optional instructions.",
+              "inputHint": "/compact [instructions]",
+              "name": "compact",
+              "source": "builtin"
+            },
+            {
+              "description": "Create or update workspace AGENTS.md instructions.",
+              "inputHint": "/init [notes]",
+              "name": "init",
+              "source": "builtin"
+            },
+            {
+              "description": "Switch to Plan mode and optionally send a task.",
+              "inputHint": "/plan [task]",
+              "name": "plan",
+              "source": "builtin"
+            }
+          ],
+          "compactSlashCommand": {
+            "description": "Compact the current conversation with optional instructions.",
+            "inputHint": "/compact [instructions]",
+            "name": "compact",
+            "source": "builtin"
+          },
           "messageCount": 5,
           "messageRoles": ["assistant", "user", "assistant", "user", "assistant"],
           "messagePartTypes": [
@@ -812,6 +908,38 @@
             }
           },
           "settingsModelKeys": ["available", "current", "lastUsed"],
+          "slashCommands": [
+            {
+              "description": "Show or set the current session goal.",
+              "inputHint": "/goal [pause|resume|clear|replace <objective>|<objective>]",
+              "name": "goal",
+              "source": "builtin"
+            },
+            {
+              "description": "Compact the current conversation with optional instructions.",
+              "inputHint": "/compact [instructions]",
+              "name": "compact",
+              "source": "builtin"
+            },
+            {
+              "description": "Create or update workspace AGENTS.md instructions.",
+              "inputHint": "/init [notes]",
+              "name": "init",
+              "source": "builtin"
+            },
+            {
+              "description": "Switch to Plan mode and optionally send a task.",
+              "inputHint": "/plan [task]",
+              "name": "plan",
+              "source": "builtin"
+            }
+          ],
+          "compactSlashCommand": {
+            "description": "Compact the current conversation with optional instructions.",
+            "inputHint": "/compact [instructions]",
+            "name": "compact",
+            "source": "builtin"
+          },
           "messageCount": 7,
           "messageRoles": [
             "assistant",
@@ -980,6 +1108,38 @@
         }
       },
       "settingsModelKeys": ["available", "current", "lastUsed"],
+      "slashCommands": [
+        {
+          "description": "Show or set the current session goal.",
+          "inputHint": "/goal [pause|resume|clear|replace <objective>|<objective>]",
+          "name": "goal",
+          "source": "builtin"
+        },
+        {
+          "description": "Compact the current conversation with optional instructions.",
+          "inputHint": "/compact [instructions]",
+          "name": "compact",
+          "source": "builtin"
+        },
+        {
+          "description": "Create or update workspace AGENTS.md instructions.",
+          "inputHint": "/init [notes]",
+          "name": "init",
+          "source": "builtin"
+        },
+        {
+          "description": "Switch to Plan mode and optionally send a task.",
+          "inputHint": "/plan [task]",
+          "name": "plan",
+          "source": "builtin"
+        }
+      ],
+      "compactSlashCommand": {
+        "description": "Compact the current conversation with optional instructions.",
+        "inputHint": "/compact [instructions]",
+        "name": "compact",
+        "source": "builtin"
+      },
       "messageCount": 7,
       "messageRoles": ["assistant", "user", "assistant", "user", "assistant", "user", "assistant"],
       "messagePartTypes": [

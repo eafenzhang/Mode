@@ -77,10 +77,13 @@ C2 夹具的可复现性已实测：`compact-manual`、`compact-no-instructions`
   - 正常受理：`{response:"", snapshot:{…}, compact:{state:"accepted", inputId}}`；
   - 并发第二个：`{response:"", snapshot:{…}, compact:{state:"already_running", inputId}}`
     （见 §1.6，时序相关）；
-  - `compact.operationId` **未观察到**；`compact.inputId` 回显请求值。
+  - `compact.operationId` **未观察到**；`compact.inputId` 回显请求值。夹具记录原始
+    `inputIdEcho`（`requested` / `returned` / `equal:true`），不是规范化占位符。
 - compact 是**异步受理**：`session/compact` 的应答先返回，摘要/失败通过后续事件与
   `turn.completed` / `turn.failed` 表达。
-- `expectedRevision` 过期：JSON-RPC 错误应答（无事件、无 DB 变化）：
+- `expectedRevision` 过期：JSON-RPC 错误应答；`compact-expected-revision` 记录
+  `events:[]`，且 `dbBeforeRows` / `dbAfterRows` 的 8 张表行数逐表相等
+  （`allTableRowCountsStable:true`），不是只比 message 行数：
 
 ```json
 {
@@ -124,7 +127,7 @@ C2 夹具的可复现性已实测：`compact-manual`、`compact-no-instructions`
 
 | 表/列                     | 观察值                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `session.time_compacting` | 结束后 `null`；`time_updated` 更新。**进行中的非空值未观察到**：1–2ms 轮询 15/21/23/27/28 次采样全部为 `null`（见 §6）                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `session.time_compacting` | 采样从发出请求持续到 accepted 对应的终态（`turn.completed` / `turn.failed`）才停止；窗口内 `distinctValues:["null"]`，结束后也是 `null`。**非空值未观察到**（见 §6）。`time_updated` 同时记录 before/after 关系：`changed:true`、`increased:true`（`compact-manual.timeUpdated`）                                                                                                                                                                                                                                                                     |
 | `session_input`           | compact 带 `inputId` 时仍 **0 行**（与 C1 的 send 观察一致）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `session_entry`           | 不新增，仍 3 行（`runtime/model_selection`、`runtime/bash_shell_selection`、`runtime/execution_state`）                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `message`                 | 新增 2 行：<br>1) 合成 timeline 消息：`role:"assistant"`、`finish:"completed"`、`semantics:{origin:"system",kind:"timeline_event",uiVisibility:"visible",providerVisibility:"hidden",transcriptVisibility:"visible"}`、tokens 全 0；<br>2) 摘要消息：`role:"user"`、`summary:{title:"Compact summary", body:"<模型返回文本>", diffs:[]}`、`semantics:{origin:"agent_runtime",kind:"compact_summary",uiVisibility:"hidden",providerVisibility:"visible",transcriptVisibility:"hidden"}`、`modelSelection`、`model`、`tools`，**没有** `time.completed` |
@@ -182,28 +185,34 @@ compact 使用与会话相同的 provider/模型；`querySource="compact"`。观
 `probe-c2-compact-race.mts` 在同一 tick 连发两个 `session/compact`，跑 4 轮 trial。
 机器录制结果（`compact-same-tick`）：
 
-| trial | 第一次   | 第二次            | DB 结果                                                                  |
-| ----- | -------- | ----------------- | ------------------------------------------------------------------------ |
-| 1     | accepted | `already_running` | 1 个摘要；`compaction` part 2 个                                         |
-| 2     | accepted | `already_running` | 1 个摘要                                                                 |
-| 3     | accepted | `already_running` | 1 个摘要                                                                 |
-| 4     | accepted | accepted          | 1 个摘要 + 1 个 `status:"skipped"` 的 compact + 1 个 skipped timeline 行 |
+| trial | 第一次   | 第二次            | DB 结果（`dbCounts` / `dbSkippedRows`）                                                               |
+| ----- | -------- | ----------------- | ----------------------------------------------------------------------------------------------------- |
+| 1     | accepted | `already_running` | 1 个摘要；`compaction` part 2 个；skipped 0                                                           |
+| 2     | accepted | `already_running` | 1 个摘要；`compaction` part 2 个；skipped 0                                                           |
+| 3     | accepted | `already_running` | 1 个摘要；`compaction` part 2 个；skipped 0                                                           |
+| 4     | accepted | accepted          | 1 个摘要；`compaction` part 3 个；1 个 `finish:"skipped"` 消息 + 1 个 `timelineStatus:"skipped"` part |
+
+以上是当前 checked-in `fixtures/c2/compact-same-tick.json` 的 `outcomes`（3×
+`accepted+already_running`、1×`accepted+accepted`）。trial 结果随时序会切换；
+重新跑探针时必须同时更新夹具与该表，禁止手改计数。
 
 - `already_running` 应答形状：
   `{response:"", snapshot:{…}, compact:{state:"already_running", inputId}}`；
-  第二次没有 `turn.started` / `turn.*` 事件，也没有新摘要。
+  第二次没有 `turn.started` / `turn.*` 事件，也没有新摘要（`statusEvents` 只含第一次）。
 - `accepted` + skipped 形状：第二次先返回 accepted；第一次完成后，第二次发出
   `turn.started` + `session.updated{status:"skipped", operationId, sourceCommandId,
 preCompactTokenCount, replace:true, startedAt, endedAt}` + `turn.completed`
   （`response:"Context is up to date; no compression needed"`、`tokenCount:2843`、
   `resultType:"success"`）。DB 新增一个 `finish:"skipped"` 的 timeline 消息与一个
-  `timelineStatus:"skipped"` 的 `compaction` part，**不新增摘要**。
+  `timelineStatus:"skipped"` 的 `compaction` part，**不新增摘要**；两者的完整行在
+  `compact-same-tick.json` 的 `dbSkippedRows`，不是只记计数。
 - 因此「并发第二个一定 already_running」**不是稳定契约**；两种结果都真实存在，
   取决于第二个请求到达时第一个 compact 是否已在执行。C2 实现必须同时能表达这两种
   结果（或至少不能在录到 skipped 时崩溃）。
 - 运行中 turn 的 compact 是另一条路径：`-32010 Cannot compact while a prompt is running`，
   不产生 compact 事件/DB 行（`compact-while-turn-running`）。
-- `session.time_compacting` 在这两种并发下同样始终采样为 `null`。
+- `session.time_compacting` 的采样窗口覆盖到 accepted 对应的终态；两种并发下
+  `distinctValues` 仍只有 `"null"`（`sampledUntilTerminal:true`）。
 
 ### 1.7 compact 快照的时序
 
@@ -234,7 +243,8 @@ preCompactTokenCount, replace:true, startedAt, endedAt}` + `turn.completed`
   `turn.failed`（`turnPhase:"compact"`、`inputId`）。
 - DB：不写 `compact_summary`；新增 1 条 `message`（`finish:"failed"` 的 timeline 消息）+
   2 个 `part`（`timeline` `status:"failed"`、`compaction` `timelineStatus:"failed"`、
-  `reason:"model_error"`、`attempt:1`）；原历史保留。
+  `reason:"model_error"`、`attempt:1`）；原历史保留。完整行在夹具的
+  `dbAfterRows`，不是只记计数。
 - `session.time_compacting` 仍为 `null`。
 - `turn_usage`：`user_message_id:null`、`status:"error"`、`error_type:"unknown_error"`、
   `error_code:"UNKNOWN_ERROR"`、tokens 全 0。
@@ -274,10 +284,18 @@ provider 报告的 last-request total（22），而 `breakdown.messages.chars` �
 `memoryEnabled:true` 时 oracle 会创建：
 
 ```text
-<dataRoot>/.mode/cli/memories/projects/<workspaceId>/memory/
+<MODE_DATA_BASE_DIR>/.mode/cli/memories/projects/<workspaceId>/memory/
 ```
 
-`dataRoot` 是 `MODE_DATA_BASE_DIR`（即 `<隔离根>/.mode`）。观察到的 `workspaceId`：
+本文其余部分的 `<data-root>` 指 driver/隔离根，即 `MODE_DATA_BASE_DIR`；
+`project-memory` 的 `dataRoot` 入参是 `<data-root>/.mode`。
+
+路径层级：driver 设置 `MODE_DATA_BASE_DIR=<隔离根>`；oracle 在其下创建 `.mode`。
+所以 `project-memory` 的 `dataRoot` 入参是 `<隔离根>/.mode`（Host `resolveDataRoot`
+的形态），而不是 `MODE_DATA_BASE_DIR` 本身。T3 从 `MODE_DATA_BASE_DIR` 构造路径时
+必须补 `.mode`；本探针记录的实际路径是
+`<data-root>\.mode\cli\memories\projects\<workspace-id>\memory`（夹具
+`memoryRoot` 由实际目录 `normalizeC2String` 得到，不是手写常量）。观察到的 `workspaceId`：
 
 - 形状 `<slug>-<16 位小写十六进制>`；`slug` 是 cwd 基名的小写化（观察值
   `mode-c2-memory-ws-<随机后缀>` 对应 `mode-c2-memory-ws-<随机后缀>-<16hex>`）；
@@ -286,31 +304,36 @@ provider 报告的 last-request total（22），而 `breakdown.messages.chars` �
 - hash 的生成算法**未观察**（黑盒只看到 16 位十六进制结果），探针从实际目录读出
   workspaceId，不自行推导。
 
-`memoryEnabled:false` 时不创建 `memories/` 目录，也不读取已有目录（控制组请求中没有
-任何记忆文本）。
+`memoryEnabled:false` 有两组对照：
+
+- 全新数据根（`withoutMemoryFreshRoot`）：`memoriesRootExists:false`、
+  `memoriesRootEntries:[]`，即不创建 `memories/`；
+- 复用已有记忆目录的数据根（`withoutMemory`）：请求中没有 `# Memory` 段、没有
+  `MEMORY.md` 块、没有任何 sentinel，即不读取已有目录。
 
 ### 3.2 `memoryEnabled:true` 的注入
 
 用同一数据根重启（让运行时在 materialization 时读取刚写入的文件），发送
 `"probe with memory"`。主请求观察：
 
-| 项         | 观察值                                                                                                                                                                                                           |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 文件       | `MEMORY.md`（index）与 `item-one.md`（item）由探针写入；内容见 `memory-recall` 输入的 sha256                                                                                                                     |
-| system 段  | 3 段；第三段（`# Communicating…` 起）包含独立 `# Memory` 段（1851 chars），位置在 `# Session-specific guidance` 之后、`# Environment` 之前                                                                       |
-| 路径       | `# Memory` 段内写绝对路径 `<data-root>\.mode\cli\memories\projects\<workspace-id>\memory/`，并声明「目录已存在，用 Write 直接写」                                                                                |
-| 索引注入   | `MEMORY.md` 内容进入**首条 user 消息**的 `<system-reminder>` → `# agentsMd` 段，标题为 `Contents of <path> (user's auto-memory, persists across conversations):`，后面接 `# currentDate`；不是独立的 System 消息 |
-| item 注入  | `item-one.md` 的正文（`BLUE-LANTERN-9`）**没有**出现在主请求（`containsItemSentinel:false`）；只有索引 `MEMORY.md` 里的 `ALPHA-123` 出现                                                                         |
-| 请求形状   | `messages` 角色 `["user","system"]`；user 的首个 text part 是 system-reminder，第二个是用户 prompt；system 消息是技能清单                                                                                        |
-| 记忆段开关 | 关闭时第三段 system 提示为 5404 chars，且没有 `# Memory` 段；开启时为 7255 chars                                                                                                                                 |
+| 项         | 观察值                                                                                                                                                                                                                                   |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 文件       | `MEMORY.md`（index）与 `item-one.md`（item）由探针写入；内容见 `memory-recall` 输入的 sha256                                                                                                                                             |
+| system 段  | 3 段；第三段 `blockIndex:2`、`blockChars:7255`，其中 `# Memory` 段 `startOffset:3233`、`endOffset:5084`、`length:1851`；`beforeHead` 结尾为 `...don't guess.`，`afterHead` 以 `# Environment` 开头（完整位置见 `memorySectionPosition`） |
+| 路径       | `# Memory` 段内写绝对路径 `<data-root>\.mode\cli\memories\projects\<workspace-id>\memory/`，并声明「目录已存在，用 Write 直接写」                                                                                                        |
+| 索引注入   | `MEMORY.md` 内容进入**首条 user 消息**的 `<system-reminder>` → `# agentsMd` 段，标题为 `Contents of <path> (user's auto-memory, persists across conversations):`，后面接 `# currentDate`；不是独立的 System 消息                         |
+| item 注入  | `item-one.md` 的正文（`BLUE-LANTERN-9`）**没有**出现在主请求（`containsItemSentinel:false`）；只有索引 `MEMORY.md` 里的 `ALPHA-123` 出现                                                                                                 |
+| 请求形状   | `messages` 角色 `["user","system"]`；user 的首个 text part 是 system-reminder，第二个是用户 prompt；system 消息是技能清单                                                                                                                |
+| 记忆段开关 | 关闭时第三段 system 提示为 5404 chars，且没有 `# Memory` 段；开启时为 7255 chars                                                                                                                                                         |
 
 即：**索引优先**。项目记忆的 item 文件未进入主请求；如果 C2 要实现 item 召回，必须由
 额外观察支撑，不能从本夹具推导。
 
 ### 3.3 记忆写路径（memory extraction subagent）
 
-`memoryEnabled:true` 的同一个 turn 还产生**第二个模型请求**（在 `turn.completed` 之后
-到达；探针等待到 2 个请求）：
+`memoryEnabled:true` 的同一个 turn 还产生**第二个模型请求**。夹具的 `arrival` 记录：
+extraction 请求到达时 `terminalCountAtArrival:1`、`lastEventTypeAtArrival:"turn.completed"`
+（主请求为 `0` / `session.updated`），即请求在 turn 终态之后到达：
 
 - 识别标记：最后一条 user 消息包含 `"You are now acting as the memory extraction subagent."`；
 - 消息角色：`["user","system","assistant","user"]`；系统提示同样是 3 段（含 `# Memory`）；
@@ -457,7 +480,8 @@ settings, slashCommands, todos, todoGroups`。`runtime` 只有：
   `lastUsed` 只有 `{providerId, modelId}`；
 - `reasoning.defaultLevel` 是 `"enabled"`，与会话当前 `reasoningLevel:"disabled"` 不同；
 - `settings` 中没有 `contextUsage`；`runtime.contextUsage` 才是 usage 事实源；
-- `slashCommands` 含内置 `compact`（`description:"Compact the current conversation with optional instructions."`、`inputHint:"/compact [instructions]"`）。
+- `slashCommands` 含内置 `compact`（`description:"Compact the current conversation with optional instructions."`、`inputHint:"/compact [instructions]"`）；
+  该条目在 `context-usage-settings.json` 的 `createSnapshot.compactSlashCommand` 逐字记录。
 
 ## 5. Fresh-install 迁移账本
 
@@ -510,7 +534,8 @@ settings, slashCommands, todos, todoGroups`。`runtime` 只有：
 第一次启动：`sqlite_master` 69 条（`index` 44、`table` 23、`trigger` 2），第二次启动
 逐条不变（`sqliteMasterStable:true`）。完整 `sql`/`tbl_name` 在
 `fixtures/c2/fresh-install-ledger.json` 的 `expect.firstStart.sqliteMaster.entries`，
-不在这里重复（避免与真实库漂移）；表名清单：
+不在这里重复（避免与真实库漂移）。deviation：T0 任务书写的是 session-store 子集，
+这里有意保留全部 69 条（含 workflow/dwf 表）供 T7 对齐完整 schema；表名清单：
 
 ```text
 dwf_actor, dwf_event, dwf_node, dwf_run, input_history, local_setting,
@@ -533,19 +558,19 @@ workflow_event, workflow_run
 
 ## 6. 未观察 / 无法观察（明确登记）
 
-| 观察项                                       | 尝试与结果                                                                                                                                         |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `session.time_compacting` 进行中非空值       | 手动 compact 1–2ms 轮询 15/21/23/27/28 次、并发 trial 18–28 次，全部 `null`；结束后也 `null`。无法确认该列在 standalone compact 中是否会被置位。   |
-| 自动 compact 触发/阈值                       | 15 轮 ×100000 字符，`messages.chars=1,401,053`、`used=22`、`size=200000`，无 compact 行/事件。记录为「未观察」，不推导阈值。                       |
-| `already_running` 是唯一并发结果             | 4 trial 中 3 次 `already_running`、1 次 `accepted`+`skipped`；两种都真实存在。不能把 `already_running` 写成必然。                                  |
-| provider 网络失败                            | 把 personal provider 配置改为 dead port 后 compact 仍打原 mock（运行时缓存），未得到网络错误；只录到「provider 响应不可用」（tool_use / 空文本）。 |
-| 项目记忆 item 文件注入主请求                 | `item-one.md` 正文未出现在主请求；只观察到 `MEMORY.md` 索引。item 的选择/召回规则未观察。                                                          |
-| agent 实际写记忆                             | 观察到 memory extraction 子代理请求与 Write/Edit 工具，但 mock 只回文本，没有写盘；写入频率、失败/回滚未观察。                                     |
-| `workspaceId` hash 算法                      | 只观察到 `<小写 slug>-<16 hex>` 形状；无法从黑盒推导 hash 输入/算法。探针从实际目录发现 id。                                                       |
-| memory 读取失败路径（缺失/超限/symlink）     | T0 未构造；属 T3 的测试范围。                                                                                                                      |
-| `contextUsage.percent`                       | 不存在该字段；只有 `used` / `size`。                                                                                                               |
-| `session.updated` 的具体 `toolCount` / chars | 随环境（插件缓存、工具面、路径长度）变化；夹具按 C1 规则折叠为 `<count>`。                                                                         |
-| Anthropic / Responses wire                   | 按 C2 计划不在 T0 oracle 范围；以公开 API 文档 + T4/T5 本地 SSE 夹具为准。                                                                         |
+| 观察项                                       | 尝试与结果                                                                                                                                                                                              |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `session.time_compacting` 进行中非空值       | 采样从请求发出持续到 accepted 对应的终态（`turn.completed`/`turn.failed`）才停止；手动与并发 trial 的 `distinctValues` 都只有 `"null"`（`sampledUntilTerminal:true`）。窗口内与结束后均未观察到非空值。 |
+| 自动 compact 触发/阈值                       | 15 轮 ×100000 字符，`messages.chars=1,401,053`、`used=22`、`size=200000`，无 compact 行/事件。记录为「未观察」，不推导阈值。                                                                            |
+| `already_running` 是唯一并发结果             | 4 trial 中 3 次 `already_running`、1 次 `accepted`+`skipped`；两种都真实存在。不能把 `already_running` 写成必然。                                                                                       |
+| provider 网络失败                            | 把 personal provider 配置改为 dead port 后 compact 仍打原 mock（运行时缓存），未得到网络错误；只录到「provider 响应不可用」（tool_use / 空文本）。                                                      |
+| 项目记忆 item 文件注入主请求                 | `item-one.md` 正文未出现在主请求；只观察到 `MEMORY.md` 索引。item 的选择/召回规则未观察。                                                                                                               |
+| agent 实际写记忆                             | 观察到 memory extraction 子代理请求与 Write/Edit 工具，但 mock 只回文本，没有写盘；写入频率、失败/回滚未观察。                                                                                          |
+| `workspaceId` hash 算法                      | 只观察到 `<小写 slug>-<16 hex>` 形状；无法从黑盒推导 hash 输入/算法。探针从实际目录发现 id。                                                                                                            |
+| memory 读取失败路径（缺失/超限/symlink）     | T0 未构造；属 T3 的测试范围。                                                                                                                                                                           |
+| `contextUsage.percent`                       | 不存在该字段；只有 `used` / `size`。                                                                                                                                                                    |
+| `session.updated` 的具体 `toolCount` / chars | 随环境（插件缓存、工具面、路径长度）变化；夹具按 C1 规则折叠为 `<count>`。                                                                                                                              |
+| Anthropic / Responses wire                   | 按 C2 计划不在 T0 oracle 范围；以公开 API 文档 + T4/T5 本地 SSE 夹具为准。                                                                                                                              |
 
 ## 7. 对 C2 实现的直接含义（只陈述观察差异）
 
@@ -553,8 +578,8 @@ workflow_event, workflow_run
    应答判断成功。
 2. 并发第二次的稳定部分只有「不会产生第二份摘要」；`already_running` 与
    `accepted→skipped` 都是真实结果，实现不能假定单一分支。
-3. `session.time_compacting` 在本次 oracle 观察中不可见；C2 若按 spec 更新该列，需要
-   补充可观察证据，否则只应保持 `null`/不依赖它。
+3. `session.time_compacting` 在「请求发出 → compact 终态」的采样窗口内始终为 `null`；
+   C2 若按 spec 更新该列，需要补充可观察证据，否则只应保持 `null`/不依赖它。
 4. 自动 compact 未观察到；C2 不应自行启用阈值。
 5. Memory 注入是「系统提示中的 `# Memory` 段 + 首条 user 消息的 `agentsMd` 索引块」，
    不是独立 System 消息；`MEMORY.md` 索引优先，item 文件未进入主请求；写路径是

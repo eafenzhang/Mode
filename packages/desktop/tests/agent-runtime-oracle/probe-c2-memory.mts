@@ -3,19 +3,19 @@
 // 用法：pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-c2-memory.mts
 //
 // 步骤（全部黑盒）：
-//   1. memoryEnabled:true 起一次 oracle，等它创建 `{dataRoot}/.mode/cli/memories/projects/<workspaceId>/memory/`；
+//   1. memoryEnabled:true 起一次 oracle，等它创建 `<MODE_DATA_BASE_DIR>/.mode/cli/memories/projects/<workspaceId>/memory/`；
 //   2. 往该目录写 `MEMORY.md`（索引）与 `item-one.md`（条目），停掉 oracle；
 //   3. 用同一数据根重启，memoryEnabled:true 跑一个 turn，捕获发往 provider 的**完整请求体**；
-//   4. 用同一数据根再重启，memoryEnabled:false 跑一个 turn 作对照。
+//   4. 同一数据根 false 跑一个 turn（验证「不读取已有记忆」）；
+//   5. 全新数据根 false 跑一个 turn（验证「不创建 memories/」）。
 // `workspaceId` 从实际目录布局读出（不是源码推导），夹具里折叠成 `<workspace-id>`。
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
-  delay,
   normalizeC2String,
   readC2Db,
   startC2Harness,
@@ -79,16 +79,30 @@ function analyzeRequest(
     return texts.map((text) => ({ role: message.role, text }));
   });
   const joined = [...systemTexts, ...messageTexts.map((entry) => entry.text)].join("\n");
-  const memorySectionStart = systemTexts.find((text) => text.includes("# Memory"));
+  const memoryBlockIndex = systemTexts.findIndex((text) => text.includes("# Memory"));
+  const memoryBlock = memoryBlockIndex < 0 ? null : (systemTexts[memoryBlockIndex] as string);
+  const memoryStart = memoryBlock?.indexOf("# Memory") ?? -1;
+  const environmentStart =
+    memoryBlock === null ? -1 : memoryBlock.indexOf("# Environment", Math.max(memoryStart, 0));
   const memorySection =
-    memorySectionStart === undefined
+    memoryBlock === null || memoryStart < 0
       ? null
-      : memorySectionStart.slice(
-          memorySectionStart.indexOf("# Memory"),
-          memorySectionStart.indexOf("# Environment") > memorySectionStart.indexOf("# Memory")
-            ? memorySectionStart.indexOf("# Environment")
-            : undefined,
-        );
+      : memoryBlock.slice(memoryStart, environmentStart >= 0 ? environmentStart : undefined);
+  const memorySectionPosition =
+    memoryBlock === null || memoryStart < 0
+      ? null
+      : {
+          blockIndex: memoryBlockIndex,
+          blockChars: memoryBlock.length,
+          startOffset: memoryStart,
+          endOffset: environmentStart >= 0 ? environmentStart : null,
+          length: memorySection?.length ?? null,
+          beforeHead: memoryBlock.slice(Math.max(0, memoryStart - 120), memoryStart),
+          afterHead:
+            environmentStart >= 0
+              ? memoryBlock.slice(environmentStart, environmentStart + 120)
+              : null,
+        };
   const memoryFileBlock =
     messageTexts.find((entry) =>
       entry.text.includes("(user's auto-memory, persists across conversations)"),
@@ -118,6 +132,7 @@ function analyzeRequest(
     messageRoles: messages.map((message) => message.role),
     messageCount: messages.length,
     memorySection,
+    memorySectionPosition,
     memoryFileBlock,
     extractionInstruction,
     existingFilesBlock,
@@ -189,16 +204,16 @@ try {
     } catch {
       extractionObserved = false;
     }
-    await delay(800);
-    withMemoryRequests = withMemory.rawBodies.map((raw, index) =>
-      analyzeRequest(raw, index, "/v1/messages", (value) =>
+    withMemoryRequests = withMemory.rawBodies.map((raw, index) => ({
+      ...analyzeRequest(raw, index, "/v1/messages", (value) =>
         normalizeC2String(value, withMemory.context, {
           [workspaceId]: "<workspace-id>",
           [cwd]: "<cwd>",
           [dataRoot]: "<data-root>",
         }),
       ),
-    );
+      arrival: withMemory.rawBodyMeta[index] ?? null,
+    }));
     withMemoryIsolation = withMemory.isolation();
     withMemoryEvents = withMemory.captureState.events.map((event) => event.type);
     withMemoryFiles = listMemoryFiles(memoryDir);
@@ -218,38 +233,78 @@ try {
   let withoutMemoryEvents: string[];
   try {
     await withoutMemory.sendAndWait("probe without memory");
-    await delay(1_000);
-    withoutMemoryRequests = withoutMemory.rawBodies.map((raw, index) =>
-      analyzeRequest(raw, index, "/v1/messages", (value) =>
+    withoutMemoryRequests = withoutMemory.rawBodies.map((raw, index) => ({
+      ...analyzeRequest(raw, index, "/v1/messages", (value) =>
         normalizeC2String(value, withoutMemory.context, {
           [workspaceId]: "<workspace-id>",
           [cwd]: "<cwd>",
           [dataRoot]: "<data-root>",
         }),
       ),
-    );
+      arrival: withoutMemory.rawBodyMeta[index] ?? null,
+    }));
     withoutMemoryIsolation = withoutMemory.isolation();
     withoutMemoryEvents = withoutMemory.captureState.events.map((event) => event.type);
   } finally {
     await withoutMemory.stop();
   }
 
+  // 全新数据根 + memoryEnabled:false：验证不会创建 memories/。
+  const freshFalse = await startC2Harness({
+    prefix: "memory-off-fresh",
+    script: [{ text: "fresh no-memory turn answer" }],
+    runtimePreferencesReply: NO_MEMORY_PREFS,
+  });
+  let freshFalseObserved: JsonObject;
+  let freshFalseRequests: JsonObject[];
+  try {
+    await freshFalse.sendAndWait("fresh root without memory");
+    const freshMemoriesRoot = join(freshFalse.dataRoot, ".mode", "cli", "memories");
+    freshFalseObserved = {
+      isolation: freshFalse.isolation(),
+      memoriesRootExists: existsSync(freshMemoriesRoot),
+      memoriesRootEntries: existsSync(freshMemoriesRoot)
+        ? readdirSync(freshMemoriesRoot).sort()
+        : [],
+      events: freshFalse.captureState.events.map((event) => event.type),
+    };
+    freshFalseRequests = freshFalse.rawBodies.map((raw, index) => ({
+      ...analyzeRequest(raw, index, "/v1/messages", (value) =>
+        normalizeC2String(value, freshFalse.context),
+      ),
+      arrival: freshFalse.rawBodyMeta[index] ?? null,
+    }));
+  } finally {
+    await freshFalse.stop();
+  }
+
+  const memoryRootObserved = normalizeC2String(
+    memoryDir,
+    { dataRoot, cwd, tmpDir: tmpdir() },
+    { [workspaceId]: "<workspace-id>" },
+  );
   const fixture = {
     case: "memory-recall",
     note:
       "C2 Task 0 oracle 捕获：memoryEnabled:true 时 MEMORY.md 索引注入首个 user 消息的 agentsMd " +
       "system-reminder，且系统提示含独立 # Memory 段；item-one.md 不进入主请求，只出现在" +
-      "记忆抽取子代理请求的 Existing memory files 列表里。memoryEnabled:false 作对照。" +
+      "记忆抽取子代理请求的 Existing memory files 列表里。memoryEnabled:false 有两组对照：" +
+      "复用已有记忆目录（验证不读取）与全新数据根（验证不创建 memories/）。" +
       "workspaceId 从实际目录布局观察（<slug>-<16 hex>），夹具折叠为 <workspace-id>。",
     input: {
       memoryFiles: { "MEMORY.md": INDEX_TEXT, "item-one.md": ITEM_TEXT },
       memoryPreferences: MEMORY_PREFS,
       noMemoryPreferences: NO_MEMORY_PREFS,
-      prompts: ["warmup prompt", "probe with memory", "probe without memory"],
+      prompts: [
+        "warmup prompt",
+        "probe with memory",
+        "probe without memory",
+        "fresh root without memory",
+      ],
     },
     expect: {
       warmup: warm,
-      memoryRoot: "<data-root>/.mode/cli/memories/projects/<workspace-id>/memory",
+      memoryRoot: memoryRootObserved,
       workspaceId: {
         matchesSlugHash: workspaceShape !== null,
         hashLength: workspaceShape?.[2]?.length ?? null,
@@ -270,6 +325,10 @@ try {
         events: withoutMemoryEvents,
         requests: withoutMemoryRequests,
       },
+      withoutMemoryFreshRoot: {
+        ...freshFalseObserved,
+        requests: freshFalseRequests,
+      },
     },
   };
   const target = await writeC2Fixture("memory-recall", fixture);
@@ -282,6 +341,7 @@ try {
           shape: fixture.expect.workspaceId,
         },
         warmup: warm,
+        memoryRoot: memoryRootObserved,
         filesAfterWrite,
         withMemory: withMemoryRequests.map((request) => ({
           index: request.index,
@@ -290,6 +350,7 @@ try {
           toolNames: request.toolNames,
           messageRoles: request.messageRoles,
           memorySectionChars: (request.memorySection as string | null)?.length ?? null,
+          memorySectionPosition: request.memorySectionPosition,
           memoryFileBlock:
             typeof request.memoryFileBlock === "string"
               ? request.memoryFileBlock.slice(0, 500)
@@ -300,13 +361,25 @@ try {
               : null,
           containsIndexSentinel: request.containsIndexSentinel,
           containsItemSentinel: request.containsItemSentinel,
+          arrival: request.arrival,
         })),
         withoutMemory: withoutMemoryRequests.map((request) => ({
           index: request.index,
           kind: request.kind,
           containsIndexSentinel: request.containsIndexSentinel,
           containsItemSentinel: request.containsItemSentinel,
+          arrival: request.arrival,
         })),
+        withoutMemoryFreshRoot: {
+          ...freshFalseObserved,
+          requests: freshFalseRequests.map((request) => ({
+            index: request.index,
+            kind: request.kind,
+            containsIndexSentinel: request.containsIndexSentinel,
+            containsItemSentinel: request.containsItemSentinel,
+            arrival: request.arrival,
+          })),
+        },
         extractionObserved,
         filesAfterTurn: withMemoryFiles,
       },

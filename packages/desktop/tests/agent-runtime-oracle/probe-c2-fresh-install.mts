@@ -7,12 +7,12 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import { startC2Harness, writeC2Fixture } from "./probe-c2-support.mjs";
 import type { JsonObject } from "./session-lifecycle-fixtures.mjs";
 
-function readLedger(dbPath: string): JsonObject {
+function readLedger(dbPath: string, dataRoot: string): JsonObject {
   const db = new DatabaseSync(dbPath, { readOnly: true });
   try {
     const rows = db
@@ -35,7 +35,7 @@ function readLedger(dbPath: string): JsonObject {
         (row, index) =>
           index === 0 || Number(row.time_applied) >= Number(rows[index - 1]?.time_applied),
       ),
-      dbPathNormalized: `<data-root>/.mode/cli/db/db.sqlite`,
+      dbPathRelative: relative(dataRoot, dbPath).replaceAll("\\", "/"),
     };
   } finally {
     db.close();
@@ -86,7 +86,7 @@ try {
   let firstStartup: JsonObject;
   let firstIsolation: JsonObject;
   try {
-    firstLedger = readLedger(first.dbPath);
+    firstLedger = readLedger(first.dbPath, first.dataRoot);
     firstMaster = readSqliteMaster(first.dbPath);
     firstStartup = startupPhases(first.captureState as unknown as JsonObject);
     firstIsolation = first.isolation();
@@ -105,7 +105,7 @@ try {
   let secondStartup: JsonObject;
   let secondIsolation: JsonObject;
   try {
-    secondLedger = readLedger(second.dbPath);
+    secondLedger = readLedger(second.dbPath, second.dataRoot);
     secondMaster = readSqliteMaster(second.dbPath);
     secondStartup = startupPhases(second.captureState as unknown as JsonObject);
     secondIsolation = second.isolation();
@@ -116,10 +116,11 @@ try {
   const fixture = {
     case: "fresh-install-ledger",
     note:
-      "C2 Task 0 oracle 捕获：空隔离数据根首次启动创建的 session-store sqlite_master 与 " +
-      "schema_migration 账本（id/checksum/app_version/time_applied），以及同一数据根第二次启动" +
-      "不重写账本。time_applied 是机器时间，夹具折叠为 <time> 并记录相对首行的偏移；" +
-      "ledger 的判定字段是 id/checksum/app_version/顺序。",
+      "C2 Task 0 oracle 捕获：空隔离数据根首次启动创建的 sqlite_master 与 schema_migration " +
+      "账本（id/checksum/app_version/time_applied），以及同一数据根第二次启动不重写账本。" +
+      "time_applied 是机器时间，夹具折叠为 <time> 并记录单调性；ledger 的判定字段是 " +
+      "id/checksum/app_version/顺序。deviation：T0 任务书写的是 session-store 子集，" +
+      "这里保留全部 69 条 sqlite_master 条目（含 workflow/dwf），供 T7 对齐完整 schema。",
     input: { dataRoot: "mkdtemp(empty)", mode: "fresh-install → restart" },
     expect: {
       firstStart: {

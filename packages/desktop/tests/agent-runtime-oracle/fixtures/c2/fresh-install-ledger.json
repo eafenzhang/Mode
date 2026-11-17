@@ -1,6 +1,6 @@
 {
   "case": "fresh-install-ledger",
-  "note": "C2 Task 0 oracle 捕获：空隔离数据根首次启动创建的 session-store sqlite_master 与 schema_migration 账本（id/checksum/app_version/time_applied），以及同一数据根第二次启动不重写账本。time_applied 是机器时间，夹具折叠为 <time> 并记录相对首行的偏移；ledger 的判定字段是 id/checksum/app_version/顺序。",
+  "note": "C2 Task 0 oracle 捕获：空隔离数据根首次启动创建的 sqlite_master 与 schema_migration 账本（id/checksum/app_version/time_applied），以及同一数据根第二次启动不重写账本。time_applied 是机器时间，夹具折叠为 <time> 并记录单调性；ledger 的判定字段是 id/checksum/app_version/顺序。deviation：T0 任务书写的是 session-store 子集，这里保留全部 69 条 sqlite_master 条目（含 workflow/dwf），供 T7 对齐完整 schema。",
   "input": {
     "dataRoot": "mkdtemp(empty)",
     "mode": "fresh-install → restart"
@@ -244,7 +244,7 @@
           "0.16.5"
         ],
         "timeAppliedMonotonic": true,
-        "dbPathNormalized": "<data-root>/.mode/cli/db/db.sqlite"
+        "dbPathRelative": ".mode/cli/db/db.sqlite"
       },
       "sqliteMaster": {
         "entryCount": 69,
@@ -879,7 +879,7 @@
           "0.16.5"
         ],
         "timeAppliedMonotonic": true,
-        "dbPathNormalized": "<data-root>/.mode/cli/db/db.sqlite"
+        "dbPathRelative": ".mode/cli/db/db.sqlite"
       },
       "sqliteMaster": {
         "entryCount": 69,

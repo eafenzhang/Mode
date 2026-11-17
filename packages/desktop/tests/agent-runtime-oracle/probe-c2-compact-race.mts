@@ -13,6 +13,7 @@ import {
   readSessionColumn,
   startC2Harness,
   stripErrorStack,
+  terminalCount,
   waitForTerminals,
   writeC2Fixture,
 } from "./probe-c2-support.mjs";
@@ -23,6 +24,7 @@ const SCRIPT = [
   { text: "second turn answer" },
   { text: "later turn answer" },
 ];
+const RUNNING_SCRIPT = [() => ({ text: "R".repeat(50_000) })];
 const TRIALS = Number(process.env.TRIALS ?? "4");
 
 function summarizeResult(entry: PromiseSettledResult<unknown>): JsonObject {
@@ -56,6 +58,16 @@ function compactionCounts(db: JsonObject): JsonObject {
   };
 }
 
+/** 合同里关于 skipped 的断言只来自这些行；不把整库复制进每个 trial。 */
+function skippedRows(db: JsonObject): JsonObject {
+  const parts = ((db.part as JsonObject).rows as JsonObject[]) ?? [];
+  const messages = ((db.message as JsonObject).rows as JsonObject[]) ?? [];
+  return {
+    messages: messages.filter((row) => (row.data as JsonObject)?.finish === "skipped"),
+    compactionParts: parts.filter((row) => (row.data as JsonObject)?.timelineStatus === "skipped"),
+  };
+}
+
 /** 并发 compact 事件里只留状态机字段（模型请求推送会把夹具撑大且与手动 compact 重复）。 */
 function compactStatusEvents(events: readonly JsonObject[]): JsonObject[] {
   return events
@@ -78,16 +90,18 @@ async function sameTickTrial(trial: number): Promise<JsonObject> {
     await harness.sendAndWait("first prompt");
     await harness.sendAndWait("second prompt");
     const boundary = harness.captureState.events.length;
+    const terminalBaseline = terminalCount(harness.captureState.events);
     let sampleCount = 0;
     const sampleValues = new Set<string>();
     let settled = false;
+    const compactInputIds = [`input_compact_trial_${trial}_1`, `input_compact_trial_${trial}_2`];
     const compact1 = harness.session.request("session/compact", {
       sessionId: harness.session.sessionId,
-      inputId: `input_compact_trial_${trial}_1`,
+      inputId: compactInputIds[0],
     });
     const compact2 = harness.session.request("session/compact", {
       sessionId: harness.session.sessionId,
-      inputId: `input_compact_trial_${trial}_2`,
+      inputId: compactInputIds[1],
     });
     const poll = (async () => {
       while (!settled) {
@@ -97,15 +111,37 @@ async function sameTickTrial(trial: number): Promise<JsonObject> {
       }
     })();
     const settledResults = await Promise.allSettled([compact1, compact2]);
+    const acceptedCount = settledResults.filter((entry) => {
+      if (entry.status !== "fulfilled") return false;
+      const compact = (entry.value as JsonObject).compact as JsonObject | undefined;
+      return compact?.state === "accepted";
+    }).length;
+    const expectedTerminals = terminalBaseline + acceptedCount;
+    const deadline = Date.now() + 60_000;
+    while (terminalCount(harness.captureState.events) < expectedTerminals) {
+      if (Date.now() > deadline) throw new Error(`trial ${trial} compact 在 60s 内没有终态`);
+      await delay(2);
+    }
+    const terminalObserved =
+      acceptedCount > 0 && terminalCount(harness.captureState.events) >= expectedTerminals;
     settled = true;
     await poll;
-    await delay(500);
     const isolation = harness.isolation();
     const db = readC2Db(harness.dbPath, harness.context);
     const events = harness.captureState.events.slice(boundary);
+    const rawReturned = settledResults.map((entry) =>
+      entry.status === "fulfilled"
+        ? (((entry.value as JsonObject).compact as JsonObject | undefined)?.inputId ?? null)
+        : null,
+    );
     return {
       trial,
       isolation,
+      inputIdEcho: {
+        requested: compactInputIds,
+        returned: rawReturned,
+        allEqual: rawReturned.every((value, index) => value === compactInputIds[index]),
+      },
       results: settledResults
         .map((entry) =>
           entry.status === "fulfilled"
@@ -118,24 +154,34 @@ async function sameTickTrial(trial: number): Promise<JsonObject> {
       ),
       statusEvents: compactStatusEvents(events),
       eventTypes: events.map((event) => event.type),
+      terminalObserved,
       timeCompactingSamples: {
         sampled: sampleCount > 0,
+        sampleCount: sampleCount > 0 ? "<count>" : 0,
+        sampledUntilTerminal: terminalObserved,
         distinctValues: [...sampleValues].sort(),
       },
       timeCompactingNonEmptySamples: [...sampleValues].filter((value) => value !== "null").length,
       dbCounts: compactionCounts(db),
+      dbSkippedRows: skippedRows(db),
       modelRequestCount: harness.rawBodies.length,
+      rawBodyMeta: harness.rawBodyMeta,
     };
   } finally {
     await harness.stop();
   }
 }
 
-async function duringRunningTurn(): Promise<JsonObject> {
-  const harness = await startC2Harness({ prefix: "compact-running", script: SCRIPT, seed: SEED });
+async function attemptDuringRunningTurn(attempt: number): Promise<JsonObject> {
+  const harness = await startC2Harness({
+    prefix: `compact-running-${attempt}`,
+    script: RUNNING_SCRIPT,
+    seed: SEED,
+  });
   try {
     const boundary = harness.captureState.events.length;
     await harness.session.send("turn that is still running");
+    const turnStillRunningWhenCompactSent = terminalCount(harness.captureState.events) === 0;
     let rejected: string | undefined;
     try {
       await harness.session.request("session/compact", {
@@ -149,7 +195,9 @@ async function duringRunningTurn(): Promise<JsonObject> {
     await waitForTerminals(harness.captureState, 1);
     const isolation = harness.isolation();
     return {
+      attempt,
       isolation,
+      turnStillRunningWhenCompactSent,
       rejected,
       requests: harness.captureState.requests.filter(
         (request) => request.method === "session/compact",
@@ -164,6 +212,28 @@ async function duringRunningTurn(): Promise<JsonObject> {
   } finally {
     await harness.stop();
   }
+}
+
+async function duringRunningTurn(): Promise<JsonObject> {
+  const attempts: JsonObject[] = [];
+  let observed: JsonObject | undefined;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const result = await attemptDuringRunningTurn(attempt);
+    attempts.push({
+      attempt,
+      turnStillRunningWhenCompactSent: result.turnStillRunningWhenCompactSent,
+      rejected: result.rejected,
+    });
+    if (String(result.rejected ?? "").includes("Cannot compact while a prompt is running")) {
+      observed = result;
+      break;
+    }
+  }
+  return {
+    rejectionObserved: observed !== undefined,
+    attempts,
+    observed: observed ?? null,
+  };
 }
 
 const trials: JsonObject[] = [];
@@ -202,9 +272,14 @@ const targets = [
   await writeC2Fixture("compact-while-turn-running", {
     case: "compact-while-turn-running",
     note:
-      "C2 Task 0 oracle 捕获：session/send 受理后立刻 session/compact，记录运行时拒绝形状" +
-      "（-32010 Cannot compact while a prompt is running，不是 already_running）。",
-    input: { seed: SEED, prompts: ["turn that is still running"], script: SCRIPT },
+      "C2 Task 0 oracle 捕获：session/send 受理后立刻 session/compact，最多重试 3 次直到" +
+      "观察到运行时拒绝（-32010 Cannot compact while a prompt is running，不是 already_running）。",
+    input: {
+      seed: SEED,
+      prompts: ["turn that is still running"],
+      script: "每轮 50000 字符正文",
+      attempts: 3,
+    },
     expect: running,
   }),
 ];
@@ -217,12 +292,19 @@ process.stdout.write(
       perTrial: trials.map((trial) => ({
         trial: trial.trial,
         results: (trial.results as JsonObject[]).map((result) => result.compact ?? result),
+        inputIdEcho: trial.inputIdEcho,
         dbCounts: trial.dbCounts,
+        skippedRows: (trial.dbSkippedRows as JsonObject).messages,
         eventTypes: trial.eventTypes,
+        terminalObserved: trial.terminalObserved,
         timeCompactingSamples: trial.timeCompactingSamples,
         timeCompactingNonEmptySamples: trial.timeCompactingNonEmptySamples,
       })),
-      running: { rejected: running.rejected, dbCountsDuring: running.dbCountsDuring },
+      running: {
+        rejectionObserved: running.rejectionObserved,
+        attempts: running.attempts,
+        observed: running.observed,
+      },
     },
     null,
     2,

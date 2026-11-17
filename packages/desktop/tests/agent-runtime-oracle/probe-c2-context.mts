@@ -26,6 +26,11 @@ function snapshotProjection(result: JsonObject): JsonObject {
     projection: result.projection ?? null,
     settings: result.settings ?? null,
     settingsModelKeys: Object.keys((result.settings as JsonObject)?.model ?? {}).sort(),
+    slashCommands: result.slashCommands ?? null,
+    compactSlashCommand:
+      (result.slashCommands as JsonObject[] | undefined)?.find(
+        (command) => command.name === "compact",
+      ) ?? null,
     messageCount: messages.length,
     messageRoles: messages.map((message) => (message.info as JsonObject)?.role),
     messagePartTypes: messages.map((message) =>
