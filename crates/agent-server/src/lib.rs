@@ -33,7 +33,7 @@ mod state;
 
 pub use dispatch::{AgentServer, HubProviderSource, ServerConfig};
 pub use lifecycle::{parse_startup_args, run_main, StartupArgs, APP_SERVER_MODE, STDIO_FLAG};
-pub use memory::{load_memory_section, MemoryContext};
+pub use memory::{load_memory_section, MemoryContext, MemoryLoad};
 pub use provider_config::{
     AccountRuntimeHeadersTarget, ApiFormat, ProviderConfigError, ProviderConfigHub, Resolution,
     ResolvedProvider, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,

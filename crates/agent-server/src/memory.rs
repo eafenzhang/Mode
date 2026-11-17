@@ -20,6 +20,10 @@
 //! - 读取走 [`project_memory::ProjectMemoryService`] 的公开 API：普通目录/文件、
 //!   无 symlink、大小写精确、5 MiB 上限都在该层强制；任何失败（目录缺失、workspaceId
 //!   歧义、文件不可读、超限）fail-soft——不注入、turn 继续，不把错误写进模型上下文。
+//!   失败路径**静默**（T0 未观察到 oracle 的记忆失败诊断面，C2 不发明日志/协议面）；
+//!   失败原因只写 per-session 运行时的 `last_memory_error`
+//!   （[`MemoryLoad::error`]，`agent-core::Session::rule_store_error` 同款覆盖写
+//!   语义），供测试与宿主诊断读取。
 //! - `memory_enabled == false` 时**零读取**（spec §5.1）：不触碰文件系统。
 //!
 //! # 与 oracle 观察的偏差（登记在 `agent-c2-contract.md` §3.5）
@@ -117,29 +121,47 @@ pub struct MemoryContext {
 impl MemoryContext {
     /// fail-soft 加载入口：关闭即零读取；任何失败返回 `None`（不注入、turn 继续）。
     ///
-    /// `data_root_mode` 是 `.mode` 数据根（[`RuntimeConfig::data_root`] 同源）；
-    /// `cwd` 是会话工作目录（slug 来源）；`memory_enabled` 来自宿主对
-    /// `session/requestRuntimePreferences` 的应答（[`crate::reverse::RuntimePreferences`]），
-    /// 不是常量。
+    /// 失败原因走 [`Self::load_checked`]（runtime 写进 per-session 的
+    /// `last_memory_error` 诊断面）；本入口保持 T3 的 `Option` 形状。
     pub fn load(data_root_mode: &Path, cwd: &str, memory_enabled: bool) -> Option<Self> {
+        Self::load_checked(data_root_mode, cwd, memory_enabled)
+            .ok()
+            .flatten()
+    }
+
+    /// 同 [`Self::load`]，但区分「正常无记忆」（`Ok(None)`：`memoryEnabled:false`
+    /// 关闭，零读取，**不是失败**）与 fail-soft 失败（`Err(原因)`）。
+    ///
+    /// 原因是**诊断面**的形状事实短语（slug / 路径 / project-memory 错误文案），
+    /// 不含凭据；T0 没有观察到 oracle 的记忆失败诊断面，C2 不新增日志输出或协议
+    /// 字段——该原因只写 per-session 运行时状态（契约 §3.5「fail-soft 静默」）。
+    pub fn load_checked(
+        data_root_mode: &Path,
+        cwd: &str,
+        memory_enabled: bool,
+    ) -> Result<Option<Self>, String> {
         if !memory_enabled {
-            return None;
+            return Ok(None);
         }
-        let slug = workspace_slug(cwd)?;
+        let slug = workspace_slug(cwd).ok_or_else(|| {
+            format!("memory: cwd has no base name to derive a workspace slug: {cwd}")
+        })?;
         let projects_root = data_root_mode.join("cli").join("memories").join("projects");
         let workspace_id = resolve_workspace_id(&projects_root, &slug)?;
         // 索引读取走公开服务：普通文件/无 symlink/大小写精确/5 MiB 全部由它强制；
-        // 目录缺失、文件缺失、超限都归入 fail-soft。
+        // 目录缺失、文件缺失、超限都归入 fail-soft（原因带 MemoryError 的 Display）。
         let index = ProjectMemoryService::new(data_root_mode)
             .read_project_memory_file(&workspace_id, PROJECT_MEMORY_INDEX_FILE_NAME)
-            .ok()?;
-        Some(Self {
+            .map_err(|error| {
+                format!("memory: cannot read index MEMORY.md of workspace {workspace_id}: {error}")
+            })?;
+        Ok(Some(Self {
             memory_dir: projects_root
                 .join(&workspace_id)
                 .join(PROJECT_MEMORY_DIRECTORY_NAME),
             workspace_id,
             index_content: index.content,
-        })
+        }))
     }
 
     /// 命中的 workspaceId（诊断/测试观察用；不出现在模型上下文之外）。
@@ -206,9 +228,24 @@ fn workspace_slug(cwd: &str) -> Option<String> {
 ///
 /// hash 算法未观察（契约 §3.1），这里只做形状匹配：前缀是 slug + `-`，余下恰好
 /// 16 个小写十六进制字符。零命中（目录未创建）与多命中（同 slug 多目录）都返回
-/// `None`——不猜、不取「最新」。
-fn resolve_workspace_id(projects_root: &Path, slug: &str) -> Option<String> {
-    let entries = std::fs::read_dir(projects_root).ok()?;
+/// `Err`——不猜、不取「最新」；错误短语供 fail-soft 诊断面。
+fn resolve_workspace_id(projects_root: &Path, slug: &str) -> Result<String, String> {
+    let entries = match std::fs::read_dir(projects_root) {
+        Ok(entries) => entries,
+        // 启用但目录不存在（fresh root；Rust 不创建目录，见模块注释）也归 fail-soft。
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(format!(
+                "memory: projects root does not exist (memory directory was never created): {}",
+                projects_root.display()
+            ));
+        }
+        Err(error) => {
+            return Err(format!(
+                "memory: cannot read projects root {}: {error}",
+                projects_root.display()
+            ));
+        }
+    };
     let prefix = format!("{slug}-");
     let mut matches: Vec<String> = Vec::new();
     for entry in entries.flatten() {
@@ -228,10 +265,17 @@ fn resolve_workspace_id(projects_root: &Path, slug: &str) -> Option<String> {
         }
         matches.push(name);
     }
-    if matches.len() == 1 {
-        matches.into_iter().next()
-    } else {
-        None
+    match matches.len() {
+        1 => Ok(matches.into_iter().next().expect("恰好一个命中")),
+        0 => Err(format!(
+            "memory: no workspace directory matches slug \"{slug}\" (expected <slug>-<16 hex>) under {}",
+            projects_root.display()
+        )),
+        _ => Err(format!(
+            "memory: ambiguous workspace slug \"{slug}\": {} directories match <slug>-<16 hex> under {}",
+            matches.len(),
+            projects_root.display()
+        )),
     }
 }
 
@@ -274,18 +318,38 @@ fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
-/// 本 turn 的项目记忆段：运行时每 turn 调用；关闭或任何失败都返回 `None`。
+/// 一次 prompt turn 的记忆加载产出（`agent-core::Session::rule_store_error` 同款
+/// 语义的输入面）：runtime 把 `error` 覆盖写进 per-session 的
+/// `last_memory_error`（失败 `Some`、成功/关闭 `None` 清空）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryLoad {
+    /// 本 turn 的注入段；`None` = 不注入（关闭或 fail-soft）。
+    pub memory: Option<MemorySection>,
+    /// fail-soft 失败原因；`None` = 加载成功或 `memoryEnabled:false`（不是失败）。
+    pub error: Option<String>,
+}
+
+/// 本 turn 的项目记忆段：运行时每 turn 调用；关闭或任何失败都不注入、turn 继续。
 ///
 /// 读取是同步文件 IO，调用方必须已在阻塞线程上（[`crate::runtime`] 的
-/// `spawn_blocking` turn 执行体）。诊断只在本模块内吞掉——失败不写日志内容之外
-/// 的敏感信息（路径已含数据根，日志面统一由调用方决定；fail-soft 本身不发声）。
-pub fn load_memory_section(
-    data_root_mode: &Path,
-    cwd: &str,
-    memory_enabled: bool,
-) -> Option<MemorySection> {
-    MemoryContext::load(data_root_mode, cwd, memory_enabled)
-        .map(|context| context.to_memory_section(&today_utc()))
+/// `spawn_blocking` turn 执行体）。**fail-soft 静默**：T0 没有观察到 oracle 的
+/// 记忆失败诊断面，C2 不新增日志输出或协议字段——失败原因只经
+/// [`MemoryLoad::error`] 写 per-session 运行时状态，不发声、不影响 turn。
+pub fn load_memory_section(data_root_mode: &Path, cwd: &str, memory_enabled: bool) -> MemoryLoad {
+    match MemoryContext::load_checked(data_root_mode, cwd, memory_enabled) {
+        Ok(Some(context)) => MemoryLoad {
+            memory: Some(context.to_memory_section(&today_utc())),
+            error: None,
+        },
+        Ok(None) => MemoryLoad {
+            memory: None,
+            error: None,
+        },
+        Err(reason) => MemoryLoad {
+            memory: None,
+            error: Some(reason),
+        },
+    }
 }
 
 #[cfg(test)]
@@ -373,6 +437,69 @@ mod tests {
         let oversized = format!("# index\n{}", "x".repeat(5 * 1024 * 1024 + 1));
         seed_memory(&base, "ws", "0123456789abcdef", &oversized);
         assert!(MemoryContext::load(&mode_root(&base), "D:\\work\\ws", true).is_none());
+    }
+
+    /// fail-soft 原因面（复核修复）：`load_checked` 区分「关闭 = 正常无记忆」
+    /// （`Ok(None)`）与失败（`Err(原因)`）；原因短语可诊断且不含凭据。
+    #[test]
+    fn load_checked_reports_fail_soft_reasons() {
+        let base = temp_root("reasons");
+
+        // 关闭：正常无记忆，不是失败（零读取）。
+        assert_eq!(
+            MemoryContext::load_checked(&mode_root(&base), "D:\\work\\ws", false),
+            Ok(None),
+            "memoryEnabled:false 不是 fail-soft 失败"
+        );
+
+        // 目录缺失（fresh root；本实现不创建目录）：Err 且可读。
+        let missing = MemoryContext::load_checked(&mode_root(&base), "D:\\work\\ws", true)
+            .expect_err("缺目录要有原因");
+        assert!(
+            missing.contains("does not exist"),
+            "原因提到目录缺失：{missing}"
+        );
+
+        // workspaceId 歧义：Err 提到 slug 与歧义。
+        seed_memory(&base, "ws", "0123456789abcdef", "# one\n");
+        seed_memory(&base, "ws", "fedcba9876543210", "# two\n");
+        let ambiguous = MemoryContext::load_checked(&mode_root(&base), "D:\\work\\ws", true)
+            .expect_err("歧义要有原因");
+        assert!(ambiguous.contains("ambiguous"), "原因提到歧义：{ambiguous}");
+        assert!(ambiguous.contains("\"ws\""), "原因带 slug：{ambiguous}");
+
+        // 超限：Err 带 project-memory 的 5 MiB 文案。先删第一个候选目录，只留
+        // `ws-fedcba9876543210`（否则又是歧义），再把它索引换成超限内容。
+        let single = base
+            .join(".mode")
+            .join("cli")
+            .join("memories")
+            .join("projects")
+            .join("ws-0123456789abcdef");
+        std::fs::remove_dir_all(&single).expect("删第一个候选目录");
+        let kept = base
+            .join(".mode")
+            .join("cli")
+            .join("memories")
+            .join("projects")
+            .join("ws-fedcba9876543210")
+            .join("memory");
+        let oversized = format!("# index\n{}", "x".repeat(5 * 1024 * 1024 + 1));
+        std::fs::write(kept.join("MEMORY.md"), &oversized).expect("写超限索引");
+        let too_big = MemoryContext::load_checked(&mode_root(&base), "D:\\work\\ws", true)
+            .expect_err("超限要有原因");
+        assert!(
+            too_big.contains("5 MiB"),
+            "原因带 project-memory 文案：{too_big}"
+        );
+
+        // 成功：Ok(Some)，`load`（Option 入口）与 `load_checked` 同源。
+        std::fs::write(kept.join("MEMORY.md"), "# ok\n").expect("恢复索引");
+        assert!(
+            MemoryContext::load_checked(&mode_root(&base), "D:\\work\\ws", true)
+                .expect("恢复后命中")
+                .is_some()
+        );
     }
 
     /// 夹具逐字对照（数据契约）：模板重建的 `# Memory` 段与 agentsMd 块必须与

@@ -443,6 +443,13 @@ T3 实现只读召回：`memoryEnabled` 来自宿主对 `session/requestRuntimeP
   （5 MiB）一律不注入、turn 继续；错误不进模型上下文，不写 `turn.failed`。
   `memoryEnabled:false` 时零文件读取（spec §5.1）。目录存在但 `MEMORY.md` 缺失 /
   不可读的形态未观察，按同一 fail-soft 口径整体不注入（含 `# Memory` 段）。
+- **fail-soft 静默（复核修复登记，2026-11-18）**：T0 没有观察到 oracle 的记忆失败
+  诊断面（无日志/事件/协议字段观察），C2 **不发明**——失败路径在线上静默，不产出
+  任何日志输出或协议/snapshot 字段。替代诊断是 per-session 运行时状态
+  `SessionRuntime::last_memory_error`（`agent_core::Session::rule_store_error` 同款
+  覆盖写语义：每个 prompt turn 的记忆加载结果覆盖写入——fail-soft 失败
+  `Some(原因)`、加载成功或 `memoryEnabled:false` 关闭 `None` 清空；compact / 配置
+  失败 turn 不写）。只供测试与宿主诊断读取，不影响 turn 行为。
 - **写路径缺口**（§3.3）：memory extraction 子代理**未实现**——T0 只观察到请求
   形状，没有真实写入、写入频率、失败/回滚的观察；C2 不新增工具、不实现抽取
   子代理。enabled 会话只有主请求 1 个模型请求；

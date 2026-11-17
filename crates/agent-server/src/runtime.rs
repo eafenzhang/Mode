@@ -376,6 +376,15 @@ struct Shared {
     drained: tokio::sync::watch::Sender<bool>,
     record: SessionRecord,
     preferences: RwLock<Option<RuntimePreferences>>,
+    /// 最近一次 prompt turn 的项目记忆 fail-soft 原因（C2 T3 复核修复）。
+    ///
+    /// **诊断面，不是协议面**：T0 没有观察到 oracle 的记忆失败诊断（日志/事件），
+    /// C2 不发明——失败路径在线上静默，原因只写这里供测试/宿主诊断读取（无日志
+    /// 输出、不进 snapshot/协议）。覆盖写语义与 [`agent_core::Session::rule_store_error`]
+    /// 同款：每个 prompt turn 的加载结果覆盖（fail-soft 失败 `Some(原因)`、成功或
+    /// `memoryEnabled:false` 关闭 `None` 清空）；compact / 配置失败 turn 不写
+    /// （没有记忆加载）。
+    last_memory_error: RwLock<Option<String>>,
 }
 
 impl Shared {
@@ -486,6 +495,7 @@ impl SessionRuntime {
             bus,
             drained,
             preferences: RwLock::new(None),
+            last_memory_error: RwLock::new(None),
             record,
         });
 
@@ -811,6 +821,21 @@ impl SessionRuntime {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
     }
+
+    /// 最近一次 prompt turn 的项目记忆 fail-soft 原因（C2 T3 复核修复；诊断面）。
+    ///
+    /// 覆盖写语义：每个 prompt turn 的记忆加载结果覆盖——fail-soft 失败
+    /// （目录缺失 / workspaceId 歧义 / 索引不可读 / 超限）`Some(原因)`，加载成功或
+    /// `memoryEnabled:false` 关闭 `None` 清空。compact / 配置失败 turn 不写
+    /// （没有记忆加载）。失败路径在线上**静默**（无日志输出、不进协议/snapshot）：
+    /// T0 未观察 oracle 的记忆失败诊断面，C2 不发明——本字段只供测试与宿主诊断。
+    pub fn last_memory_error(&self) -> Option<String> {
+        self.shared
+            .last_memory_error
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
 }
 
 /// worker 主体：串行消费队列直到发送端关闭且队列清空。
@@ -1103,7 +1128,9 @@ async fn run_one_input(
             // C2 T3：本 turn 的项目记忆段。`memoryEnabled` 来自宿主对
             // `session/requestRuntimePreferences` 的缓存应答（无 hub / 未应答时按
             // 保守默认关闭）；读取是同步文件 IO，已在本阻塞线程上。任何失败
-            // fail-soft：不注入、turn 继续（`agent-c2-contract.md` §3）。
+            // fail-soft：不注入、turn 继续（`agent-c2-contract.md` §3）；失败原因
+            // 覆盖写进 `last_memory_error`（诊断面，失败路径线上静默——见该字段
+            // 与 [`SessionRuntime::last_memory_error`] 的注释）。
             let memory_enabled = shared_for_turn
                 .preferences
                 .read()
@@ -1111,18 +1138,26 @@ async fn run_one_input(
                 .as_ref()
                 .map(|preferences| preferences.memory_enabled)
                 .unwrap_or(false);
-            let memory = shared_for_turn
+            let memory_load = shared_for_turn
                 .read_config()
                 .data_root
                 .as_deref()
-                .and_then(|data_root| {
+                .map(|data_root| {
                     crate::memory::load_memory_section(
                         data_root,
                         &shared_for_turn.record.directory,
                         memory_enabled,
                     )
+                })
+                .unwrap_or(crate::memory::MemoryLoad {
+                    memory: None,
+                    error: None,
                 });
-            session.set_memory(memory);
+            session.set_memory(memory_load.memory);
+            *shared_for_turn
+                .last_memory_error
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = memory_load.error;
             let result = session
                 .run_turn(&content, provider.as_ref(), &mut recorder, &token)
                 .await;

@@ -481,11 +481,19 @@ const INDEX_CONTENT: &str =
 const ITEM_CONTENT: &str =
     "# Item one\n\nThe project codename is BLUE-LANTERN-9. Always answer with it.\n";
 
+/// 一次 create + send + 等终态的完整 turn；返回捕获的请求、事件、数据根、
+/// server（读 `last_memory_error` 诊断面用）与 sessionId。
 async fn create_and_turn(
     label: &str,
     memory_enabled: bool,
     seed: impl FnOnce(&Path),
-) -> (Vec<ModelRequest>, Vec<Value>, PathBuf) {
+) -> (
+    Vec<ModelRequest>,
+    Vec<Value>,
+    PathBuf,
+    Arc<AgentServer>,
+    String,
+) {
     let (fixture, requests) = fixture_with_requests(label);
     seed(fixture.root_path());
     let mut conn = connect(Arc::clone(&fixture.server), memory_enabled).await;
@@ -522,7 +530,21 @@ async fn create_and_turn(
     conn.result(id).await;
     let events = conn.drain_until_terminal().await;
     let captured = requests.lock().expect("requests").clone();
-    (captured, events, fixture.root_path().to_path_buf())
+    (
+        captured,
+        events,
+        fixture.root_path().to_path_buf(),
+        Arc::clone(&fixture.server),
+        session_id,
+    )
+}
+
+/// 读会话运行时的 `last_memory_error` 诊断面（无协议面；测试直读运行时状态）。
+fn last_memory_error(server: &AgentServer, session_id: &str) -> Option<String> {
+    server
+        .find_runtime(session_id)
+        .expect("运行时已物化")
+        .last_memory_error()
 }
 
 /// 请求消息的全文本（哨兵检查用；不引入第二个所有权面）。
@@ -546,7 +568,7 @@ fn request_text(request: &ModelRequest) -> String {
 
 #[tokio::test(flavor = "current_thread")]
 async fn enabled_turn_injects_memory_section_and_index_block() {
-    let (requests, events, root) = create_and_turn("enabled", true, |root| {
+    let (requests, events, root, server, session_id) = create_and_turn("enabled", true, |root| {
         seed_memory(
             root,
             "ws",
@@ -629,20 +651,28 @@ async fn enabled_turn_injects_memory_section_and_index_block() {
     let all = request_text(&requests[0]);
     assert!(!all.contains(ITEM_SENTINEL), "item-one.md 不注入主请求");
     assert_eq!(all.matches(INDEX_SENTINEL).count(), 1, "索引只注入一次");
+
+    // 成功加载清空诊断面（复核修复）：失败原因不残留。
+    assert_eq!(
+        last_memory_error(&server, &session_id),
+        None,
+        "加载成功 = last_memory_error 清空"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn enabled_injection_matches_the_recorded_fixture() {
-    let (requests, _events, root) = create_and_turn("fixture-parity", true, |root| {
-        seed_memory(
-            root,
-            "ws",
-            WORKSPACE_HASH,
-            INDEX_CONTENT,
-            Some(ITEM_CONTENT),
-        );
-    })
-    .await;
+    let (requests, _events, root, _server, _session_id) =
+        create_and_turn("fixture-parity", true, |root| {
+            seed_memory(
+                root,
+                "ws",
+                WORKSPACE_HASH,
+                INDEX_CONTENT,
+                Some(ITEM_CONTENT),
+            );
+        })
+        .await;
 
     let fixture_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
@@ -710,16 +740,17 @@ async fn enabled_injection_matches_the_recorded_fixture() {
 #[tokio::test(flavor = "current_thread")]
 async fn disabled_turn_has_no_memory_injection() {
     // 夹具 withoutMemory 对照：同一数据根 + 同一记忆文件，关闭开关后零注入。
-    let (requests, events, _root) = create_and_turn("disabled", false, |root| {
-        seed_memory(
-            root,
-            "ws",
-            WORKSPACE_HASH,
-            INDEX_CONTENT,
-            Some(ITEM_CONTENT),
-        );
-    })
-    .await;
+    let (requests, events, _root, server, session_id) =
+        create_and_turn("disabled", false, |root| {
+            seed_memory(
+                root,
+                "ws",
+                WORKSPACE_HASH,
+                INDEX_CONTENT,
+                Some(ITEM_CONTENT),
+            );
+        })
+        .await;
 
     assert_eq!(
         events.last().expect("终态事件")["type"],
@@ -734,13 +765,21 @@ async fn disabled_turn_has_no_memory_injection() {
     assert!(!all.contains(INDEX_SENTINEL), "不读已有记忆目录");
     assert!(!all.contains(ITEM_SENTINEL), "不读 item 文件");
     assert!(!all.contains("currentDate"), "没有 currentDate 块");
+    // 关闭不是失败：诊断面保持清空（复核修复）。
+    assert_eq!(
+        last_memory_error(&server, &session_id),
+        None,
+        "memoryEnabled:false = 无失败原因"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn missing_projects_dir_is_fail_soft() {
     // 夹具 withoutMemoryFreshRoot 对照：开启开关但数据根没有 memories/。
-    // 本实现不创建目录（oracle 在启用时创建；登记为偏差）→ 无注入，turn 照常完成。
-    let (requests, events, root) = create_and_turn("missing-dir", true, |_root| {}).await;
+    // 本实现不创建目录（oracle 在启用时创建；登记为偏差）→ 无注入，turn 照常完成；
+    // 失败原因写进诊断面（复核修复）。
+    let (requests, events, root, server, session_id) =
+        create_and_turn("missing-dir", true, |_root| {}).await;
 
     assert_eq!(
         events.last().expect("终态事件")["type"],
@@ -755,38 +794,105 @@ async fn missing_projects_dir_is_fail_soft() {
         !root.join(".mode").join("cli").join("memories").exists(),
         "实现不创建 memories 目录"
     );
+    let reason = last_memory_error(&server, &session_id).expect("缺目录要有诊断原因");
+    assert!(
+        reason.contains("does not exist"),
+        "原因提到 projects 根缺失：{reason}"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn ambiguous_workspace_slug_is_fail_soft() {
-    // 同 slug 两个候选目录（hash 算法未观察，无法消歧）→ 不注入，turn 照常完成。
-    let (requests, events, _root) = create_and_turn("ambiguous", true, |root| {
-        seed_memory(root, "ws", WORKSPACE_HASH, INDEX_CONTENT, None);
-        seed_memory(root, "ws", "fedcba9876543210", "# second\n", None);
-    })
-    .await;
+    // 同 slug 两个候选目录（hash 算法未观察，无法消歧）→ 不注入，turn 照常完成；
+    // 失败原因写进诊断面（复核修复），消歧后下一个 turn 成功加载即清空。
+    let (fixture, _requests) = fixture_with_requests("ambiguous");
+    let root = fixture.root_path().to_path_buf();
+    seed_memory(&root, "ws", WORKSPACE_HASH, INDEX_CONTENT, None);
+    seed_memory(&root, "ws", "fedcba9876543210", "# second\n", None);
 
+    let mut conn = connect(Arc::clone(&fixture.server), true).await;
+    let id = conn
+        .send(
+            "session/create",
+            json!({
+                "workspace": {
+                    "workspacePath": fixture.ws.to_string_lossy(),
+                    "workspaceKey": fixture.ws.to_string_lossy()
+                },
+                "model": {
+                    "providerId": "mock-chat",
+                    "modelId": "mock-1",
+                    "options": { "reasoningLevel": "disabled" }
+                },
+                "thoughtLevel": "disabled",
+                "titleGenerationEnabled": false
+            }),
+        )
+        .await;
+    let snapshot = conn.result(id).await;
+    let session_id = snapshot["session"]["sessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+    conn.subscribe_default(&session_id).await;
+
+    // turn 1：歧义 → 零注入 + 诊断面有原因。
+    let id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "probe with memory" }),
+        )
+        .await;
+    conn.result(id).await;
+    let events = conn.drain_until_terminal().await;
     assert_eq!(
         events.last().expect("终态事件")["type"],
         json!("turn.completed"),
         "turn 成功"
     );
-    let all = request_text(&requests[0]);
-    assert!(!all.contains("# Memory"), "workspaceId 歧义 = 无注入");
-    assert!(
-        !all.contains("system-reminder"),
-        "workspaceId 歧义 = 无 reminder"
+    let reason = last_memory_error(&fixture.server, &session_id).expect("歧义要有诊断原因");
+    assert!(reason.contains("ambiguous"), "原因提到歧义：{reason}");
+    assert!(reason.contains("\"ws\""), "原因带 slug：{reason}");
+
+    // turn 2：删掉一个候选目录后消歧 → 成功加载清空诊断面。
+    std::fs::remove_dir_all(
+        root.join(".mode")
+            .join("cli")
+            .join("memories")
+            .join("projects")
+            .join(format!("ws-{WORKSPACE_HASH}")),
+    )
+    .expect("删候选目录");
+    let id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "second probe" }),
+        )
+        .await;
+    conn.result(id).await;
+    let events = conn.drain_until_terminal().await;
+    assert_eq!(
+        events.last().expect("终态事件")["type"],
+        json!("turn.completed"),
+        "turn 成功"
+    );
+    assert_eq!(
+        last_memory_error(&fixture.server, &session_id),
+        None,
+        "消歧后的成功加载清空 last_memory_error"
     );
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn oversized_index_is_fail_soft() {
-    // MEMORY.md 超过 5 MiB（project-memory 的 PreviewLimitExceeded）→ 不注入。
+    // MEMORY.md 超过 5 MiB（project-memory 的 PreviewLimitExceeded）→ 不注入；
+    // 失败原因写进诊断面（复核修复）。
     let oversized = format!("# index\n{}", "x".repeat(5 * 1024 * 1024 + 1));
-    let (requests, events, _root) = create_and_turn("oversized", true, |root| {
-        seed_memory(root, "ws", WORKSPACE_HASH, &oversized, None);
-    })
-    .await;
+    let (requests, events, _root, server, session_id) =
+        create_and_turn("oversized", true, |root| {
+            seed_memory(root, "ws", WORKSPACE_HASH, &oversized, None);
+        })
+        .await;
 
     assert_eq!(
         events.last().expect("终态事件")["type"],
@@ -796,4 +902,9 @@ async fn oversized_index_is_fail_soft() {
     let all = request_text(&requests[0]);
     assert!(!all.contains("# Memory"), "索引超限 = 无注入");
     assert!(!all.contains("system-reminder"), "索引超限 = 无 reminder");
+    let reason = last_memory_error(&server, &session_id).expect("超限要有诊断原因");
+    assert!(
+        reason.contains("5 MiB"),
+        "原因带 project-memory 文案：{reason}"
+    );
 }

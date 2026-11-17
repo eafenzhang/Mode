@@ -240,7 +240,7 @@ goal/target（C3）；自动重试/退避（C3）；官方平台/遥测（永久
   （`containsItemSentinel:false`）。系统提示另有独立的 `# Memory` 段（目录路径 +
   使用说明）。item 的选择/召回规则未观察，C2 不自行发明。
 - 注入失败（目录缺失/workspaceId 歧义/读取失败/超限）fail-soft：不注入、turn 继续；
-  不把错误写进模型上下文。
+  不把错误写进模型上下文；失败路径在线上**静默**（无日志/协议面，见 §5.4）。
 - `workspaceId` 与 `workspaceIdentity?.trim() || workspacePath` 的会话身份 key **不是
   同一个东西**（T0：DB `session.workspace_id` 为 `null`、`project_id` 是 `proj_…`，
   而记忆目录是 `<slug>-<16 hex>`）。目录的 workspaceId 形状是
@@ -267,6 +267,14 @@ goal/target（C3）；自动重试/退避（C3）；官方平台/遥测（永久
   是唯一入口（fail-soft，返回 `Option`）；`memory_enabled` 来自
   `RuntimePreferences`（Task 8 缓存应答），关闭时零文件读取。worker 在每 turn 的
   阻塞执行体上加载一次并 `Session::set_memory` 注入（读取是同步文件 IO）。
+- **fail-soft 失败路径静默（复核修复登记，2026-11-18）**：T0 未观察到 oracle 的
+  记忆失败诊断面（日志/事件/协议字段都没有），C2 **不发明**——失败路径不产出任何
+  日志输出、不进协议/snapshot。诊断以 per-session 运行时状态承载：
+  `SessionRuntime::last_memory_error`（`agent_core::Session::rule_store_error` 同款
+  覆盖写语义——每个 prompt turn 的加载结果覆盖写入，fail-soft 失败 `Some(原因)`、
+  加载成功或 `memoryEnabled:false` 关闭 `None` 清空；compact/配置失败 turn 不写），
+  来源是 `MemoryContext::load_checked` 的 `Err` 原因短语；只供测试与宿主诊断读取，
+  turn 行为不变。
 - `crates/agent-core/src/context.rs`：`MemorySection` 增加首条 user 消息前缀槽
   （`user_prefix`）；`build_model_request` 把 `content` 并入唯一系统消息末尾、把
   `user_prefix` 并入请求首条 user 消息文本（reminder 之后空行接 prompt）。
@@ -277,8 +285,9 @@ goal/target（C3）；自动重试/退避（C3）；官方平台/遥测（永久
   路径用真实目录，`# currentDate` 日期取 UTC 日历日 `YYYY-MM-DD`（格式未观察，
   契约 §3.5 登记为待观察假设）。
 - 测试：`crates/agent-server/tests/memory.rs`（enabled 注入形状与夹具对照、disabled
-  零注入、缺目录/歧义 slug/超限 fail-soft）+ `memory.rs` 单元测试（slug 扫描、
-  歧义、超限、夹具逐字对照）。
+  零注入、缺目录/歧义 slug/超限 fail-soft；`last_memory_error` 的置位/清空——歧义
+  turn 置位、删除候选目录后成功加载清空）+ `memory.rs` 单元测试（slug 扫描、
+  歧义、超限、fail-soft 原因短语、夹具逐字对照）。
 - 38 条 C1 Rust 回放与既有 agent-core/agent-server 套件保持全绿；oracle 的
   extraction 子代理、目录创建、`extractionInstruction` / `existingFilesBlock`
   均不产出（缺口见 §5.3 与契约 §3.5）。
