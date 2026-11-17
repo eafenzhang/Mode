@@ -409,36 +409,30 @@ pub fn lookup(tool_name: &str) -> Option<ToolSpec> {
 
 /// **schema 级入参校验**（C1.2-#1 对齐，观察出处见各行为夹具）。
 ///
-/// oracle 在**权限评估之前**就做这一步：schema 级非法入参（缺必填字段 / 字段类型不对 /
-/// 未知键）直接 `scheduled → error`，**不产生审批对、也没有 `started`**
+/// oracle 在**权限评估之前**就做这一步：schema 级非法入参（缺必填字段 / 字段类型不对）
+/// 直接 `scheduled → error`，**不产生审批对、也没有 `started`**
 /// （夹具 `bash-empty-args` / `edit-missing-new-string` / `write-empty-args` /
 /// `write-missing-content`；反证：`Read` 的 `limit:0` 与 `file_path:""` 都**通过**
 /// schema、照常走 `started → error`，见夹具 `read-error-paths` / `write-empty-path`）。
 ///
-/// 校验器只实现声明里实际观察到的三件事：`required`、`properties.type`、
-/// `additionalProperties:false`。`minimum` / `exclusiveMinimum` 这类**语义**约束不在这里判
-/// ——它们在工具内校验（观察：`limit:0` 带 `started` 报 `ZodError`）。
-/// 未注册的工具不校验（它们在调度层就以 `tool_not_found` 出局）；插件工具的 schema
-/// 校验行为未观察，同样不判。
+/// 校验器只实现声明里**实际观察到被执行**的两件事：`required`、`properties.type`。
+/// 声明的 `additionalProperties:false` **不执行**（观察：`Read` 带未知键 `nope:1`
+/// 仍然成功——`probe-read.mts` 的 `unknown-key` 组与 `read.rs` 文件头；spec §3.2 明写
+/// 「声明的 `additionalProperties: false` 没被执行」）。`minimum` / `exclusiveMinimum`
+/// 这类**语义**约束也不在这里判——它们在工具内校验（观察：`limit:0` 带 `started` 报
+/// `ZodError`）。未注册的工具不校验（它们在调度层就以 `tool_not_found` 出局）；
+/// 插件工具的 schema 校验行为未观察，同样不判。
 pub fn input_validation_error(name: &str, args: &Value) -> Option<ToolError> {
     let spec = lookup(name)?;
     validate_against_schema(&spec.schema, args)
 }
 
 /// 按 JSON Schema 的一个可观察子集校验入参；失败返回与 oracle 逐字同形的错误。
+///
+/// 只判 `required` 与 `properties.type`：`additionalProperties:false` 在声明里有、
+/// 但**观察到的执行面没有它**（未知键被忽略），所以这里不判。
 fn validate_against_schema(schema: &Value, args: &Value) -> Option<ToolError> {
     let schema = schema.as_object()?;
-    // `additionalProperties: false`：未知键拒绝（夹具 `bash-stdout` 的探针电池里观察到）。
-    if schema.get("additionalProperties") == Some(&Value::Bool(false)) {
-        if let (Some(properties), Some(arguments)) = (
-            schema.get("properties").and_then(Value::as_object),
-            args.as_object(),
-        ) {
-            if arguments.keys().any(|key| !properties.contains_key(key)) {
-                return Some(validation_error());
-            }
-        }
-    }
     // 必填字段（`bash-empty-args` / `write-empty-args` / `write-missing-content` /
     // `edit-missing-new-string` 的观察）。
     if let Some(required) = schema.get("required").and_then(Value::as_array) {
@@ -527,5 +521,45 @@ pub fn invoke_by_name(
         "TaskOutput" => task::task_output(args, ctx),
         "TaskStop" => task::task_stop(args, ctx),
         other => Err(not_found(other)),
+    }
+}
+
+#[cfg(test)]
+mod input_validation_tests {
+    use super::*;
+    use serde_json::json;
+
+    /// 观察（`probe-read.mts` 的 `unknown-key` 组、`read.rs` 文件头、spec §3.2）：
+    /// 声明里的 `additionalProperties:false` **没有**被执行——`Read` 带未知键照样成功。
+    /// 校验器因此不判未知键（否则 `scheduled → error`，与 oracle 相反）。
+    #[test]
+    fn unknown_keys_are_ignored_like_the_oracle() {
+        assert!(input_validation_error(
+            "Read",
+            &json!({ "file_path": "/ws/hello.txt", "nope": 1 })
+        )
+        .is_none());
+        // 其余工具同样不判未知键（同一张声明面；未观察到反例）。
+        assert!(input_validation_error(
+            "Write",
+            &json!({ "file_path": "/ws/a.txt", "content": "x", "nope": true })
+        )
+        .is_none());
+    }
+
+    /// F8 的正例仍然成立：缺必填 / 类型不对在权限之前就报 schema 错误。
+    #[test]
+    fn required_and_types_still_error_before_permission() {
+        assert!(input_validation_error("Read", &json!({})).is_some());
+        assert!(input_validation_error("Bash", &json!({})).is_some());
+        assert!(
+            input_validation_error("Read", &json!({ "file_path": "a.txt", "offset": "2" }))
+                .is_some()
+        );
+        // 语义约束不在这一层：`limit:0` / 空串路径都通过 schema。
+        assert!(
+            input_validation_error("Read", &json!({ "file_path": "a.txt", "limit": 0 })).is_none()
+        );
+        assert!(input_validation_error("Read", &json!({ "file_path": "" })).is_none());
     }
 }

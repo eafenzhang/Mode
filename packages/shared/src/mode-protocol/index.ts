@@ -1434,6 +1434,9 @@ export const modePermissionRequestedEventPayloadSchema = z
     input: z.unknown(),
     suggestedPermissionUpdates: z.array(modePermissionUpdateSchema).optional(),
     origin: modeInteractionRequestOriginSchema.optional(),
+    // C1 Task 11（F5）：oracle 的 `permission.requested` 事件载荷携带 `fullAccessSupported`
+    // （行为夹具里恒为 true）。缺声明时 `.strict()` 会把整条 Rust 事件判成非法。
+    fullAccessSupported: z.boolean().optional(),
     options: z.array(modePermissionOptionSchema).min(1),
     childSessionId: nonEmptyString.optional(),
     background: z.boolean().optional(),

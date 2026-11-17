@@ -184,7 +184,7 @@ Rust 侧用例**不实现第二份比较器**——它把自身投影成同一�
 | 环境相关计数 | `toolCount`、`chars` 的值替换为 `<count>` | 工具面与提示词规模取决于机器上装了哪些 MCP / 技能 / 插件的版本，不是被测量行为 |
 | 传输层头 | `requestHeaders` / `responseHeaders` 的值整体折叠成 `<headers>`（`requestHeaderCount` / `responseHeaderCount` 保留） | 头里是版本号、平台、时区与当前时刻；HTTP 头是环境事实，不是运行时行为 |
 | 错误栈（C1 Task 11，F10） | 对象键 `stack` **两侧整体删除**（`tool.updated` 的 `error` 与 `turn.failed` 的 `error` 同源） | oracle 录到的是 JS `dist` 构建栈：行号与文件路径**随构建漂移**（oracle 自回放基线红的一部分），且栈文本是 JS 实现内部产物、不是运行时行为。Rust 侧没有 JS 栈，按同一纪律**不伪造**——两侧都当「无此键」比，而不是比一个占位值（C1.1-#7 的差异由这条规则收口） |
-| 命令内容指纹（C1 Task 11，F4 的伴随项） | 同一对象里**同时带 `category` 与 `status`** 时的 `hash` 键两侧删除（即 `perf.detail.command.hash`） | oracle 录的是命令内容指纹；**算法不可由黑盒观察推导**：指纹只随命令文本变化（cwd / 描述 / 输出 / 耗时都不影响，探针逐项验证），但 sha1 / sha256 / sha512 / md5 / blake2b / blake2s / xxh64 / xxh3 / xxh128 / fnv1a / murmur3 / crc64 及常见「带壳 / 带盐」形态都不能复现录到的值。指纹是缓存 / 遥测用的实现内部键，不是运行时行为；Rust 侧不伪造（与 F10 同一处置），两侧同删。判据限定「命令统计对象」形状，避免误伤未来别处的普通 `hash` 键 |
+| 命令内容指纹（C1 Task 11，F4 的伴随项） | 同一对象里**同时带 `category` 与 `status`** 时的 `hash` 键两侧删除（即 `perf.detail.command.hash`） | oracle 录的是命令内容指纹；**算法不可由黑盒观察推导**：指纹只随命令文本变化（cwd / 描述 / 输出 / 耗时都不影响，探针逐项验证），但 sha1 / sha256 / sha512 / md5 / blake2b / blake2s / xxh64 / xxh3 / xxh128 / fnv1a / murmur3 / crc64 及常见「带壳 / 带盐」形态都不能复现录到的值。指纹是缓存 / 遥测用的实现内部键，不是运行时行为；Rust 侧不伪造（与 F10 同一处置），两侧同删。判据限定「命令统计对象」形状，避免误伤未来别处的普通 `hash` 键。**可审计证据**：27 组「命令 → hash」配对与不变量观察见 `docs/specs/agent-runtime-command-hash-pairs.json` |
 | JSON 文本里的对象键序（C1 Task 11，F11） | 字符串值若**整体**是一个可解析的 JSON **对象**（`{…}`），比较前按对象键稳定排序重新序列化；数组元素顺序**保留** | `model.streaming` 的 `tool_input_delta.delta` 是工具入参的 JSON **文本**：C1 的方案 A 脚本化 provider（测试开关，非生产路径）用 `serde_json` 按字典序输出键，oracle 的 mock 按夹具字面量序输出，多键入参（write / edit / offset+limit）因此文本不同。同一个工具调用的同一份入参，对象键序不是行为；**数组顺序可能是行为**（调度顺序、行序），所以只排序对象键、不碰数组。〔不为此启用 `serde_json/preserve_order`：全局 feature 翻转会改变 DB JSON 列与协议帧的既有字节形状；真实 provider 的 delta 字节来自线上，本来就不存在该差异〕 |
 
 上面没列的一律**逐字比**。要新增白名单，先改本表再改 `normalize.mts`，并在 PR 里说明为什么
@@ -994,12 +994,26 @@ mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）
 | 9 | ~~`Bash` 的 `started` 档位~~ | 走过审批的 Bash：`readOnly:false` / `sideEffectScope:"system"`；安全直通：`true` / `"none"`（逐夹具相关） | **已对齐**（Task 11）：`started` 档位按审批路径决定；`TaskStop` 仍是 `false`/`session`、Write/Edit `false`/`workspace` | Task 11 |
 | 10 | 失败 turn 的形态 | 本批夹具无失败 turn（无对照） | 恒先 `turn.started` 再补唯一 `turn.failed`（配置失败/取消/收口路径一致）；`turn.failed` 载荷只填协议必填字段 | Task 6/7 登记 |
 
+**#6 里哪些是观察、哪些是拟合**（避免读成已观察）：
+
+- **观察值**：`outputBytes`（trim 前原始合并输出字节）、空输出的 `originalBytes=0` /
+  `returnedBytes=占位文案长度`、`exitCode`（超时为 143）、`timedOut`、`status 词表`
+  （completed / failed / timed_out）、`fileCount=1`、`totalBytes`/`maxFileBytes`
+  （Write=写入正文、Edit=替换后正文的字节数）、`hunkCount`（structuredPatch 长度）、
+  `matchAttempts`（替换 1 / 新建 0）——都逐字来自行为夹具。
+- **拟合**（同一夹具上没有能区分取值的样本，按最贴近观察的构造实现，**不是**观察值）：
+  ① `noOutputMs = runMs`（时间白名单折叠了两者，无样本能分离；实现取总耗时）；
+  ② `category = "other"`（全部已观察命令都是 `other`，词表其余取值未观察）；
+  ③ `count = ';' 分段数`（`bash-mixed-streams` 3 段、`bash-output-then-exit-7` 2 段能对上，
+  但 `&&` / `||` / 管道是否也计入**未观察**，实现只按 `;` 分）；
+  ④ Bash 的 `readMs=0` / Write 的 `readMs=0` 与 Edit 的 `matchMs`（时间折叠，无行为含义）。
+
 ### C1.2 权限评估口径
 
 | # | 场景 | oracle | C1 |
 | --- | --- | --- | --- |
-| 1 | ~~schema 级非法入参（`Bash {}`、`Edit` 缺 `new_string`、`Write` 缺 content、`Read` offset 类型错误）~~ | **先输入校验**：不产生审批对，也不产生 `started`，直接 `error`/`batch` | **已对齐**（Task 11）：`required` / `properties.type`（含 `integer`）/ `additionalProperties:false` 在权限评估**之前**校验（`agent_tools::input_validation_error`）；语义约束（`limit:0`、空路径）仍走 `started → error` | Task 11 |
-| 2 | ~~`Bash` 命令分级：`printf 'err' >&2`、`;` 复合命令、`sleep 5`~~ | 不审批（allow） | **已对齐**（Task 11）：`sleep` 进安全集合；`>&2`（写 stderr）与 `2>/dev/null` 一样先剔除再判文件重定向 | Task 11 |
+| 1 | ~~schema 级非法入参（`Bash {}`、`Edit` 缺 `new_string`、`Write` 缺 content、`Read` offset 类型错误）~~ | **先输入校验**：不产生审批对，也不产生 `started`，直接 `error`/`batch` | **已对齐**（Task 11）：`required` / `properties.type`（含 `integer`）在权限评估**之前**校验（`agent_tools::input_validation_error`）。**声明的 `additionalProperties:false` 不执行**（未知键被忽略）——与 oracle 一致：`Read` 带 `nope:1` 成功（`probe-read.mts` 的 `unknown-key` 组、spec §3.2）；语义约束（`limit:0`、空路径）仍走 `started → error` | Task 11；评审修正（2026-11-17） |
+| 2 | ~~`Bash` 命令分级：`printf 'err' >&2`、`;` 复合命令、`sleep 5`~~ | 不审批（allow） | **已对齐**（Task 11）：`sleep` 进安全集合；`>&2`（写 stderr）与 `2>/dev/null` 一样先剔除再判文件重定向（`rm -rf / >&2` 这类仍按最高风险段判 ask；`echo x >&2 > file` 剔除后仍见文件重定向 → ask） | Task 11 |
 
 工具调用与结果本身两层（toolCalls/files）逐字一致；Task 11 起事件编排顺序也对齐（38/38 绿）。
 

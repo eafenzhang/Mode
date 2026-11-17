@@ -1,0 +1,45 @@
+{
+  "note": "C1 Task 11（F4/F10 伴随项）——命令内容指纹的黑盒观察证据。全部来自只运行 oracle、观察其 tool.updated(result).perf.detail.command.hash 的探针（clean-room 黑盒对拍），不读实现体。用于支撑 docs/specs/tauri-agent-runtime.md §3「命令内容指纹」白名单规则：该指纹只随命令文本变化，算法不可由黑盒推导（sha1/sha256/sha512/md5/blake2b/blake2s/xxh64/xxh3/xxh128/fnv1a/murmur3/crc64 及常见带盐/带壳形态均不复现），故两侧删除。",
+  "invariance": [
+    "同一命令换描述 / 去掉描述 → 同一个 hash（true、exit 7 各验过两种描述与无描述）",
+    "同一命令在同一会话重复调用 → 同一个 hash",
+    "同一命令换会话 / 换 cwd → 同一个 hash（与录夹具时的 cwd 不同）",
+    "同一命令不同耗时（runMs 565ms vs 55ms 冷/热）→ 同一个 hash",
+    "输出逐次不同的命令（date +%N）两次调用 → 同一个 hash（输出不参与）",
+    "命令文本逐字参与：多一个空格 / 换行 / 分号都会改变 hash"
+  ],
+  "pairs": [
+    { "command": "", "hash": "e4f60d0aa6d7f3d3", "detail": "空命令走 category:empty 的缺省形态（无 runMs/exitCode 等键）" },
+    { "command": "a", "hash": "03a95b5f06d98dca" },
+    { "command": "A", "hash": "f83d933e340858d2" },
+    { "command": " a", "hash": "30fd2b1c0e1b1f1e" },
+    { "command": "ab", "hash": "371c246d1731a8cb" },
+    { "command": "b", "hash": "68be5c7182cdcca5" },
+    { "command": "true", "hash": "5cafd23879b579d5", "detail": "夹具 bash-empty-output 的同一值" },
+    { "command": "true\n", "hash": "55f4b949bad91c6c" },
+    { "command": "true ", "hash": "3baa00a201de1034" },
+    { "command": "  true  ", "hash": "140210baf7888fbe" },
+    { "command": "true;", "hash": "a16fa2df9c376b0d" },
+    { "command": "TRUE", "hash": "f10200daf14db93b" },
+    { "command": "true && true", "hash": "a0a0f9bf445bf803" },
+    { "command": "true; true", "hash": "a5c0943872d44a5d" },
+    { "command": "true | true", "hash": "f7b29ae8c5f12e7f" },
+    { "command": "exit 7", "hash": "1ec64da5b9a0961b", "detail": "夹具 bash-exit-7 的同一值" },
+    { "command": "echo hi", "hash": "eed70c320c9a0bc7" },
+    { "command": "pwd", "hash": "57f390be3e26480b" },
+    { "command": "date +%N", "hash": "872ec7c59e5f0ce2", "detail": "两次调用输出不同、hash 相同 → 输出不参与" },
+    { "command": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "hash": "dbffd672d5c03459", "detail": "64 个 a" },
+    { "command": "printf 'hello\\nworld\\n'", "hash": "fb8281b7576b8652", "detail": "夹具 bash-stdout 的同一值；单引号内的 \\n 是字面反斜杠 n" },
+    { "command": "definitely_not_a_command_xyz", "hash": "a5c5628281ae439a", "detail": "夹具 bash-command-not-found" },
+    { "command": "sleep 5", "hash": "b98dd5a155ca6e1b", "detail": "夹具 bash-timeout" },
+    { "command": "sleep 3", "hash": "759e8d7f6f414996", "detail": "夹具 bash-timeout-fractional" },
+    { "command": "printf 'a   \\n'", "hash": "ce114da35dcd36ad", "detail": "夹具 bash-trailing-whitespace" },
+    { "command": "printf 'out1\\n'; printf 'err1\\n' >&2; printf 'out2\\n'", "hash": "703121d5e435c355", "detail": "夹具 bash-mixed-streams" },
+    { "command": "printf 'before\\n'; exit 7", "hash": "3f8474cfe8065c17", "detail": "夹具 bash-output-then-exit-7" },
+    { "command": "printf 'oops\\n' >&2", "hash": "bce9eed3a997b106", "detail": "夹具 bash-stderr" }
+  ],
+  "reproduction": [
+    "探针方式：以 mock provider 脚本让 oracle 执行指定 Bash 入参，读 tool.updated(result).perf.detail.command.hash（只观察输入输出）。",
+    "复现入口：packages/desktop/tests/agent-runtime-oracle/probe-bash.mts 的调用形态（把 command 换成表内文本即可）；探针脚本本身是临时产物，未入库。"
+  ]
+}

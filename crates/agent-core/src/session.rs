@@ -626,12 +626,14 @@ impl Session {
             duration: started_at.elapsed().as_millis() as f64,
             // `cacheStats`（C1.1-#4 对齐）。**口径是拟合规则**，不是语义分解：全部 41 个
             // 观察值（38 条行为夹具 + session-lifecycle 两条 turn）都满足
-            // `totalMessages = 本 turn 终末请求时消息数 + 5 + (turn 前已有工具结果 ? 1 : 0)`、
+            // `totalMessages = 本 turn 终末请求时消息数 + 6 + (turn 前已有工具结果 ? 1 : 0)`、
             // `cachedMessages = 5`、`lastCacheHit = false`。oracle 把请求装配的哪些前缀
             // 条目计入 totalMessages/cachedMessages 无法从事件面观察（逐字值见
             // `session-lifecycle-events.json`：文本 turn 7、工具 turn 11、跨 turn 累计 30），
             // 这里只实现复现全部观察值的规则，并把口径登记在 spec §C1。
             // mock provider 不返回缓存读（`cacheReadTokens: 0`），`lastCacheHit` 按观察恒 false。
+            // 实现写法：`self.messages` 此刻**已包含**本 turn 的收尾 assistant（它不是
+            // 「终末请求时消息数」的一部分），所以先减 1 再加 6。
             cache_stats: Some(agent_protocol::session_event::CacheStats {
                 // 消息列表此刻已含本 turn 的收尾 assistant（终末请求时尚未 push），所以减 1。
                 total_messages: (self.messages.len().saturating_sub(1)

@@ -279,6 +279,41 @@ fn scheduled_event_omits_input_like_the_oracle() {
     assert_eq!(scheduled.can_run_parallel, Some(true));
 }
 
+/// `Read` 带未知键**照样成功**（F8 的边界：声明里的 `additionalProperties:false`
+/// 没有被执行——`probe-read.mts` 的 `unknown-key` 组、`read.rs` 文件头、spec §3.2）。
+///
+/// 这条是会话层的反例守卫：如果入参校验把未知键当成 schema 错误，事件序会变成
+/// `scheduled → error`（无 `started`），与 oracle 观察相反。
+#[test]
+fn read_with_unknown_key_still_runs_like_the_oracle() {
+    let workspace = Workspace::new("read-unknown-key");
+    workspace.seed(&[("hello.txt".to_string(), b"hello\n".to_vec())]);
+    let mut session = Session::new("sess", workspace.cwd());
+    let _ = session.begin_turn("读一下");
+    let events = session.run_tool_batch(&[ToolCallRequest {
+        tool_call_id: "call_0".to_string(),
+        name: "Read".to_string(),
+        input: serde_json::json!({
+            "file_path": format!("{}/hello.txt", workspace.cwd()),
+            "nope": 1,
+        }),
+    }]);
+
+    let kinds: Vec<&'static str> = events
+        .iter()
+        .filter_map(|event| event.payload_as::<ToolUpdatedPayload>().expect("解码"))
+        .map(|payload| match payload {
+            ToolUpdatedPayload::Scheduled(_) => "scheduled",
+            ToolUpdatedPayload::Started(_) => "started",
+            ToolUpdatedPayload::Progress(_) => "progress",
+            ToolUpdatedPayload::Result(_) => "result",
+            ToolUpdatedPayload::Error(_) => "error",
+            ToolUpdatedPayload::Batch(_) => "batch",
+        })
+        .collect();
+    assert_eq!(kinds, vec!["scheduled", "started", "result", "batch"]);
+}
+
 /// 未注册的工具**没有** `started` 事件（观察：`Glob`/`Grep` 的 `scheduled` 之后直接 `error`）。
 #[test]
 fn unregistered_tools_have_no_started_event() {
