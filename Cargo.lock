@@ -71,6 +71,7 @@ dependencies = [
  "agent-protocol",
  "indexmap 2.14.2",
  "model-selection",
+ "project-memory",
  "provider-config",
  "provider-config-repository",
  "provider-config-source",

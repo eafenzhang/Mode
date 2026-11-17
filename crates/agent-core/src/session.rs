@@ -137,6 +137,10 @@ pub struct Session {
     /// 本批被拒绝（deny/timeout/closed）的调用 → 宿主给的拒绝原因。工具批次结束后
     /// 模型历史要补 tool result（最终评审 C4）。
     denied_tool_results: HashMap<String, String>,
+    /// 本 turn 的项目记忆段（C2 T3）：宿主偏好 `memoryEnabled` 开启且记忆目录可读时
+    /// 由运行时每 turn 注入（[`Session::set_memory`]）；`None` = 不注入（与 C1 逐字
+    /// 一致）。读取与 fail-soft 全在 `agent-server` 侧，本结构只持有装配事实。
+    memory: Option<crate::context::MemorySection>,
 }
 
 impl Session {
@@ -166,6 +170,7 @@ impl Session {
             prior_tool_history: false,
             used_turn_ids: BTreeSet::new(),
             denied_tool_results: HashMap::new(),
+            memory: None,
         }
     }
 
@@ -205,6 +210,12 @@ impl Session {
     /// 就地更新模式（`session/setMode` 后由 worker 在下个 turn 前应用）。
     pub fn set_mode(&mut self, mode: impl Into<String>) {
         self.mode = mode.into();
+    }
+
+    /// 就地更新本 turn 的项目记忆段（C2 T3）：运行时在每 turn 开始前按宿主偏好
+    /// `memoryEnabled` 读取并传入；`None` = 关闭或 fail-soft（不注入）。
+    pub fn set_memory(&mut self, memory: Option<crate::context::MemorySection>) {
+        self.memory = memory;
     }
 
     /// 就地更新模型能力（`session/setModel` 后由 worker 在下个 turn 前应用）。
@@ -488,7 +499,9 @@ impl Session {
     /// 按当前会话事实装配一次模型请求（系统提示 / 工具 / 能力取自本会话）。
     ///
     /// compact 路径用它在**不追加事件**的前提下构造摘要请求；正常 turn 仍走
-    /// [`crate::context::build_model_request`] 的内联装配（行为不变）。
+    /// [`crate::context::build_model_request`] 的内联装配（行为不变）。compact 请求
+    /// **不带**项目记忆段（T0 没有观察到带记忆的 compact 请求；`memory: None` 与
+    /// C2 T2 的行为逐字一致，偏差登记在 `agent-c2-contract.md` §3.5）。
     pub fn build_request(&self, messages: &[ModelMessage]) -> ModelRequest {
         crate::context::build_model_request(&crate::context::ContextInput {
             cwd: &self.cwd,
@@ -567,7 +580,7 @@ impl Session {
                 tools: &self.tools(),
                 messages: &self.messages,
                 model: &self.model_capabilities,
-                memory: None,
+                memory: self.memory.as_ref(),
             };
             let request = crate::context::build_model_request(&context_input);
 

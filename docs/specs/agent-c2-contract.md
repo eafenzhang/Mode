@@ -412,6 +412,47 @@ extraction 请求到达时 `terminalCountAtArrival:1`、`lastEventTypeAtArrival:
 - `containsIndexSentinel:false`、`containsItemSentinel:false`；
 - 没有 memory extraction 请求。
 
+### 3.5 Rust C2 现状（T3，2026-11-17）
+
+T3 实现只读召回：`memoryEnabled` 来自宿主对 `session/requestRuntimePreferences`
+的应答（无 hub / 未应答时按保守默认关闭），`crates/agent-server/src/memory.rs`
+加载（fail-soft），`crates/agent-core/src/context.rs` 的记忆槽装配。与
+§3.1–§3.4 观察值的对照与偏差：
+
+- **注入面**：`# Memory` 段并入唯一的系统消息末尾（T1 槽位），agentsMd 块并入
+  请求里**首条 user 消息**文本的开头（reminder 之后空行接原 prompt）；
+  `memory: None` 与 C1 v0 装配逐字一致。
+- **请求形状**：保持 C1 的 `[System, User]` 装配。§3.2 观察的 provider 角色
+  `["user","system"]`（user 先、system 技能清单在后）与 user 消息的两个 text part
+  是 oracle 的 wire 形状，不在 provider 中立的 `ModelRequest` 层镜像（wire 投影归
+  T4/T5 适配层）；reminder 与 prompt 并入同一文本（单 text part）。
+- **注入文案**：`# Memory` 段与 agentsMd 块**逐字重建**自夹具
+  `memory-recall.json` 的录制文本（机器录制的数据契约，与 §1.3 摘要续接文本同一
+  口径，不是提示词创作），路径用真实目录替换（原生分隔符；`# Memory` 段路径带
+  尾随 `/`，agentsMd 标题带 `\MEMORY.md`）。`# currentDate` 的日期格式未观察
+  （夹具折叠 `<date>`），实现取 UTC 日历日 `YYYY-MM-DD`，登记为待观察假设。
+- **workspaceId**：hash 算法未观察（§3.1），实现不推导——扫描
+  `projects/` 下 `<slug(cwd 基名小写)>-<16 位小写 hex>` 形状的普通目录，恰好一个
+  命中才使用；零命中 / 多命中 fail-soft（不注入）。索引读取走 `project-memory`
+  公开 API（普通文件、无 symlink、大小写精确、5 MiB）。
+- **目录不创建**（与 §3.1 的偏差）：oracle 在 `memoryEnabled:true` 启用时创建记忆
+  目录；Rust 只读不创建。数据根没有 `memories/projects` 时（fresh root + enabled）
+  不注入，等价 `withoutMemoryFreshRoot` 的观察面（无 `# Memory`、无 agentsMd、
+  无 sentinel）。
+- **fail-soft**：目录缺失、workspaceId 歧义、`MEMORY.md` 缺失 / 不可读、超限
+  （5 MiB）一律不注入、turn 继续；错误不进模型上下文，不写 `turn.failed`。
+  `memoryEnabled:false` 时零文件读取（spec §5.1）。目录存在但 `MEMORY.md` 缺失 /
+  不可读的形态未观察，按同一 fail-soft 口径整体不注入（含 `# Memory` 段）。
+- **写路径缺口**（§3.3）：memory extraction 子代理**未实现**——T0 只观察到请求
+  形状，没有真实写入、写入频率、失败/回滚的观察；C2 不新增工具、不实现抽取
+  子代理。enabled 会话只有主请求 1 个模型请求；
+  `extractionInstruction` / `existingFilesBlock` 不产出。
+- **读取时机**：实现按 turn 读取（每 turn 装配前重读）；§3.2 的探针注释暗示
+  oracle 在 materialization 时读取。T0 没有「会话中途记忆文件变化」的可观察证据
+  （写路径未实现，文件不会变），两种时机当前不可区分，登记为解释口径。
+- **compact 请求**：不带记忆段（T2 的 compact 装配保持 `memory: None`）；带记忆
+  的 compact 请求未观察（§1.4 的 compact 观察没有记忆开关维度）。
+
 ## 4. `contextUsage` 与 `settings.model.available`
 
 ### 4.1 `session/create` 时刻

@@ -37,14 +37,27 @@ pub struct ContextInput<'a> {
     pub memory: Option<&'a MemorySection>,
 }
 
-/// 项目记忆上下文段（T1 只定义装配槽，T3 负责读取并构造内容）。
+/// 项目记忆上下文段（T1 定义装配槽，T3 负责读取并构造内容）。
 ///
-/// T0 观察：记忆是系统提示里的独立段（`# Memory`），索引优先、只读。T1 **不读**记忆
-/// 目录、不伪造内容；[`build_model_request`] 把它并入唯一的系统消息，因此请求里仍然
-/// 只有一条 `System` 消息，且同一内容不会出现两次。
+/// T0 观察（`agent-c2-contract.md` §3.2）：记忆注入有两片——
+/// 1. 系统提示里的独立 `# Memory` 段（[`MemorySection::content`]，T1 槽位：追加到
+///    唯一的系统消息末尾）；
+/// 2. **首条 user 消息**前缀的 `<system-reminder>` → `# agentsMd` 索引块
+///    （[`MemorySection::user_prefix`]，T3 增补：MEMORY.md 索引内容 + `# currentDate`，
+///    不是独立的 System 消息）。
+///
+/// T1 **不读**记忆目录、不伪造内容；[`build_model_request`] 把 `content` 并入唯一的
+/// 系统消息、把 `user_prefix` 并入请求里的第一条 user 消息文本，因此同一内容不会
+/// 出现两次。`user_prefix` 为空时不改写 user 消息（T1 的 `memory: None` 与
+/// `MemorySection::new(...)` 输出逐字不变）。
+///
+/// 与 oracle 观察的偏差（登记在 `agent-c2-contract.md` §3.5）：oracle 的 provider
+/// 请求角色是 `["user","system"]` 且 user 消息有两个 text part；本结构保持 C1 的
+/// `[System, User]` 装配与单文本 user 消息，reminder 与 prompt 并入同一文本。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemorySection {
     content: String,
+    user_prefix: String,
 }
 
 impl MemorySection {
@@ -52,12 +65,24 @@ impl MemorySection {
     pub fn new(content: impl Into<String>) -> Self {
         Self {
             content: content.into(),
+            user_prefix: String::new(),
         }
+    }
+
+    /// T3：附加首条 user 消息的前缀块（`# agentsMd` system-reminder；含尾换行）。
+    pub fn with_user_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.user_prefix = prefix.into();
+        self
     }
 
     /// 记忆正文（装配时原样追加到系统提示之后）。
     pub fn content(&self) -> &str {
         &self.content
+    }
+
+    /// 首条 user 消息的前缀块（空串 = 不注入，user 消息保持逐字不变）。
+    pub fn user_prefix(&self) -> &str {
+        &self.user_prefix
     }
 
     fn is_blank(&self) -> bool {
@@ -185,8 +210,13 @@ instructions, and report what you actually did. Never present guesses as verifie
 /// `input.messages` 已按发生顺序包含历史与本轮输入；这里不改写历史、不伪造 assistant
 /// 消息，也不重复插入系统提示。工具声明由 [`ToolSpec`] 映射而成。
 ///
-/// 记忆段并入唯一的系统消息（T0 观察：记忆是系统提示里的独立段，不是第二条 System
-/// 消息）；`memory: None` 或空白记忆与 C1 v0 的输出逐字一致。
+/// 记忆注入（T0 观察：`agent-c2-contract.md` §3.2）：
+/// - `content` 并入唯一的系统消息（记忆是系统提示里的独立段，不是第二条 System 消息）；
+/// - `user_prefix`（`# agentsMd` 索引块）并入请求里**第一条 user 消息**的文本开头，
+///   后接原 prompt——oracle 把 reminder 与 prompt 放在同一条 user 消息的两个 text
+///   part 里；本实现保持单文本消息，两段以空行分隔（偏差登记在契约 §3.5）。
+///
+/// `memory: None` 或空白记忆与 C1 v0 的输出逐字一致。
 pub fn build_model_request(input: &ContextInput<'_>) -> ModelRequest {
     let mut system = build_system_prompt(input);
     if let Some(memory) = input.memory {
@@ -197,7 +227,23 @@ pub fn build_model_request(input: &ContextInput<'_>) -> ModelRequest {
     }
     let mut messages = Vec::with_capacity(input.messages.len() + 1);
     messages.push(ModelMessage::System(system));
-    messages.extend(input.messages.iter().cloned());
+    // 首条 user 消息携带 agentsMd 前缀；其余消息逐字保留。
+    let mut pending_prefix = input
+        .memory
+        .map(|memory| memory.user_prefix())
+        .filter(|prefix| !prefix.is_empty());
+    for message in input.messages {
+        if let (Some(prefix), ModelMessage::User(text)) = (&mut pending_prefix, message) {
+            let mut combined = String::with_capacity(prefix.len() + text.len() + 1);
+            combined.push_str(prefix);
+            combined.push('\n');
+            combined.push_str(text);
+            messages.push(ModelMessage::User(combined));
+            pending_prefix = None;
+            continue;
+        }
+        messages.push(message.clone());
+    }
     ModelRequest {
         messages,
         tools: tool_definitions(input.tools),

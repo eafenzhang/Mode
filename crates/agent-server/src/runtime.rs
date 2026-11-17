@@ -1100,6 +1100,29 @@ async fn run_one_input(
             // 捕获进 async block 后重绑 `mut`：run_turn 需要 `&mut self` / `&mut sink`。
             let mut session = session;
             let mut recorder = recorder;
+            // C2 T3：本 turn 的项目记忆段。`memoryEnabled` 来自宿主对
+            // `session/requestRuntimePreferences` 的缓存应答（无 hub / 未应答时按
+            // 保守默认关闭）；读取是同步文件 IO，已在本阻塞线程上。任何失败
+            // fail-soft：不注入、turn 继续（`agent-c2-contract.md` §3）。
+            let memory_enabled = shared_for_turn
+                .preferences
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .as_ref()
+                .map(|preferences| preferences.memory_enabled)
+                .unwrap_or(false);
+            let memory = shared_for_turn
+                .read_config()
+                .data_root
+                .as_deref()
+                .and_then(|data_root| {
+                    crate::memory::load_memory_section(
+                        data_root,
+                        &shared_for_turn.record.directory,
+                        memory_enabled,
+                    )
+                });
+            session.set_memory(memory);
             let result = session
                 .run_turn(&content, provider.as_ref(), &mut recorder, &token)
                 .await;

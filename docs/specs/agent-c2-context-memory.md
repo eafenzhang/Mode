@@ -230,20 +230,58 @@ goal/target（C3）；自动重试/退避（C3）；官方平台/遥测（永久
 
 ### 5.2 召回（只读）
 
-- 数据面：`{dataRoot}/cli/memories/projects/<workspaceId>/memory/<file>`，沿用
+- 数据面：`{dataBaseDir}/.mode/cli/memories/projects/<workspaceId>/memory/<file>`
+  （`project-memory` 的 `dataRoot` 入参是 `<dataBaseDir>/.mode`），沿用
   `project-memory` crate 的安全规则（普通目录/文件、无 symlink、5 MiB、索引优先）。
-- 注入内容：`MEMORY.md` 索引 + 允许的项目记忆文件；必须标记为「项目记忆（只读）」，
-  不得伪装成用户指令。
-- 注入失败（目录缺失/读取失败/超限）fail-soft：记录日志/诊断，不阻断 turn；
+- 注入内容（T0 观察定稿，`agent-c2-contract.md` §3.2）：**只有 `MEMORY.md` 索引**
+  ——进入首条 user 消息的 `<system-reminder>` → `# agentsMd` 块（标题
+  `Contents of <索引路径> (user's auto-memory, persists across conversations):`，
+  其后是 `# currentDate`）；item 文件**不**进主请求
+  （`containsItemSentinel:false`）。系统提示另有独立的 `# Memory` 段（目录路径 +
+  使用说明）。item 的选择/召回规则未观察，C2 不自行发明。
+- 注入失败（目录缺失/workspaceId 歧义/读取失败/超限）fail-soft：不注入、turn 继续；
   不把错误写进模型上下文。
-- `workspaceId` 解析遵循 `workspaceIdentity?.trim() || workspacePath` 的同一 key 规则；
-  远程工作区的数据根归属由 Host 决定，C2 只使用传入的 data root。
+- `workspaceId` 与 `workspaceIdentity?.trim() || workspacePath` 的会话身份 key **不是
+  同一个东西**（T0：DB `session.workspace_id` 为 `null`、`project_id` 是 `proj_…`，
+  而记忆目录是 `<slug>-<16 hex>`）。目录的 workspaceId 形状是
+  `<cwd 基名小写>-<16 位小写 hex>`；hash 算法未观察，实现不推导——扫描
+  `projects/` 下匹配该形状的普通目录，恰好一个命中才使用（T3 实现口径，
+  `agent-c2-contract.md` §3.5）。远程工作区的数据根归属由 Host 决定，C2 只使用
+  传入的 data root。
 
 ### 5.3 写入边界
 
-- T0 必须先观察 oracle 是否存在「agent 写记忆」的路径（工具/方法/模型提取）。
-- 若观察到明确写入路径：按观察实现，写失败 fail-soft，不污染 turn；
-- 若无写入路径：C2 只做召回，把「写记忆」登记为 C4/C2.1 缺口，**不发明** memory 工具。
+- T0 观察（`agent-c2-contract.md` §3.3）：**存在** agent 写记忆路径——turn 终态后的
+  memory extraction 子代理（第二个模型请求，提示词把 Write/Edit 约束在记忆目录内，
+  列出 `Existing memory files`）；但 mock 只回文本，**未观察到真实写入**、写入
+  频率、失败/回滚语义。
+- C2 实现（T3）：只做召回，**不实现** extraction 子代理、不新增 memory 工具；
+  「实现抽取子代理」登记为 C2 缺口（`agent-c2-contract.md` §3.5），待后续以补充
+  观察（真实写入/失败路径）支撑。
+- oracle 在 `memoryEnabled:true` 启用时**创建**记忆目录；Rust 只读不创建（同 §3.5
+  偏差登记）：目录不存在即无记忆，fail-soft。
+
+### 5.4 T3 实现注记（2026-11-17）
+
+- `crates/agent-server/src/memory.rs`：`MemoryContext::load(data_root_mode, cwd, memory_enabled)`
+  是唯一入口（fail-soft，返回 `Option`）；`memory_enabled` 来自
+  `RuntimePreferences`（Task 8 缓存应答），关闭时零文件读取。worker 在每 turn 的
+  阻塞执行体上加载一次并 `Session::set_memory` 注入（读取是同步文件 IO）。
+- `crates/agent-core/src/context.rs`：`MemorySection` 增加首条 user 消息前缀槽
+  （`user_prefix`）；`build_model_request` 把 `content` 并入唯一系统消息末尾、把
+  `user_prefix` 并入请求首条 user 消息文本（reminder 之后空行接 prompt）。
+  `memory: None` 与 C1 v0 逐字一致；compact 装配保持 `memory: None`（带记忆的
+  compact 未观察）。
+- 注入文案（`# Memory` 段 + agentsMd 块）逐字重建自 `memory-recall.json` 录制文本
+  （数据契约），单元/集成测试与夹具做归一化逐字对照（分隔符差异按平台归一）；
+  路径用真实目录，`# currentDate` 日期取 UTC 日历日 `YYYY-MM-DD`（格式未观察，
+  契约 §3.5 登记为待观察假设）。
+- 测试：`crates/agent-server/tests/memory.rs`（enabled 注入形状与夹具对照、disabled
+  零注入、缺目录/歧义 slug/超限 fail-soft）+ `memory.rs` 单元测试（slug 扫描、
+  歧义、超限、夹具逐字对照）。
+- 38 条 C1 Rust 回放与既有 agent-core/agent-server 套件保持全绿；oracle 的
+  extraction 子代理、目录创建、`extractionInstruction` / `existingFilesBlock`
+  均不产出（缺口见 §5.3 与契约 §3.5）。
 
 ## 6. Fresh-install 迁移
 

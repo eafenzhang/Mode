@@ -18,6 +18,8 @@ agent-core = { path = "../agent-core" }
 agent-protocol = { path = "../agent-protocol" }
 indexmap = "2"
 model-selection = { path = "../model-selection" }
+# C2 T3：项目记忆只读召回（记忆目录扫描 + MEMORY.md 索引读取的安全规则都在该 crate）。
+project-memory = { path = "../project-memory" }
 provider-config = { path = "../provider-config" }
 provider-config-repository = { path = "../provider-config-repository" }
 provider-config-source = { path = "../provider-config-source" }
