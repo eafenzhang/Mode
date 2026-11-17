@@ -34,17 +34,17 @@
 
 ## Task 总览
 
-| ID  | 任务                    | 规模 | 依赖                          | 主要落点                                                           |
-| --- | ----------------------- | ---- | ----------------------------- | ------------------------------------------------------------------ |
-| T0  | C2 黑盒契约捕获         | M    | 无                            | `docs/specs/agent-c2-contract.md`、probes/fixtures                 |
-| T1  | 上下文预算 v1           | M    | T0（capabilities/usage 观察） | `agent-core/src/context.rs`、runtime/state                         |
-| T2  | Compact                 | L    | T0、T1                        | `agent-core/src/compact.rs`、`agent-server/src/methods/compact.rs` |
-| T3  | Memory recall           | M    | T0                            | `agent-server/src/memory.rs`、context 注入                         |
-| T4  | Anthropic Messages 适配 | L    | 无                            | `provider-http/src/anthropic_messages.rs`                          |
-| T5  | OpenAI Responses 适配   | L    | 无                            | `provider-http/src/openai_responses.rs`                            |
-| T6  | 快照/读面对齐           | M    | T1/T2/T3                      | `agent-server/src/{state,methods/projection}.rs`                   |
-| T7  | 空数据根迁移            | L    | T0（ledger 观察）             | `session-store/src/{migrations,schema}.rs`                         |
-| T8  | 对拍、smoke 与文档      | M    | 全部                          | replay harness、`tauri-agent-runtime.md` §C2                       |
+| ID  | 任务                    | 规模 | 依赖                          | 主要落点                                                           | 状态 |
+| --- | ----------------------- | ---- | ----------------------------- | ------------------------------------------------------------------ | ---- |
+| T0  | C2 黑盒契约捕获         | M    | 无                            | `docs/specs/agent-c2-contract.md`、probes/fixtures                 | 完成（2026-11-17） |
+| T1  | 上下文预算 v1           | M    | T0（capabilities/usage 观察） | `agent-core/src/context.rs`、runtime/state                         | 完成（2026-11-17） |
+| T2  | Compact                 | L    | T0、T1                        | `agent-core/src/compact.rs`、`agent-server/src/methods/compact.rs` | 完成（2026-11-17，T2a/T2b） |
+| T3  | Memory recall           | M    | T0                            | `agent-server/src/memory.rs`、context 注入                         | 完成（2026-11-17，复核 11-18） |
+| T4  | Anthropic Messages 适配 | L    | 无                            | `provider-http/src/anthropic_messages.rs`                          | 完成（2026-11-17） |
+| T5  | OpenAI Responses 适配   | L    | 无                            | `provider-http/src/openai_responses.rs`                            | 完成（2026-11-17） |
+| T6  | 快照/读面对齐           | M    | T1/T2/T3                      | `agent-server/src/{state,methods/projection}.rs`                   | 完成（2026-11-18） |
+| T7  | 空数据根迁移            | L    | T0（ledger 观察）             | `session-store/src/{migrations,schema}.rs`                         | 完成（2026-11-18） |
+| T8  | 对拍、smoke 与文档      | M    | 全部                          | replay harness、`tauri-agent-runtime.md` §C2                       | 完成（2026-11-18） |
 
 **波次**：Wave 0 = T0；Wave 1 = T1 + T4 + T5；Wave 2 = T2 + T3 + T7；Wave 3 = T6；
 Wave 4 = T8。T7 可在 T0 账本录制后与 T2/T3 并行（不同 crate）。
@@ -214,6 +214,12 @@ Wave 4 = T8。T7 可在 T0 账本录制后与 T2/T3 并行（不同 crate）。
 本地 SSE + 真实端点 smoke（人工凭据）；差异表收缩；门禁全跑。
 
 **验收**：C2 夹具全绿 + C1 38/38；smoke 有人执行并记录；差异表与代码一致；门禁真实通过。
+
+**完成记录（2026-11-18）**：C2 回放 harness（`replay-c2.mts` + 9 条用例）全绿；
+C1 38/38 保持（套件仅余 3 条已登记 session-stream 基线红）；真实端点 smoke 脚本
+`scripts/agent-c2-smoke.mts` 就绪（opt-in，env 凭据），**未执行**——需要人工提供
+真实端点凭据（§9.8 如实登记）；差异表 `tauri-agent-runtime.md` §C2.8 与代码一致，
+并收录 T8 新发现的 C1 时代 DB 层未对齐面。
 
 ---
 
