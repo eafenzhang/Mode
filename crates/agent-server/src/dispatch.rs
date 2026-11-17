@@ -7,8 +7,8 @@
 //! - 会话注册表 `HashMap<sessionId, Arc<SessionRuntime>>` 与共享 [`SessionStore`]
 //!   （单写者：crate 文档的锁纪律）。
 //!
-//! session 方法归 `crate::methods`；未知/未实现方法（含 `session/compact`、
-//! `session/goal`）显式 `-32601`，不返回空结果。stdio 循环与帧契约归
+//! session 方法归 `crate::methods`；未知/未实现方法（含 `session/goal`）
+//! 显式 `-32601`，不返回空结果。stdio 循环与帧契约归
 //! [`crate::server`]，本模块不复制。
 
 use std::collections::HashMap;
@@ -395,6 +395,7 @@ impl AgentServer {
             crate::methods::SESSION_SET_MODE_METHOD => {
                 methods::setters::handle_set_mode(self, params)
             }
+            crate::methods::SESSION_COMPACT_METHOD => methods::compact::handle(self, params),
             _ => Err(ServerError::method_not_found(method)),
         }
     }

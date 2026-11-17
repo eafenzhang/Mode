@@ -16,10 +16,11 @@ use agent_protocol::session_read::{
     SessionInfo, SessionKind, SessionMode, SessionModel, SessionStatus, SessionWorkspaceRef,
 };
 use agent_protocol::snapshot::{
-    ContextCacheUsage as ProtocolContextCacheUsage, ContextCost as ProtocolContextCost,
-    ProtocolInfo, ProtocolName, SessionContextUsage, SessionLastError, SessionModeSettings,
-    SessionModelSettings, SessionProjection, SessionRuntimeState, SessionSettings,
-    SessionStateSnapshot, ThoughtLevelOption, ThoughtLevelSettings,
+    ActiveTurnKind, ContextCacheUsage as ProtocolContextCacheUsage,
+    ContextCost as ProtocolContextCost, ProtocolInfo, ProtocolName, SessionContextUsage,
+    SessionLastError, SessionModeSettings, SessionModelSettings, SessionProjection,
+    SessionRuntimeState, SessionSettings, SessionStateSnapshot, ThoughtLevelOption,
+    ThoughtLevelSettings,
 };
 use serde_json::Number;
 use session_store::SessionRecord;
@@ -33,6 +34,18 @@ pub(crate) enum RuntimeStatus {
     Running,
     /// 最近一次 turn 以 provider 错误结束；下一条输入仍可提交。
     Error,
+}
+
+/// worker 正在执行的输入种类（compact 与 prompt 的拒绝/快照语义不同）。
+///
+/// - `-32010 Cannot compact while a prompt is running` 只在 [`Self::Prompt`] 时触发；
+/// - compact 执行窗口的快照带 `activeTurnKind:"compact"`（`agent-c2-contract.md` §1.6）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TurnKind {
+    /// 普通 prompt turn。
+    Prompt,
+    /// compact turn。
+    Compact,
 }
 
 impl RuntimeStatus {
@@ -176,6 +189,9 @@ pub(crate) struct LiveView {
     pub event_seq: u64,
     /// `runtime.contextUsage`；没有任何模型请求时为 `None`（create 快照不带该键）。
     pub context_usage: Option<ContextUsage>,
+    /// 活跃 turn（compact 执行窗口；观察值 `activeTurnId` + `activeTurnKind:"compact"`）。
+    /// 常规 prompt turn 不产出该事实（归 T6 快照补齐，登记在契约「Rust C2 现状」）。
+    pub active_turn: Option<(String, TurnKind)>,
 }
 
 /// `mode` 字符串 → 协议枚举。未登记的取值按 `build` 落（与 DB `permission.mode`
@@ -298,8 +314,14 @@ pub(crate) fn build_snapshot(
             event_seq: live.event_seq,
             state_revision: live.revision,
             delivery_kind: None,
-            active_turn_id: None,
-            active_turn_kind: None,
+            active_turn_id: live
+                .active_turn
+                .as_ref()
+                .map(|(turn_id, _)| turn_id.clone()),
+            active_turn_kind: live.active_turn.as_ref().map(|(_, kind)| match kind {
+                TurnKind::Prompt => ActiveTurnKind::Regular,
+                TurnKind::Compact => ActiveTurnKind::Compact,
+            }),
             pending_request_ids: Vec::new(),
             api_retry: None,
             context_usage: live.context_usage.as_ref().map(project_context_usage),

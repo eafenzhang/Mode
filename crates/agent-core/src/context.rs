@@ -9,9 +9,11 @@
 //! 产生的那一条）。
 //!
 //! C2 T1 在这里定义预算/裁剪的纯函数（[`ContextBudget`] / [`trim_messages`]）与
-//! 快照用量的纯类型（[`ContextUsage`]）。T1 **不**把它们接进请求装配：T0 没有观察到
-//! 自动 compact 阈值，裁剪由 T2 在 compact 路径上消费 `compact_needed`；请求装配只在
-//! 传入 [`MemorySection`] 时追加记忆段，`memory: None` 与 C1 v0 逐字一致。
+//! 快照用量的纯类型（[`ContextUsage`]）。它们**不**接进请求装配：T0 没有观察到自动
+//! compact 阈值（15 轮 / 1.4M 字符历史仍未触发，`agent-c2-contract.md` §2），
+//! `trim_messages.compact_needed` 到 T2 仍是**只暴露的标志**，不触发任何自动动作
+//! （登记在 `agent-c2-context-memory.md` §3）；请求装配只在传入 [`MemorySection`] 时
+//! 追加记忆段，`memory: None` 与 C1 v0 逐字一致。
 
 use agent_tools::ToolSpec;
 use serde_json::Number;
@@ -214,7 +216,8 @@ pub fn build_model_request(input: &ContextInput<'_>) -> ModelRequest {
 /// - 不修改输入、无随机性：同一输入与预算重复调用结果相同。
 ///
 /// 估算口径：4 字符 ≈ 1 token（向上取整），只用于本地预算判断，不冒充 provider
-/// 报告的 usage。T1 不自动调用本函数（T2 消费 `compact_needed`）。
+/// 报告的 usage。没有任何任务自动调用本函数：`compact_needed` 只是暴露给调用方的
+/// 标志（自动 compact 未观察到，见 `agent-c2-contract.md` §2）。
 pub fn trim_messages(messages: &[ModelMessage], budget: ContextBudget) -> TrimmedHistory {
     let groups = history_groups(messages);
     let total_tokens: u64 = groups
@@ -328,6 +331,15 @@ fn history_groups(messages: &[ModelMessage]) -> Vec<HistoryGroup> {
         }
     }
     groups
+}
+
+/// 估算整段历史的本地 token 数（4 字符 ≈ 1 token，与 [`trim_messages`] 同口径）。
+///
+/// C2 T2 用它填 compact 落库行的 `preCompactTokenCount`（本地估算，不冒充 provider
+/// usage；口径登记在 `agent-c2-contract.md` 的「Rust C2 现状」注记）。不修改输入、
+/// 无随机性：同一输入重复调用结果相同。
+pub fn estimate_history_tokens(messages: &[ModelMessage]) -> u64 {
+    messages.iter().map(estimate_message_tokens).sum()
 }
 
 /// 粗略 token 估算：4 字符 ≈ 1 token（向上取整）。

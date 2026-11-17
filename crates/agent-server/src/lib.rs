@@ -9,8 +9,8 @@
 //! `session/subscribe` 的 live 转发；Task 8 接入反向请求（[`ReverseHub`]：审批
 //! `interaction/requestPermission`、偏好 `session/requestRuntimePreferences`、账号
 //! 凭据 `interaction/requestProviderRuntimeHeaders`；pending 应答/超时/关闭均
-//! fail-closed）。未支持的方法（含 `session/compact`、`session/goal`）显式返回
-//! `-32601`。
+//! fail-closed）。C2 T2 接入 `session/compact`（per-session 单飞受理 + worker 上的
+//! 摘要执行）；未支持的方法（含 `session/goal`）显式返回 `-32601`。
 //!
 //! 行为依据：`docs/specs/agent-core-parity.md` §2/§5.4、
 //! `docs/specs/mode-protocol-client.md`「帧」、`docs/specs/agent-process.md`

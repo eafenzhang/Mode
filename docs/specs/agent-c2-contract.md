@@ -256,6 +256,31 @@ preCompactTokenCount, replace:true, startedAt, endedAt}` + `turn.completed`
   `http://127.0.0.1:1` 后 compact 仍使用原 mock（配置在运行时物化时缓存），因此只能
   录制「provider 响应不可用」这一类失败（见 §6）。
 
+### 1.9 Rust C2 现状（T2a，2026-11-17）
+
+T2a 只交付 `session/compact` 的正常路径；以下是与 §1.1–§1.4 观察值的实现注记，
+并发/失败形态（§1.6/§1.8）的验收归 T2b。
+
+- **受理快照**：`accepted` 应答的 `snapshot` 在受理临界区内构造，是**请求时**状态
+  （与 §1.7 一致）；C1 的最小快照没有 `messages`/`breakdown`，本切片不补。受理推进
+  一次 `stateRevision`，终态再推进一次（oracle 只观察到受理后的 10 → 11；终态 +1
+  沿用 C1 的「每次接受/终态推进」规则）。
+- **事件面**：Rust 产出 `turn.started` → `turn.completed`（成功）两条；oracle 的
+  `session.updated`（`status:"started"`、`model_request_started/completed`、边界、
+  `status:"completed"`）不在本切片产出面，与 C1 的「登记缺省事件类型」同一口径。
+- **`preCompactTokenCount`**：本地历史估算（4 字符 ≈ 1 token，与 `trim_messages`
+  同口径），不是 provider usage；`truePostCompactTokenCount = pre + post` 是可复算
+  的本地定义（oracle 的公式未观察）。`postCompactTokenCount` 取 compact 请求的
+  provider total。
+- **摘要行 `tools`**：夹具只保留「对象」这一事实（折叠为 `<tool-flags>`），键集合
+  未观察；Rust 写空对象占位，不冒充具体工具开关。
+- **生成 id**：`operationId`/`boundaryId`/`traceId`/`spanId`/摘要消息 id 均为运行时
+  生成的非空 id，只对齐夹具的「非空 id」形状；`compact.operationId` 仍恒省略。
+- **`session.time_compacting`**：整个窗口与终态后保持 `null`（§1.3 观察值）。
+- **自动 compact**：未实现（§2 观察为「未触发」）；长历史 turn 只做普通模型请求。
+- **摘要续接文本**与 `summary.body`：前者逐字复用夹具的固定前缀/后缀，后者是模型
+  返回原文；`session_entry` 不新增行，`session_input` 保持 0 行。
+
 ## 2. 自动 compact（长历史观察）
 
 `probe-c2-auto-compact.mts`：脚本化 provider 每轮返回 100000 字符正文，连续 15 轮，

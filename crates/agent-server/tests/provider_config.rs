@@ -923,9 +923,9 @@ fn dispatch_wires_provider_update_account_config() {
         .expect_err("非法参数");
     assert_eq!(error.code(), -32602);
 
-    // compact / goal 明确不在 C1 方法表内，保持显式 -32601（Task 7 接入其余 session 面）。
+    // C2 T2 已接入 session/compact（tests/compact.rs）；goal 与其余未接入方法保持
+    // 显式 -32601（Task 7 接入其余 session 面）。
     for method in [
-        "session/compact",
         "session/goal",
         "provider/unknown",
         "provider/updatePersonalConfig",

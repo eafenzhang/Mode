@@ -47,24 +47,30 @@ use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_core::command_inbox::{CommandInbox, Completion};
+use agent_core::compact::{compact_prompt, summary_continuation, validate_compact_response};
 use agent_core::context::{ContextCacheUsage, ContextUsage};
+use agent_core::provider::{ModelDelta, ModelMessage, ProviderError};
 use agent_core::session::Session;
 use agent_core::{
-    CancelToken, EventSink, ModelProvider, ModelUsage, SessionEvent, SessionEventType,
+    estimate_history_tokens, CancelToken, EventSink, ModelProvider, ModelUsage, SessionEvent,
+    SessionEventType, SUMMARY_TITLE,
 };
 use agent_protocol::session_event::{
-    ModelStreamingKind, ModelStreamingPayload, ToolUpdatedPayload, TurnCompletedPayload,
+    CacheStats, ModelStreamingKind, ModelStreamingPayload, ProtocolErrorDetail, ToolUpdatedPayload,
+    TurnCompletedPayload, TurnFailedPayload, TurnResultType,
 };
+use agent_protocol::session_write::SessionCompactParams;
+use agent_protocol::ExtraFields;
 use serde_json::{json, Value};
 use session_store::{
-    MessageRecord, MessageWithParts, PartRecord, SessionRecord, SessionStore, ToolUsageRecord,
-    TurnUsageRecord,
+    MessageRecord, MessageWithParts, ModelUsageRecord, PartRecord, SessionRecord, SessionStore,
+    ToolUsageRecord, TurnUsageRecord,
 };
 
 use crate::reverse::{RuntimePreferences, RuntimeWiring};
 use crate::state::{
     build_snapshot, fresh_id, Accepted, LiveView, RuntimeConfig, RuntimeError, RuntimeStatus,
-    SessionInput,
+    SessionInput, TurnKind,
 };
 
 /// provider 装配的会话上下文（Task 8）：账号型 provider 的宿主钩子
@@ -105,6 +111,124 @@ pub trait ProviderSource: Send + Sync {
 struct QueuedInput {
     input: SessionInput,
     input_id: String,
+    /// `Some` = compact 任务（`input.content` 是 `"/compact …"` 展示串；
+    /// prompt 任务恒 `None`）。
+    compact: Option<CompactJob>,
+}
+
+/// 一个已受理的 compact 任务（进入 worker 队列的事实）。
+#[derive(Debug, Clone)]
+struct CompactJob {
+    /// 生效 inputId（回显 / `turn.started.inputId` / `sourceCommandId`）。
+    input_id: String,
+    /// 用户附加指令（`None` → `turn.started.input` 是 `"/compact"`）。
+    instructions: Option<String>,
+    /// 受理时的已结算 compact 数：执行时该值更小 → 排队期间已有 compact 结算 →
+    /// 本次按观察到的 `skipped` 形状执行（`agent-c2-contract.md` §1.6 trial 4）。
+    settled_at_enqueue: u64,
+}
+
+/// compact 协调器的执行相位（per-session 单飞的状态面）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum CompactPhase {
+    /// 没有已受理的 compact。
+    #[default]
+    Idle,
+    /// 已受理、尚未进入执行（可能有多条排队）。
+    Queued,
+    /// 正在执行（此时第二个请求返回 `already_running`）。
+    Running,
+}
+
+/// per-session compact 协调器：单飞受理 + 两种观察形状的状态机。
+///
+/// 状态迁移（`agent-c2-contract.md` §1.6；时序依赖见契约「Rust C2 现状」注记）：
+///
+/// ```text
+/// Idle ──accept──> Queued ──run_compact 入口──> Running ──终态──> Queued(还有排队) / Idle
+///   ↑                  ↑
+///   └── already_running 只在 Running；accept 只在 Idle/Queued（排队中的第二单受理后
+///       最终以 skipped 终态执行——两种形状都来自这一个状态机）
+/// ```
+#[derive(Debug, Default)]
+struct CompactCoordinator {
+    phase: CompactPhase,
+    /// 已受理但尚未进入执行的任务数（`Running` 期间 accept 被拒，不增）。
+    pending: usize,
+    /// 已结算的 compact 数（成功 / skipped 计数；失败与配置失败不计——失败不改变
+    /// 上下文，排队中的下一单仍应完整执行）。
+    settled_ok: u64,
+    /// 执行中的 compact turn id（快照 `activeTurnId` 的事实源）。
+    running_turn_id: Option<String>,
+}
+
+impl CompactCoordinator {
+    /// 受理一单（只在 `Idle`/`Queued` 调用）。
+    fn on_accept(&mut self) {
+        self.pending += 1;
+        self.phase = CompactPhase::Queued;
+    }
+
+    /// worker 取到任务（尚未进入执行；provider 装配窗口内相位仍是 `Queued`）。
+    fn on_pickup(&mut self) {
+        self.pending = self.pending.saturating_sub(1);
+    }
+
+    /// `run_compact` 入口：进入执行（`already_running` 的判定点）。
+    fn on_started(&mut self, turn_id: &str) {
+        self.phase = CompactPhase::Running;
+        self.running_turn_id = Some(turn_id.to_string());
+    }
+
+    /// 任务终态：`settled=true`（成功 / skipped）时结算计数；相位回 `Queued`/`Idle`。
+    fn on_settled(&mut self, settled: bool) {
+        if settled {
+            self.settled_ok += 1;
+        }
+        self.running_turn_id = None;
+        self.phase = if self.pending > 0 {
+            CompactPhase::Queued
+        } else {
+            CompactPhase::Idle
+        };
+    }
+
+    fn is_running(&self) -> bool {
+        self.phase == CompactPhase::Running
+    }
+
+    /// 排队期间是否已有 compact 结算（→ 本次执行走 `skipped` 形状）。
+    fn skip_due(&self, settled_at_enqueue: u64) -> bool {
+        settled_at_enqueue < self.settled_ok
+    }
+}
+
+/// `session/compact` 受理结果（应答 `compact.state` 的两支）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CompactAccept {
+    /// 已受理：进入 worker 队列，异步执行（新 revision 由应答快照带出）。
+    Accepted { input_id: String },
+    /// 已有 compact 在执行：不入队、不动 revision（观察：trial 1–3）。
+    AlreadyRunning { input_id: String },
+}
+
+/// `session/compact` 的显式拒绝面（JSON-RPC 错误，零事件零落库）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CompactReject {
+    /// `-32009` revision 冲突（`data` 带 `actualRevision`/`expectedRevision`）。
+    RevisionConflict { expected: u64, current: u64 },
+    /// `-32010` 有 prompt turn 正在执行。
+    PromptRunning,
+    /// worker 队列已关闭。
+    RuntimeClosed,
+}
+
+/// `"/compact"` 展示串（`turn.started.input` 的观察形状，契约 §1.1）。
+fn compact_display(instructions: Option<&str>) -> String {
+    match instructions {
+        Some(instructions) => format!("/compact {instructions}"),
+        None => "/compact".to_string(),
+    }
 }
 
 /// 一次模型请求的用量快照（`used`/`cache` 的事实面）。
@@ -229,6 +353,10 @@ struct Live {
     inbox: CommandInbox,
     /// 当前运行中 turn 的取消令牌；`None` = 空闲。
     current_cancel: Option<CancelToken>,
+    /// worker 正在执行的输入种类（`None` = 取到输入前/终态后的窗口）。
+    current_kind: Option<TurnKind>,
+    /// per-session compact 协调器（C2 T2 单飞受理与 `already_running`/`skipped` 状态机）。
+    compact: CompactCoordinator,
     /// `runtime.contextUsage` 的累计事实（最近一次请求 + 会话请求总数/缓存合计）。
     usage: UsageAccounting,
 }
@@ -350,6 +478,8 @@ impl SessionRuntime {
                 seen_inputs: HashMap::new(),
                 inbox: CommandInbox::new(),
                 current_cancel: None,
+                current_kind: None,
+                compact: CompactCoordinator::default(),
                 usage,
             }),
             config: RwLock::new(config),
@@ -431,6 +561,7 @@ impl SessionRuntime {
             .send(QueuedInput {
                 input,
                 input_id: input_id.clone(),
+                compact: None,
             })
             .map_err(|_| RuntimeError::RuntimeClosed)?;
         live.seen_inputs.insert(input_id, accepted.clone());
@@ -560,6 +691,15 @@ impl SessionRuntime {
     /// （历史消息由 Task 7 的 `session/read` / `session/resume` 从 store 投影）。
     pub fn snapshot(&self) -> agent_protocol::snapshot::SessionStateSnapshot {
         let live = self.shared.lock();
+        self.snapshot_locked(&live)
+    }
+
+    /// 锁内构造快照（`session/compact` 应答与 [`Self::snapshot`] 共用）。
+    ///
+    /// compact 的应答快照必须在**受理的同一临界区**里取：受理后 worker 才可能进入
+    /// 执行，因此 `accepted` 应答的 `activeTurnId` 恒缺席、`already_running` 应答的
+    /// 恒存在（与夹具 §1.6/§1.7 的时序一致，不依赖调度竞态）。
+    fn snapshot_locked(&self, live: &Live) -> agent_protocol::snapshot::SessionStateSnapshot {
         let config = self.shared.read_config();
         let view = LiveView {
             status: live.status,
@@ -570,8 +710,84 @@ impl SessionRuntime {
             total_token_count: live.total_token_count,
             event_seq: live.event_seq,
             context_usage: live.usage.context_usage(config.capabilities.context_window),
+            active_turn: live
+                .compact
+                .running_turn_id
+                .clone()
+                .map(|turn_id| (turn_id, TurnKind::Compact)),
         };
         build_snapshot(&self.shared.record, &config, &view)
+    }
+
+    /// `session/compact` 的受理入口（C2 T2；契约 §1.1/§1.6）。
+    ///
+    /// 在**同一把 `Live` 锁**内完成：`expectedRevision` 校验 → 单飞判定
+    /// （执行中 → `already_running`）→ prompt 执行中 → `-32010` → 受理入队并推进
+    /// revision。冲突/拒绝路径零事件、零落库、revision 不动；受理路径先入队再改
+    /// 状态（worker 取任务也要拿这把锁，两步之间不可能被插队）。
+    ///
+    /// 返回值带应答快照（见 [`Self::snapshot_locked`] 的时序说明）。
+    pub(crate) fn request_compact(
+        &self,
+        params: &SessionCompactParams,
+    ) -> Result<
+        (
+            CompactAccept,
+            agent_protocol::snapshot::SessionStateSnapshot,
+        ),
+        CompactReject,
+    > {
+        let mut live = self.shared.lock();
+        // 乐观并发：冲突先于一切状态判定（契约 §1.1：错误应答、零事件零落库）。
+        if let Some(expected) = params.expected_revision {
+            if expected != live.revision {
+                return Err(CompactReject::RevisionConflict {
+                    expected,
+                    current: live.revision,
+                });
+            }
+        }
+        let input_id = params
+            .input_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| fresh_id("in"));
+        // 单飞：已有 compact 在执行 → already_running（不动 revision，不入队）。
+        if live.compact.is_running() {
+            let snapshot = self.snapshot_locked(&live);
+            return Ok((CompactAccept::AlreadyRunning { input_id }, snapshot));
+        }
+        // prompt 正在执行 → -32010（compact turn 执行中不走这支：相位已是 Running）。
+        if live.current_kind == Some(TurnKind::Prompt) {
+            return Err(CompactReject::PromptRunning);
+        }
+        let settled_at_enqueue = live.compact.settled_ok;
+        let job = CompactJob {
+            input_id: input_id.clone(),
+            instructions: params.instructions.clone(),
+            settled_at_enqueue,
+        };
+        let display = compact_display(job.instructions.as_deref());
+        let item = QueuedInput {
+            input: SessionInput {
+                input_id: Some(job.input_id.clone()),
+                content: display,
+                expected_revision: None,
+            },
+            input_id: job.input_id.clone(),
+            compact: Some(job),
+        };
+        // 先入队、后改状态：worker 取任务需要 `live` 锁，本临界区内不会被插队；
+        // 入队失败（worker 已退出）时不留下半截受理状态。
+        if self.queue.send(item).is_err() {
+            return Err(CompactReject::RuntimeClosed);
+        }
+        live.compact.on_accept();
+        live.revision += 1;
+        let snapshot = self.snapshot_locked(&live);
+        Ok((CompactAccept::Accepted { input_id }, snapshot))
     }
 
     /// 会话记录（方法层构造冷/热快照的 session 信息用）。
@@ -650,6 +866,16 @@ async fn worker_loop(
             let mut live = shared.lock();
             live.status = RuntimeStatus::Running;
             live.current_cancel = Some(cancel.clone());
+            live.current_kind = Some(if item.compact.is_some() {
+                TurnKind::Compact
+            } else {
+                TurnKind::Prompt
+            });
+            // compact 任务：先记「已取到」（相位仍可能是 Queued——provider 装配窗口内
+            // 第二个 compact 仍会被受理为排队，见 `CompactCoordinator` 注释）。
+            if item.compact.is_some() {
+                live.compact.on_pickup();
+            }
         }
         if let Some(reverse) = &reverse {
             if !user_execution_requested {
@@ -735,10 +961,14 @@ async fn worker_loop(
             }
         };
         match provider {
+            Some(provider) if item.compact.is_some() => {
+                session = run_compact(session, &shared, &store, provider, item).await;
+            }
             Some(provider) => {
                 session = run_one_input(session, &shared, &store, provider, item, cancel).await;
             }
-            // 没有配置模型：显式配置错误，不启动模型请求。
+            // 没有配置模型：显式配置错误，不启动模型请求（compact 任务同样走这支，
+            // 终态是带 `"/compact …"` 展示串的 `turn.failed`；协调器在收口处复位）。
             None => {
                 run_configuration_failure(
                     &mut session,
@@ -769,6 +999,10 @@ impl Drop for DrainGuard {
 /// `turn_usage(failed)` 记零值（没有任何模型请求可累计）。终态恰好一条，
 /// 与正常 turn 走同一套 publish / 状态收口。取消令牌由 worker 在取到输入时登记
 /// （本路径的 turn 即刻失败，令牌只随 `current_cancel` 清空）。
+///
+/// compact 任务的配置失败（C2 T2）：`turn.started` 用 `"/compact …"` 展示串且
+/// **不写 user message 行**（compact 没有 `session_input`/user 行，契约 §1.3）；
+/// 协调器按「失败不结算」复位（排队中的下一单仍完整执行）。
 async fn run_configuration_failure(
     session: &mut Session,
     shared: &Arc<Shared>,
@@ -779,7 +1013,11 @@ async fn run_configuration_failure(
 ) {
     let _ = cancel;
     let mut recorder = TurnRecorder::new(Arc::clone(shared), Arc::clone(store), item);
-    let started = session.begin_turn(&item.input.content);
+    let started = if item.compact.is_some() {
+        session.begin_compact_turn(&item.input.content, &item.input_id)
+    } else {
+        session.begin_turn(&item.input.content)
+    };
     let turn_id = started.turn_id.clone();
     recorder.emit(started);
     // 先落 usage 行再发布终态（最终评审 I3）：订阅者看到 `turn.failed` 时，
@@ -794,10 +1032,16 @@ async fn run_configuration_failure(
 
     let mut live = shared.lock();
     live.current_cancel = None;
+    live.current_kind = None;
     let completion = live.inbox.complete(&shared.record.id, &item.input_id);
     live.turn_count += 1;
     live.revision += 1;
     live.updated_at = now_ms();
+    if item.compact.is_some() {
+        // compact 的配置失败没有进入 `run_compact`：相位仍是 Queued，这里直接复位
+        // （`settled=false`：失败不改变上下文，排队中的下一单照常完整执行）。
+        live.compact.on_settled(false);
+    }
     // 与 `run_one_input` 的失败分支同形（失败恒 Error；Stale 不动状态），
     // 保证两条收口路径的口径一致。
     live.status = match completion {
@@ -876,6 +1120,7 @@ async fn run_one_input(
             };
             let mut live = shared_for_turn.lock();
             live.current_cancel = None;
+            live.current_kind = None;
             // running 完成对账；迟到的 complete 由 CommandInbox 自己挡（Stale 不动队列）。
             let completion = live.inbox.complete(&session_id, &input_id);
             live.turn_count += 1;
@@ -901,6 +1146,987 @@ async fn run_one_input(
     session
 }
 
+/// compact 成功时 `turn.completed.response` 的观察值（契约 §1.2）。
+const COMPACTED_RESPONSE: &str = "Compacted";
+/// compact `skipped` 终态的观察值（契约 §1.6 trial 4）。
+const COMPACT_SKIPPED_RESPONSE: &str = "Context is up to date; no compression needed";
+
+/// 跑一个 compact 任务（与 turn 同一 worker 队列串行执行）。
+///
+/// 事件面（契约 §1.2/§1.6/§1.8 的可产出子集）：`turn.started` → 成功
+/// `turn.completed("Compacted")` / 失败 `turn.failed` / 跳过
+/// `turn.completed("Context is up to date…")`。oracle 的 `session.updated` 推送
+/// （状态、`model_request_*`、边界）不在 Rust 产出面——`session.updated` 是 C1 起的
+/// 登记缺省事件类型，登记在契约「Rust C2 现状」；`model.streaming` 同样不产出
+/// （观察的 compact 事件序列里没有它）。
+///
+/// 执行体与 [`run_one_input`] 同构：连同落库收口放在 `spawn_blocking` 线程上经
+/// `Handle::block_on` 驱动（落库是同步 sqlite 短事务，不占 tokio worker）。
+/// **不响应取消**：compact 没有观察到的取消语义（契约 §6 未记录），`close` 通过
+/// 等待 compact 自然完成来 drain。
+async fn run_compact(
+    session: Session,
+    shared: &Arc<Shared>,
+    store: &Arc<SessionStore>,
+    provider: Arc<dyn ModelProvider>,
+    item: QueuedInput,
+) -> Session {
+    let handle = tokio::runtime::Handle::current();
+    let shared_for_compact = Arc::clone(shared);
+    let store = Arc::clone(store);
+    tokio::task::spawn_blocking(move || {
+        handle.block_on(run_compact_blocking(
+            session,
+            shared_for_compact,
+            store,
+            provider,
+            item,
+        ))
+    })
+    .await
+    .expect("compact 执行任务不应 panic")
+}
+
+/// compact 执行体（阻塞线程上的 async 主体；见 [`run_compact`]）。
+async fn run_compact_blocking(
+    mut session: Session,
+    shared: Arc<Shared>,
+    store: Arc<SessionStore>,
+    provider: Arc<dyn ModelProvider>,
+    item: QueuedInput,
+) -> Session {
+    let job = item
+        .compact
+        .clone()
+        .expect("run_compact 只处理 compact 队列项");
+    let display = item.input.content.clone();
+    let session_id = shared.record.id.clone();
+    let started_at = now_ms();
+    let wall_started = std::time::Instant::now();
+
+    // turn.started（不写行）→ 同一把锁里切入 Running（`already_running` 判定点）
+    // 并在**开始时**推进 turnCount（观察：already_running 应答的 projection.turnCount
+    // 已含本 compact turn，契约 §1.6 trial 1；终态不再 +1）。
+    let started = session.begin_compact_turn(&display, &job.input_id);
+    let turn_id = started
+        .turn_id
+        .clone()
+        .expect("begin_compact_turn 已设置 turn id");
+    {
+        let mut live = shared.lock();
+        live.compact.on_started(&turn_id);
+        live.turn_count += 1;
+        live.updated_at = started_at;
+    }
+    shared.publish(&started);
+
+    // —— 事实采集（终态行与判定的输入）——
+    let history = session.messages().to_vec();
+    let pre_tokens = estimate_history_tokens(&history);
+    let summarized_count = history.len() as u64;
+    let prior_tool_history = history
+        .iter()
+        .any(|message| matches!(message, ModelMessage::ToolResult { .. }));
+    let config = shared.read_config();
+    let last_summarized_message_id = store
+        .messages(&session_id, None, Some(1))
+        .ok()
+        .and_then(|rows| rows.last().map(|row| row.message.id.clone()));
+    // 排队期间已有 compact 结算 → 本次按观察到的 `skipped` 形状执行（单飞状态机的
+    // 第二种真实结果；触发时序依赖登记在契约「Rust C2 现状」）。
+    let skip = {
+        let live = shared.lock();
+        live.compact.skip_due(job.settled_at_enqueue)
+    };
+
+    let facts = CompactFacts {
+        session_id: session_id.clone(),
+        directory: shared.record.directory.clone(),
+        task_type: shared.record.task_type.clone(),
+        turn_id: turn_id.clone(),
+        input_id: job.input_id.clone(),
+        operation_id: fresh_id("op"),
+        boundary_id: fresh_id("boundary"),
+        started_at,
+        ended_at: now_ms(),
+        pre_tokens,
+        post_tokens: 0,
+        summarized_count,
+        custom_instructions: job.instructions.is_some(),
+        provider_id: config.provider_id.clone(),
+        model_id: config.model_id.clone(),
+        mode: config.mode.clone(),
+        thought_level: config.thought_level.clone(),
+        last_summarized_message_id,
+        summary_message_id: None,
+    };
+
+    if skip {
+        return finish_compact_skipped(
+            session,
+            shared,
+            store,
+            facts,
+            &job,
+            prior_tool_history,
+            wall_started,
+        );
+    }
+
+    // —— 一次模型请求（不产出事件；compact 的模型输出不走 model.streaming）——
+    let mut request_messages = history;
+    request_messages.push(ModelMessage::User(compact_prompt(
+        job.instructions.as_deref(),
+    )));
+    let request = session.build_request(&request_messages);
+    let model_started_at = now_ms();
+    let (delta_sink, mut deltas) = tokio::sync::mpsc::unbounded_channel();
+    let mut provider_future = provider.stream(request, delta_sink);
+    let mut provider_result = None;
+    let mut delta_channel_open = true;
+    let mut text = String::new();
+    let mut tool_call_count = 0_u64;
+    // 只数 `ModelDelta::ToolCall`（完成态调用）：适配器还会发 `ToolInputStart` 等
+    // 过程 delta，按过程数会翻倍。
+    let absorb = |delta: Option<ModelDelta>,
+                  text: &mut String,
+                  tool_call_count: &mut u64,
+                  open: &mut bool| {
+        match delta {
+            Some(ModelDelta::Text { text: chunk }) => text.push_str(&chunk),
+            Some(ModelDelta::ToolCall { .. }) => *tool_call_count += 1,
+            None => *open = false,
+            _ => {}
+        }
+    };
+    while provider_result.is_none() {
+        tokio::select! {
+            biased;
+            maybe_delta = deltas.recv(), if delta_channel_open => {
+                absorb(maybe_delta, &mut text, &mut tool_call_count, &mut delta_channel_open);
+            }
+            result = &mut provider_future => provider_result = Some(result),
+        }
+    }
+    while let Ok(delta) = deltas.try_recv() {
+        absorb(
+            Some(delta),
+            &mut text,
+            &mut tool_call_count,
+            &mut delta_channel_open,
+        );
+    }
+    let model_finished_at = now_ms();
+
+    let response = match provider_result.expect("循环只在 provider future 结束后退出") {
+        Ok(response) => response,
+        // 网络层 provider 失败未观察到（契约 §6）：按 MODEL_ERROR + provider 文案、
+        // retryable=true 落失败面（登记在契约「Rust C2 现状」）。
+        Err(ProviderError { message }) => {
+            return compact_failure(
+                session,
+                shared,
+                store,
+                facts,
+                &job,
+                CompactFailure {
+                    message: &message,
+                    retryable: true,
+                    model_response: None,
+                    model_started_at,
+                },
+            );
+        }
+    };
+    let model_response = CompactModelResponse {
+        usage: response.usage.clone(),
+        stop_reason: response.stop_reason.to_string(),
+        tool_call_count,
+        started_at: model_started_at,
+        finished_at: model_finished_at,
+    };
+    let summary =
+        match validate_compact_response(tool_call_count as usize, response.stop_reason, &text) {
+            Ok(summary) => summary,
+            Err(error) => {
+                return compact_failure(
+                    session,
+                    shared,
+                    store,
+                    facts,
+                    &job,
+                    CompactFailure {
+                        message: error.message(),
+                        retryable: error.retryable(),
+                        model_response: Some(model_response),
+                        model_started_at,
+                    },
+                );
+            }
+        };
+
+    // —— 成功：替换内存历史 → 落库 → 发布终态 → 收口 ——
+    // 下一轮请求只带摘要续接消息（契约 §1.5：旧 turn 消息不再进入请求）；DB 里的
+    // 完整历史保留（回退属 C3）。
+    session.replace_history(vec![ModelMessage::User(summary_continuation(&summary))]);
+    let summary_message_id = fresh_id("msg");
+    let post_tokens = model_response.usage.input_tokens + model_response.usage.output_tokens;
+    let facts = CompactFacts {
+        summary_message_id: Some(summary_message_id),
+        post_tokens,
+        // 落库时间取**终态时刻**（facts 构造时只有开始时间；模型请求期间的墙钟
+        // 进度属于行事实，不能拿受理时的快照冒充完成时间）。
+        ended_at: now_ms(),
+        ..facts
+    };
+    // `runtime.contextUsage` 的事实面覆盖所有模型请求：compact 也是最近一次请求
+    // （`used` = provider total），与 oracle 的 read 视图同口径。
+    shared
+        .lock()
+        .usage
+        .observe(&RequestUsage::from_model_usage(&model_response.usage));
+    let mut persist_error: Option<String> = None;
+    if let Err(error) = persist_compact_rows(
+        &shared,
+        &store,
+        &facts,
+        CompactRows::Success { summary: &summary },
+    ) {
+        persist_error = Some(error.to_string());
+    }
+    if let Err(error) = record_compact_success_usage(&store, &facts, &model_response) {
+        persist_error.get_or_insert_with(|| error.to_string());
+    }
+    if let Err(error) = store.touch_session(&session_id, facts.ended_at) {
+        persist_error.get_or_insert_with(|| error.to_string());
+    }
+
+    let payload = TurnCompletedPayload {
+        response: COMPACTED_RESPONSE.to_string(),
+        token_count: post_tokens,
+        usage: Some(json!({
+            "source": "provider",
+            "modelRequestCount": 1,
+            "inputTokens": model_response.usage.input_tokens,
+            "outputTokens": model_response.usage.output_tokens,
+            "totalTokens": post_tokens,
+            "cacheReadTokens": model_response.usage.cache_read_tokens,
+            "cacheWriteTokens": model_response.usage.cache_write_tokens,
+            "reasoningTokens": model_response.usage.reasoning_tokens,
+            "webFetchRequests": 0,
+            "webSearchRequests": 0,
+        })),
+        tool_call_count: 0,
+        history_round_count: Some(1),
+        duration: wall_started.elapsed().as_millis() as f64,
+        cache_stats: Some(compact_cache_stats(
+            session.messages().len(),
+            prior_tool_history,
+        )),
+        input_id: Some(job.input_id.clone()),
+        result_type: TurnResultType::Success,
+        background_subagent_result_consumed: None,
+        extra: ExtraFields::new(),
+    };
+    let event = session.emit(Some(&turn_id), SessionEventType::TurnCompleted, &payload);
+    shared.publish(&event);
+    settle_compact(
+        &shared,
+        &session_id,
+        CompactSettle::Success {
+            token_count: post_tokens,
+            persist_error,
+        },
+    );
+    session
+}
+
+/// `skipped` 终态：不发模型请求、不写摘要行；timeline 消息按观察形状落
+/// `finish:"skipped"` + `timelineStatus:"skipped"`（契约 §1.6 trial 4 的
+/// `dbSkippedRows`；timeline part 的形状按其余两种终态同构推导，登记在契约注记）。
+fn finish_compact_skipped(
+    mut session: Session,
+    shared: Arc<Shared>,
+    store: Arc<SessionStore>,
+    facts: CompactFacts,
+    job: &CompactJob,
+    prior_tool_history: bool,
+    wall_started: std::time::Instant,
+) -> Session {
+    let facts = CompactFacts {
+        ended_at: now_ms(),
+        ..facts
+    };
+    let session_id = facts.session_id.clone();
+    let turn_id = facts.turn_id.clone();
+    let pre_tokens = facts.pre_tokens;
+    let mut persist_error: Option<String> = None;
+    if let Err(error) = persist_compact_rows(&shared, &store, &facts, CompactRows::Skipped) {
+        persist_error = Some(error.to_string());
+    }
+    if let Err(error) = record_compact_skipped_usage(&store, &facts) {
+        persist_error.get_or_insert_with(|| error.to_string());
+    }
+    if let Err(error) = store.touch_session(&session_id, facts.ended_at) {
+        persist_error.get_or_insert_with(|| error.to_string());
+    }
+
+    let payload = TurnCompletedPayload {
+        response: COMPACT_SKIPPED_RESPONSE.to_string(),
+        token_count: pre_tokens,
+        usage: None,
+        tool_call_count: 0,
+        history_round_count: Some(1),
+        duration: wall_started.elapsed().as_millis() as f64,
+        cache_stats: Some(compact_cache_stats(
+            session.messages().len(),
+            prior_tool_history,
+        )),
+        input_id: Some(job.input_id.clone()),
+        result_type: TurnResultType::Success,
+        background_subagent_result_consumed: None,
+        extra: ExtraFields::new(),
+    };
+    let event = session.emit(Some(&turn_id), SessionEventType::TurnCompleted, &payload);
+    shared.publish(&event);
+    settle_compact(
+        &shared,
+        &session_id,
+        CompactSettle::Skipped {
+            token_count: pre_tokens,
+            persist_error,
+        },
+    );
+    session
+}
+
+/// compact 失败的输入事实（避免 9 参数函数；`model_response` 只在 provider 有应答时
+/// 存在——传输失败没有 usage 行）。
+struct CompactFailure<'a> {
+    message: &'a str,
+    retryable: bool,
+    model_response: Option<CompactModelResponse>,
+    model_started_at: i64,
+}
+
+/// compact 失败收口：历史不动；failed timeline 行 +（有应答时）`model_usage` 行 +
+/// `turn_usage(error)` 行 → `turn.failed` → 不结算复位（会话仍可用，契约 §1.8）。
+fn compact_failure(
+    mut session: Session,
+    shared: Arc<Shared>,
+    store: Arc<SessionStore>,
+    facts: CompactFacts,
+    job: &CompactJob,
+    failure: CompactFailure<'_>,
+) -> Session {
+    let CompactFailure {
+        message,
+        retryable,
+        model_response,
+        model_started_at,
+    } = failure;
+    let facts = CompactFacts {
+        ended_at: now_ms(),
+        ..facts
+    };
+    let session_id = facts.session_id.clone();
+    let turn_id = facts.turn_id.clone();
+    let mut persist_error: Option<String> = None;
+    if let Err(error) = persist_compact_rows(&shared, &store, &facts, CompactRows::Failed) {
+        persist_error = Some(error.to_string());
+    }
+    if let Err(error) =
+        record_compact_failure_usage(&store, &facts, model_response.as_ref(), model_started_at)
+    {
+        persist_error.get_or_insert_with(|| error.to_string());
+    }
+    if let Err(error) = store.touch_session(&session_id, facts.ended_at) {
+        persist_error.get_or_insert_with(|| error.to_string());
+    }
+
+    let payload = TurnFailedPayload {
+        error: ProtocolErrorDetail {
+            // 观察（契约 §1.8）：`type` 恒 `unknown_error`、`code` 恒 `MODEL_ERROR`、
+            // `detail` 恒 `Compact failed`、retryable 只出现在 `attribution` 里。
+            error_type: "unknown_error".to_string(),
+            message: message.to_string(),
+            stack: None,
+            code: Some("MODEL_ERROR".to_string()),
+            detail: Some("Compact failed".to_string()),
+            underlying_error_message: Some(message.to_string()),
+            underlying_error_detail: None,
+            attribution: Some(json!({ "retryable": retryable })),
+            retryable: None,
+            data: None,
+            extra: ExtraFields::new(),
+        },
+        turn_phase: "compact".to_string(),
+        input_id: Some(job.input_id.clone()),
+        background_subagent_result_consumed: None,
+        extra: ExtraFields::new(),
+    };
+    let event = session.emit(Some(&turn_id), SessionEventType::TurnFailed, &payload);
+    shared.publish(&event);
+    settle_compact(
+        &shared,
+        &session_id,
+        CompactSettle::Failure {
+            message: message.to_string(),
+            persist_error,
+        },
+    );
+    session
+}
+
+/// compact 终态的共享收口（与 `run_one_input` 的锁内收口同构；`turnCount` 已在
+/// 开始时推进，这里不再 +1）。
+enum CompactSettle {
+    Success {
+        token_count: u64,
+        persist_error: Option<String>,
+    },
+    Skipped {
+        token_count: u64,
+        persist_error: Option<String>,
+    },
+    Failure {
+        message: String,
+        persist_error: Option<String>,
+    },
+}
+
+fn settle_compact(shared: &Arc<Shared>, session_id: &str, outcome: CompactSettle) {
+    let mut live = shared.lock();
+    live.current_cancel = None;
+    live.current_kind = None;
+    match outcome {
+        CompactSettle::Success {
+            token_count,
+            persist_error,
+        }
+        | CompactSettle::Skipped {
+            token_count,
+            persist_error,
+        } => {
+            // 成功与 skipped 都算结算（失败与配置失败不计，见 `CompactCoordinator`）。
+            live.compact.on_settled(true);
+            live.total_token_count += token_count;
+            if let Some(error) = persist_error {
+                live.last_error = Some(error);
+            }
+            // 排队期间被接受的 prompt 已在 CommandInbox 里（compact 不进 inbox），
+            // 这里按「还有已接受输入」保持 Running，避免闪回 Idle。
+            live.status = if live.inbox.running(session_id).is_some() {
+                RuntimeStatus::Running
+            } else {
+                RuntimeStatus::Idle
+            };
+        }
+        CompactSettle::Failure {
+            message,
+            persist_error,
+        } => {
+            live.compact.on_settled(false);
+            live.status = RuntimeStatus::Error;
+            // 与 `run_one_input` 同口径：失败文案优先，落库失败次之。
+            live.last_error = Some(persist_error.unwrap_or(message));
+        }
+    }
+    live.revision += 1;
+    live.updated_at = now_ms();
+}
+
+/// compact 终态的落库事实（行构造的唯一输入）。
+///
+/// id 在进入终态前一次性预生成：timeline 行先于摘要行落库，但它要引用
+/// `summaryMessageId`（观察顺序 message sequence 9 → 10，契约 §1.3）。
+struct CompactFacts {
+    session_id: String,
+    directory: String,
+    task_type: String,
+    turn_id: String,
+    input_id: String,
+    operation_id: String,
+    boundary_id: String,
+    started_at: i64,
+    ended_at: i64,
+    /// `preCompactTokenCount`：本地估算（4 字符 ≈ 1 token，同 `trim_messages` 口径；
+    /// 不是 provider usage——公式登记在契约「Rust C2 现状」）。
+    pre_tokens: u64,
+    /// `postCompactTokenCount`：compact 请求的 provider usage 合计（仅成功路径写入；
+    /// 失败/skipped 不产出该字段）。
+    post_tokens: u64,
+    /// `summarizedMessageCount`：被摘要替换的模型历史条数。
+    summarized_count: u64,
+    custom_instructions: bool,
+    provider_id: String,
+    model_id: String,
+    mode: String,
+    /// `model_usage.variant`（按 `thoughtLevel` 落——夹具观察值与会话档位一致，
+    /// 映射登记在契约注记）。
+    thought_level: Option<String>,
+    last_summarized_message_id: Option<String>,
+    /// 成功时的摘要消息 id（预生成，供 timeline 行引用）。
+    summary_message_id: Option<String>,
+}
+
+/// compact 已收到的模型应答事实（`model_usage` 行的输入；传输失败时为 `None`）。
+struct CompactModelResponse {
+    usage: ModelUsage,
+    stop_reason: String,
+    tool_call_count: u64,
+    started_at: i64,
+    finished_at: i64,
+}
+
+/// compact 终态要写的消息/part 行集合。
+enum CompactRows<'a> {
+    /// 成功：timeline 消息（`finish:"completed"`，2 parts）+ 摘要消息（2 parts）。
+    Success { summary: &'a str },
+    /// 失败：timeline 消息（`finish:"failed"`，2 parts），不写摘要（契约 §1.8）。
+    Failed,
+    /// 跳过：timeline 消息（`finish:"skipped"`，2 parts），不写摘要（契约 §1.6）。
+    Skipped,
+}
+
+/// 写 compact 的消息 + part 行（每条消息一个原子事务；顺序 = sequence 顺序）。
+fn persist_compact_rows(
+    shared: &Shared,
+    store: &SessionStore,
+    facts: &CompactFacts,
+    rows: CompactRows<'_>,
+) -> Result<(), session_store::StoreError> {
+    let (finish, status) = match rows {
+        CompactRows::Success { .. } => ("completed", "completed"),
+        CompactRows::Failed => ("failed", "failed"),
+        CompactRows::Skipped => ("skipped", "skipped"),
+    };
+    let timeline_message_id = fresh_id("msg");
+    let timeline_sequence = take_sequence(shared);
+    let timeline_message = MessageRecord {
+        id: timeline_message_id.clone(),
+        session_id: facts.session_id.clone(),
+        time_created: facts.started_at.max(1),
+        time_updated: facts.ended_at,
+        data: timeline_message_data(facts, finish),
+        sequence: Some(timeline_sequence),
+    };
+    let timeline_parts = vec![
+        PartRecord {
+            id: fresh_id("part"),
+            message_id: timeline_message_id.clone(),
+            session_id: facts.session_id.clone(),
+            time_created: facts.started_at.max(1),
+            time_updated: facts.ended_at,
+            data: timeline_part_data(facts, status),
+            sequence: Some(0),
+        },
+        PartRecord {
+            id: fresh_id("part"),
+            message_id: timeline_message_id.clone(),
+            session_id: facts.session_id.clone(),
+            time_created: facts.started_at.max(1),
+            time_updated: facts.ended_at,
+            data: timeline_compaction_part_data(facts, status),
+            sequence: Some(1),
+        },
+    ];
+    store.append_message_with_parts(timeline_message, &timeline_parts)?;
+
+    if let CompactRows::Success { summary } = rows {
+        let summary_message_id = facts
+            .summary_message_id
+            .clone()
+            .expect("成功路径已预生成摘要消息 id");
+        let summary_sequence = take_sequence(shared);
+        let summary_message = MessageRecord {
+            id: summary_message_id.clone(),
+            session_id: facts.session_id.clone(),
+            time_created: facts.ended_at,
+            time_updated: facts.ended_at,
+            data: summary_message_data(facts, summary),
+            sequence: Some(summary_sequence),
+        };
+        let summary_parts = vec![
+            PartRecord {
+                id: fresh_id("part"),
+                message_id: summary_message_id.clone(),
+                session_id: facts.session_id.clone(),
+                time_created: facts.started_at.max(1),
+                time_updated: facts.ended_at,
+                data: json!({
+                    "type": "text",
+                    "text": summary_continuation(summary),
+                    "synthetic": true,
+                    "time": { "start": facts.started_at, "end": facts.ended_at },
+                }),
+                sequence: Some(0),
+            },
+            PartRecord {
+                id: fresh_id("part"),
+                message_id: summary_message_id.clone(),
+                session_id: facts.session_id.clone(),
+                time_created: facts.started_at.max(1),
+                time_updated: facts.ended_at,
+                data: summary_compaction_part_data(facts),
+                sequence: Some(1),
+            },
+        ];
+        store.append_message_with_parts(summary_message, &summary_parts)?;
+    }
+    Ok(())
+}
+
+/// 从锁内状态取下一条 message `sequence`（写顺序即分配顺序；与
+/// [`TurnRecorder::take_sequence`] 同一事实源）。
+fn take_sequence(shared: &Shared) -> i64 {
+    let mut live = shared.lock();
+    let sequence = live.next_message_sequence;
+    live.next_message_sequence += 1;
+    sequence
+}
+
+/// timeline 消息 `data`（观察形状，契约 §1.3：`finish` 三态 + timeline_event 语义，
+/// 全零 tokens、无 `messageId`/`anchor` 键）。
+fn timeline_message_data(facts: &CompactFacts, finish: &str) -> Value {
+    json!({
+        "role": "assistant",
+        "time": { "created": facts.started_at, "completed": facts.ended_at },
+        "parentID": facts.last_summarized_message_id.clone().unwrap_or_default(),
+        "modelId": facts.model_id,
+        "providerId": facts.provider_id,
+        "mode": facts.mode,
+        "planEnabled": false,
+        "agent": "mode-agent",
+        "path": { "cwd": facts.directory, "root": facts.directory },
+        "cost": 0,
+        "tokens": {
+            "input": 0, "output": 0, "reasoning": 0,
+            "cache": { "read": 0, "write": 0 }
+        },
+        "finish": finish,
+        "semantics": {
+            "origin": "system",
+            "kind": "timeline_event",
+            "uiVisibility": "visible",
+            "providerVisibility": "hidden",
+            "transcriptVisibility": "visible"
+        }
+    })
+}
+
+/// timeline 消息的 `timeline` part（三态字段差异按夹具逐键对齐）。
+fn timeline_part_data(facts: &CompactFacts, status: &str) -> Value {
+    let mut data = json!({
+        "type": "timeline",
+        "timelineType": "context_compaction",
+        "display": "separator",
+        "status": status,
+        "operationId": facts.operation_id,
+        "sourceCommandId": facts.input_id,
+        "trigger": "manual",
+        "phase": "standalone_turn",
+        "compactReason": "user_requested",
+        "preCompactTokenCount": facts.pre_tokens,
+        "time": { "start": facts.started_at, "end": facts.ended_at },
+    });
+    match status {
+        "completed" => {
+            let summary_id = facts
+                .summary_message_id
+                .clone()
+                .expect("completed timeline part 需要摘要消息 id");
+            data["boundaryId"] = json!(facts.boundary_id);
+            data["summaryMessageId"] = json!(summary_id);
+            // `truePostCompactTokenCount = pre + post`：oracle 的公式未观察（其观察值
+            // 2792+22≠2852），这里取可复算的本地定义，登记在契约注记。
+            data["postCompactTokenCount"] = json!(facts.post_tokens);
+            data["truePostCompactTokenCount"] = json!(facts.pre_tokens + facts.post_tokens);
+        }
+        "failed" => {
+            data["attempt"] = json!(1);
+            data["reason"] = json!("model_error");
+        }
+        _ => {}
+    }
+    data
+}
+
+/// timeline 消息的 `compaction` part（三态字段差异按夹具逐键对齐）。
+fn timeline_compaction_part_data(facts: &CompactFacts, status: &str) -> Value {
+    let mut data = json!({
+        "type": "compaction",
+        "auto": false,
+        "trigger": "manual",
+        "phase": "standalone_turn",
+        "compactReason": "user_requested",
+        "operationId": facts.operation_id,
+        "timelineStatus": status,
+        "timelineDisplay": "separator",
+        "replace": true,
+        "preCompactTokenCount": facts.pre_tokens,
+        "time": { "start": facts.started_at, "end": facts.ended_at },
+    });
+    match status {
+        "completed" => {
+            let summary_id = facts
+                .summary_message_id
+                .clone()
+                .expect("completed compaction part 需要摘要消息 id");
+            data["boundaryId"] = json!(facts.boundary_id);
+            data["summaryMessageId"] = json!(summary_id);
+            data["tail_start_id"] = json!(summary_id);
+            data["postCompactTokenCount"] = json!(facts.post_tokens);
+            data["truePostCompactTokenCount"] = json!(facts.pre_tokens + facts.post_tokens);
+        }
+        "failed" => {
+            data["reason"] = json!("model_error");
+            data["attempt"] = json!(1);
+        }
+        _ => {}
+    }
+    data
+}
+
+/// 摘要消息 `data`（观察形状，契约 §1.3：`summary` 三键 + compact_summary 语义，
+/// **没有** `time.completed`）。
+///
+/// `tools` 在夹具里折叠为 `<tool-flags>`（对象形状是唯一保留的事实）；内容随运行
+/// 环境变化，观察不到键集合，这里写空对象占位，不冒充具体工具开关。
+fn summary_message_data(facts: &CompactFacts, summary: &str) -> Value {
+    json!({
+        "role": "user",
+        "time": { "created": facts.ended_at },
+        "summary": {
+            "title": SUMMARY_TITLE,
+            "body": summary,
+            "diffs": [],
+        },
+        "agent": "mode-agent",
+        "modelSelection": {
+            "providerId": facts.provider_id,
+            "modelId": facts.model_id,
+        },
+        "semantics": {
+            "origin": "agent_runtime",
+            "kind": "compact_summary",
+            "uiVisibility": "hidden",
+            "providerVisibility": "visible",
+            "transcriptVisibility": "hidden"
+        },
+        "tools": {},
+        "model": {
+            "providerID": facts.provider_id,
+            "modelID": facts.model_id,
+        }
+    })
+}
+
+/// 摘要消息的 `compaction` part（带 `compactBoundary` 观察形状，契约 §1.3）。
+fn summary_compaction_part_data(facts: &CompactFacts) -> Value {
+    let summary_id = facts
+        .summary_message_id
+        .clone()
+        .expect("摘要 compaction part 需要摘要消息 id");
+    let mut boundary = json!({
+        "boundaryId": facts.boundary_id,
+        "trigger": "manual",
+        "phase": "standalone_turn",
+        "compactReason": "user_requested",
+        "summarySource": "model",
+        "preCompactTokenCount": facts.pre_tokens,
+        "postCompactTokenCount": facts.post_tokens,
+        "truePostCompactTokenCount": facts.pre_tokens + facts.post_tokens,
+        "summarizedMessageCount": facts.summarized_count,
+        "keptMessageCount": 0,
+        "summaryMessageIds": [summary_id],
+        "customInstructions": facts.custom_instructions,
+        // `traceId` 观察为非空 id（事件面 traceId 恒空是 C1 登记差异）：这里生成
+        // uuid 满足行形状，不冒充事件追踪事实。
+        "traceId": uuid::Uuid::new_v4().to_string(),
+        "turnId": facts.turn_id,
+    });
+    if let Some(last) = &facts.last_summarized_message_id {
+        boundary["lastSummarizedMessageId"] = json!(last);
+    }
+    json!({
+        "type": "compaction",
+        "auto": false,
+        "trigger": "manual",
+        "phase": "standalone_turn",
+        "compactReason": "user_requested",
+        "tail_start_id": summary_id,
+        "compactBoundary": boundary,
+        "operationId": facts.operation_id,
+    })
+}
+
+/// `turn_usage` + `model_usage`（成功；契约 §1.3 的观察值）。
+fn record_compact_success_usage(
+    store: &SessionStore,
+    facts: &CompactFacts,
+    model: &CompactModelResponse,
+) -> Result<(), session_store::StoreError> {
+    let total = model.usage.input_tokens + model.usage.output_tokens;
+    store.record_turn_usage(TurnUsageRecord {
+        session_id: facts.session_id.clone(),
+        turn_id: facts.turn_id.clone(),
+        started_at: facts.started_at.max(1),
+        status: "completed".to_string(),
+        completed_at: Some(facts.ended_at),
+        duration_ms: Some((facts.ended_at - facts.started_at.max(1)).max(0)),
+        cancelled_by_user: false,
+        input_tokens: model.usage.input_tokens as i64,
+        output_tokens: model.usage.output_tokens as i64,
+        computed_total_tokens: total as i64,
+        model_request_count: 1,
+        tool_call_count: 0,
+        tool_error_count: 0,
+        user_message_id: None,
+        first_model_start_at: Some(model.started_at),
+        // 夹具观察 compact 的 `turn_usage.trace_id` 非空（折叠为 `<id>`）。
+        trace_id: Some(uuid::Uuid::new_v4().to_string()),
+        ..TurnUsageRecord::default()
+    })?;
+    store.record_model_usage(model_usage_record(facts, model))?;
+    Ok(())
+}
+
+/// `turn_usage(error)` +（有应答时）`model_usage`（契约 §1.8：tokens 全 0、
+/// `error_type:"unknown_error"`、`error_code:"UNKNOWN_ERROR"`；`model_usage` 仍记
+/// provider 的原始 usage 与 `finish_reason`）。
+fn record_compact_failure_usage(
+    store: &SessionStore,
+    facts: &CompactFacts,
+    model: Option<&CompactModelResponse>,
+    model_started_at: i64,
+) -> Result<(), session_store::StoreError> {
+    store.record_turn_usage(TurnUsageRecord {
+        session_id: facts.session_id.clone(),
+        turn_id: facts.turn_id.clone(),
+        started_at: facts.started_at.max(1),
+        status: "error".to_string(),
+        completed_at: Some(facts.ended_at),
+        duration_ms: Some((facts.ended_at - facts.started_at.max(1)).max(0)),
+        cancelled_by_user: false,
+        input_tokens: 0,
+        output_tokens: 0,
+        computed_total_tokens: 0,
+        model_request_count: 1,
+        tool_call_count: 0,
+        tool_error_count: 0,
+        user_message_id: None,
+        first_model_start_at: Some(model_started_at),
+        error_type: Some("unknown_error".to_string()),
+        error_code: Some("UNKNOWN_ERROR".to_string()),
+        ..TurnUsageRecord::default()
+    })?;
+    if let Some(model) = model {
+        store.record_model_usage(model_usage_record(facts, model))?;
+    }
+    Ok(())
+}
+
+/// `turn_usage(completed)` 零用量行（skipped 没有模型请求；夹具未录该行，
+/// 按「每个终态恰好一行 `turn_usage`」的 C1 纪律补零值行，登记在契约注记）。
+fn record_compact_skipped_usage(
+    store: &SessionStore,
+    facts: &CompactFacts,
+) -> Result<(), session_store::StoreError> {
+    store.record_turn_usage(TurnUsageRecord {
+        session_id: facts.session_id.clone(),
+        turn_id: facts.turn_id.clone(),
+        started_at: facts.started_at.max(1),
+        status: "completed".to_string(),
+        completed_at: Some(facts.ended_at),
+        duration_ms: Some((facts.ended_at - facts.started_at.max(1)).max(0)),
+        cancelled_by_user: false,
+        model_request_count: 0,
+        user_message_id: None,
+        ..TurnUsageRecord::default()
+    })
+}
+
+/// `model_usage` 行（`query_source:"compact"`；`id` 前缀 `usage_model_compact_`，
+/// `assistant_message_id`/`parent_user_message_id` 恒 null，契约 §1.3）。
+fn model_usage_record(facts: &CompactFacts, model: &CompactModelResponse) -> ModelUsageRecord {
+    let total = model.usage.input_tokens + model.usage.output_tokens;
+    // `rawFinishReason` 的观察映射：`stop` → `end_turn`、`tool-calls` → `tool_use`
+    // （夹具 `provider_metadata_json.rawFinishReason` 观察值）。
+    let raw_finish_reason = match model.stop_reason.as_str() {
+        "tool-calls" => "tool_use",
+        _ => "end_turn",
+    };
+    let raw_usage = json!({
+        "inputTokens": model.usage.input_tokens,
+        "outputTokens": model.usage.output_tokens,
+        "totalTokens": total,
+        "cacheReadTokens": model.usage.cache_read_tokens,
+        "cacheWriteTokens": model.usage.cache_write_tokens,
+    });
+    let provider_metadata = json!({ "rawFinishReason": raw_finish_reason });
+    ModelUsageRecord {
+        id: fresh_id("usage_model_compact"),
+        session_id: facts.session_id.clone(),
+        logical_request_id: fresh_id("req"),
+        provider_id: facts.provider_id.clone(),
+        model_id: facts.model_id.clone(),
+        query_source: "compact".to_string(),
+        started_at: model.started_at,
+        status: "completed".to_string(),
+        agent: Some("mode-agent".to_string()),
+        assistant_message_id: None,
+        attempt_index: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: model.usage.cache_read_tokens as i64,
+        cancelled_by_user: false,
+        completed_at: Some(model.finished_at),
+        computed_total_tokens: total as i64,
+        context_exceeded: false,
+        duration_ms: Some((model.finished_at - model.started_at).max(0)),
+        error_code: None,
+        error_message: None,
+        error_type: None,
+        finish_reason: Some(model.stop_reason.clone()),
+        first_token_at: None,
+        input_tokens: model.usage.input_tokens as i64,
+        mode: Some(facts.mode.clone()),
+        output_tokens: model.usage.output_tokens as i64,
+        parent_user_message_id: None,
+        provider_metadata_json: Some(provider_metadata.to_string()),
+        provider_total_tokens: Some(total as i64),
+        raw_usage_json: Some(raw_usage.to_string()),
+        reasoning_tokens: model.usage.reasoning_tokens as i64,
+        retry_count: 0,
+        retryable: false,
+        // 夹具观察 `span_id`/`trace_id` 非空（折叠为 `<id>`）：生成 uuid 满足行形状；
+        // 事件面的 traceId 恒空是 C1 登记差异，两者互不冒充。
+        span_id: Some(uuid::Uuid::new_v4().to_string()),
+        task_type: Some(facts.task_type.clone()),
+        time_to_first_token_ms: None,
+        tool_call_count: model.tool_call_count as i64,
+        trace_id: Some(uuid::Uuid::new_v4().to_string()),
+        turn_id: Some(facts.turn_id.clone()),
+        variant: facts.thought_level.clone(),
+    }
+}
+
+/// `cacheStats`（C1 的拟合公式原样复用：终末消息数 −1 + 6 + turn 前已有工具结果）。
+///
+/// 成功路径在替换历史后调用（`messages.len()==1` → 观察值 6）；skipped 路径在
+/// 上一个 compact 的摘要历史上调用（同样是 1 → 观察值 6，契约 §1.6 trial 4）。
+fn compact_cache_stats(messages_len: usize, prior_tool_history: bool) -> CacheStats {
+    CacheStats {
+        total_messages: (messages_len.saturating_sub(1)
+            + 6
+            + if prior_tool_history { 1 } else { 0 }) as u64,
+        cached_messages: 5,
+        last_cache_hit: false,
+        cache_read_tokens: None,
+        extra: ExtraFields::new(),
+    }
+}
+
 /// 一次 turn 的落库记录器：[`EventSink`] 的实现，先观察落库再发布事件（Task 8：
 /// turn 跑在阻塞线程上，订阅者并行；「事件可见 ⇒ 行已提交」，见 [`EventSink`]
 /// 实现）。
@@ -924,6 +2150,9 @@ struct TurnRecorder {
     session_id: String,
     /// 本轮用户输入原文（`turn.started` 时落库）。
     content: String,
+    /// 是否在 `turn.started` 写 user message 行（compact 任务恒 `false`：
+    /// compact 没有 user 行 / `session_input` 行，契约 §1.3）。
+    persist_user: bool,
     turn_id: Option<String>,
     turn_started_at: i64,
     user_message_id: Option<String>,
@@ -967,6 +2196,7 @@ impl TurnRecorder {
         Self {
             session_id: shared.record.id.clone(),
             content: item.input.content.clone(),
+            persist_user: item.compact.is_none(),
             turn_id: None,
             turn_started_at: 0,
             user_message_id: None,
@@ -1020,8 +2250,10 @@ impl TurnRecorder {
         }
         self.turn_id = event.turn_id.clone();
         self.turn_started_at = event.timestamp;
-        let content = self.content.clone();
-        self.persist_user_message(&content);
+        if self.persist_user {
+            let content = self.content.clone();
+            self.persist_user_message(&content);
+        }
     }
 
     fn on_model_streaming(&mut self, event: &SessionEvent) {

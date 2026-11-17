@@ -1439,19 +1439,19 @@ async fn setters_update_runtime_and_persist_entries() {
 }
 
 // ---------------------------------------------------------------------------
-// 9. compact / goal：显式 -32601
+// 9. goal：显式 -32601（`session/compact` 已在 C2 T2 接入，行为见 tests/compact.rs）
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn compact_and_goal_stay_method_not_found() {
-    let fixture = fixture("compact-goal", vec![ScriptStep::Text("x".to_string())]);
+async fn goal_stays_method_not_found() {
+    let fixture = fixture("goal", vec![ScriptStep::Text("x".to_string())]);
     let mut conn = connect(Arc::clone(&fixture.server)).await;
-    for method in ["session/compact", "session/goal"] {
-        let id = conn.send(method, json!({ "sessionId": "sess-1" })).await;
-        let (code, message, _) = conn.error(id).await;
-        assert_eq!(code, -32601, "method={method}");
-        assert_eq!(message, "Method not found");
-    }
+    let id = conn
+        .send("session/goal", json!({ "sessionId": "sess-1" }))
+        .await;
+    let (code, message, _) = conn.error(id).await;
+    assert_eq!(code, -32601);
+    assert_eq!(message, "Method not found");
 }
 
 // ---------------------------------------------------------------------------

@@ -6,11 +6,12 @@
 //! [`projection`]（DB 富形状 ≠ wire 投影，见 `docs/specs/agent-server-c1-contract.md`
 //! §3.7）。
 //!
-//! 方法清单（控制器裁决 3）：`session/create|send|subscribe|read|messages|list|
-//! close|resume|setModel|setThoughtLevel|setMode`。`session/compact` 与
-//! `session/goal` 保持显式 `-32601`（分派表的 default 分支）。
+//! 方法清单（控制器裁决 3 + C2 T2）：`session/create|send|subscribe|read|messages|
+//! list|close|resume|setModel|setThoughtLevel|setMode|compact`。`session/goal`
+//! 保持显式 `-32601`（分派表的 default 分支）。
 
 pub mod close;
+pub mod compact;
 pub mod create;
 pub mod list;
 pub mod messages;
@@ -43,8 +44,8 @@ pub use agent_protocol::session_read::{
 };
 pub use agent_protocol::session_send::SESSION_SEND_METHOD;
 pub use agent_protocol::session_write::{
-    SESSION_CLOSE_METHOD, SESSION_CREATE_METHOD, SESSION_RESUME_METHOD, SESSION_SET_MODEL_METHOD,
-    SESSION_SET_MODE_METHOD, SESSION_SET_THOUGHT_LEVEL_METHOD,
+    SESSION_CLOSE_METHOD, SESSION_COMPACT_METHOD, SESSION_CREATE_METHOD, SESSION_RESUME_METHOD,
+    SESSION_SET_MODEL_METHOD, SESSION_SET_MODE_METHOD, SESSION_SET_THOUGHT_LEVEL_METHOD,
 };
 
 /// 严格解析 params：未知键 / 类型不符一律 `-32602`，不静默吞掉。

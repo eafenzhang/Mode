@@ -26,6 +26,7 @@
 pub mod approval;
 pub mod cancel;
 pub mod command_inbox;
+pub mod compact;
 pub mod context;
 pub mod permission;
 pub mod plugin_tools;
@@ -43,9 +44,14 @@ pub use agent_protocol::session_event::{
 pub use agent_tools::{FileState, ModeToolFamily, ToolContext, ToolError, ToolOutcome, ToolSpec};
 pub use cancel::CancelToken;
 pub use command_inbox::{Admission, CommandInbox, Completion};
+pub use compact::{
+    compact_prompt, summary_continuation, validate_compact_response, CompactResponseError,
+    SUMMARY_TITLE,
+};
 pub use context::{
-    build_model_request, build_system_prompt, trim_messages, ContextBudget, ContextCacheUsage,
-    ContextCost, ContextInput, ContextUsage, MemorySection, TrimmedHistory,
+    build_model_request, build_system_prompt, estimate_history_tokens, trim_messages,
+    ContextBudget, ContextCacheUsage, ContextCost, ContextInput, ContextUsage, MemorySection,
+    TrimmedHistory,
 };
 pub use permission::{
     evaluate as evaluate_permission, ChannelPermissionHandler, Decision as PermissionDecision,
