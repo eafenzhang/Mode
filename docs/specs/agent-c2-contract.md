@@ -657,6 +657,28 @@ workflow_event, workflow_run
 `<隔离根>/.mode/cli/log`，`startup/storageState` 最终 `ready`；本次观察的会话表/消息表
 由 driver 的 `session/create` 继续写入，与迁移账本互不影响。
 
+### 5.5 Rust C2 现状（T7，2026-11-18）
+
+Rust `session-store` 实现了 fresh-install 迁移（`crates/session-store/src/migrations.rs`），
+门帧契约见 `agent-c2-context-memory.md` §6.1；与本文观察值的对照：
+
+- **账本 22 行逐字节一致**：`id`/`checksum`/`app_version`/顺序按 §5.2 的 fixture
+  录制值冻结在源码里；`time_applied` 用机器毫秒、同事务内非递减。第二次启动不重写
+  账本（§5.2 的 `ledgerStable`）。
+- **`sqlite_master` 69 条一致**：每条 CREATE 语句用 fixture `entries[].sql` 的
+  oracle 原文加 `IF NOT EXISTS`（存储时被 SQLite 剥掉），新建库的 `sql` 文本、
+  `tbl_name`、顺序（`order by type, name`，`sqlite_%` 除外）与 §5.3 一致；
+  pragmas 里 `journal_mode=wal` 在 initialize 路径落盘，`foreign_keys` 是连接级
+  pragma（fixture 的 `1` 是探针连接自己的设置），`page_size`/`user_version` 取默认。
+- **门帧**：`checking ×3 → migrating ×22 → committing ×1 → ready ×1`（27 帧）与
+  `checking ×3 → committing ×1 → ready ×1`（5 帧）按 §5.1 产出；migrating 帧带
+  `completed/total/migrationId`，`migration` 事实的形状取自 C1 观察的
+  `session-lifecycle-events.json`（`kind/executedCount/committedCount/
+  lastAppliedMigrationId`）。
+- **单步 SQL 切分不可观察**：22 步的对象归属按迁移名推导，纯数据回填/枚举扩列等
+  无法推导的步登记为 no-op 占位或缺列守卫；可观察契约只有最终 schema + 账本字节
+  （§7 第 7 条），两者均逐字节对齐。
+
 ## 6. 未观察 / 无法观察（明确登记）
 
 | 观察项                                       | 尝试与结果                                                                                                                                                                                              |

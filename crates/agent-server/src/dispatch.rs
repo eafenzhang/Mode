@@ -3,7 +3,8 @@
 //! [`AgentServer`] 持有：
 //! - [`ProviderConfigHub`]：provider/updateAccountConfig 与模型端点解析（Task 4b）；
 //! - `ServerConfig`（`.mode` 数据根 → `{root}/cli/db/db.sqlite`）与启动存储门
-//!   （`startup/storageState` 通知，形状见 `docs/specs/agent-process.md` §存储启动门）；
+//!   （`startup/storageState` 通知，形状见 `docs/specs/agent-process.md` §存储启动门
+//!   与 `docs/specs/agent-c2-contract.md` §5）；
 //! - 会话注册表 `HashMap<sessionId, Arc<SessionRuntime>>` 与共享 [`SessionStore`]
 //!   （单写者：crate 文档的锁纪律）。
 //!
@@ -572,13 +573,15 @@ impl AgentServer {
         })
     }
 
-    /// 启动存储门（`agent-process.md` §存储启动门）。
+    /// 启动存储门（`agent-process.md` §存储启动门；C2 帧契约见
+    /// `agent-c2-contract.md` §5.1/§5.5）。
     ///
-    /// 一次性：`checking` → 打开 [`session_store::SessionStore`]（fail-closed 的
-    /// schema 门，不建库不迁移）→ `ready` / `failed`。通知帧**直接写出**（保证
-    /// 它们是本连接的第一批帧，宿主 `prepare_storage` 靠它们放行）。骨架构造
-    /// （无存储配置）不发通知、不碰盘。`databaseKind` 恒为 `session`（本进程只有
-    /// 会话库一个门）；`failed` 带稳定 `errorCode`。
+    /// 一次性：`checking ×2`（无 migration 事实）→ [`session_store::SessionStore`]
+    /// 打开（缺库/空 schema 走 fresh-install 迁移）→ 第 3 个 `checking`（带预检
+    /// 事实）→ `migrating ×N`（每缺失步一帧，执行前发出）→ `committing` →
+    /// `ready`。全迁移完成时（第二次启动）没有 `migrating` 帧，共 5 帧；fresh 共
+    /// 27 帧。打开是同步 SQLite 操作，迁移事件先收集、按序写出（帧序不变）。
+    /// 骨架构造（无存储配置）不发通知、不碰盘；`failed` 带稳定 `errorCode`。
     pub(crate) async fn run_storage_gate<W>(&self, writer: &mut W) -> Result<(), ServerError>
     where
         W: AsyncWrite + Unpin,
@@ -592,12 +595,79 @@ impl AgentServer {
             return Ok(());
         };
         let started = std::time::Instant::now();
-        self.notify_storage(writer, "checking", None, started)
+        self.notify_storage(writer, "checking", started, serde_json::json!({}))
+            .await?;
+        self.notify_storage(writer, "checking", started, serde_json::json!({}))
             .await?;
 
-        match session_store::SessionStore::open(&config.db_path()) {
+        let mut events = Vec::new();
+        let open_result =
+            session_store::SessionStore::open_with_progress(&config.db_path(), &mut |event| {
+                events.push(event)
+            });
+
+        match open_result {
             Ok(store) => {
-                self.notify_storage(writer, "ready", None, started).await?;
+                let mut committing_facts = None;
+                for event in &events {
+                    match event {
+                        session_store::MigrationEvent::Inspected { facts } => {
+                            // 第 3 个 checking 帧：预检事实（锁内基线尚未取得）。
+                            self.notify_storage(
+                                writer,
+                                "checking",
+                                started,
+                                serde_json::json!({
+                                    "migration": migration_facts_json(facts, false),
+                                }),
+                            )
+                            .await?;
+                        }
+                        session_store::MigrationEvent::Migrating {
+                            migration_id,
+                            facts,
+                        } => {
+                            self.notify_storage(
+                                writer,
+                                "migrating",
+                                started,
+                                serde_json::json!({
+                                    "migration": migration_facts_json(facts, true),
+                                    "completed": facts.executed_count,
+                                    "total": session_store::migration_definitions().len(),
+                                    "migrationId": migration_id,
+                                }),
+                            )
+                            .await?;
+                        }
+                        session_store::MigrationEvent::Committing { facts } => {
+                            self.notify_storage(
+                                writer,
+                                "committing",
+                                started,
+                                serde_json::json!({
+                                    "migration": migration_facts_json(facts, true),
+                                }),
+                            )
+                            .await?;
+                            committing_facts = Some(facts.clone());
+                        }
+                    }
+                }
+                // ready 帧：`committedCount` 追平 `executedCount`（C1 观察的 ready 形状；
+                // 全部已应用时 executed/committed 恒 0）。
+                let mut ready_facts =
+                    committing_facts.unwrap_or(session_store::MigrationFacts::default());
+                ready_facts.committed_count = ready_facts.executed_count;
+                self.notify_storage(
+                    writer,
+                    "ready",
+                    started,
+                    serde_json::json!({
+                        "migration": migration_facts_json(&ready_facts, true),
+                    }),
+                )
+                .await?;
                 // 数据根随 store 一起保留：会话物化时用它接线工具 artifact 落点。
                 *self.storage.lock().expect("storage poisoned") = StorageState::Ready {
                     store: Arc::new(store),
@@ -609,8 +679,13 @@ impl AgentServer {
                 // 稳定错误码来自 `session_store::StoreError::code()`（`agent-core-parity.md`
                 // §6 的事实源），这里不另造取值。
                 let error_code = error.code();
-                self.notify_storage(writer, "failed", Some(error_code.to_owned()), started)
-                    .await?;
+                self.notify_storage(
+                    writer,
+                    "failed",
+                    started,
+                    serde_json::json!({ "errorCode": error_code }),
+                )
+                .await?;
                 *self.storage.lock().expect("storage poisoned") =
                     StorageState::Failed(error.to_string());
                 Ok(())
@@ -622,8 +697,8 @@ impl AgentServer {
         &self,
         writer: &mut W,
         phase: &str,
-        error_code: Option<String>,
         started: std::time::Instant,
+        extra: serde_json::Value,
     ) -> Result<(), ServerError>
     where
         W: AsyncWrite + Unpin,
@@ -639,8 +714,10 @@ impl AgentServer {
             "phase": phase,
             "elapsedMs": started.elapsed().as_secs_f64() * 1000.0,
         });
-        if let Some(code) = error_code {
-            params["errorCode"] = serde_json::json!(code);
+        if let Some(object) = extra.as_object() {
+            for (key, value) in object {
+                params[key.as_str()] = value.clone();
+            }
         }
         crate::server::write_frame(
             writer,
@@ -652,4 +729,23 @@ impl AgentServer {
         )
         .await
     }
+}
+
+/// 迁移事实 → 帧 `migration` 字段。
+///
+/// `include_last_applied=false` 用于预检帧（oracle 第 3 个 checking 帧没有
+/// `lastAppliedMigrationId`）；其余帧带该键（空账本为 `null`）。
+fn migration_facts_json(
+    facts: &session_store::MigrationFacts,
+    include_last_applied: bool,
+) -> serde_json::Value {
+    let mut value = serde_json::json!({
+        "kind": facts.kind.as_str(),
+        "executedCount": facts.executed_count,
+        "committedCount": facts.committed_count,
+    });
+    if include_last_applied {
+        value["lastAppliedMigrationId"] = serde_json::json!(facts.last_applied_migration_id);
+    }
+    value
 }

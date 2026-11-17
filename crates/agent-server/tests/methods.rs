@@ -1455,49 +1455,200 @@ async fn goal_stays_method_not_found() {
 }
 
 // ---------------------------------------------------------------------------
-// 10. 启动存储门：checking → ready / failed
+// 10. 启动存储门：fresh 27 帧 / 二次启动 5 帧 / fail-closed
 // ---------------------------------------------------------------------------
 
-#[tokio::test]
-async fn storage_gate_emits_checking_then_ready_or_failed() {
-    // ready：有效已迁移库。
-    let fixture = fixture("gate-ready", vec![ScriptStep::Text("x".to_string())]);
-    let mut conn = connect(Arc::clone(&fixture.server)).await;
+/// 收集门通知直到 ready / failed。
+async fn collect_storage_gate(conn: &mut TestConn) -> Vec<Value> {
     let mut states = Vec::new();
-    for _ in 0..2 {
+    loop {
         match conn.next_frame().await {
             Frame::Notification(notification) => {
                 assert_eq!(notification.method, "startup/storageState");
                 states.push(notification.params.expect("params"));
             }
-            other => panic!("第一批帧必须是门通知，实际 {other:?}"),
+            other => panic!("门通知之后才允许有其他帧，实际 {other:?}"),
+        }
+        let phase = states.last().expect("有帧")["phase"]
+            .as_str()
+            .expect("phase");
+        if phase == "ready" || phase == "failed" {
+            return states;
         }
     }
-    assert_eq!(states[0]["phase"], json!("checking"));
-    assert_eq!(states[1]["phase"], json!("ready"));
-    for state in &states {
+}
+
+fn assert_gate_common_fields(states: &[Value]) {
+    let mut previous_sequence = 0;
+    for state in states {
         assert_eq!(state["schemaVersion"], json!(1));
         assert_eq!(state["databaseKind"], json!("session"));
         assert_eq!(state["attemptId"], json!("attempt-1"));
         assert_eq!(state["databaseId"], json!("db-1"));
-        assert!(state["sequence"].as_u64().expect("sequence") > 0);
+        let sequence = state["sequence"].as_u64().expect("sequence");
+        assert!(
+            sequence > previous_sequence,
+            "sequence 必须严格递增：{sequence} <= {previous_sequence}"
+        );
+        previous_sequence = sequence;
         assert!(state["elapsedMs"].as_f64().expect("elapsedMs") >= 0.0);
         assert!(state.get("errorCode").is_none(), "非 failed 帧无 errorCode");
     }
-    // 门放行后方法可用。
-    let id = conn
-        .send("session/create", create_params(&fixture.ws, true))
-        .await;
-    let _ = conn.result(id).await;
+}
 
-    // failed：库文件存在但缺必需表（schema 门 fail-closed）。
+#[tokio::test]
+async fn storage_gate_frames_match_c2_contract() {
+    // fresh 根：checking ×3 → migrating ×22 → committing ×1 → ready ×1（27 帧）。
+    let root = TempRoot::new("gate-fresh");
+    let hub = ProviderConfigHub::with_paths(
+        write_builtin_file(root.path()),
+        write_personal_file(root.path()),
+    );
+    let server = Arc::new(AgentServer::with_parts(
+        ServerConfig::from_data_base_dir(root.path()),
+        hub,
+        Arc::new(ScriptedSource {
+            steps: vec![ScriptStep::Text("x".to_string())],
+        }),
+    ));
+    let mut conn = connect(Arc::clone(&server)).await;
+    let states = collect_storage_gate(&mut conn).await;
+    assert_eq!(states.len(), 27, "fresh 启动必须发 27 帧");
+    let phases: Vec<&str> = states
+        .iter()
+        .map(|state| state["phase"].as_str().expect("phase"))
+        .collect();
+    let mut expected_phases = vec!["checking", "checking", "checking"];
+    expected_phases.extend(std::iter::repeat_n("migrating", 22));
+    expected_phases.push("committing");
+    expected_phases.push("ready");
+    assert_eq!(phases, expected_phases, "phase 序列与 C2 契约 §5.1 一致");
+    assert_gate_common_fields(&states);
+
+    // 前两个 checking 无 migration 事实；第 3 个带预检事实（initialize，无基线键）。
+    assert!(states[0].get("migration").is_none());
+    assert!(states[1].get("migration").is_none());
+    assert_eq!(
+        states[2]["migration"],
+        json!({ "kind": "initialize", "executedCount": 0, "committedCount": 0 })
+    );
+
+    // migrating 帧：completed 0..21、total 22、migrationId = 冻结清单顺序。
+    let frozen_ids: Vec<&str> = session_store::migration_definitions()
+        .iter()
+        .map(|definition| definition.id)
+        .collect();
+    for (index, state) in states[3..25].iter().enumerate() {
+        assert_eq!(state["phase"], json!("migrating"));
+        assert_eq!(state["completed"], json!(index as u64), "执行前发出");
+        assert_eq!(state["total"], json!(22));
+        assert_eq!(state["migrationId"], json!(frozen_ids[index]));
+        assert_eq!(
+            state["migration"],
+            json!({
+                "kind": "initialize",
+                "executedCount": index as u64,
+                "committedCount": 0,
+                "lastAppliedMigrationId": null,
+            })
+        );
+    }
+    // committing：22 步已执行、尚未提交；ready：committedCount 追平。
+    assert_eq!(
+        states[25]["migration"],
+        json!({
+            "kind": "initialize",
+            "executedCount": 22,
+            "committedCount": 0,
+            "lastAppliedMigrationId": null,
+        })
+    );
+    assert_eq!(
+        states[26]["migration"],
+        json!({
+            "kind": "initialize",
+            "executedCount": 22,
+            "committedCount": 22,
+            "lastAppliedMigrationId": null,
+        })
+    );
+
+    // 空根被创建成 CLI 布局的库。
+    assert!(
+        root.path()
+            .join(".mode")
+            .join("cli")
+            .join("db")
+            .join("db.sqlite")
+            .is_file(),
+        "fresh 根必须创建 db.sqlite"
+    );
+
+    // 第二次启动（同一数据根）：checking ×3 → committing ×1 → ready ×1，无 migrating。
+    let hub = ProviderConfigHub::with_paths(
+        write_builtin_file(root.path()),
+        write_personal_file(root.path()),
+    );
+    let server = Arc::new(AgentServer::with_parts(
+        ServerConfig::from_data_base_dir(root.path()),
+        hub,
+        Arc::new(ScriptedSource {
+            steps: vec![ScriptStep::Text("x".to_string())],
+        }),
+    ));
+    let mut conn = connect(server).await;
+    let states = collect_storage_gate(&mut conn).await;
+    assert_eq!(states.len(), 5, "第二次启动必须发 5 帧");
+    let phases: Vec<&str> = states
+        .iter()
+        .map(|state| state["phase"].as_str().expect("phase"))
+        .collect();
+    assert_eq!(
+        phases,
+        vec!["checking", "checking", "checking", "committing", "ready"]
+    );
+    assert_gate_common_fields(&states);
+    assert_eq!(
+        states[2]["migration"],
+        json!({ "kind": "none", "executedCount": 0, "committedCount": 0 })
+    );
+    assert_eq!(
+        states[3]["migration"],
+        json!({
+            "kind": "none",
+            "executedCount": 0,
+            "committedCount": 0,
+            "lastAppliedMigrationId": "0022_backfilled_session_reasoning",
+        })
+    );
+    assert_eq!(
+        states[4]["migration"],
+        json!({
+            "kind": "none",
+            "executedCount": 0,
+            "committedCount": 0,
+            "lastAppliedMigrationId": "0022_backfilled_session_reasoning",
+        })
+    );
+}
+
+#[tokio::test]
+async fn storage_gate_fails_closed_on_checksum_mismatch() {
+    // failed：账本 checksum 与冻结清单不一致（fail-closed 契约不变）。
     let root = TempRoot::new("gate-failed");
     let db_dir = root.path().join(".mode").join("cli").join("db");
     std::fs::create_dir_all(&db_dir).expect("建目录");
     let db_path = db_dir.join("db.sqlite");
     Connection::open(&db_path)
         .expect("空库文件")
-        .execute_batch("CREATE TABLE dummy (id text)")
+        .execute_batch(
+            "CREATE TABLE dummy (id text);
+             CREATE TABLE schema_migration (
+               id text primary key, checksum text not null, app_version text, time_applied integer not null
+             );
+             INSERT INTO schema_migration (id, checksum, app_version, time_applied)
+             VALUES ('0001_base_session_store', 'checksum-from-another-impl', '0.2.0', 1);",
+        )
         .unwrap();
     let hub = ProviderConfigHub::with_paths(
         write_builtin_file(root.path()),
@@ -1511,18 +1662,9 @@ async fn storage_gate_emits_checking_then_ready_or_failed() {
         }),
     ));
     let mut conn = connect(server).await;
-    let failed = loop {
-        match conn.next_frame().await {
-            Frame::Notification(notification) => {
-                assert_eq!(notification.method, "startup/storageState");
-                let params = notification.params.expect("params");
-                if params["phase"] == json!("failed") {
-                    break params;
-                }
-            }
-            other => panic!("失败路径在 failed 前不应有其他帧，实际 {other:?}"),
-        }
-    };
+    let states = collect_storage_gate(&mut conn).await;
+    let failed = states.last().expect("有帧");
+    assert_eq!(failed["phase"], json!("failed"));
     assert_eq!(failed["schemaVersion"], json!(1));
     assert_eq!(failed["databaseKind"], json!("session"));
     // 稳定错误码来自 session_store::StoreError::code()（agent-core-parity.md §6），

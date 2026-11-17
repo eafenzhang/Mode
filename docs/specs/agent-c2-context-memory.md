@@ -303,6 +303,46 @@ goal/target（C3）；自动重试/退避（C3）；官方平台/遥测（永久
 - 并发：两个进程同时首次启动时，SQLite 事务/`BEGIN IMMEDIATE` 保证只有一个创建；
   失败方重读账本，不重复写入。
 
+### 6.1 Rust C2 现状（T7，2026-11-18）
+
+实现落在 `crates/session-store/src/migrations.rs`（22 条冻结迁移 + runner），
+`SessionStore::open_with_progress` 暴露迁移事件供 `agent-server` 存储门发帧。
+与 T0 观察的对照与口径：
+
+- **可观察契约 = 最终 schema + 账本字节**。单条迁移的 SQL 切分只有最终
+  `sqlite_master` 可观察（T0 没有录制逐步 DDL）；因此 22 步按迁移名把对象归属到
+  最贴合的一步（0001 基础表、0002 local_setting、0004 session_target、0006
+  input_history、0007 workflow 族、0010 usage 族、0016 session_input、0019 dwf 族），
+  无法从观察推导切分的步骤（0003/0008/0009/0011/0012/0013/0014/0015 触发器外的
+  数据回填、0017/0018、0020/0021/0022）登记为 no-op 占位或缺列补齐守卫
+  （`tasks-db` 的 FROZEN_COLUMNS 模式）：**只在不破坏可观察契约的前提下升级修复**，
+  新建路径上全部是 no-op。每条 CREATE 语句使用 fixture `fresh-install-ledger.json`
+  的 oracle `sqlite_master.sql` 原文加 `IF NOT EXISTS`（SQLite 存储 `sql` 时剥掉该
+  子句），因此新建库的 `sqlite_master.sql` 与 oracle 逐字节一致。
+- **创建判定**（runner 决策表）：文件缺失或空 schema（无 `schema_migration`、
+  `sqlite_%` 之外的表）→ initialize；schema 存在但账本缺失/为空 → 保持 C1 的
+  fail-closed（不修复非自建库）；账本有行 → 逐条比对冻结清单，缺失的步补跑
+  （upgrade），id 存在但 checksum 不同 → `storage_schema_unsupported`（不变）；
+  冻结清单之外的账本行不校验、不重写（`tasks-db` inspect 口径）。
+- **pragmas**：initialize 路径建库前设 `journal_mode=wal`（持久属性，与 §5.3 观察
+  一致）；`foreign_keys` 是连接级 pragma（fixture 的 `1` 来自探针自身连接），Rust
+  连接不启用（C1 以来未启用，不改变 C2 写行为）；`page_size=4096`、
+  `user_version=0` 为默认值。
+- **`time_applied`**：机器毫秒时间，同事务内非递减（fixture 折叠为 `<time>` 且只
+  断言单调）。
+- **启动阶段**：门发 `checking ×3` →（首次）`migrating ×22` → `committing ×1` →
+  `ready ×1`；第二次启动 `checking ×3 → committing ×1 → ready ×1`（无 migrating）。
+  第 3 个 checking 帧带 `migration` 事实（`kind/executedCount/committedCount`）；
+  `migrating` 帧带 `completed/total/migrationId`（`migrationId` 是**即将执行**的
+  步，`completed` 是已执行数——oracle 帧 `session-lifecycle-events.json` 的形状）；
+  `committing`/`ready` 帧的 `migration` 带 `lastAppliedMigrationId`（锁内账本基线，
+  空账本为 null）。帧键集合与 `modeStorageStartupStateSchema`（strict）一致。
+- **并发首启**：两个 `open` 竞争同一空根 → 都先 `Connection::open`（SQLite 建空
+  文件）→ `BEGIN IMMEDIATE` 串行；后到者在锁内重读账本，已应用的步全部跳过，
+  不产生第二份 schema/账本；无半截 schema（单事务原子）。
+- **回放**：C1 的 38 条三层回放不比较 `startupStorage` 帧（门帧数变化不影响回放）；
+  `pnpm check:sqlite-schema` 的 TS 生产者不改动，基线保持绿。
+
 ## 7. 快照与读面
 
 - `session/read`/`list` 的 `settings`、`projection`、`runtime`、`contextUsage` 按

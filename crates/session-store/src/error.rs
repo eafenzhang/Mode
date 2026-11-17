@@ -10,7 +10,8 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 pub enum StoreError {
-    /// 数据根未迁移、缺表、缺账本或账本为空。C1 不建表，直接 fail-closed。
+    /// 数据根形态不受支持：缺表、schema 存在但缺账本/账本为空、冻结迁移
+    /// checksum 不一致。fresh-install（空根创建）由迁移 runner 负责，不进该错误。
     StorageSchemaUnsupported {
         reason: String,
     },
