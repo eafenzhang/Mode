@@ -1,0 +1,867 @@
+{
+  "case": "auto-compact-long-history",
+  "note": "C2 Task 0 oracle 捕获：以每轮 100000 字符的脚本化助手正文累加历史，观察自动 compact。机器录制结果：triggered=false（未观察到 compact_summary/compaction 行或 compact 事件），不要把本夹具反推成「阈值不存在」，只说明该规模/该 provider usage 下未触发。",
+  "input": {
+    "turns": 15,
+    "charsPerTurn": 100000,
+    "promptPattern": "long turn <n>"
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": [
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages"
+      ]
+    },
+    "turns": [
+      {
+        "turn": 1,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 1,
+            "totalInputTokens": 10,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 39
+            }
+          ]
+        },
+        "messagesChars": 39,
+        "db": {
+          "messageRows": 3,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 8,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 2,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 2,
+            "totalInputTokens": 20,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 100111
+            }
+          ]
+        },
+        "messagesChars": 100111,
+        "db": {
+          "messageRows": 5,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 15,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 3,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 3,
+            "totalInputTokens": 30,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 200183
+            }
+          ]
+        },
+        "messagesChars": 200183,
+        "db": {
+          "messageRows": 7,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 22,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 4,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 4,
+            "totalInputTokens": 40,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 300255
+            }
+          ]
+        },
+        "messagesChars": 300255,
+        "db": {
+          "messageRows": 9,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 29,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 5,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 5,
+            "totalInputTokens": 50,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 400327
+            }
+          ]
+        },
+        "messagesChars": 400327,
+        "db": {
+          "messageRows": 11,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 36,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 6,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 6,
+            "totalInputTokens": 60,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 500399
+            }
+          ]
+        },
+        "messagesChars": 500399,
+        "db": {
+          "messageRows": 13,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 43,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 7,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 7,
+            "totalInputTokens": 70,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 600471
+            }
+          ]
+        },
+        "messagesChars": 600471,
+        "db": {
+          "messageRows": 15,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 50,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 8,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 8,
+            "totalInputTokens": 80,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 700543
+            }
+          ]
+        },
+        "messagesChars": 700543,
+        "db": {
+          "messageRows": 17,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 57,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 9,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 9,
+            "totalInputTokens": 90,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 800615
+            }
+          ]
+        },
+        "messagesChars": 800615,
+        "db": {
+          "messageRows": 19,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 64,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 10,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 10,
+            "totalInputTokens": 100,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 900688
+            }
+          ]
+        },
+        "messagesChars": 900688,
+        "db": {
+          "messageRows": 21,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 71,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 11,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 11,
+            "totalInputTokens": 110,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 1000761
+            }
+          ]
+        },
+        "messagesChars": 1000761,
+        "db": {
+          "messageRows": 24,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 78,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 12,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 12,
+            "totalInputTokens": 120,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 1100834
+            }
+          ]
+        },
+        "messagesChars": 1100834,
+        "db": {
+          "messageRows": 26,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 85,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 13,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 13,
+            "totalInputTokens": 130,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 1200907
+            }
+          ]
+        },
+        "messagesChars": 1200907,
+        "db": {
+          "messageRows": 28,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 92,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 14,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 14,
+            "totalInputTokens": 140,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 1300980
+            }
+          ]
+        },
+        "messagesChars": 1300980,
+        "db": {
+          "messageRows": 30,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 99,
+        "compactionEventTypes": []
+      },
+      {
+        "turn": 15,
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 15,
+            "totalInputTokens": 150,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": 6717
+            },
+            {
+              "source": "meta_user_context",
+              "chars": 41
+            },
+            {
+              "source": "skills",
+              "chars": 1037
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": 81943
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": 4076
+            },
+            {
+              "source": "messages",
+              "chars": 1401053
+            }
+          ]
+        },
+        "messagesChars": 1401053,
+        "db": {
+          "messageRows": 32,
+          "compactSummaryMessages": 0,
+          "compactionParts": 0,
+          "timeCompacting": null
+        },
+        "eventsSeen": 106,
+        "compactionEventTypes": []
+      }
+    ],
+    "triggered": false,
+    "triggeredAtTurn": null,
+    "totalTurnsObserved": 15,
+    "finalDbCounts": {
+      "messageRows": 32,
+      "compactSummaryMessages": 0,
+      "compactionParts": 0,
+      "timeCompacting": null
+    },
+    "dbAfterRun": {
+      "messageRows": 32,
+      "compactSummaryMessages": 0,
+      "compactionParts": 0,
+      "timeCompacting": null
+    },
+    "eventTypes": [
+      "session.titleUpdated",
+      "turn.started",
+      "session.updated",
+      "model.streaming",
+      "turn.completed"
+    ]
+  }
+}

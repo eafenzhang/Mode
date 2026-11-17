@@ -1,0 +1,61 @@
+{
+  "case": "compact-expected-revision",
+  "note": "C2 Task 0 oracle 捕获：session/compact 带过期 expectedRevision，记录错误应答与「没有新增 compact 行/事件」的事实。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "prompts": ["revision prompt"],
+    "script": [
+      {
+        "text": "first turn answer: workspace introduced"
+      },
+      {
+        "text": "second turn answer: project summarized"
+      },
+      {
+        "text": "third turn answer: questions listed"
+      },
+      {
+        "text": "fourth turn answer: next steps proposed"
+      },
+      {
+        "text": "post compact answer: continuing after summary"
+      }
+    ]
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages"]
+    },
+    "actualRevision": 4,
+    "requestedRevision": 1004,
+    "rejected": "oracle：请求 #5 失败：{\"code\":-32009,\"data\":{\"actualRevision\":4,\"expectedRevision\":1004},\"message\":\"Session state revision mismatch\"}",
+    "requests": [
+      {
+        "method": "session/compact",
+        "params": {
+          "sessionId": "<id>",
+          "expectedRevision": 1004
+        },
+        "result": {
+          "error": {
+            "code": -32009,
+            "data": {
+              "actualRevision": 4,
+              "expectedRevision": 1004
+            },
+            "message": "Session state revision mismatch"
+          }
+        }
+      }
+    ],
+    "events": [],
+    "eventTypes": [],
+    "messageRowsBefore": 3,
+    "messageRowsAfter": 3
+  }
+}

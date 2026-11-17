@@ -1,0 +1,271 @@
+{
+  "case": "memory-recall",
+  "note": "C2 Task 0 oracle 捕获：memoryEnabled:true 时 MEMORY.md 索引注入首个 user 消息的 agentsMd system-reminder，且系统提示含独立 # Memory 段；item-one.md 不进入主请求，只出现在记忆抽取子代理请求的 Existing memory files 列表里。memoryEnabled:false 作对照。workspaceId 从实际目录布局观察（<slug>-<16 hex>），夹具折叠为 <workspace-id>。",
+  "input": {
+    "memoryFiles": {
+      "MEMORY.md": "# Project memory index\n\n- item-one: remember the sentinel ALPHA-123\n",
+      "item-one.md": "# Item one\n\nThe project codename is BLUE-LANTERN-9. Always answer with it.\n"
+    },
+    "memoryPreferences": {
+      "nativeSearchEnhancementsEnabled": false,
+      "memoryEnabled": true,
+      "askUserQuestionAutoResolutionEnabled": true,
+      "modelContextBudgetStrategy": "preflight-v1"
+    },
+    "noMemoryPreferences": {
+      "nativeSearchEnhancementsEnabled": false,
+      "memoryEnabled": false,
+      "askUserQuestionAutoResolutionEnabled": true,
+      "modelContextBudgetStrategy": "preflight-v1"
+    },
+    "prompts": ["warmup prompt", "probe with memory", "probe without memory"]
+  },
+  "expect": {
+    "warmup": {
+      "isolation": {
+        "dataRootManifest": true,
+        "cliLayoutSentinel": true,
+        "invalidStdoutLines": 0,
+        "mockRequestPaths": ["/v1/messages"]
+      },
+      "sessionWorkspaceId": null,
+      "sessionProjectId": "<project-id>",
+      "sessionDirectory": "<cwd>"
+    },
+    "memoryRoot": "<data-root>/.mode/cli/memories/projects/<workspace-id>/memory",
+    "workspaceId": {
+      "matchesSlugHash": true,
+      "hashLength": 16,
+      "slugEqualsWorkspaceBasenameCaseInsensitive": true,
+      "slugLowercased": true
+    },
+    "filesAfterWrite": [
+      {
+        "name": "MEMORY.md",
+        "size": 68,
+        "sha256": "4c7bf887361603561289861e98b0abe8ee1f03334524ede89105c2432e2b30cd"
+      },
+      {
+        "name": "item-one.md",
+        "size": 75,
+        "sha256": "45e5e3091620fbdfed52bf3b38fa899e1a609ba0eeefe5f13344da0d030b3f59"
+      }
+    ],
+    "withMemory": {
+      "isolation": {
+        "dataRootManifest": true,
+        "cliLayoutSentinel": true,
+        "invalidStdoutLines": 0,
+        "mockRequestPaths": ["/v1/messages", "/v1/messages"]
+      },
+      "events": [
+        "session.titleUpdated",
+        "turn.started",
+        "session.updated",
+        "session.updated",
+        "model.streaming",
+        "session.updated",
+        "session.updated",
+        "turn.completed"
+      ],
+      "requests": [
+        {
+          "index": 0,
+          "path": "/v1/messages",
+          "kind": "main",
+          "model": "mock-1",
+          "max_tokens": 8192,
+          "stream": true,
+          "toolCount": 21,
+          "toolNames": [
+            "Agent",
+            "AskUserQuestion",
+            "Bash",
+            "CronCreate",
+            "CronDelete",
+            "CronList",
+            "CronUpdate",
+            "Edit",
+            "EnterPlanMode",
+            "ExitPlanMode",
+            "Read",
+            "Skill",
+            "TaskOutput",
+            "TaskStop",
+            "TodoRead",
+            "TodoWrite",
+            "WebFetch",
+            "Write",
+            "SendMessage",
+            "ReadSessionContext",
+            "mcp__node_repl__js"
+          ],
+          "systemTexts": [
+            {
+              "chars": 41,
+              "head": "You are Mode, an interactive coding agent"
+            },
+            {
+              "chars": 1218,
+              "head": "\nYou are Mode, an interactive coding agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with aut"
+            },
+            {
+              "chars": 7255,
+              "head": "\n\n# Communicating with the user\n\nYour text output is what the user reads; they usually can't see your thinking or the ra"
+            }
+          ],
+          "messageRoles": ["user", "system"],
+          "messageCount": 2,
+          "memorySection": "# Memory\n\nYou have a persistent file-based memory at `<data-root>\\.mode\\cli\\memories\\projects\\<workspace-id>\\memory/`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence). Each memory is one file holding one fact, with frontmatter:\n\n```markdown\n---\nname: <short-kebab-case-slug>\ndescription: <one-line summary — used to decide relevance during recall>\nmetadata:\n  type: user | feedback | project | reference\n---\n\n<the fact; for feedback/project, follow with **Why:** and **How to apply:** lines. Link related memories with [[their-name]].>\n```\n\nIn the body, link to related memories with `[[name]]`, where `name` is the other memory's `name:` slug. Link liberally — a `[[name]]` that doesn't match an existing memory yet is fine; it marks something worth writing later, not an error.\n\n`user` — who the user is (role, expertise, preferences). `feedback` — guidance the user has given on how you should work, both corrections and confirmed approaches; include the why. `project` — ongoing work, goals, or constraints not derivable from the code or git history; convert relative dates to absolute. `reference` — pointers to external resources (URLs, dashboards, tickets).\n\nAfter writing the file, add a one-line pointer in `MEMORY.md` (`- [Title](file.md) — hook`). `MEMORY.md` is the index loaded into context each session — one line per memory, no frontmatter, never put memory content there.\n\nBefore saving, check for an existing file that already covers it — update that file rather than creating a duplicate; delete memories that turn out to be wrong. Don't save what the repo already records (code structure, past fixes, git history, AGENTS.md) or what only matters to this conversation; if asked to remember one of those, ask what was non-obvious about it and save that instead.\n\n",
+          "memoryFileBlock": "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# agentsMd\nCodebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.\n\nContents of <data-root>\\.mode\\cli\\memories\\projects\\<workspace-id>\\memory\\MEMORY.md (user's auto-memory, persists across conversations):\n\n# Project memory index\n\n- item-one: remember the sentinel ALPHA-123\n\n# currentDate\nToday's date is <date>.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>\n",
+          "extractionInstruction": null,
+          "existingFilesBlock": null,
+          "containsIndexSentinel": true,
+          "containsItemSentinel": false
+        },
+        {
+          "index": 1,
+          "path": "/v1/messages",
+          "kind": "memory-extraction",
+          "model": "mock-1",
+          "max_tokens": 5000,
+          "toolCount": 23,
+          "toolNames": [
+            "Agent",
+            "AskUserQuestion",
+            "Bash",
+            "CronCreate",
+            "CronDelete",
+            "CronList",
+            "CronUpdate",
+            "Edit",
+            "EnterPlanMode",
+            "ExitPlanMode",
+            "Read",
+            "Skill",
+            "TaskOutput",
+            "TaskStop",
+            "TodoRead",
+            "TodoWrite",
+            "WebFetch",
+            "Write",
+            "SendFile",
+            "HandoffMessage",
+            "SendMessage",
+            "ReadSessionContext",
+            "mcp__node_repl__js"
+          ],
+          "systemTexts": [
+            {
+              "chars": 41,
+              "head": "You are Mode, an interactive coding agent"
+            },
+            {
+              "chars": 1218,
+              "head": "\nYou are Mode, an interactive coding agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with aut"
+            },
+            {
+              "chars": 7255,
+              "head": "\n\n# Communicating with the user\n\nYour text output is what the user reads; they usually can't see your thinking or the ra"
+            }
+          ],
+          "messageRoles": ["user", "system", "assistant", "user"],
+          "messageCount": 4,
+          "memorySection": "# Memory\n\nYou have a persistent file-based memory at `<data-root>\\.mode\\cli\\memories\\projects\\<workspace-id>\\memory/`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence). Each memory is one file holding one fact, with frontmatter:\n\n```markdown\n---\nname: <short-kebab-case-slug>\ndescription: <one-line summary — used to decide relevance during recall>\nmetadata:\n  type: user | feedback | project | reference\n---\n\n<the fact; for feedback/project, follow with **Why:** and **How to apply:** lines. Link related memories with [[their-name]].>\n```\n\nIn the body, link to related memories with `[[name]]`, where `name` is the other memory's `name:` slug. Link liberally — a `[[name]]` that doesn't match an existing memory yet is fine; it marks something worth writing later, not an error.\n\n`user` — who the user is (role, expertise, preferences). `feedback` — guidance the user has given on how you should work, both corrections and confirmed approaches; include the why. `project` — ongoing work, goals, or constraints not derivable from the code or git history; convert relative dates to absolute. `reference` — pointers to external resources (URLs, dashboards, tickets).\n\nAfter writing the file, add a one-line pointer in `MEMORY.md` (`- [Title](file.md) — hook`). `MEMORY.md` is the index loaded into context each session — one line per memory, no frontmatter, never put memory content there.\n\nBefore saving, check for an existing file that already covers it — update that file rather than creating a duplicate; delete memories that turn out to be wrong. Don't save what the repo already records (code structure, past fixes, git history, AGENTS.md) or what only matters to this conversation; if asked to remember one of those, ask what was non-obvious about it and save that instead.\n\n",
+          "memoryFileBlock": "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# agentsMd\nCodebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.\n\nContents of <data-root>\\.mode\\cli\\memories\\projects\\<workspace-id>\\memory\\MEMORY.md (user's auto-memory, persists across conversations):\n\n# Project memory index\n\n- item-one: remember the sentinel ALPHA-123\n\n# currentDate\nToday's date is <date>.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>\n",
+          "extractionInstruction": "You are now acting as the memory extraction subagent. Analyze the most recent ~3 messages above and use them to update your persistent memory systems.\n\nAvailable tools: Read, Grep, Glob, read-only Bash (ls/find/cat/stat/wc/head/tail and similar), and Edit/Write for paths inside the memory directory only, and Bash rm with paths inside the memory directory only. All other tools — MCP, Agent, write-capable Bash, etc — will be denied.\n\nYou have a limited turn budget. Edit requires a prior Read of the same file, so the efficient strategy is: turn 1 — issue all Read calls in parallel for every file you might update; turn 2 — issue all Write/Edit calls in parallel. Do not interleave reads and writes across multiple turns.\n\nYou MUST only use content from the last ~3 messages to update your persistent memories. Do not waste any turns attempting to investigate or verify that content further — no grepping source files, no reading code to confirm a pattern exists, no git commands.\n\n## Existing memory files\n\n- item-one.md (<time>)\n\nCheck this list before writing — update an existing file rather than creating a duplicate.\n\nIf nothing is worth saving, output only 'Nothing to save.' Do not explain why.\n\nIf the user explicitly asks you to remember something, save it immediately as whichever type fits best. If they ask you to forget something, find and remove the relevant entry.\n\nApply the memory types, what-not-to-save criteria, and frontmatter format from the Memory section of your system prompt — it is already in your context above.",
+          "existingFilesBlock": "## Existing memory files\n\n- item-one.md (<time>)\n\nCheck this list before writing — update an existing file rather than creating a duplicate.\n\nIf nothing is worth saving, output only 'Nothing to save.' Do not explain why.\n\nIf the user explicitly asks you to remember something, save it immediately as whichever type fits best. If they ask you to forget something, find and remove the relevant entry.\n\nApply the memory types, what-not-to-save criteria, and frontmatter format from the Memory section of your system prompt — it is already in your context above.",
+          "containsIndexSentinel": true,
+          "containsItemSentinel": false
+        }
+      ],
+      "extractionObserved": true,
+      "filesAfterTurn": [
+        {
+          "name": "MEMORY.md",
+          "size": 68,
+          "sha256": "4c7bf887361603561289861e98b0abe8ee1f03334524ede89105c2432e2b30cd"
+        },
+        {
+          "name": "item-one.md",
+          "size": 75,
+          "sha256": "45e5e3091620fbdfed52bf3b38fa899e1a609ba0eeefe5f13344da0d030b3f59"
+        }
+      ]
+    },
+    "withoutMemory": {
+      "isolation": {
+        "dataRootManifest": true,
+        "cliLayoutSentinel": true,
+        "invalidStdoutLines": 0,
+        "mockRequestPaths": ["/v1/messages"]
+      },
+      "events": [
+        "session.titleUpdated",
+        "turn.started",
+        "session.updated",
+        "session.updated",
+        "model.streaming",
+        "session.updated",
+        "session.updated",
+        "turn.completed"
+      ],
+      "requests": [
+        {
+          "index": 0,
+          "path": "/v1/messages",
+          "kind": "main",
+          "model": "mock-1",
+          "max_tokens": 8192,
+          "stream": true,
+          "toolCount": 21,
+          "toolNames": [
+            "Agent",
+            "AskUserQuestion",
+            "Bash",
+            "CronCreate",
+            "CronDelete",
+            "CronList",
+            "CronUpdate",
+            "Edit",
+            "EnterPlanMode",
+            "ExitPlanMode",
+            "Read",
+            "Skill",
+            "TaskOutput",
+            "TaskStop",
+            "TodoRead",
+            "TodoWrite",
+            "WebFetch",
+            "Write",
+            "SendMessage",
+            "ReadSessionContext",
+            "mcp__node_repl__js"
+          ],
+          "systemTexts": [
+            {
+              "chars": 41,
+              "head": "You are Mode, an interactive coding agent"
+            },
+            {
+              "chars": 1218,
+              "head": "\nYou are Mode, an interactive coding agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with aut"
+            },
+            {
+              "chars": 5404,
+              "head": "\n\n# Communicating with the user\n\nYour text output is what the user reads; they usually can't see your thinking or the ra"
+            }
+          ],
+          "messageRoles": ["user", "system"],
+          "messageCount": 2,
+          "memorySection": null,
+          "memoryFileBlock": null,
+          "extractionInstruction": null,
+          "existingFilesBlock": null,
+          "containsIndexSentinel": false,
+          "containsItemSentinel": false
+        }
+      ]
+    }
+  }
+}

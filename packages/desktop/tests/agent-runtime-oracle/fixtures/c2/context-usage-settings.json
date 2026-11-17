@@ -1,0 +1,1024 @@
+{
+  "case": "context-usage-settings",
+  "note": "C2 Task 0 oracle 捕获：session/create 与三轮 session/read 的 runtime.contextUsage、projection、settings.model.available；close→resume→read 再观察一次。contextUsage 的 breakdown.chars 随工具面/路径变化，比较时应整体替换或忽略具体 chars。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "prompts": ["first prompt", "second prompt", "third prompt"],
+    "script": [
+      {
+        "text": "first answer"
+      },
+      {
+        "text": "second answer"
+      },
+      {
+        "text": "third answer"
+      }
+    ]
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages", "/v1/messages", "/v1/messages"]
+    },
+    "createSnapshot": {
+      "resultKeys": [
+        "messages",
+        "projection",
+        "protocol",
+        "runtime",
+        "session",
+        "settings",
+        "slashCommands",
+        "todoGroups",
+        "todos"
+      ],
+      "runtime": {
+        "eventSeq": 0,
+        "pendingRequestIds": [],
+        "goalVerifications": [],
+        "goalVerificationTimeline": [],
+        "stateRevision": 2
+      },
+      "runtimeKeys": [
+        "eventSeq",
+        "goalVerificationTimeline",
+        "goalVerifications",
+        "pendingRequestIds",
+        "stateRevision"
+      ],
+      "contextUsage": null,
+      "contextUsageKeys": [],
+      "projection": {
+        "activeToolCalls": [],
+        "backgroundJobs": [],
+        "contextUsed": 0,
+        "contextWindow": 200000,
+        "mode": "build",
+        "pendingPermissions": [],
+        "sessionId": "<id>",
+        "status": "idle",
+        "target": null,
+        "totalTokenCount": 0,
+        "turnCount": 0
+      },
+      "settings": {
+        "mode": {
+          "current": "build"
+        },
+        "model": {
+          "available": [
+            {
+              "ref": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1"
+              },
+              "label": "mock-1",
+              "providerLabel": "Oracle Mock",
+              "contextWindow": 200000,
+              "maxOutputTokens": 8192,
+              "reasoning": {
+                "levels": [
+                  {
+                    "value": "disabled",
+                    "label": "disabled"
+                  },
+                  {
+                    "value": "enabled",
+                    "label": "enabled"
+                  }
+                ],
+                "defaultLevel": "enabled"
+              },
+              "properties": {
+                "inputFormat": {
+                  "supportsText": true,
+                  "supportsImage": false,
+                  "supportsVideo": false,
+                  "supportsAudio": false,
+                  "supportsPdf": false
+                },
+                "outputFormat": {
+                  "supportsText": true
+                }
+              }
+            }
+          ],
+          "current": {
+            "providerId": "oracle-mock",
+            "modelId": "mock-1",
+            "options": {
+              "reasoningLevel": "disabled"
+            }
+          },
+          "lastUsed": {
+            "providerId": "oracle-mock",
+            "modelId": "mock-1"
+          }
+        },
+        "permission": {
+          "mode": "build"
+        },
+        "thoughtLevel": {
+          "available": [
+            {
+              "label": "disabled",
+              "value": "disabled"
+            },
+            {
+              "label": "enabled",
+              "value": "enabled"
+            }
+          ],
+          "current": "disabled",
+          "enabled": true
+        }
+      },
+      "settingsModelKeys": ["available", "current", "lastUsed"],
+      "messageCount": 0,
+      "messageRoles": [],
+      "messagePartTypes": []
+    },
+    "createSessionId": "<id>",
+    "sendResults": [
+      {
+        "prompt": "first prompt",
+        "lastEventType": "turn.completed"
+      },
+      {
+        "prompt": "second prompt",
+        "lastEventType": "turn.completed"
+      },
+      {
+        "prompt": "third prompt",
+        "lastEventType": "turn.completed"
+      }
+    ],
+    "afterTurns": [
+      {
+        "prompt": "first prompt",
+        "events": [
+          "session.titleUpdated",
+          "turn.started",
+          "session.updated",
+          "session.updated",
+          "model.streaming",
+          "session.updated",
+          "session.updated",
+          "turn.completed"
+        ],
+        "snapshot": {
+          "resultKeys": [
+            "messages",
+            "projection",
+            "protocol",
+            "runtime",
+            "session",
+            "settings",
+            "slashCommands",
+            "todoGroups",
+            "todos"
+          ],
+          "runtime": {
+            "deliveryKind": "desktop-continuous",
+            "eventSeq": 8,
+            "pendingRequestIds": [],
+            "contextUsage": {
+              "cache": {
+                "inputTokens": 10,
+                "cacheReadTokens": 0,
+                "cacheWriteTokens": 0,
+                "latestHitRate": 0,
+                "hitRate": 0,
+                "hitRateRequestCount": 1,
+                "totalInputTokens": 10,
+                "totalCacheReadTokens": 0,
+                "totalCacheWriteTokens": 0
+              },
+              "cost": null,
+              "size": 200000,
+              "used": 22,
+              "breakdown": [
+                {
+                  "source": "system_prompt",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "meta_user_context",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "skills",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "system_tool_schemas",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "mcp_tool_schemas",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "messages",
+                  "chars": "<count>"
+                }
+              ]
+            },
+            "goalVerifications": [],
+            "goalVerificationTimeline": [],
+            "stateRevision": 4
+          },
+          "runtimeKeys": [
+            "contextUsage",
+            "deliveryKind",
+            "eventSeq",
+            "goalVerificationTimeline",
+            "goalVerifications",
+            "pendingRequestIds",
+            "stateRevision"
+          ],
+          "contextUsage": {
+            "cache": {
+              "inputTokens": 10,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": 0,
+              "latestHitRate": 0,
+              "hitRate": 0,
+              "hitRateRequestCount": 1,
+              "totalInputTokens": 10,
+              "totalCacheReadTokens": 0,
+              "totalCacheWriteTokens": 0
+            },
+            "cost": null,
+            "size": 200000,
+            "used": 22,
+            "breakdown": [
+              {
+                "source": "system_prompt",
+                "chars": "<count>"
+              },
+              {
+                "source": "meta_user_context",
+                "chars": "<count>"
+              },
+              {
+                "source": "skills",
+                "chars": "<count>"
+              },
+              {
+                "source": "system_tool_schemas",
+                "chars": "<count>"
+              },
+              {
+                "source": "mcp_tool_schemas",
+                "chars": "<count>"
+              },
+              {
+                "source": "messages",
+                "chars": "<count>"
+              }
+            ]
+          },
+          "contextUsageKeys": ["breakdown", "cache", "cost", "size", "used"],
+          "projection": {
+            "activeToolCalls": [],
+            "backgroundJobs": [],
+            "contextUsed": 22,
+            "contextWindow": 200000,
+            "currentTurnId": "<turn-id>",
+            "mode": "build",
+            "pendingPermissions": [],
+            "sessionId": "<id>",
+            "status": "idle",
+            "target": null,
+            "totalTokenCount": 22,
+            "turnCount": 1
+          },
+          "settings": {
+            "mode": {
+              "current": "build"
+            },
+            "model": {
+              "available": [
+                {
+                  "ref": {
+                    "providerId": "oracle-mock",
+                    "modelId": "mock-1"
+                  },
+                  "label": "mock-1",
+                  "providerLabel": "Oracle Mock",
+                  "contextWindow": 200000,
+                  "maxOutputTokens": 8192,
+                  "reasoning": {
+                    "levels": [
+                      {
+                        "value": "disabled",
+                        "label": "disabled"
+                      },
+                      {
+                        "value": "enabled",
+                        "label": "enabled"
+                      }
+                    ],
+                    "defaultLevel": "enabled"
+                  },
+                  "properties": {
+                    "inputFormat": {
+                      "supportsText": true,
+                      "supportsImage": false,
+                      "supportsVideo": false,
+                      "supportsAudio": false,
+                      "supportsPdf": false
+                    },
+                    "outputFormat": {
+                      "supportsText": true
+                    }
+                  }
+                }
+              ],
+              "current": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "options": {
+                  "reasoningLevel": "disabled"
+                }
+              },
+              "lastUsed": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1"
+              }
+            },
+            "permission": {
+              "mode": "build"
+            },
+            "thoughtLevel": {
+              "available": [
+                {
+                  "label": "disabled",
+                  "value": "disabled"
+                },
+                {
+                  "label": "enabled",
+                  "value": "enabled"
+                }
+              ],
+              "current": "disabled",
+              "enabled": true
+            }
+          },
+          "settingsModelKeys": ["available", "current", "lastUsed"],
+          "messageCount": 3,
+          "messageRoles": ["assistant", "user", "assistant"],
+          "messagePartTypes": [["timeline"], ["text"], ["step-start", "text", "step-finish"]]
+        }
+      },
+      {
+        "prompt": "second prompt",
+        "events": [
+          "turn.started",
+          "session.updated",
+          "session.updated",
+          "model.streaming",
+          "session.updated",
+          "session.updated",
+          "turn.completed"
+        ],
+        "snapshot": {
+          "resultKeys": [
+            "messages",
+            "projection",
+            "protocol",
+            "runtime",
+            "session",
+            "settings",
+            "slashCommands",
+            "todoGroups",
+            "todos"
+          ],
+          "runtime": {
+            "deliveryKind": "desktop-continuous",
+            "eventSeq": 15,
+            "pendingRequestIds": [],
+            "contextUsage": {
+              "cache": {
+                "inputTokens": 10,
+                "cacheReadTokens": 0,
+                "cacheWriteTokens": 0,
+                "latestHitRate": 0,
+                "hitRate": 0,
+                "hitRateRequestCount": 2,
+                "totalInputTokens": 20,
+                "totalCacheReadTokens": 0,
+                "totalCacheWriteTokens": 0
+              },
+              "cost": null,
+              "size": 200000,
+              "used": 22,
+              "breakdown": [
+                {
+                  "source": "system_prompt",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "meta_user_context",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "skills",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "system_tool_schemas",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "mcp_tool_schemas",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "messages",
+                  "chars": "<count>"
+                }
+              ]
+            },
+            "goalVerifications": [],
+            "goalVerificationTimeline": [],
+            "stateRevision": 6
+          },
+          "runtimeKeys": [
+            "contextUsage",
+            "deliveryKind",
+            "eventSeq",
+            "goalVerificationTimeline",
+            "goalVerifications",
+            "pendingRequestIds",
+            "stateRevision"
+          ],
+          "contextUsage": {
+            "cache": {
+              "inputTokens": 10,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": 0,
+              "latestHitRate": 0,
+              "hitRate": 0,
+              "hitRateRequestCount": 2,
+              "totalInputTokens": 20,
+              "totalCacheReadTokens": 0,
+              "totalCacheWriteTokens": 0
+            },
+            "cost": null,
+            "size": 200000,
+            "used": 22,
+            "breakdown": [
+              {
+                "source": "system_prompt",
+                "chars": "<count>"
+              },
+              {
+                "source": "meta_user_context",
+                "chars": "<count>"
+              },
+              {
+                "source": "skills",
+                "chars": "<count>"
+              },
+              {
+                "source": "system_tool_schemas",
+                "chars": "<count>"
+              },
+              {
+                "source": "mcp_tool_schemas",
+                "chars": "<count>"
+              },
+              {
+                "source": "messages",
+                "chars": "<count>"
+              }
+            ]
+          },
+          "contextUsageKeys": ["breakdown", "cache", "cost", "size", "used"],
+          "projection": {
+            "activeToolCalls": [],
+            "backgroundJobs": [],
+            "contextUsed": 22,
+            "contextWindow": 200000,
+            "currentTurnId": "<turn-id>",
+            "mode": "build",
+            "pendingPermissions": [],
+            "sessionId": "<id>",
+            "status": "idle",
+            "target": null,
+            "totalTokenCount": 44,
+            "turnCount": 2
+          },
+          "settings": {
+            "mode": {
+              "current": "build"
+            },
+            "model": {
+              "available": [
+                {
+                  "ref": {
+                    "providerId": "oracle-mock",
+                    "modelId": "mock-1"
+                  },
+                  "label": "mock-1",
+                  "providerLabel": "Oracle Mock",
+                  "contextWindow": 200000,
+                  "maxOutputTokens": 8192,
+                  "reasoning": {
+                    "levels": [
+                      {
+                        "value": "disabled",
+                        "label": "disabled"
+                      },
+                      {
+                        "value": "enabled",
+                        "label": "enabled"
+                      }
+                    ],
+                    "defaultLevel": "enabled"
+                  },
+                  "properties": {
+                    "inputFormat": {
+                      "supportsText": true,
+                      "supportsImage": false,
+                      "supportsVideo": false,
+                      "supportsAudio": false,
+                      "supportsPdf": false
+                    },
+                    "outputFormat": {
+                      "supportsText": true
+                    }
+                  }
+                }
+              ],
+              "current": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "options": {
+                  "reasoningLevel": "disabled"
+                }
+              },
+              "lastUsed": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1"
+              }
+            },
+            "permission": {
+              "mode": "build"
+            },
+            "thoughtLevel": {
+              "available": [
+                {
+                  "label": "disabled",
+                  "value": "disabled"
+                },
+                {
+                  "label": "enabled",
+                  "value": "enabled"
+                }
+              ],
+              "current": "disabled",
+              "enabled": true
+            }
+          },
+          "settingsModelKeys": ["available", "current", "lastUsed"],
+          "messageCount": 5,
+          "messageRoles": ["assistant", "user", "assistant", "user", "assistant"],
+          "messagePartTypes": [
+            ["timeline"],
+            ["text"],
+            ["step-start", "text", "step-finish"],
+            ["text"],
+            ["step-start", "text", "step-finish"]
+          ]
+        }
+      },
+      {
+        "prompt": "third prompt",
+        "events": [
+          "turn.started",
+          "session.updated",
+          "session.updated",
+          "model.streaming",
+          "session.updated",
+          "session.updated",
+          "turn.completed"
+        ],
+        "snapshot": {
+          "resultKeys": [
+            "messages",
+            "projection",
+            "protocol",
+            "runtime",
+            "session",
+            "settings",
+            "slashCommands",
+            "todoGroups",
+            "todos"
+          ],
+          "runtime": {
+            "deliveryKind": "desktop-continuous",
+            "eventSeq": 22,
+            "pendingRequestIds": [],
+            "contextUsage": {
+              "cache": {
+                "inputTokens": 10,
+                "cacheReadTokens": 0,
+                "cacheWriteTokens": 0,
+                "latestHitRate": 0,
+                "hitRate": 0,
+                "hitRateRequestCount": 3,
+                "totalInputTokens": 30,
+                "totalCacheReadTokens": 0,
+                "totalCacheWriteTokens": 0
+              },
+              "cost": null,
+              "size": 200000,
+              "used": 22,
+              "breakdown": [
+                {
+                  "source": "system_prompt",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "meta_user_context",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "skills",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "system_tool_schemas",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "mcp_tool_schemas",
+                  "chars": "<count>"
+                },
+                {
+                  "source": "messages",
+                  "chars": "<count>"
+                }
+              ]
+            },
+            "goalVerifications": [],
+            "goalVerificationTimeline": [],
+            "stateRevision": 8
+          },
+          "runtimeKeys": [
+            "contextUsage",
+            "deliveryKind",
+            "eventSeq",
+            "goalVerificationTimeline",
+            "goalVerifications",
+            "pendingRequestIds",
+            "stateRevision"
+          ],
+          "contextUsage": {
+            "cache": {
+              "inputTokens": 10,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": 0,
+              "latestHitRate": 0,
+              "hitRate": 0,
+              "hitRateRequestCount": 3,
+              "totalInputTokens": 30,
+              "totalCacheReadTokens": 0,
+              "totalCacheWriteTokens": 0
+            },
+            "cost": null,
+            "size": 200000,
+            "used": 22,
+            "breakdown": [
+              {
+                "source": "system_prompt",
+                "chars": "<count>"
+              },
+              {
+                "source": "meta_user_context",
+                "chars": "<count>"
+              },
+              {
+                "source": "skills",
+                "chars": "<count>"
+              },
+              {
+                "source": "system_tool_schemas",
+                "chars": "<count>"
+              },
+              {
+                "source": "mcp_tool_schemas",
+                "chars": "<count>"
+              },
+              {
+                "source": "messages",
+                "chars": "<count>"
+              }
+            ]
+          },
+          "contextUsageKeys": ["breakdown", "cache", "cost", "size", "used"],
+          "projection": {
+            "activeToolCalls": [],
+            "backgroundJobs": [],
+            "contextUsed": 22,
+            "contextWindow": 200000,
+            "currentTurnId": "<turn-id>",
+            "mode": "build",
+            "pendingPermissions": [],
+            "sessionId": "<id>",
+            "status": "idle",
+            "target": null,
+            "totalTokenCount": 66,
+            "turnCount": 3
+          },
+          "settings": {
+            "mode": {
+              "current": "build"
+            },
+            "model": {
+              "available": [
+                {
+                  "ref": {
+                    "providerId": "oracle-mock",
+                    "modelId": "mock-1"
+                  },
+                  "label": "mock-1",
+                  "providerLabel": "Oracle Mock",
+                  "contextWindow": 200000,
+                  "maxOutputTokens": 8192,
+                  "reasoning": {
+                    "levels": [
+                      {
+                        "value": "disabled",
+                        "label": "disabled"
+                      },
+                      {
+                        "value": "enabled",
+                        "label": "enabled"
+                      }
+                    ],
+                    "defaultLevel": "enabled"
+                  },
+                  "properties": {
+                    "inputFormat": {
+                      "supportsText": true,
+                      "supportsImage": false,
+                      "supportsVideo": false,
+                      "supportsAudio": false,
+                      "supportsPdf": false
+                    },
+                    "outputFormat": {
+                      "supportsText": true
+                    }
+                  }
+                }
+              ],
+              "current": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "options": {
+                  "reasoningLevel": "disabled"
+                }
+              },
+              "lastUsed": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1"
+              }
+            },
+            "permission": {
+              "mode": "build"
+            },
+            "thoughtLevel": {
+              "available": [
+                {
+                  "label": "disabled",
+                  "value": "disabled"
+                },
+                {
+                  "label": "enabled",
+                  "value": "enabled"
+                }
+              ],
+              "current": "disabled",
+              "enabled": true
+            }
+          },
+          "settingsModelKeys": ["available", "current", "lastUsed"],
+          "messageCount": 7,
+          "messageRoles": [
+            "assistant",
+            "user",
+            "assistant",
+            "user",
+            "assistant",
+            "user",
+            "assistant"
+          ],
+          "messagePartTypes": [
+            ["timeline"],
+            ["text"],
+            ["step-start", "text", "step-finish"],
+            ["text"],
+            ["step-start", "text", "step-finish"],
+            ["text"],
+            ["step-start", "text", "step-finish"]
+          ]
+        }
+      }
+    ],
+    "afterResume": {
+      "resultKeys": [
+        "messages",
+        "projection",
+        "protocol",
+        "runtime",
+        "session",
+        "settings",
+        "slashCommands",
+        "todoGroups",
+        "todos"
+      ],
+      "runtime": {
+        "eventSeq": 2,
+        "pendingRequestIds": [],
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 3,
+            "totalInputTokens": 30,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22
+        },
+        "goalVerifications": [],
+        "goalVerificationTimeline": [],
+        "stateRevision": 0
+      },
+      "runtimeKeys": [
+        "contextUsage",
+        "eventSeq",
+        "goalVerificationTimeline",
+        "goalVerifications",
+        "pendingRequestIds",
+        "stateRevision"
+      ],
+      "contextUsage": {
+        "cache": {
+          "inputTokens": 10,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "latestHitRate": 0,
+          "hitRate": 0,
+          "hitRateRequestCount": 3,
+          "totalInputTokens": 30,
+          "totalCacheReadTokens": 0,
+          "totalCacheWriteTokens": 0
+        },
+        "cost": null,
+        "size": 200000,
+        "used": 22
+      },
+      "contextUsageKeys": ["cache", "cost", "size", "used"],
+      "projection": {
+        "activeToolCalls": [],
+        "backgroundJobs": [],
+        "contextUsed": 0,
+        "contextWindow": 200000,
+        "mode": "build",
+        "pendingPermissions": [],
+        "sessionId": "<id>",
+        "status": "idle",
+        "target": null,
+        "totalTokenCount": 0,
+        "turnCount": 0
+      },
+      "settings": {
+        "mode": {
+          "current": "build"
+        },
+        "model": {
+          "available": [
+            {
+              "ref": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1"
+              },
+              "label": "mock-1",
+              "providerLabel": "Oracle Mock",
+              "contextWindow": 200000,
+              "maxOutputTokens": 8192,
+              "reasoning": {
+                "levels": [
+                  {
+                    "value": "disabled",
+                    "label": "disabled"
+                  },
+                  {
+                    "value": "enabled",
+                    "label": "enabled"
+                  }
+                ],
+                "defaultLevel": "enabled"
+              },
+              "properties": {
+                "inputFormat": {
+                  "supportsText": true,
+                  "supportsImage": false,
+                  "supportsVideo": false,
+                  "supportsAudio": false,
+                  "supportsPdf": false
+                },
+                "outputFormat": {
+                  "supportsText": true
+                }
+              }
+            }
+          ],
+          "current": {
+            "providerId": "oracle-mock",
+            "modelId": "mock-1",
+            "options": {
+              "reasoningLevel": "disabled"
+            }
+          },
+          "lastUsed": {
+            "providerId": "oracle-mock",
+            "modelId": "mock-1"
+          }
+        },
+        "permission": {
+          "mode": "build"
+        },
+        "thoughtLevel": {
+          "available": [
+            {
+              "label": "disabled",
+              "value": "disabled"
+            },
+            {
+              "label": "enabled",
+              "value": "enabled"
+            }
+          ],
+          "current": "disabled",
+          "enabled": true
+        }
+      },
+      "settingsModelKeys": ["available", "current", "lastUsed"],
+      "messageCount": 7,
+      "messageRoles": ["assistant", "user", "assistant", "user", "assistant", "user", "assistant"],
+      "messagePartTypes": [
+        ["timeline"],
+        ["text"],
+        ["step-start", "text", "step-finish"],
+        ["text"],
+        ["step-start", "text", "step-finish"],
+        ["text"],
+        ["step-start", "text", "step-finish"]
+      ]
+    },
+    "messages": {
+      "count": 7,
+      "roles": ["assistant", "user", "assistant", "user", "assistant", "user", "assistant"],
+      "partTypes": [
+        ["timeline"],
+        ["text"],
+        ["step-start", "text", "step-finish"],
+        ["text"],
+        ["step-start", "text", "step-finish"],
+        ["text"],
+        ["step-start", "text", "step-finish"]
+      ]
+    },
+    "list": {
+      "count": 1,
+      "firstKeys": [
+        "createdAt",
+        "mode",
+        "sessionId",
+        "sessionKind",
+        "status",
+        "title",
+        "titleSource",
+        "traceId",
+        "updatedAt",
+        "workspace"
+      ]
+    }
+  }
+}

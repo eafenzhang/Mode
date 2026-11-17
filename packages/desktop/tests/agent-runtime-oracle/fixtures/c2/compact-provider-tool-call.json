@@ -1,0 +1,588 @@
+{
+  "case": "compact-provider-tool-call",
+  "note": "C2 Task 0 oracle 捕获：compact 模型请求被 mock provider 回成 tool_use；session/compact 先 accepted，随后异步 turn.failed（MODEL_ERROR，Tool use is not allowed during compaction）。DB 保留原历史并写一条 failed timeline 行，没有 compact_summary。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "prompts": ["first prompt", "second prompt"],
+    "compactMarker": "Respond with TEXT ONLY"
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages", "/v1/messages", "/v1/messages"]
+    },
+    "mode": "tool-call",
+    "compactResponse": {
+      "response": "",
+      "compact": {
+        "state": "accepted",
+        "inputId": "<id>"
+      },
+      "snapshotRuntime": {
+        "deliveryKind": "desktop-continuous",
+        "eventSeq": 15,
+        "pendingRequestIds": [],
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 2,
+            "totalInputTokens": 20,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ]
+        },
+        "goalVerifications": [],
+        "goalVerificationTimeline": [],
+        "stateRevision": 7
+      }
+    },
+    "events": [
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "turnNumber": 2,
+          "input": "/compact",
+          "inputId": "<id>",
+          "inputVisibility": "model-only"
+        },
+        "seq": 16,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.started"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "operationId": "<id>",
+          "messageId": "<id>",
+          "partId": "<part-id>",
+          "status": "started",
+          "trigger": "manual",
+          "phase": "standalone_turn",
+          "compactReason": "user_requested",
+          "display": "separator",
+          "preCompactTokenCount": 2719,
+          "sourceCommandId": "input_compact_tool-call",
+          "startedAt": "<time>"
+        },
+        "seq": 17,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "messageCount": 10,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>"
+        },
+        "seq": 18,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "compact",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "context_compaction",
+            "actorKind": "system",
+            "attributes": {
+              "compactionOuterAttempt": 1,
+              "compactionTrigger": "manual"
+            },
+            "operationId": "<id>",
+            "callCause": "initial",
+            "logicalCallId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            }
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 19,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "compact",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "context_compaction",
+            "actorKind": "system",
+            "attributes": {
+              "compactionOuterAttempt": 1,
+              "compactionTrigger": "manual"
+            },
+            "operationId": "<id>",
+            "callCause": "initial",
+            "logicalCallId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            }
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 20,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "operationId": "<id>",
+          "messageId": "<id>",
+          "partId": "<part-id>",
+          "status": "failed",
+          "trigger": "manual",
+          "phase": "standalone_turn",
+          "compactReason": "user_requested",
+          "display": "separator",
+          "preCompactTokenCount": 2719,
+          "sourceCommandId": "input_compact_tool-call",
+          "startedAt": "<time>",
+          "replace": true,
+          "reason": "model_error",
+          "attempt": 1,
+          "endedAt": "<time>"
+        },
+        "seq": 21,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "error": {
+            "type": "unknown_error",
+            "attribution": {
+              "retryable": false
+            },
+            "code": "MODEL_ERROR",
+            "message": "Tool use is not allowed during compaction",
+            "detail": "Compact failed",
+            "underlyingErrorMessage": "Tool use is not allowed during compaction"
+          },
+          "turnPhase": "compact",
+          "inputId": "<id>"
+        },
+        "seq": 22,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.failed"
+      }
+    ],
+    "eventTypes": [
+      "turn.started",
+      "session.updated",
+      "session.updated",
+      "session.updated",
+      "session.updated",
+      "session.updated",
+      "turn.failed"
+    ],
+    "failureEvent": {
+      "deliveryKind": "desktop-continuous",
+      "eventId": "<id>",
+      "payload": {
+        "error": {
+          "type": "unknown_error",
+          "attribution": {
+            "retryable": false
+          },
+          "code": "MODEL_ERROR",
+          "message": "Tool use is not allowed during compaction",
+          "detail": "Compact failed",
+          "underlyingErrorMessage": "Tool use is not allowed during compaction"
+        },
+        "turnPhase": "compact",
+        "inputId": "<id>"
+      },
+      "seq": 22,
+      "sessionId": "<id>",
+      "timestamp": "<time>",
+      "traceId": "<id>",
+      "turnId": "<id>",
+      "type": "turn.failed"
+    },
+    "dbBefore": {
+      "messages": 5,
+      "compactSummaryMessages": 0,
+      "compactionParts": 0,
+      "failedTimelineMessages": 0
+    },
+    "dbAfter": {
+      "messages": 6,
+      "compactSummaryMessages": 0,
+      "compactionParts": 1,
+      "failedTimelineMessages": 1
+    },
+    "sessionAfter": {
+      "id": "<id>",
+      "project_id": "<project-id>",
+      "workspace_id": null,
+      "parent_id": null,
+      "slug": "<id>",
+      "directory": "<cwd>",
+      "path": "<cwd>",
+      "title": "first prompt",
+      "version": "0.0.0",
+      "share_url": null,
+      "summary_additions": null,
+      "summary_deletions": null,
+      "summary_files": null,
+      "summary_diffs": null,
+      "revert": null,
+      "permission": {
+        "mode": "build"
+      },
+      "time_created": "<time>",
+      "time_updated": "<time>",
+      "time_compacting": null,
+      "time_archived": null,
+      "task_type": "interactive",
+      "title_source": "first_input",
+      "title_message_id": null,
+      "time_title_updated": "<time>",
+      "trace_id": "<id>"
+    },
+    "turnUsageLast": {
+      "session_id": "<id>",
+      "turn_id": "<id>",
+      "trace_id": "<id>",
+      "user_message_id": null,
+      "status": "error",
+      "started_at": "<time>",
+      "first_model_start_at": "<time>",
+      "first_token_at": null,
+      "completed_at": "<time>",
+      "duration_ms": "<time>",
+      "time_to_first_token_ms": null,
+      "model_request_count": 1,
+      "model_retry_count": 0,
+      "tool_call_count": 0,
+      "tool_error_count": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "computed_total_tokens": 0,
+      "retryable": 0,
+      "cancelled_by_user": 0,
+      "context_exceeded": 0,
+      "error_type": "unknown_error",
+      "error_code": "UNKNOWN_ERROR"
+    },
+    "modelUsageLast": {
+      "id": "<id>",
+      "logical_request_id": "<id>",
+      "attempt_index": 0,
+      "session_id": "<id>",
+      "turn_id": "<id>",
+      "trace_id": "<id>",
+      "span_id": "<id>",
+      "assistant_message_id": null,
+      "parent_user_message_id": null,
+      "query_source": "compact",
+      "provider_id": "oracle-mock",
+      "model_id": "mock-1",
+      "variant": "disabled",
+      "agent": "mode-agent",
+      "mode": "build",
+      "task_type": "interactive",
+      "status": "completed",
+      "started_at": "<time>",
+      "first_token_at": null,
+      "completed_at": "<time>",
+      "duration_ms": "<time>",
+      "time_to_first_token_ms": null,
+      "finish_reason": "tool-calls",
+      "tool_call_count": 1,
+      "input_tokens": 10,
+      "output_tokens": 20,
+      "reasoning_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "provider_total_tokens": 30,
+      "computed_total_tokens": 30,
+      "retry_count": 0,
+      "retryable": 0,
+      "cancelled_by_user": 0,
+      "context_exceeded": 0,
+      "error_type": null,
+      "error_code": null,
+      "error_message": null,
+      "raw_usage_json": {
+        "inputTokens": 10,
+        "outputTokens": 20,
+        "totalTokens": 30,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0
+      },
+      "provider_metadata_json": {
+        "rawFinishReason": "tool_use"
+      }
+    },
+    "compactRequestBody": {
+      "path": "/v1/messages",
+      "body": {
+        "keys": [
+          "max_tokens",
+          "messages",
+          "metadata",
+          "model",
+          "stream",
+          "system",
+          "thinking",
+          "tool_choice",
+          "tools"
+        ],
+        "model": "mock-1",
+        "max_tokens": 8192,
+        "stream": true,
+        "thinking": {
+          "type": "disabled"
+        },
+        "system": [
+          {
+            "type": "text",
+            "chars": 41,
+            "head": "You are Mode, an interactive coding agent",
+            "memorySection": false,
+            "memoryFileHeader": false
+          },
+          {
+            "type": "text",
+            "chars": 1218,
+            "head": "\nYou are Mode, an interactive coding agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational co",
+            "memorySection": false,
+            "memoryFileHeader": false
+          },
+          {
+            "type": "text",
+            "chars": 5404,
+            "head": "\n\n# Communicating with the user\n\nYour text output is what the user reads; they usually can't see your thinking or the raw tool results. Write it for a teammate who stepped away and is catching up, not",
+            "memorySection": false,
+            "memoryFileHeader": false
+          }
+        ],
+        "messages": [
+          {
+            "role": "user",
+            "contentTypes": ["text", "text"],
+            "textChars": 313,
+            "textHeads": [
+              "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# currentDate\nToday's date is <date>.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>",
+              "first prompt"
+            ],
+            "lastTextTail": "first prompt"
+          },
+          {
+            "role": "system",
+            "contentTypes": "string",
+            "textChars": 931,
+            "textHeads": [
+              "The following skills are available for use with the Skill tool:\n\n- browser-use:control-browser: Use when opening, navigating, inspecting, testing, clicking, typing, filling, screenshotting, or verifying web pages and local HTTP targets (localhost, 127.0.0.1, ::1) inside Mode, including browser/web-U"
+            ],
+            "lastTextTail": "gets (localhost, 127.0.0.1, ::1) inside Mode, including browser/web-UI automation, rendered-page scraping, fronten... (also loadable as control-browser) (file: <data-root>\\.mode\\cli\\plugins\\cache\\mode-plugins-official\\browser-use\\0.5.1\\skills\\control-browser\\SKILL.md)\n- browser-use:web-gui-tester: Use the browser automation tooling available in the session to test web frontends interactively in a purely GUI-based, black-box manner: simulate real user clicks, text input, scrolling, and other actions; use screenshots for visual verification and... (also loadable as web-gui-tester) (file: <data-root>\\.mode\\cli\\plugins\\cache\\mode-plugins-official\\browser-use\\0.5.1\\skills\\web-gui-tester\\SKILL.md)"
+          },
+          {
+            "role": "assistant",
+            "contentTypes": ["text"],
+            "textChars": 18,
+            "textHeads": ["normal turn answer"],
+            "lastTextTail": "normal turn answer"
+          },
+          {
+            "role": "user",
+            "contentTypes": ["text"],
+            "textChars": 13,
+            "textHeads": ["second prompt"],
+            "lastTextTail": "second prompt"
+          },
+          {
+            "role": "assistant",
+            "contentTypes": ["text"],
+            "textChars": 18,
+            "textHeads": ["normal turn answer"],
+            "lastTextTail": "normal turn answer"
+          },
+          {
+            "role": "user",
+            "contentTypes": ["text"],
+            "textChars": 5977,
+            "textHeads": [
+              "CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.\n\n- Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool.\n- You already have all the context you need in the conversation above.\n- Tool calls will be REJECTED and will waste your only turn — you will fail the task.\n- Your entire re"
+            ],
+            "lastTextTail": "nse. \n\nThere may be additional summarization instructions provided in the included context. If so, remember to follow these instructions when creating the above summary. Examples of instructions include:\n<example>\n## Compact Instructions\nWhen summarizing the conversation focus on typescript code changes and also remember the mistakes you made and how you fixed them.\n</example>\n\n<example>\n# Summary instructions\nWhen you are using compact - please focus on test output and code changes. Include file reads verbatim.\n</example>\n\nREMINDER: Do NOT call any tools. Respond with plain text only — an <analysis> block followed by a <summary> block. Tool calls will be rejected and you will fail the task."
+          }
+        ],
+        "toolCount": 23,
+        "toolNames": [
+          "Agent",
+          "AskUserQuestion",
+          "Bash",
+          "CronCreate",
+          "CronDelete",
+          "CronList",
+          "CronUpdate",
+          "Edit",
+          "EnterPlanMode",
+          "ExitPlanMode",
+          "Read",
+          "Skill",
+          "TaskOutput",
+          "TaskStop",
+          "TodoRead",
+          "TodoWrite",
+          "WebFetch",
+          "Write",
+          "SendFile",
+          "HandoffMessage",
+          "SendMessage",
+          "ReadSessionContext",
+          "mcp__node_repl__js"
+        ]
+      }
+    }
+  }
+}
