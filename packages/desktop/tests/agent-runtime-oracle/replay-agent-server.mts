@@ -36,6 +36,7 @@ import { compareAll, type Diff } from "./compare.mjs";
 import { FIXTURE_CASES, generatedContent, loadFixtures, type OracleFixture } from "./fixtures.mjs";
 import { seedWorkspace } from "./driver.mjs";
 import {
+  normalizeValue,
   pickSessionEvents,
   projectEventStream,
   projectToolCalls,
@@ -165,10 +166,15 @@ export async function replayFixture(fixture: OracleFixture): Promise<ReplayResul
           `replay：夹具 ${fixture.case} 含并行工具批次，期望侧已规范化事件无法做登记缺省同删（见 harness 注释）`,
         );
       }
+      // 期望侧也要过**当前**的 §3 白名单（C1 Task 11）：夹具是录制时的规范化结果，
+      // 录制之后新增的规则（F10 `stack` 删除、F11 JSON 文本对象键序）必须同样折叠
+      // 到录制值上，否则「recorded oracle 载荷 vs 规范化后的实际载荷」永远不等。
+      // 对其余既有规则而言这一步是**幂等**的（`<id>`/`<time>`/`<cwd>` 等标记再投一遍
+      // 不会变），所以不会改变既有比较语义。
       const expectedFrames = pickSessionEvents(
         (fixture.expect.events as AgentServerEvent[]).map((event) => ({
           type: event.type,
-          payload: event.payload,
+          payload: normalizeValue(event.payload, context),
         })),
       ).filter((event) => !C1_ABSENT_EVENT_TYPES.includes(event.type));
       const observed: Observed = {
@@ -215,10 +221,9 @@ function delay(ms: number): Promise<void> {
 // CLI 入口：单跑 / 全量（不进 node:test，便于人工排查）
 // ---------------------------------------------------------------------------
 
-const invoked = process.argv[1]
-  ? fileURLToPath(pathToFileURL(process.argv[1]).href)
-  : undefined;
-const isMain = invoked !== undefined && invoked.toLowerCase() === fileURLToPath(import.meta.url).toLowerCase();
+const invoked = process.argv[1] ? fileURLToPath(pathToFileURL(process.argv[1]).href) : undefined;
+const isMain =
+  invoked !== undefined && invoked.toLowerCase() === fileURLToPath(import.meta.url).toLowerCase();
 if (isMain) {
   const caseIndex = process.argv.indexOf("--case");
   const only = caseIndex >= 0 ? process.argv[caseIndex + 1] : undefined;
@@ -226,9 +231,9 @@ if (isMain) {
   const skipped = all
     .filter((fixture) => !isThreeLayerFixture(fixture))
     .map((fixture) => (fixture as { case?: string }).case ?? "(unnamed)");
-  const fixtures = all.filter(isThreeLayerFixture).filter(
-    (fixture) => only === undefined || fixture.case === only,
-  );
+  const fixtures = all
+    .filter(isThreeLayerFixture)
+    .filter((fixture) => only === undefined || fixture.case === only);
   for (const name of skipped) {
     process.stdout.write(`SKIP ${name}（非三层行为夹具，不属本轮回放）\n`);
   }

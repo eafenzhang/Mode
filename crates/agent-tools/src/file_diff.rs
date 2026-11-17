@@ -26,6 +26,25 @@ enum Op<'a> {
     Insert(&'a str),
 }
 
+/// 结果的 `display.filePath`：**工作目录原生写法 + `/` + 相对路径**（观察形态）。
+///
+/// 观察出处：夹具 `write-new` / `write-overwrite-read` / `edit-unique` / `edit-replace-all` /
+/// `edit-empty-old-creates` 的 `display.filePath` 规范化后都是 `<cwd>/<相对路径>`；
+/// 录制时的工作目录前缀是**原生反斜杠**写法（§3 的路径规则只认原生与 JSON 转义两种形态），
+/// 所以这里保留 `cwd` 原样、只用 `/` 拼接相对路径。目标不在 `cwd` 下时按原生绝对路径
+/// 原样返回（未观察到的场景，不做猜测性改写）。
+pub fn display_path(target: &std::path::Path, cwd: &str) -> String {
+    let target_posix = target.to_string_lossy().replace('\\', "/");
+    let cwd_posix = cwd.replace('\\', "/");
+    let cwd_trimmed = cwd_posix.trim_end_matches('/');
+    match target_posix.strip_prefix(cwd_trimmed) {
+        Some(rest) if rest.starts_with('/') && rest.len() > 1 => {
+            format!("{}{}", cwd.trim_end_matches(['/', '\\']), rest)
+        }
+        _ => target.to_string_lossy().to_string(),
+    }
+}
+
 /// `before` → `after` 的行级 diff；无变化时返回 `None`。
 ///
 /// 行切分：按 `\n` 切，末尾换行不产生空行（`"a\n"` 与 `"a"` 都是一行）。这与夹具里
@@ -34,8 +53,11 @@ pub fn file_diff_display(file_path: &str, before: &str, after: &str) -> Option<S
     if before == after {
         return None;
     }
-    // 夹具里的 `filePath` 是正斜杠形态（Windows 录制也如此）；统一在这里折，调用方不必记。
-    let file_path = file_path.replace('\\', "/");
+    // `filePath` 按调用方给的**观测形态**原样落盘：oracle 录到的是「工作目录的原生写法 +
+    // 正斜杠 + 相对路径」（夹具里规范化后是 `<cwd>/target.txt`，§3 的路径替换发生在原生
+    // 前缀上）。这里不再做反斜杠→正斜杠的全局改写——那会把工作目录也折成正斜杠，
+    // 路径规则就换不掉它（C1 Task 11 回放发现）。用 [`display_path`] 构造调用入参。
+    let file_path = file_path.to_string();
     let old = split_lines(before);
     let new = split_lines(after);
     let ops = diff_ops(&old, &new);

@@ -31,11 +31,13 @@ fn event_types(events: &[SessionEvent]) -> Vec<&'static str> {
         .collect()
 }
 
-fn permission_requests(events: &[SessionEvent]) -> Vec<PermissionRequest> {
+/// `permission.requested` 的**事件载荷**（C1 Task 11 起与反向请求 params 不同形：
+/// 事件里没有 `sessionId`/`turnId`、多一个 `fullAccessSupported`，所以按 `Value` 断言）。
+fn permission_requests(events: &[SessionEvent]) -> Vec<Value> {
     events
         .iter()
         .filter(|event| event.event_type == SessionEventType::PermissionRequested)
-        .filter_map(|event| event.payload_as::<PermissionRequest>().expect("能解码"))
+        .filter_map(|event| event.payload.clone())
         .collect()
 }
 
@@ -115,6 +117,8 @@ async fn allow_runs_the_tool_after_the_permission_round_trip() {
             "tool.updated",
             "tool.updated",
             "tool.updated",
+            // C1.1-#2：写类工具成功后的 checkpoint（batch 之后、下一轮请求之前）。
+            "checkpoint.created",
             "model.streaming",
             "turn.completed",
         ]
@@ -122,12 +126,17 @@ async fn allow_runs_the_tool_after_the_permission_round_trip() {
     assert_eq!(fs::read_to_string(&path).expect("文件应存在"), "a\n");
     let requests = permission_requests(&sink);
     assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].risk_level, "medium");
+    assert_eq!(requests[0]["riskLevel"], "medium");
+    // 事件载荷的差异形状（C1.1-#8）：没有 sessionId/turnId，`fullAccessSupported` 恒 true。
+    assert!(requests[0].get("sessionId").is_none());
+    assert!(requests[0].get("turnId").is_none());
+    assert_eq!(requests[0]["fullAccessSupported"], json!(true));
     assert_eq!(
-        requests[0]
-            .options
+        requests[0]["options"]
+            .as_array()
+            .expect("options 是数组")
             .iter()
-            .map(|option| option.option_id.as_str())
+            .map(|option| option["optionId"].as_str().expect("optionId"))
             .collect::<Vec<_>>(),
         vec!["allow_once", "allow_project", "deny"]
     );
@@ -206,7 +215,7 @@ async fn allow_project_stops_asking_for_the_same_path() {
     assert_eq!(requests.len(), 2, "a.txt 第二次不应再请求，b.txt 应请求");
     let requested_paths: Vec<&Value> = requests
         .iter()
-        .map(|request| &request.input["file_path"])
+        .map(|request| &request["input"]["file_path"])
         .collect();
     assert_eq!(
         requested_paths,

@@ -33,7 +33,7 @@ The following tools are available:
 - `Read` — built-in tool; read-only: true.
 - `Write` — built-in tool; read-only: false.
 - `Edit` — built-in tool; read-only: false.
-- `Bash` — built-in tool; read-only: true.
+- `Bash` — built-in tool; read-only: false.
 - `TaskOutput` — built-in tool; read-only: true.
 - `TaskStop` — built-in tool; read-only: false.
 

@@ -159,18 +159,15 @@ async fn plugin_tools_are_injected_and_invoked() {
     assert_eq!(content, "hello");
 
     // 观察：`mcp__node_repl__js` 是 high 审批；插件工具先按同一口径处理。
-    let requests: Vec<agent_protocol::permission::PermissionRequest> = sink
+    // 事件载荷是投影形状（C1.1-#8：无 sessionId/turnId、多 fullAccessSupported），按 Value 断言。
+    let requests: Vec<serde_json::Value> = sink
         .iter()
         .filter(|event| event.event_type == SessionEventType::PermissionRequested)
-        .filter_map(|event| {
-            event
-                .payload_as::<agent_protocol::permission::PermissionRequest>()
-                .expect("能解码")
-        })
+        .filter_map(|event| event.payload.clone())
         .collect();
     assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].risk_level, "medium");
-    assert_eq!(requests[0].tool_name, "plugin_echo");
+    assert_eq!(requests[0]["riskLevel"], "medium");
+    assert_eq!(requests[0]["toolName"], "plugin_echo");
 
     let started = sink
         .iter()
@@ -272,17 +269,13 @@ async fn declared_high_risk_plugin_tool_uses_its_metadata() {
         .await
         .expect("turn");
 
-    let requests: Vec<agent_protocol::permission::PermissionRequest> = sink
+    let requests: Vec<serde_json::Value> = sink
         .iter()
         .filter(|event| event.event_type == SessionEventType::PermissionRequested)
-        .filter_map(|event| {
-            event
-                .payload_as::<agent_protocol::permission::PermissionRequest>()
-                .expect("能解码")
-        })
+        .filter_map(|event| event.payload.clone())
         .collect();
     assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].risk_level, "high");
+    assert_eq!(requests[0]["riskLevel"], "high");
 
     let started = sink
         .iter()

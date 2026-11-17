@@ -205,10 +205,12 @@ pub const HIGH_RISK_REASON: &str = "High risk tools require explicit approval";
 ///
 /// 刻意**不**包含 `sed` / `sh` / `bash` / `awk`：`sed -i`、`sh -c`、`bash -c`、`awk` 都观察到 high；
 /// 安全的子形态无法从观察里区分，因此整类保守地按 high 处理。
-const SAFE_COMMANDS: [&str; 27] = [
+const SAFE_COMMANDS: [&str; 28] = [
     "ls", "pwd", "head", "tail", "wc", "find", "rg", "git", "which", "date", "uname", "whoami",
     "printf", "true", "sort", "uniq", "cut", "test", "[", "echo", "cat", "grep", "stat", "file",
     "du", "ps", "df",
+    // C1.2-#2 追加（夹具 `bash-timeout` / `bash-timeout-fractional`）：`sleep` 不审批。
+    "sleep",
 ];
 
 /// `git` 的安全子命令（观察：status/diff/log/show/branch/rev-parse 为 none；reset/push 为 high）。
@@ -266,14 +268,16 @@ pub fn evaluate(tool: &ToolSpec, args: &Value, ruleset: &Ruleset) -> Decision {
 
 /// 命令是否落在观察到的安全集合里。
 ///
-/// 规则（全部由电池观察支撑）：
+/// 规则（全部由电池观察 + C1 回放夹具支撑）：
 /// - `>` / `>>` / `$` / 反引号 / 单个 `&` → 不安全；
-/// - `2>/dev/null` 是例外（观察为 none），先剔除；
+/// - `2>/dev/null` 与 `>&2` 是例外（观察为 none），先剔除
+///   （`>&2` 来自夹具 `bash-stderr` / `bash-mixed-streams`：写 stderr 不是文件副作用）；
 /// - 按 `|` / `;` / `&&` / `||` 拆段后，每段第一个词必须在 [`SAFE_COMMANDS`]；
 /// - `git` 的第二个词必须在 [`SAFE_GIT_SUBCOMMANDS`]；
 /// - `find` 带 `-delete` / `-exec` / `-ok` → 不安全。
 fn is_safe_command(command: &str) -> bool {
-    let normalized = command.replace("2>/dev/null", "");
+    // `>&2`（stdout→stderr）与 `2>/dev/null` 都不落文件，先剔除再按文件重定向判。
+    let normalized = command.replace("2>/dev/null", "").replace(">&2", "");
     if normalized.contains('>')
         || normalized.contains('$')
         || normalized.contains('`')

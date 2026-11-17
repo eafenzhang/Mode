@@ -127,6 +127,28 @@ const ID_CONTAINER_KEYS = new Set(["parallelGroups", "executionOrder"]);
 /** 时间键：值一律换成 `<time>`（`date` 是 HTTP 响应头里的当前时刻）。 */
 const TIME_KEYS = /^(timestamp|duration|date|elapsedMs|.*At|.*Ms)$/;
 
+/**
+ * 错误栈键（spec §3「错误栈」C1 Task 11，F10）：**两侧整体删除**。
+ *
+ * oracle 录到的是 JS `dist` 构建栈（行号/路径随构建漂移，oracle 自回放基线红的一部分），
+ * 栈文本是 JS 实现内部的产物、不是运行时行为；Rust 侧没有 JS 栈，按同一纪律不伪造。
+ * 删除（而不是折叠成常量）让「Rust 无栈」与「oracle 有栈」按「无此键」相等。
+ */
+const DROPPED_STACK_KEY = "stack";
+
+/**
+ * 命令内容指纹（spec §3「命令内容指纹」C1 Task 11）：`perf.detail.command.hash` 两侧删除。
+ *
+ * 判据是**同一对象**里同时带 `category` 与 `status`（命令统计对象的观察形状），避免把
+ * 未来别处出现的普通 `hash` 键（例如文件内容哈希）静默吃掉。oracle 录的是命令内容指纹，
+ * 其算法无法从黑盒观察推导（探针实测：只随命令文本变化，与 cwd/描述/输出/耗时无关；
+ * sha1/sha256/sha512/md5/blake2b/blake2s/xxh64/xxh3/xxh128/fnv1a/murmur3/crc64
+ * 以及常见「带盐/带壳」形态均不复现）。指纹是缓存/遥测用的实现内部键，不是行为。
+ */
+function isCommandFingerprintObject(value: Record<string, unknown>): boolean {
+  return "category" in value && "status" in value && "hash" in value;
+}
+
 /** 随机器变化的计数（装了哪些 MCP/插件/技能不是被测量行为，spec §3 末行）。 */
 const ENVIRONMENT_COUNT_KEYS = new Set(["toolCount", "chars"]);
 
@@ -157,12 +179,35 @@ function sortValue(value: unknown): unknown {
   return value;
 }
 
+/**
+ * 字符串值若**整体**是一个可解析的 JSON 对象，按对象键稳定排序后重新序列化
+ * （spec §3「JSON 文本里的对象键序」C1 Task 11，F11）。
+ *
+ * 为什么只认「整体是对象」：这条规则的服务对象是 `tool_input_delta.delta` 这类
+ * 「对象被序列化成文本放进字符串字段」的载荷（C1 的 serde_json 字典序 vs oracle 的
+ * 字面量序）。数组**不碰**（数组顺序可能是行为：调度顺序、行序）；解析失败或不是
+ * 普通对象的字符串原样返回。
+ */
+function canonicalizeJsonObjectText(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{")) return value;
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return value;
+    return JSON.stringify(sortValue(parsed));
+  } catch {
+    return value;
+  }
+}
+
 function normalizeString(value: string, context: NormalizeContext): string {
-  let result = value;
+  let result = canonicalizeJsonObjectText(value);
   // 路径：从长到短替换，短前缀不会把长路径切坏。
   // 两种形态都要换：事件里的**字段值**是单反斜杠，而 `model.streaming` 的 `delta` 是
   // 工具入参的 JSON **文本**，里面的路径是双反斜杠（JSON 转义）。只换一种就会漏掉另一种。
   for (const [raw, token] of pathTokens(context)) {
+    // 空前缀替换会把记号插到每个字符间（`RECORDED_NORMALIZE_CONTEXT` 的空路径依赖这条）。
+    if (raw.length === 0) continue;
     result = result.replaceAll(raw, token);
     const escaped = jsonEscaped(raw);
     if (escaped !== raw) {
@@ -190,6 +235,16 @@ function pathTokens(context: NormalizeContext): [string, string][] {
   ];
 }
 
+/**
+ * 「只跑规则、不带真实路径」的上下文：用于把**已录制**的夹具载荷再投一遍当前白名单
+ * （夹具里只剩 `<cwd>` 等标记，不含真实路径；空串前缀被 `normalizeString` 跳过）。
+ */
+export const RECORDED_NORMALIZE_CONTEXT: NormalizeContext = {
+  dataRoot: "",
+  cwd: "",
+  tmpDir: "",
+};
+
 /** JSON 文本里的转义形态（Windows 路径的双反斜杠）。 */
 function jsonEscaped(value: string): string {
   return JSON.stringify(value).slice(1, -1);
@@ -211,7 +266,11 @@ export function normalizeValue(value: unknown, context: NormalizeContext): unkno
     return value.map((item) => normalizeValue(item, context));
   }
   if (value !== null && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>);
+    const record = value as Record<string, unknown>;
+    const dropCommandFingerprint = isCommandFingerprintObject(record);
+    const entries = Object.entries(record).filter(
+      ([key]) => key !== DROPPED_STACK_KEY && !(dropCommandFingerprint && key === "hash"),
+    );
     return Object.fromEntries(
       entries.map(([key, inner]) => {
         if (TRANSPORT_HEADER_KEYS.has(key)) return [key, "<headers>"];

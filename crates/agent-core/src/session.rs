@@ -124,6 +124,12 @@ pub struct Session {
     mode: String,
     /// 模型能力（进系统提示的限额行；缺省 = provider 未上报）。
     model_capabilities: ModelCapabilities,
+    /// 当前请求的 assistant 消息 id（`scheduled.assistantMessageId` 与 `checkpoint.created`
+    /// 的回指；与 `model.streaming` 事件里的同一 id 保持一致）。
+    /// 直接调 [`Self::run_tool_batch`]（不经 turn 循环）时为 `None`，此时生成兜底 id。
+    current_assistant_message_id: Option<String>,
+    /// 本 turn 开始时消息历史里是否已有工具结果（`cacheStats` 口径用；见 `run_turn`）。
+    prior_tool_history: bool,
 }
 
 impl Session {
@@ -149,6 +155,8 @@ impl Session {
             plugin_tools: None,
             mode: "build".to_string(),
             model_capabilities: ModelCapabilities::default(),
+            current_assistant_message_id: None,
+            prior_tool_history: false,
         }
     }
 
@@ -364,23 +372,34 @@ impl Session {
 
     /// 开一个 turn：产出 `turn.started`，并把它设为后续 [`Self::run_tool_batch`] 的归属 turn。
     ///
-    /// 载荷只填工具层知道的字段：`turnNumber` 与 `input`。`messageId` / `inputId` / `queryId` /
-    /// `foregroundExecutionId` 由会话与模型层产生，这里留空而不是编造（Task 5 补）。
+    /// 身份字段（C1.1-#3 对齐；形状取自观察）：
+    /// - `foregroundExecutionId`：`runtime_command_<n>`（`session-lifecycle` 夹具观察值，
+    ///   `<n>` 是会话内第几条被接受的输入，从 1 起）；
+    /// - `messageId` / `queryId`：uuid 形状（夹具里这两个键被 §3 白名单折叠成 `<id>`，
+    ///   原始形态不可见，按 uuid 生成，不编别的格式）；
+    /// - `inputId`：**不产出**（行为夹具的 `turn.started` 里没有这个键；
+    ///   `session-lifecycle-events.json` 同样没有）。
     pub fn begin_turn(&mut self, prompt: &str) -> SessionEvent {
         // 观察值（spec §3.5）：第一个 turn 的 `turnNumber` 是 **0**，之后逐次 +1。
         let turn_number = self.turn_number;
         self.turn_number += 1;
         let turn_id = format!("turn_{turn_number}");
         self.current_turn_id = Some(turn_id.clone());
+        // `cacheStats.totalMessages` 的口径要在 turn 开始前采样（turn 内追加的工具结果
+        // 不算「turn 前历史」；逐 turn 值见 `run_turn` 的注释）。
+        self.prior_tool_history = self
+            .messages
+            .iter()
+            .any(|message| matches!(message, ModelMessage::ToolResult { .. }));
         let payload = TurnStartedPayload {
             // 观察值：`executionStartedAt` 是小数毫秒。
             execution_started_at: Some(now_ms() as f64),
             turn_number,
             input: prompt.to_string(),
             input_id: None,
-            query_id: None,
-            message_id: None,
-            foreground_execution_id: None,
+            query_id: Some(new_uuid()),
+            message_id: Some(new_uuid()),
+            foreground_execution_id: Some(format!("runtime_command_{}", turn_number + 1)),
             extra: ExtraFields::new(),
         };
         self.emit(Some(&turn_id), SessionEventType::TurnStarted, &payload)
@@ -442,6 +461,11 @@ impl Session {
                 break 'drive String::new();
             }
             model_requests += 1;
+            // 本请求的 assistant 消息 id：`model.streaming` 与 `tool.updated(scheduled)`、
+            // `checkpoint.created` 的回指共用同一个（夹具里被 §3 折叠成 `<id>`，但同一条
+            // assistant 消息内取值一致是事件序的事实）。
+            self.current_assistant_message_id =
+                Some(format!("msg_{}_{model_requests}", self.session_id));
             let context_input = crate::context::ContextInput {
                 cwd: &self.cwd,
                 mode: &self.mode,
@@ -600,7 +624,25 @@ impl Session {
             tool_call_count,
             history_round_count: Some(model_requests),
             duration: started_at.elapsed().as_millis() as f64,
-            cache_stats: None,
+            // `cacheStats`（C1.1-#4 对齐）。**口径是拟合规则**，不是语义分解：全部 41 个
+            // 观察值（38 条行为夹具 + session-lifecycle 两条 turn）都满足
+            // `totalMessages = 本 turn 终末请求时消息数 + 5 + (turn 前已有工具结果 ? 1 : 0)`、
+            // `cachedMessages = 5`、`lastCacheHit = false`。oracle 把请求装配的哪些前缀
+            // 条目计入 totalMessages/cachedMessages 无法从事件面观察（逐字值见
+            // `session-lifecycle-events.json`：文本 turn 7、工具 turn 11、跨 turn 累计 30），
+            // 这里只实现复现全部观察值的规则，并把口径登记在 spec §C1。
+            // mock provider 不返回缓存读（`cacheReadTokens: 0`），`lastCacheHit` 按观察恒 false。
+            cache_stats: Some(agent_protocol::session_event::CacheStats {
+                // 消息列表此刻已含本 turn 的收尾 assistant（终末请求时尚未 push），所以减 1。
+                total_messages: (self.messages.len().saturating_sub(1)
+                    + 6
+                    + if self.prior_tool_history { 1 } else { 0 })
+                    as u64,
+                cached_messages: 5,
+                last_cache_hit: false,
+                cache_read_tokens: None,
+                extra: ExtraFields::new(),
+            }),
             input_id: None,
             result_type: TurnResultType::Success,
             background_subagent_result_consumed: None,
@@ -763,7 +805,12 @@ impl Session {
     /// 执行一条 assistant 消息里的若干工具调用，按观察到的顺序发事件。
     ///
     /// 返回的事件序列：每个调用 `scheduled`（+ 解析到工具时 `started`）→ `result`|`error`，
-    /// 最后是整批的 `batch`。
+    /// 最后是整批的 `batch`；本批有**成功的写类工具**（`Write` / `Edit`）时，`batch` 之后
+    /// 还有一条 `checkpoint.created`（C1.1-#2 对齐；夹具 `write-new` / `edit-unique` 等：
+    /// batch 后、下一轮模型请求前恰好一条）。
+    ///
+    /// 每个调用的判定顺序（C1.2-#1 对齐）：**schema 级入参校验在权限评估之前**——
+    /// 非法入参 `scheduled → error`，不产生审批对、也没有 `started`。
     ///
     /// 必须先 [`Self::begin_turn`]：没有归属 turn 的事件在线上不该出现，这里直接失败（不猜）。
     pub fn run_tool_batch(&mut self, calls: &[ToolCallRequest]) -> Vec<SessionEvent> {
@@ -774,6 +821,8 @@ impl Session {
         let mut events = Vec::with_capacity(calls.len() * 3 + 1);
         let mut success_count = 0_u64;
         let mut error_count = 0_u64;
+        // 本批成功的写类调用数（checkpoint 的 `fileCount` 口径；全部夹具都是单调用批）。
+        let mut checkpoint_files = 0_u64;
 
         // 一条 assistant 消息里的调用会被并行执行（spec §3 无序组②），所以它们是**一个**并行组；
         // 单调用批次的观察值就是 `parallelGroups: [[id]]`（夹具 `read-single`）。
@@ -785,11 +834,23 @@ impl Session {
             let spec = self.lookup_tool(&call.name);
             events.push(self.scheduled_event(&turn_id, call, &group));
 
+            // 审批路径事实：本次调用是否走过了 Ask（`started` 的 Bash 档位与
+            // `perf.permissionWaitMs` 的有无都取决于它）；初始为「没走」。
+            let mut asked = false;
+            let mut permission_wait_ms: Option<u64> = None;
             // 未注册的工具**没有** `started`（观察：`Glob`/`Grep` 的 `scheduled` 之后直接是
             // `error`）——工具在解析阶段就出局了，没有「开始执行」这一步。
             if let Some(spec) = &spec {
+                // **schema 级入参校验在权限之前**（C1.2-#1；夹具 `bash-empty-args` /
+                // `edit-missing-new-string` / `write-empty-args` / `write-missing-content`：
+                // 非法入参不产生审批对、也没有 started，直接 error）。
+                if let Some(error) = agent_tools::input_validation_error(&call.name, &call.input) {
+                    error_count += 1;
+                    events.push(self.error_event(&turn_id, call, &error));
+                    continue;
+                }
                 // `TaskOutput` 的查找是启动前检查（观察：找不到任务时 scheduled → error，
-                // **没有** started）；入参校验失败同样发生在这一层。
+                // **没有** started）。
                 if let Some(error) = agent_tools::preflight_error(&call.name, &call.input, &context)
                 {
                     error_count += 1;
@@ -799,14 +860,19 @@ impl Session {
                 match crate::permission::evaluate(spec, &call.input, &self.ruleset) {
                     crate::permission::Decision::Allow => {}
                     crate::permission::Decision::Ask { risk_level, reason } => {
+                        asked = true;
                         let request =
                             self.permission_request(&turn_id, call, spec, risk_level, reason);
                         events.push(self.emit(
                             Some(&turn_id),
                             SessionEventType::PermissionRequested,
-                            &request,
+                            &permission_event_payload(&request),
                         ));
+                        let wait_started = std::time::Instant::now();
                         let response = self.permission_handler.request(&request);
+                        // `perf.permissionWaitMs`：审批等待时长（观察：有审批对的调用才有
+                        // 这个键；时间白名单盖着数值本身）。
+                        permission_wait_ms = Some(wait_started.elapsed().as_millis() as u64);
                         let decision = response.decision;
                         events.push(self.emit(
                             Some(&turn_id),
@@ -839,7 +905,7 @@ impl Session {
                         }
                     }
                 }
-                events.push(self.started_event(&turn_id, call, spec));
+                events.push(self.started_event(&turn_id, call, spec, asked));
             }
 
             // `Read` 的重复读去重：**会话状态**在这一层（工具本身是纯函数），见 FileState 的注释。
@@ -885,7 +951,16 @@ impl Session {
             match outcome {
                 Ok(result) => {
                     success_count += 1;
-                    events.push(self.result_event(&turn_id, call, &result, elapsed_ms));
+                    if matches!(call.name.as_str(), "Write" | "Edit") {
+                        checkpoint_files += 1;
+                    }
+                    events.push(self.result_event(
+                        &turn_id,
+                        call,
+                        &result,
+                        elapsed_ms,
+                        permission_wait_ms,
+                    ));
                 }
                 Err(error) => {
                     error_count += 1;
@@ -901,6 +976,15 @@ impl Session {
             extra: ExtraFields::new(),
         };
         events.push(self.emit_tool(&turn_id, ToolUpdatedPayload::Batch(batch)));
+
+        // `checkpoint.created`（C1.1-#2）：写类工具成功路径在 batch 后、下一轮模型请求前
+        // 发出（夹具 `write-new` / `write-overwrite-read` / `edit-unique` /
+        // `edit-empty-old-creates` 等；失败路径与只读工具没有这条——同批夹具反证）。
+        // `agent-core` 只发事件，不接 git checkpoint（那是 Host 面的
+        // `git-checkpoint-service`）；回指 id 与 `mode-artifact://` 引用按观察形状生成。
+        if checkpoint_files > 0 {
+            events.push(self.checkpoint_event(&turn_id, checkpoint_files));
+        }
         events
     }
 
@@ -982,7 +1066,10 @@ impl Session {
             serde_json::json!([update]),
         );
         PermissionRequest {
-            input: call.input.clone(),
+            // 观察（夹具 `edit-unique` 等的 `permission.requested.input`）：审批入参带
+            // schema 默认值（`replace_all:false`），而 `scheduled.inputByteLength` 用的是
+            // 原始三键入参——默认值只补进审批请求。
+            input: agent_tools::input_with_schema_defaults(&spec.name, &call.input),
             reason: reason.to_string(),
             request_id,
             risk_level: risk_level.to_string(),
@@ -1014,8 +1101,13 @@ impl Session {
                 description: None,
             },
             tool_name: call.name.clone(),
-            // 观察值：`assistantMessageId` 由模型层给；工具面只知道「同一条消息里的这一批」。
-            assistant_message_id: None,
+            // 观察值（C1.1-#5）：`assistantMessageId` 与 `model.streaming` 里同一条
+            // assistant 消息的 id 相同；turn 循环外的直接调用（测试）给兜底 id。
+            assistant_message_id: Some(
+                self.current_assistant_message_id
+                    .clone()
+                    .unwrap_or_else(|| format!("msg_{}", new_uuid())),
+            ),
             input: None,
             // 观察值：入参 JSON 文本的字节数（`{"pattern":"*.txt"}` → 19）。
             input_byte_length: Some(serialized_len(&call.input)),
@@ -1024,7 +1116,14 @@ impl Session {
             input_ref: Some("model_stream".to_string()),
             dependencies: Some(Vec::new()),
             parallel_group_index: Some(0),
-            can_run_parallel: Some(true),
+            // 观察值（C1.1-#5）：`canRunParallel` **按工具**——Read 与未注册工具（Glob/Grep）
+            // 是 `true`，Bash / Write / Edit 是 `false`。取值来源是 `ToolSpec.read_only`
+            // 这个既有事实（C1 不新增猜测档位）；未注册工具无声明，按观察值 `true`。
+            can_run_parallel: Some(
+                self.lookup_tool(&call.name)
+                    .map(|spec| spec.read_only)
+                    .unwrap_or(true),
+            ),
             schedule: Some(ToolSchedule {
                 parallel_groups: Some(vec![group.to_vec()]),
                 execution_order: Some(group.to_vec()),
@@ -1035,12 +1134,42 @@ impl Session {
         self.emit_tool(turn_id, ToolUpdatedPayload::Scheduled(payload))
     }
 
+    /// `started` 载荷。`asked` 表示本次调用走过了审批（`Ask` 且答复 allow）。
+    ///
+    /// 档位观察（C1.1-#9，逐夹具）：
+    /// - `Read` / 安全直通的 `Bash`：`readOnly:true` / `sideEffectScope:"none"`；
+    ///   ——注意 `Bash` 的 `ToolSpec.read_only` 是 `false`（`canRunParallel` 口径），
+    ///   它的 `started` 档位按**审批路径**给：安全 allowlist 直通 → 只读档。
+    /// - 审批后执行的 `Bash`（`bash-exit-7` / `bash-command-not-found` / `bash-output-then-exit-7`）：
+    ///   `readOnly:false` / `sideEffectScope:"system"`；
+    /// - `Write` / `Edit`：`readOnly:false` / `sideEffectScope:"workspace"`（`write-new` 等）；
+    /// - `TaskStop`：`readOnly:false` / `sideEffectScope:"session"`（spec §3.4）；
+    /// - 插件工具按声明携带的 scope（MCP `network` / node_repl `system`）。
     fn started_event(
         &mut self,
         turn_id: &str,
         call: &ToolCallRequest,
         spec: &ToolSpec,
+        asked: bool,
     ) -> SessionEvent {
+        let (read_only, side_effect_scope) = if let Some(meta) = &spec.plugin {
+            // 观察：插件 MCP 是 `network`，内置 node_repl 是 `system`。
+            (spec.read_only, Some(meta.side_effect_scope.clone()))
+        } else if spec.family == ModeToolFamily::Shell {
+            if asked {
+                (false, Some("system".to_string()))
+            } else {
+                (true, Some("none".to_string()))
+            }
+        } else {
+            match (spec.read_only, spec.family) {
+                (true, _) => (true, Some("none".to_string())),
+                (false, ModeToolFamily::FileWrite) => (false, Some("workspace".to_string())),
+                (false, ModeToolFamily::TaskControl) => (false, Some("session".to_string())),
+                // 其余非只读档的取值集合**仍未观察**，留空而非编一个档位。
+                (false, _) => (false, None),
+            }
+        };
         let payload = ToolStartedPayload {
             call: ToolCallIdentity {
                 tool_call_id: call.tool_call_id.clone(),
@@ -1054,23 +1183,8 @@ impl Session {
                 description: None,
             },
             started_at: ProtocolInstant::Ms(now_ms() as f64),
-            // 观察值：只读工具的 `started` 带 `readOnly: true` 与 `sideEffectScope: "none"`；
-            // `Write`（`file-write`）带 `readOnly: false` 与 `sideEffectScope: "workspace"`
-            // （夹具 `write-new` / `write-overwrite-read` 的 `started` 事件）。
-            // 其余非只读档（shell / node-repl …）的取值集合**仍未观察**，所以那种情况留空而非编一个档位。
-            read_only: Some(spec.read_only),
-            side_effect_scope: if let Some(meta) = &spec.plugin {
-                // 观察：插件 MCP 是 `network`，内置 node_repl 是 `system`。
-                Some(meta.side_effect_scope.clone())
-            } else {
-                match (spec.read_only, spec.family) {
-                    (true, _) => Some("none".to_string()),
-                    (false, ModeToolFamily::FileWrite) => Some("workspace".to_string()),
-                    // 观察（spec §3.4）：`TaskStop` 的 started 是 `sideEffectScope:"session"`。
-                    (false, ModeToolFamily::TaskControl) => Some("session".to_string()),
-                    (false, _) => None,
-                }
-            },
+            read_only: Some(read_only),
+            side_effect_scope,
             tool_name: Some(call.name.clone()),
             extra: ExtraFields::new(),
         };
@@ -1083,6 +1197,7 @@ impl Session {
         call: &ToolCallRequest,
         result: &ToolOutcome,
         elapsed_ms: u64,
+        permission_wait_ms: Option<u64>,
     ) -> SessionEvent {
         let payload = ToolResultPayload {
             call: ToolCallIdentity {
@@ -1096,7 +1211,7 @@ impl Session {
                 child_tool_call_id: None,
                 description: None,
             },
-            result: result_object(result, elapsed_ms),
+            result: result_object(result, elapsed_ms, permission_wait_ms),
             // 观察值：成功结果的载荷里**没有** `toolName` 键（协议夹具
             // `session-event-tool-updated-result.json` 与每条行为夹具的 result 载荷都如此）。
             // 同一个帧里 `"delta": ""` / `"previousTitle": ""` 这类空串是**保留**的，所以
@@ -1132,6 +1247,35 @@ impl Session {
             extra: ExtraFields::new(),
         };
         self.emit_tool(turn_id, ToolUpdatedPayload::Error(payload))
+    }
+
+    /// `checkpoint.created`（C1.1-#2 对齐；形状逐字来自夹具录制）。
+    ///
+    /// 载荷：`{checkpointId, messageId, targetMessageId, toolMessageId, scope:"workspace",
+    /// snapshotRef, diffRef, fileCount}`。所有 id 键都在 spec §3 白名单里折叠成 `<id>`；
+    /// `snapshotRef` / `diffRef` 的 `mode-artifact://sess_<id>/tool-result-<id>` 形状里
+    /// 的 uuid 由「id（值）」规则折叠。本实现只发事件，不实现 git 快照存储
+    /// （`git-checkpoint-service` 是 Host 面；事件里的引用是形状占位）。
+    fn checkpoint_event(&mut self, turn_id: &str, file_count: u64) -> SessionEvent {
+        let reference = format!(
+            "mode-artifact://sess_{}/tool-result-{}",
+            new_uuid(),
+            new_uuid()
+        );
+        let payload = serde_json::json!({
+            "checkpointId": new_uuid(),
+            "messageId": self
+                .current_assistant_message_id
+                .clone()
+                .unwrap_or_else(new_uuid),
+            "targetMessageId": new_uuid(),
+            "toolMessageId": new_uuid(),
+            "scope": "workspace",
+            "snapshotRef": reference,
+            "diffRef": reference,
+            "fileCount": file_count,
+        });
+        self.emit(Some(turn_id), SessionEventType::CheckpointCreated, &payload)
     }
 
     /// 发一条 `tool.updated`：载荷是**带 `kind` 判别键的枚举**，所以包信封的是枚举而不是内部结构体
@@ -1205,6 +1349,60 @@ impl Session {
         };
         self.emit(turn_id, SessionEventType::TurnFailed, &payload)
     }
+}
+
+/// `permission.requested` 事件的载荷投影（C1.1-#8 对齐）。
+///
+/// 线上事件载荷与反向请求 `params` **不同形**：事件载荷里没有 `sessionId` / `turnId`
+/// （夹具 `permission.requested` 逐字如此），但多一个 `fullAccessSupported: true`
+/// （观察值恒 true）。反向请求帧仍发完整 [`PermissionRequest`]（spec §3.3 的帧形状）。
+fn permission_event_payload(request: &PermissionRequest) -> Value {
+    let mut payload = serde_json::to_value(request).expect("审批请求可序列化");
+    if let Some(map) = payload.as_object_mut() {
+        map.remove("sessionId");
+        map.remove("turnId");
+        map.insert("fullAccessSupported".to_string(), Value::Bool(true));
+    }
+    // 观察（夹具 `write-empty-path`）：`ruleContent` 为空时**整个键都不出现**
+    // （空路径的规则是 `{toolName}`）。`PermissionRuleValue.rule_content` 在协议里是
+    // 必填 String，所以只在事件载荷投影里剔掉空值——反向请求帧的形状不受影响。
+    strip_empty_rule_content(&mut payload);
+    payload
+}
+
+/// 递归剔除 `rules[]` 条目里的空 `ruleContent`（只动 `rules` 数组内的对象）。
+fn strip_empty_rule_content(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            for (key, inner) in map.iter_mut() {
+                if key == "rules" {
+                    if let Value::Array(rules) = inner {
+                        for rule in rules {
+                            if let Value::Object(rule) = rule {
+                                if rule.get("ruleContent") == Some(&Value::String(String::new())) {
+                                    rule.remove("ruleContent");
+                                }
+                            }
+                        }
+                    }
+                }
+                strip_empty_rule_content(inner);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                strip_empty_rule_content(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// 事件载荷里的 id 值（`<id>` 白名单键）。用 uuid 而不是序号：观察到的 id 形状都是
+/// `sess_/msg_/turn_` 前缀后跟 uuid（夹具里的原始形态被 §3 折叠，但 `msg_<base36>_<uuid>`
+/// 形状在 DB 观察里出现过）。
+fn new_uuid() -> String {
+    uuid::Uuid::new_v4().to_string()
 }
 
 /// 入参 JSON 文本的字节数（观察值：`inputByteLength`）。

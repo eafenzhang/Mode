@@ -15,6 +15,9 @@ agent-tools = { path = "../agent-tools" }
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# `turn.started` / `checkpoint.created` 载荷里的 id 字段（值在 spec §3 白名单里折叠成
+# `<id>`，但按观察形状生成 uuid，而不是编造别的格式）。
+uuid.workspace = true
 # 流式 provider 的 delta 通道（UnboundedSender）与 turn 循环的 select!。
 tokio = { workspace = true, features = ["macros", "sync"] }
 

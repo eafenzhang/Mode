@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { compareAll, formatDiffs } from "./compare.mjs";
 import { FIXTURE_CASES, loadFixtures, observeCase } from "./fixtures.mjs";
-import { stableStringify } from "./normalize.mjs";
+import { normalizeValue, RECORDED_NORMALIZE_CONTEXT, stableStringify } from "./normalize.mjs";
 
 const RAW_UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
@@ -40,10 +40,21 @@ for (const fixture of await loadFixtures()) {
 }
 
 // 每条夹具都回放一遍：录下来的期望值必须能被同一个 oracle 再次复现，否则夹具不可用。
+//
+// 期望侧也要过**当前**的 §3 白名单（C1 Task 11）：夹具是录制时的规范化结果，录制之后新增
+// 的规则（stack 删除 / JSON 文本对象键序 / 命令指纹）必须同样折叠到录制值上。对既有规则
+// 这一步是幂等的，所以既有绿不会变红；录制后新增规则带来的既有红（dist 栈漂移）会变绿。
 for (const fixture of await loadFixtures()) {
   test(`夹具回放：${fixture.case} 三层一致`, async () => {
     const observed = await observeCase(fixture);
-    const diffs = compareAll(observed, fixture.expect);
+    const expected = {
+      ...fixture.expect,
+      events: fixture.expect.events.map((event) => ({
+        type: event.type,
+        payload: normalizeValue(event.payload, RECORDED_NORMALIZE_CONTEXT),
+      })),
+    };
+    const diffs = compareAll(observed, expected);
     assert.deepEqual(diffs, [], `夹具 ${fixture.case} 三层不一致：\n${formatDiffs(diffs)}`);
   });
 }

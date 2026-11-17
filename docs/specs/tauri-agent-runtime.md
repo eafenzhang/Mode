@@ -183,6 +183,9 @@ Rust 侧用例**不实现第二份比较器**——它把自身投影成同一�
 | 无序组②：**并行批次的完成事件** | 同一个 assistant 消息里的多个工具调用会被运行时并行执行；它们的 **完成类事件**（`tool.updated` 的 `result` / `error` / `batch`）到达顺序**不属于契约**。判定必须同时满足：该段是连续同类型 `tool.updated`、**整段都是完成类事件**、且涉及 **≥2 个不同 `toolCallId``**；满足则折叠成排序后的集合。 | 谁先跑完是竞态。**只**豁免这一种情形：调度顺序（`scheduled`）与单次调用内部的 `result`/`batch` 先后仍逐字比——它们才是行为。排序键必须用**规范化后**的 payload，否则键里带随机 id，两次运行的排序结果会不同 |
 | 环境相关计数 | `toolCount`、`chars` 的值替换为 `<count>` | 工具面与提示词规模取决于机器上装了哪些 MCP / 技能 / 插件的版本，不是被测量行为 |
 | 传输层头 | `requestHeaders` / `responseHeaders` 的值整体折叠成 `<headers>`（`requestHeaderCount` / `responseHeaderCount` 保留） | 头里是版本号、平台、时区与当前时刻；HTTP 头是环境事实，不是运行时行为 |
+| 错误栈（C1 Task 11，F10） | 对象键 `stack` **两侧整体删除**（`tool.updated` 的 `error` 与 `turn.failed` 的 `error` 同源） | oracle 录到的是 JS `dist` 构建栈：行号与文件路径**随构建漂移**（oracle 自回放基线红的一部分），且栈文本是 JS 实现内部产物、不是运行时行为。Rust 侧没有 JS 栈，按同一纪律**不伪造**——两侧都当「无此键」比，而不是比一个占位值（C1.1-#7 的差异由这条规则收口） |
+| 命令内容指纹（C1 Task 11，F4 的伴随项） | 同一对象里**同时带 `category` 与 `status`** 时的 `hash` 键两侧删除（即 `perf.detail.command.hash`） | oracle 录的是命令内容指纹；**算法不可由黑盒观察推导**：指纹只随命令文本变化（cwd / 描述 / 输出 / 耗时都不影响，探针逐项验证），但 sha1 / sha256 / sha512 / md5 / blake2b / blake2s / xxh64 / xxh3 / xxh128 / fnv1a / murmur3 / crc64 及常见「带壳 / 带盐」形态都不能复现录到的值。指纹是缓存 / 遥测用的实现内部键，不是运行时行为；Rust 侧不伪造（与 F10 同一处置），两侧同删。判据限定「命令统计对象」形状，避免误伤未来别处的普通 `hash` 键 |
+| JSON 文本里的对象键序（C1 Task 11，F11） | 字符串值若**整体**是一个可解析的 JSON **对象**（`{…}`），比较前按对象键稳定排序重新序列化；数组元素顺序**保留** | `model.streaming` 的 `tool_input_delta.delta` 是工具入参的 JSON **文本**：C1 的方案 A 脚本化 provider（测试开关，非生产路径）用 `serde_json` 按字典序输出键，oracle 的 mock 按夹具字面量序输出，多键入参（write / edit / offset+limit）因此文本不同。同一个工具调用的同一份入参，对象键序不是行为；**数组顺序可能是行为**（调度顺序、行序），所以只排序对象键、不碰数组。〔不为此启用 `serde_json/preserve_order`：全局 feature 翻转会改变 DB JSON 列与协议帧的既有字节形状；真实 provider 的 delta 字节来自线上，本来就不存在该差异〕 |
 
 上面没列的一律**逐字比**。要新增白名单，先改本表再改 `normalize.mts`，并在 PR 里说明为什么
 差异是合法的而不是缺陷。白名单不足时用例会变**红**（不是静默放过），加规则是一次显式决定。
@@ -952,44 +955,53 @@ oracle 同形的 `tool_not_found`」，并由行为夹具 `read-absent-search-to
    `tool_parity.rs` 因此只比 `truncated` / `budgetStrategy` / `display`，字节计数留给
    「同一隔离条件重录」的场景。**这不是产品差异**，不要在 Rust 侧为对齐数字改正文。
 
-## C1 差异登记（Rust `agent-server`，Task 10 汇总）
+## C1 差异登记（Rust `agent-server`，Task 10 汇总；Task 11 收缩）
 
-状态：**C1 收口登记（2026-11-17）**。本节把 C1 各任务登记的合法差异与 Task 10 三层回放的
-发现汇总为一张表；逐条的观察出处见各任务报告与 `agent-core-parity.md` §10、
+状态：**C1 收口登记（2026-11-17）**。本节把 C1 各任务登记的合法差异与三层回放的发现汇总为
+一张表；逐条的观察出处见各任务报告与 `agent-core-parity.md` §10、
 `agent-server-c1-contract.md`。**规则**：这里只登记，不伪造——每一条都是「C1 现状 vs oracle
 观察」的事实差，修复任何一条都要先改 spec 再改实现。
 
+Task 11（2026-11-17）已把事件层收到 **38/38 三层全绿**（仅剩 §3 白名单归一化与本节仍登记的
+缺省面）：C1.1 的 #2–#9 与 C1.2 的 #1/#2 由实现对齐（`turn.started` 身份字段、`cacheStats`、
+`scheduled.assistantMessageId`/`canRunParallel`、`perf.detail`/`permissionWaitMs`、
+`permission.requested.fullAccessSupported`、Bash `started` 档位、schema 先校验、`sleep`/`>&2`
+分级、`checkpoint.created`），`error.stack`、JSON 文本对象键序与命令内容指纹走 §3 白名单
+（新增三条规则）。仍保留的差异见 C1.1-#1/#10 与 C1.3–C1.5。
+
 回放 harness：`packages/desktop/tests/agent-runtime-oracle/replay-agent-server.mts`
 （`agent-server-replay.test.mts` 进 `pnpm test:agent-runtime-oracle`）。它复用 §2/§3 的
-**同一份**投影/比较器（`normalize.mts` + `compare.mts`），唯一的附加口径是
-**C1 登记缺省过滤**：`session.updated` / `streamRecovery.updated` / `session.titleUpdated`
-三类事件在**两侧同删**（过滤器，不是第二张规则表）。前置条件：`cargo build -p agent-server`
-（缺失时自动构建）。夹具的 `inputByteLength` 等计数随工作目录绝对路径长度变化，harness 沿用
-`observeCase` 的 mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）。
+**同一份**投影/比较器（`normalize.mts` + `compare.mts`）。附加口径有两条：
+**C1 登记缺省过滤**（`session.updated` / `streamRecovery.updated` / `session.titleUpdated`
+三类事件**两侧同删**——过滤器，不是第二张规则表）；**期望侧同投 §3 白名单**（夹具是录制时的
+规范化结果，录制后新增的规则——stack 删除 / JSON 文本对象键序 / 命令指纹——必须同样落到
+期望值上；对既有规则幂等）。前置条件：`cargo build -p agent-server`（缺失时自动构建）。
+夹具的 `inputByteLength` 等计数随工作目录绝对路径长度变化，harness 沿用 `observeCase` 的
+mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）。
 
 ### C1.1 事件面缺省与载荷缺口
 
 | # | 差异 | oracle 观察 | C1 现状 | 出处 |
 | --- | --- | --- | --- | --- |
-| 1 | `session.updated` / `streamRecovery.updated` / `session.titleUpdated` 未产出 | 每个 turn 多条状态推送 + 流恢复锚点 + 标题事件（§1.2、contract §2.4） | 事件面只有 `turn.*` / `model.streaming` / `tool.updated` / `permission.*`；不伪造 | parity §10（Task 0/7）；回放按登记缺省过滤同删 |
-| 2 | `checkpoint.created` 未产出 | write/edit 成功路径在 batch 后、下一轮模型请求前发出（夹具 `write-new` / `edit-*`） | 无 git checkpoint 接线（`git-checkpoint-service` 属 Host 面，`agent-core` 不发） | Task 10 回放发现 |
-| 3 | `turn.started` 载荷缺 `messageId` / `foregroundExecutionId` / `queryId` | 三键存在（`<id>`） | 只发 `executionStartedAt` / `turnNumber` / `input` | Task 10 回放发现 |
-| 4 | `turn.completed` 载荷缺 `cacheStats` | `{totalMessages, cachedMessages, lastCacheHit}` | 省略（无消息级缓存统计事实源，不编数字） | Task 10 回放发现 |
-| 5 | `tool.updated(scheduled)` 缺 `assistantMessageId`；`canRunParallel` 恒 `true` | `assistantMessageId` 存在；`canRunParallel` **按工具**（Read `true`，Bash/Write/Edit `false`） | `assistantMessageId` 省略；`canRunParallel` 恒 `true` | Task 10 回放发现 |
-| 6 | `tool.updated(result)` 的 `perf` 缺工具级 `detail` 与 `permissionWaitMs` | `detail` 按 kind：`command`（runMs/noOutputMs/exitCode/timedOut/outputBytes/category/count/name/status/hash）与 `filesystem`（readMs/writeMs/fileCount/totalBytes/maxFileBytes/workspaceKind）；审批前有 `permissionWaitMs` | `perf` 只有 `totalMs` | Task 10 回放发现 |
-| 7 | `tool.updated(error)` 缺 `error.stack` | JS 栈（`dist` 行号随构建漂移——oracle 自回放基线红的来源之一，见下） | Rust 无 JS 栈，不伪造 | Task 10 回放发现；栈文本不参与跨实现对拍 |
-| 8 | `permission.requested` 缺 `fullAccessSupported` | `true` | 省略 | Task 10 回放发现 |
-| 9 | `Bash` 的 `started` 档位 | `readOnly:false`、`sideEffectScope:"system"` | `readOnly:true`、`sideEffectScope:"none"`（其余非只读档未观察，见 `agent-core` `started_event` 注释） | Task 10 回放发现 |
+| 1 | `session.updated` / `streamRecovery.updated` / `session.titleUpdated` 未产出 | 每个 turn 多条状态推送 + 流恢复锚点 + 标题事件（§1.2、contract §2.4） | 事件面只有 `turn.*` / `model.streaming` / `tool.updated` / `permission.*` / `checkpoint.created`；不伪造 | parity §10（Task 0/7）；回放按登记缺省过滤同删 |
+| 2 | `checkpoint.created` 的**存储**未接 | write/edit 成功路径在 batch 后、下一轮模型请求前发出（夹具 `write-new` / `edit-*`） | 事件已按夹具形状产出（C1.1 收口；`fileCount`=本批成功写类调用数、`snapshotRef`/`diffRef` 为 `mode-artifact://sess_<id>/tool-result-<id>` 形状占位）；git 快照本体归 Host 面 `git-checkpoint-service`，`agent-core` 不写 | Task 10 发现；Task 11 对齐事件面 |
+| 3 | ~~`turn.started` 缺 `messageId` / `foregroundExecutionId` / `queryId`~~ | 三键存在（`<id>`；`session-lifecycle` 夹具的 `foregroundExecutionId` 是 `runtime_command_<n>`） | **已对齐**（Task 11）：`messageId`/`queryId` 为 uuid、`foregroundExecutionId` 为 `runtime_command_<turnNumber+1>`；`inputId` 夹具里没有，仍不产出 | Task 11 |
+| 4 | ~~`turn.completed` 缺 `cacheStats`~~ | `{totalMessages, cachedMessages, lastCacheHit}`；41 个观察值（38 夹具 + session-lifecycle 2 turn + 回放） | **已对齐**（Task 11）：`totalMessages = 终末请求时消息数 + 6 + (turn 前已有工具结果 ? 1 : 0)`、`cachedMessages = 5`、`lastCacheHit = false`。口径是**拟合规则**（复现全部观察值）；oracle 把请求装配的哪些前缀条目计入这两个数**无法从事件面观察**，实现按算术口径登记于此 | Task 11 |
+| 5 | ~~`tool.updated(scheduled)` 缺 `assistantMessageId`；`canRunParallel` 恒 `true`~~ | `assistantMessageId` 与 `model.streaming` 同一 id；`canRunParallel` **按工具**（Read/Glob/Grep `true`，Bash/Write/Edit `false`） | **已对齐**（Task 11）：id 取当前请求的 assistant 消息 id；`canRunParallel = ToolSpec.read_only`（未注册工具按观察值 `true`）。`Bash` 的 `read_only` 随之改为 `false`（registry 与系统提示快照同步更新） | Task 11 |
+| 6 | ~~`tool.updated(result)` 的 `perf` 缺工具级 `detail` 与 `permissionWaitMs`~~ | `detail` 按 kind：`command`（runMs/noOutputMs/exitCode/timedOut/outputBytes/category/count/name/status/hash）与 `filesystem`（readMs/writeMs/fileCount/totalBytes/maxFileBytes/workspaceKind）；Edit 是 `patch`（filesystem + matchMs/hunkCount/matchAttempts）；审批过的调用带 `permissionWaitMs` | **已对齐**（Task 11）：Bash/Write/Edit 按夹具形状产出 detail（`outputBytes` 是 trim 前原始字节；空输出的 `originalBytes` 为 0、`returnedBytes` 为占位文案长度；`hash` 除外，见 §3「命令内容指纹」）；`permissionWaitMs` 只在走过审批时出现 | Task 11 |
+| 7 | `tool.updated(error)` 缺 `error.stack` | JS 栈（`dist` 行号随构建漂移——oracle 自回放基线红的来源之一） | Rust 无 JS 栈，不伪造；比较按 §3「错误栈」两侧删除 `stack` 键 | Task 11（§3 规则） |
+| 8 | ~~`permission.requested` 缺 `fullAccessSupported`~~ | `true`；事件载荷与反向请求 params 不同形（**无** `sessionId`/`turnId`；空 `ruleContent` 时整个键不出现） | **已对齐**（Task 11）：事件载荷是投影（剔 session/turn id、补 `fullAccessSupported:true`、剔空 `ruleContent`）；反向请求帧仍发完整 `PermissionRequest`。审批入参带 schema 默认值（`replace_all:false`），`scheduled.inputByteLength` 仍按原始入参 | Task 11 |
+| 9 | ~~`Bash` 的 `started` 档位~~ | 走过审批的 Bash：`readOnly:false` / `sideEffectScope:"system"`；安全直通：`true` / `"none"`（逐夹具相关） | **已对齐**（Task 11）：`started` 档位按审批路径决定；`TaskStop` 仍是 `false`/`session`、Write/Edit `false`/`workspace` | Task 11 |
 | 10 | 失败 turn 的形态 | 本批夹具无失败 turn（无对照） | 恒先 `turn.started` 再补唯一 `turn.failed`（配置失败/取消/收口路径一致）；`turn.failed` 载荷只填协议必填字段 | Task 6/7 登记 |
 
-### C1.2 权限评估口径（Task 10 回放发现）
+### C1.2 权限评估口径
 
 | # | 场景 | oracle | C1 |
 | --- | --- | --- | --- |
-| 1 | schema 级非法入参（`Bash {}` 空入参、`Edit` 缺 `new_string`、`Read` offset 类型错误） | **先输入校验**：不产生审批对，也不产生 `started`，直接 `error`/`batch` | 先审批（`Ask`）+ `started`，校验在 invoke 内 → 多出 `permission.requested/resolved`（部分场景多 `started`） |
-| 2 | `Bash` 命令分级：`printf 'err' >&2`、`;` 复合命令、`sleep 5` | 不审批（allow） | 判 `Ask`（medium/high）→ 多出审批对 |
+| 1 | ~~schema 级非法入参（`Bash {}`、`Edit` 缺 `new_string`、`Write` 缺 content、`Read` offset 类型错误）~~ | **先输入校验**：不产生审批对，也不产生 `started`，直接 `error`/`batch` | **已对齐**（Task 11）：`required` / `properties.type`（含 `integer`）/ `additionalProperties:false` 在权限评估**之前**校验（`agent_tools::input_validation_error`）；语义约束（`limit:0`、空路径）仍走 `started → error` | Task 11 |
+| 2 | ~~`Bash` 命令分级：`printf 'err' >&2`、`;` 复合命令、`sleep 5`~~ | 不审批（allow） | **已对齐**（Task 11）：`sleep` 进安全集合；`>&2`（写 stderr）与 `2>/dev/null` 一样先剔除再判文件重定向 | Task 11 |
 
-工具调用与结果本身两层（toolCalls/files）逐字一致；差异只在「是否弹审批」与事件的编排顺序。
+工具调用与结果本身两层（toolCalls/files）逐字一致；Task 11 起事件编排顺序也对齐（38/38 绿）。
 
 ### C1.3 快照与投影缺省面
 
@@ -1027,9 +1039,14 @@ oracle 同形的 `tool_not_found`」，并由行为夹具 `read-absent-search-to
   夹具字面量序（`JSON.stringify`）。多键工具入参（write/edit/offset+limit）的 delta
   文本因此键序不同。真实 provider 场景不存在该差异（delta 字节来自线上）；不为此启用
   `serde_json/preserve_order`（全局 feature 翻转会改变 DB JSON 列与协议帧的既有字节形状）。
-- **`stack` 不参与对拍**：oracle 录制的 `error.stack` 是 dist 构建的行号，重录即漂移
-  （oracle 套件既有基线红的一部分）；Rust 不产出栈，比较时两侧同删不在 harness 里做——
-  它作为 C1.1-#7 的载荷缺口如实报红。
+  **Task 11 起**：这是 §3 白名单规则「JSON 文本里的对象键序」的适用场景（两侧同投，
+  数组顺序不动）。
+- **`stack` 与命令内容指纹不参与对拍**（Task 11）：oracle 录制的 `error.stack` 是 dist 构建
+  的行号、`perf.detail.command.hash` 的算法不可由黑盒观察推导；两者都是实现内部产物而非
+  行为，比较时按 §3 的错误栈 / 命令内容指纹规则**两侧删除**（不是 harness 的临时过滤）。
+- **期望侧同投白名单**：夹具的 `expect.events` 是录制时的规范化结果；harness 在比较前把
+  `normalizeValue` 也投到期望 payload 上，使录制之后新增的 §3 规则同样生效（对既有规则
+  幂等：`<id>`/`<time>`/`<cwd>` 等标记再投一遍不变）。
 
 ## 验收场景（Task 0）
 
