@@ -126,6 +126,8 @@ goal/target（C3）；自动重试/退避（C3）；官方平台/遥测（永久
   `content_block_stop` → `message_delta`（stop_reason/usage）→ `message_stop`。
 - 工具调用：`tool_use` 的 `id/name/input` 累积；`input_json_delta` 拼接后解析；
   `stop_reason=tool_use` → `"tool-calls"`。
+- 同一 assistant 轮次的连续 tool_result 合并进**一条** user 消息（`tool_result` 块按
+  原序；公开 API 要求同轮结果同住一条 user 消息），相邻 user 文本消息不合并。
 - usage：input/output/cache_read/cache_creation；错误显式（401/403/5xx/流内 error）。
 - 不做重试（C3）。
 
@@ -138,7 +140,8 @@ goal/target（C3）；自动重试/退避（C3）；官方平台/遥测（永久
   `extra_headers` 里的 `anthropic-version` 优先级更高。
 - `system` 映射为顶层 `system` 的 text 块数组（多条 `System` 保序保留边界；没有
   `System` 时省略键）。`User` → user text 块；`Assistant` → text + `tool_use` 块；
-  `ToolResult` → 独立 user 消息的 `tool_result` 块（`tool_use_id` 原样）。
+  `ToolResult` → `tool_result` 块（`tool_use_id` 原样），连续结果合并成一条 user 消息
+  （见 §4.1 分组规则；单个结果形状不变）。
 - `max_tokens` 必填：配置有 `max_output_tokens` 时用它；没有时用命名常量
   `DEFAULT_MAX_OUTPUT_TOKENS = 8192`（T0 在 oracle 的 compact 请求里观察到
   `max_tokens:8192`，见 `agent-c2-contract.md` §1.4）。这是 wire 必填项的文档化回退，

@@ -270,6 +270,85 @@ fn request_body_maps_system_messages_tools_and_token_limit() {
     );
 }
 
+/// 多工具轮次：连续 tool_result 必须合并进**一条** user 消息（公开 API 要求同一
+/// assistant 轮次的结果住在一条 user 消息里，逐条拆开会 400）；块序 = 结果原序。
+#[test]
+fn consecutive_tool_results_group_into_one_user_message() {
+    let request = ModelRequest {
+        messages: vec![
+            ModelMessage::User("读两个文件".to_string()),
+            ModelMessage::Assistant {
+                text: None,
+                tool_calls: vec![
+                    ModelToolCall {
+                        tool_call_id: "toolu_a".to_string(),
+                        tool_name: "Read".to_string(),
+                        input: json!({ "path": "a.txt" }),
+                    },
+                    ModelToolCall {
+                        tool_call_id: "toolu_b".to_string(),
+                        tool_name: "Read".to_string(),
+                        input: json!({ "path": "b.txt" }),
+                    },
+                ],
+            },
+            ModelMessage::ToolResult {
+                tool_call_id: "toolu_a".to_string(),
+                content: "A".to_string(),
+            },
+            ModelMessage::ToolResult {
+                tool_call_id: "toolu_b".to_string(),
+                content: "B".to_string(),
+            },
+            // 相邻 user 文本消息保持独立，不与 tool_result 消息合并。
+            ModelMessage::User("继续".to_string()),
+        ],
+        tools: Vec::new(),
+    };
+    let config = test_config("http://127.0.0.1:9".to_string());
+    let body = build_messages_request(&request, &config);
+
+    assert_eq!(
+        body["messages"],
+        json!([
+            { "role": "user", "content": [{ "type": "text", "text": "读两个文件" }] },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_a",
+                        "name": "Read",
+                        "input": { "path": "a.txt" },
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_b",
+                        "name": "Read",
+                        "input": { "path": "b.txt" },
+                    },
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    { "type": "tool_result", "tool_use_id": "toolu_a", "content": "A" },
+                    { "type": "tool_result", "tool_use_id": "toolu_b", "content": "B" },
+                ],
+            },
+            { "role": "user", "content": [{ "type": "text", "text": "继续" }] },
+        ])
+    );
+    // 恰好一条带 tool_result 的 user 消息（多工具轮次不逐条拆开）。
+    let tool_result_messages = body["messages"]
+        .as_array()
+        .expect("messages 是数组")
+        .iter()
+        .filter(|message| message["content"][0]["type"] == json!("tool_result"))
+        .count();
+    assert_eq!(tool_result_messages, 1);
+}
+
 #[test]
 fn missing_max_output_tokens_uses_documented_fallback_and_omits_empty_tools() {
     let request = ModelRequest {

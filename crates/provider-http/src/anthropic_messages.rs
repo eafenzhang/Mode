@@ -136,7 +136,9 @@ impl ModelProvider for AnthropicMessagesProvider {
 ///   块数组；块数组保留多条系统段的边界），没有系统消息时省略键；
 /// - `User` → `{role:"user", content:[{type:"text",text}]}`；
 /// - `Assistant` → text 块（有文本时）+ 每个调用的 `tool_use` 块；
-/// - `ToolResult` → `{role:"user", content:[{type:"tool_result",tool_use_id,content}]}`；
+/// - `ToolResult` → `{role:"user", content:[...]}`；**连续**的 tool_result 合并进
+///   一条 user 消息（公开 API 要求同一 assistant 轮次的 tool_result 块住在一条 user
+///   消息里，按原序），单个 tool_result 形状不变；相邻的 user 文本消息不合并；
 /// - 工具声明 → `{name, description?, input_schema}`（没有描述时省略键，不编造）；
 /// - `max_tokens` 必填：配置缺失时用 [`DEFAULT_MAX_OUTPUT_TOKENS`]（见常量注释）；
 /// - `stream: true`。
@@ -159,11 +161,7 @@ pub fn build_messages_request(request: &ModelRequest, config: &AnthropicMessages
         body.insert("system".to_string(), Value::Array(system));
     }
 
-    let messages: Vec<Value> = request
-        .messages
-        .iter()
-        .filter_map(anthropic_message)
-        .collect();
+    let messages = anthropic_messages(&request.messages);
     body.insert("messages".to_string(), Value::Array(messages));
 
     if !request.tools.is_empty() {
@@ -184,27 +182,48 @@ pub fn build_messages_request(request: &ModelRequest, config: &AnthropicMessages
     Value::Object(body)
 }
 
-/// 一条非系统消息；`System` 已经在顶层 `system` 处理，返回 `None` 从 `messages` 排除。
-fn anthropic_message(message: &ModelMessage) -> Option<Value> {
-    match message {
-        ModelMessage::System(_) => None,
-        ModelMessage::User(text) => Some(serde_json::json!({
-            "role": "user",
-            "content": [{ "type": "text", "text": text }],
-        })),
-        ModelMessage::Assistant { text, tool_calls } => Some(assistant_message(text, tool_calls)),
-        ModelMessage::ToolResult {
-            tool_call_id,
-            content,
-        } => Some(serde_json::json!({
-            "role": "user",
-            "content": [{
-                "type": "tool_result",
-                "tool_use_id": tool_call_id,
-                "content": content,
-            }],
-        })),
+/// 消息序列 → Anthropic `messages` 数组。
+///
+/// `System` 已在顶层 `system` 处理，从 `messages` 排除。**连续**的 `ToolResult`
+/// （中立历史里它们总是紧跟 `Assistant{tool_calls}` 的同一批结果）合并成**一条**
+/// user 消息，`tool_result` 块按原序排列——公开 API 要求同一 assistant 轮次的结果
+/// 住在一条 user 消息里，逐条拆开会 400。相邻的 user 文本消息不合并。
+fn anthropic_messages(messages: &[ModelMessage]) -> Vec<Value> {
+    let mut out = Vec::with_capacity(messages.len());
+    let mut index = 0;
+    while index < messages.len() {
+        match &messages[index] {
+            ModelMessage::System(_) => index += 1,
+            ModelMessage::ToolResult { .. } => {
+                let mut blocks = Vec::new();
+                while let Some(ModelMessage::ToolResult {
+                    tool_call_id,
+                    content,
+                }) = messages.get(index)
+                {
+                    blocks.push(serde_json::json!({
+                        "type": "tool_result",
+                        "tool_use_id": tool_call_id,
+                        "content": content,
+                    }));
+                    index += 1;
+                }
+                out.push(serde_json::json!({ "role": "user", "content": blocks }));
+            }
+            ModelMessage::User(text) => {
+                out.push(serde_json::json!({
+                    "role": "user",
+                    "content": [{ "type": "text", "text": text }],
+                }));
+                index += 1;
+            }
+            ModelMessage::Assistant { text, tool_calls } => {
+                out.push(assistant_message(text, tool_calls));
+                index += 1;
+            }
+        }
     }
+    out
 }
 
 fn assistant_message(text: &Option<String>, tool_calls: &[ModelToolCall]) -> Value {
