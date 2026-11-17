@@ -6,8 +6,9 @@
 //!   才会把该 revision 标记为已交付）；
 //! - 账号 Overlay（内存快照）+ Personal/Built-in 文件层经 `provider-resolver` 合并后，
 //!   `providerId/modelId` 解析出 base URL、API key、apiFormat 与模型能力；
-//! - 缺 key / 缺 URL / 不支持的 apiFormat（OpenAI Responses 属 C2 · T5）显式报错；
-//! - Anthropic Messages 的端点解析与适配器配置映射（C2 · T4）；
+//! - 缺 key / 缺 URL / 映射方向不匹配的 apiFormat 显式报错；
+//! - Anthropic Messages（C2 · T4）与 OpenAI Responses（C2 · T5）的端点解析、
+//!   适配器配置映射与 `HubProviderSource` 选择面；
 //! - `Debug`/`Display` 永不打印 API key。
 //!
 //! 本文件全部测试只读临时目录与内存快照，不创建任何网络连接；resolved base URL
@@ -21,7 +22,7 @@ use agent_server::{
     ProviderConfigHub, ProviderSource, ResolvedProvider,
 };
 use model_selection::{ModelSelection, SelectionOptions};
-use provider_http::{AnthropicMessagesConfig, OpenAiChatConfig};
+use provider_http::{AnthropicMessagesConfig, OpenAiChatConfig, OpenAiResponsesConfig};
 use serde_json::{json, Value};
 
 /// 官方平台端点片段：resolved 端点与任何输出都不得出现（本模块不做网络请求）。
@@ -494,36 +495,56 @@ fn resolve_reports_missing_api_key_and_base_url_explicitly() {
     assert!(message.contains("baseUrl"), "message={message}");
 }
 
+/// C2 · T5：`api_format=openai-responses` 正常解析；三个映射方向一一对应——
+/// `to_openai_responses_config` 只接受 responses，chat / anthropic 反向映射显式拒绝。
 #[test]
-fn resolve_rejects_unsupported_api_formats() {
-    let root = temp_root("unsupported-format");
+fn resolve_supports_openai_responses_format() {
+    let root = temp_root("responses-format");
     let builtin = write_builtin(&root);
     let personal = root.join("provider_config.json");
-    let hub = ProviderConfigHub::with_paths(builtin, &personal);
-
-    // Anthropic Messages 自 C2 · T4 起支持；OpenAI Responses 仍显式报不支持（T5）。
-    let api_type = "openai-responses";
     write_personal_file(
         &personal,
         &[personal_provider_rule(
-            "mock-chat",
-            api_type,
+            "mock-responses",
+            "openai-responses",
             Some("http://127.0.0.1:9/v1"),
             api_key_access(json!("mock-key-abc")),
         )],
-        personal_model_rules("mock-chat", "mock-1"),
+        personal_model_rules("mock-responses", "mock-1"),
     );
-    let error = hub
-        .resolve(&selection("mock-chat", "mock-1"))
-        .expect_err("OpenAI Responses 属 C2 · T5，当前显式报不支持");
-    assert!(
-        matches!(error, ProviderConfigError::UnsupportedApiFormat { .. }),
-        "实际错误：{error:?}"
+    let hub = ProviderConfigHub::with_paths(builtin, &personal);
+
+    let resolved = hub
+        .resolve(&selection("mock-responses", "mock-1"))
+        .expect("C2 · T5 支持 openai-responses");
+    assert_eq!(
+        resolved.api_format,
+        agent_server::ApiFormat::OpenAiResponses
     );
-    let message = error.to_string();
-    assert!(message.contains("mock-chat"), "message={message}");
-    assert!(message.contains("mock-1"), "message={message}");
-    assert!(message.contains(api_type), "message={message}");
+    assert_eq!(resolved.base_url, "http://127.0.0.1:9/v1");
+    assert_eq!(resolved.max_output_tokens, Some(8192));
+
+    let config = resolved
+        .to_openai_responses_config()
+        .expect("openai-responses 映射");
+    assert_eq!(config.base_url, "http://127.0.0.1:9/v1");
+    assert_eq!(config.api_key, "mock-key-abc");
+    assert_eq!(config.model, "mock-1");
+    assert_eq!(config.max_output_tokens, Some(8192));
+    assert!(config.extra_headers.is_empty());
+    assert_eq!(
+        config.store, None,
+        "provider 配置没有 store 字段，不发明默认值"
+    );
+    // 反向映射仍显式拒绝：格式与适配器必须一一对应。
+    let error = resolved
+        .to_openai_chat_config()
+        .expect_err("openai-responses 不能映射到 chat completions");
+    assert!(error.to_string().contains("openai-responses"));
+    let error = resolved
+        .to_anthropic_messages_config()
+        .expect_err("openai-responses 不能映射到 anthropic-messages");
+    assert!(error.to_string().contains("openai-responses"));
 }
 
 #[test]
@@ -784,6 +805,89 @@ async fn anthropic_messages_selection_builds_anthropic_provider_without_network(
         .resolve_openai_config("mock-anthropic", "mock-1", None)
         .expect_err("Anthropic 端点不能当成 chat-completions 使用");
     assert!(error.contains("anthropic-messages"), "error={error}");
+}
+
+#[test]
+fn to_openai_responses_config_maps_endpoint_headers_and_rejects_other_formats() {
+    let resolved = ResolvedProvider {
+        provider_id: "mock-responses".to_owned(),
+        model_id: "mock-1".to_owned(),
+        base_url: "http://127.0.0.1:9/v1".to_owned(),
+        api_key: "mock-key-abc".to_owned(),
+        api_format: agent_server::ApiFormat::OpenAiResponses,
+        max_output_tokens: Some(4096),
+        context_window: Some(200_000),
+        headers: vec![
+            ("X-Custom".to_owned(), "1".to_owned()),
+            ("Authorization".to_owned(), "Bearer gateway".to_owned()),
+        ],
+    };
+    let config: OpenAiResponsesConfig = resolved
+        .to_openai_responses_config()
+        .expect("openai-responses");
+    assert_eq!(config.base_url, "http://127.0.0.1:9/v1");
+    assert_eq!(config.api_key, "mock-key-abc");
+    assert_eq!(config.model, "mock-1");
+    assert_eq!(config.max_output_tokens, Some(4096));
+    assert_eq!(config.extra_headers.len(), 2);
+    assert_eq!(config.extra_headers[1].1, "Bearer gateway");
+    assert_eq!(config.store, None);
+    // 掩码纪律：Debug 不打印 key（头值只显示头名）。
+    let rendered = format!("{config:?}");
+    assert!(!rendered.contains("mock-key-abc"), "rendered={rendered}");
+    assert!(!rendered.contains("Bearer gateway"), "rendered={rendered}");
+
+    // chat / anthropic 格式不能映射到 Responses 适配器（方向一一对应）。
+    for format in [
+        agent_server::ApiFormat::OpenAiChatCompletions,
+        agent_server::ApiFormat::AnthropicMessages,
+    ] {
+        let other = ResolvedProvider {
+            api_format: format,
+            ..resolved.clone()
+        };
+        let error = other
+            .to_openai_responses_config()
+            .expect_err("chat/anthropic 不能映射到 Responses 适配器");
+        let message = error.to_string();
+        assert!(message.contains("mock-responses"), "message={message}");
+        assert!(message.contains(format.as_str()), "message={message}");
+        assert!(!message.contains("mock-key-abc"), "message={message}");
+    }
+}
+
+/// 选择面：`api_format=openai-responses` 时 `HubProviderSource::resolve` 走 Responses
+/// 分支并成功构造 provider（只建 client、不发请求）。误走 chat/anthropic 分支会被
+/// 各自的格式校验拒绝，因此 Ok 本身就证明选了 Responses 适配器。
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn openai_responses_selection_builds_responses_provider_without_network() {
+    let root = temp_root("responses-selection");
+    let builtin = write_builtin(&root);
+    let personal = root.join("provider_config.json");
+    write_personal_file(
+        &personal,
+        &[personal_provider_rule(
+            "mock-responses",
+            "openai-responses",
+            Some("http://127.0.0.1:9/v1"),
+            api_key_access(json!("mock-key-abc")),
+        )],
+        personal_model_rules("mock-responses", "mock-1"),
+    );
+    let source = HubProviderSource::new(
+        Arc::new(ProviderConfigHub::with_paths(builtin, &personal)),
+        Arc::new(RwLock::new(None)),
+    );
+    let provider = source
+        .resolve("mock-responses", "mock-1", None)
+        .expect("openai-responses 应装配成功（只构建客户端，不发请求）");
+    drop(provider);
+
+    // chat 解析出口仍显式拒绝 Responses 端点（映射方向一一对应）。
+    let error = source
+        .resolve_openai_config("mock-responses", "mock-1", None)
+        .expect_err("Responses 端点不能当成 chat-completions 使用");
+    assert!(error.contains("openai-responses"), "error={error}");
 }
 
 // ---------------------------------------------------------------------------

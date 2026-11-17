@@ -1085,6 +1085,11 @@ mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）
 | 3 | Anthropic `stop_reason`：`max_tokens` / `stop_sequence` / 未列举值折叠为 `"stop"`（会话层只区分 `stop` / `tool-calls`） | C2 §4.1.1；T4（2026-11-17） |
 | 4 | Anthropic 流缺 `message_stop` 或仍有未收口 content block 时显式 `ProviderError`（不把截断流当成功终态；delta 保留、turn.failed 一次归 C2 §8） | C2 §4.1.1；T4（2026-11-17） |
 | 5 | `api_format=anthropic-messages` 由 `provider_config` 解析并在 `HubProviderSource` 装配 Anthropic provider；`to_openai_chat_config` 仍只接受 chat-completions，`to_anthropic_messages_config` 只接受 anthropic-messages | C2 §4.3；T4（2026-11-17） |
+| 6 | Responses 请求体：多条 `System` 用 `"\n\n"` 拼接进 `instructions`（装配恒一条 System；分隔符是登记的确定性选择，非观察值），`input` 为项数组（user `input_text` / assistant `output_text` / `function_call` / `function_call_output`，保序），工具用扁平 `{type:"function",name,description?,parameters}` | C2 §4.2.1；T5（2026-11-17） |
+| 7 | Responses 流只消费登记事件（`output_text.delta` / `function_call_arguments.delta` / `output_item.added`·`done` 的 function_call / `completed` / `incomplete` / `failed` / `error`）；`response.created`·`in_progress`、message/reasoning 项事件、`output_text.done`、`function_call_arguments.done` 等公开流必发事件安静忽略，不按未知类型报错 | C2 §4.2.1；T5（2026-11-17） |
+| 8 | Responses `stop_reason`：`response.incomplete`（任何 `incomplete_details.reason`，含 `max_output_tokens`）一律折叠为 `"stop"`（会话层按 delta 决定工具批次）；`response.failed` → `ProviderError`；`completed` 按已产出工具调用推断 | C2 §4.2.1；T5（2026-11-17） |
+| 9 | Responses 流缺终态事件（`completed`/`incomplete`/`failed`）时显式 `ProviderError`（不把截断流当成功终态；delta 保留、turn.failed 一次归 C2 §8）；工具入参按 `output_index` 分键累积，不可解析入参显式报错 | C2 §4.2.1；T5（2026-11-17） |
+| 10 | `api_format=openai-responses` 由 `provider_config` 解析并在 `HubProviderSource` 装配 Responses provider；`to_openai_responses_config` 只接受 openai-responses，chat/anthropic 映射方向仍一一对应 | C2 §4.3；T5（2026-11-17） |
 
 ## 验收场景（Task 0）
 

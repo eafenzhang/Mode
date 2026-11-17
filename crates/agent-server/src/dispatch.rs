@@ -26,7 +26,9 @@ use crate::provider_config::{
 use crate::reverse::ReverseHub;
 use crate::runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
 use crate::server::ServerError;
-use provider_http::{AnthropicMessagesProvider, OpenAiChatConfig, OpenAiChatProvider};
+use provider_http::{
+    AnthropicMessagesProvider, OpenAiChatConfig, OpenAiChatProvider, OpenAiResponsesProvider,
+};
 
 use agent_core::ModelCapabilities;
 use tokio::io::AsyncWrite;
@@ -67,7 +69,7 @@ impl ServerConfig {
 }
 
 /// 生产 provider 装配源：hub 三层合并解析 → 按 `api_format` 选适配器
-/// （OpenAI Chat Completions / Anthropic Messages，C2 §4.3）。
+/// （OpenAI Chat Completions / Anthropic Messages / OpenAI Responses，C2 §4.3）。
 ///
 /// 账号型 provider（`zhipu-account` 族）的鉴权材料来自宿主反向请求
 /// `interaction/requestProviderRuntimeHeaders`（Task 8 控制器裁决 4）：连接级
@@ -87,7 +89,8 @@ impl HubProviderSource {
 
     /// 解析成 OpenAI Chat Completions 配置（不含 provider 实例化；测试断言 key 用）。
     ///
-    /// Anthropic 等其它格式在这里显式报不支持（`to_openai_chat_config` 的格式校验）。
+    /// Anthropic / Responses 等其它格式在这里显式报不支持
+    /// （`to_openai_chat_config` 的格式校验）。
     /// 阻塞等待宿主应答——调用方（worker）把 resolve 放在 `spawn_blocking` 上。
     pub fn resolve_openai_config(
         &self,
@@ -226,12 +229,14 @@ impl ProviderSource for HubProviderSource {
                     .map_err(|error| format!("构建模型适配器失败: {error}"))?;
                 Ok(Arc::new(provider))
             }
-            ApiFormat::OpenAiResponses => Err(ProviderConfigError::UnsupportedApiFormat {
-                provider_id: resolved.provider_id.clone(),
-                model_id: resolved.model_id.clone(),
-                api_format: resolved.api_format.as_str().to_owned(),
+            ApiFormat::OpenAiResponses => {
+                let config = resolved
+                    .to_openai_responses_config()
+                    .map_err(|error| error.to_string())?;
+                let provider = OpenAiResponsesProvider::new(config)
+                    .map_err(|error| format!("构建模型适配器失败: {error}"))?;
+                Ok(Arc::new(provider))
             }
-            .to_string()),
         }
     }
 

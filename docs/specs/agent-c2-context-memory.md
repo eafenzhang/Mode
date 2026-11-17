@@ -167,10 +167,58 @@ goal/target（C3）；自动重试/退避（C3）；官方平台/遥测（永久
   参数解析失败 → 显式 `ProviderError`。
 - usage：input/output/reasoning/cached tokens（按公开 API 字段）；无重试。
 
+#### 4.2.1 T5 实现注记（2026-11-17）
+
+- 端点：`POST {base_url}/responses`（base_url 末尾 `/` 去掉后拼）；默认头
+  `content-type: application/json`、`authorization: Bearer <key>`。`extra_headers`
+  与 Chat Completions 同一替换语义：同名（大小写不敏感）覆盖默认头，不产生重复行；
+  `store` 是配置项（`Option<bool>`），只在 `Some` 时进请求体，当前选择面恒 `None`
+  （provider 配置没有该字段，不发明默认值）。
+- 请求映射：所有 `System` 保序用 `"\n\n"` 拼接进 `instructions`（装配产出恒一条
+  `System`；多条时的分隔符是登记的确定性选择，非观察值），没有 `System` 时省略键，
+  `System` 不进 `input`。`User` → `{type:"message", role:"user",
+  content:[{type:"input_text", text}]}`；`Assistant` 有非空文本 →
+  `{type:"message", role:"assistant", content:[{type:"output_text", text}]}`，每个
+  调用 → `{type:"function_call", call_id, name, arguments}`（`arguments` 是入参
+  JSON 字符串）；`ToolResult` → `{type:"function_call_output", call_id, output}`；
+  项序 = 历史序（assistant 文本项在其调用项之前）。`Assistant` 无文本且无调用
+  （历史恢复的防御形态）不产出 `input` 项。
+- 工具声明 → 扁平 `{type:"function", name, description?, parameters}`
+  （`description` 缺失省略键，`parameters` 逐字取 `input_schema`）。`max_output_tokens`
+  仅在配置 `Some` 时发；`stream: true` 恒发。
+- 流事件只消费：`response.output_text.delta`（→ `Text`）、
+  `response.function_call_arguments.delta`（按 `output_index` 分键累积 →
+  `ToolInputDelta`）、`response.output_item.added` / `response.output_item.done`
+  （`item.type == "function_call"` → `ToolInputStart` / `ToolInputEnd` + `ToolCall`）、
+  `response.completed` / `response.incomplete`（usage + 终态）、`response.failed`
+  与 `error`（显式错误）。`response.created` / `response.in_progress`、message /
+  reasoning 项的 added/done、`response.output_text.done`、
+  `response.function_call_arguments.done` 等其余事件**安静忽略**（公开流必发这些
+  事件，不按未知类型报错）。
+- 工具入参按 `output_index` 分键累积（delta 事件必带 `item_id` 与 `output_index`，
+  added/done 必带 `output_index`），绝不做字符串全局拼接。`output_item.added` 时发
+  `ToolInputStart`（早于 added 到达的入参分片先缓存，start 后补发）；
+  `output_item.done` 时收口：优先用已累积分片解析，分片为空时回退 done 项的
+  `arguments`；空串按 `{}`；不可解析 → 显式 `ProviderError`。终态事件到达时仍未
+  `output_item.done` 的 function_call 按同一规则补收口。
+- stop：`response.completed` → 已产出工具调用则 `"tool-calls"` 否则 `"stop"`；
+  `response.incomplete`（任何 `incomplete_details.reason`，含 `max_output_tokens`）
+  一律 `"stop"`——登记的简化：会话层按 delta 决定工具批次，`stop_reason` 只是终态
+  标注；`response.failed` → `ProviderError`（带 `response.error.code/message`）。
+- usage 取 `response.completed` / `response.incomplete` 的 `response.usage`：
+  `input_tokens` / `output_tokens`；`input_tokens_details.cached_tokens` →
+  `cache_read_tokens`；`input_tokens_details.cache_write_tokens`（公开文档字段，
+  缺失按 0）→ `cache_write_tokens`；`output_tokens_details.reasoning_tokens` →
+  `reasoning_tokens`。
+- 流必须以 `response.completed` / `response.incomplete` / `response.failed` 收尾，
+  否则显式 `ProviderError`（截断流不伪装成成功终态）。非 2xx、流内 `error` 事件、
+  非法 SSE JSON、sink 关闭都是显式错误；不重试（C3）。
+
 ### 4.3 选择
 
-- `ResolvedProvider.api_format` 决定适配器；`openai-chat-completions` 保持 C1 行为。
-- 未支持格式继续显式报错（不静默回退到 chat completions）。
+- `ResolvedProvider.api_format` 决定适配器（`openai-chat-completions` /
+  `anthropic-messages` / `openai-responses`）；`openai-chat-completions` 保持 C1 行为。
+- 未支持格式与映射方向不匹配继续显式报错（不静默回退到 chat completions）。
 
 ## 5. Memory
 
