@@ -507,6 +507,35 @@ impl ModelProvider for GatedCompactProvider {
     }
 }
 
+/// 门控 provider：**prompt** 请求在 `gate` 上等待许可（compact 请求不会到达 provider——
+/// 运行中受理即拒绝），用于把 prompt turn 钉在 Running 相位
+/// （`-32010 Cannot compact while a prompt is running` 的判定窗口，契约 §1.6；
+/// fixture `compact-while-turn-running`）。
+struct GatedPromptProvider {
+    inner: Arc<dyn ModelProvider>,
+    gate: Arc<tokio::sync::Semaphore>,
+}
+
+impl ModelProvider for GatedPromptProvider {
+    fn stream(
+        &self,
+        request: ModelRequest,
+        deltas: DeltaSink,
+    ) -> BoxFuture<'static, Result<ModelResponse, ProviderError>> {
+        if is_compact_request(&request) {
+            return self.inner.stream(request, deltas);
+        }
+        let gate = Arc::clone(&self.gate);
+        let inner = Arc::clone(&self.inner);
+        Box::pin(async move {
+            let _permit = gate.acquire().await.map_err(|_| ProviderError {
+                message: "prompt gate closed".to_string(),
+            })?;
+            inner.stream(request, deltas).await
+        })
+    }
+}
+
 /// provider **解析**闸门：阻塞 `ProviderSource::resolve`，把 worker 停在
 /// 「已取到 compact、相位仍是 Queued」的窗口里（`already_running` 判定尚未发生）。
 ///
@@ -1939,6 +1968,111 @@ async fn queued_second_compact_is_accepted_then_skipped() {
         count_rows(&fixture.db_path, "model_usage"),
         1,
         "只有成功 compact 的 model_usage；skipped 不发起模型请求"
+    );
+    assert_eq!(
+        session_column(&fixture.db_path, &session_id, "time_compacting"),
+        None
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 6b. prompt 运行中的 compact：`-32010`（fixture `compact-while-turn-running`）
+// ---------------------------------------------------------------------------
+
+/// prompt 仍在执行（provider 闸门挂起）时 `session/compact` 必须显式拒绝：
+/// `-32010 Cannot compact while a prompt is running`，零事件、零落库、revision 不动，
+/// 且 prompt turn 之后照常完成（契约 §1.1/§1.6）。
+#[tokio::test]
+async fn compact_while_prompt_running_is_rejected_with_zero_side_effects() {
+    let scripted = ScriptedProvider::new(vec![ScriptStep::Text(
+        "prompt answer after gate".to_string(),
+    )]);
+    let recording = Arc::new(RecordingProvider::new(Arc::new(scripted)));
+    let requests = Arc::clone(&recording.requests);
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let inner: Arc<dyn ModelProvider> = Arc::clone(&recording) as Arc<dyn ModelProvider>;
+    let provider = Arc::new(GatedPromptProvider {
+        inner,
+        gate: Arc::clone(&gate),
+    });
+    let fixture = fixture_with_source(
+        "while-turn-running",
+        Arc::new(StaticSource { provider }),
+        requests,
+    );
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    // prompt turn：受理后在 provider 闸门上挂起（turn.started 已发布 → 相位 Running，
+    // `current_kind == Prompt` 是 `request_compact` 的判定点，与发布同一临界区）。
+    let send_id = conn
+        .send(
+            "session/send",
+            json!({
+                "sessionId": session_id,
+                "content": "turn that is still running",
+            }),
+        )
+        .await;
+    let sent = conn.result(send_id).await;
+    assert_eq!(sent["accepted"], json!(true));
+    let started = next_event_until(&mut conn, |event| event["type"] == json!("turn.started")).await;
+    assert_eq!(
+        started["payload"]["input"],
+        json!("turn that is still running")
+    );
+
+    let counts_before = table_counts(&fixture.db_path);
+    let revision_before = conn.read_snapshot(&session_id).await["runtime"]["stateRevision"]
+        .as_u64()
+        .expect("rev");
+
+    // prompt 仍在执行的同一窗口里 compact：显式 JSON-RPC 拒绝（fixture 观察形状：
+    // `{"code":-32010,"message":"Cannot compact while a prompt is running"}`，无 data）。
+    let id = conn
+        .send(
+            "session/compact",
+            json!({
+                "sessionId": session_id,
+                "inputId": "input_compact_running_1",
+            }),
+        )
+        .await;
+    let (code, message, data) = conn.error(id).await;
+    assert_eq!(code, -32010);
+    assert_eq!(message, "Cannot compact while a prompt is running");
+    assert!(data.is_none(), "拒绝不带 data（fixture 观察形状）");
+
+    // 零副作用：revision 不动、八张观察表行数逐表不变（fixture `dbCountsDuring`）。
+    let snapshot_after = conn.read_snapshot(&session_id).await;
+    assert_eq!(
+        snapshot_after["runtime"]["stateRevision"],
+        json!(revision_before),
+        "拒绝路径不推进 revision"
+    );
+    let counts_after = table_counts(&fixture.db_path);
+    assert_eq!(counts_after, counts_before, "拒绝路径零落库");
+
+    // 放行 prompt：正常完成（没有 compact 的 turn.started；被拒 compact 不发起模型请求）。
+    gate.add_permits(1);
+    let rest = conn.drain_until_terminal().await;
+    assert_eq!(
+        event_types(&rest),
+        vec!["model.streaming", "turn.completed"],
+        "终态前只有本 prompt 的流式事件；没有 compact 事件"
+    );
+    assert_eq!(
+        rest[0]["payload"]["delta"],
+        json!("prompt answer after gate")
+    );
+    assert_eq!(
+        rest.last().expect("终态")["payload"]["response"],
+        json!("prompt answer after gate")
+    );
+    assert_eq!(
+        requested_requests(&fixture).len(),
+        1,
+        "只有 prompt 一次模型请求"
     );
     assert_eq!(
         session_column(&fixture.db_path, &session_id, "time_compacting"),

@@ -23,7 +23,9 @@
 // scripted provider 下没有 mock HTTP 请求面（`isolation.mockRequestPaths` /
 // `compactModelRequest` 只在 memory 对拍经本地 mock provider 观察，见
 // `replay-c2-memory.mts`）；`compact-while-turn-running` 需要钉住「turn 正在执行」
-// 的窗口，TS 侧无法确定性地构造（登记为未覆盖）。
+// 的窗口，TS 侧无法确定性地构造（登记为未覆盖；`-32010` 拒绝形状由 Rust 单测
+// `compact_while_prompt_running_is_rejected_with_zero_side_effects`
+// （`crates/agent-server/tests/compact.rs`）断言）。
 //
 // 单跑入口：`pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/replay-c2.mts [--case <name>]`
 // 套件入口：`agent-server-c2-replay.test.mts`（`pnpm test:agent-runtime-oracle` 自动纳入）。

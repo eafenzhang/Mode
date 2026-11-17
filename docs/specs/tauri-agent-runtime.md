@@ -1148,7 +1148,7 @@ C2 各切片的差异已在 `docs/specs/agent-c2-contract.md` 的 §1.9 / §3.5 
 | 23 | per-turn `model_usage` | oracle 每个 prompt turn 写 1 行 `model_usage`（query_source `main_turn`）；Rust 只在 compact（含失败）写 `model_usage`，prompt turn 不写。`turn_usage` 的 prompt 行还有 `trace_id`/`first_model_start_at`/`first_token_at` 为 null（oracle 有值）。 |
 | 24 | `session_entry` 第三行 | oracle 有 3 行 runtime entry（`runtime/model_selection`、`runtime/bash_shell_selection`、`runtime/execution_state`）；Rust 2 行。 |
 | 25 | title 三列 | oracle 会话 title = 首条输入（`title_source:"first_input"`）；Rust title 空、`time_title_updated` null——与 C1 登记缺省事件类型 `session.titleUpdated` 同源的快照/DB 物化（回放两侧同删 title/titleSource/time_title_updated）。 |
-| 26 | 冷快照 `titleSource` | 热快照（compact accepted 应答等）的 `session.titleSource` 为 `None`（省略）；oracle 录制值 `first_input`（同 #25 的事实源）。 |
+| 26 | 热快照 `titleSource` | 热快照（compact accepted 应答等）的 `session.titleSource` 为 `None`（省略）；oracle 录制值 `first_input`（同 #25 的事实源）。 |
 
 **T8 对拍 harness（非运行时行为）**
 
@@ -1162,7 +1162,9 @@ C2 各切片的差异已在 `docs/specs/agent-c2-contract.md` 的 §1.9 / §3.5 
   `compact-provider-tool-call` / `compact-provider-empty` / `memory-recall`（enabled
   注入面）+ `memory-recall:disabled` + `memory-recall:fresh-disabled`，共 9 条全绿。
 - 登记未覆盖：`compact-while-turn-running`（需要钉住「turn 执行中」窗口，TS 驱动无法
-  确定性构造；Rust 侧断言在 `crates/agent-server/tests/compact.rs`）、
+  确定性构造；`-32010` 拒绝形状由 Rust 单测
+  `compact_while_prompt_running_is_rejected_with_zero_side_effects`
+  （`crates/agent-server/tests/compact.rs`，门控 provider 钉住 prompt 相位）断言）、
   `auto-compact-long-history`（未触发观察；Rust 断言同文件）、
   `context-usage-settings`（T6 断言在 `crates/agent-server/tests/snapshot.rs`）、
   `fresh-install-ledger`（T7 断言在 `crates/agent-server/tests/lifecycle.rs`）——

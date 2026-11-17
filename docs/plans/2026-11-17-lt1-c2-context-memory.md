@@ -218,8 +218,8 @@ Wave 4 = T8。T7 可在 T0 账本录制后与 T2/T3 并行（不同 crate）。
 **完成记录（2026-11-18）**：C2 回放 harness（`replay-c2.mts` + 9 条用例）全绿；
 C1 38/38 保持（套件仅余 3 条已登记 session-stream 基线红）；真实端点 smoke 脚本
 `scripts/agent-c2-smoke.mts` 就绪（opt-in，env 凭据），**未执行**——需要人工提供
-真实端点凭据（§9.8 如实登记）；差异表 `tauri-agent-runtime.md` §C2.8 与代码一致，
-并收录 T8 新发现的 C1 时代 DB 层未对齐面。
+真实端点凭据（「未执行项如实报告」：T8 报告 §3/§6 验收对照第 8 行）；差异表
+`tauri-agent-runtime.md` §C2.8 与代码一致，并收录 T8 新发现的 C1 时代 DB 层未对齐面。
 
 ---
 

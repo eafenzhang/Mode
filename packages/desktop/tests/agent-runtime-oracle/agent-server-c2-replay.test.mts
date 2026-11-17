@@ -46,7 +46,10 @@ const COVERED_CASES = [
 /**
  * 登记未覆盖（`tauri-agent-runtime.md` §C2 / `agent-c2-contract.md` 各节）：
  * - `compact-while-turn-running`：需要钉住「turn 执行中」窗口，TS 驱动无法确定性
- *   构造；Rust 侧断言在 `crates/agent-server/tests/compact.rs`（-32010 用例）。
+ *   构造；`-32010` 拒绝形状由 Rust 单测断言
+ *   （`crates/agent-server/tests/compact.rs` 的
+ *   `compact_while_prompt_running_is_rejected_with_zero_side_effects`：门控 provider
+ *   把 prompt 钉在 Running 相位，断言 -32010 文案、零落库、prompt 照常完成）。
  * - `auto-compact-long-history`：§2 的观察是「未触发」，Rust 侧断言在同一测试文件的
  *   `long_history_turn_does_not_auto_compact`；15 轮 × 100k 字符的回放不在套件里跑。
  * - `context-usage-settings`：T6 快照/读面对照在 `crates/agent-server/tests/snapshot.rs`。
