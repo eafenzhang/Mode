@@ -134,7 +134,7 @@ pub(crate) fn session_info(record: &SessionRecord, status: SessionStatus) -> Ses
             workspace_path: record.directory.clone(),
             workspace_identity: record.workspace_id.clone(),
             remote_session_id: None,
-            workspace_key: record.directory.clone(),
+            workspace_key: crate::state::workspace_key(record),
         },
         parent_session_id: record.parent_id.clone(),
         trace_id: record.trace_id.clone(),

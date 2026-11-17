@@ -1,7 +1,7 @@
 # LT-1 C1：Rust Agent Server 最小闭环 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `subagent-driven-development`（推荐）或
-> `executing-plans` 逐任务实现。步骤用 `- [ ]` 复选框跟踪。
+> `executing-plans` 逐任务实现。步骤用 `- [x]` 复选框跟踪。
 >
 > 本文件是 **C1 检查点**计划，不是 LT-1 全量计划。C1 完成后，C2/C3/C4 各自另出子计划。
 > 每个任务开工前先读 `docs/specs/agent-core-parity.md` 的对应章节与
@@ -13,7 +13,8 @@
 
 **Architecture:** `agent-process` 继续做进程所有者，命令解析选择 Node `mode.cjs` 或
 Rust `agent-server`；`agent-server` 内部用 `agent-core` 的 turn 状态机 + `CommandInbox`，
-`provider-http` 做模型流，`session-store` 独占 `db.sqlite` 写。频道 facade 不变。
+`provider-http` 做模型流，`session-store` 通过 SQLite WAL + `busy_timeout` 串行化
+`db.sqlite` 写（**无**进程独占锁；多 workspace 合法进程可共享同一库）。频道 facade 不变。
 
 **Tech Stack:** Rust 1.99（`rust-toolchain.toml`）、tokio、serde/serde_json、rusqlite
 （bundled）、reqwest（rustls + stream）、futures-util、React/TS 仅在测试侧复用。
@@ -26,8 +27,9 @@ Rust `agent-server`；`agent-server` 内部用 `agent-core` 的 turn 状态机 +
 
 - **clean-room**：不读 `apps/mode-cli/**`、`packages/services/**`、`packages/client/**`
   的实现体；只读协议类型声明、测试断言、specs、公开 API 文档。oracle 只黑盒运行。
-- **单一所有者**：同一 workspace 一个 Agent；同一会话一个 turn 状态机；同一 `db.sqlite`
-  一个写者。C1 不实现任何“两个运行时同时跑”的兼容模式。
+- **单一所有者**：同一 workspace 一个 Agent；同一会话一个 turn 状态机。`db.sqlite` 不再
+  要求进程独占锁：多个合法 workspace 进程可共享同一库，写由 SQLite WAL + `busy_timeout`
+  串行化（2026-11-17 控制器裁决 (a)）。C1 不实现任何“同一 workspace 两个运行时同时跑”的兼容模式。
 - **显式能力**：C1 不支持的方法返回 `-32601`（facade 映射 `unsupported_method`），
   不返回空结果、不静默降级。
 - **不编造观察值**：事件字段/DB 形状只来自协议镜像、schema 基线或 oracle 黑盒夹具；
@@ -144,24 +146,24 @@ spec §5.1/§5.5 已按观察修正。runtime-preferences 请求只在 create/re
   - `AgentServer::dispatch(method: &str, params: Value) -> Result<Value, ServerError>`（未知方法 `-32601`）
 - Consumes: `serde_json`、tokio。
 
-- [ ] **Step 1: 写失败的 framing 测试**
+- [x] **Step 1: 写失败的 framing 测试**
 
   `crates/agent-server/tests/framing.rs`：LF 分帧、CRLF 容忍、U+2028 不切帧、空行忽略、
   EOF 残留帧处理。先断言未实现。
 
-- [ ] **Step 2: 实现最小 `run_stdio`**
+- [x] **Step 2: 实现最小 `run_stdio`**
 
   循环读行 → 解析 JSON → 分派 → 写回复；未知方法回 `-32601`；EOF 退出 0。
 
-- [ ] **Step 3: 写失败的 dispatch 测试**
+- [x] **Step 3: 写失败的 dispatch 测试**
 
   `dispatch("session/unknown", {})` 返回 `-32601`；非法 JSON 关闭连接并失败 pending。
 
-- [ ] **Step 4: 实现 `AgentServer` 空壳与 `main.rs`**
+- [x] **Step 4: 实现 `AgentServer` 空壳与 `main.rs`**
 
   `main` 只接受 `app-server --stdio`（其余参数忽略但记录）；启动 tokio runtime。
 
-- [ ] **Step 5: 跑测试并提交**
+- [x] **Step 5: 跑测试并提交**
 
   `cargo test -p agent-server && cargo clippy -p agent-server --all-targets -- -D warnings`
 
@@ -194,29 +196,29 @@ spec §5.1/§5.5 已按观察修正。runtime-preferences 请求只在 create/re
   - usages: `record_model_usage/turn_usage/tool_usage`
 - Consumes: `rusqlite`、`serde_json`。
 
-- [ ] **Step 1: 写失败的 schema 测试**
+- [x] **Step 1: 写失败的 schema 测试**
 
   用 `scripts/sqlite-schema-baseline.json` 生成测试库 DDL（只读 data 文件）；缺
   `schema_migration` 账本时 `ensure_supported_schema` 必须报 `StorageSchemaUnsupported`。
 
-- [ ] **Step 2: 实现 `SessionStore::open` + schema 校验**
+- [x] **Step 2: 实现 `SessionStore::open` + schema 校验**
 
   只校验，不建表；打开 `busy_timeout`，不抢写锁。
 
-- [ ] **Step 3: 写失败的 CRUD 测试**
+- [x] **Step 3: 写失败的 CRUD 测试**
 
   create → get → list；append message/part → messages 顺序/limit；不存在的会话返回 `None`。
 
-- [ ] **Step 4: 实现 CRUD 与事务**
+- [x] **Step 4: 实现 CRUD 与事务**
 
   `append_message` + `append_part` 在同一事务；失败回滚；`message.data`/`part.data` 保留
   原始 JSON（serde_json::Value）。
 
-- [ ] **Step 5: 写失败的单写者测试**
+- [x] **Step 5: 写失败的存储并发测试**（多 store 共享同一库；SQLite 串行化写）
 
   第二个 `SessionStore` 以写模式打开同一文件时 fail-closed（`storage_locked`）。
 
-- [ ] **Step 6: 跑测试并提交**
+- [x] **Step 6: 跑测试并提交**
 
   `cargo test -p session-store && cargo clippy -p session-store --all-targets -- -D warnings`
 
@@ -243,25 +245,25 @@ spec §5.1/§5.5 已按观察修正。runtime-preferences 请求只在 create/re
   - `pub async fn Session::run_pending_notifications(...)`
 - Consumes: tokio sync/select。
 
-- [ ] **Step 1: 把 `provider_script` 改成异步测试并让它失败**
+- [x] **Step 1: 把 `provider_script` 改成异步测试并让它失败**
 
   `#[tokio::test]`；断言 delta 顺序与 `ModelResponse` 统计与旧实现一致。
 
-- [ ] **Step 2: 改 trait 与 `ScriptedProvider`**
+- [x] **Step 2: 改 trait 与 `ScriptedProvider`**
 
   `stream` 把剧本 delta 逐条 `send` 到 sink，返回 usage/stop；剧本仍由请求内容决定。
 
-- [ ] **Step 3: 改 `run_turn` 为流式消费**
+- [x] **Step 3: 改 `run_turn` 为流式消费**
 
   `tokio::select!` 同时消费 delta 与 provider future；delta 到达即发
   `model.streaming`；provider 结束后继续工具批次/下一轮；终态恰好一次。
 
-- [ ] **Step 4: 更新既有测试**
+- [x] **Step 4: 更新既有测试**
 
   `turn_stream.rs`、`task_notification.rs`、`task_control.rs` 等改为 `#[tokio::test]`；
   事件顺序断言不变。
 
-- [ ] **Step 5: 跑测试并提交**
+- [x] **Step 5: 跑测试并提交**
 
   `cargo test -p agent-core && cargo clippy -p agent-core --all-targets -- -D warnings`
 
@@ -288,26 +290,26 @@ spec §5.1/§5.5 已按观察修正。runtime-preferences 请求只在 create/re
   - `pub fn build_chat_request(request: &ModelRequest, config: &OpenAiChatConfig) -> serde_json::Value`
 - Consumes: `reqwest`（stream）、`serde_json`、`futures-util`。
 
-- [ ] **Step 1: 写失败的 SSE 解析测试**
+- [x] **Step 1: 写失败的 SSE 解析测试**
 
   覆盖 `data:` 多行、`[DONE]`、空行、CRLF、非法 JSON、usage 尾帧。
 
-- [ ] **Step 2: 实现 SSE 行解析器**
+- [x] **Step 2: 实现 SSE 行解析器**
 
   纯函数：`parse_sse_line` / `SseDecoder::push`；不依赖网络。
 
-- [ ] **Step 3: 写失败的 OpenAI 流测试**
+- [x] **Step 3: 写失败的 OpenAI 流测试**
 
   本地 `TcpListener` 返回固定 SSE：文本 delta、工具调用 delta（index/id/arguments 分片）、
   finish_reason、usage。断言发出的 `ModelDelta` 序列与 `ModelResponse`。
 
-- [ ] **Step 4: 实现 `OpenAiChatProvider`**
+- [x] **Step 4: 实现 `OpenAiChatProvider`**
 
   `POST {base_url}/chat/completions`，`stream:true`、`stream_options.include_usage`；
   401/403/5xx 映射为 `ProviderError { kind, status, message }`；工具入参 JSON 解析失败
   产生显式错误（不静默丢调用）。
 
-- [ ] **Step 5: 跑测试并提交**
+- [x] **Step 5: 跑测试并提交**
 
   `cargo test -p provider-http && cargo clippy -p provider-http --all-targets -- -D warnings`
 
@@ -337,26 +339,26 @@ spec §5.1/§5.5 已按观察修正。runtime-preferences 请求只在 create/re
 - 数据来源：`provider/updateAccountConfig` 下发的账号 Overlay +
   `MODE_PERSONAL_PROVIDER_CONFIG_FILE`；不连接官方平台。
 
-- [ ] **Step 1: 写失败的解析测试**
+- [x] **Step 1: 写失败的解析测试**
 
   account Overlay + Personal 文件合并后，`providerId/modelId` 解析出 base URL、API key、
   `apiFormat`；缺 key/缺 URL 返回显式错误；不出现官方端点。
 
-- [ ] **Step 2: 实现 `provider/updateAccountConfig` 回执**
+- [x] **Step 2: 实现 `provider/updateAccountConfig` 回执**
 
   严格解析 `{revision, basedOnModeBuiltinRevision, providers, states}`；revision 去重；
   回执 revision 不一致时不标记已交付。
 
-- [ ] **Step 3: 实现 `resolve`**
+- [x] **Step 3: 实现 `resolve`**
 
   复用 `provider-source-chain` / `provider-resolver` 的公开 API；Personal 优先规则与
   Rust 侧既有 `AgentProviderSource` 一致；`apiFormat` 映射到 `provider-http` 适配器。
 
-- [ ] **Step 4: 写失败的安全测试**
+- [x] **Step 4: 写失败的安全测试**
 
   `Debug`/日志不打印 API key；错误文案只带 provider/model 与缺失字段。
 
-- [ ] **Step 5: 跑测试并提交**
+- [x] **Step 5: 跑测试并提交**
 
   `cargo test -p agent-server provider_config && git commit -m "feat(agent-server): provider config"`
 
@@ -381,21 +383,21 @@ spec §5.1/§5.5 已按观察修正。runtime-preferences 请求只在 create/re
   - `pub fn build_model_request(input: &ContextInput<'_>) -> ModelRequest`
 - Consumes: `agent-tools::ToolSpec`、`ModelMessage`。
 
-- [ ] **Step 1: 写失败的系统提示快照测试**
+- [x] **Step 1: 写失败的系统提示快照测试**
 
   断言包含工作目录、模式、工具名；不包含凭据/内部地址；提示词在本仓库内定义
   （不复制上游）。
 
-- [ ] **Step 2: 实现最小系统提示**
+- [x] **Step 2: 实现最小系统提示**
 
   结构固定：身份/工作区/工具使用/安全边界/输出约定；工具描述从 `ToolSpec` 生成。
 
-- [ ] **Step 3: 写失败的请求装配测试**
+- [x] **Step 3: 写失败的请求装配测试**
 
   工具 schema 形状为 OpenAI function tools；消息顺序 = 历史 + 本轮输入；空历史不伪造
   assistant 消息。
 
-- [ ] **Step 4: 实现 `build_model_request` 并提交**
+- [x] **Step 4: 实现 `build_model_request` 并提交**
 
   `cargo test -p agent-core context && git commit -m "feat(agent-core): context assembly v0"`
 
@@ -423,31 +425,31 @@ spec §5.1/§5.5 已按观察修正。runtime-preferences 请求只在 create/re
   - `SessionRuntime::cancel_turn() -> Result<()>`
 - Consumes: `agent_core::{Session, CommandInbox}`、`session_store`、`provider_http`。
 
-- [ ] **Step 1: 写失败的准入测试**
+- [x] **Step 1: 写失败的准入测试**
 
   连续两次 `submit`：第一次 running，第二次 queued；取消后队列按 spec 处理；
   同一 `inputId` 幂等。
 
-- [ ] **Step 2: 实现 per-session worker**
+- [x] **Step 2: 实现 per-session worker**
 
   一个 worker task 串行消费 inbox；turn 运行期间 `submit` 只入队；`cancel` 通过
   `CancellationToken` 中断。
 
-- [ ] **Step 3: 写失败的事件/持久化测试**
+- [x] **Step 3: 写失败的事件/持久化测试**
 
   脚本 provider 跑一个文本 turn：事件顺序 `turn.started → model.streaming → turn.completed`；
   `message`/`part` 行写入；`turn_usage` 行写入；终态只一次。
 
-- [ ] **Step 4: 接入 `Session::run_turn` + `session-store`**
+- [x] **Step 4: 接入 `Session::run_turn` + `session-store`**
 
   user message 在 turn 开始事务写入；assistant/tool parts 增量写入；终态更新 session/usage；
   失败回滚未提交部分。
 
-- [ ] **Step 5: 写失败的订阅测试**
+- [x] **Step 5: 写失败的订阅测试**
 
   `subscribe(after_seq)` 先拿到 replay，再拿 live；无重复、无缺口；晚订阅者不丢终态。
 
-- [ ] **Step 6: 跑测试并提交**
+- [x] **Step 6: 跑测试并提交**
 
   `cargo test -p agent-server runtime && cargo clippy -p agent-server --all-targets -- -D warnings`
 
@@ -469,26 +471,26 @@ spec §5.1/§5.5 已按观察修正。runtime-preferences 请求只在 create/re
   `SessionRuntime`。
 - Produces: 方法表 `session/create|send|subscribe|read|messages|list|close|resume|setModel|setThoughtLevel|setMode`。
 
-- [ ] **Step 1: 写失败的 `session/create` 测试**
+- [x] **Step 1: 写失败的 `session/create` 测试**
 
   严格参数（多键拒绝）；返回 `SessionStateSnapshot` 必填字段；落 `session` 行；
   未知可选字段缺省省略。
 
-- [ ] **Step 2: 写失败的 `session/send` 测试**
+- [x] **Step 2: 写失败的 `session/send` 测试**
 
   `accepted:true` 立即返回；错误参数不拉起 turn；`inputId` 幂等；`expectedRevision`
   冲突返回显式错误。
 
-- [ ] **Step 3: 写失败的 read/messages/list/close/resume 测试**
+- [x] **Step 3: 写失败的 read/messages/list/close/resume 测试**
 
   冷读（无活跃 runtime）走 `session_store`；close 后 resume 恢复历史；list 的
   `includeArchived`/`limit` 语义；messages 的 `afterMessageId`/`limit`。
 
-- [ ] **Step 4: 实现方法 handler**
+- [x] **Step 4: 实现方法 handler**
 
   每个 handler 只做参数校验 + 调 runtime/store；不复制 turn 语义；未知方法保持 `-32601`。
 
-- [ ] **Step 5: 跑测试并提交**
+- [x] **Step 5: 跑测试并提交**
 
   `cargo test -p agent-server methods && git commit -m "feat(agent-server): session methods"`
 
@@ -513,25 +515,25 @@ spec §5.1/§5.5 已按观察修正。runtime-preferences 请求只在 create/re
   - `ProtocolRuntimePreferences`：`session/requestRuntimePreferences` 默认应答。
 - Consumes: `agent_core::PermissionHandler`、`PermissionUpdate`。
 
-- [ ] **Step 1: 写失败的 allow_once 测试**
+- [x] **Step 1: 写失败的 allow_once 测试**
 
   工具触发审批 → 反向请求帧 → 回 `allow_once` → 工具执行 → `permission.resolved` +
   `tool.updated(result)`。
 
-- [ ] **Step 2: 写失败的 allow_project/deny 测试**
+- [x] **Step 2: 写失败的 allow_project/deny 测试**
 
   `allow_project` 写 `local_setting` 行并在下一次同规则请求直接放行；`deny` 只留
   `scheduled` + `batch(errorCount=1)`。
 
-- [ ] **Step 3: 实现 handler 与反向请求 id 管理**
+- [x] **Step 3: 实现 handler 与反向请求 id 管理**
 
   反向请求 id 单调；关闭时失败所有 pending；未知方法回 `-32601`。
 
-- [ ] **Step 4: 写失败的 runtime preferences 测试**
+- [x] **Step 4: 写失败的 runtime preferences 测试**
 
   默认值、非法 scope `-32602`；不读真实账号。
 
-- [ ] **Step 5: 跑测试并提交**
+- [x] **Step 5: 跑测试并提交**
 
   `cargo test -p agent-server permissions && git commit -m "feat(agent-server): permissions"`
 
@@ -554,25 +556,25 @@ spec §5.1/§5.5 已按观察修正。runtime-preferences 请求只在 create/re
   `AgentCommandSource` 到 `RuntimeKind` 的映射。
 - Consumes: 现有 `resolve_agent_command`、`AgentRuntimeRegistry`。
 
-- [ ] **Step 1: 写失败的 resolve 测试**
+- [x] **Step 1: 写失败的 resolve 测试**
 
   `MODE_AGENT_SERVER_COMMAND` 指向 Rust 二进制时 `source=Env` 且 `runtime=rust`；
   未设置时 dev dist/源码/打包 Node 为 `runtime=node`；native binary 为 `rust`。
 
-- [ ] **Step 2: 实现 `runtime` 字段与日志**
+- [x] **Step 2: 实现 `runtime` 字段与日志**
 
   启动日志 `agent runtime=rust|node`；健康面只读返回；不改变 facade 方法。
 
-- [ ] **Step 3: 写失败的切换测试**
+- [x] **Step 3: 写失败的切换测试**
 
   用 `tokio::process::Command` 以 `MODE_AGENT_SERVER_COMMAND` 拉起 `agent-server`，
   发 `session/create`；断言没有 Node 子进程（按命令行过滤）；移除 env 后解析回 Node。
 
-- [ ] **Step 4: 写失败的退出/孤儿测试**
+- [x] **Step 4: 写失败的退出/孤儿测试**
 
   stdin EOF → 进程退出；kill 父进程后子进程被回收（复用 `agent-process` 的进程测试）。
 
-- [ ] **Step 5: 跑测试并提交**
+- [x] **Step 5: 跑测试并提交**
 
   `cargo test -p agent-process -p agent-server && git commit -m "feat(agent): switch/rollback"`
 
@@ -580,7 +582,7 @@ spec §5.1/§5.5 已按观察修正。runtime-preferences 请求只在 create/re
 
 ---
 
-### Task 10: oracle 对拍、真实 provider smoke 与文档
+### Task 10: oracle 对拍、真实 provider smoke 与文档（已完成 2026-11-17）
 
 **Files:**
 
@@ -589,26 +591,27 @@ spec §5.1/§5.5 已按观察修正。runtime-preferences 请求只在 create/re
 - Modify: `docs/specs/tauri-agent-runtime.md`（C1 差异表）
 - Modify: `docs/specs/agent-core-parity.md`（C1 勾选）
 
-- [ ] **Step 1: 接入三层对拍**
+- [x] **Step 1: 接入三层对拍**
 
-  用同一份比较器跑 `read-single` / `write-new` / `edit-*` / `bash-*` / `task-*` 夹具；
-  Rust server 用脚本 provider 回放，三层全绿。
+  用同一份比较器跑 `read-*` / `write-*` / `edit-*` / `bash-*` 夹具（C1 不产出 `task-*` 夹具）；
+  Rust server 用脚本 provider 回放，三层全绿。**实际结果（Task 11）**：38/38 三层全绿；
+  `session-stream.json` 是投影快照，显式跳过并留痕。
 
-- [ ] **Step 2: 记录合法差异**
+- [x] **Step 2: 记录合法差异**
 
   C1 未产出的 `session.updated` / `streamRecovery.updated` / compact/goal 等写入差异表；
   不伪造。
 
-- [ ] **Step 3: 真实 provider smoke（opt-in）**
+- [x] **Step 3: 真实 provider smoke（opt-in）**
 
   `scripts/agent-server-smoke.mts` 需要显式 env（endpoint/model/key）；完成文本 + Read
   工具 + 最终回答；断言事件、usage、DB 行；默认 CI 不跑。
 
-- [ ] **Step 4: 更新文档与验收记录**
+- [x] **Step 4: 更新文档与验收记录**
 
   `agent-core-parity.md` C1 勾选；`tauri-agent-runtime.md` 差异表；本文件状态改为完成。
 
-- [ ] **Step 5: 全量门禁**
+- [x] **Step 5: 全量门禁**
 
   `cargo clippy --all-targets -- -D warnings`、`cargo test --workspace`、
   `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`；记录真实结果。

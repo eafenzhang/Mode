@@ -29,6 +29,13 @@ pub struct TurnProgress {
 /// worker，future 捕获 `&mut dyn EventSink`，因此 trait 对象本身必须 `Send`。
 pub trait EventSink: Send {
     fn emit(&mut self, event: SessionEvent);
+
+    /// 一次模型请求完成时的 usage（不是会话事件，不进入事件流）。
+    ///
+    /// 宿主用它把 usage 归到**产生它的 assistant 步骤**——DB 的每个 assistant 行记
+    /// 该步骤请求的 tokens，而不是 turn 聚合值（最终评审 I2）。默认 no-op，保持既有
+    /// 测试用 sink（`Vec<SessionEvent>`）无需改动。
+    fn model_usage(&mut self, _usage: &ModelUsage) {}
 }
 
 /// 测试与简单调用方可直接把事件收进 `Vec`。

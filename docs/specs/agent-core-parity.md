@@ -102,8 +102,17 @@ sequenceDiagram
    草稿与 pending optimistic overlay。
 3. **请求与事件走同一下行路径**：`agent-server` 不直连 Renderer。
 4. **终态恰好一次**：`turn.completed` / `turn.failed` 每个 turn 只发一次。
-5. **单写者**：同一 `db.sqlite` 只允许一个 Agent 进程写；oracle 对拍使用隔离数据根，
-   不与 Rust 运行时共享库。
+5. **库级写者由 SQLite 串行化**（2026-11-17 控制器裁决 (a)）：不再要求「同一
+   `db.sqlite` 只允许一个 Agent 进程」。每个 workspace 仍由 `AgentRuntimeRegistry` /
+   `agent-process` 保证只有一个合法 owner；多个**合法 owner** 的 workspace 进程可以
+   同时打开同一会话库，写操作由 SQLite WAL + `busy_timeout` 的 `BEGIN IMMEDIATE`
+   串行化。C1 **不**创建 `<db>.agent-write.lock` 之类的进程独占锁：
+   - Node 运行时不识别 Rust 的锁文件，独占锁既挡不住 Node 重叠，又会误伤第二个
+     workspace；
+   - 真正的双写风险由「一个 workspace 一个 Agent」的进程调度兜底；
+   - 数据库被另一连接长时间占用时，写事务在 `busy_timeout` 之后报 `storage_locked`，
+     不静默丢写。
+   oracle 对拍仍使用隔离数据根，不与 Rust 运行时共享库。
 
 ### 3.2 双链路
 
@@ -161,7 +170,14 @@ accepted → turn.started → model.streaming×N
 - `turnNumber` 首个为 0，之后 +1（沿用已观察值）。
 - `model.streaming` 的 delta 顺序即 provider 输出顺序；工具入参只出现在
   `kind:"tool_call"`（`scheduled` 带 `inputOmitted:true`）。
-- 工具批次内并行执行；完成事件顺序不作为契约（沿用 spec §3 无序组②）。
+- 工具批次编排（2026-11-17 控制器裁决 (b)；C1 按观察收口）：
+  1. **先为整批每个调用发 `scheduled`**（调度顺序即模型给出的顺序）；
+  2. 然后**串行**执行每个调用：执行前立刻发 `started`（未注册/入参非法/权限拒绝等
+     不执行的调用没有 `started`），执行结束立刻发 `result` 或 `error`；
+  3. 整批结束后发唯一的 `batch`（写类工具成功时再发 `checkpoint.created`）。
+  C1 **不**并行执行工具调用，登记为 C1 差异（`tauri-agent-runtime.md` §C1.5-6）。
+  完成事件的顺序本就不属契约（spec §3 无序组②），串行执行只是该契约的一个实现；
+  多调用批次的 oracle 行为夹具尚未录制，登记为回放缺口。
 - `session.updated` / `streamRecovery.updated` 在 C1 可以缺省，但必须在 C1 验收记录里
   登记为「未产出」，不能伪造。
 - C1 不产出 `compact` / `goal` / `subagent` / `workflow` 相关事件。
@@ -201,8 +217,18 @@ accepted → turn.started → model.streaming×N
   `session-store` 基线为准；C1 先录 oracle 的写入夹具，再按夹具断言。
 - 事务：一个 turn 的 user message + parts 在同一事务；assistant/tool parts 按事件
   增量写入；终态更新 session/usage 在同一事务。失败回滚到 turn 前，不留下半截消息。
-- 单写者：`agent-server` 打开 DB 时使用独占/进程锁（与 Node 的 WAL 语义一致），
-  检测到另一个写者时 fail-closed；oracle 对拍使用隔离根。
+- 库级写者（2026-11-17 控制器裁决 (a)）：**不**使用 `<db>.agent-write.lock` 进程独占锁。
+  多个合法 owner 的 workspace 进程（以及 Node 回退路径）可以打开同一 `db.sqlite`；
+  写事务用 `BEGIN IMMEDIATE` + `busy_timeout`，由 SQLite/WAL 串行化。`busy_timeout`
+  耗尽时写操作报 `storage_locked`（`StoreError::code()`），不静默丢写。进程级的
+  「一个 workspace 一个 Agent」由 `AgentRuntimeRegistry` / `agent-process` 保证；
+  oracle 对拍使用隔离根。schema 门（必需表 + `schema_migration` 账本）保持不变，
+  仍是 fail-closed。
+- 冷物化（create-on-existing / resume / 重启）必须从库内事实恢复 `Session` 的模型
+  历史（user / assistant / tool result）、`FileState`（已读路径与去重键）以及 turn
+  计数器；turn id 由持久化的最大序号 +1 继续分配，避免 `turn_usage` 主键冲突。
+- 每个 assistant 步骤的行内 `tokens` 是该步骤对应**模型请求**的 usage（工具调用步骤
+  记调用请求的用量，收尾步骤记收尾请求的用量），不是 turn 聚合值。
 
 ### 5.6 provider 适配
 
@@ -269,8 +295,8 @@ accepted → turn.started → model.streaming×N
 | provider 401/403                          | `turn.failed`，错误码可诊断；不重试（C3 再按错误分类重试）          |
 | provider 流中断                           | 保留已提交 part；C3 从锚点恢复；C1 fail-closed 并标记 turn 失败     |
 | 工具异常                                  | `tool.updated(error)`；turn 继续；错误进入下一轮上下文              |
-| 权限拒绝                                  | 只留 `scheduled` + `batch(errorCount=1)`；无 `started/result/error` |
-| `db.sqlite` 被另一写者持有                | 启动 fail-closed，报 `storage_locked`；不降级为内存                 |
+| 权限拒绝                                  | 只留 `scheduled` + `batch(errorCount=1)`；无 `started/result/error`；模型历史里为每个被拒调用追加一条 tool result（拒绝原因），保证下一轮请求的 `tool_call` 都有配对结果 |
+| `db.sqlite` 写事务拿不到锁                | `busy_timeout` 耗尽报 `storage_locked`；不静默丢写、不降级为内存（打开库本身不再因另一个 workspace 而失败） |
 | 迁移账本缺失/不匹配                       | 启动 fail-closed，报 `storage_schema_unsupported`；C2 才支持创建    |
 | stdio 关闭                                | 当前 turn 失败、pending 请求统一失败、进程优雅退出；无孤儿          |
 | 重复 `session/send`（同 inputId/queryId） | 幂等：不重复开 turn；返回已接受状态                                 |
@@ -319,12 +345,16 @@ Rust `agent-server` 必须用**同一份**比较器（TS `compare.mts`）或与�
 
 - 脚本 provider 回放 `read-single` / `write-new` / `edit-*` / `bash-*` / `task-*` 夹具，
   三层全绿。
-  **Task 10 结果（2026-11-17）**：38 条三层夹具全部回放（read-*/write-*/edit-*/bash-*；
-  C1 未产出 `task-*` 夹具；`session-stream.json` 是投影快照，显式跳过）。**toolCalls 与 files 两层全绿**；events 层在「C1 登记缺省过滤」
-  （`tauri-agent-runtime.md` §C1 差异登记）之后仍有载荷级缺口（`cacheStats`、
-  `scheduled.assistantMessageId`、`canRunParallel`、`perf.detail`、`error.stack`、
-  `fullAccessSupported`、Bash started 档位）与权限口径差（C1.2），已逐条登记为 C1 差异，
-  回放用例以红呈现，不在运行时静默对齐。
+  **Task 11 结果（2026-11-17）**：38 条三层夹具全部回放（read-*/write-*/edit-*/bash-*；
+  C1 不产出 `task-*` 夹具；`session-stream.json` 是投影快照，显式跳过并留痕）。
+  **toolCalls / files / events 三层 38/38 全绿**：F1–F9 的载荷级缺口已由运行时对齐
+  （`turn.started` 身份字段、`cacheStats`、`scheduled.assistantMessageId`/`canRunParallel`、
+  `perf.detail`/`permissionWaitMs`、`fullAccessSupported`、Bash started 档位、
+  `checkpoint.created`、schema 先校验、Bash 分级），`error.stack`、JSON 文本对象键序与
+  命令内容指纹按 `tauri-agent-runtime.md` §3 白名单两侧同删（不伪造）。仍缺省的面
+  （`session.updated` / `streamRecovery.updated` / `session.titleUpdated`、快照
+  `contextUsage`、DB 合成 timeline 行等）逐条登记在 `tauri-agent-runtime.md` §C1，
+  回放按登记缺省过滤同删后比较，不把「未产出」写成「已对齐」。
 - 真实 provider smoke：OpenAI 兼容端点，文本 + 一次 `Read` 工具调用；事件、usage、
   落库可复现。
   **Task 10 结果**：`scripts/agent-server-smoke.mts`（opt-in；`MODE_SMOKE_BASE_URL` /
@@ -373,7 +403,8 @@ Rust `agent-server` 必须用**同一份**比较器（TS `compare.mts`）或与�
 
 1. C1 计划的任务全部勾选，门禁通过。
 2. C2–C4 各自 spec 更新后，检查点验收记录入库。
-3. 20 任务通过；Node 回退可用；`db.sqlite` 单写者测试通过。
+3. 20 任务通过；Node 回退可用；多 workspace 共享 `db.sqlite` 的测试通过（SQLite
+   写串行化、无进程独占锁），同一 workspace 的单 owner 调度不变。
 4. 所有“未产出/未支持”的差异在 `tauri-agent-runtime.md` 的合法差异表或本 spec
    的风险表登记。
 5. `pnpm verify:pre-push`、`cargo clippy --all-targets -- -D warnings` 通过。

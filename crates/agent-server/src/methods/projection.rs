@@ -12,10 +12,11 @@
 
 use agent_protocol::message::{
     AssistantMessageInfo, AssistantRole, MessageInfo, MessageModel, MessagePart, MessagePath,
-    MessageTime, MessageWithParts, PartTypeStepFinish, PartTypeStepStart, PartTypeText,
-    PartTypeTool, StepFinishPart, StepStartPart, TextPart, TokenCacheUsage, TokenUsage, ToolPart,
-    ToolState, ToolStateCompleted, ToolStateError, ToolStatePending, ToolStateRunning,
-    ToolStatusCompleted, ToolStatusError, ToolStatusPending, ToolStatusRunning, UserRole,
+    MessageSemantics, MessageTime, MessageWithParts, PartTypeStepFinish, PartTypeStepStart,
+    PartTypeText, PartTypeTool, StepFinishPart, StepStartPart, TextPart, TokenCacheUsage,
+    TokenUsage, ToolPart, ToolState, ToolStateCompleted, ToolStateError, ToolStatePending,
+    ToolStateRunning, ToolStatusCompleted, ToolStatusError, ToolStatusPending, ToolStatusRunning,
+    UserRole,
 };
 use serde_json::Value;
 use session_store::{MessageWithParts as StoreMessageWithParts, PartRecord, SessionRecord};
@@ -82,7 +83,8 @@ fn project_user(message: &StoreMessageWithParts) -> agent_protocol::message::Use
         synthetic: None,
         source: None,
         visibility: None,
-        semantics: None,
+        // DB 行里的 semantics 原样投影（wire 契约要求它存在；缺失/不合法为 None）。
+        semantics: project_semantics(data),
         metadata: None,
     }
 }
@@ -128,9 +130,23 @@ fn project_assistant(
             .and_then(Value::as_str)
             .map(str::to_owned),
         error: None,
-        semantics: None,
+        semantics: project_semantics(data),
         structured: None,
     }
+}
+
+/// DB `message.data.semantics` → 协议类型。严格镜像的字段集与 DB 写入形状一致；
+/// 未知/缺失字段按「无投影」而不是编造（wire 的 `semantics` 因此只在库里有事实时出现）。
+fn project_semantics(data: &Value) -> Option<MessageSemantics> {
+    serde_json::from_value::<MessageSemantics>(data.get("semantics")?.clone()).ok()
+}
+
+/// 工具私有 metadata 不进 wire：`readFileState`（及同前缀的扩展键）是运行时内部
+/// 缓存状态，只留在 DB 行里（contract §3.7 / 最终评审 I2）。
+fn project_tool_metadata(value: Option<&Value>) -> Option<serde_json::Map<String, Value>> {
+    let mut metadata = value.and_then(Value::as_object).cloned()?;
+    metadata.retain(|key, _| !key.starts_with("readFileState"));
+    Some(metadata)
 }
 
 fn project_time(data: &Value, fallback_created: i64) -> MessageTime {
@@ -291,11 +307,7 @@ fn project_tool_state(state: &Value, tool_name: &str, part: &PartRecord) -> Opti
             input,
             output: string_field(state, "output", ""),
             title: string_field_or(state, "title", tool_name),
-            metadata: state
-                .get("metadata")
-                .and_then(Value::as_object)
-                .cloned()
-                .unwrap_or_default(),
+            metadata: project_tool_metadata(state.get("metadata")).unwrap_or_default(),
             started_at: started_at(),
             completed_at: completed_at(),
         })),
@@ -303,7 +315,7 @@ fn project_tool_state(state: &Value, tool_name: &str, part: &PartRecord) -> Opti
             status: ToolStatusError::Error,
             input,
             error: string_field(state, "error", ""),
-            metadata: state.get("metadata").and_then(Value::as_object).cloned(),
+            metadata: project_tool_metadata(state.get("metadata")),
             started_at: started_at(),
             completed_at: completed_at(),
         })),
@@ -314,7 +326,7 @@ fn project_tool_state(state: &Value, tool_name: &str, part: &PartRecord) -> Opti
                 .get("title")
                 .and_then(Value::as_str)
                 .map(str::to_owned),
-            metadata: state.get("metadata").and_then(Value::as_object).cloned(),
+            metadata: project_tool_metadata(state.get("metadata")),
             started_at: started_at(),
         })),
         "pending" => Some(ToolState::Pending(ToolStatePending {

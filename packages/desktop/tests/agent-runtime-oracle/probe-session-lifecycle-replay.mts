@@ -123,13 +123,19 @@ export async function runLifecycleReplay(): Promise<void> {
       const expectedScopes = fixture.expect.reverseRequests.map(
         (request) => request.params.scope ?? "(none)",
       );
-      const registeredGap = ["user-execution"];
-      const allowed = [...actualScopes, ...registeredGap].sort().join(",");
-      const expected = [...expectedScopes].sort().join(",");
-      if (allowed !== expected) {
+      // **按位置**比较，不排序：前三条必须逐字一致，唯一放行的是 oracle 尾部
+      // resume 路径的 `user-execution`（C1 延到首个 send，而本用例 resume 后没有 send）。
+      // 旧实现把两侧排序后比较，会掩盖顺序漂移。
+      const registeredGap = "user-execution";
+      const expectedWithGap = [...expectedScopes];
+      const lastUserExecution = expectedWithGap.lastIndexOf(registeredGap);
+      if (lastUserExecution >= 0) {
+        expectedWithGap.splice(lastUserExecution, 1);
+      }
+      if (JSON.stringify(actualScopes) !== JSON.stringify(expectedWithGap)) {
         throw new Error(
           `反向请求 scope 序列超出已登记偏差：实际 [${actualScopes.join(", ")}]，` +
-            `oracle [${expectedScopes.join(", ")}]（已登记放行：resume 路径的 ${registeredGap.join(",")}）`,
+            `oracle [${expectedScopes.join(", ")}]（已登记放行：resume 路径尾部的 ${registeredGap}）`,
         );
       }
       process.stdout.write(

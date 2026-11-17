@@ -54,7 +54,8 @@ impl Drop for TempRoot {
     }
 }
 
-/// 与 `SessionStore::open` 相同的锁文件命名：`<db>.agent-write.lock`。
+/// 历史独占锁文件路径（`<db>.agent-write.lock`）。C1 已移除该锁；测试用它断言
+/// 「不再创建」以及 Node/Rust 重叠路径没有遗留锁。
 pub fn lock_path(db_path: &Path) -> PathBuf {
     let mut name = OsString::from(db_path.as_os_str());
     name.push(".agent-write.lock");

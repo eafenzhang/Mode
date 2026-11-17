@@ -231,6 +231,20 @@ impl SessionStore {
         })
     }
 
+    /// 会话已持久化的 turn id（升序；`turn_usage` 主键的一部分）。
+    ///
+    /// 冷物化用它恢复 turn 计数器：resume / 重启后新 turn 不能从 `turn_0` 重来，
+    /// 否则 `(session_id, turn_id)` 主键冲突（最终评审 C3）。
+    pub fn turn_usage_turn_ids(&self, session_id: &str) -> Result<Vec<String>, StoreError> {
+        let connection = self.connection();
+        let mut statement = connection
+            .prepare("SELECT turn_id FROM turn_usage WHERE session_id = ?1 ORDER BY turn_id")?;
+        let ids = statement
+            .query_map([session_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(ids)
+    }
+
     /// 追加一条工具调用用量记录；同一 `(session_id, tool_call_id)` 重复写入会报唯一索引错误。
     pub fn record_tool_usage(&self, record: ToolUsageRecord) -> Result<(), StoreError> {
         let sql = insert_sql("tool_usage", TOOL_USAGE_COLUMNS, 27);

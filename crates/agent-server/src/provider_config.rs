@@ -20,7 +20,8 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::path::PathBuf;
+use std::hash::{Hash, Hasher};
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use agent_protocol::provider_runtime_headers::ProviderAccountAccess;
@@ -180,7 +181,7 @@ pub enum Resolution {
 
 /// 账号型 provider 的可执行事实（端点/能力 + 账号访问描述）。**不含** API key——
 /// key 由宿主经 `interaction/requestProviderRuntimeHeaders` 的应答提供。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct AccountRuntimeHeadersTarget {
     pub provider_id: String,
     pub model_id: String,
@@ -192,6 +193,30 @@ pub struct AccountRuntimeHeadersTarget {
     pub headers: Vec<(String, String)>,
     /// 反向请求 params 的 `accountAccess`（协议严格形状）。
     pub account_access: ProviderAccountAccess,
+}
+
+/// `Debug` 与 [`ResolvedProvider`] 同口径：头值可能是另一把凭据，只显示头名。
+impl fmt::Debug for AccountRuntimeHeadersTarget {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AccountRuntimeHeadersTarget")
+            .field("provider_id", &self.provider_id)
+            .field("model_id", &self.model_id)
+            .field("base_url", &self.base_url)
+            .field("api_format", &self.api_format)
+            .field("max_output_tokens", &self.max_output_tokens)
+            .field("context_window", &self.context_window)
+            .field(
+                "headers",
+                &self
+                    .headers
+                    .iter()
+                    .map(|(name, _)| name.as_str())
+                    .collect::<Vec<_>>(),
+            )
+            .field("account_access", &self.account_access)
+            .finish()
+    }
 }
 
 impl ResolvedProvider {
@@ -360,6 +385,20 @@ impl ProviderConfigHub {
             .expect("provider config state poisoned")
             .account_revision
             .clone()
+    }
+
+    /// 解析结果代际（provider 缓存键的一部分；最终评审 I6）。
+    ///
+    /// 由三部分组成：账号快照 revision、builtin 文件内容指纹、personal 文件内容指纹。
+    /// personal 配置轮换 key / base URL 后指纹变化，worker 在下一个 turn 重新解析
+    /// provider，不再复用旧实例（凭据/端点随配置走）。
+    pub fn resolve_generation(&self) -> String {
+        let account = self.account_revision().unwrap_or_default();
+        format!(
+            "account={account};builtin={};personal={}",
+            file_fingerprint(self.builtin_path.as_deref().map(Path::new)),
+            file_fingerprint(self.personal_path.as_deref())
+        )
     }
 
     /// 最近一次接受的快照所基于的 Built-in revision（宿主交付值；诊断/对账用）。
@@ -711,4 +750,27 @@ impl From<ProviderConfigError> for crate::server::ServerError {
             _ => crate::server::ServerError::internal(error.to_string()),
         }
     }
+}
+
+/// 文件内容指纹（长度 + `DefaultHasher`）。缺失/不可读时把错误 kind 计入，
+/// 让「文件从不可读变为可读」也改变代际。哈希只用于进程内缓存键，不落库。
+fn file_fingerprint(path: Option<&Path>) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    match path {
+        Some(path) => {
+            path.to_string_lossy().hash(&mut hasher);
+            match std::fs::read(path) {
+                Ok(bytes) => {
+                    bytes.len().hash(&mut hasher);
+                    bytes.hash(&mut hasher);
+                }
+                Err(error) => {
+                    "missing".hash(&mut hasher);
+                    format!("{:?}", error.kind()).hash(&mut hasher);
+                }
+            }
+        }
+        None => "unconfigured".hash(&mut hasher),
+    }
+    format!("{:016x}", hasher.finish())
 }

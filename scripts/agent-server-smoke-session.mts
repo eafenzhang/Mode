@@ -175,10 +175,13 @@ export async function startSmokeServer(dataRoot: string, cwd: string, configPath
     }
   };
 
+  // 不继承测试专用脚本 provider：smoke 必须打真实端点，不能被外层 env 静默替换。
+  const childEnv: NodeJS.ProcessEnv = { ...process.env };
+  delete childEnv.MODE_AGENT_SERVER_SCRIPTED_PROVIDER;
   child = spawn(binary, ["app-server", "--stdio"], {
     cwd: REPO_ROOT,
     env: {
-      ...process.env,
+      ...childEnv,
       MODE_DATA_BASE_DIR: dataRoot,
       MODE_HOME: dataRoot,
       HOME: dataRoot,
@@ -191,22 +194,38 @@ export async function startSmokeServer(dataRoot: string, cwd: string, configPath
   child.stderr?.on("data", (chunk: Buffer) => {
     stderrText += chunk.toString();
   });
-  child.stdout?.on("data", (chunk: Buffer) => {
-    for (const line of chunk.toString().split("\n")) {
-      if (!line.trim()) continue;
-      try {
-        handleFrame(JSON.parse(line) as Record<string, unknown>);
-      } catch {
-        fail(`agent-server stdout 出现解析失败行：${line}`);
-      }
+
+  // stdout 按行缓冲：`data` 块可以切在任意字节位置（包括一行 JSON 的中间）。
+  let stdoutBuffer = "";
+  let storageListener: ((frame: Record<string, unknown>) => void) | undefined;
+  const consumeLine = (line: string): void => {
+    if (!line.trim()) return;
+    try {
+      const frame = JSON.parse(line) as Record<string, unknown>;
+      storageListener?.(frame);
+      handleFrame(frame);
+    } catch {
+      fail(`agent-server stdout 出现解析失败行：${line}`);
     }
+  };
+  const consumeChunk = (chunk: Buffer): void => {
+    stdoutBuffer += chunk.toString();
+    const lines = stdoutBuffer.split("\n");
+    stdoutBuffer = lines.pop() ?? "";
+    for (const line of lines) consumeLine(line);
+  };
+  child.stdout?.on("data", consumeChunk);
+  child.stdout?.on("end", () => {
+    consumeLine(stdoutBuffer);
+    stdoutBuffer = "";
   });
+
   const storageReady = new Promise<void>((resolvePromise, rejectPromise) => {
     const timer = setTimeout(() => {
       rejectPromise(new Error(`启动超时（storage ready 未到）。stderr=${stderrText}`));
     }, STARTUP_TIMEOUT_MS);
     timer.unref?.();
-    const check = (frame: Record<string, unknown>): void => {
+    storageListener = (frame: Record<string, unknown>): void => {
       if (frame.method !== "startup/storageState") return;
       const phase = (frame.params as Record<string, unknown> | undefined)?.phase;
       if (phase === "ready") {
@@ -218,19 +237,7 @@ export async function startSmokeServer(dataRoot: string, cwd: string, configPath
         rejectPromise(new Error(`存储门 failed：stderr=${stderrText}`));
       }
     };
-    const pipe = (chunk: Buffer): void => {
-      for (const line of chunk.toString().split("\n")) {
-        if (!line.trim()) continue;
-        try {
-          check(JSON.parse(line) as Record<string, unknown>);
-        } catch {
-          // 启动期坏行交给主处理器报错。
-        }
-      }
-    };
-    child?.stdout?.on("data", pipe);
   });
-
   await storageReady;
   const model = String(process.env.MODE_SMOKE_MODEL);
   const created = (await request("session/create", {

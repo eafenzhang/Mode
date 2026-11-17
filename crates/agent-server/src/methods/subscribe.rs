@@ -27,7 +27,9 @@ pub(crate) fn handle(
         parse_params(crate::methods::SESSION_SUBSCRIBE_METHOD, params)?;
     let runtime = server.runtime(&params.session_id)?;
 
-    let (replay, receiver) = runtime.subscribe(params.after_seq);
+    // 旧 runtime 的游标（afterSeq > 当前 eventSeq）按重置处理：replay 与 live 都不
+    // 过滤，否则 resume 后的新事件会被静默丢掉（最终评审 I10）。
+    let (replay, receiver, effective_after_seq) = runtime.subscribe_with_cursor(params.after_seq);
     // 高水位在订阅**之后**读：只会高估不会低估（eventSeq 以下的 seq 都已投递过；
     // 事件去重按 eventId，多余的高估无害；低估会让宿主漏看事件）。
     let event_seq = runtime.event_seq();
@@ -41,7 +43,7 @@ pub(crate) fn handle(
     };
 
     server.enqueue_live_forward(PendingLiveForward {
-        after_seq: params.after_seq,
+        after_seq: effective_after_seq,
         receiver,
     });
 

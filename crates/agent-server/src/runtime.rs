@@ -89,6 +89,12 @@ pub trait ProviderSource: Send + Sync {
         model_id: &str,
         context: Option<&ProviderRequestContext>,
     ) -> Result<Arc<dyn ModelProvider>, String>;
+
+    /// 装配源配置代际（provider 缓存键的一部分）。默认空串 = 配置不会变（测试注入的
+    /// 固定 provider）；生产实现返回 hub revision + 配置文件指纹（最终评审 I6）。
+    fn cache_key(&self) -> String {
+        String::new()
+    }
 }
 
 /// worker 队列的一项：已接受、等待串行执行的输入。
@@ -207,6 +213,13 @@ impl SessionRuntime {
             .max()
             .unwrap_or(-1)
             + 1;
+        // 冷物化恢复（最终评审 C2/C3）：模型历史、FileState 与 turn 计数器都来自
+        // 已持久化的 message/part/turn_usage。create-on-existing / resume / 重启共用
+        // 本构造入口，因此三条路径都得到同一恢复语义。
+        let turn_ids = store
+            .turn_usage_turn_ids(&record.id)
+            .map_err(|error| RuntimeError::Store(error.to_string()))?;
+        let restored = crate::history::restore(&record.directory, &existing, &turn_ids);
 
         let (bus, _bus_receiver) =
             tokio::sync::broadcast::channel(config.broadcast_capacity.max(1));
@@ -237,7 +250,10 @@ impl SessionRuntime {
 
         let mut session = Session::new(shared.record.id.clone(), shared.record.directory.clone())
             .with_mode(shared.read_config().mode)
-            .with_model_capabilities(shared.read_config().capabilities);
+            .with_model_capabilities(shared.read_config().capabilities)
+            .with_history(restored.messages)
+            .with_file_state(restored.file_state)
+            .with_turn_state(restored.next_turn_number, restored.used_turn_ids);
         if let Some(data_root) = data_root {
             session = session.with_data_root(data_root);
         }
@@ -298,10 +314,15 @@ impl SessionRuntime {
             input_id: input_id.clone(),
             admission,
         };
-        live.seen_inputs.insert(input_id.clone(), accepted.clone());
+        // 先确认入队成功再记幂等回执：队列入队失败时不能把「已接受」写进台账
+        //（最终评审 Minor；失败后 runtime 已关闭，回执也不会再被查询）。
         self.queue
-            .send(QueuedInput { input, input_id })
+            .send(QueuedInput {
+                input,
+                input_id: input_id.clone(),
+            })
             .map_err(|_| RuntimeError::RuntimeClosed)?;
+        live.seen_inputs.insert(input_id, accepted.clone());
         Ok(accepted)
     }
 
@@ -315,18 +336,40 @@ impl SessionRuntime {
         Vec<SessionEvent>,
         tokio::sync::broadcast::Receiver<SessionEvent>,
     ) {
+        let (replay, receiver, _effective) = self.subscribe_with_cursor(after_seq);
+        (replay, receiver)
+    }
+
+    /// 订阅事件流并返回**生效的**游标（最终评审 I10）。
+    ///
+    /// `after_seq > event_seq` 说明客户端拿的是旧 runtime 的游标（close/resume 后
+    /// 事件序号重新开始）。此时按「重置」处理：replay 不过滤，live 转发也不过滤；
+    /// 否则新 runtime 的事件 seq 永远追不上旧游标，订阅者会静默丢掉所有新事件。
+    /// 返回的游标是 live 转发应使用的过滤值（`None` = 不丢任何事件）。
+    pub fn subscribe_with_cursor(
+        &self,
+        after_seq: Option<u64>,
+    ) -> (
+        Vec<SessionEvent>,
+        tokio::sync::broadcast::Receiver<SessionEvent>,
+        Option<u64>,
+    ) {
         let live = self.shared.lock();
+        let effective = match after_seq {
+            Some(after) if after <= live.event_seq => Some(after),
+            _ => None,
+        };
         let replay: Vec<SessionEvent> = live
             .log
             .iter()
-            .filter(|event| match after_seq {
+            .filter(|event| match effective {
                 None => true,
                 Some(after) => event.seq > after,
             })
             .cloned()
             .collect();
         let receiver = self.shared.bus.subscribe();
-        (replay, receiver)
+        (replay, receiver, effective)
     }
 
     /// 取消当前运行中的 turn（裁决 4）。空闲时是幂等 no-op；排队中的输入不受影响。
@@ -390,6 +433,15 @@ impl SessionRuntime {
     /// worker 的 join 句柄（后续任务的显式 close 接线用；本结构 Drop 不打断在跑的 turn）。
     pub fn worker(&self) -> &tokio::task::JoinHandle<()> {
         &self.worker
+    }
+
+    /// 关闭队列并等待 worker 结束（测试/嵌入方的确定性收尾；生产 close 走方法层）。
+    ///
+    /// 返回后队列已空、worker 已退出、`drained` 为 true；比 `drop` + 轮询更确定。
+    pub async fn shutdown(self) {
+        let Self { queue, worker, .. } = self;
+        drop(queue);
+        let _ = worker.await;
     }
 
     /// 最小合法快照（形状对齐 `agent-process-fixture::minimal_snapshot`）：
@@ -460,6 +512,9 @@ async fn worker_loop(
     source: Arc<dyn ProviderSource>,
     reverse: Option<Arc<crate::reverse::ReverseHub>>,
 ) {
+    // panic 也必须结算 drain 信号：否则 `session/close` 的 closing 台账永远等不到
+    // 「worker 已退出」，drain 守卫会把会话卡在 closing（最终评审 Minor）。
+    let _drain_guard = DrainGuard(shared.drained.clone());
     if let Some(reverse) = &reverse {
         let preferences = reverse.request_runtime_preferences(&shared.record.id).await;
         *shared
@@ -469,7 +524,7 @@ async fn worker_loop(
     }
     // user-execution 偏好只在每运行时的首个 turn 前发一次（见函数注释）。
     let mut user_execution_requested = false;
-    let mut current: Option<(String, String, Arc<dyn ModelProvider>)> = None;
+    let mut current: Option<(String, String, String, Arc<dyn ModelProvider>)> = None;
     while let Some(item) = receiver.recv().await {
         // 取消令牌在**取到输入时**就登记（Task 10）：`session/close` 可能落在
         // 「准入已接受、turn 尚未开始」的等待窗口里（user-execution 偏好请求、
@@ -501,12 +556,15 @@ async fn worker_loop(
         session.set_mode(config.mode.clone());
         session.set_model_capabilities(config.capabilities);
 
+        let generation = source.cache_key();
         let cached = current
             .as_ref()
-            .filter(|(provider_id, model_id, _)| {
-                provider_id == &config.provider_id && model_id == &config.model_id
+            .filter(|(provider_id, model_id, cached_generation, _)| {
+                provider_id == &config.provider_id
+                    && model_id == &config.model_id
+                    && cached_generation == &generation
             })
-            .map(|(_, _, provider)| Arc::clone(provider));
+            .map(|(_, _, _, provider)| Arc::clone(provider));
         let provider = match cached {
             Some(provider) => Some(provider),
             None if config.provider_id.is_empty() || config.model_id.is_empty() => None,
@@ -529,21 +587,36 @@ async fn worker_loop(
                         current = Some((
                             config.provider_id.clone(),
                             config.model_id.clone(),
+                            generation,
                             Arc::clone(&provider),
                         ));
                         Some(provider)
                     }
                     Ok(Err(message)) => {
                         current = None;
-                        run_configuration_failure(&mut session, &shared, &store, &item, &message, cancel)
-                            .await;
+                        run_configuration_failure(
+                            &mut session,
+                            &shared,
+                            &store,
+                            &item,
+                            &message,
+                            cancel,
+                        )
+                        .await;
                         continue;
                     }
                     Err(join_error) => {
                         current = None;
                         let message = format!("provider 装配任务失败: {join_error}");
-                        run_configuration_failure(&mut session, &shared, &store, &item, &message, cancel)
-                            .await;
+                        run_configuration_failure(
+                            &mut session,
+                            &shared,
+                            &store,
+                            &item,
+                            &message,
+                            cancel,
+                        )
+                        .await;
                         continue;
                     }
                 }
@@ -571,6 +644,15 @@ async fn worker_loop(
     let _ = shared.drained.send(true);
 }
 
+/// worker 退出结算守卫：正常路径显式发送 `true`，panic 时由 Drop 兜底发送。
+struct DrainGuard(tokio::sync::watch::Sender<bool>);
+
+impl Drop for DrainGuard {
+    fn drop(&mut self) {
+        let _ = self.0.send(true);
+    }
+}
+
 /// 配置失败的 turn：`turn.started` → `turn.failed`（`CONFIGURATION_ERROR`），
 /// `turn_usage(failed)` 记零值（没有任何模型请求可累计）。终态恰好一条，
 /// 与正常 turn 走同一套 publish / 状态收口。取消令牌由 worker 在取到输入时登记
@@ -588,13 +670,15 @@ async fn run_configuration_failure(
     let started = session.begin_turn(&item.input.content);
     let turn_id = started.turn_id.clone();
     recorder.emit(started);
+    // 先落 usage 行再发布终态（最终评审 I3）：订阅者看到 `turn.failed` 时，
+    // `turn_usage` 必须已经可读。
+    recorder.record_failure_progress(&agent_core::TurnProgress::default());
     recorder.emit(session.emit_turn_failed(
         turn_id.as_deref(),
         "CONFIGURATION_ERROR",
         message,
         "configuration",
     ));
-    recorder.record_failure_progress(&agent_core::TurnProgress::default());
 
     let mut live = shared.lock();
     live.current_cancel = None;
@@ -664,6 +748,10 @@ async fn run_one_input(
                 // 取消：终态已由 run_turn 发出，不再补第二个终态。
                 Err(error) if error.is_cancelled() => None,
                 Err(error) => {
+                    // Task 7 控制器裁决 6：失败 turn 的 usage 行记**已知**累计值，不清零。
+                    // 先落 usage 行再发布终态（最终评审 I3）：看到 `turn.failed` 的
+                    // 订阅者读 `turn_usage` 时必须已经有这一行。
+                    recorder.record_failure_progress(&error.progress);
                     let event = session.emit_turn_failed(
                         recorder.turn_id().map(String::as_str),
                         "runtime_error",
@@ -671,8 +759,6 @@ async fn run_one_input(
                         "model",
                     );
                     recorder.emit(event);
-                    // Task 7 控制器裁决 6：失败 turn 的 usage 行记**已知**累计值，不清零。
-                    recorder.record_failure_progress(&error.progress);
                     Some(error.message.clone())
                 }
             };
@@ -736,6 +822,9 @@ struct TurnRecorder {
     tool_error_count: u64,
     /// 终态聚合 tokens（快照/usage 口径；取消/失败时可能是部分值或 0）。
     turn_total_tokens: u64,
+    /// 最近一次**已完成**模型请求的 usage；下一次步骤落库时消费（最终评审 I2：
+    /// 每个 assistant 行的 tokens 是该步骤请求的用量，不是 turn 聚合值）。
+    last_step_usage: Option<agent_core::provider::ModelUsage>,
     persist_error: Option<String>,
 }
 
@@ -756,6 +845,8 @@ struct ToolCallRecord {
     finished_at: Option<i64>,
     read_only: Option<bool>,
     side_effect_scope: Option<String>,
+    /// `result.serialization`（DB tool part 的 `state.metadata.serialization` 来源）。
+    serialization: Option<Value>,
     outcome: Option<Result<String, String>>,
 }
 
@@ -771,6 +862,7 @@ impl TurnRecorder {
             current: None,
             tool_error_count: 0,
             turn_total_tokens: 0,
+            last_step_usage: None,
             persist_error: None,
             shared,
             store,
@@ -843,7 +935,7 @@ impl TurnRecorder {
             } else {
                 "tool-calls"
             };
-            self.persist_assistant_step(step, finish, None);
+            self.persist_assistant_step(step, finish);
         }
         let step = self.current.get_or_insert(AssistantStep {
             event_message_id: event_message_id.clone(),
@@ -869,6 +961,7 @@ impl TurnRecorder {
                         finished_at: None,
                         read_only: None,
                         side_effect_scope: None,
+                        serialization: None,
                         outcome: None,
                     });
                 }
@@ -908,6 +1001,22 @@ impl TurnRecorder {
                 if let Some(record) = self.tool_record_mut(&result.call.tool_call_id, None) {
                     record.outcome = Some(Ok(content));
                     record.finished_at = Some(event.timestamp);
+                    // `result_object` 把 serialization 的四个键平铺在 result 上；
+                    // DB tool part 的 metadata.serialization 是它们的对象形状。
+                    let extras = &result.result.extra;
+                    if let (Some(truncated), Some(original), Some(returned), Some(strategy)) = (
+                        extras.get("truncated"),
+                        extras.get("originalBytes"),
+                        extras.get("returnedBytes"),
+                        extras.get("budgetStrategy"),
+                    ) {
+                        record.serialization = Some(json!({
+                            "truncated": truncated,
+                            "originalBytes": original,
+                            "returnedBytes": returned,
+                            "budgetStrategy": strategy,
+                        }));
+                    }
                 }
             }
             ToolUpdatedPayload::Error(error) => {
@@ -920,7 +1029,7 @@ impl TurnRecorder {
             ToolUpdatedPayload::Batch(_) => {
                 // 批次 = 这条 assistant 消息的完成边界：原子落库。
                 if let Some(step) = self.current.take() {
-                    self.persist_assistant_step(step, "tool-calls", None);
+                    self.persist_assistant_step(step, "tool-calls");
                 }
             }
             ToolUpdatedPayload::Progress(_) => {}
@@ -939,9 +1048,8 @@ impl TurnRecorder {
             // 取消的步没有「完整的一步」可落库；usage 行如实记录取消。
             self.record_turn_usage("cancelled", true, Some(&payload));
         } else {
-            let tokens = tokens_value_from_payload(&payload);
             if let Some(step) = self.current.take() {
-                self.persist_assistant_step(step, "stop", Some(tokens));
+                self.persist_assistant_step(step, "stop");
             }
             self.record_turn_usage("completed", false, Some(&payload));
         }
@@ -1009,6 +1117,7 @@ impl TurnRecorder {
             finished_at: None,
             read_only: None,
             side_effect_scope: None,
+            serialization: None,
             outcome: None,
         });
         step.tools.last_mut()
@@ -1074,8 +1183,13 @@ impl TurnRecorder {
     /// 一条 assistant 消息 + 它的 parts（step-start / [text] / tool ×N / step-finish）
     /// 原子落库；工具结果同时写 `tool_usage`。
     ///
-    /// `tokens` 只在终态（成功）时给出——per-request 的用量事件里没有，不拆分、不编造。
-    fn persist_assistant_step(&mut self, step: AssistantStep, finish: &str, tokens: Option<Value>) {
+    /// `tokens` 取该步骤对应的**模型请求** usage（`last_step_usage`）。缺失时（没有
+    /// 观察到的请求用量）不写 tokens，而不是拿 turn 聚合值硬拆。
+    fn persist_assistant_step(&mut self, step: AssistantStep, finish: &str) {
+        let tokens = self
+            .last_step_usage
+            .take()
+            .map(|usage| tokens_value_from_usage(&usage));
         let now = now_ms();
         let message_id = fresh_id("msg");
         let sequence = self.take_sequence();
@@ -1156,7 +1270,7 @@ impl TurnRecorder {
             });
             push_part(&mut parts, tool_part, now);
         }
-        let mut step_finish = json!({ "type": "step-finish", "reason": finish });
+        let mut step_finish = json!({ "type": "step-finish", "reason": finish, "cost": 0 });
         if let Some(tokens) = &tokens {
             step_finish["tokens"] = tokens.clone();
         }
@@ -1262,6 +1376,11 @@ impl EventSink for TurnRecorder {
         self.observe(&event);
         self.shared.publish(&event);
     }
+
+    fn model_usage(&mut self, usage: &agent_core::provider::ModelUsage) {
+        // 请求完成的 usage 只交给落库侧，不进入事件流。
+        self.last_step_usage = Some(usage.clone());
+    }
 }
 
 /// `usage` 对象里的非负整数；缺失/非法按 0，不编数字。
@@ -1273,17 +1392,20 @@ fn usage_value(usage: &Value, key: &str) -> i64 {
         .unwrap_or(0)
 }
 
-/// `turn.completed` 载荷的 usage → 持久化行的 tokens 形状（与 oracle DB 形状同构）。
-fn tokens_value_from_payload(payload: &TurnCompletedPayload) -> Value {
-    let usage = payload.usage.clone().unwrap_or(Value::Null);
+/// 一套模型请求 usage → 持久化行的 tokens 形状（与 oracle DB 形状同构）。
+///
+/// 每个 assistant 步骤记的是**产生它的请求**的 usage：工具调用步骤 = 调用请求，
+/// 收尾步骤 = 收尾请求。turn 聚合值只进 `turn_usage`。
+fn tokens_value_from_usage(usage: &agent_core::provider::ModelUsage) -> Value {
+    let total = usage.input_tokens + usage.output_tokens;
     json!({
-        "total": payload.token_count,
-        "input": usage_value(&usage, "inputTokens"),
-        "output": usage_value(&usage, "outputTokens"),
-        "reasoning": usage_value(&usage, "reasoningTokens"),
+        "total": total,
+        "input": usage.input_tokens,
+        "output": usage.output_tokens,
+        "reasoning": usage.reasoning_tokens,
         "cache": {
-            "read": usage_value(&usage, "cacheReadTokens"),
-            "write": usage_value(&usage, "cacheWriteTokens"),
+            "read": usage.cache_read_tokens,
+            "write": usage.cache_write_tokens,
         },
     })
 }
@@ -1300,14 +1422,23 @@ fn tool_state_value(call: &ToolCallRecord, now: i64) -> Value {
         call.input.clone()
     };
     match &call.outcome {
-        Some(Ok(output)) => json!({
-            "status": "completed",
-            "input": input,
-            "output": output,
-            "title": call.tool_name,
-            "metadata": {},
-            "time": { "start": started, "end": finished },
-        }),
+        Some(Ok(output)) => {
+            // oracle 的 completed metadata 是 `schemaVersion` + `serialization`；
+            // `readFileState` 等工具私有字段**不重建**（登记在 §C1.3-6）。
+            let mut metadata = serde_json::Map::new();
+            metadata.insert("schemaVersion".to_string(), json!(1));
+            if let Some(serialization) = &call.serialization {
+                metadata.insert("serialization".to_string(), serialization.clone());
+            }
+            json!({
+                "status": "completed",
+                "input": input,
+                "output": output,
+                "title": call.tool_name,
+                "metadata": Value::Object(metadata),
+                "time": { "start": started, "end": finished },
+            })
+        }
         Some(Err(message)) => json!({
             "status": "error",
             "input": input,

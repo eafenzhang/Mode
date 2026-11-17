@@ -73,7 +73,14 @@ pub(crate) fn handle_set_mode(
         .map_err(runtime_error)?;
 
     let store = server.store()?;
-    resume::put_execution_state(&store, &params.session_id, &mode, now_ms())?;
+    let now = now_ms();
+    resume::put_execution_state(&store, &params.session_id, &mode, now)?;
+    // 热快照从 runtime 配置读 mode，list/冷读从 `session.permission` 读；只写 entry
+    // 会让三处事实分叉（最终评审 I4）。
+    let permission = serde_json::json!({ "mode": mode }).to_string();
+    store
+        .set_session_permission(&params.session_id, &permission, now)
+        .map_err(super::store_error)?;
     snapshot_result(&runtime)
 }
 

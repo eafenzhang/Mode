@@ -14,7 +14,10 @@
 
 use std::path::{Path, PathBuf};
 
-use agent_server::{AgentServer, ProviderConfigError, ProviderConfigHub, ResolvedProvider};
+use agent_server::{
+    AccountRuntimeHeadersTarget, AgentServer, ProviderConfigError, ProviderConfigHub,
+    ResolvedProvider,
+};
 use model_selection::{ModelSelection, SelectionOptions};
 use provider_http::OpenAiChatConfig;
 use serde_json::{json, Value};
@@ -700,4 +703,70 @@ fn dispatch_wires_provider_update_account_config() {
             .expect_err("未接入方法必须显式未实现");
         assert_eq!(error.code(), -32601, "method={method}");
     }
+}
+
+/// 最终评审 I6：provider 缓存代际必须跟随 personal 配置文件内容；只按
+/// `(providerId, modelId)` 缓存会把轮换后的 key/base URL 留到旧 provider 实例里。
+#[test]
+fn resolve_generation_tracks_personal_config_content() {
+    let root = temp_root("generation");
+    let builtin = write_builtin(&root);
+    let personal = root.join("provider_config.json");
+    write_personal_file(
+        &personal,
+        &[personal_provider_rule(
+            "mock-chat",
+            "openai-chat-completions",
+            Some("https://mock.example/v1"),
+            api_key_access(json!("sk-first")),
+        )],
+        personal_model_rules("mock-chat", "mock-1"),
+    );
+    let hub = ProviderConfigHub::with_paths(builtin, &personal);
+    let first = hub.resolve_generation();
+
+    // 同内容重写：代际不变（不作为缓存失效条件）。
+    std::fs::write(&personal, std::fs::read(&personal).unwrap()).unwrap();
+    assert_eq!(hub.resolve_generation(), first);
+
+    // 轮换 key/base URL：代际变化，worker 下一 turn 重新解析 provider。
+    write_personal_file(
+        &personal,
+        &[personal_provider_rule(
+            "mock-chat",
+            "openai-chat-completions",
+            Some("https://mock.example/v2"),
+            api_key_access(json!("sk-second")),
+        )],
+        personal_model_rules("mock-chat", "mock-1"),
+    );
+    assert_ne!(hub.resolve_generation(), first);
+}
+
+#[test]
+fn account_runtime_headers_target_debug_masks_header_values() {
+    let target = AccountRuntimeHeadersTarget {
+        provider_id: "acct-chat".to_owned(),
+        model_id: "acct-model".to_owned(),
+        base_url: "https://acct.example/api".to_owned(),
+        api_format: agent_server::ApiFormat::OpenAiChatCompletions,
+        max_output_tokens: None,
+        context_window: None,
+        // 头值可能是另一把凭据：Debug 只显示头名。
+        headers: vec![("Authorization".to_owned(), "leaky-secret-value".to_owned())],
+        account_access: agent_protocol::provider_runtime_headers::ProviderAccountAccess {
+            access_type:
+                agent_protocol::provider_runtime_headers::ProviderRuntimeAccessType::ZhipuAccount,
+            account_type:
+                agent_protocol::provider_runtime_headers::ProviderRuntimeAccountType::Bigmodel,
+            mode: agent_protocol::provider_runtime_headers::ProviderRuntimeAccountMode::StartPlan,
+            entitled: true,
+        },
+    };
+    let rendered = format!("{target:?}");
+    assert!(
+        !rendered.contains("leaky-secret-value"),
+        "Debug 不得泄漏头值：{rendered}"
+    );
+    assert!(rendered.contains("Authorization"), "头名保留：{rendered}");
 }

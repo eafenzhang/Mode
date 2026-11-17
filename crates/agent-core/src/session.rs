@@ -39,6 +39,7 @@
 //! | `batch` | 一条 assistant 消息一批：`toolCallIds` + `successCount` + `errorCount` |
 //! | 事件信封 | `deliveryKind: "desktop-continuous"`，`seq` 单调，`eventId`/`traceId` 是 uuid |
 
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -130,6 +131,12 @@ pub struct Session {
     current_assistant_message_id: Option<String>,
     /// 本 turn 开始时消息历史里是否已有工具结果（`cacheStats` 口径用；见 `run_turn`）。
     prior_tool_history: bool,
+    /// 已使用/已持久化的 turn id（冷物化时从 `turn_usage` 恢复）。`begin_turn` 分配
+    /// 新 id 时跳过它们，避免 resume/重启后与旧行主键冲突（最终评审 C3）。
+    used_turn_ids: BTreeSet<String>,
+    /// 本批被拒绝（deny/timeout/closed）的调用 → 宿主给的拒绝原因。工具批次结束后
+    /// 模型历史要补 tool result（最终评审 C4）。
+    denied_tool_results: HashMap<String, String>,
 }
 
 impl Session {
@@ -157,7 +164,36 @@ impl Session {
             model_capabilities: ModelCapabilities::default(),
             current_assistant_message_id: None,
             prior_tool_history: false,
+            used_turn_ids: BTreeSet::new(),
+            denied_tool_results: HashMap::new(),
         }
+    }
+
+    /// 冷物化恢复模型历史（resume / create-on-existing / 重启）。
+    ///
+    /// 历史来自 `message` + `part` 行（host 的 DB→`ModelMessage` 转换器），不含系统
+    /// 提示；新 turn 的请求装配会在这段历史前再加系统提示。
+    pub fn with_history(mut self, messages: Vec<ModelMessage>) -> Self {
+        self.messages = messages;
+        self
+    }
+
+    /// 冷物化恢复文件记忆（Read 去重与 Write/Edit「先读再写」前置条件）。
+    pub fn with_file_state(mut self, file_state: FileState) -> Self {
+        self.file_state = file_state;
+        self
+    }
+
+    /// 冷物化恢复 turn 计数器：`next_turn_number` 是持久化最大 turn 号 +1，
+    /// `used_turn_ids` 是已存在的 turn id（分配时跳过）。
+    pub fn with_turn_state(
+        mut self,
+        next_turn_number: u64,
+        used_turn_ids: impl IntoIterator<Item = String>,
+    ) -> Self {
+        self.turn_number = next_turn_number;
+        self.used_turn_ids = used_turn_ids.into_iter().collect();
+        self
     }
 
     /// 接线当前模式（进系统提示；LT-1 C1 的运行时从 `RuntimeConfig` 传入）。
@@ -381,9 +417,16 @@ impl Session {
     ///   `session-lifecycle-events.json` 同样没有）。
     pub fn begin_turn(&mut self, prompt: &str) -> SessionEvent {
         // 观察值（spec §3.5）：第一个 turn 的 `turnNumber` 是 **0**，之后逐次 +1。
-        let turn_number = self.turn_number;
-        self.turn_number += 1;
-        let turn_id = format!("turn_{turn_number}");
+        // 冷物化时计数器已由持久化最大 turn 号 +1 初始化；这里再跳过已存在的 id，
+        // 保证 resume/重启后不会复用旧 `turn_N`（`turn_usage` 主键冲突，最终评审 C3）。
+        let (turn_number, turn_id) = loop {
+            let candidate_number = self.turn_number;
+            self.turn_number += 1;
+            let candidate_id = format!("turn_{candidate_number}");
+            if self.used_turn_ids.insert(candidate_id.clone()) {
+                break (candidate_number, candidate_id);
+            }
+        };
         self.current_turn_id = Some(turn_id.clone());
         // `cacheStats.totalMessages` 的口径要在 turn 开始前采样（turn 内追加的工具结果
         // 不算「turn 前历史」；逐 turn 值见 `run_turn` 的注释）。
@@ -546,6 +589,8 @@ impl Session {
             usage.cache_read_tokens += response.usage.cache_read_tokens;
             usage.cache_write_tokens += response.usage.cache_write_tokens;
             usage.reasoning_tokens += response.usage.reasoning_tokens;
+            // 每个 assistant 步骤的 tokens 归到产生它的这次模型请求（最终评审 I2）。
+            sink.model_usage(&response.usage);
 
             if tool_calls.is_empty() {
                 self.messages.push(ModelMessage::Assistant {
@@ -567,11 +612,10 @@ impl Session {
                     .collect(),
             });
             tool_call_count += tool_calls.len() as u64;
-            let tool_events = self.run_tool_batch(&tool_calls);
-            self.record_tool_results(&tool_events);
-            for event in tool_events {
-                sink.emit(event);
-            }
+            // 批次事件必须**边执行边发**：scheduled 全批先行，started 紧贴执行前，
+            // result/error 紧贴执行后（最终评审 I1）。
+            let tool_events = self.run_tool_batch_with_sink(&tool_calls, sink);
+            self.record_tool_results(&tool_calls, &tool_events);
             // 工具批次跑完后回到循环顶：若已取消，不再发起新的模型请求。
         };
 
@@ -768,7 +812,13 @@ impl Session {
     }
 
     /// 把工具结果写回模型历史（下一轮请求要用）。
-    fn record_tool_results(&mut self, events: &[SessionEvent]) {
+    ///
+    /// **每个**批次调用都必须得到一条 tool message：provider 的下一轮请求里，
+    /// assistant 的 `tool_calls` 缺配对结果会被拒绝（最终评审 C4）。除了 `result` /
+    /// `error` 事件，权限拒绝（deny / timeout / 连接关闭）的调用没有事件——用宿主
+    /// 应答里的拒绝原因补一条，而不是把 assistant 的 tool_call 悬空。
+    fn record_tool_results(&mut self, calls: &[ToolCallRequest], events: &[SessionEvent]) {
+        let mut answered: BTreeSet<String> = BTreeSet::new();
         for event in events {
             if event.event_type != SessionEventType::ToolUpdated {
                 continue;
@@ -781,19 +831,19 @@ impl Session {
             };
             match payload {
                 ToolUpdatedPayload::Result(result) => {
-                    let content = result
-                        .result
-                        .content
-                        .as_ref()
-                        .and_then(|value| value.as_str())
-                        .unwrap_or_default()
-                        .to_string();
+                    let content = match result.result.content.as_ref() {
+                        Some(Value::String(text)) => text.clone(),
+                        Some(other) => other.to_string(),
+                        None => String::new(),
+                    };
+                    answered.insert(result.call.tool_call_id.clone());
                     self.messages.push(ModelMessage::ToolResult {
                         tool_call_id: result.call.tool_call_id,
                         content,
                     });
                 }
                 ToolUpdatedPayload::Error(error) => {
+                    answered.insert(error.call.tool_call_id.clone());
                     self.messages.push(ModelMessage::ToolResult {
                         tool_call_id: error.call.tool_call_id,
                         content: error.error.message,
@@ -802,6 +852,23 @@ impl Session {
                 _ => {}
             }
         }
+        for call in calls {
+            if answered.contains(&call.tool_call_id) {
+                continue;
+            }
+            // 没有 result/error 的调用（当前只有权限拒绝/超时/连接关闭）：用宿主
+            // 应答的 reason；拿不到时退回 DENY_REASON（与 deny 选项的文案同源）。
+            let content = self
+                .denied_tool_results
+                .get(&call.tool_call_id)
+                .cloned()
+                .unwrap_or_else(|| DENY_REASON.to_string());
+            self.messages.push(ModelMessage::ToolResult {
+                tool_call_id: call.tool_call_id.clone(),
+                content,
+            });
+        }
+        self.denied_tool_results.clear();
     }
 
     /// 执行一条 assistant 消息里的若干工具调用，按观察到的顺序发事件。
@@ -816,6 +883,36 @@ impl Session {
     ///
     /// 必须先 [`Self::begin_turn`]：没有归属 turn 的事件在线上不该出现，这里直接失败（不猜）。
     pub fn run_tool_batch(&mut self, calls: &[ToolCallRequest]) -> Vec<SessionEvent> {
+        let mut collected = Vec::new();
+        {
+            let sink: &mut dyn EventSink = &mut collected;
+            self.run_tool_batch_with_sink(calls, sink);
+        }
+        collected
+    }
+
+    /// 执行一条 assistant 消息里的若干工具调用，并**边执行边投递**事件。
+    ///
+    /// 编排（2026-11-17 控制器裁决 (b)）：
+    /// 1. 先为整批每个调用发 `scheduled`（调度顺序 = 模型给出的顺序）；
+    /// 2. 然后串行执行：能执行的调用在执行前发 `started`，执行结束立刻发
+    ///    `result`/`error`；schema 非法 / 未注册 / 权限拒绝等不执行的调用没有 `started`；
+    /// 3. 整批发唯一的 `batch`（写类工具成功时再发 `checkpoint.created`）。
+    ///
+    /// C1 **不做并行执行**：完成顺序本就不属契约（spec §3 无序组②），串行只是该契约
+    /// 的一个实现，登记在 `tauri-agent-runtime.md` §C1.5-6。
+    ///
+    /// 返回本次批次产生的事件（调用方用于写回模型历史）；返回前已经全部投递到 `sink`。
+    ///
+    /// 每个调用的判定顺序（C1.2-#1 对齐）：**schema 级入参校验在权限评估之前**——
+    /// 非法入参 `scheduled → error`，不产生审批对、也没有 `started`。
+    ///
+    /// 必须先 [`Self::begin_turn`]：没有归属 turn 的事件在线上不该出现，这里直接失败（不猜）。
+    pub fn run_tool_batch_with_sink(
+        &mut self,
+        calls: &[ToolCallRequest],
+        sink: &mut dyn EventSink,
+    ) -> Vec<SessionEvent> {
         let turn_id = self
             .current_turn_id
             .clone()
@@ -825,16 +922,25 @@ impl Session {
         let mut error_count = 0_u64;
         // 本批成功的写类调用数（checkpoint 的 `fileCount` 口径；全部夹具都是单调用批）。
         let mut checkpoint_files = 0_u64;
+        self.denied_tool_results.clear();
 
-        // 一条 assistant 消息里的调用会被并行执行（spec §3 无序组②），所以它们是**一个**并行组；
-        // 单调用批次的观察值就是 `parallelGroups: [[id]]`（夹具 `read-single`）。
+        // 一条 assistant 消息里的调用是**一个**并行组；单调用批次的观察值就是
+        // `parallelGroups: [[id]]`（夹具 `read-single`）。
         let group: Vec<String> = calls.iter().map(|call| call.tool_call_id.clone()).collect();
 
+        // 第一步：整批先发 `scheduled`。不把调度与执行交错，这是对观察到的
+        // 「同批调用先被整体调度」的收口（最终评审 I1）。
+        for call in calls {
+            let scheduled = self.scheduled_event(&turn_id, call, &group);
+            sink.emit(scheduled.clone());
+            events.push(scheduled);
+        }
+
+        // 第二步：串行执行。`started` 紧贴调用执行前，`result`/`error` 紧贴执行后。
         for call in calls {
             // 每次调用各自的上下文：artifact 文件名要用本次 `toolCallId`（观察值）。
             let context = self.tool_context_for_call(&call.tool_call_id);
             let spec = self.lookup_tool(&call.name);
-            events.push(self.scheduled_event(&turn_id, call, &group));
 
             // 审批路径事实：本次调用是否走过了 Ask（`started` 的 Bash 档位与
             // `perf.permissionWaitMs` 的有无都取决于它）；初始为「没走」。
@@ -848,7 +954,9 @@ impl Session {
                 // 非法入参不产生审批对、也没有 started，直接 error）。
                 if let Some(error) = agent_tools::input_validation_error(&call.name, &call.input) {
                     error_count += 1;
-                    events.push(self.error_event(&turn_id, call, &error));
+                    let event = self.error_event(&turn_id, call, &error);
+                    sink.emit(event.clone());
+                    events.push(event);
                     continue;
                 }
                 // `TaskOutput` 的查找是启动前检查（观察：找不到任务时 scheduled → error，
@@ -856,7 +964,9 @@ impl Session {
                 if let Some(error) = agent_tools::preflight_error(&call.name, &call.input, &context)
                 {
                     error_count += 1;
-                    events.push(self.error_event(&turn_id, call, &error));
+                    let event = self.error_event(&turn_id, call, &error);
+                    sink.emit(event.clone());
+                    events.push(event);
                     continue;
                 }
                 match crate::permission::evaluate(spec, &call.input, &self.ruleset) {
@@ -865,18 +975,20 @@ impl Session {
                         asked = true;
                         let request =
                             self.permission_request(&turn_id, call, spec, risk_level, reason);
-                        events.push(self.emit(
+                        let event = self.emit(
                             Some(&turn_id),
                             SessionEventType::PermissionRequested,
                             &permission_event_payload(&request),
-                        ));
+                        );
+                        sink.emit(event.clone());
+                        events.push(event);
                         let wait_started = std::time::Instant::now();
                         let response = self.permission_handler.request(&request);
                         // `perf.permissionWaitMs`：审批等待时长（观察：有审批对的调用才有
                         // 这个键；时间白名单盖着数值本身）。
                         permission_wait_ms = Some(wait_started.elapsed().as_millis() as u64);
                         let decision = response.decision;
-                        events.push(self.emit(
+                        let event = self.emit(
                             Some(&turn_id),
                             SessionEventType::PermissionResolved,
                             &serde_json::json!({
@@ -887,11 +999,21 @@ impl Session {
                                     PermissionDecision::Deny => "deny",
                                 },
                             }),
-                        ));
+                        );
+                        sink.emit(event.clone());
+                        events.push(event);
                         if decision == PermissionDecision::Deny {
                             // 观察：deny 只留下 scheduled + batch（errorCount 1），
-                            // 没有 started / result / error 帧。
+                            // 没有 started / result / error 帧。模型历史仍要补一条拒绝
+                            // 原因的 tool result（最终评审 C4），否则下一轮请求的
+                            // assistant `tool_calls` 会悬空。
                             error_count += 1;
+                            let denial_reason = response
+                                .reason
+                                .clone()
+                                .unwrap_or_else(|| DENY_REASON.to_string());
+                            self.denied_tool_results
+                                .insert(call.tool_call_id.clone(), denial_reason);
                             continue;
                         }
                         if let Some(updates) = &response.permission_updates {
@@ -907,7 +1029,9 @@ impl Session {
                         }
                     }
                 }
-                events.push(self.started_event(&turn_id, call, spec, asked));
+                let event = self.started_event(&turn_id, call, spec, asked);
+                sink.emit(event.clone());
+                events.push(event);
             }
 
             // `Read` 的重复读去重：**会话状态**在这一层（工具本身是纯函数），见 FileState 的注释。
@@ -956,17 +1080,16 @@ impl Session {
                     if matches!(call.name.as_str(), "Write" | "Edit") {
                         checkpoint_files += 1;
                     }
-                    events.push(self.result_event(
-                        &turn_id,
-                        call,
-                        &result,
-                        elapsed_ms,
-                        permission_wait_ms,
-                    ));
+                    let event =
+                        self.result_event(&turn_id, call, &result, elapsed_ms, permission_wait_ms);
+                    sink.emit(event.clone());
+                    events.push(event);
                 }
                 Err(error) => {
                     error_count += 1;
-                    events.push(self.error_event(&turn_id, call, &error));
+                    let event = self.error_event(&turn_id, call, &error);
+                    sink.emit(event.clone());
+                    events.push(event);
                 }
             }
         }
@@ -977,7 +1100,9 @@ impl Session {
             error_count,
             extra: ExtraFields::new(),
         };
-        events.push(self.emit_tool(&turn_id, ToolUpdatedPayload::Batch(batch)));
+        let event = self.emit_tool(&turn_id, ToolUpdatedPayload::Batch(batch));
+        sink.emit(event.clone());
+        events.push(event);
 
         // `checkpoint.created`（C1.1-#2）：写类工具成功路径在 batch 后、下一轮模型请求前
         // 发出（夹具 `write-new` / `write-overwrite-read` / `edit-unique` /
@@ -985,7 +1110,9 @@ impl Session {
         // `agent-core` 只发事件，不接 git checkpoint（那是 Host 面的
         // `git-checkpoint-service`）；回指 id 与 `mode-artifact://` 引用按观察形状生成。
         if checkpoint_files > 0 {
-            events.push(self.checkpoint_event(&turn_id, checkpoint_files));
+            let event = self.checkpoint_event(&turn_id, checkpoint_files);
+            sink.emit(event.clone());
+            events.push(event);
         }
         events
     }
@@ -1118,12 +1245,13 @@ impl Session {
             input_ref: Some("model_stream".to_string()),
             dependencies: Some(Vec::new()),
             parallel_group_index: Some(0),
-            // 观察值（C1.1-#5）：`canRunParallel` **按工具**——Read 与未注册工具（Glob/Grep）
-            // 是 `true`，Bash / Write / Edit 是 `false`。取值来源是 `ToolSpec.read_only`
-            // 这个既有事实（C1 不新增猜测档位）；未注册工具无声明，按观察值 `true`。
+            // 观察值（C1.1-#5 + 最终评审 I7）：`canRunParallel` **按工具**——Read 与
+            // 未注册工具（Glob/Grep）是 `true`，Bash / Write / Edit 是 `false`；
+            // `TaskControl` 家族（`TaskOutput`/`TaskStop`）按观察恒 `true`，不能只取
+            // `read_only`（TaskStop 的 `read_only=false` 但 `canRunParallel=true`）。
             can_run_parallel: Some(
                 self.lookup_tool(&call.name)
-                    .map(|spec| spec.read_only)
+                    .map(|spec| spec.read_only || spec.family == ModeToolFamily::TaskControl)
                     .unwrap_or(true),
             ),
             schedule: Some(ToolSchedule {

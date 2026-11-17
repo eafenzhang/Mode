@@ -189,10 +189,23 @@ fn epoch_ms_to_u64(value: i64) -> u64 {
     u64::try_from(value).unwrap_or(0)
 }
 
+/// workspace identity key：`workspaceIdentity?.trim() || workspacePath`（AGENTS.md 口径）。
+///
+/// 热快照、`session/list` 与冷读必须用同一个 key；`directory` 只用于文件操作/展示。
+pub(crate) fn workspace_key(record: &SessionRecord) -> String {
+    record
+        .workspace_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(|| record.directory.clone())
+}
+
 /// 组装最小合法快照（`agent-process-fixture::minimal_snapshot` 的形状）。
 ///
-/// `workspace_key` 用会话 `directory`：C1 的 store 只有 `directory` 一个事实，
-/// identity key 的投影归 Task 7 的方法层。
+/// 热快照保留 `workspaceIdentity` 并以 `identity?.trim() || path` 作为 `workspaceKey`
+/// （最终评审 I5：此前热快照把 identity 丢掉、key 退回 directory）。
 pub(crate) fn build_snapshot(
     record: &SessionRecord,
     config: &RuntimeConfig,
@@ -221,9 +234,9 @@ pub(crate) fn build_snapshot(
             session_id: record.id.clone(),
             workspace: SessionWorkspaceRef {
                 workspace_path: record.directory.clone(),
-                workspace_identity: None,
+                workspace_identity: record.workspace_id.clone(),
                 remote_session_id: None,
-                workspace_key: record.directory.clone(),
+                workspace_key: workspace_key(record),
             },
             parent_session_id: record.parent_id.clone(),
             trace_id: record.trace_id.clone(),

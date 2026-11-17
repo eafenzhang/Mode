@@ -1,9 +1,11 @@
 //! 进程启动：解析 `app-server --stdio`，构建 tokio runtime，把 stdio 接到
 //! [`crate::run_stdio`]。
 //!
-//! 只支持 `app-server --stdio` 这一种运行形态；其余参数忽略但记录到 stderr
-//! （`agent-process` 会收集并广播 stderr）。即使首个参数不是 `app-server`，仍按
-//! stdio 服务启动：二进制没有第二种模式，不因多余参数拒绝服务。
+//! 只支持 `app-server --stdio` 这一种运行形态：首个参数必须是 `app-server`，且
+//! 其后至少有一个 `--stdio`。不满足时以非零码退出、不启动 stdio（二进制没有第二种
+//! 模式，也不把错误参数静默当成 stdio 服务）。**满足必需 token 之后**的额外参数
+//! （例如 `--surface desktop`）忽略并记录到 stderr（`agent-process` 会收集并广播
+//! stderr）。
 
 use std::process::ExitCode;
 use std::sync::Arc;

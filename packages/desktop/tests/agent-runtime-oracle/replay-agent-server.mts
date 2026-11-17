@@ -123,9 +123,10 @@ export async function replayFixture(fixture: OracleFixture): Promise<ReplayResul
     try {
       const prompts = [fixture.prompt, ...(fixture.followUpTurns ?? []).map((turn) => turn.prompt)];
       for (const prompt of prompts) {
-        await session.send(prompt);
-        // 等本 turn 的新终态（frames 是追加数组，基线取 send 受理时的计数）。
+        // 终态基线必须在 send **之前**捕获：send 受理到首个终态之间可能已经出现
+        // 本 turn 的终态（旧写法会把新终态算进基线，随后等一个永远不会来的下一条）。
         const baseline = countTerminals(session.frames);
+        await session.send(prompt);
         const deadline = Date.now() + TURN_TIMEOUT_MS;
         while (countTerminals(session.frames) <= baseline) {
           if (Date.now() > deadline) {

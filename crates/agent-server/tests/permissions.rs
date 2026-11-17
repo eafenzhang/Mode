@@ -398,6 +398,10 @@ struct TestConn {
     preferences: PreferencesReply,
     /// 看到的反向请求方法（帧序；审批用例据此断言「只发过一次」）。
     seen_reverse: Vec<String>,
+    /// 等待审批反向请求期间收到的本会话事件（scheduled 现在先于审批请求发出；
+    /// 若在 `next_permission_request` 里丢掉，后续 `drain_events_until_terminal`
+    /// 就会少帧）。drain 时先取这里。
+    buffered_events: Vec<SessionEvent>,
 }
 
 /// 连接与 run_stdio 的 JoinHandle（生命周期用例等待循环退出）。
@@ -421,6 +425,7 @@ async fn connect(server: Arc<AgentServer>) -> Connection {
             next_id: 0,
             preferences: PreferencesReply::Default,
             seen_reverse: Vec::new(),
+            buffered_events: Vec::new(),
         },
         loop_handle,
     }
@@ -559,16 +564,26 @@ impl TestConn {
     /// 读一帧审批反向请求（`interaction/requestPermission`）。
     async fn next_permission_request(&mut self) -> (RequestId, PermissionRequest) {
         loop {
-            if let Frame::Request(request) = self.next_frame().await {
-                assert_eq!(
-                    request.method, "interaction/requestPermission",
-                    "期待审批反向请求，实际 {}",
-                    request.method
-                );
-                let params = request.params.expect("审批请求带 params");
-                let parsed: PermissionRequest =
-                    serde_json::from_value(params).expect("审批请求可解码");
-                return (request.id, parsed);
+            match self.next_frame().await {
+                Frame::Request(request) => {
+                    assert_eq!(
+                        request.method, "interaction/requestPermission",
+                        "期待审批反向请求，实际 {}",
+                        request.method
+                    );
+                    let params = request.params.expect("审批请求带 params");
+                    let parsed: PermissionRequest =
+                        serde_json::from_value(params).expect("审批请求可解码");
+                    return (request.id, parsed);
+                }
+                Frame::Notification(notification) if notification.method == "session/event" => {
+                    if let Some(params) = notification.params {
+                        if let Ok(event) = serde_json::from_value::<SessionEvent>(params) {
+                            self.buffered_events.push(event);
+                        }
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -602,7 +617,7 @@ impl TestConn {
 
     /// 收集事件直到终态（turn.completed / turn.failed）。
     async fn drain_events_until_terminal(&mut self) -> Vec<SessionEvent> {
-        let mut events = Vec::new();
+        let mut events = std::mem::take(&mut self.buffered_events);
         loop {
             let event = self.next_event().await;
             let terminal = matches!(
@@ -741,7 +756,10 @@ async fn allow_once_reply_executes_tool_and_emits_permission_events() {
         .iter()
         .filter(|method| *method == "session/requestRuntimePreferences")
         .count();
-    assert_eq!(preferences, 2, "偏好反向请求每运行时一对（两个 scope 各一次）");
+    assert_eq!(
+        preferences, 2,
+        "偏好反向请求每运行时一对（两个 scope 各一次）"
+    );
     let permissions = connection
         .conn
         .seen_reverse
@@ -934,14 +952,14 @@ async fn allow_project_persists_rule_and_replays_allow_without_request() {
         tool_kinds(&events),
         vec![
             "scheduled",
+            "scheduled",
             "started",
             "result",
-            "scheduled",
             "started",
             "result",
             "batch"
         ],
-        "Read+Write 同批，各自 scheduled/started/result"
+        "Read+Write 同批：整批先 scheduled，再串行 started/result"
     );
     let content = std::fs::read_to_string(&target).expect("读回文件");
     assert_eq!(content, "written-again-by-tool\n");

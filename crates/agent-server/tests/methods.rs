@@ -1772,3 +1772,668 @@ async fn resume_during_close_drain_rejects_then_recovers() {
     assert_eq!(sequences, vec![0, 1, 2, 3, 4], "序号接续");
     assert_eq!(duplicate_count, 0, "无重复 message.sequence");
 }
+
+// ---------------------------------------------------------------------------
+// 12. 最终评审修复波：共享库 / data_root / setMode / identity / 陈旧游标 / DB 形状
+// ---------------------------------------------------------------------------
+
+/// 两个合法 workspace 的 AgentServer 可以同时通过同一会话库的存储门并各自写会话。
+#[tokio::test]
+async fn two_workspaces_share_one_database_gate() {
+    let root = TempRoot::new("multi-workspace");
+    let mode_root = root.path().join(".mode");
+    let db_dir = mode_root.join("cli").join("db");
+    std::fs::create_dir_all(&db_dir).expect("建 cli/db");
+    let db_path = db_dir.join("db.sqlite");
+    create_baseline_database(&db_path);
+
+    let ws_a = root.path().join("ws-a");
+    let ws_b = root.path().join("ws-b");
+    std::fs::create_dir_all(&ws_a).expect("ws-a");
+    std::fs::create_dir_all(&ws_b).expect("ws-b");
+
+    let source_a: Arc<dyn ProviderSource> = Arc::new(ScriptedSource {
+        steps: vec![ScriptStep::Text("a".to_string())],
+    });
+    let source_b: Arc<dyn ProviderSource> = Arc::new(ScriptedSource {
+        steps: vec![ScriptStep::Text("b".to_string())],
+    });
+    let hub_a = ProviderConfigHub::with_paths(
+        write_builtin_file(root.path()),
+        write_personal_file(root.path()),
+    );
+    let hub_b = ProviderConfigHub::with_paths(
+        write_builtin_file(root.path()),
+        write_personal_file(root.path()),
+    );
+    let server_a = Arc::new(AgentServer::with_parts(
+        ServerConfig::from_data_base_dir(root.path()),
+        hub_a,
+        source_a,
+    ));
+    let server_b = Arc::new(AgentServer::with_parts(
+        ServerConfig::from_data_base_dir(root.path()),
+        hub_b,
+        source_b,
+    ));
+
+    let mut conn_a = connect(server_a).await;
+    let mut conn_b = connect(server_b).await;
+    let id = conn_a
+        .send("session/create", create_params(&ws_a, true))
+        .await;
+    let created_a = conn_a.result(id).await;
+    let id = conn_b
+        .send("session/create", create_params(&ws_b, true))
+        .await;
+    let created_b = conn_b.result(id).await;
+    assert_eq!(created_a["session"]["status"], json!("idle"));
+    assert_eq!(created_b["session"]["status"], json!("idle"));
+    assert_eq!(
+        count_rows(&db_path, "session"),
+        2,
+        "两个 workspace 各写一条"
+    );
+    assert!(
+        !db_path.with_extension("sqlite.agent-write.lock").exists(),
+        "不得再创建进程独占锁"
+    );
+}
+
+/// 大 Bash 输出必须落到 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`。
+#[tokio::test]
+async fn large_bash_output_lands_under_the_retained_data_root() {
+    let fixture = fixture(
+        "artifact-root",
+        vec![
+            ScriptStep::ToolCalls(vec![agent_core::provider::ScriptToolCall {
+                name: "Bash".to_string(),
+                input: json!({ "command": "printf 'a%.0s' {1..40000}" }),
+            }]),
+            ScriptStep::Text("done".to_string()),
+        ],
+    );
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let id = conn
+        .send("session/create", create_params(&fixture.ws, true))
+        .await;
+    let created = conn.result(id).await;
+    let session_id = created["session"]["sessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+    conn.subscribe_default(&session_id).await;
+    let id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "big output" }),
+        )
+        .await;
+    let _ = conn.result(id).await;
+    let events = conn.drain_until_terminal().await;
+    assert!(
+        events
+            .iter()
+            .any(|event| event["type"] == json!("turn.completed")),
+        "turn 正常完成"
+    );
+
+    let artifact = fixture
+        ._root
+        .path()
+        .join(".mode")
+        .join("cli")
+        .join("exec")
+        .join(&session_id)
+        .join("toolu_mock_0_0-stdout.log");
+    let metadata = std::fs::metadata(&artifact)
+        .unwrap_or_else(|error| panic!("artifact 必须落在 {artifact:?}（实际错误 {error}）"));
+    assert_eq!(metadata.len(), 40_000, "完整输出落盘");
+}
+
+/// `setMode` 必须同时更新热快照、`session/list` 与冷读三个口径。
+#[tokio::test]
+async fn set_mode_updates_hot_list_and_cold_views() {
+    let fixture = fixture(
+        "set-mode-consistency",
+        vec![ScriptStep::Text("answer".to_string())],
+    );
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let id = conn
+        .send("session/create", create_params(&fixture.ws, true))
+        .await;
+    let created = conn.result(id).await;
+    let session_id = created["session"]["sessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+    conn.subscribe_default(&session_id).await;
+
+    let id = conn
+        .send(
+            "session/setMode",
+            json!({ "sessionId": session_id, "mode": "plan" }),
+        )
+        .await;
+    let hot = conn.result(id).await;
+    assert_eq!(hot["session"]["mode"], json!("plan"));
+    assert_eq!(hot["projection"]["mode"], json!("plan"));
+
+    let id = conn
+        .send(
+            "session/list",
+            json!({ "workspace": { "workspacePath": fixture.ws.to_string_lossy(), "workspaceKey": fixture.ws.to_string_lossy() }, "includeArchived": true }),
+        )
+        .await;
+    let listed = conn.result(id).await;
+    assert_eq!(
+        listed["sessions"][0]["mode"],
+        json!("plan"),
+        "list 必须从 session.permission 读到新 mode"
+    );
+
+    // DB 的 permission 列同步更新。
+    let permission = read_column(&fixture.db_path, "session", "permission", "1=1");
+    assert_eq!(permission, r#"{"mode":"plan"}"#);
+
+    let id = conn
+        .send("session/close", json!({ "sessionId": session_id }))
+        .await;
+    conn.result(id).await;
+    // 冷读不拉起 runtime，直接投影 DB 行。
+    let id = conn
+        .send("session/read", json!({ "sessionId": session_id }))
+        .await;
+    let cold = conn.result(id).await;
+    assert_eq!(cold["session"]["mode"], json!("plan"));
+    assert_eq!(cold["settings"]["mode"]["current"], json!("plan"));
+}
+
+/// `workspaceIdentity` 在热快照、list 与冷读里都必须保留，key 采用 identity。
+#[tokio::test]
+async fn workspace_identity_survives_hot_list_and_cold_views() {
+    let fixture = fixture(
+        "workspace-identity",
+        vec![ScriptStep::Text("answer".to_string())],
+    );
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let mut params = create_params(&fixture.ws, true);
+    params["workspace"]["workspaceIdentity"] = json!("ws-identity-9");
+    let id = conn.send("session/create", params).await;
+    let created = conn.result(id).await;
+    let session_id = created["session"]["sessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+    assert_eq!(
+        created["session"]["workspace"]["workspaceIdentity"],
+        json!("ws-identity-9")
+    );
+    assert_eq!(
+        created["session"]["workspace"]["workspaceKey"],
+        json!("ws-identity-9")
+    );
+
+    let id = conn
+        .send(
+            "session/list",
+            json!({ "workspace": { "workspacePath": fixture.ws.to_string_lossy(), "workspaceKey": fixture.ws.to_string_lossy() }, "includeArchived": true }),
+        )
+        .await;
+    let listed = conn.result(id).await;
+    assert_eq!(
+        listed["sessions"][0]["workspace"]["workspaceIdentity"],
+        json!("ws-identity-9")
+    );
+    assert_eq!(
+        listed["sessions"][0]["workspace"]["workspaceKey"],
+        json!("ws-identity-9")
+    );
+
+    let id = conn
+        .send("session/close", json!({ "sessionId": session_id }))
+        .await;
+    conn.result(id).await;
+    let id = conn
+        .send("session/read", json!({ "sessionId": session_id }))
+        .await;
+    let cold = conn.result(id).await;
+    assert_eq!(
+        cold["session"]["workspace"]["workspaceIdentity"],
+        json!("ws-identity-9")
+    );
+    assert_eq!(
+        cold["session"]["workspace"]["workspaceKey"],
+        json!("ws-identity-9")
+    );
+}
+
+/// resume 后的订阅带着旧 runtime 的 afterSeq：不能过滤掉新 runtime 的事件。
+#[tokio::test]
+async fn subscribe_with_old_cursor_after_resume_still_forwards_live_events() {
+    let fixture = fixture(
+        "resume-old-cursor",
+        vec![
+            ScriptStep::Text("before close".to_string()),
+            ScriptStep::Text("after resume".to_string()),
+        ],
+    );
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let id = conn
+        .send("session/create", create_params(&fixture.ws, true))
+        .await;
+    let created = conn.result(id).await;
+    let session_id = created["session"]["sessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+    conn.subscribe_default(&session_id).await;
+    let id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "first" }),
+        )
+        .await;
+    let _ = conn.result(id).await;
+    conn.drain_until_terminal().await;
+    let id = conn
+        .send("session/close", json!({ "sessionId": session_id }))
+        .await;
+    conn.result(id).await;
+    let id = conn
+        .send("session/resume", json!({ "sessionId": session_id }))
+        .await;
+    let _ = conn.result(id).await;
+
+    // 旧 runtime 的事件序号（例如 12）在新 runtime 里不存在；按 reset 处理。
+    let id = conn
+        .send(
+            "session/subscribe",
+            json!({
+                "sessionId": session_id,
+                "deliveryKind": "desktop-continuous",
+                "includeSnapshot": false,
+                "afterSeq": 999
+            }),
+        )
+        .await;
+    let subscribed = conn.result(id).await;
+    assert_eq!(subscribed["events"], json!([]), "旧游标没有可回放事件");
+    assert!(
+        subscribed["eventSeq"].as_u64().unwrap_or(u64::MAX) < 999,
+        "新 runtime 的 eventSeq 低于旧游标"
+    );
+
+    let id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "second" }),
+        )
+        .await;
+    let _ = conn.result(id).await;
+    let events = conn.drain_until_terminal().await;
+    assert!(
+        events
+            .iter()
+            .any(|event| event["type"] == json!("turn.started")),
+        "旧游标不能丢掉新 runtime 的 live 事件"
+    );
+}
+
+/// DB 形状：与 `session-lifecycle-db.json` 的 message/part 行逐字段对齐
+///（合成 timeline 行除外；其余未对齐字段登记在 `tauri-agent-runtime.md` §C1.3-6）。
+#[tokio::test]
+async fn db_message_and_part_shape_matches_the_lifecycle_fixture_contract() {
+    let fixture = fixture("db-shape", Vec::new());
+    // 读的是绝对路径（夹具录制值）；steps 需要 fixture 的 ws，因此在 create 前换源。
+    fixture.server.set_provider_source(Arc::new(ScriptedSource {
+        steps: vec![
+            ScriptStep::Text("first turn answer".to_string()),
+            ScriptStep::ToolCalls(vec![agent_core::provider::ScriptToolCall {
+                name: "Read".to_string(),
+                input: json!({ "file_path": fixture.ws.join("hello.txt").to_string_lossy() }),
+            }]),
+            ScriptStep::Text("second turn answer".to_string()),
+        ],
+    }));
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let id = conn
+        .send("session/create", create_params(&fixture.ws, true))
+        .await;
+    let created = conn.result(id).await;
+    let session_id = created["session"]["sessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+    conn.subscribe_default(&session_id).await;
+    for prompt in ["first prompt", "Read hello.txt and summarize"] {
+        let id = conn
+            .send(
+                "session/send",
+                json!({ "sessionId": session_id, "content": prompt }),
+            )
+            .await;
+        let _ = conn.result(id).await;
+        conn.drain_until_terminal().await;
+    }
+
+    let oracle_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("packages")
+        .join("desktop")
+        .join("tests")
+        .join("agent-runtime-oracle")
+        .join("fixtures")
+        .join("session-lifecycle")
+        .join("session-lifecycle-db.json");
+    let oracle: Value =
+        serde_json::from_str(&std::fs::read_to_string(&oracle_path).expect("读取 oracle DB 夹具"))
+            .expect("oracle DB 夹具是 JSON");
+    // 行 0 是 C1 不写的合成 timeline 消息（§C1.3-5）；其余逐行对拍。
+    let oracle_messages: Vec<Value> = oracle["expect"]["tables"]["message"]["rows"]
+        .as_array()
+        .expect("message rows")
+        .iter()
+        .skip(1)
+        .cloned()
+        .collect();
+    let oracle_parts: Vec<Value> = oracle["expect"]["tables"]["part"]["rows"]
+        .as_array()
+        .expect("part rows")
+        .iter()
+        .skip(1)
+        .cloned()
+        .collect();
+
+    let connection = raw_connection(&fixture.db_path);
+    let mut statement = connection
+        .prepare(
+            "SELECT id, data FROM message WHERE session_id = ?1 \
+             ORDER BY COALESCE(sequence, -1), time_created, id",
+        )
+        .expect("prepare message");
+    let messages: Vec<(String, Value)> = statement
+        .query_map([session_id.as_str()], |row| {
+            let id: String = row.get(0)?;
+            let data: String = row.get(1)?;
+            Ok((
+                id,
+                serde_json::from_str(&data).expect("message.data 是 JSON"),
+            ))
+        })
+        .expect("query message")
+        .collect::<Result<Vec<_>, _>>()
+        .expect("collect message");
+    assert_eq!(
+        messages.len(),
+        oracle_messages.len(),
+        "message 行数（oracle 6 行减去合成 timeline 1 行）"
+    );
+    for ((_id, ours), expected_row) in messages.iter().zip(oracle_messages.iter()) {
+        let expected = expected_row.get("data").expect("oracle message.data");
+        assert_eq!(ours.get("role"), expected.get("role"), "role");
+        assert_eq!(ours.get("finish"), expected.get("finish"), "finish");
+        assert_eq!(
+            ours.get("tokens"),
+            expected.get("tokens"),
+            "每个 assistant 行的 tokens 必须是该步骤模型请求的 usage"
+        );
+        assert_eq!(
+            ours.get("semantics"),
+            expected.get("semantics"),
+            "semantics"
+        );
+    }
+
+    let mut part_statement = connection
+        .prepare(
+            "SELECT data FROM part WHERE message_id = ?1 \
+             ORDER BY COALESCE(sequence, -1), time_created, id",
+        )
+        .expect("prepare part");
+    let mut ours_parts: Vec<Value> = Vec::new();
+    for (message_id, _) in &messages {
+        let parts = part_statement
+            .query_map([message_id.as_str()], |row| {
+                let data: String = row.get(0)?;
+                Ok(serde_json::from_str::<Value>(&data).expect("part.data 是 JSON"))
+            })
+            .expect("query part")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("collect part");
+        ours_parts.extend(parts);
+    }
+    assert_eq!(
+        ours_parts.len(),
+        oracle_parts.len(),
+        "part 行数（oracle 12 行减去 timeline part 1 行）"
+    );
+    for (ours, expected_row) in ours_parts.iter().zip(oracle_parts.iter()) {
+        let expected = expected_row.get("data").expect("oracle part.data");
+        assert_eq!(ours.get("type"), expected.get("type"), "part type");
+        match ours.get("type").and_then(Value::as_str) {
+            Some("text") => assert_eq!(ours.get("text"), expected.get("text"), "text part"),
+            Some("step-finish") => {
+                assert_eq!(
+                    ours.get("reason"),
+                    expected.get("reason"),
+                    "step-finish reason"
+                );
+                assert_eq!(
+                    ours.get("tokens"),
+                    expected.get("tokens"),
+                    "step-finish tokens"
+                );
+                assert_eq!(ours.get("cost"), expected.get("cost"), "step-finish cost");
+            }
+            Some("tool") => {
+                assert_eq!(ours.get("tool"), expected.get("tool"), "tool name");
+                let ours_state = ours.get("state").expect("state");
+                let expected_state = expected.get("state").expect("oracle state");
+                assert_eq!(ours_state.get("status"), expected_state.get("status"));
+                assert_eq!(
+                    ours_state
+                        .get("input")
+                        .map(|value| normalize_workspace(value, &fixture.ws)),
+                    expected_state.get("input").cloned(),
+                    "tool state.input（路径归一成 <cwd>）"
+                );
+                assert_eq!(ours_state.get("output"), expected_state.get("output"));
+                assert_eq!(ours_state.get("title"), expected_state.get("title"));
+                // DB 保留 readFileState；C1 的 DB 尚未写它（§C1.3-6），比较时两侧剔除。
+                assert_eq!(
+                    prune_private_metadata(ours_state.get("metadata")),
+                    prune_private_metadata(expected_state.get("metadata")),
+                    "tool state.metadata（readFileState 两侧剔除）"
+                );
+            }
+            _ => {}
+        }
+    }
+}
+
+/// 把工作区绝对路径归一成夹具的 `<cwd>` 占位符（反斜杠统一成 `/`）。
+fn normalize_workspace(value: &Value, workspace: &Path) -> Value {
+    let prefix = workspace.to_string_lossy();
+    match value {
+        Value::String(text) => Value::String(
+            text.replace(prefix.as_ref(), "<cwd>")
+                .replace(std::path::MAIN_SEPARATOR, "/"),
+        ),
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| normalize_workspace(item, workspace))
+                .collect(),
+        ),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(key, inner)| (key.clone(), normalize_workspace(inner, workspace)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// 递归剔除工具私有 metadata 键（`readFileState`）；返回处理后的对象/值。
+fn prune_private_metadata(value: Option<&Value>) -> Option<Value> {
+    let mut value = value?.clone();
+    fn prune(value: &mut Value) {
+        match value {
+            Value::Object(map) => {
+                map.retain(|key, _| !key.starts_with("readFileState"));
+                for inner in map.values_mut() {
+                    prune(inner);
+                }
+            }
+            Value::Array(items) => {
+                for item in items {
+                    prune(item);
+                }
+            }
+            _ => {}
+        }
+    }
+    prune(&mut value);
+    Some(value)
+}
+
+/// `sessionIds` 过滤必须先于 `limit` 截断：先 SQL LIMIT 会把目标会话切掉。
+#[tokio::test]
+async fn list_filters_session_ids_before_applying_limit() {
+    let fixture = fixture("list-ids-limit", Vec::new());
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let mut ids = Vec::new();
+    for index in 0..3 {
+        let mut params = create_params(&fixture.ws, true);
+        params["sessionId"] = json!(format!("sess_list_{index}"));
+        let id = conn.send("session/create", params).await;
+        let _ = conn.result(id).await;
+        ids.push(format!("sess_list_{index}"));
+    }
+    // 固定 time_updated，让排序可预测：sess_list_2 最新、sess_list_0 最旧。
+    let writer = Connection::open(&fixture.db_path).expect("写连接");
+    for (index, session_id) in ids.iter().enumerate() {
+        writer
+            .execute(
+                "UPDATE session SET time_updated = ?2 WHERE id = ?1",
+                rusqlite::params![session_id, index as i64 + 1],
+            )
+            .expect("更新时间");
+    }
+    drop(writer);
+
+    let id = conn
+        .send(
+            "session/list",
+            json!({
+                "includeArchived": true,
+                "limit": 1,
+                "sessionIds": [ids[0]]
+            }),
+        )
+        .await;
+    let listed = conn.result(id).await;
+    let sessions = listed["sessions"].as_array().expect("sessions");
+    assert_eq!(sessions.len(), 1, "过滤后仍应返回目标会话");
+    assert_eq!(sessions[0]["sessionId"], json!(ids[0]));
+}
+
+/// `session/messages` 是投影：`semantics` 保留，工具私有 `readFileState` 不进 wire，
+/// 即使 DB 行里有它（最终评审 I2 / contract §3.7）。
+#[tokio::test]
+async fn messages_projection_keeps_semantics_and_strips_private_tool_metadata() {
+    let fixture = fixture("wire-projection", Vec::new());
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let id = conn
+        .send("session/create", create_params(&fixture.ws, true))
+        .await;
+    let created = conn.result(id).await;
+    let session_id = created["session"]["sessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+
+    let writer = Connection::open(&fixture.db_path).expect("写连接");
+    writer
+        .execute(
+            "INSERT INTO message (id, session_id, time_created, time_updated, data, sequence) \
+             VALUES ('msg_proj', ?1, 10, 11, ?2, 999)",
+            rusqlite::params![
+                session_id,
+                json!({
+                    "role": "assistant",
+                    "messageId": "msg_proj",
+                    "providerId": "mock-chat",
+                    "modelId": "mock-1",
+                    "mode": "build",
+                    "finish": "stop",
+                    "time": { "created": 10, "completed": 11 },
+                    "semantics": {
+                        "origin": "agent_runtime",
+                        "kind": "assistant_response",
+                        "uiVisibility": "visible",
+                        "providerVisibility": "visible",
+                        "transcriptVisibility": "visible"
+                    }
+                })
+                .to_string()
+            ],
+        )
+        .expect("写 message");
+    writer
+        .execute(
+            "INSERT INTO part (id, message_id, session_id, time_created, time_updated, data, sequence) \
+             VALUES ('part_proj', 'msg_proj', ?1, 10, 11, ?2, 0)",
+            rusqlite::params![
+                session_id,
+                json!({
+                    "type": "tool",
+                    "callID": "call_proj",
+                    "tool": "Read",
+                    "state": {
+                        "status": "completed",
+                        "input": { "file_path": "hello.txt" },
+                        "output": "1\thello\n2\t",
+                        "title": "Read",
+                        "metadata": {
+                            "schemaVersion": 1,
+                            "readFileState": { "path": "hello.txt", "content": "hello\n" }
+                        },
+                        "time": { "start": 10, "end": 11 }
+                    }
+                })
+                .to_string()
+            ],
+        )
+        .expect("写 part");
+    drop(writer);
+
+    let id = conn
+        .send("session/messages", json!({ "sessionId": session_id }))
+        .await;
+    let result = conn.result(id).await;
+    let messages = result["messages"].as_array().expect("messages");
+    let projected = messages
+        .iter()
+        .find(|message| message["info"]["messageId"] == json!("msg_proj"))
+        .expect("投影包含手写行");
+    assert_eq!(
+        projected["info"]["semantics"]["origin"],
+        json!("agent_runtime"),
+        "semantics 必须进 wire"
+    );
+    let tool = &projected["parts"][0];
+    assert_eq!(tool["type"], json!("tool"));
+    assert!(
+        tool["state"]["metadata"].get("readFileState").is_none(),
+        "readFileState 是运行时内部状态，不进 wire：{}",
+        tool["state"]["metadata"]
+    );
+    assert_eq!(
+        tool["state"]["metadata"]["schemaVersion"],
+        json!(1),
+        "非私有 metadata 保留"
+    );
+}

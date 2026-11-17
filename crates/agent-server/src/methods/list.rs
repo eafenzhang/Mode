@@ -21,12 +21,23 @@ pub(crate) fn handle(
     let store = server.store()?;
 
     let limit = params.limit.map(|limit| limit as usize);
+    // `sessionIds` 是 handler 侧过滤：先过滤再截断，否则 SQL 的 LIMIT 可能先把目标
+    // 会话切掉，返回空列表（最终评审 Minor）。没有 sessionIds 时才让 SQL 直接 LIMIT。
+    let query_limit = if params.session_ids.is_some() {
+        None
+    } else {
+        limit
+    };
     let records = match &params.workspace {
         Some(workspace) => store
-            .list_sessions(&workspace.workspace_path, params.include_archived, limit)
+            .list_sessions(
+                &workspace.workspace_path,
+                params.include_archived,
+                query_limit,
+            )
             .map_err(store_error)?,
         None => store
-            .list_all_sessions(params.include_archived, limit)
+            .list_all_sessions(params.include_archived, query_limit)
             .map_err(store_error)?,
     };
 
@@ -38,6 +49,9 @@ pub(crate) fn handle(
         .collect();
     if let Some(session_ids) = &params.session_ids {
         sessions.retain(|session| session_ids.contains(&session.session_id));
+        if let Some(limit) = limit {
+            sessions.truncate(limit);
+        }
     }
     serde_json::to_value(SessionListResult { sessions })
         .map_err(|error| ServerError::internal(error.to_string()))

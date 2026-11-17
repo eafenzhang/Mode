@@ -206,13 +206,25 @@ impl ProviderSource for HubProviderSource {
             .map_err(|error| format!("构建模型适配器失败: {error}"))?;
         Ok(Arc::new(provider))
     }
+
+    /// 账号 revision + builtin/personal 文件指纹；personal 配置轮换后下一个 turn
+    /// 会重新解析 provider（最终评审 I6）。
+    fn cache_key(&self) -> String {
+        self.hub.resolve_generation()
+    }
 }
 
 /// 启动存储门的状态（一次性；`run_storage_gate` 推进）。
+///
+/// `Ready` 同时保留数据根：工具 artifact 的落点来自这里（最终评审 C5——门跑完后
+/// 配置被 `take()` 走会让会话退回临时目录）。
 enum StorageState {
     /// 门还没跑（或骨架构造没有存储配置）。
     Pending,
-    Ready(Arc<session_store::SessionStore>),
+    Ready {
+        store: Arc<session_store::SessionStore>,
+        data_root: std::path::PathBuf,
+    },
     Failed(String),
 }
 
@@ -269,11 +281,14 @@ impl AgentServer {
     pub fn new() -> Self {
         let hub = Arc::new(ProviderConfigHub::from_env());
         let reverse = Arc::new(RwLock::new(None));
-        let source: Arc<dyn ProviderSource> = match crate::scripted::ScriptedFixtureSource::from_env()
-        {
-            Some(scripted) => Arc::new(scripted),
-            None => Arc::new(HubProviderSource::new(Arc::clone(&hub), Arc::clone(&reverse))),
-        };
+        let source: Arc<dyn ProviderSource> =
+            match crate::scripted::ScriptedFixtureSource::from_env() {
+                Some(scripted) => Arc::new(scripted),
+                None => Arc::new(HubProviderSource::new(
+                    Arc::clone(&hub),
+                    Arc::clone(&reverse),
+                )),
+            };
         Self {
             provider_source: RwLock::new(source),
             provider_config: hub,
@@ -397,19 +412,18 @@ impl AgentServer {
             .clone()
     }
 
-    /// `.mode` 数据根（工具 artifact 落点）；门没跑/未配置时 `None`。
+    /// `.mode` 数据根（工具 artifact 落点）；门没跑/失败/未配置时 `None`。
     pub(crate) fn data_root(&self) -> Option<std::path::PathBuf> {
-        self.storage_config
-            .lock()
-            .expect("storage config poisoned")
-            .as_ref()
-            .map(|config| config.data_root.clone())
+        match &*self.storage.lock().expect("storage poisoned") {
+            StorageState::Ready { data_root, .. } => Some(data_root.clone()),
+            StorageState::Pending | StorageState::Failed(_) => None,
+        }
     }
 
     /// 已就绪的会话库；门失败/未初始化时显式报错（fail-closed，不静默降级）。
     pub(crate) fn store(&self) -> Result<Arc<session_store::SessionStore>, ServerError> {
         match &*self.storage.lock().expect("storage poisoned") {
-            StorageState::Ready(store) => Ok(Arc::clone(store)),
+            StorageState::Ready { store, .. } => Ok(Arc::clone(store)),
             StorageState::Failed(reason) => {
                 Err(ServerError::internal(format!("会话库不可用：{reason}")))
             }
@@ -550,8 +564,11 @@ impl AgentServer {
         match session_store::SessionStore::open(&config.db_path()) {
             Ok(store) => {
                 self.notify_storage(writer, "ready", None, started).await?;
-                *self.storage.lock().expect("storage poisoned") =
-                    StorageState::Ready(Arc::new(store));
+                // 数据根随 store 一起保留：会话物化时用它接线工具 artifact 落点。
+                *self.storage.lock().expect("storage poisoned") = StorageState::Ready {
+                    store: Arc::new(store),
+                    data_root: config.data_root,
+                };
                 Ok(())
             }
             Err(error) => {

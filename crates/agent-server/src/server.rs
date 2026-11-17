@@ -24,6 +24,10 @@ use crate::dispatch::{AgentServer, PendingLiveForward};
 use crate::reverse::ReverseHub;
 
 /// 单帧上限（防御异常刷屏）；与 `mode-protocol-client` 同口径，正常协议帧远小于此。
+///
+/// **实现边界**：上限在整行读入后检查（`read_until`），超限帧仍会先占用缓冲区；
+/// 有界读取未实现。正常协议帧远小于上限，且这是本进程唯一的入站连接（宿主 stdio）；
+/// 残余风险登记在 `tauri-agent-runtime.md` §C1.5-9，不在本波改成流式帧解析。
 pub const MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
 
 /// 把已解析的 JSON 值转成 `agent-protocol` 的帧；形状不合法映射为协议错误。

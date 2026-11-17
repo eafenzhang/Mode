@@ -17,12 +17,17 @@ import { isThreeLayerFixture, replayFixture } from "./replay-agent-server.mjs";
 // `fixtures/` 根下还住着非三层夹具（session-stream.json 投影快照等，oracle 套件
 // 对它们的基线已是红，Task 10 不修）；这里显式识别并跳过，留痕不静默。
 const all = (await loadFixtures()) as unknown[];
-const skipped = all.filter((fixture) => !isThreeLayerFixture(fixture)).length;
-if (skipped > 0) {
-  test(`Rust agent-server 夹具回放：跳过 ${skipped} 个非三层夹具（投影快照不属本轮回放）`, () => {
-    assert.ok(skipped > 0);
-  });
-}
+const skipped = all
+  .filter((fixture) => !isThreeLayerFixture(fixture))
+  .map((fixture) => (fixture as { case?: string }).case ?? "(unnamed)")
+  .sort();
+
+// 已知唯一跳过项：`session-stream.json`（M2 投影快照，不是三层行为夹具）。
+// 断言**逐字等于**已知清单：新增/减少跳过项都要显式更新本行，不能静默吞掉。
+test("Rust agent-server 夹具回放：非三层夹具跳过清单是已知项", () => {
+  assert.deepEqual(skipped, ["session-stream"]);
+});
+
 
 for (const fixture of all.filter(isThreeLayerFixture)) {
   test(`Rust agent-server 夹具回放：${fixture.case} 三层一致（C1 登记缺省过滤）`, async () => {

@@ -1109,3 +1109,646 @@ async fn snapshot_reflects_live_state_and_serializes() {
     drop(runtime);
     settle().await;
 }
+
+// ---------------------------------------------------------------------------
+// 12. 冷物化恢复 / 终态落库顺序 / 身份 / 缓存 / 陈旧游标（最终评审 C2/C3/I3/I5/I6/I10）
+// ---------------------------------------------------------------------------
+
+use std::collections::VecDeque;
+use std::sync::Mutex;
+
+use agent_core::{ModelMessage, PermissionHandler};
+use agent_protocol::permission::{PermissionDecision, PermissionRequest, PermissionResponse};
+use agent_protocol::session_event::TurnStartedPayload;
+use agent_server::RuntimeWiring;
+
+/// 按队列出剧本并记录每次模型请求的 provider。
+///
+/// 与 `ScriptedProvider` 的「按 assistant 条数取步」不同：冷恢复后的历史会让条数
+/// 偏移，本 provider 用显式队列，测试可以精确决定每一轮输出。
+struct RecordingProvider {
+    steps: Mutex<VecDeque<ScriptStep>>,
+    requests: Arc<Mutex<Vec<ModelRequest>>>,
+    next_call: AtomicU64,
+}
+
+impl RecordingProvider {
+    fn new(steps: Vec<ScriptStep>) -> Arc<Self> {
+        Arc::new(Self {
+            steps: Mutex::new(steps.into_iter().collect()),
+            requests: Arc::new(Mutex::new(Vec::new())),
+            next_call: AtomicU64::new(0),
+        })
+    }
+
+    fn requests(&self) -> Vec<ModelRequest> {
+        self.requests.lock().expect("requests").clone()
+    }
+}
+
+impl ModelProvider for RecordingProvider {
+    fn stream(
+        &self,
+        request: ModelRequest,
+        deltas: DeltaSink,
+    ) -> BoxFuture<'static, Result<ModelResponse, ProviderError>> {
+        self.requests.lock().expect("requests").push(request);
+        let step = self.steps.lock().expect("steps").pop_front();
+        let call_index = self.next_call.fetch_add(1, Ordering::SeqCst);
+        Box::pin(async move {
+            let Some(step) = step else {
+                return Err(ProviderError {
+                    message: "recording provider 剧本已空".to_string(),
+                });
+            };
+            match step {
+                ScriptStep::Text(text) => {
+                    deltas
+                        .send(ModelDelta::Text { text })
+                        .map_err(|_| ProviderError {
+                            message: "delta sink closed".to_string(),
+                        })?;
+                    Ok(ModelResponse {
+                        usage: ModelUsage {
+                            input_tokens: 10,
+                            output_tokens: 12,
+                            ..ModelUsage::default()
+                        },
+                        stop_reason: "stop",
+                    })
+                }
+                ScriptStep::ToolCalls(calls) => {
+                    for (position, call) in calls.iter().enumerate() {
+                        let tool_call_id = format!("toolu_rec_{call_index}_{position}");
+                        deltas
+                            .send(ModelDelta::ToolInputStart {
+                                tool_call_id: tool_call_id.clone(),
+                                tool_name: call.name.clone(),
+                            })
+                            .map_err(|_| ProviderError {
+                                message: "delta sink closed".to_string(),
+                            })?;
+                        deltas
+                            .send(ModelDelta::ToolInputDelta {
+                                tool_call_id: tool_call_id.clone(),
+                                delta: serde_json::to_string(&call.input).expect("入参可序列化"),
+                            })
+                            .map_err(|_| ProviderError {
+                                message: "delta sink closed".to_string(),
+                            })?;
+                        deltas
+                            .send(ModelDelta::ToolInputEnd {
+                                tool_call_id: tool_call_id.clone(),
+                            })
+                            .map_err(|_| ProviderError {
+                                message: "delta sink closed".to_string(),
+                            })?;
+                        deltas
+                            .send(ModelDelta::ToolCall {
+                                tool_call_id,
+                                tool_name: call.name.clone(),
+                                input: call.input.clone(),
+                            })
+                            .map_err(|_| ProviderError {
+                                message: "delta sink closed".to_string(),
+                            })?;
+                    }
+                    Ok(ModelResponse {
+                        usage: ModelUsage {
+                            input_tokens: 10,
+                            output_tokens: 20,
+                            ..ModelUsage::default()
+                        },
+                        stop_reason: "tool-calls",
+                    })
+                }
+            }
+        })
+    }
+}
+
+fn spawn_runtime_with_wiring(
+    fixture: &Fixture,
+    provider: Arc<dyn ModelProvider>,
+    wiring: RuntimeWiring,
+) -> SessionRuntime {
+    SessionRuntime::new(
+        fixture.record.clone(),
+        Arc::clone(&fixture.store),
+        Arc::new(FixedSource(provider)),
+        runtime_config(),
+        wiring,
+    )
+    .expect("构造运行时")
+}
+
+/// 某个请求的模型历史形状（消息种类 + 文本/工具 id），用于断言冷恢复内容。
+fn history_shape(request: &ModelRequest) -> Vec<String> {
+    request
+        .messages
+        .iter()
+        .filter_map(|message| match message {
+            ModelMessage::System(_) => None,
+            ModelMessage::User(text) => Some(format!("user:{text}")),
+            ModelMessage::Assistant { text, tool_calls } => Some(format!(
+                "assistant:{}:{}",
+                text.as_deref().unwrap_or(""),
+                tool_calls
+                    .iter()
+                    .map(|call| call.tool_call_id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )),
+            ModelMessage::ToolResult {
+                tool_call_id,
+                content,
+            } => Some(format!("tool:{tool_call_id}:{}", !content.is_empty())),
+        })
+        .collect()
+}
+
+fn turn_usage_rows(path: &Path) -> Vec<(String, String, Option<String>)> {
+    let connection = raw_connection(path);
+    let mut statement = connection
+        .prepare("SELECT turn_id, status, user_message_id FROM turn_usage ORDER BY turn_id")
+        .expect("prepare turn_usage");
+    statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+            ))
+        })
+        .expect("query turn_usage")
+        .collect::<Result<Vec<_>, _>>()
+        .expect("collect turn_usage")
+}
+
+fn started_ids(events: &[SessionEvent]) -> Vec<String> {
+    events
+        .iter()
+        .filter(|event| event.event_type == SessionEventType::TurnStarted)
+        .filter_map(|event| event.payload_as::<TurnStartedPayload>().expect("能解码"))
+        .filter_map(|payload| payload.foreground_execution_id)
+        .collect()
+}
+
+#[tokio::test]
+async fn cold_materialization_restores_history_file_state_and_turn_counter() {
+    let fixture = fixture("resume-history");
+    let provider = RecordingProvider::new(vec![
+        ScriptStep::Text("first turn answer".to_string()),
+        ScriptStep::Text("second turn answer".to_string()),
+        ScriptStep::Text("third turn answer".to_string()),
+    ]);
+
+    let mut foreground = Vec::new();
+
+    // Turn 1（原始 runtime）。
+    let runtime = spawn_runtime(&fixture, provider.clone());
+    let (_, mut receiver) = runtime.subscribe(None);
+    runtime
+        .submit(SessionInput::text("first prompt"))
+        .expect("提交 turn 1");
+    let events = drain_until_terminal(&mut receiver).await;
+    foreground.extend(started_ids(&events));
+    wait_settled(&runtime).await;
+    runtime.shutdown().await;
+
+    // Turn 2（close 后冷恢复）。
+    let runtime = spawn_runtime(&fixture, provider.clone());
+    let (_, mut receiver) = runtime.subscribe(None);
+    runtime
+        .submit(SessionInput::text("second prompt"))
+        .expect("提交 turn 2");
+    let events = drain_until_terminal(&mut receiver).await;
+    foreground.extend(started_ids(&events));
+    wait_settled(&runtime).await;
+    runtime.shutdown().await;
+
+    // Turn 3（进程重启后再次冷恢复）。
+    let runtime = spawn_runtime(&fixture, provider.clone());
+    let (_, mut receiver) = runtime.subscribe(None);
+    runtime
+        .submit(SessionInput::text("third prompt"))
+        .expect("提交 turn 3");
+    let events = drain_until_terminal(&mut receiver).await;
+    foreground.extend(started_ids(&events));
+    wait_settled(&runtime).await;
+    runtime.shutdown().await;
+
+    let requests = provider.requests();
+    assert_eq!(requests.len(), 3, "三个 turn 各一次模型请求");
+    assert_eq!(
+        history_shape(&requests[1]),
+        vec![
+            "user:first prompt",
+            "assistant:first turn answer:",
+            "user:second prompt",
+        ],
+        "resume 后的请求必须带前一轮 user/assistant 历史"
+    );
+    assert_eq!(
+        history_shape(&requests[2]),
+        vec![
+            "user:first prompt",
+            "assistant:first turn answer:",
+            "user:second prompt",
+            "assistant:second turn answer:",
+            "user:third prompt",
+        ],
+        "重启后必须从 DB 恢复全部历史"
+    );
+
+    // turn 计数器：turn id 不复用、turn_usage 无主键冲突、user_message_id 可对账。
+    let rows = turn_usage_rows(&fixture.db_path);
+    assert_eq!(
+        rows.iter()
+            .map(|(id, _, _)| id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["turn_0", "turn_1", "turn_2"]
+    );
+    assert!(rows.iter().all(|(_, status, _)| status == "completed"));
+    assert!(
+        rows.iter()
+            .all(|(_, _, user_message_id)| user_message_id.is_some()),
+        "每个 turn_usage 行都要有 user_message_id"
+    );
+    let distinct_user_messages: std::collections::BTreeSet<_> = rows
+        .iter()
+        .filter_map(|(_, _, user_message_id)| user_message_id.clone())
+        .collect();
+    assert_eq!(
+        distinct_user_messages.len(),
+        3,
+        "user_message_id 必须各不相同"
+    );
+    assert_eq!(
+        foreground,
+        vec![
+            "runtime_command_1",
+            "runtime_command_2",
+            "runtime_command_3"
+        ],
+        "turn.started 的 foregroundExecutionId 跨 resume/重启递增"
+    );
+}
+
+#[tokio::test]
+async fn resumed_session_restores_file_state_for_write_precondition() {
+    let fixture = fixture("resume-file-state");
+    let hello = fixture.cwd.join("hello.txt");
+    let provider = RecordingProvider::new(vec![
+        ScriptStep::ToolCalls(vec![ScriptToolCall {
+            name: "Read".to_string(),
+            input: json!({ "file_path": hello.to_string_lossy() }),
+        }]),
+        ScriptStep::Text("read done".to_string()),
+        ScriptStep::ToolCalls(vec![ScriptToolCall {
+            name: "Write".to_string(),
+            input: json!({
+                "file_path": hello.to_string_lossy(),
+                "content": "rewritten\n"
+            }),
+        }]),
+        ScriptStep::Text("write done".to_string()),
+    ]);
+
+    let runtime = spawn_runtime(&fixture, provider.clone());
+    let (_, mut receiver) = runtime.subscribe(None);
+    runtime
+        .submit(SessionInput::text("read hello"))
+        .expect("提交读");
+    let events = drain_until_terminal(&mut receiver).await;
+    assert!(
+        events
+            .iter()
+            .filter(|event| event.event_type == SessionEventType::ToolUpdated)
+            .any(|event| matches!(
+                event
+                    .payload_as::<agent_core::ToolUpdatedPayload>()
+                    .expect("能解码"),
+                Some(agent_core::ToolUpdatedPayload::Result(_))
+            )),
+        "第一次 Read 成功"
+    );
+    wait_settled(&runtime).await;
+    runtime.shutdown().await;
+
+    // 冷恢复后 Write 覆盖已存在文件：'先读再写' 事实必须从 DB 恢复，否则会报
+    // `write_file_not_read`（错误事件而不是 result）。
+    let runtime = spawn_runtime(&fixture, provider.clone());
+    let (_, mut receiver) = runtime.subscribe(None);
+    runtime
+        .submit(SessionInput::text("write hello"))
+        .expect("提交写");
+    let events = drain_until_terminal(&mut receiver).await;
+    let kinds: Vec<&'static str> = events
+        .iter()
+        .filter(|event| event.event_type == SessionEventType::ToolUpdated)
+        .filter_map(|event| {
+            event
+                .payload_as::<agent_core::ToolUpdatedPayload>()
+                .expect("能解码")
+        })
+        .map(|payload| match payload {
+            agent_core::ToolUpdatedPayload::Result(_) => "result",
+            agent_core::ToolUpdatedPayload::Error(_) => "error",
+            _ => "other",
+        })
+        .collect();
+    assert_eq!(
+        kinds,
+        vec!["other", "other", "result", "other"],
+        "Write 必须成功（scheduled → started → result → batch）"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&hello).expect("读回文件"),
+        "rewritten\n"
+    );
+    wait_settled(&runtime).await;
+    runtime.shutdown().await;
+}
+
+struct DenyAll;
+
+impl PermissionHandler for DenyAll {
+    fn request(&mut self, _request: &PermissionRequest) -> PermissionResponse {
+        PermissionResponse {
+            decision: PermissionDecision::Deny,
+            reason: Some(agent_core::permission::DENY_REASON.to_string()),
+            modified_input: None,
+            permission_updates: None,
+            extra: agent_protocol::ExtraFields::new(),
+        }
+    }
+}
+
+#[tokio::test]
+async fn denied_tool_call_has_matching_tool_result_in_next_model_request() {
+    let fixture = fixture("denied-tool-result");
+    let target = fixture.cwd.join("denied.txt");
+    let provider = RecordingProvider::new(vec![
+        ScriptStep::ToolCalls(vec![ScriptToolCall {
+            name: "Write".to_string(),
+            input: json!({
+                "file_path": target.to_string_lossy(),
+                "content": "should-not-exist\n"
+            }),
+        }]),
+        ScriptStep::Text("after denial".to_string()),
+    ]);
+    let wiring = RuntimeWiring {
+        permission_handler: Some(Box::new(DenyAll)),
+        rule_db_path: None,
+        reverse: None,
+    };
+    let runtime = spawn_runtime_with_wiring(&fixture, provider.clone(), wiring);
+    let (_, mut receiver) = runtime.subscribe(None);
+    runtime
+        .submit(SessionInput::text("write it"))
+        .expect("提交");
+    let events = drain_until_terminal(&mut receiver).await;
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event.event_type == SessionEventType::TurnCompleted)
+            .count(),
+        1,
+        "deny 后 turn 仍正常完成"
+    );
+    assert!(!target.exists(), "deny 后工具不能执行");
+
+    let requests = provider.requests();
+    assert_eq!(requests.len(), 2, "deny 后仍会发起下一轮模型请求");
+    let tool_calls: Vec<&str> = requests[1]
+        .messages
+        .iter()
+        .filter_map(|message| match message {
+            ModelMessage::Assistant { tool_calls, .. } => {
+                Some(tool_calls.iter().map(|call| call.tool_call_id.as_str()))
+            }
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    let tool_results: Vec<&str> = requests[1]
+        .messages
+        .iter()
+        .filter_map(|message| match message {
+            ModelMessage::ToolResult { tool_call_id, .. } => Some(tool_call_id.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(tool_calls.len(), 1, "历史里有一个 assistant tool_call");
+    assert_eq!(
+        tool_calls, tool_results,
+        "每个 assistant tool_call 必须有配对的 tool result（deny 也要补）"
+    );
+    let denied_content = requests[1]
+        .messages
+        .iter()
+        .find_map(|message| match message {
+            ModelMessage::ToolResult { content, .. } => Some(content.clone()),
+            _ => None,
+        })
+        .expect("有 tool result");
+    assert!(
+        denied_content.contains("doesn't want to proceed"),
+        "拒绝原因来自宿主应答：{denied_content}"
+    );
+    wait_settled(&runtime).await;
+    runtime.shutdown().await;
+}
+
+struct GatedFailProvider {
+    release: Arc<Notify>,
+}
+
+impl ModelProvider for GatedFailProvider {
+    fn stream(
+        &self,
+        _request: ModelRequest,
+        _deltas: DeltaSink,
+    ) -> BoxFuture<'static, Result<ModelResponse, ProviderError>> {
+        let release = Arc::clone(&self.release);
+        Box::pin(async move {
+            release.notified().await;
+            Err(ProviderError {
+                message: "provider 失败".to_string(),
+            })
+        })
+    }
+}
+
+#[tokio::test]
+async fn failure_usage_row_is_committed_before_turn_failed_is_published() {
+    let fixture = fixture("failure-order");
+    let gate = Arc::new(Notify::new());
+    let runtime = spawn_runtime(
+        &fixture,
+        Arc::new(GatedFailProvider {
+            release: Arc::clone(&gate),
+        }),
+    );
+    let (_, mut receiver) = runtime.subscribe(None);
+    runtime
+        .submit(SessionInput::text("will fail"))
+        .expect("提交");
+
+    // 等 turn.started 落库后再拿住 SQLite 写锁：失败路径的 usage 插入会阻塞在
+    // busy_timeout 上；若先发布 turn.failed，这里就能提前收到终态（修复前的行为）。
+    loop {
+        let event = within(receiver.recv()).await.expect("事件流");
+        if event.event_type == SessionEventType::TurnStarted {
+            break;
+        }
+    }
+    let lock = rusqlite::Connection::open(&fixture.db_path).expect("锁连接");
+    lock.busy_timeout(Duration::from_secs(5))
+        .expect("busy_timeout");
+    lock.execute_batch("BEGIN IMMEDIATE").expect("拿写锁");
+
+    gate.notify_one();
+    let premature = tokio::time::timeout(Duration::from_millis(400), receiver.recv()).await;
+    assert!(
+        premature.is_err(),
+        "turn_usage 未提交前不得发布终态（实际提前收到 {premature:?}）"
+    );
+    lock.execute_batch("ROLLBACK").expect("释放写锁");
+
+    let events = drain_until_terminal(&mut receiver).await;
+    assert_eq!(
+        terminals(&events),
+        vec![SessionEventType::TurnFailed],
+        "失败终态恰好一次"
+    );
+    let rows = turn_usage_rows(&fixture.db_path);
+    assert_eq!(rows.len(), 1, "收到终态时 usage 行已可读");
+    assert_eq!(rows[0].1, "failed");
+    wait_settled(&runtime).await;
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn hot_snapshot_preserves_workspace_identity() {
+    let mut fixture = fixture("identity-snapshot");
+    fixture.record.workspace_id = Some("ws-identity-123".to_string());
+    let runtime = spawn_runtime(
+        &fixture,
+        Arc::new(ScriptedProvider::new(vec![ScriptStep::Text(
+            "ok".to_string(),
+        )])),
+    );
+    let snapshot = runtime.snapshot();
+    assert_eq!(
+        snapshot.session.workspace.workspace_identity.as_deref(),
+        Some("ws-identity-123"),
+        "热快照必须保留 workspaceIdentity"
+    );
+    assert_eq!(
+        snapshot.session.workspace.workspace_key, "ws-identity-123",
+        "workspaceKey = identity?.trim() || path"
+    );
+    assert_eq!(
+        snapshot.session.workspace.workspace_path,
+        fixture.cwd.to_string_lossy()
+    );
+    runtime.shutdown().await;
+}
+
+struct CountingSource {
+    generation: Mutex<String>,
+    resolves: AtomicU64,
+    provider: Arc<dyn ModelProvider>,
+}
+
+impl agent_server::ProviderSource for CountingSource {
+    fn resolve(
+        &self,
+        _provider_id: &str,
+        _model_id: &str,
+        _context: Option<&agent_server::ProviderRequestContext>,
+    ) -> Result<Arc<dyn ModelProvider>, String> {
+        self.resolves.fetch_add(1, Ordering::SeqCst);
+        Ok(Arc::clone(&self.provider))
+    }
+
+    fn cache_key(&self) -> String {
+        self.generation.lock().expect("generation").clone()
+    }
+}
+
+#[tokio::test]
+async fn provider_is_re_resolved_when_config_generation_changes() {
+    let fixture = fixture("provider-cache");
+    let source = Arc::new(CountingSource {
+        generation: Mutex::new("generation-a".to_string()),
+        resolves: AtomicU64::new(0),
+        provider: Arc::new(ScriptedProvider::new(vec![ScriptStep::Text(
+            "answer".to_string(),
+        )])),
+    });
+    let runtime = SessionRuntime::new(
+        fixture.record.clone(),
+        Arc::clone(&fixture.store),
+        source.clone(),
+        runtime_config(),
+        RuntimeWiring::default(),
+    )
+    .expect("构造运行时");
+    let (_, mut receiver) = runtime.subscribe(None);
+
+    for prompt in ["one", "two"] {
+        runtime.submit(SessionInput::text(prompt)).expect("提交");
+        drain_until_terminal(&mut receiver).await;
+        wait_settled(&runtime).await;
+    }
+    assert_eq!(
+        source.resolves.load(Ordering::SeqCst),
+        1,
+        "配置代际不变的连续 turn 复用 provider"
+    );
+
+    *source.generation.lock().expect("generation") = "generation-b".to_string();
+    runtime.submit(SessionInput::text("three")).expect("提交");
+    drain_until_terminal(&mut receiver).await;
+    wait_settled(&runtime).await;
+    assert_eq!(
+        source.resolves.load(Ordering::SeqCst),
+        2,
+        "personal 配置轮换后下一个 turn 必须重新解析 provider"
+    );
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn stale_after_seq_is_treated_as_reset() {
+    let fixture = fixture("stale-cursor");
+    let runtime = spawn_runtime(
+        &fixture,
+        Arc::new(ScriptedProvider::new(vec![ScriptStep::Text(
+            "answer".to_string(),
+        )])),
+    );
+    let (replay, mut receiver, effective) = runtime.subscribe_with_cursor(Some(1_000));
+    assert!(replay.is_empty(), "旧游标不能从中读出未来事件");
+    assert_eq!(
+        effective, None,
+        "afterSeq > eventSeq 按 reset（不过滤）处理"
+    );
+
+    runtime
+        .submit(SessionInput::text("after reset"))
+        .expect("提交");
+    let events = drain_until_terminal(&mut receiver).await;
+    assert!(
+        events
+            .iter()
+            .any(|event| event.event_type == SessionEventType::TurnStarted),
+        "reset 后 live 事件不能被旧游标过滤掉"
+    );
+    wait_settled(&runtime).await;
+    runtime.shutdown().await;
+}

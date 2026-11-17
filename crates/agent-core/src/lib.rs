@@ -40,7 +40,7 @@ pub use agent_protocol::session_event::{
     ToolErrorPayload, ToolResultObject, ToolScheduledPayload, ToolStartedPayload,
     ToolUpdatedPayload,
 };
-pub use agent_tools::{ModeToolFamily, ToolContext, ToolError, ToolOutcome, ToolSpec};
+pub use agent_tools::{FileState, ModeToolFamily, ToolContext, ToolError, ToolOutcome, ToolSpec};
 pub use cancel::CancelToken;
 pub use command_inbox::{Admission, CommandInbox, Completion};
 pub use context::{build_model_request, build_system_prompt, ContextInput};

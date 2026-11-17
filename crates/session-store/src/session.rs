@@ -135,6 +135,31 @@ impl SessionStore {
         })
     }
 
+    /// 更新 `session.permission`（JSON 文本）与 `time_updated`。
+    ///
+    /// `session/setMode` 用：热快照的 mode 来自 runtime 配置，而 `session/list` /
+    /// 冷读从这一列投影，两处必须看到同一事实（最终评审 I4）。行不存在时报
+    /// [`StoreError::InvalidInput`]，不静默成功。
+    pub fn set_session_permission(
+        &self,
+        session_id: &str,
+        permission: &str,
+        time_updated: i64,
+    ) -> Result<(), StoreError> {
+        self.with_write_transaction(|transaction| {
+            let updated = transaction.execute(
+                "UPDATE session SET permission = ?2, time_updated = ?3 WHERE id = ?1",
+                params![session_id, permission, time_updated],
+            )?;
+            if updated == 0 {
+                return Err(StoreError::InvalidInput(format!(
+                    "set_session_permission：会话不存在：{session_id}"
+                )));
+            }
+            Ok(())
+        })
+    }
+
     /// 列出某 workspace 的会话，按 `time_updated DESC, id DESC`。
     ///
     /// `workspace_key` 只匹配 `session.directory`（实际 workspace 目录）。`project_id`

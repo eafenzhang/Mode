@@ -1,15 +1,12 @@
-//! schema 门与进程级写锁。
+//! schema 门。
 //!
 //! C1 只读已迁移库：必需表来自 `docs/specs/agent-core-parity.md` §5.5；账本
 //! `schema_migration` 的 DDL 由 Node 迁移 runner 创建（列：`id/checksum/app_version/
 //! time_applied`），这里只要求它存在且至少有一行，不校验 checksum（C2 才实现迁移
 //! runner 与账本比对）。
-
-use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+//!
+//! 这里**不**做进程级写锁：库级写者由 SQLite WAL + `busy_timeout` 串行化，
+//! 唯一 owner 由 `AgentRuntimeRegistry` / `agent-process` 调度（见 crate 文档）。
 
 use crate::error::StoreError;
 use crate::SessionStore;
@@ -79,76 +76,4 @@ impl SessionStore {
 
         Ok(())
     }
-}
-
-/// `<db>.agent-write.lock` 的所有者。
-///
-/// 用 `create_new` 抢占；内容写入 owner 信息，Drop 时只在内容仍是自己写的值时才删除，
-/// 避免手工删除锁文件后误删新 owner 的锁。Node 不识别此锁，见 crate 文档。
-pub(crate) struct WriteLock {
-    path: PathBuf,
-    content: String,
-}
-
-impl WriteLock {
-    pub(crate) fn acquire(db_path: &Path) -> Result<Self, StoreError> {
-        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
-        // realpath 后再派生锁文件：`..`、symlink、Windows 路径别名不能绕过互斥。
-        let canonical = fs::canonicalize(db_path)?;
-        let path = lock_path_for(&canonical);
-        let content = format!(
-            "pid={}\nopened_at_ms={}\nsequence={}\n",
-            std::process::id(),
-            now_millis(),
-            SEQUENCE.fetch_add(1, Ordering::Relaxed)
-        );
-
-        let mut file = match fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
-        {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                return Err(StoreError::StorageLocked { path })
-            }
-            Err(error) => return Err(StoreError::Io(error)),
-        };
-
-        let lock = Self {
-            path: path.clone(),
-            content,
-        };
-        if let Err(error) = file.write_all(lock.content.as_bytes()) {
-            // 内容可能只写了一半；显式删除，不能把半截锁留给下一个进程。
-            let _ = fs::remove_file(&lock.path);
-            return Err(StoreError::Io(error));
-        }
-        drop(file);
-        Ok(lock)
-    }
-}
-
-impl Drop for WriteLock {
-    fn drop(&mut self) {
-        // 只删除自己创建的锁：锁文件被手工删除后，可能有新 owner 占用了同一路径。
-        if let Ok(current) = fs::read_to_string(&self.path) {
-            if current == self.content {
-                let _ = fs::remove_file(&self.path);
-            }
-        }
-    }
-}
-
-fn lock_path_for(db_path: &Path) -> PathBuf {
-    let mut name = db_path.as_os_str().to_os_string();
-    name.push(".agent-write.lock");
-    PathBuf::from(name)
-}
-
-fn now_millis() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
-        .unwrap_or(0)
 }

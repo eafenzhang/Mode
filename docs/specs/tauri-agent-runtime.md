@@ -184,7 +184,7 @@ Rust 侧用例**不实现第二份比较器**——它把自身投影成同一�
 | 环境相关计数 | `toolCount`、`chars` 的值替换为 `<count>` | 工具面与提示词规模取决于机器上装了哪些 MCP / 技能 / 插件的版本，不是被测量行为 |
 | 传输层头 | `requestHeaders` / `responseHeaders` 的值整体折叠成 `<headers>`（`requestHeaderCount` / `responseHeaderCount` 保留） | 头里是版本号、平台、时区与当前时刻；HTTP 头是环境事实，不是运行时行为 |
 | 错误栈（C1 Task 11，F10） | 对象键 `stack` **两侧整体删除**（`tool.updated` 的 `error` 与 `turn.failed` 的 `error` 同源） | oracle 录到的是 JS `dist` 构建栈：行号与文件路径**随构建漂移**（oracle 自回放基线红的一部分），且栈文本是 JS 实现内部产物、不是运行时行为。Rust 侧没有 JS 栈，按同一纪律**不伪造**——两侧都当「无此键」比，而不是比一个占位值（C1.1-#7 的差异由这条规则收口） |
-| 命令内容指纹（C1 Task 11，F4 的伴随项） | 同一对象里**同时带 `category` 与 `status`** 时的 `hash` 键两侧删除（即 `perf.detail.command.hash`） | oracle 录的是命令内容指纹；**算法不可由黑盒观察推导**：指纹只随命令文本变化（cwd / 描述 / 输出 / 耗时都不影响，探针逐项验证），但 sha1 / sha256 / sha512 / md5 / blake2b / blake2s / xxh64 / xxh3 / xxh128 / fnv1a / murmur3 / crc64 及常见「带壳 / 带盐」形态都不能复现录到的值。指纹是缓存 / 遥测用的实现内部键，不是运行时行为；Rust 侧不伪造（与 F10 同一处置），两侧同删。判据限定「命令统计对象」形状，避免误伤未来别处的普通 `hash` 键。**可审计证据**：27 组「命令 → hash」配对与不变量观察见 `docs/specs/agent-runtime-command-hash-pairs.json` |
+| 命令内容指纹（C1 Task 11，F4 的伴随项） | 同一对象里**同时带 `category` 与 `status`** 时的 `hash` 键两侧删除（即 `perf.detail.command.hash`） | oracle 录的是命令内容指纹；**算法不可由黑盒观察推导**：指纹只随命令文本变化（cwd / 描述 / 输出 / 耗时都不影响，探针逐项验证），但 sha1 / sha256 / sha512 / md5 / blake2b / blake2s / xxh64 / xxh3 / xxh128 / fnv1a / murmur3 / crc64 及常见「带壳 / 带盐」形态都不能复现录到的值。指纹是缓存 / 遥测用的实现内部键，不是运行时行为；Rust 侧不伪造（与 F10 同一处置），两侧同删。判据限定「命令统计对象」形状，避免误伤未来别处的普通 `hash` 键。**可审计证据**：28 组「命令 → hash」配对与不变量观察见 `docs/specs/agent-runtime-command-hash-pairs.json` |
 | JSON 文本里的对象键序（C1 Task 11，F11） | 字符串值若**整体**是一个可解析的 JSON **对象**（`{…}`），比较前按对象键稳定排序重新序列化；数组元素顺序**保留** | `model.streaming` 的 `tool_input_delta.delta` 是工具入参的 JSON **文本**：C1 的方案 A 脚本化 provider（测试开关，非生产路径）用 `serde_json` 按字典序输出键，oracle 的 mock 按夹具字面量序输出，多键入参（write / edit / offset+limit）因此文本不同。同一个工具调用的同一份入参，对象键序不是行为；**数组顺序可能是行为**（调度顺序、行序），所以只排序对象键、不碰数组。〔不为此启用 `serde_json/preserve_order`：全局 feature 翻转会改变 DB JSON 列与协议帧的既有字节形状；真实 provider 的 delta 字节来自线上，本来就不存在该差异〕 |
 
 上面没列的一律**逐字比**。要新增白名单，先改本表再改 `normalize.mts`，并在 PR 里说明为什么
@@ -987,7 +987,7 @@ mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）
 | 2 | `checkpoint.created` 的**存储**未接 | write/edit 成功路径在 batch 后、下一轮模型请求前发出（夹具 `write-new` / `edit-*`） | 事件已按夹具形状产出（C1.1 收口；`fileCount`=本批成功写类调用数、`snapshotRef`/`diffRef` 为 `mode-artifact://sess_<id>/tool-result-<id>` 形状占位）；git 快照本体归 Host 面 `git-checkpoint-service`，`agent-core` 不写 | Task 10 发现；Task 11 对齐事件面 |
 | 3 | ~~`turn.started` 缺 `messageId` / `foregroundExecutionId` / `queryId`~~ | 三键存在（`<id>`；`session-lifecycle` 夹具的 `foregroundExecutionId` 是 `runtime_command_<n>`） | **已对齐**（Task 11）：`messageId`/`queryId` 为 uuid、`foregroundExecutionId` 为 `runtime_command_<turnNumber+1>`；`inputId` 夹具里没有，仍不产出 | Task 11 |
 | 4 | ~~`turn.completed` 缺 `cacheStats`~~ | `{totalMessages, cachedMessages, lastCacheHit}`；41 个观察值（38 夹具 + session-lifecycle 2 turn + 回放） | **已对齐**（Task 11）：`totalMessages = 终末请求时消息数 + 6 + (turn 前已有工具结果 ? 1 : 0)`、`cachedMessages = 5`、`lastCacheHit = false`。口径是**拟合规则**（复现全部观察值）；oracle 把请求装配的哪些前缀条目计入这两个数**无法从事件面观察**，实现按算术口径登记于此 | Task 11 |
-| 5 | ~~`tool.updated(scheduled)` 缺 `assistantMessageId`；`canRunParallel` 恒 `true`~~ | `assistantMessageId` 与 `model.streaming` 同一 id；`canRunParallel` **按工具**（Read/Glob/Grep `true`，Bash/Write/Edit `false`） | **已对齐**（Task 11）：id 取当前请求的 assistant 消息 id；`canRunParallel = ToolSpec.read_only`（未注册工具按观察值 `true`）。`Bash` 的 `read_only` 随之改为 `false`（registry 与系统提示快照同步更新） | Task 11 |
+| 5 | ~~`tool.updated(scheduled)` 缺 `assistantMessageId`；`canRunParallel` 恒 `true`~~ | `assistantMessageId` 与 `model.streaming` 同一 id；`canRunParallel` **按工具**（Read/Glob/Grep `true`，Bash/Write/Edit `false`） | **已对齐**（Task 11）：id 取当前请求的 assistant 消息 id；`canRunParallel = ToolSpec.read_only`，但 `TaskControl` 家族（`TaskOutput`/`TaskStop`）按观察恒 `true`（`TaskStop` 的 `read_only=false` 不参与该字段）；未注册工具按观察值 `true`。`Bash` 的 `read_only` 随之改为 `false`（registry 与系统提示快照同步更新） | Task 11；2026-11-17 修复波（I7） |
 | 6 | ~~`tool.updated(result)` 的 `perf` 缺工具级 `detail` 与 `permissionWaitMs`~~ | `detail` 按 kind：`command`（runMs/noOutputMs/exitCode/timedOut/outputBytes/category/count/name/status/hash）与 `filesystem`（readMs/writeMs/fileCount/totalBytes/maxFileBytes/workspaceKind）；Edit 是 `patch`（filesystem + matchMs/hunkCount/matchAttempts）；审批过的调用带 `permissionWaitMs` | **已对齐**（Task 11）：Bash/Write/Edit 按夹具形状产出 detail（`outputBytes` 是 trim 前原始字节；空输出的 `originalBytes` 为 0、`returnedBytes` 为占位文案长度；`hash` 除外，见 §3「命令内容指纹」）；`permissionWaitMs` 只在走过审批时出现 | Task 11 |
 | 7 | `tool.updated(error)` 缺 `error.stack` | JS 栈（`dist` 行号随构建漂移——oracle 自回放基线红的来源之一） | Rust 无 JS 栈，不伪造；比较按 §3「错误栈」两侧删除 `stack` 键 | Task 11（§3 规则） |
 | 8 | ~~`permission.requested` 缺 `fullAccessSupported`~~ | `true`；事件载荷与反向请求 params 不同形（**无** `sessionId`/`turnId`；空 `ruleContent` 时整个键不出现） | **已对齐**（Task 11）：事件载荷是投影（剔 session/turn id、补 `fullAccessSupported:true`、剔空 `ruleContent`）；反向请求帧仍发完整 `PermissionRequest`。审批入参带 schema 默认值（`replace_all:false`），`scheduled.inputByteLength` 仍按原始入参 | Task 11 |
@@ -1006,7 +1006,8 @@ mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）
   ② `category = "other"`（全部已观察命令都是 `other`，词表其余取值未观察）；
   ③ `count = ';' 分段数`（`bash-mixed-streams` 3 段、`bash-output-then-exit-7` 2 段能对上，
   但 `&&` / `||` / 管道是否也计入**未观察**，实现只按 `;` 分）；
-  ④ Bash 的 `readMs=0` / Write 的 `readMs=0` 与 Edit 的 `matchMs`（时间折叠，无行为含义）。
+  ④ Write 的 `readMs=0` 与 Edit 的 `matchMs`（时间折叠，无行为含义；**Bash 没有
+  `readMs`**——只读文件类 detail 才有 `readMs`，Bash 是 `runMs`/`noOutputMs`）。
 
 ### C1.2 权限评估口径
 
@@ -1023,9 +1024,10 @@ mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）
 | --- | --- | --- |
 | 1 | `runtime.contextUsage` / `settings.model.available`（空数组）/ 冷读 `projection.contextWindow`（0，不按历史重算）缺省 | parity §10（Task 7） |
 | 2 | `runtime.goalVerifications` / `goalVerificationTimeline` 缺省（goal 面属 C3） | parity §10（Task 7） |
-| 3 | `session/messages` wire 投影按协议镜像：C1 未建模的 part 类型与工具私有 `metadata`（如 `readFileState`）不进投影 | Task 7；contract §3.7 |
+| 3 | `session/messages` wire 投影按协议镜像：C1 未建模的 part 类型不进投影；工具私有 `metadata.readFileState` 从 wire 的 `state.metadata` 剔除（DB 行保留——若库里有）；`semantics` 从 DB 行原样投影（缺省/不合法则为 `None`） | Task 7；contract §3.7；2026-11-17 修复波 |
 | 4 | 快照 `session.title` 空串、无 `titleSource`（标题生成不实现；DB 行 title 亦空） | Task 7；contract §4-3 |
 | 5 | DB 行数缺口（probe `--replay` 观察）：oracle 在会话里多写 3 行——合成 timeline 消息行（`semantics.origin:"system"`）+ 其 timeline part + `runtime/bash_shell_selection` entry（shell 检测）；C1 均不写（未建模，message/part/session_entry 各 −1） | Task 10 发现（`probe-session-lifecycle.mts --replay`） |
+| 6 | **DB 富形状仍未对齐的面**（不伪造，逐项登记）：`message.data` 缺 `modelSelection` / `contextSnapshot` / `tools` / `planEnabled` / `agent` / `path` / `cost`，user 行 `model` 缺 `variant`，assistant `anchor` 缺 `historyRoundCount` / `orderedMessageIds` / `boundaryMessageId` / `goalBoundary`；`part.data` 缺 `declarationIndex`，tool `state.metadata` 缺 `readFileState`（Read），step-finish 的 `cost` 省略；合成 timeline 消息/part 不写（见 #5）。**已对齐**：per-message `tokens`（每个 assistant 步骤记该步骤模型请求的 usage）、`semantics`、tool `state` 的 `status/input/output/title/time/metadata.schemaVersion/metadata.serialization`。断言见 `crates/agent-server/tests/methods.rs` 的 `db_message_and_part_shape_matches_the_lifecycle_fixture_contract`（对 `fixtures/session-lifecycle/session-lifecycle-db.json` 的逐消息/逐 part 比较，timeline 行按 #5 排除） | 2026-11-17 最终评审修复波 |
 
 ### C1.4 反向请求与偏好
 
@@ -1043,8 +1045,12 @@ mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）
 | 1 | `finish_reason` 的 `length` / `content_filter` → `"stop"`（折叠线上取值） | parity §5.6（Task 4） |
 | 2 | 内存事件日志有界（4096，超出丢最旧）；oracle 无此界 | Task 6 |
 | 3 | worker panic → `RuntimeClosed`（`-32603`；oracle 形态未观察） | Task 6/9 |
-| 4 | C1 存储门 fail-closed：缺账本报 `storage_schema_unsupported`、被占用报 `storage_locked` 等（错误码词表见 `packages/shared/src/database-startup.ts`）；fresh-install migration 归 C2 | parity §6/§8 |
+| 4 | C1 存储门 fail-closed：缺账本报 `storage_schema_unsupported`、写事务 `busy_timeout` 耗尽报 `storage_locked` 等（错误码词表见 `packages/shared/src/database-startup.ts`）；fresh-install migration 归 C2。**没有进程独占锁**：多个合法 workspace 进程可同时通过存储门并共享同一 SQLite（WAL 串行化写） | parity §5.5/§6；2026-11-17 控制器裁决 (a) |
 | 5 | `session_input` 在 v1 immediate/deferred 路径都不写行（oracle 0 行观察） | contract §3.5 |
+| 6 | **工具批次串行执行**：C1 先为整批发 `scheduled`，再逐个串行执行（执行前 `started`、执行后立即 `result`/`error`），最后 `batch`。oracle 同批多调用可并行，完成顺序属无序组②；C1 的串行不改变完成顺序契约，但**多调用批次的 oracle 夹具尚未录制**——回放 harness 对 ≥2 调用的夹具显式报「已登记缺口」而不是静默比较（`replay-agent-server.mts`）。清单：`agent-core` 的 `multi_call_batch_schedules_all_calls_before_first_started` 与慢工具 `started` 先于完成用例 | parity §5.2；2026-11-17 控制器裁决 (b) |
+| 7 | **冷物化恢复**：resume / create-on-existing / 重启从 `message`+`part` 重建 `Session` 模型历史与 `FileState`，turn 计数器按持久化最大 turn 号 +1 续号（turn id 不再从 `turn_0` 重来，`turn_usage` 无主键冲突）。被拒/超时的工具调用在模型历史里补一条拒绝原因的 tool result，保证下一轮 `tool_call` 都有配对结果 | 2026-11-17 最终评审修复波 |
+| 8 | **provider 缓存键**：按 `(providerId, modelId, hub 配置代际)` 缓存；代际由账号快照 revision + builtin/personal 配置文件的指纹组成，personal 配置轮换 key/base URL 后下一个 turn 重新解析（不再复用旧 provider） | 2026-11-17 最终评审修复波 |
+| 9 | `MAX_FRAME_BYTES`（64 MiB）在整行读入后检查：超限帧仍会先占用缓冲区（**有界读取未实现**）。协议正常帧远小于上限；登记为 C1 残余风险 | server.rs；2026-11-17 最终评审 |
 
 ### C1.6 回放 harness 口径说明（**非运行时行为**）
 
@@ -1061,6 +1067,14 @@ mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）
 - **期望侧同投白名单**：夹具的 `expect.events` 是录制时的规范化结果；harness 在比较前把
   `normalizeValue` 也投到期望 payload 上，使录制之后新增的 §3 规则同样生效（对既有规则
   幂等：`<id>`/`<time>`/`<cwd>` 等标记再投一遍不变）。
+- **终态基线在发送前捕获**：每个 prompt 的终态计数基线取 `session.send` 之前的
+  `frames` 长度；`send` 受理与首个终态之间的窗口不再可能被误算成「本 turn 已结束」。
+- **多调用批次是已登记缺口**：≥2 调用的行为夹具没有录制，harness 遇到时显式抛
+  「已登记缺口」错误（见 §C1.5-6），不会用「期望侧先折、实际侧先滤」的半套规则产出
+  假差异。
+- **非三层夹具显式跳过**：`fixtures/` 根下唯一已知的非三层文件是
+  `session-stream.json`（M2 投影快照）；回放用例断言跳过清单**逐字等于**
+  `["session-stream"]`，新增/减少都报红，不静默跳过。
 
 ## 验收场景（Task 0）
 

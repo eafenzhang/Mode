@@ -115,73 +115,89 @@ fn duplicate_part_insert_keeps_the_existing_row() {
 }
 
 #[test]
-fn second_writer_is_locked_out_and_lock_is_released_on_drop() {
-    let root = TempRoot::new("tx-single-writer");
+fn two_stores_share_the_database_and_sqlite_serializes_writes() {
+    let root = TempRoot::new("tx-shared-writers");
     let db_path = root.db_path();
     create_baseline_database(&db_path, &FixtureOptions::default());
-    let lock = lock_path(&db_path);
 
-    let first = SessionStore::open(&db_path).expect("第一个 writer");
-    assert!(lock.exists(), "第一个 writer 必须创建锁文件");
-
-    let error = SessionStore::open(&db_path).expect_err("第二个 writer 必须 fail-closed");
+    // 控制器裁决 (a)：不再有 `<db>.agent-write.lock`；两个 store 都必须能打开。
+    let first = SessionStore::open(&db_path).expect("第一个 workspace writer");
+    let second = SessionStore::open(&db_path).expect("第二个 workspace writer");
     assert!(
-        matches!(error, StoreError::StorageLocked { .. }),
-        "第二个 writer 应报 StorageLocked，实际：{error:?}"
-    );
-    assert_eq!(error.code(), "storage_locked");
-    assert!(
-        error.to_string().contains("agent-write.lock"),
-        "锁错误必须能定位锁文件：{error}"
+        !lock_path(&db_path).exists(),
+        "SessionStore 不应再创建进程独占锁文件"
     );
 
-    drop(first);
-    assert!(!lock.exists(), "Drop 必须释放锁文件");
+    first
+        .create_session(sample_session("s1", "C:/ws/a", 100, false))
+        .expect("第一个 writer 写入");
+    second
+        .create_session(sample_session("s2", "C:/ws/b", 100, false))
+        .expect("第二个 writer 写入");
+    assert_eq!(count_rows(&db_path, "session"), 2);
+    assert!(second.get_session("s1").expect("读").is_some());
+    assert!(first.get_session("s2").expect("读").is_some());
 
-    let third = SessionStore::open(&db_path).expect("锁释放后可以重新打开");
-    drop(third);
-    assert!(!lock.exists());
+    // 并发写：两个连接各自 BEGIN IMMEDIATE，busy_timeout 内必须全部成功。
+    std::thread::scope(|scope| {
+        let first_ref = &first;
+        let second_ref = &second;
+        let left = scope.spawn(move || {
+            for index in 0..10 {
+                first_ref
+                    .create_session(sample_session(&format!("a{index}"), "C:/ws/a", 200, false))
+                    .expect("并发写 a");
+            }
+        });
+        let right = scope.spawn(move || {
+            for index in 0..10 {
+                second_ref
+                    .create_session(sample_session(&format!("b{index}"), "C:/ws/b", 200, false))
+                    .expect("并发写 b");
+            }
+        });
+        left.join().expect("左线程");
+        right.join().expect("右线程");
+    });
+    assert_eq!(count_rows(&db_path, "session"), 22);
 }
 
+/// Node 路径与 Rust store 重叠：Node 不识别任何 Rust 锁文件，二者共享同一 SQLite；
+/// 真正的双写防护是「一个 workspace 一个 Agent」的进程调度，不是库文件锁。
 #[test]
-fn lock_file_records_owner_pid_and_open_time() {
-    let root = TempRoot::new("tx-lock-owner");
+fn node_connection_and_rust_store_overlap_on_the_same_database() {
+    let root = TempRoot::new("tx-node-overlap");
     let db_path = root.db_path();
     create_baseline_database(&db_path, &FixtureOptions::default());
 
-    let store = SessionStore::open(&db_path).expect("打开完整库");
-    let content = std::fs::read_to_string(lock_path(&db_path)).expect("读取锁文件");
-    assert!(
-        content.contains(&format!("pid={}", std::process::id())),
-        "锁文件必须记录 owner pid：{content}"
-    );
-    assert!(
-        content.contains("opened_at_ms="),
-        "锁文件必须记录打开时间：{content}"
-    );
-    drop(store);
-    assert!(!lock_path(&db_path).exists());
-}
+    // 模拟 Node 侧长期打开的一个连接（读已迁移库 + 写一行）。
+    let node = rusqlite::Connection::open(&db_path).expect("Node 侧连接");
+    node.busy_timeout(std::time::Duration::from_secs(5))
+        .expect("busy_timeout");
+    node.execute(
+        "INSERT INTO session (id, project_id, slug, directory, title, version, \
+         time_created, time_updated) \
+         VALUES ('node-row', 'proj_node', 'node-row', 'C:/ws/node', 'node', '0.0.0', 1, 1)",
+        [],
+    )
+    .expect("Node 写入");
 
-#[test]
-fn path_alias_cannot_bypass_write_lock() {
-    let root = TempRoot::new("tx-lock-alias");
-    let db_path = root.db_path();
-    create_baseline_database(&db_path, &FixtureOptions::default());
+    // Rust store 在 Node 连接仍打开时通过 schema 门并写入。
+    let store = SessionStore::open(&db_path).expect("Rust store 打开");
+    store
+        .create_session(sample_session("rust-row", "C:/ws/rust", 100, false))
+        .expect("Rust 写入");
+    assert_eq!(count_rows(&db_path, "session"), 2);
 
-    // `nested/../db.sqlite` 与 `db.sqlite` 是同一个文件；锁必须按 realpath 派生。
-    std::fs::create_dir_all(root.path().join("nested")).expect("创建 nested");
-    let alias = root.path().join("nested").join("..").join("db.sqlite");
-
-    let first = SessionStore::open(&db_path).expect("第一个 writer");
-    let error = SessionStore::open(&alias).expect_err("路径别名不能绕过写锁");
-    assert!(
-        matches!(error, StoreError::StorageLocked { .. }),
-        "别名打开第二个 writer 应报 StorageLocked，实际：{error:?}"
-    );
-
-    drop(first);
-    let third = SessionStore::open(&alias).expect("锁释放后别名可以打开");
-    drop(third);
+    // 双方都能看到对方的行；没有遗留锁文件。
+    let node_count: i64 = node
+        .query_row("SELECT COUNT(*) FROM session", [], |row| row.get(0))
+        .expect("Node 读");
+    assert_eq!(node_count, 2);
+    let rust_row = store
+        .get_session("node-row")
+        .expect("Rust 读")
+        .expect("行存在");
+    assert_eq!(rust_row.directory, "C:/ws/node");
     assert!(!lock_path(&db_path).exists());
 }

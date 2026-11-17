@@ -18,6 +18,7 @@
 //! `docs/specs/tauri-agent-runtime.md` §1.3、`docs/specs/agent-server-c1-contract.md`。
 
 mod dispatch;
+mod history;
 mod lifecycle;
 mod methods;
 mod provider_config;

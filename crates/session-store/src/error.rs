@@ -1,7 +1,7 @@
 //! `session-store` 的错误面。
 //!
 //! `code()` 是给 `startup/storageState` 与 `agent-server` 用的稳定错误码；spec
-//! `agent-core-parity.md` §6 要求 `db.sqlite` 被另一写者持有时报 `storage_locked`，
+//! `agent-core-parity.md` §6 要求写事务在 `busy_timeout` 耗尽时报 `storage_locked`，
 //! 迁移账本缺失/不匹配时报 `storage_schema_unsupported`。
 
 use std::fmt;
@@ -14,7 +14,7 @@ pub enum StoreError {
     StorageSchemaUnsupported {
         reason: String,
     },
-    /// 另一个 `SessionStore` 已持有 `<db>.agent-write.lock`。
+    /// SQLite 写事务在 `busy_timeout` 内拿不到写锁（另一个连接持有写事务）。
     StorageLocked {
         path: PathBuf,
     },
@@ -46,7 +46,7 @@ impl fmt::Display for StoreError {
             }
             Self::StorageLocked { path } => write!(
                 formatter,
-                "会话库已被另一个 writer 持有（锁文件 {}）",
+                "会话库写事务在 busy_timeout 内未拿到写锁：{}",
                 path.display()
             ),
             Self::InvalidInput(message) => write!(formatter, "无效的会话库请求：{message}"),
