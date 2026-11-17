@@ -1105,7 +1105,7 @@ C2 各切片的差异已在 `docs/specs/agent-c2-contract.md` 的 §1.9 / §3.5 
 | - | --- | --- |
 | 1 | `session/compact` 异步受理 | accepted 应答只表达受理；摘要/失败经后续 `turn.*` 事件表达。accepted 的 `snapshot` 是**请求时**状态（pre-compact），不是完成后的最终快照（契约 §1.7）。 |
 | 2 | 事件面收窄 | Rust 产出 `turn.started → turn.completed/turn.failed`；oracle 的 `session.updated`（status 推送、`model_request_started/completed`、边界推送）不在产出面——与 C1 登记缺省事件类型同一口径，回放两侧同删。 |
-| 3 | 并发第二单两种形状 | 执行中第二个 → `already_running`（不动 revision，快照带 `activeTurnId`+`activeTurnKind:"compact"`）；仍在 Queued 窗口受理的第二个 → `accepted → skipped`（`turn.completed` response=`Context is up to date; no compression needed`，只落 skipped timeline 消息 + 2 个 part，不写第二份摘要、不发模型请求）。两种都是真实契约（§1.6）。 |
+| 3 | 并发第二单两种形状 | 执行中第二个 → `already_running`（不动 revision，快照带 `activeTurnId`+`activeTurnKind:"compact"`）；仍在 Queued 窗口受理的第二个 → `accepted → skipped`（`turn.completed` response=`Context is up to date; no compression needed`，只落 skipped timeline 消息 + 2 个 part，不写第二份摘要、不发模型请求）。两种都是真实契约（§1.6）。skipped 的 timeline part 为家族一致性推断（失败路径同形），探针过滤器无法单独裁定 timeline part。 |
 | 4 | skipped 不写 `turn_usage` | 夹具 `dbSkippedRows` 只有 message + compaction part；Rust 不按「每个终态一行」补零值 usage 行。 |
 | 5 | `preCompactTokenCount` / `truePostCompactTokenCount` 是本地估算 | 4 字符 ≈ 1 token 的本地定义（契约 §1.9）；oracle 公式未观察——绝对值不比（回放登记折叠），skipped 终态 `turn.completed.tokenCount` 同族。 |
 | 6 | 失败判定按实际工具调用数 | `tool_call_count > 0` → `Tool use is not allowed during compaction`（retryable false）；零调用+空文本 → `Failed to generate compact summary`（retryable true）。失败行：`finish:"failed"` timeline 消息 + timeline/compaction part（`reason:"model_error"`、`attempt:1`）+ `turn_usage(error/UNKNOWN_ERROR/零 tokens)` + 保留 provider 原始 usage 的 `model_usage`。 |
@@ -1132,23 +1132,24 @@ C2 各切片的差异已在 `docs/specs/agent-c2-contract.md` 的 §1.9 / §3.5 
 | 17 | hot read `runtime.deliveryKind` | 不产出（观察有 `desktop-continuous`）；`session/subscribe` 快照仍回显订阅链路（C1 口径）。 |
 | 18 | `contextUsage.breakdown` | 不产出（键固定 `cache,cost,size,used`）。 |
 | 19 | `reasoning.defaultLevel` 单点假设 | 取档位列表最后一项（观察一致；真实推导未观察）。 |
+| 20 | `cache.latestHitRate` / `hitRate` 公式为确定性选择 | `latestHitRate = cache_read/(input+cache_read)`（最近一次请求）、`hitRate = total_cache_read/(total_input+total_cache_read)`（会话合计）；T0 观察点恒 `0`（契约 §4.2），非零公式真实推导未观察（出处：T1 实现 / T0 契约 §4.2）。 |
 
 **fresh-install 迁移（T7；契约 §5.5）**
 
 | # | 差异 | 说明 |
 | - | --- | --- |
-| 20 | 单步 SQL 切分不可观察 | 22 步的对象归属按迁移名推导，纯数据回填/枚举扩列等无法推导的步登记为 no-op 占位或缺列守卫；可观察契约只有最终 schema + 账本字节（两者均逐字节对齐）。 |
+| 21 | 单步 SQL 切分不可观察 | 22 步的对象归属按迁移名推导，纯数据回填/枚举扩列等无法推导的步登记为 no-op 占位或缺列守卫；可观察契约只有最终 schema + 账本字节（两者均逐字节对齐）。 |
 
 **DB 层未对齐面（T8 对拍新发现；此前任何门禁只比事件/工具/文件三层，未比 DB 行）**
 
 | # | 差异 | 说明 |
 | - | --- | --- |
-| 21 | 会话起点 timeline 行 | oracle 在会话创建时写一条 `assistant/timeline_event` 消息 + `timeline` part（uiVisibility visible / provider hidden）；Rust 不写——compact 前后的 message/part 绝对行号整体差 1（回放按增量行 + 位置折叠比较）。 |
-| 22 | prompt turn 行字段 | oracle 的 user 行带 `agent`/`modelSelection`/`contextSnapshot.envInfo`/`tools`/`model.variant`，assistant 行带 `planEnabled`/`agent`/`path`/`cost` 且不带 `messageId`；Rust 的行缺前者、多 `messageId`/`anchor`。compact/memory 增量行的形状已对齐（T2a/T2b），prompt turn 行未对齐。 |
-| 23 | per-turn `model_usage` | oracle 每个 prompt turn 写 1 行 `model_usage`（query_source `main_turn`）；Rust 只在 compact（含失败）写 `model_usage`，prompt turn 不写。`turn_usage` 的 prompt 行还有 `trace_id`/`first_model_start_at`/`first_token_at` 为 null（oracle 有值）。 |
-| 24 | `session_entry` 第三行 | oracle 有 3 行 runtime entry（`runtime/model_selection`、`runtime/bash_shell_selection`、`runtime/execution_state`）；Rust 2 行。 |
-| 25 | title 三列 | oracle 会话 title = 首条输入（`title_source:"first_input"`）；Rust title 空、`time_title_updated` null——与 C1 登记缺省事件类型 `session.titleUpdated` 同源的快照/DB 物化（回放两侧同删 title/titleSource/time_title_updated）。 |
-| 26 | 热快照 `titleSource` | 热快照（compact accepted 应答等）的 `session.titleSource` 为 `None`（省略）；oracle 录制值 `first_input`（同 #25 的事实源）。 |
+| 22 | 会话起点 timeline 行 | oracle 在会话创建时写一条 `assistant/timeline_event` 消息 + `timeline` part（uiVisibility visible / provider hidden）；Rust 不写——compact 前后的 message/part 绝对行号整体差 1（回放按增量行 + 位置折叠比较）。 |
+| 23 | prompt turn 行字段 | oracle 的 user 行带 `agent`/`modelSelection`/`contextSnapshot.envInfo`/`tools`/`model.variant`，assistant 行带 `planEnabled`/`agent`/`path`/`cost` 且不带 `messageId`；Rust 的行缺前者、多 `messageId`/`anchor`。compact/memory 增量行的形状已对齐（T2a/T2b），prompt turn 行未对齐。 |
+| 24 | per-turn `model_usage` | oracle 每个 prompt turn 写 1 行 `model_usage`（query_source `main_turn`）；Rust 只在 compact（含失败）写 `model_usage`，prompt turn 不写。`turn_usage` 的 prompt 行还有 `trace_id`/`first_model_start_at`/`first_token_at` 为 null（oracle 有值）。 |
+| 25 | `session_entry` 第三行 | oracle 有 3 行 runtime entry（`runtime/model_selection`、`runtime/bash_shell_selection`、`runtime/execution_state`）；Rust 2 行。 |
+| 26 | title 三列 | oracle 会话 title = 首条输入（`title_source:"first_input"`）；Rust title 空、`time_title_updated` null——与 C1 登记缺省事件类型 `session.titleUpdated` 同源的快照/DB 物化（回放两侧同删 title/titleSource/time_title_updated）。 |
+| 27 | 热快照 `titleSource` | 热快照（compact accepted 应答等）的 `session.titleSource` 为 `None`（省略）；oracle 录制值 `first_input`（同 #26 的事实源）。 |
 
 **T8 对拍 harness（非运行时行为）**
 

@@ -274,7 +274,13 @@ T2a 的成功路径已验收；T2b 的并发/失败形状在同一任务内完�
   `already_running`（不入队、不动 revision）；第一个仍在 **Queued** 窗口时到达的
   第二个按 §1.6 trial 4 的 `accepted → skipped` 形状执行——`turn.completed`
   `response:"Context is up to date; no compression needed"`，只落 skipped timeline
-  消息 + 2 个 part，不写第二份摘要、不发起模型请求。
+  消息 + 2 个 part，不写第二份摘要、不发起模型请求。其中 timeline part 为
+  **家族一致性推断**（失败路径同形），探针过滤器只能裁定 compaction part，无法
+  单独裁定 timeline part。
+- **失败 compact 的 `contextUsage.used`**：Rust 只在 compact **成功**时让 usage 进入
+  `runtime.contextUsage`（失败请求的 usage 只落 `model_usage`/`turn_usage` 行）；
+  失败后的 read 视图保留主 prompt 的最后一次请求 total——oracle 的该维度未观察
+  （§1.8 无 contextUsage 记录），登记为 C3 观察点。
 - **skipped 的 `turn_usage`**：夹具 `compact-same-tick` 的 `dbSkippedRows` 只有
   message + compaction part，没有 skipped `turn_usage` 行；Rust 不写该行（不按
   「每个终态一行」的 C1 惯例补零值行）。
@@ -623,7 +629,8 @@ Rust `agent-server` 的快照/读面按 §4 对齐后的形状（`crates/agent-s
   不从消息重算（与 `contextUsage.used` 的恢复语义不同源）。`currentTurnId` =
   本 runtime 生命周期内最近一次已开始的 turn（`turn.started` 时写，终态不清）；
   create/resume 后缺省省略。
-- **`slashCommands` builtin 数据契约**（逐字，`source:"builtin"`，按名排序）：
+- **`slashCommands` builtin 数据契约**（逐字，`source:"builtin"`，顺序取夹具录制顺序
+  `goal, compact, init, plan`，非字母序）：
   `goal`（`Show or set the current session goal.` / `/goal [pause|resume|clear|replace <objective>|<objective>]`）、
   `compact`（`Compact the current conversation with optional instructions.` /
   `/compact [instructions]`）、
@@ -640,6 +647,7 @@ Rust `agent-server` 的快照/读面按 §4 对齐后的形状（`crates/agent-s
 | 3 | hot read `runtime.deliveryKind` | 有已投递输入后 `desktop-continuous`，resume 后没有 | 不产出（`session/subscribe` 的快照仍回显订阅链路，C1 口径不变） |
 | 4 | `contextUsage.breakdown` | 完整 read 带 6 段 chars | 不产出（键固定 `cache,cost,size,used`；T1 起登记） |
 | 5 | 冷读（close 后不 resume 的 read） | 未观察 | 顶层 9 键同面；`settings.model` 无事实（`available:[]`、无 current/lastUsed） |
+| 6 | `cache.latestHitRate` / `hitRate` 公式 | 观察点恒 `0`（§4.2） | 非零公式（最近一次/合计的 `cache_read/(input+cache_read)`）是 T1 的确定性选择，真实推导未观察；汇总见 `tauri-agent-runtime.md` §C2.8 |
 
 ## 5. Fresh-install 迁移账本
 

@@ -375,7 +375,8 @@ pub(crate) fn build_snapshot(
 }
 
 /// builtin `slashCommands` 数据契约（逐字；`agent-c2-contract.md` §4.4 与
-/// `context-usage-settings.json` 的 `slashCommands` 录制值）。按名排序，无 custom 来源。
+/// `context-usage-settings.json` 的 `slashCommands` 录制值）。顺序取夹具录制顺序
+/// （goal, compact, init, plan；非字母序），无 custom 来源。
 pub(crate) fn builtin_slash_commands() -> Vec<SlashCommand> {
     const BUILTINS: [(&str, &str, &str); 4] = [
         (
@@ -567,6 +568,11 @@ fn project_cache_usage(cache: &ContextCacheUsage) -> ProtocolContextCacheUsage {
 }
 
 /// 命中率：没有命中/没有请求时是整数 `0`（与 T0 观察的 JSON 形状一致）。
+///
+/// 非零公式（`hits/total`，`latestHitRate` 用最近一次请求、`hitRate` 用会话合计）
+/// 是 T1 的**确定性选择**，不是观察事实：T0 的观察点恒为 `0`（契约 §4.2），真实
+/// 推导未观察——登记在 `agent-c2-contract.md` §4.5 与 `tauri-agent-runtime.md`
+/// §C2.8（快照与读面组）。
 fn hit_rate_number(hits: u64, total: u64) -> Number {
     if hits == 0 || total == 0 {
         return Number::from(0_u64);
