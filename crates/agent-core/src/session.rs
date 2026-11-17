@@ -515,6 +515,7 @@ impl Session {
                 tools: &self.tools(),
                 messages: &self.messages,
                 model: &self.model_capabilities,
+                memory: None,
             };
             let request = crate::context::build_model_request(&context_input);
 

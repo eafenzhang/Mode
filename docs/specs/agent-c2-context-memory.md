@@ -62,6 +62,35 @@ goal/target（C3）；自动重试/退避（C3）；官方平台/遥测（永久
 - 触发自动 compact 的阈值由 T0 观察决定（比例/绝对值必须记录在契约文档），实现只
   使用观察到的规则；没有观察前不启用自动 compact。
 
+### 2.4 T1 实现注记（2026-11-17）
+
+- `ContextBudget::input_budget()` 只在两个能力都已知时返回
+  `Some(context_window.saturating_sub(max_output_tokens))`；缺失任一为 `None`，
+  饱和到 0，不产生负数。
+- `trim_messages` 是纯函数（不修改输入、无随机性），供 T2 消费：
+  - `assistant(tool_calls)` 与紧随其后的 `tool` 结果是一个原子组，缺结果、多余结果
+    和孤立结果整体不进请求；
+  - 从最新组向最旧保留，预算装不下更旧的组即停止；最新组始终保留（避免当前输入被
+    静默丢弃）；
+  - `compact_needed = 原始合法历史估算 token > 输入预算`；预算未知时恒 `false`；
+  - 估算口径是本地启发式（4 字符 ≈ 1 token，向上取整），不冒充 provider usage。
+  - T1 **不**在 `build_model_request` 中自动裁剪；自动 compact 仍未观察到。
+- 记忆槽：`ContextInput.memory: Option<&MemorySection>`。记忆正文追加到唯一的系统
+  消息末尾（系统提示之后、历史之前），`None`/空白与 C1 v0 逐字节一致；T3 负责读取
+  并构造内容，T1 不读记忆目录。
+- `runtime.contextUsage`（快照）：
+  - 键为 `cache, cost, size, used`；**没有** `percent`，T1 也**不**产出 `breakdown`
+    （chars 分解与 settings 对齐归 T6）；
+  - `used` 是最近一次模型请求的 total tokens（不是 turn 累计，也不是投影的
+    `totalTokenCount`）；
+  - `size` 取 `context_window`；未知为 0，不编默认窗口；
+  - `cache` 在至少有一次请求后出现：`inputTokens`/`cacheReadTokens`/
+    `cacheWriteTokens` 取最近请求，`hitRateRequestCount` 与三个 `total*` 按请求累计；
+    `cost` 恒为 `null`（provider 未上报费用）；
+  - resume 时从已持久化 assistant 消息的 `tokens` 重建（每条带 `tokens.total` 的
+    assistant 行 = 一次完成的请求；oracle 合成的 timeline 消息没有 `total`，不计入），
+    投影计数器仍归 0；与 T0 的 close→resume→read 观察一致。
+
 ## 3. Compact
 
 ### 3.1 方法契约

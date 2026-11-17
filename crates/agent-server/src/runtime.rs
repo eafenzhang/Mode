@@ -47,14 +47,18 @@ use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_core::command_inbox::{CommandInbox, Completion};
+use agent_core::context::{ContextCacheUsage, ContextUsage};
 use agent_core::session::Session;
-use agent_core::{CancelToken, EventSink, ModelProvider, SessionEvent, SessionEventType};
+use agent_core::{
+    CancelToken, EventSink, ModelProvider, ModelUsage, SessionEvent, SessionEventType,
+};
 use agent_protocol::session_event::{
     ModelStreamingKind, ModelStreamingPayload, ToolUpdatedPayload, TurnCompletedPayload,
 };
 use serde_json::{json, Value};
 use session_store::{
-    MessageRecord, PartRecord, SessionRecord, SessionStore, ToolUsageRecord, TurnUsageRecord,
+    MessageRecord, MessageWithParts, PartRecord, SessionRecord, SessionStore, ToolUsageRecord,
+    TurnUsageRecord,
 };
 
 use crate::reverse::{RuntimePreferences, RuntimeWiring};
@@ -103,6 +107,107 @@ struct QueuedInput {
     input_id: String,
 }
 
+/// 一次模型请求的用量快照（`used`/`cache` 的事实面）。
+///
+/// `total_tokens` 以 provider 的 total 为准；从 DB 恢复时直接取消息行
+/// `tokens.total`（oracle 的合成 timeline 消息没有这个键，不能算作请求）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct RequestUsage {
+    input_tokens: u64,
+    total_tokens: u64,
+    cache_read_tokens: u64,
+    cache_write_tokens: u64,
+}
+
+impl RequestUsage {
+    fn from_model_usage(usage: &ModelUsage) -> Self {
+        Self {
+            input_tokens: usage.input_tokens,
+            total_tokens: usage.input_tokens + usage.output_tokens,
+            cache_read_tokens: usage.cache_read_tokens,
+            cache_write_tokens: usage.cache_write_tokens,
+        }
+    }
+}
+
+/// 会话跨 turn 的模型请求用量累计（`runtime.contextUsage` 的唯一事实源）。
+///
+/// 运行期由 [`TurnRecorder::model_usage`] 逐个请求写入；冷物化时从已持久化的
+/// assistant 消息 `tokens` 重建（T0：resume 后投影计数归 0，但 contextUsage 保留）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct UsageAccounting {
+    last_request: Option<RequestUsage>,
+    request_count: u64,
+    total_input_tokens: u64,
+    total_cache_read_tokens: u64,
+    total_cache_write_tokens: u64,
+}
+
+impl UsageAccounting {
+    fn observe(&mut self, usage: &RequestUsage) {
+        self.last_request = Some(*usage);
+        self.request_count += 1;
+        self.total_input_tokens += usage.input_tokens;
+        self.total_cache_read_tokens += usage.cache_read_tokens;
+        self.total_cache_write_tokens += usage.cache_write_tokens;
+    }
+
+    /// 从 `message` 行恢复：每条带 `tokens.total` 的 assistant 消息对应一次完成的
+    /// 模型请求（C1 的 `persist_assistant_step` 逐请求写 tokens）。
+    fn from_messages(messages: &[MessageWithParts]) -> Self {
+        let mut accounting = Self::default();
+        for row in messages {
+            let data = &row.message.data;
+            if data.get("role").and_then(Value::as_str) != Some("assistant") {
+                continue;
+            }
+            let Some(tokens) = data.get("tokens") else {
+                continue;
+            };
+            // 合成 timeline 消息的 tokens 全 0 且没有 total，不是模型请求。
+            let Some(total) = tokens.get("total").and_then(Value::as_u64) else {
+                continue;
+            };
+            accounting.observe(&RequestUsage {
+                input_tokens: tokens.get("input").and_then(Value::as_u64).unwrap_or(0),
+                total_tokens: total,
+                cache_read_tokens: tokens
+                    .get("cache")
+                    .and_then(|cache| cache.get("read"))
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0),
+                cache_write_tokens: tokens
+                    .get("cache")
+                    .and_then(|cache| cache.get("write"))
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0),
+            });
+        }
+        accounting
+    }
+
+    /// 投影成 `ContextUsage`；没有任何模型请求时为 `None`（create 快照没有该键）。
+    ///
+    /// `size` 未知时为 0（不编默认窗口）；`cost` 没有 provider 事实，保持 `None`。
+    fn context_usage(&self, context_window: Option<u64>) -> Option<ContextUsage> {
+        let last = self.last_request?;
+        Some(ContextUsage {
+            used: last.total_tokens,
+            size: context_window.unwrap_or(0),
+            cache: Some(ContextCacheUsage {
+                input_tokens: last.input_tokens,
+                cache_read_tokens: last.cache_read_tokens,
+                cache_write_tokens: last.cache_write_tokens,
+                hit_rate_request_count: self.request_count,
+                total_input_tokens: self.total_input_tokens,
+                total_cache_read_tokens: self.total_cache_read_tokens,
+                total_cache_write_tokens: self.total_cache_write_tokens,
+            }),
+            cost: None,
+        })
+    }
+}
+
 /// 锁内的活跃状态。所有字段只有一个写入方（submit / worker），读方加锁短读。
 struct Live {
     status: RuntimeStatus,
@@ -124,6 +229,8 @@ struct Live {
     inbox: CommandInbox,
     /// 当前运行中 turn 的取消令牌；`None` = 空闲。
     current_cancel: Option<CancelToken>,
+    /// `runtime.contextUsage` 的累计事实（最近一次请求 + 会话请求总数/缓存合计）。
+    usage: UsageAccounting,
 }
 
 /// 跨 submit/worker/snapshot 共享的状态 + 事件总线。
@@ -219,6 +326,9 @@ impl SessionRuntime {
         let turn_ids = store
             .turn_usage_turn_ids(&record.id)
             .map_err(|error| RuntimeError::Store(error.to_string()))?;
+        // `contextUsage` 的冷恢复事实：逐请求的 tokens 已在 assistant 消息里持久化，
+        // 不从 projection 计数器重算（T0：resume 后 projection 归 0，contextUsage 保留）。
+        let usage = UsageAccounting::from_messages(&existing);
         let restored = crate::history::restore(&record.directory, &existing, &turn_ids);
 
         let (bus, _bus_receiver) =
@@ -240,6 +350,7 @@ impl SessionRuntime {
                 seen_inputs: HashMap::new(),
                 inbox: CommandInbox::new(),
                 current_cancel: None,
+                usage,
             }),
             config: RwLock::new(config),
             bus,
@@ -449,6 +560,7 @@ impl SessionRuntime {
     /// （历史消息由 Task 7 的 `session/read` / `session/resume` 从 store 投影）。
     pub fn snapshot(&self) -> agent_protocol::snapshot::SessionStateSnapshot {
         let live = self.shared.lock();
+        let config = self.shared.read_config();
         let view = LiveView {
             status: live.status,
             revision: live.revision,
@@ -457,8 +569,8 @@ impl SessionRuntime {
             turn_count: live.turn_count,
             total_token_count: live.total_token_count,
             event_seq: live.event_seq,
+            context_usage: live.usage.context_usage(config.capabilities.context_window),
         };
-        let config = self.shared.read_config();
         build_snapshot(&self.shared.record, &config, &view)
     }
 
@@ -1378,8 +1490,13 @@ impl EventSink for TurnRecorder {
     }
 
     fn model_usage(&mut self, usage: &agent_core::provider::ModelUsage) {
-        // 请求完成的 usage 只交给落库侧，不进入事件流。
+        // 请求完成的 usage 只交给落库侧（assistant 步骤 tokens），不进入事件流。
         self.last_step_usage = Some(usage.clone());
+        // `runtime.contextUsage` 的唯一运行期写入点：每个完成的请求累计一次。
+        self.shared
+            .lock()
+            .usage
+            .observe(&RequestUsage::from_model_usage(usage));
     }
 }
 

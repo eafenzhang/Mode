@@ -9,16 +9,19 @@
 use std::fmt;
 use std::path::PathBuf;
 
+use agent_core::context::{ContextCacheUsage, ContextUsage};
 use agent_core::{Admission, ModelCapabilities};
 use agent_protocol::message::MessageModel;
 use agent_protocol::session_read::{
     SessionInfo, SessionKind, SessionMode, SessionModel, SessionStatus, SessionWorkspaceRef,
 };
 use agent_protocol::snapshot::{
-    ProtocolInfo, ProtocolName, SessionLastError, SessionModeSettings, SessionModelSettings,
-    SessionProjection, SessionRuntimeState, SessionSettings, SessionStateSnapshot,
-    ThoughtLevelOption, ThoughtLevelSettings,
+    ContextCacheUsage as ProtocolContextCacheUsage, ContextCost as ProtocolContextCost,
+    ProtocolInfo, ProtocolName, SessionContextUsage, SessionLastError, SessionModeSettings,
+    SessionModelSettings, SessionProjection, SessionRuntimeState, SessionSettings,
+    SessionStateSnapshot, ThoughtLevelOption, ThoughtLevelSettings,
 };
+use serde_json::Number;
 use session_store::SessionRecord;
 
 /// 运行时内部的状态档位（快照时投影成协议的 [`SessionStatus`]）。
@@ -171,6 +174,8 @@ pub(crate) struct LiveView {
     pub turn_count: u64,
     pub total_token_count: u64,
     pub event_seq: u64,
+    /// `runtime.contextUsage`；没有任何模型请求时为 `None`（create 快照不带该键）。
+    pub context_usage: Option<ContextUsage>,
 }
 
 /// `mode` 字符串 → 协议枚举。未登记的取值按 `build` 落（与 DB `permission.mode`
@@ -297,7 +302,7 @@ pub(crate) fn build_snapshot(
             active_turn_kind: None,
             pending_request_ids: Vec::new(),
             api_retry: None,
-            context_usage: None,
+            context_usage: live.context_usage.as_ref().map(project_context_usage),
             goal_verifications: None,
             goal_verification_timeline: None,
         },
@@ -308,6 +313,51 @@ pub(crate) fn build_snapshot(
         todo_groups: None,
         slash_commands: None,
     }
+}
+
+/// `contextUsage` 的协议投影（T0 观察键：`used` / `size` / `cache` / `cost`）。
+///
+/// T1 不产出 `breakdown`（T0 只在完整 read 视图出现；chars 分解由 T6 补齐），也没有
+/// `percent`（T0 明确不存在）。`cost` 没有 provider 事实时投影为 `null`。
+fn project_context_usage(usage: &ContextUsage) -> SessionContextUsage {
+    SessionContextUsage {
+        used: usage.used,
+        size: usage.size,
+        cost: Some(usage.cost.as_ref().map(|cost| ProtocolContextCost {
+            amount: cost.amount.clone(),
+            currency: cost.currency.clone(),
+        })),
+        cache: usage.cache.as_ref().map(project_cache_usage),
+        breakdown: None,
+    }
+}
+
+fn project_cache_usage(cache: &ContextCacheUsage) -> ProtocolContextCacheUsage {
+    ProtocolContextCacheUsage {
+        input_tokens: cache.input_tokens,
+        cache_read_tokens: cache.cache_read_tokens,
+        cache_write_tokens: cache.cache_write_tokens,
+        latest_hit_rate: Some(Some(hit_rate_number(
+            cache.cache_read_tokens,
+            cache.input_tokens + cache.cache_read_tokens,
+        ))),
+        hit_rate_request_count: Some(cache.hit_rate_request_count),
+        total_input_tokens: Some(cache.total_input_tokens),
+        total_cache_read_tokens: Some(cache.total_cache_read_tokens),
+        total_cache_write_tokens: Some(cache.total_cache_write_tokens),
+        hit_rate: Some(hit_rate_number(
+            cache.total_cache_read_tokens,
+            cache.total_input_tokens + cache.total_cache_read_tokens,
+        )),
+    }
+}
+
+/// 命中率：没有命中/没有请求时是整数 `0`（与 T0 观察的 JSON 形状一致）。
+fn hit_rate_number(hits: u64, total: u64) -> Number {
+    if hits == 0 || total == 0 {
+        return Number::from(0_u64);
+    }
+    Number::from_f64(hits as f64 / total as f64).unwrap_or_else(|| Number::from(0_u64))
 }
 
 /// 进程级唯一 id：`<prefix>_<毫秒>_<计数>`。只要求进程内单调唯一（持久化行的
