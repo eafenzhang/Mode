@@ -1076,6 +1076,16 @@ mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）
   `session-stream.json`（M2 投影快照）；回放用例断言跳过清单**逐字等于**
   `["session-stream"]`，新增/减少都报红，不静默跳过。
 
+### C1.7 C2 追加登记（provider 扩展）
+
+| # | 差异 | 出处 |
+| --- | --- | --- |
+| 1 | Anthropic 请求体：`system` 用顶层 text 块数组（不借用 oracle 的字符串拼接形状；公开 API 两种都合法），`max_tokens` 未配置能力时取文档化常量 8192 | C2 §4.1.1；T4（2026-11-17） |
+| 2 | Anthropic thinking：请求侧不发 `thinking`（无能力输入）；流侧 thinking 内容不产出 `ModelDelta`（中立枚举无 reasoning 变体），只消费不转发 | C2 §4.1.1；T4（2026-11-17） |
+| 3 | Anthropic `stop_reason`：`max_tokens` / `stop_sequence` / 未列举值折叠为 `"stop"`（会话层只区分 `stop` / `tool-calls`） | C2 §4.1.1；T4（2026-11-17） |
+| 4 | Anthropic 流缺 `message_stop` 或仍有未收口 content block 时显式 `ProviderError`（不把截断流当成功终态；delta 保留、turn.failed 一次归 C2 §8） | C2 §4.1.1；T4（2026-11-17） |
+| 5 | `api_format=anthropic-messages` 由 `provider_config` 解析并在 `HubProviderSource` 装配 Anthropic provider；`to_openai_chat_config` 仍只接受 chat-completions，`to_anthropic_messages_config` 只接受 anthropic-messages | C2 §4.3；T4（2026-11-17） |
+
 ## 验收场景（Task 0）
 
 1. `pnpm test:agent-runtime-oracle`（唯一入口；等价于

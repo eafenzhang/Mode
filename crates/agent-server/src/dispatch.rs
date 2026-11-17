@@ -20,12 +20,13 @@ use agent_protocol::session::WorkspaceRef;
 use agent_protocol::NotificationFrame;
 
 use crate::provider_config::{
-    ProviderConfigError, ProviderConfigHub, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
+    ApiFormat, ProviderConfigError, ProviderConfigHub, ResolvedProvider,
+    PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
 use crate::reverse::ReverseHub;
 use crate::runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
 use crate::server::ServerError;
-use provider_http::{OpenAiChatConfig, OpenAiChatProvider};
+use provider_http::{AnthropicMessagesProvider, OpenAiChatConfig, OpenAiChatProvider};
 
 use agent_core::ModelCapabilities;
 use tokio::io::AsyncWrite;
@@ -65,9 +66,9 @@ impl ServerConfig {
     }
 }
 
-/// 生产 provider 装配源：hub 三层合并解析 → OpenAI Chat Completions 适配器。
+/// 生产 provider 装配源：hub 三层合并解析 → 按 `api_format` 选适配器
+/// （OpenAI Chat Completions / Anthropic Messages，C2 §4.3）。
 ///
-/// Anthropic / Responses 属 C2（`ResolvedProvider::to_openai_chat_config` 显式报不支持）。
 /// 账号型 provider（`zhipu-account` 族）的鉴权材料来自宿主反向请求
 /// `interaction/requestProviderRuntimeHeaders`（Task 8 控制器裁决 4）：连接级
 /// [`ReverseHub`] 存在且带会话上下文时发起请求；`headersApplied:true` 用
@@ -86,6 +87,7 @@ impl HubProviderSource {
 
     /// 解析成 OpenAI Chat Completions 配置（不含 provider 实例化；测试断言 key 用）。
     ///
+    /// Anthropic 等其它格式在这里显式报不支持（`to_openai_chat_config` 的格式校验）。
     /// 阻塞等待宿主应答——调用方（worker）把 resolve 放在 `spawn_blocking` 上。
     pub fn resolve_openai_config(
         &self,
@@ -93,26 +95,34 @@ impl HubProviderSource {
         model_id: &str,
         context: Option<&ProviderRequestContext>,
     ) -> Result<OpenAiChatConfig, String> {
+        self.resolve_provider_facts(provider_id, model_id, context)?
+            .to_openai_chat_config()
+            .map_err(|error| error.to_string())
+    }
+
+    /// 解析 provider 事实（端点 + 凭据 + `api_format`），不实例化适配器。
+    ///
+    /// 账号型 provider：凭据在宿主手里（OAuth→API Key 兑换）。钩子不可用
+    /// （无连接级 hub / 无会话上下文）或宿主拒绝时，落回既有显式缺 key 错误。
+    fn resolve_provider_facts(
+        &self,
+        provider_id: &str,
+        model_id: &str,
+        context: Option<&ProviderRequestContext>,
+    ) -> Result<ResolvedProvider, String> {
         let selection = model_selection::ModelSelection {
             provider_id: provider_id.to_owned(),
             model_id: model_id.to_owned(),
             options: None,
         };
-        let config = match self.hub.resolve(&selection) {
-            Ok(resolved) => resolved
-                .to_openai_chat_config()
-                .map_err(|error| error.to_string())?,
+        match self.hub.resolve(&selection) {
+            Ok(resolved) => Ok(resolved),
             Err(ProviderConfigError::MissingEndpointField {
                 field: "access.apiKey",
                 ..
-            }) => {
-                // 账号型 provider：凭据在宿主手里（OAuth→API Key 兑换）。钩子不可用
-                // （无连接级 hub / 无会话上下文）或宿主拒绝时，落回既有显式错误。
-                self.resolve_account_via_host(&selection, context)?
-            }
-            Err(error) => return Err(error.to_string()),
-        };
-        Ok(config)
+            }) => self.resolve_account_via_host(&selection, context),
+            Err(error) => Err(error.to_string()),
+        }
     }
 
     /// 账号型 provider 的宿主钩子路径（`interaction/requestProviderRuntimeHeaders`）。
@@ -120,7 +130,7 @@ impl HubProviderSource {
         &self,
         selection: &model_selection::ModelSelection,
         context: Option<&ProviderRequestContext>,
-    ) -> Result<OpenAiChatConfig, String> {
+    ) -> Result<ResolvedProvider, String> {
         let missing_key = || {
             crate::provider_config::ProviderConfigError::MissingEndpointField {
                 provider_id: selection.provider_id.clone(),
@@ -184,12 +194,8 @@ impl HubProviderSource {
         let Some(api_key) = api_key else {
             return Err(missing_key());
         };
-        let resolved = self
-            .hub
+        self.hub
             .resolve_account_provider(&target, api_key)
-            .map_err(|error| error.to_string())?;
-        resolved
-            .to_openai_chat_config()
             .map_err(|error| error.to_string())
     }
 }
@@ -201,10 +207,32 @@ impl ProviderSource for HubProviderSource {
         model_id: &str,
         context: Option<&ProviderRequestContext>,
     ) -> Result<Arc<dyn agent_core::ModelProvider>, String> {
-        let config = self.resolve_openai_config(provider_id, model_id, context)?;
-        let provider = OpenAiChatProvider::new(config)
-            .map_err(|error| format!("构建模型适配器失败: {error}"))?;
-        Ok(Arc::new(provider))
+        let resolved = self.resolve_provider_facts(provider_id, model_id, context)?;
+        // C2 §4.3：api_format 决定适配器；未支持格式显式报错，不静默回落。
+        match resolved.api_format {
+            ApiFormat::OpenAiChatCompletions => {
+                let config = resolved
+                    .to_openai_chat_config()
+                    .map_err(|error| error.to_string())?;
+                let provider = OpenAiChatProvider::new(config)
+                    .map_err(|error| format!("构建模型适配器失败: {error}"))?;
+                Ok(Arc::new(provider))
+            }
+            ApiFormat::AnthropicMessages => {
+                let config = resolved
+                    .to_anthropic_messages_config()
+                    .map_err(|error| error.to_string())?;
+                let provider = AnthropicMessagesProvider::new(config)
+                    .map_err(|error| format!("构建模型适配器失败: {error}"))?;
+                Ok(Arc::new(provider))
+            }
+            ApiFormat::OpenAiResponses => Err(ProviderConfigError::UnsupportedApiFormat {
+                provider_id: resolved.provider_id.clone(),
+                model_id: resolved.model_id.clone(),
+                api_format: resolved.api_format.as_str().to_owned(),
+            }
+            .to_string()),
+        }
     }
 
     /// 账号 revision + builtin/personal 文件指纹；personal 配置轮换后下一个 turn
@@ -277,7 +305,7 @@ impl AgentServer {
     ///
     /// provider 装配源（Task 10）：`MODE_AGENT_SERVER_SCRIPTED_PROVIDER` 指向 oracle
     /// 行为夹具时改用脚本化装配（**仅测试可达**，无默认路径）；否则生产恒为
-    /// [`HubProviderSource`]（三层合并 → OpenAI Chat Completions）。
+    /// [`HubProviderSource`]（三层合并 → 按 `api_format` 选适配器）。
     pub fn new() -> Self {
         let hub = Arc::new(ProviderConfigHub::from_env());
         let reverse = Arc::new(RwLock::new(None));

@@ -129,6 +129,31 @@ goal/target（C3）；自动重试/退避（C3）；官方平台/遥测（永久
 - usage：input/output/cache_read/cache_creation；错误显式（401/403/5xx/流内 error）。
 - 不做重试（C3）。
 
+#### 4.1.1 T4 实现注记（2026-11-17）
+
+- 端点：`POST {base_url}/v1/messages`（base_url 末尾 `/` 去掉后拼）；默认头
+  `content-type: application/json`、`x-api-key`、`anthropic-version: 2023-06-01`。
+  `extra_headers` 与 Chat Completions 同一替换语义：同名（大小写不敏感）覆盖默认头，
+  不产生重复行；`AnthropicMessagesConfig.anthropic_version` 是版本头的显式配置值，
+  `extra_headers` 里的 `anthropic-version` 优先级更高。
+- `system` 映射为顶层 `system` 的 text 块数组（多条 `System` 保序保留边界；没有
+  `System` 时省略键）。`User` → user text 块；`Assistant` → text + `tool_use` 块；
+  `ToolResult` → 独立 user 消息的 `tool_result` 块（`tool_use_id` 原样）。
+- `max_tokens` 必填：配置有 `max_output_tokens` 时用它；没有时用命名常量
+  `DEFAULT_MAX_OUTPUT_TOKENS = 8192`（T0 在 oracle 的 compact 请求里观察到
+  `max_tokens:8192`，见 `agent-c2-contract.md` §1.4）。这是 wire 必填项的文档化回退，
+  **不**声称是模型能力（能力仍以模型目录的 `None` 为准）。
+- 请求侧 thinking 配置未建模（没有能力输入），不发 `thinking` 字段；流侧仍消费
+  `thinking` / `redacted_thinking` 块与 `thinking_delta` / `signature_delta`。
+- `ModelDelta` 没有 reasoning 变体：thinking 内容**不**产出 delta（显式登记的丢弃，
+  不是静默丢失——`signature_delta` 同样只消费）。thinking token 计入 Anthropic 的
+  `output_tokens`，`ModelUsage.reasoning_tokens` 保持 0。
+- `stop_reason`：`tool_use` → `"tool-calls"`；`end_turn` / `max_tokens` /
+  `stop_sequence`（以及未列举值）→ `"stop"`；缺失时按已产出工具调用推断。
+- 流必须以 `message_stop` 收尾且所有 content block 已 `content_block_stop`；否则
+  显式 `ProviderError`（截断流不伪装成成功终态）。401/403/5xx、流内 `error` 事件、
+  非法 JSON、sink 关闭都是显式错误；不重试（C3）。
+
 ### 4.2 OpenAI Responses
 
 - `POST {base_url}/responses`，`stream:true`；请求映射：`instructions`（系统）、

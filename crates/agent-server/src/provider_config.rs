@@ -14,9 +14,10 @@
 //! [`ResolvedProvider`]（端点 + 凭据 + 能力），供 Task 7 的 `session/create` 构造
 //! `provider-http` 适配器。
 //!
-//! 安全边界：`Debug`/`Display` 与错误文案永不携带 API key（镜像 `OpenAiChatConfig`
-//! 的掩码做法）；Anthropic / Responses 的适配器属 C2，这里显式报不支持而不是静默
-//! 走错协议。本模块不做任何网络请求、不做 env 级模型 URL 重写、不连官方平台。
+//! 安全边界：`Debug`/`Display` 与错误文案永不携带 API key（镜像
+//! `OpenAiChatConfig` / `AnthropicMessagesConfig` 的掩码做法）；OpenAI Responses
+//! 适配器属 C2 · Task 5，这里显式报不支持而不是静默走错协议。本模块不做任何网络
+//! 请求、不做 env 级模型 URL 重写、不连官方平台。
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -36,7 +37,7 @@ use provider_config_repository::{
     MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
 };
 use provider_config_source::{read_snapshot, ProviderConfigSnapshot};
-use provider_http::OpenAiChatConfig;
+use provider_http::{AnthropicMessagesConfig, OpenAiChatConfig};
 use provider_resolver::ProviderConfigResolverInput;
 use serde::Deserialize;
 use serde_json::Value;
@@ -44,8 +45,8 @@ use serde_json::Value;
 /// 宿主 → Agent 的账号 Provider 配置交付方法名（与 `agent-process` 的发送方常量同值）。
 pub const PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD: &str = "provider/updateAccountConfig";
 
-/// 模型端点的线上协议格式。C1 只适配 OpenAI Chat Completions；其余值保留枚举身份，
-/// 在解析出口显式报错（Anthropic / Responses 属 C2）。
+/// 模型端点的线上协议格式。C1 适配 OpenAI Chat Completions，C2 · T4 增加
+/// Anthropic Messages；OpenAI Responses 保留枚举身份，仍显式报不支持（C2 · T5）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApiFormat {
     OpenAiChatCompletions,
@@ -89,7 +90,7 @@ pub enum ProviderConfigError {
         model_id: String,
         field: &'static str,
     },
-    /// `api.type` 存在但不是 C1 支持的 OpenAI Chat Completions。
+    /// `api.type` 存在但当前没有对应适配器（或请求的映射方向不匹配）。
     UnsupportedApiFormat {
         provider_id: String,
         model_id: String,
@@ -144,7 +145,7 @@ impl fmt::Display for ProviderConfigError {
                 api_format,
             } => write!(
                 formatter,
-                "Provider {provider_id} 模型 {model_id} 的 apiFormat {api_format} 暂不支持（Anthropic/Responses 属 C2）"
+                "Provider {provider_id} 模型 {model_id} 的 apiFormat {api_format} 暂不支持（当前适配 openai-chat-completions / anthropic-messages）"
             ),
         }
     }
@@ -220,17 +221,13 @@ impl fmt::Debug for AccountRuntimeHeadersTarget {
 }
 
 impl ResolvedProvider {
-    /// 映射到 Task 4 的 OpenAI Chat Completions 适配器配置。
+    /// 映射到 OpenAI Chat Completions 适配器配置。
     ///
-    /// `api_format` 不是 `openai-chat-completions` 时显式报不支持——Anthropic /
-    /// Responses 适配器属 C2，不允许静默走错协议。
+    /// `api_format` 不是 `openai-chat-completions` 时显式报不支持，不允许静默走错协议
+    /// （Anthropic 走 [`Self::to_anthropic_messages_config`]）。
     pub fn to_openai_chat_config(&self) -> Result<OpenAiChatConfig, ProviderConfigError> {
         if self.api_format != ApiFormat::OpenAiChatCompletions {
-            return Err(ProviderConfigError::UnsupportedApiFormat {
-                provider_id: self.provider_id.clone(),
-                model_id: self.model_id.clone(),
-                api_format: self.api_format.as_str().to_owned(),
-            });
+            return Err(self.unsupported_format());
         }
         Ok(OpenAiChatConfig {
             base_url: self.base_url.clone(),
@@ -239,6 +236,34 @@ impl ResolvedProvider {
             max_output_tokens: self.max_output_tokens,
             extra_headers: self.headers.clone(),
         })
+    }
+
+    /// 映射到 Anthropic Messages 适配器配置（C2 · Task 4）。
+    ///
+    /// `api_format` 不是 `anthropic-messages` 时显式报不支持。provider 配置没有
+    /// `anthropic-version` 字段，版本头用适配器的公开文档默认值（`None`）。
+    pub fn to_anthropic_messages_config(
+        &self,
+    ) -> Result<AnthropicMessagesConfig, ProviderConfigError> {
+        if self.api_format != ApiFormat::AnthropicMessages {
+            return Err(self.unsupported_format());
+        }
+        Ok(AnthropicMessagesConfig {
+            base_url: self.base_url.clone(),
+            api_key: self.api_key.clone(),
+            model: self.model_id.clone(),
+            max_output_tokens: self.max_output_tokens,
+            extra_headers: self.headers.clone(),
+            anthropic_version: None,
+        })
+    }
+
+    fn unsupported_format(&self) -> ProviderConfigError {
+        ProviderConfigError::UnsupportedApiFormat {
+            provider_id: self.provider_id.clone(),
+            model_id: self.model_id.clone(),
+            api_format: self.api_format.as_str().to_owned(),
+        }
     }
 }
 
@@ -493,8 +518,8 @@ impl ProviderConfigHub {
 
     /// 宿主回 `requestAuth.apiKey` 后把账号型事实拼回可执行端点。
     ///
-    /// `api_format` 不是 OpenAI Chat Completions 时显式报不支持（与
-    /// [`ResolvedProvider::to_openai_chat_config`] 同一出口）。
+    /// 返回的 `api_format` 由适配器选择出口（[`ResolvedProvider::to_openai_chat_config`]
+    /// / [`ResolvedProvider::to_anthropic_messages_config`]）校验，本方法不做协议裁决。
     pub fn resolve_account_provider(
         &self,
         target: &AccountRuntimeHeadersTarget,
@@ -562,13 +587,7 @@ impl ProviderConfigHub {
                 Field::Value(ProviderApiType::OpenAiChatCompletions) => {
                     ApiFormat::OpenAiChatCompletions
                 }
-                Field::Value(ProviderApiType::AnthropicMessages) => {
-                    return Err(ProviderConfigError::UnsupportedApiFormat {
-                        provider_id: selection.provider_id.clone(),
-                        model_id: selection.model_id.clone(),
-                        api_format: ProviderApiType::AnthropicMessages.as_str().to_owned(),
-                    });
-                }
+                Field::Value(ProviderApiType::AnthropicMessages) => ApiFormat::AnthropicMessages,
                 Field::Value(ProviderApiType::OpenAiResponses) => {
                     return Err(ProviderConfigError::UnsupportedApiFormat {
                         provider_id: selection.provider_id.clone(),

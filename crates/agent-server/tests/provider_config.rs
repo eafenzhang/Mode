@@ -6,20 +6,22 @@
 //!   才会把该 revision 标记为已交付）；
 //! - 账号 Overlay（内存快照）+ Personal/Built-in 文件层经 `provider-resolver` 合并后，
 //!   `providerId/modelId` 解析出 base URL、API key、apiFormat 与模型能力；
-//! - 缺 key / 缺 URL / 不支持的 apiFormat（Anthropic/Responses 属 C2）显式报错；
+//! - 缺 key / 缺 URL / 不支持的 apiFormat（OpenAI Responses 属 C2 · T5）显式报错；
+//! - Anthropic Messages 的端点解析与适配器配置映射（C2 · T4）；
 //! - `Debug`/`Display` 永不打印 API key。
 //!
 //! 本文件全部测试只读临时目录与内存快照，不创建任何网络连接；resolved base URL
 //! 是测试自写的 mock 端点，官方平台端点（api.z.ai / open.bigmodel.cn 等）断言不出现。
 
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
 
 use agent_server::{
-    AccountRuntimeHeadersTarget, AgentServer, ProviderConfigError, ProviderConfigHub,
-    ResolvedProvider,
+    AccountRuntimeHeadersTarget, AgentServer, HubProviderSource, ProviderConfigError,
+    ProviderConfigHub, ProviderSource, ResolvedProvider,
 };
 use model_selection::{ModelSelection, SelectionOptions};
-use provider_http::OpenAiChatConfig;
+use provider_http::{AnthropicMessagesConfig, OpenAiChatConfig};
 use serde_json::{json, Value};
 
 /// 官方平台端点片段：resolved 端点与任何输出都不得出现（本模块不做网络请求）。
@@ -499,29 +501,75 @@ fn resolve_rejects_unsupported_api_formats() {
     let personal = root.join("provider_config.json");
     let hub = ProviderConfigHub::with_paths(builtin, &personal);
 
-    for api_type in ["anthropic-messages", "openai-responses"] {
-        write_personal_file(
-            &personal,
-            &[personal_provider_rule(
-                "mock-chat",
-                api_type,
-                Some("http://127.0.0.1:9/v1"),
-                api_key_access(json!("mock-key-abc")),
-            )],
-            personal_model_rules("mock-chat", "mock-1"),
-        );
-        let error = hub
-            .resolve(&selection("mock-chat", "mock-1"))
-            .expect_err("Anthropic/Responses 属 C2，C1 显式报不支持");
-        assert!(
-            matches!(error, ProviderConfigError::UnsupportedApiFormat { .. }),
-            "实际错误：{error:?}"
-        );
-        let message = error.to_string();
-        assert!(message.contains("mock-chat"), "message={message}");
-        assert!(message.contains("mock-1"), "message={message}");
-        assert!(message.contains(api_type), "message={message}");
-    }
+    // Anthropic Messages 自 C2 · T4 起支持；OpenAI Responses 仍显式报不支持（T5）。
+    let api_type = "openai-responses";
+    write_personal_file(
+        &personal,
+        &[personal_provider_rule(
+            "mock-chat",
+            api_type,
+            Some("http://127.0.0.1:9/v1"),
+            api_key_access(json!("mock-key-abc")),
+        )],
+        personal_model_rules("mock-chat", "mock-1"),
+    );
+    let error = hub
+        .resolve(&selection("mock-chat", "mock-1"))
+        .expect_err("OpenAI Responses 属 C2 · T5，当前显式报不支持");
+    assert!(
+        matches!(error, ProviderConfigError::UnsupportedApiFormat { .. }),
+        "实际错误：{error:?}"
+    );
+    let message = error.to_string();
+    assert!(message.contains("mock-chat"), "message={message}");
+    assert!(message.contains("mock-1"), "message={message}");
+    assert!(message.contains(api_type), "message={message}");
+}
+
+#[test]
+fn resolve_supports_anthropic_messages_format() {
+    let root = temp_root("anthropic-format");
+    let builtin = write_builtin(&root);
+    let personal = root.join("provider_config.json");
+    write_personal_file(
+        &personal,
+        &[personal_provider_rule(
+            "mock-anthropic",
+            "anthropic-messages",
+            Some("http://127.0.0.1:9"),
+            api_key_access(json!("mock-key-abc")),
+        )],
+        personal_model_rules("mock-anthropic", "mock-1"),
+    );
+    let hub = ProviderConfigHub::with_paths(builtin, &personal);
+
+    let resolved = hub
+        .resolve(&selection("mock-anthropic", "mock-1"))
+        .expect("C2 · T4 支持 anthropic-messages");
+    assert_eq!(
+        resolved.api_format,
+        agent_server::ApiFormat::AnthropicMessages
+    );
+    assert_eq!(resolved.base_url, "http://127.0.0.1:9");
+    assert_eq!(resolved.max_output_tokens, Some(8192));
+
+    let config = resolved
+        .to_anthropic_messages_config()
+        .expect("anthropic-messages 映射");
+    assert_eq!(config.base_url, "http://127.0.0.1:9");
+    assert_eq!(config.api_key, "mock-key-abc");
+    assert_eq!(config.model, "mock-1");
+    assert_eq!(config.max_output_tokens, Some(8192));
+    assert!(config.extra_headers.is_empty());
+    assert_eq!(
+        config.anthropic_version, None,
+        "provider 配置没有版本字段，使用适配器默认版本头"
+    );
+    // 反向映射仍显式拒绝：格式与适配器必须一一对应。
+    let error = resolved
+        .to_openai_chat_config()
+        .expect_err("anthropic-messages 不能映射到 chat completions");
+    assert!(error.to_string().contains("anthropic-messages"));
 }
 
 #[test]
@@ -656,6 +704,86 @@ fn to_openai_chat_config_maps_endpoint_headers_and_limits() {
     assert_eq!(config.max_output_tokens, Some(8192));
     assert_eq!(config.extra_headers.len(), 2);
     assert_eq!(config.extra_headers[1].1, "Bearer gateway");
+}
+
+#[test]
+fn to_anthropic_messages_config_maps_endpoint_headers_and_rejects_other_formats() {
+    let resolved = ResolvedProvider {
+        provider_id: "mock-anthropic".to_owned(),
+        model_id: "mock-1".to_owned(),
+        base_url: "http://127.0.0.1:9".to_owned(),
+        api_key: "mock-key-abc".to_owned(),
+        api_format: agent_server::ApiFormat::AnthropicMessages,
+        max_output_tokens: Some(4096),
+        context_window: Some(200_000),
+        headers: vec![
+            ("X-Custom".to_owned(), "1".to_owned()),
+            ("X-Api-Key".to_owned(), "gateway-key".to_owned()),
+        ],
+    };
+    let config: AnthropicMessagesConfig = resolved
+        .to_anthropic_messages_config()
+        .expect("anthropic-messages");
+    assert_eq!(config.base_url, "http://127.0.0.1:9");
+    assert_eq!(config.api_key, "mock-key-abc");
+    assert_eq!(config.model, "mock-1");
+    assert_eq!(config.max_output_tokens, Some(4096));
+    assert_eq!(config.extra_headers.len(), 2);
+    assert_eq!(config.extra_headers[1].1, "gateway-key");
+    assert_eq!(config.anthropic_version, None);
+    // 掩码纪律：Debug 不打印 key（头值只显示头名）。
+    let rendered = format!("{config:?}");
+    assert!(!rendered.contains("mock-key-abc"), "rendered={rendered}");
+    assert!(!rendered.contains("gateway-key"), "rendered={rendered}");
+
+    let chat = ResolvedProvider {
+        api_format: agent_server::ApiFormat::OpenAiChatCompletions,
+        ..resolved
+    };
+    let error = chat
+        .to_anthropic_messages_config()
+        .expect_err("chat-completions 不能映射到 Anthropic 适配器");
+    let message = error.to_string();
+    assert!(message.contains("mock-anthropic"), "message={message}");
+    assert!(
+        message.contains("openai-chat-completions"),
+        "message={message}"
+    );
+    assert!(!message.contains("mock-key-abc"), "message={message}");
+}
+
+/// 选择面：`api_format=anthropic-messages` 时 `HubProviderSource::resolve` 走 Anthropic
+/// 分支并成功构造 provider。构造只建 reqwest client，不发起网络连接；若误走 chat 分支，
+/// `to_openai_chat_config` 的格式校验会失败，因此 Ok 本身就证明选了 Anthropic 适配器。
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn anthropic_messages_selection_builds_anthropic_provider_without_network() {
+    let root = temp_root("anthropic-selection");
+    let builtin = write_builtin(&root);
+    let personal = root.join("provider_config.json");
+    write_personal_file(
+        &personal,
+        &[personal_provider_rule(
+            "mock-anthropic",
+            "anthropic-messages",
+            Some("http://127.0.0.1:9"),
+            api_key_access(json!("mock-key-abc")),
+        )],
+        personal_model_rules("mock-anthropic", "mock-1"),
+    );
+    let source = HubProviderSource::new(
+        Arc::new(ProviderConfigHub::with_paths(builtin, &personal)),
+        Arc::new(RwLock::new(None)),
+    );
+    let provider = source
+        .resolve("mock-anthropic", "mock-1", None)
+        .expect("anthropic-messages 应装配成功（只构建客户端，不发请求）");
+    drop(provider);
+
+    // 同一个 source 的 chat 解析出口仍显式拒绝 Anthropic（映射方向一一对应）。
+    let error = source
+        .resolve_openai_config("mock-anthropic", "mock-1", None)
+        .expect_err("Anthropic 端点不能当成 chat-completions 使用");
+    assert!(error.contains("anthropic-messages"), "error={error}");
 }
 
 // ---------------------------------------------------------------------------
