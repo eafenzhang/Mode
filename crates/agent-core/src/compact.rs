@@ -99,13 +99,16 @@ impl CompactResponseError {
 
 /// 校验 compact 的模型响应：工具调用先于空文本判定（两者都存在时按工具调用报错）。
 ///
+/// 判定只看**实际工具调用数**，不看 `stopReason`：T0 的 empty 失败用例里 provider
+/// 也返回 `finishReason:"tool-calls"`（`toolCalls:[]`），若按 stop reason 归类会把
+/// 空摘要误报成工具调用（`agent-c2-contract.md` §1.8 的两种失败消息不同）。
+///
 /// 成功返回**原样**的摘要正文（落库 `summary.body` 是模型返回文本，不 trim 改写）。
 pub fn validate_compact_response(
     tool_call_count: usize,
-    stop_reason: &str,
     text: &str,
 ) -> Result<String, CompactResponseError> {
-    if tool_call_count > 0 || stop_reason == "tool-calls" {
+    if tool_call_count > 0 {
         return Err(CompactResponseError::ToolUseNotAllowed);
     }
     if text.trim().is_empty() {

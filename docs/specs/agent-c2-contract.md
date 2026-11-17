@@ -256,18 +256,45 @@ preCompactTokenCount, replace:true, startedAt, endedAt}` + `turn.completed`
   `http://127.0.0.1:1` 后 compact 仍使用原 mock（配置在运行时物化时缓存），因此只能
   录制「provider 响应不可用」这一类失败（见 §6）。
 
-### 1.9 Rust C2 现状（T2a，2026-11-17）
+### 1.9 Rust C2 现状（T2a/T2b，2026-11-17）
 
-T2a 只交付 `session/compact` 的正常路径；以下是与 §1.1–§1.4 观察值的实现注记，
-并发/失败形态（§1.6/§1.8）的验收归 T2b。
+T2a 的成功路径已验收；T2b 的并发/失败形状在同一任务内完成对拍，不再是「未实现」。
+以下是与 §1.1–§1.8 观察值的实现注记。
 
 - **受理快照**：`accepted` 应答的 `snapshot` 在受理临界区内构造，是**请求时**状态
   （与 §1.7 一致）；C1 的最小快照没有 `messages`/`breakdown`，本切片不补。受理推进
   一次 `stateRevision`，终态再推进一次（oracle 只观察到受理后的 10 → 11；终态 +1
-  沿用 C1 的「每次接受/终态推进」规则）。
-- **事件面**：Rust 产出 `turn.started` → `turn.completed`（成功）两条；oracle 的
-  `session.updated`（`status:"started"`、`model_request_started/completed`、边界、
-  `status:"completed"`）不在本切片产出面，与 C1 的「登记缺省事件类型」同一口径。
+  沿用 C1 的「每次接受/终态推进」规则）。`already_running` 不推进 revision，快照带
+  `activeTurnId` + `activeTurnKind:"compact"`（§1.6 trial 1 形状）。
+- **事件面**：Rust 产出 `turn.started` → `turn.completed`（成功/跳过）或
+  `turn.failed`（provider / 配置失败）；oracle 的 `session.updated`
+  （`status:"started"`、`model_request_started/completed`、边界、`status:"completed"`）
+  不在产出面，与 C1 的「登记缺省事件类型」同一口径。
+- **单飞**：同一会话同一时刻只执行一个 compact。执行中第二个返回
+  `already_running`（不入队、不动 revision）；第一个仍在 **Queued** 窗口时到达的
+  第二个按 §1.6 trial 4 的 `accepted → skipped` 形状执行——`turn.completed`
+  `response:"Context is up to date; no compression needed"`，只落 skipped timeline
+  消息 + 2 个 part，不写第二份摘要、不发起模型请求。
+- **skipped 的 `turn_usage`**：夹具 `compact-same-tick` 的 `dbSkippedRows` 只有
+  message + compaction part，没有 skipped `turn_usage` 行；Rust 不写该行（不按
+  「每个终态一行」的 C1 惯例补零值行）。
+- **provider 失败判定**：按**实际工具调用数**区分两种失败，不看 `stopReason`——
+  T0 的 empty 用例同样返回 `finishReason:"tool-calls"`（`toolCalls:[]`），
+  `tool_call_count > 0` → `Tool use is not allowed during compaction`（retryable
+  false），零调用 + 空文本 → `Failed to generate compact summary`（retryable true）。
+  失败行按夹具：1 条 `finish:"failed"` timeline 消息 + 2 个 part（timeline/
+  compaction `status:"failed"`、`reason:"model_error"`、`attempt:1`）、
+  `turn_usage(error/UNKNOWN_ERROR/零 tokens)`、`model_usage` 保留 provider 原始
+  usage 与 `finishReason:"tool-calls"`；原历史不动。
+- **无模型 compact**：`turn.started` → `turn.failed`
+  （`CONFIGURATION_ERROR` / `Select a model before continuing`）。compact 不进入
+  prompt 的 `CommandInbox`，收口**显式**落 `Error`（不按 `inbox.complete` 的
+  `Stale` 保持 Running）；该路径不写 compact message/part/model_usage 行
+  （oracle 未观察），只写零用量 `turn_usage(failed)`。
+- **resume 边界**：冷物化时以**最后一条** `compaction(timelineStatus:"completed")`
+  所在消息为模型历史边界；边界之前的消息（含 tool pair）保留在 DB 但不进入模型
+  请求，边界起（含摘要消息）照常恢复。失败/skipped 的 compaction part 不建立边界；
+  多次 compact 取最新一条。
 - **`preCompactTokenCount`**：本地历史估算（4 字符 ≈ 1 token，与 `trim_messages`
   同口径），不是 provider usage；`truePostCompactTokenCount = pre + post` 是可复算
   的本地定义（oracle 的公式未观察）。`postCompactTokenCount` 取 compact 请求的
@@ -277,7 +304,8 @@ T2a 只交付 `session/compact` 的正常路径；以下是与 §1.1–§1.4 观
 - **生成 id**：`operationId`/`boundaryId`/`traceId`/`spanId`/摘要消息 id 均为运行时
   生成的非空 id，只对齐夹具的「非空 id」形状；`compact.operationId` 仍恒省略。
 - **`session.time_compacting`**：整个窗口与终态后保持 `null`（§1.3 观察值）。
-- **自动 compact**：未实现（§2 观察为「未触发」）；长历史 turn 只做普通模型请求。
+- **自动 compact**：未实现（§2 观察为「未触发」）；15 轮 × 100k 字符的长历史只做
+  普通模型请求，不产生 compaction/摘要/compact usage 行。
 - **摘要续接文本**与 `summary.body`：前者逐字复用夹具的固定前缀/后缀，后者是模型
   返回原文；`session_entry` 不新增行，`session_input` 保持 0 行。
 

@@ -1,30 +1,31 @@
-//! C2 T2a：`session/compact` 正常路径（受理 / 单飞入口 / 摘要落库 / 成功应答）。
+//! C2 T2a/T2b：`session/compact` 的受理、单飞、成功/跳过/失败落库与 resume 边界。
 //!
-//! 行为依据：`docs/specs/agent-c2-contract.md` §1.1/§1.3/§1.4 与机器录制的夹具
-//! `packages/desktop/tests/agent-runtime-oracle/fixtures/c2/compact-manual.json`、
-//! `compact-no-instructions.json`（只读，不修改）。
+//! 行为依据：`docs/specs/agent-c2-contract.md` §1.1–§1.9 与机器录制的夹具
+//! `packages/desktop/tests/agent-runtime-oracle/fixtures/c2/`（只读，不修改）。
 //!
 //! 覆盖：
 //! - 带 instructions：受理应答形状、`turn.started` / `turn.completed`、
 //!   `message`/`part`/`turn_usage`/`model_usage` 行、`stateRevision` 递增；
 //! - 不带 instructions：`turn.started.input == "/compact"`、`customInstructions:false`；
 //! - `expectedRevision` 冲突：`-32009`，零事件零 DB 写；
-//! - 长历史 turn 不触发自动 compact（T0 未观察到该行为）。
-//!
-//! 并发第二个 / 失败形状属 T2b，这里只覆盖「单飞判定先于入队」的显式拒绝面。
+//! - 并发：执行中第二个 → `already_running`；排队中第二个 → `accepted` 后 `skipped`；
+//! - 失败：provider tool-call / 空文本 → `turn.failed` 与夹具失败行；
+//! - 无模型 compact：`CONFIGURATION_ERROR` 终态且状态不留在 Running；
+//! - 长历史 turn 不触发自动 compact（T0 的 15 × 100k 字符规模）；
+//! - resume 边界：只恢复最近一次成功 compact 的摘要续接 + 之后的消息。
 //!
 //! 测试库 DDL 从 `scripts/sqlite-schema-baseline.json` 生成（与 methods/runtime 测试
 //! 同一口径）；provider 是脚本化 fake，端点指向保留端口，绝不发起真实网络请求。
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use agent_core::provider::{
     BoxFuture, DeltaSink, ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse,
-    ModelUsage, ProviderError, ScriptStep, ScriptedProvider,
+    ModelUsage, ProviderError, ScriptStep, ScriptToolCall, ScriptedProvider,
 };
 use agent_server::{
     run_stdio, AgentServer, Frame, ProviderConfigHub, ProviderSource, RequestId, ServerConfig,
@@ -467,6 +468,115 @@ impl ProviderSource for StaticSource {
     }
 }
 
+/// compact 摘要指令的固定开头（识别 compact 请求，不依赖脚本下标）。
+const COMPACT_PROMPT_PREFIX: &str = "CRITICAL: Respond with TEXT ONLY.";
+
+fn is_compact_request(request: &ModelRequest) -> bool {
+    matches!(
+        request.messages.last(),
+        Some(ModelMessage::User(text)) if text.starts_with(COMPACT_PROMPT_PREFIX)
+    )
+}
+
+/// 门控 provider：compact 请求在 `gate` 上等待许可，普通 turn 直接透传。
+///
+/// 用在 `already_running` 用例：先收到 compact 的 `turn.started`（相位已切 Running），
+/// 再发第二个 compact，保证单飞判定不依赖调度竞态。
+struct GatedCompactProvider {
+    inner: Arc<dyn ModelProvider>,
+    gate: Arc<tokio::sync::Semaphore>,
+}
+
+impl ModelProvider for GatedCompactProvider {
+    fn stream(
+        &self,
+        request: ModelRequest,
+        deltas: DeltaSink,
+    ) -> BoxFuture<'static, Result<ModelResponse, ProviderError>> {
+        if !is_compact_request(&request) {
+            return self.inner.stream(request, deltas);
+        }
+        let gate = Arc::clone(&self.gate);
+        let inner = Arc::clone(&self.inner);
+        Box::pin(async move {
+            let _permit = gate.acquire().await.map_err(|_| ProviderError {
+                message: "compact gate closed".to_string(),
+            })?;
+            inner.stream(request, deltas).await
+        })
+    }
+}
+
+/// provider **解析**闸门：阻塞 `ProviderSource::resolve`，把 worker 停在
+/// 「已取到 compact、相位仍是 Queued」的窗口里（`already_running` 判定尚未发生）。
+///
+/// `armed` 只应在主 turn 完成后打开；`cache_key` 的代际切换强制 compact 重新解析
+/// provider（默认实现会复用已缓存的 provider，窗口不可观察）。
+struct ResolveGate {
+    entered: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    released: Mutex<bool>,
+    condvar: Condvar,
+    armed: AtomicBool,
+}
+
+impl ResolveGate {
+    fn new() -> (Self, tokio::sync::oneshot::Receiver<()>) {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        (
+            Self {
+                entered: Mutex::new(Some(sender)),
+                released: Mutex::new(false),
+                condvar: Condvar::new(),
+                armed: AtomicBool::new(false),
+            },
+            receiver,
+        )
+    }
+
+    fn wait(&self) {
+        let mut released = self.released.lock().expect("gate released");
+        while !*released {
+            released = self.condvar.wait(released).expect("gate wait");
+        }
+    }
+
+    fn release(&self) {
+        *self.released.lock().expect("gate released") = true;
+        self.condvar.notify_all();
+    }
+}
+
+struct ResolveGateSource {
+    provider: Arc<dyn ModelProvider>,
+    generation: Mutex<String>,
+    gate: Arc<ResolveGate>,
+}
+
+impl ProviderSource for ResolveGateSource {
+    fn resolve(
+        &self,
+        provider_id: &str,
+        _model_id: &str,
+        _context: Option<&agent_server::ProviderRequestContext>,
+    ) -> Result<Arc<dyn ModelProvider>, String> {
+        if self.gate.armed.load(Ordering::SeqCst) {
+            if let Some(sender) = self.gate.entered.lock().expect("gate entered").take() {
+                let _ = sender.send(());
+            }
+            self.gate.wait();
+        }
+        if provider_id != "mock-chat" {
+            return Err(format!("Provider 不存在: {provider_id}"));
+        }
+        let provider: Arc<dyn ModelProvider> = Arc::clone(&self.provider);
+        Ok(provider)
+    }
+
+    fn cache_key(&self) -> String {
+        self.generation.lock().expect("generation").clone()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // stdio 测试连接（duplex）
 // ---------------------------------------------------------------------------
@@ -639,6 +749,16 @@ fn create_params(ws: &Path) -> Value {
     })
 }
 
+/// 无模型会话：create 允许，compact 的 turn 走 `CONFIGURATION_ERROR`。
+fn create_params_without_model(ws: &Path) -> Value {
+    let mut params = create_params(ws);
+    params
+        .as_object_mut()
+        .expect("create params 对象")
+        .remove("model");
+    params
+}
+
 struct Fixture {
     server: Arc<AgentServer>,
     db_path: PathBuf,
@@ -661,6 +781,14 @@ fn fixture_with_model(
     provider: Arc<dyn ModelProvider>,
     requests: Arc<Mutex<Vec<ModelRequest>>>,
 ) -> Fixture {
+    fixture_with_source(label, Arc::new(StaticSource { provider }), requests)
+}
+
+fn fixture_with_source(
+    label: &str,
+    source: Arc<dyn ProviderSource>,
+    requests: Arc<Mutex<Vec<ModelRequest>>>,
+) -> Fixture {
     let root = TempRoot::new(label);
     let mode_root = root.path().join(".mode");
     let db_dir = mode_root.join("cli").join("db");
@@ -676,11 +804,7 @@ fn fixture_with_model(
         write_personal_file(root.path()),
     );
     let config = ServerConfig::from_data_base_dir(root.path());
-    let server = Arc::new(AgentServer::with_parts(
-        config,
-        hub,
-        Arc::new(StaticSource { provider }),
-    ));
+    let server = Arc::new(AgentServer::with_parts(config, hub, source));
     Fixture {
         server,
         db_path,
@@ -719,6 +843,53 @@ async fn send_turn(conn: &mut TestConn, session_id: &str, content: &str) -> Vec<
     conn.drain_until_terminal().await
 }
 
+async fn close_session(conn: &mut TestConn, session_id: &str) {
+    let id = conn
+        .send("session/close", json!({ "sessionId": session_id }))
+        .await;
+    assert_eq!(conn.result(id).await, json!({ "closed": true }));
+}
+
+async fn resume_session(conn: &mut TestConn, session_id: &str) {
+    let id = conn
+        .send("session/resume", json!({ "sessionId": session_id }))
+        .await;
+    let snapshot = conn.result(id).await;
+    assert_eq!(snapshot["session"]["sessionId"], json!(session_id));
+    // close 后旧 runtime 的订阅已终止：resume 必须重新订阅。
+    conn.subscribe_default(session_id).await;
+}
+
+/// 逐条读事件直到谓词命中（已消费的事件不回放）。
+async fn next_event_until(conn: &mut TestConn, predicate: impl Fn(&Value) -> bool) -> Value {
+    loop {
+        let event = conn.next_event().await;
+        if predicate(&event) {
+            return event;
+        }
+    }
+}
+
+/// 收集事件直到第 `count` 个终态（多 compact 排队时用）。
+async fn drain_until_terminals(conn: &mut TestConn, count: usize) -> Vec<Value> {
+    let mut events = Vec::new();
+    let mut terminals = 0;
+    loop {
+        let event = conn.next_event().await;
+        let terminal = matches!(
+            event["type"].as_str(),
+            Some("turn.completed") | Some("turn.failed")
+        );
+        events.push(event);
+        if terminal {
+            terminals += 1;
+            if terminals == count {
+                return events;
+            }
+        }
+    }
+}
+
 fn event_types(events: &[Value]) -> Vec<&str> {
     events
         .iter()
@@ -734,6 +905,46 @@ fn sorted_keys(value: &Value) -> Vec<String> {
 
 fn requested_requests(fixture: &Fixture) -> Vec<ModelRequest> {
     fixture.requests.lock().expect("requests").clone()
+}
+
+fn messages_with_kind(path: &Path, kind: &str) -> Vec<Value> {
+    message_rows(path)
+        .into_iter()
+        .filter(|(_, data)| data["semantics"]["kind"] == json!(kind))
+        .map(|(_, data)| data)
+        .collect()
+}
+
+fn parts_with_type(path: &Path, part_type: &str) -> Vec<Value> {
+    part_rows(path)
+        .into_iter()
+        .filter(|(_, data)| data["type"] == json!(part_type))
+        .map(|(_, data)| data)
+        .collect()
+}
+
+/// 等 worker 的终态收口完成（终态事件先于状态收口发布，跨线程窗口见 C1 注释）。
+async fn wait_session_status(conn: &mut TestConn, session_id: &str, expected: &str) -> Value {
+    for _ in 0..200 {
+        let snapshot = conn.read_snapshot(session_id).await;
+        if snapshot["session"]["status"] == json!(expected) {
+            return snapshot;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    panic!("session 状态未在 1s 内变为 {expected}");
+}
+
+/// 等 stateRevision 达到期望值（受理 +1 / 终态 +1 在同一临界区推进）。
+async fn wait_state_revision(conn: &mut TestConn, session_id: &str, expected: u64) -> Value {
+    for _ in 0..200 {
+        let snapshot = conn.read_snapshot(session_id).await;
+        if snapshot["runtime"]["stateRevision"] == json!(expected) {
+            return snapshot;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    panic!("stateRevision 未在 1s 内达到 {expected}");
 }
 
 // 观察值：摘要续接文本（契约 §1.3；落库数据契约，逐字来自夹具）。
@@ -878,11 +1089,7 @@ async fn compact_with_instructions_accepts_persists_and_advances_revision() {
     );
 
     // —— stateRevision：受理 +1，终态再 +1（每次接受/终态各推进一次）——
-    let after = conn.read_snapshot(&session_id).await;
-    assert_eq!(
-        after["runtime"]["stateRevision"],
-        json!(revision_before + 2)
-    );
+    let after = wait_state_revision(&mut conn, &session_id, revision_before + 2).await;
     assert_eq!(after["runtime"]["eventSeq"], json!(event_seq_before + 2));
     // contextUsage 的 used 来自 compact 请求的 provider total（最近一次请求）。
     assert_eq!(after["runtime"]["contextUsage"]["used"], json!(22));
@@ -1252,7 +1459,7 @@ async fn compact_without_instructions_uses_bare_command() {
     assert!(prompt.starts_with("CRITICAL: Respond with TEXT ONLY. Do NOT call any tools."));
 
     // 终态再推进一次 revision。
-    let after = conn.read_snapshot(&session_id).await;
+    let after = wait_state_revision(&mut conn, &session_id, revision_before + 2).await;
     assert_eq!(
         after["runtime"]["stateRevision"],
         json!(revision_before + 2)
@@ -1336,16 +1543,18 @@ async fn compact_revision_conflict_has_zero_side_effects() {
 async fn long_history_turn_does_not_auto_compact() {
     let requests = Arc::new(Mutex::new(Vec::new()));
     let provider = Arc::new(LongTextProvider {
-        answer: "x".repeat(40_000),
+        answer: "x".repeat(100_000),
         requests: Arc::clone(&requests),
     });
     let fixture = fixture_with_model("long-history", provider, Arc::clone(&requests));
     let mut conn = connect(Arc::clone(&fixture.server)).await;
     let session_id = create_session(&mut conn, &fixture.ws).await;
 
-    // 5 轮 × (10k prompt + 40k answer) ≈ 250k 字符历史（远大于任何合理阈值观察）。
-    for turn in 0..5 {
-        let prompt = format!("prompt {turn}: {}", "p".repeat(10_000));
+    // 对齐 T0 的观察规模（`auto-compact-long-history`）：15 轮 × 100k 字符 answer
+    // ≈ 1.5M 字符历史；按 4 字符≈1 token 估算约 375k tokens，已超过 200k 窗口。
+    // 该规模下 oracle 未触发自动 compact，Rust 同样不得自行启用阈值。
+    for turn in 0..15 {
+        let prompt = format!("prompt {turn}: {}", "p".repeat(1_000));
         let events = send_turn(&mut conn, &session_id, &prompt).await;
         assert_eq!(
             event_types(&events),
@@ -1363,26 +1572,18 @@ async fn long_history_turn_does_not_auto_compact() {
     // 每个 turn 恰好一次模型请求：没有隐藏的自动 compact 请求。
     assert_eq!(
         requests.lock().expect("requests").len(),
-        5,
-        "5 轮 turn = 5 次模型请求"
+        15,
+        "15 轮 turn = 15 次模型请求"
     );
 
     // 未观察到自动 compact（契约 §2）：0 个 compaction part / 摘要消息。
-    let parts = part_rows(&fixture.db_path);
     assert_eq!(
-        parts
-            .iter()
-            .filter(|(_, data)| data["type"] == json!("compaction"))
-            .count(),
+        parts_with_type(&fixture.db_path, "compaction").len(),
         0,
         "长历史不产生 compaction part"
     );
-    let messages = message_rows(&fixture.db_path);
     assert_eq!(
-        messages
-            .iter()
-            .filter(|(_, data)| data["semantics"]["kind"] == json!("compact_summary"))
-            .count(),
+        messages_with_kind(&fixture.db_path, "compact_summary").len(),
         0,
         "长历史不产生 compact_summary 消息"
     );
@@ -1408,4 +1609,814 @@ async fn long_history_turn_does_not_auto_compact() {
         session_column(&fixture.db_path, &session_id, "time_compacting"),
         None
     );
+}
+
+// ---------------------------------------------------------------------------
+// 5. 执行中的第二个 compact：already_running，不产生事件/行/revision
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn compact_while_running_returns_already_running_without_side_effects() {
+    let scripted = ScriptedProvider::new(vec![
+        ScriptStep::Text("normal answer".to_string()),
+        ScriptStep::Text("summary while running".to_string()),
+    ]);
+    let recording = Arc::new(RecordingProvider::new(Arc::new(scripted)));
+    let requests = Arc::clone(&recording.requests);
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let inner: Arc<dyn ModelProvider> = Arc::clone(&recording) as Arc<dyn ModelProvider>;
+    let provider = Arc::new(GatedCompactProvider {
+        inner,
+        gate: Arc::clone(&gate),
+    });
+    let fixture = fixture_with_source(
+        "already-running",
+        Arc::new(StaticSource { provider }),
+        requests,
+    );
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+    send_turn(&mut conn, &session_id, "first prompt").await;
+
+    let before = conn.read_snapshot(&session_id).await;
+    let revision_before = before["runtime"]["stateRevision"].as_u64().expect("rev");
+
+    let first_input = "input_compact_running_1";
+    let id = conn
+        .send(
+            "session/compact",
+            json!({
+                "sessionId": session_id,
+                "inputId": first_input,
+                "expectedRevision": revision_before,
+            }),
+        )
+        .await;
+    let first = conn.result(id).await;
+    assert_eq!(first["compact"]["state"], json!("accepted"));
+    assert_eq!(first["compact"]["inputId"], json!(first_input));
+
+    // compact 的 turn.started 在相位切 Running 之后发布：此时第二个请求必须
+    // already_running（不依赖调度竞态）。
+    let started = next_event_until(&mut conn, |event| event["type"] == json!("turn.started")).await;
+    assert_eq!(started["payload"]["input"], json!("/compact"));
+    let running = conn.read_snapshot(&session_id).await;
+    assert_eq!(
+        running["runtime"]["stateRevision"],
+        json!(revision_before + 1)
+    );
+    assert!(
+        running["runtime"]["activeTurnId"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty()),
+        "执行中的 compact 快照带 activeTurnId"
+    );
+    assert_eq!(running["runtime"]["activeTurnKind"], json!("compact"));
+    assert_eq!(running["session"]["status"], json!("running"));
+
+    let second_input = "input_compact_running_2";
+    let id = conn
+        .send(
+            "session/compact",
+            json!({
+                "sessionId": session_id,
+                "inputId": second_input,
+            }),
+        )
+        .await;
+    let second = conn.result(id).await;
+    assert_eq!(
+        sorted_keys(&second["compact"]),
+        vec!["inputId", "state"],
+        "already_running 同样没有 operationId"
+    );
+    assert_eq!(second["compact"]["state"], json!("already_running"));
+    assert_eq!(second["compact"]["inputId"], json!(second_input));
+    assert_eq!(
+        second["snapshot"]["runtime"]["stateRevision"],
+        json!(revision_before + 1),
+        "already_running 不推进 revision"
+    );
+    assert_eq!(
+        second["snapshot"]["runtime"]["activeTurnKind"],
+        json!("compact")
+    );
+
+    // 放行第一个 compact；第二个没有入队，只能看到第一个的终态。
+    gate.add_permits(1);
+    let rest = conn.drain_until_terminal().await;
+    assert_eq!(event_types(&rest), vec!["turn.completed"]);
+    assert_eq!(rest[0]["payload"]["response"], json!("Compacted"));
+
+    let after = wait_state_revision(&mut conn, &session_id, revision_before + 2).await;
+    assert_eq!(after["session"]["status"], json!("idle"));
+    assert!(after["runtime"].get("activeTurnId").is_none());
+
+    assert_eq!(
+        requested_requests(&fixture).len(),
+        2,
+        "普通 turn + 一次 compact = 2 次模型请求；already_running 不发起第二次"
+    );
+    assert_eq!(
+        messages_with_kind(&fixture.db_path, "compact_summary").len(),
+        1
+    );
+    assert_eq!(parts_with_type(&fixture.db_path, "compaction").len(), 2);
+    assert_eq!(count_rows(&fixture.db_path, "turn_usage"), 2);
+    // 主 turn 与 skipped 都不写 model_usage；只有 compact 请求一行（C1 未持久化主 turn
+    // 的 model_usage，登记在 C1 契约）。
+    assert_eq!(count_rows(&fixture.db_path, "model_usage"), 1);
+}
+
+// ---------------------------------------------------------------------------
+// 6. 排队中的第二个 compact：accepted → skipped（不产生第二份摘要）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn queued_second_compact_is_accepted_then_skipped() {
+    let scripted = ScriptedProvider::new(vec![
+        ScriptStep::Text("normal answer".to_string()),
+        ScriptStep::Text("first compact summary".to_string()),
+    ]);
+    let recording = Arc::new(RecordingProvider::new(Arc::new(scripted)));
+    let requests = Arc::clone(&recording.requests);
+    let (gate, entered) = ResolveGate::new();
+    let gate = Arc::new(gate);
+    let provider_concrete = Arc::clone(&recording);
+    let provider_dyn: Arc<dyn ModelProvider> = provider_concrete;
+    let source = Arc::new(ResolveGateSource {
+        provider: provider_dyn,
+        generation: Mutex::new("generation-a".to_string()),
+        gate: Arc::clone(&gate),
+    });
+    let source_dyn: Arc<dyn ProviderSource> = Arc::clone(&source) as Arc<dyn ProviderSource>;
+    let fixture = fixture_with_source("skipped", source_dyn, requests);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+    send_turn(&mut conn, &session_id, "first prompt").await;
+
+    let before = conn.read_snapshot(&session_id).await;
+    let revision_before = before["runtime"]["stateRevision"].as_u64().expect("rev");
+
+    // 强制 compact 重新解析 provider，并把 worker 停在「已取到、相位仍 Queued」窗口。
+    *source.generation.lock().expect("generation") = "generation-b".to_string();
+    gate.armed.store(true, Ordering::SeqCst);
+
+    let first_input = "input_compact_queued_1";
+    let id = conn
+        .send(
+            "session/compact",
+            json!({
+                "sessionId": session_id,
+                "inputId": first_input,
+                "expectedRevision": revision_before,
+            }),
+        )
+        .await;
+    let first = conn.result(id).await;
+    assert_eq!(first["compact"]["state"], json!("accepted"));
+    within(entered)
+        .await
+        .expect("worker 应进入 provider 解析窗口");
+
+    let second_input = "input_compact_queued_2";
+    let id = conn
+        .send(
+            "session/compact",
+            json!({
+                "sessionId": session_id,
+                "inputId": second_input,
+            }),
+        )
+        .await;
+    let second = conn.result(id).await;
+    assert_eq!(sorted_keys(&second["compact"]), vec!["inputId", "state"]);
+    assert_eq!(
+        second["compact"]["state"],
+        json!("accepted"),
+        "相位 Queued 时第二个 compact 被受理"
+    );
+    assert_eq!(second["compact"]["inputId"], json!(second_input));
+    assert_eq!(
+        second["snapshot"]["runtime"]["stateRevision"],
+        json!(revision_before + 2),
+        "第二个受理同样推进 revision"
+    );
+    assert_eq!(
+        requested_requests(&fixture).len(),
+        1,
+        "compact 尚未执行：只有主 turn 的请求"
+    );
+
+    gate.release();
+    let events = drain_until_terminals(&mut conn, 2).await;
+    assert_eq!(
+        event_types(&events),
+        vec![
+            "turn.started",
+            "turn.completed",
+            "turn.started",
+            "turn.completed"
+        ],
+        "第一个成功，第二个以 skipped 终态收口"
+    );
+    assert_eq!(events[0]["payload"]["input"], json!("/compact"));
+    assert_eq!(events[0]["payload"]["inputId"], json!(first_input));
+    assert_eq!(events[1]["payload"]["response"], json!("Compacted"));
+    assert_eq!(events[2]["payload"]["input"], json!("/compact"));
+    assert_eq!(events[2]["payload"]["inputId"], json!(second_input));
+
+    assert_eq!(
+        events[3]["payload"]["response"],
+        json!("Context is up to date; no compression needed")
+    );
+    assert_eq!(events[3]["payload"]["resultType"], json!("success"));
+    assert_eq!(events[3]["payload"]["inputId"], json!(second_input));
+    assert!(events[3]["payload"]["tokenCount"].as_u64().unwrap_or(0) > 0);
+    assert_eq!(
+        events[3]["payload"]["cacheStats"],
+        json!({ "totalMessages": 6, "cachedMessages": 5, "lastCacheHit": false })
+    );
+
+    // 第二个不产生新摘要/模型请求；skipped 行按夹具形状落库。
+    let after = wait_state_revision(&mut conn, &session_id, revision_before + 4).await;
+    assert_eq!(after["session"]["status"], json!("idle"));
+    assert_eq!(
+        requested_requests(&fixture).len(),
+        2,
+        "主 turn + 第一个 compact = 2 次模型请求"
+    );
+    assert_eq!(
+        messages_with_kind(&fixture.db_path, "compact_summary").len(),
+        1,
+        "只有一份摘要"
+    );
+
+    let skipped_message_id = message_rows(&fixture.db_path)
+        .into_iter()
+        .find(|(_, data)| data["finish"] == json!("skipped"))
+        .map(|(message_id, _)| message_id)
+        .expect("skipped timeline 消息");
+    let skipped = message_rows(&fixture.db_path)
+        .into_iter()
+        .find(|(message_id, _)| message_id == &skipped_message_id)
+        .map(|(_, data)| data)
+        .expect("skipped timeline data");
+    assert_eq!(skipped["role"], json!("assistant"));
+    assert_eq!(skipped["semantics"]["kind"], json!("timeline_event"));
+    assert_eq!(
+        skipped["tokens"],
+        json!({
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": { "read": 0, "write": 0 }
+        })
+    );
+    let skipped_parts: Vec<Value> = part_rows(&fixture.db_path)
+        .into_iter()
+        .filter(|(message_id, _)| message_id == &skipped_message_id)
+        .map(|(_, data)| data)
+        .collect();
+    assert_eq!(skipped_parts.len(), 2, "timeline + compaction 两个 part");
+    assert_eq!(skipped_parts[0]["type"], json!("timeline"));
+    assert_eq!(skipped_parts[0]["status"], json!("skipped"));
+    assert_eq!(skipped_parts[0]["sourceCommandId"], json!(second_input));
+    assert_eq!(skipped_parts[0]["compactReason"], json!("user_requested"));
+    assert_eq!(skipped_parts[1]["type"], json!("compaction"));
+    assert_eq!(skipped_parts[1]["timelineStatus"], json!("skipped"));
+    assert_eq!(skipped_parts[1]["timelineDisplay"], json!("separator"));
+    assert_eq!(skipped_parts[1]["replace"], json!(true));
+    assert!(
+        skipped_parts[1]["preCompactTokenCount"]
+            .as_u64()
+            .unwrap_or(0)
+            > 0
+    );
+    assert!(
+        skipped_parts[1].get("boundaryId").is_none(),
+        "skipped 不建立边界"
+    );
+    assert!(skipped_parts[1].get("summaryMessageId").is_none());
+
+    let compaction_parts = parts_with_type(&fixture.db_path, "compaction");
+    assert_eq!(
+        compaction_parts.len(),
+        3,
+        "成功 compact 的 timeline/summary compaction part + skipped 1"
+    );
+    assert_eq!(
+        compaction_parts
+            .iter()
+            .filter(|data| data["timelineStatus"] == json!("completed"))
+            .count(),
+        1,
+        "只有 timeline compaction part 带 timelineStatus:completed"
+    );
+    assert_eq!(
+        compaction_parts
+            .iter()
+            .filter(|data| data["timelineStatus"] == json!("skipped"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        compaction_parts
+            .iter()
+            .filter(|data| data.get("compactBoundary").is_some())
+            .count(),
+        1,
+        "摘要 compaction part 携带 compactBoundary"
+    );
+
+    // 夹具的 dbSkippedRows 没有 skipped turn_usage：只保留主 turn 与成功 compact 两行。
+    assert_eq!(
+        count_rows(&fixture.db_path, "turn_usage"),
+        2,
+        "skipped 不写 turn_usage 行（夹具未录该行）"
+    );
+    assert_eq!(
+        count_rows(&fixture.db_path, "model_usage"),
+        1,
+        "只有成功 compact 的 model_usage；skipped 不发起模型请求"
+    );
+    assert_eq!(
+        session_column(&fixture.db_path, &session_id, "time_compacting"),
+        None
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 7. provider 失败：tool-call / 空文本（compact-provider-* 夹具）
+// ---------------------------------------------------------------------------
+
+struct FailureCase {
+    label: &'static str,
+    step: ScriptStep,
+    message: &'static str,
+    retryable: bool,
+    tool_calls: u64,
+}
+
+#[tokio::test]
+async fn compact_provider_failures_persist_observed_failure_rows() {
+    let cases = [
+        FailureCase {
+            label: "failure-tool-call",
+            step: ScriptStep::ToolCalls(vec![ScriptToolCall {
+                name: "Read".to_string(),
+                input: json!({ "file_path": "hello.txt" }),
+            }]),
+            message: "Tool use is not allowed during compaction",
+            retryable: false,
+            tool_calls: 1,
+        },
+        FailureCase {
+            label: "failure-empty",
+            // T0 的 empty 剧步同样是 `toolCalls:[]`：finishReason=tool-calls、零文本。
+            step: ScriptStep::ToolCalls(Vec::new()),
+            message: "Failed to generate compact summary",
+            retryable: true,
+            tool_calls: 0,
+        },
+    ];
+
+    for case in cases {
+        let fixture = fixture(
+            case.label,
+            vec![
+                ScriptStep::Text("normal turn answer".to_string()),
+                ScriptStep::Text("normal turn answer".to_string()),
+                case.step.clone(),
+            ],
+        );
+        let mut conn = connect(Arc::clone(&fixture.server)).await;
+        let session_id = create_session(&mut conn, &fixture.ws).await;
+        send_turn(&mut conn, &session_id, "first prompt").await;
+        send_turn(&mut conn, &session_id, "second prompt").await;
+
+        let before = conn.read_snapshot(&session_id).await;
+        let revision = before["runtime"]["stateRevision"].as_u64().expect("rev");
+        let counts_before = table_counts(&fixture.db_path);
+
+        let input_id = "input_compact_failure";
+        let id = conn
+            .send(
+                "session/compact",
+                json!({
+                    "sessionId": session_id,
+                    "inputId": input_id,
+                    "expectedRevision": revision,
+                }),
+            )
+            .await;
+        let accepted = conn.result(id).await;
+        assert_eq!(accepted["compact"]["state"], json!("accepted"));
+
+        let events = conn.drain_until_terminal().await;
+        assert_eq!(
+            event_types(&events),
+            vec!["turn.started", "turn.failed"],
+            "{}",
+            case.label
+        );
+        let started = &events[0]["payload"];
+        assert_eq!(started["input"], json!("/compact"));
+        assert_eq!(started["inputId"], json!(input_id));
+        let turn_id = events[0]["turnId"].as_str().expect("turnId").to_string();
+        let failed = &events[1]["payload"];
+        assert_eq!(failed["error"]["type"], json!("unknown_error"));
+        assert_eq!(failed["error"]["code"], json!("MODEL_ERROR"));
+        assert_eq!(failed["error"]["message"], json!(case.message));
+        assert_eq!(failed["error"]["detail"], json!("Compact failed"));
+        assert_eq!(
+            failed["error"]["underlyingErrorMessage"],
+            json!(case.message)
+        );
+        assert_eq!(
+            failed["error"]["attribution"],
+            json!({ "retryable": case.retryable })
+        );
+        assert_eq!(failed["turnPhase"], json!("compact"));
+        assert_eq!(failed["inputId"], json!(input_id));
+
+        let counts_after = table_counts(&fixture.db_path);
+        for table in ["session", "session_entry", "session_input", "tool_usage"] {
+            assert_eq!(
+                counts_after[table], counts_before[table],
+                "{}: {table} 行数不变",
+                case.label
+            );
+        }
+        assert_eq!(counts_after["message"], counts_before["message"] + 1);
+        assert_eq!(counts_after["part"], counts_before["part"] + 2);
+        assert_eq!(counts_after["turn_usage"], counts_before["turn_usage"] + 1);
+        assert_eq!(
+            counts_after["model_usage"],
+            counts_before["model_usage"] + 1
+        );
+        assert_eq!(
+            messages_with_kind(&fixture.db_path, "compact_summary").len(),
+            0,
+            "{}: 失败不写摘要",
+            case.label
+        );
+
+        let messages = message_rows(&fixture.db_path);
+        let (failed_message_id, failed_message) = messages.last().expect("failed timeline");
+        assert_eq!(failed_message["finish"], json!("failed"));
+        assert_eq!(failed_message["semantics"]["kind"], json!("timeline_event"));
+        assert_eq!(
+            failed_message["tokens"],
+            json!({
+                "input": 0,
+                "output": 0,
+                "reasoning": 0,
+                "cache": { "read": 0, "write": 0 }
+            })
+        );
+
+        let failed_parts: Vec<Value> = part_rows(&fixture.db_path)
+            .into_iter()
+            .filter(|(message_id, _)| message_id == failed_message_id)
+            .map(|(_, data)| data)
+            .collect();
+        assert_eq!(failed_parts.len(), 2);
+        assert_eq!(failed_parts[0]["type"], json!("timeline"));
+        assert_eq!(failed_parts[0]["status"], json!("failed"));
+        assert_eq!(failed_parts[0]["reason"], json!("model_error"));
+        assert_eq!(failed_parts[0]["attempt"], json!(1));
+        assert_eq!(failed_parts[0]["sourceCommandId"], json!(input_id));
+        assert!(
+            failed_parts[0]["preCompactTokenCount"]
+                .as_u64()
+                .unwrap_or(0)
+                > 0
+        );
+        assert!(failed_parts[0].get("boundaryId").is_none());
+        assert!(failed_parts[0].get("summaryMessageId").is_none());
+        assert_eq!(failed_parts[1]["type"], json!("compaction"));
+        assert_eq!(failed_parts[1]["timelineStatus"], json!("failed"));
+        assert_eq!(failed_parts[1]["reason"], json!("model_error"));
+        assert_eq!(failed_parts[1]["attempt"], json!(1));
+        assert_eq!(failed_parts[1]["replace"], json!(true));
+        assert!(failed_parts[1].get("boundaryId").is_none());
+        assert!(failed_parts[1].get("summaryMessageId").is_none());
+
+        let usage = turn_usage_row(&fixture.db_path, &turn_id);
+        assert_eq!(usage["status"], json!("error"));
+        assert_eq!(usage["userMessageId"], Value::Null);
+        assert_eq!(usage["modelRequestCount"], json!(1));
+        assert_eq!(usage["inputTokens"], json!(0));
+        assert_eq!(usage["outputTokens"], json!(0));
+        assert_eq!(usage["computedTotalTokens"], json!(0));
+        assert_eq!(usage["errorType"], json!("unknown_error"));
+        assert_eq!(usage["errorCode"], json!("UNKNOWN_ERROR"));
+        assert!(
+            usage["traceId"]
+                .as_str()
+                .is_some_and(|value| !value.is_empty()),
+            "{}: turn_usage.trace_id 非空",
+            case.label
+        );
+
+        let model_usage = compact_model_usage_row(&fixture.db_path);
+        assert_eq!(model_usage["querySource"], json!("compact"));
+        assert_eq!(model_usage["status"], json!("completed"));
+        assert_eq!(model_usage["assistantMessageId"], Value::Null);
+        assert_eq!(model_usage["parentUserMessageId"], Value::Null);
+        assert_eq!(model_usage["finishReason"], json!("tool-calls"));
+        assert_eq!(model_usage["toolCallCount"], json!(case.tool_calls));
+        assert_eq!(model_usage["inputTokens"], json!(10));
+        assert_eq!(model_usage["outputTokens"], json!(20));
+        assert_eq!(model_usage["computedTotalTokens"], json!(30));
+        assert_eq!(model_usage["providerTotalTokens"], json!(30));
+        assert_eq!(
+            model_usage["rawUsage"],
+            json!({
+                "inputTokens": 10,
+                "outputTokens": 20,
+                "totalTokens": 30,
+                "cacheReadTokens": 0,
+                "cacheWriteTokens": 0,
+            })
+        );
+        assert_eq!(
+            model_usage["providerMetadata"],
+            json!({ "rawFinishReason": "tool_use" })
+        );
+
+        // 失败不破坏会话：状态离开 Running（Error），历史可继续使用。
+        let settled = wait_session_status(&mut conn, &session_id, "error").await;
+        assert!(settled["runtime"].get("activeTurnId").is_none());
+        assert_eq!(
+            session_column(&fixture.db_path, &session_id, "time_compacting"),
+            None
+        );
+        assert_eq!(
+            requested_requests(&fixture).len(),
+            3,
+            "{}: 两个正常 turn + 一次失败的 compact",
+            case.label
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 8. 无模型 compact：CONFIGURATION_ERROR 终态，状态不得卡在 Running
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn compact_without_model_fails_configuration_and_leaves_running() {
+    let fixture = fixture("config-failure", Vec::new());
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let id = conn
+        .send("session/create", create_params_without_model(&fixture.ws))
+        .await;
+    let created = conn.result(id).await;
+    assert!(created["session"].get("model").is_none());
+    let session_id = created["session"]["sessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+    conn.subscribe_default(&session_id).await;
+    let revision = created["runtime"]["stateRevision"].as_u64().expect("rev");
+    let counts_before = table_counts(&fixture.db_path);
+
+    let id = conn
+        .send(
+            "session/compact",
+            json!({
+                "sessionId": session_id,
+                "inputId": "input_compact_no_model",
+                "expectedRevision": revision,
+            }),
+        )
+        .await;
+    let accepted = conn.result(id).await;
+    assert_eq!(accepted["compact"]["state"], json!("accepted"));
+
+    let events = conn.drain_until_terminal().await;
+    assert_eq!(event_types(&events), vec!["turn.started", "turn.failed"]);
+    let failed = &events[1]["payload"];
+    assert_eq!(failed["error"]["type"], json!("CONFIGURATION_ERROR"));
+    assert_eq!(
+        failed["error"]["message"],
+        json!("Select a model before continuing")
+    );
+    assert_eq!(failed["turnPhase"], json!("configuration"));
+    let turn_id = events[0]["turnId"].as_str().expect("turnId").to_string();
+
+    // 回归点：compact 从未进入 CommandInbox；旧收口按 inbox.complete 的 Stale
+    // 保持 Running。现在必须显式落 Error（不是 Running/Waiting）。
+    let settled = wait_session_status(&mut conn, &session_id, "error").await;
+    assert!(settled["runtime"].get("activeTurnId").is_none());
+    assert_ne!(settled["session"]["status"], json!("running"));
+
+    let counts_after = table_counts(&fixture.db_path);
+    assert_eq!(counts_after["message"], counts_before["message"]);
+    assert_eq!(counts_after["part"], counts_before["part"]);
+    assert_eq!(counts_after["model_usage"], counts_before["model_usage"]);
+    assert_eq!(counts_after["turn_usage"], counts_before["turn_usage"] + 1);
+
+    let usage = turn_usage_row(&fixture.db_path, &turn_id);
+    assert_eq!(usage["status"], json!("failed"));
+    assert_eq!(usage["userMessageId"], Value::Null);
+    assert_eq!(usage["modelRequestCount"], json!(0));
+    assert_eq!(usage["inputTokens"], json!(0));
+    assert_eq!(usage["computedTotalTokens"], json!(0));
+    assert_eq!(usage["errorType"], Value::Null);
+    assert_eq!(usage["errorCode"], Value::Null);
+
+    assert_eq!(
+        session_column(&fixture.db_path, &session_id, "time_compacting"),
+        None
+    );
+    assert!(
+        requested_requests(&fixture).is_empty(),
+        "没有模型：不发起模型请求"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 9. resume 边界：只恢复最近一次成功 compact 的摘要 + 之后的消息
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn resume_after_compaction_restores_summary_boundary_only() {
+    let fixture = fixture(
+        "resume-boundary",
+        vec![
+            // turn 1：先工具调用（形成 compact 边界前的 tool pair），再文本收尾。
+            ScriptStep::ToolCalls(vec![ScriptToolCall {
+                name: "Read".to_string(),
+                input: json!({ "file_path": "hello.txt" }),
+            }]),
+            ScriptStep::Text("turn one follow-up".to_string()),
+            // turn 2。
+            ScriptStep::Text("second turn answer".to_string()),
+            // compact 1（assistant 计数 = 3）。
+            ScriptStep::Text("summary one".to_string()),
+            // compact 2（resume 后 2 条 assistant 历史时取到这一格）。
+            ScriptStep::Text("summary two".to_string()),
+        ],
+    );
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let turn_one = send_turn(&mut conn, &session_id, "first prompt").await;
+    assert_eq!(
+        turn_one.last().expect("terminal")["type"],
+        json!("turn.completed")
+    );
+    send_turn(&mut conn, &session_id, "second prompt").await;
+    let settled = wait_session_status(&mut conn, &session_id, "idle").await;
+    let revision = settled["runtime"]["stateRevision"]
+        .as_u64()
+        .expect("stateRevision");
+
+    // 第一次 compact。
+    let id = conn
+        .send(
+            "session/compact",
+            json!({
+                "sessionId": session_id,
+                "inputId": "input_compact_resume_1",
+                "expectedRevision": revision,
+            }),
+        )
+        .await;
+    assert_eq!(conn.result(id).await["compact"]["state"], json!("accepted"));
+    assert_eq!(
+        event_types(&conn.drain_until_terminal().await),
+        vec!["turn.started", "turn.completed"]
+    );
+    wait_state_revision(&mut conn, &session_id, revision + 2).await;
+
+    // close + resume：新 runtime 的模型历史应从 compact 边界开始。
+    close_session(&mut conn, &session_id).await;
+    resume_session(&mut conn, &session_id).await;
+    let resumed = conn.read_snapshot(&session_id).await;
+    assert_eq!(resumed["runtime"]["stateRevision"], json!(0));
+
+    send_turn(&mut conn, &session_id, "after resume").await;
+    let resumed_settled = wait_session_status(&mut conn, &session_id, "idle").await;
+    let resumed_revision = resumed_settled["runtime"]["stateRevision"]
+        .as_u64()
+        .expect("stateRevision");
+
+    let requests = requested_requests(&fixture);
+    assert_eq!(
+        requests.len(),
+        6,
+        "resume 前后请求累计：turn1 2 + turn2 1 + compact 1 + resume 后 turn 2"
+    );
+    let resumed_request = &requests[4];
+    assert_eq!(
+        resumed_request.messages.len(),
+        3,
+        "系统提示 + 摘要续接 + 新 prompt"
+    );
+    assert!(matches!(
+        &resumed_request.messages[0],
+        ModelMessage::System(_)
+    ));
+    let ModelMessage::User(continuation) = &resumed_request.messages[1] else {
+        panic!("resume 的第一条历史必须是摘要续接消息");
+    };
+    assert!(
+        continuation.starts_with(SUMMARY_PREFIX),
+        "续接消息带固定前缀"
+    );
+    assert!(continuation.contains("summary one"));
+    assert_eq!(
+        resumed_request.messages[2],
+        ModelMessage::User("after resume".to_string())
+    );
+    assert!(
+        !resumed_request
+            .messages
+            .iter()
+            .any(|message| matches!(message, ModelMessage::ToolResult { .. })),
+        "边界前的 tool pair 不得进入恢复后的请求"
+    );
+    for forbidden in [
+        "first prompt",
+        "second prompt",
+        "turn one follow-up",
+        "second turn answer",
+        "hello",
+    ] {
+        assert!(
+            !resumed_request.messages.iter().any(|message| {
+                message_text(message).is_some_and(|text| text.contains(forbidden))
+            }),
+            "边界前内容 {forbidden:?} 不得进入恢复后的请求"
+        );
+    }
+
+    // 第二次 compact：边界应移动到最新一条 completed compaction。
+    let id = conn
+        .send(
+            "session/compact",
+            json!({
+                "sessionId": session_id,
+                "inputId": "input_compact_resume_2",
+                "expectedRevision": resumed_revision,
+            }),
+        )
+        .await;
+    assert_eq!(conn.result(id).await["compact"]["state"], json!("accepted"));
+    assert_eq!(
+        event_types(&conn.drain_until_terminal().await),
+        vec!["turn.started", "turn.completed"]
+    );
+    wait_state_revision(&mut conn, &session_id, resumed_revision + 2).await;
+    assert_eq!(
+        parts_with_type(&fixture.db_path, "compaction")
+            .iter()
+            .filter(|data| data["timelineStatus"] == json!("completed"))
+            .count(),
+        2,
+        "库里保留两个 completed compact 边界"
+    );
+
+    close_session(&mut conn, &session_id).await;
+    resume_session(&mut conn, &session_id).await;
+    send_turn(&mut conn, &session_id, "after second resume").await;
+    wait_session_status(&mut conn, &session_id, "idle").await;
+
+    let requests = requested_requests(&fixture);
+    assert_eq!(
+        requests.len(),
+        9,
+        "第二次 resume 后新增 2 个请求（tool + follow-up）"
+    );
+    let latest_request = &requests[7];
+    assert_eq!(latest_request.messages.len(), 3);
+    let ModelMessage::User(continuation) = &latest_request.messages[1] else {
+        panic!("最新边界读取摘要续接消息");
+    };
+    assert!(continuation.starts_with(SUMMARY_PREFIX));
+    assert!(
+        continuation.contains("second turn answer"),
+        "第二次 compact 的摘要正文（脚本步）替换了旧摘要"
+    );
+    assert!(
+        !continuation.contains("summary one"),
+        "旧摘要不再出现在请求里"
+    );
+    assert_eq!(
+        latest_request.messages[2],
+        ModelMessage::User("after second resume".to_string())
+    );
+}
+
+fn message_text(message: &ModelMessage) -> Option<&str> {
+    match message {
+        ModelMessage::System(text)
+        | ModelMessage::User(text)
+        | ModelMessage::ToolResult { content: text, .. } => Some(text),
+        ModelMessage::Assistant { text, .. } => text.as_deref(),
+    }
 }

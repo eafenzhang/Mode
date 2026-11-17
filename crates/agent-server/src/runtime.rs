@@ -1033,21 +1033,27 @@ async fn run_configuration_failure(
     let mut live = shared.lock();
     live.current_cancel = None;
     live.current_kind = None;
-    let completion = live.inbox.complete(&shared.record.id, &item.input_id);
     live.turn_count += 1;
     live.revision += 1;
     live.updated_at = now_ms();
     if item.compact.is_some() {
-        // compact 的配置失败没有进入 `run_compact`：相位仍是 Queued，这里直接复位
-        // （`settled=false`：失败不改变上下文，排队中的下一单照常完整执行）。
+        // compact 的配置失败没有进入 `run_compact`，也**从未进入 `CommandInbox`**
+        // （compact 不走 prompt 的 admission 账本）。这里不能调用
+        // `inbox.complete(compact_input_id)`：它必然返回 `Stale`，若按 Stale
+        // 「状态不动」会把 ended 的 compact 永远留在 Running。显式落 Error，
+        // 与普通 turn 的配置失败同口径；失败不改变上下文，`settled=false` 让
+        // 排队中的下一单照常完整执行。
         live.compact.on_settled(false);
+        live.status = RuntimeStatus::Error;
+    } else {
+        // 普通 turn：与 `run_one_input` 的失败分支同形（失败恒 Error；Stale 不动
+        // 状态），保证两条收口路径的口径一致。
+        let completion = live.inbox.complete(&shared.record.id, &item.input_id);
+        live.status = match completion {
+            Completion::Promoted(_) | Completion::Idle => RuntimeStatus::Error,
+            Completion::Stale => live.status,
+        };
     }
-    // 与 `run_one_input` 的失败分支同形（失败恒 Error；Stale 不动状态），
-    // 保证两条收口路径的口径一致。
-    live.status = match completion {
-        Completion::Promoted(_) | Completion::Idle => RuntimeStatus::Error,
-        Completion::Stale => live.status,
-    };
     live.last_error = Some(message.to_string());
 }
 
@@ -1345,25 +1351,24 @@ async fn run_compact_blocking(
         started_at: model_started_at,
         finished_at: model_finished_at,
     };
-    let summary =
-        match validate_compact_response(tool_call_count as usize, response.stop_reason, &text) {
-            Ok(summary) => summary,
-            Err(error) => {
-                return compact_failure(
-                    session,
-                    shared,
-                    store,
-                    facts,
-                    &job,
-                    CompactFailure {
-                        message: error.message(),
-                        retryable: error.retryable(),
-                        model_response: Some(model_response),
-                        model_started_at,
-                    },
-                );
-            }
-        };
+    let summary = match validate_compact_response(tool_call_count as usize, &text) {
+        Ok(summary) => summary,
+        Err(error) => {
+            return compact_failure(
+                session,
+                shared,
+                store,
+                facts,
+                &job,
+                CompactFailure {
+                    message: error.message(),
+                    retryable: error.retryable(),
+                    model_response: Some(model_response),
+                    model_started_at,
+                },
+            );
+        }
+    };
 
     // —— 成功：替换内存历史 → 落库 → 发布终态 → 收口 ——
     // 下一轮请求只带摘要续接消息（契约 §1.5：旧 turn 消息不再进入请求）；DB 里的
@@ -1464,9 +1469,8 @@ fn finish_compact_skipped(
     if let Err(error) = persist_compact_rows(&shared, &store, &facts, CompactRows::Skipped) {
         persist_error = Some(error.to_string());
     }
-    if let Err(error) = record_compact_skipped_usage(&store, &facts) {
-        persist_error.get_or_insert_with(|| error.to_string());
-    }
+    // 观察（`compact-same-tick` 的 `dbSkippedRows`）只新增 skipped timeline 消息 +
+    // compact part，**没有** skipped `turn_usage` 行；这里不写（§1.9 登记）。
     if let Err(error) = store.touch_session(&session_id, facts.ended_at) {
         persist_error.get_or_insert_with(|| error.to_string());
     }
@@ -2019,32 +2023,14 @@ fn record_compact_failure_usage(
         first_model_start_at: Some(model_started_at),
         error_type: Some("unknown_error".to_string()),
         error_code: Some("UNKNOWN_ERROR".to_string()),
+        // 夹具观察失败 compact 的 `turn_usage.trace_id` 同样非空（折叠为 `<id>`）。
+        trace_id: Some(uuid::Uuid::new_v4().to_string()),
         ..TurnUsageRecord::default()
     })?;
     if let Some(model) = model {
         store.record_model_usage(model_usage_record(facts, model))?;
     }
     Ok(())
-}
-
-/// `turn_usage(completed)` 零用量行（skipped 没有模型请求；夹具未录该行，
-/// 按「每个终态恰好一行 `turn_usage`」的 C1 纪律补零值行，登记在契约注记）。
-fn record_compact_skipped_usage(
-    store: &SessionStore,
-    facts: &CompactFacts,
-) -> Result<(), session_store::StoreError> {
-    store.record_turn_usage(TurnUsageRecord {
-        session_id: facts.session_id.clone(),
-        turn_id: facts.turn_id.clone(),
-        started_at: facts.started_at.max(1),
-        status: "completed".to_string(),
-        completed_at: Some(facts.ended_at),
-        duration_ms: Some((facts.ended_at - facts.started_at.max(1)).max(0)),
-        cancelled_by_user: false,
-        model_request_count: 0,
-        user_message_id: None,
-        ..TurnUsageRecord::default()
-    })
 }
 
 /// `model_usage` 行（`query_source:"compact"`；`id` 前缀 `usage_model_compact_`，
