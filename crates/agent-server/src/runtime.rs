@@ -155,7 +155,8 @@ struct GoalState {
     /// 正在进行/已受理的 goal 任务（运行中限制的依据）。
     job_active: bool,
     /// pause/stop 已预分配、等待 worker 在终态/verifier 取消前发布的 status 事件。
-    pending_cancel_event: Option<SessionEvent>,
+    /// 队列而不是单槽：连续 pause/stop 也要保持 seq 单调且不丢事件。
+    pending_cancel_events: std::collections::VecDeque<SessionEvent>,
     /// 无 goal / 首次 set 的 titleUpdated 已发过。
     title_emitted: bool,
 }
@@ -185,7 +186,7 @@ impl GoalState {
             continuation_ordinal: 0,
             control_turns: 0,
             job_active: false,
-            pending_cancel_event: None,
+            pending_cancel_events: std::collections::VecDeque::new(),
             title_emitted: false,
         }
     }
@@ -813,7 +814,7 @@ impl SessionRuntime {
                     ),
                 );
                 if live.goal.job_active || live.current_kind.is_some() {
-                    live.goal.pending_cancel_event = Some(event);
+                    live.goal.pending_cancel_events.push_back(event);
                 } else {
                     publish_now = Some(event);
                 }
@@ -1201,13 +1202,14 @@ impl SessionRuntime {
             continuation_ordinal: old_goal.continuation_ordinal,
             control_turns: control_number + 1,
             job_active: true,
-            pending_cancel_event: None,
+            pending_cancel_events: std::collections::VecDeque::new(),
             title_emitted: old_goal.title_emitted || emit_title,
         };
         live.current_turn_id = Some(control_turn_id);
         live.turn_count += 1;
-        // set/replace 的 revision 增量（夹具：2 → 5；命令 + 控制 turn + 目标切换）。
-        live.revision += 3;
+        // 首次创建 +3（命令 + 控制 turn + 目标切换，夹具 2 → 5）；替换已有目标 +1
+        // （夹具 set-over/replace 的第二目标只前进 1）。
+        live.revision += if previous.is_some() { 1 } else { 3 };
         let objective_sequence = live.next_message_sequence;
         live.next_message_sequence += 1;
         let input_id = goal_input_id(params.input_id.as_deref());
@@ -1277,13 +1279,21 @@ impl SessionRuntime {
             target_update_payload("status_updated", "runtime", Some(&previous), Some(&resumed)),
         );
         live.goal.job_active = true;
-        live.goal.pending_cancel_event = None;
+        live.goal.pending_cancel_events.clear();
         live.revision += 1;
+        let message_sequence = live.next_message_sequence;
+        live.next_message_sequence += 1;
         let input_id = goal_input_id(params.input_id.as_deref());
         live.goal_cancel = Some(CancelToken::new());
         live.inbox.admit(&session_id, input_id.clone());
         let event_seq = live.event_seq;
         let snapshot = self.snapshot_locked(&live);
+        self.persist_goal_state_message_with_sequence(
+            &session_id,
+            "Goal resumed",
+            "goal_state_change",
+            message_sequence,
+        );
         drop(live);
 
         self.shared.publish_many(vec![status_event]);
@@ -1364,7 +1374,7 @@ impl SessionRuntime {
         if running {
             // 事件 seq 已包含在应答快照里；实际发布由 worker 在终态/verifier 取消前
             // 完成，保证 status_updated → run_finished → turn.completed 的顺序。
-            live.goal.pending_cancel_event = Some(cancel_event);
+            live.goal.pending_cancel_events.push_back(cancel_event);
             if let Some(cancel) = &live.goal_cancel {
                 cancel.cancel();
             }
@@ -1419,9 +1429,6 @@ impl SessionRuntime {
         ));
         live.revision += 1;
         let snapshot = self.snapshot_locked(&live);
-        drop(live);
-
-        self.shared.publish_many(events);
         if let Some(sequence) = message_sequence {
             self.persist_goal_state_message_with_sequence(
                 &session_id,
@@ -1430,6 +1437,9 @@ impl SessionRuntime {
                 sequence,
             );
         }
+        drop(live);
+
+        self.shared.publish_many(events);
         Ok(GoalOutcome {
             response: if previous.is_some() {
                 "Goal cleared.".to_string()
@@ -1574,6 +1584,12 @@ async fn worker_loop(
     let mut user_execution_requested = false;
     let mut current: Option<(String, String, String, Arc<dyn ModelProvider>)> = None;
     while let Some(item) = receiver.recv().await {
+        // 方法层 goal 事件直接用共享 `Live.event_seq` 预分配并发布；worker 的
+        // Session 计数器可能落后。每个输入开始前对齐一次，保证后续 session.emit
+        // （普通 prompt/compact/续跑/失败终态）不会与已发布事件重号。
+        let published_seq = shared.lock().event_seq;
+        session.sync_event_seq(published_seq);
+
         // 取消令牌在**取到输入时**就登记（Task 10）：`session/close` 可能落在
         // 「准入已接受、turn 尚未开始」的等待窗口里（user-execution 偏好请求、
         // provider 装配的宿主钩子）。令牌登记晚于 close 时，`cancel_turn` 落在
@@ -2754,7 +2770,7 @@ fn finish_goal_job(
     live.current_kind = None;
     live.goal.job_active = false;
     live.goal_cancel = None;
-    let pending = live.goal.pending_cancel_event.take();
+    let pending: Vec<SessionEvent> = live.goal.pending_cancel_events.drain(..).collect();
     if admitted {
         live.inbox.complete(session_id, input_id);
     }
@@ -2767,8 +2783,8 @@ fn finish_goal_job(
         RuntimeStatus::Idle
     };
     drop(live);
-    if let Some(event) = pending {
-        shared.publish(&event);
+    if !pending.is_empty() {
+        shared.publish_many(pending);
     }
 }
 
@@ -2829,13 +2845,15 @@ fn elapsed_seconds(started_at: i64, now: i64) -> u64 {
     millis.div_ceil(1000).max(1)
 }
 
-/// 发布方法层预分配的 pause/stop `status_updated` 事件（若存在）。
-fn publish_pending_cancel_event(shared: &Arc<Shared>) -> Option<SessionEvent> {
-    let event = shared.lock().goal.pending_cancel_event.take();
-    if let Some(event) = &event {
-        shared.publish(event);
-    }
-    event
+/// 发布方法层预分配的 pause/stop `status_updated` 事件队列；返回最后一个 seq。
+fn publish_pending_cancel_event(shared: &Arc<Shared>) -> Option<u64> {
+    let events: Vec<SessionEvent> = {
+        let mut live = shared.lock();
+        live.goal.pending_cancel_events.drain(..).collect()
+    };
+    let last = events.last().map(|event| event.seq);
+    shared.publish_many(events);
+    last
 }
 
 /// 写 goal 续跑/verifier 的 `model_usage` 行（夹具的 `query_source` 区分：
@@ -3022,7 +3040,9 @@ async fn run_goal_loop(
                 };
                 // 取消的 status_updated 用方法层预分配的事件（seq 已进应答快照），
                 // 必须在 run_finished 与 turn.completed 之前发布。
-                publish_pending_cancel_event(&shared_before);
+                if let Some(seq) = publish_pending_cancel_event(&shared_before) {
+                    session.sync_event_seq(seq);
+                }
                 let turn_id = session.current_turn_id().map(str::to_owned);
                 let event = session.emit(
                     turn_id.as_deref(),
@@ -3073,7 +3093,7 @@ async fn run_goal_loop(
                 // turn 与 verifier 之间可能到达 pause/stop：先补状态事件再停止。
                 let stop_between = {
                     let live = shared.lock();
-                    live.goal.pending_cancel_event.is_some()
+                    !live.goal.pending_cancel_events.is_empty()
                         || live
                             .goal
                             .target
@@ -3345,7 +3365,9 @@ async fn run_goal_verifier(
     }
     let finished_at = now_ms();
     if cancelled {
-        publish_pending_cancel_event(shared);
+        if let Some(seq) = publish_pending_cancel_event(shared) {
+            session.sync_event_seq(seq);
+        }
         let verification = GoalVerification {
             passed: false,
             reason: CANCELLED_VERIFIER_REASON.to_string(),
@@ -3395,7 +3417,9 @@ async fn run_goal_verifier(
     let usage = match &response {
         Ok(response) => response.usage.clone(),
         Err(error) => {
-            publish_pending_cancel_event(shared);
+            if let Some(seq) = publish_pending_cancel_event(shared) {
+                session.sync_event_seq(seq);
+            }
             let verification = GoalVerification {
                 passed: false,
                 reason: format!("Completion verifier failed: {}", error.message),

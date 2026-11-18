@@ -1738,6 +1738,15 @@ impl Session {
         self.emit(Some(turn_id), SessionEventType::ToolUpdated, &payload)
     }
 
+    /// 把事件序号推进到运行时方法层已经发布的 `seq`。
+    ///
+    /// goal 的控制/状态事件由 `SessionRuntime` 在方法层用共享 `Live.event_seq`
+    /// 预分配并发布；worker 的 `Session` 有自己的计数器，在发布预分配事件之后必须
+    /// 对齐，否则后续 `session.emit` 会重用同一个 `seq`/`eventId`。
+    pub fn sync_event_seq(&mut self, seq: u64) {
+        self.sequence = self.sequence.max(seq);
+    }
+
     /// 包一个会话事件信封。
     ///
     /// `eventId` 用单调 id 而不是 uuid：spec §3 把 `eventId` 归一成 `<id>`，它的真实形态不是
@@ -1746,13 +1755,6 @@ impl Session {
     ///
     /// 公开给宿主（`agent-server`）：compact turn 的终态事件由宿主在落库之后构造并
     /// 发布（C2 T2），seq/信封仍归 [`Session`] 单调分配，不出现第二套编号。
-    /// 把事件序号推进到运行时方法层已经发布的 `seq`（goal 的控制/状态事件由
-    /// `SessionRuntime` 在方法层发布，worker 拿到 Session 后必须对齐，避免续跑事件
-    /// 与已发布事件重号）。
-    pub fn sync_event_seq(&mut self, seq: u64) {
-        self.sequence = self.sequence.max(seq);
-    }
-
     pub fn emit<T: Serialize>(
         &mut self,
         turn_id: Option<&str>,

@@ -261,6 +261,22 @@ fn session_title(path: &Path, session_id: &str) -> String {
         .expect("读取 session.title")
 }
 
+fn assert_unique_monotonic(events: &[Value]) {
+    let seqs: Vec<u64> = events
+        .iter()
+        .map(|event| event["seq"].as_u64().expect("seq"))
+        .collect();
+    assert!(
+        seqs.windows(2).all(|pair| pair[0] < pair[1]),
+        "seq 必须严格递增：{seqs:?}"
+    );
+    let ids: std::collections::BTreeSet<&str> = events
+        .iter()
+        .map(|event| event["eventId"].as_str().expect("eventId"))
+        .collect();
+    assert_eq!(ids.len(), events.len(), "eventId 必须唯一");
+}
+
 fn messages_with_source(path: &Path, source: &str) -> Vec<Value> {
     let connection = raw_connection(path);
     let mut statement = connection
@@ -318,6 +334,8 @@ struct GoalProvider {
     gate: Option<Arc<tokio::sync::Semaphore>>,
     /// 下一次 continuation 请求返回 provider 错误（未观察失败路径的落库一致性）。
     fail_next_continuation: Arc<std::sync::atomic::AtomicBool>,
+    verifier_entered: Arc<tokio::sync::Notify>,
+    verifier_gate: Option<Arc<tokio::sync::Semaphore>>,
 }
 
 impl GoalProvider {
@@ -333,6 +351,8 @@ impl GoalProvider {
                 entered: Arc::new(tokio::sync::Notify::new()),
                 gate: None,
                 fail_next_continuation: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                verifier_entered: Arc::new(tokio::sync::Notify::new()),
+                verifier_gate: None,
             },
             requests,
         )
@@ -350,6 +370,17 @@ impl GoalProvider {
             pre_gate: Some(gate),
             ..self
         }
+    }
+
+    fn with_verifier_gate(self, gate: Arc<tokio::sync::Semaphore>) -> Self {
+        Self {
+            verifier_gate: Some(gate),
+            ..self
+        }
+    }
+
+    fn verifier_entered(&self) -> &tokio::sync::Notify {
+        &self.verifier_entered
     }
 
     fn queue_verifier(&self, response: &str) {
@@ -458,8 +489,16 @@ impl ModelProvider for GoalProvider {
             .unwrap_or_else(|| {
                 r#"{"passed":true,"reason":"goal verified","nextAction":null}"#.to_string()
             });
+        let verifier_entered = Arc::clone(&self.verifier_entered);
+        let verifier_gate = self.verifier_gate.clone();
         Box::pin(async move {
             requests.lock().expect("requests").push(record);
+            if let Some(gate) = verifier_gate {
+                verifier_entered.notify_one();
+                let _permit = gate.acquire().await.map_err(|_| ProviderError {
+                    message: "verifier gate closed".to_string(),
+                })?;
+            }
             let _ = deltas.send(ModelDelta::Text {
                 text: response.clone(),
             });
@@ -576,6 +615,24 @@ impl TestConn {
                     "请求 {id} 失败: {} ({})",
                     response.error.message, response.error.code
                 ),
+                _ => {}
+            }
+        }
+    }
+
+    /// 等指定应答，同时把期间收到的 `session/event` 收进 `events`（不丢弃通知）。
+    async fn result_collecting(&mut self, id: u64, events: &mut Vec<Value>) -> Value {
+        let expected = RequestId::Number(id as i64);
+        loop {
+            match self.next_frame().await {
+                Frame::Response(response) if response.id == expected => return response.result,
+                Frame::ErrorResponse(response) if response.id == expected => panic!(
+                    "请求 {id} 失败: {} ({})",
+                    response.error.message, response.error.code
+                ),
+                Frame::Notification(notification) if notification.method == "session/event" => {
+                    events.push(notification.params.expect("事件 params"));
+                }
                 _ => {}
             }
         }
@@ -1222,6 +1279,7 @@ async fn running_goal_management_rejected_but_pause_cancels_in_flight() {
     );
 
     let events = conn.drain_until_terminal().await;
+    assert_unique_monotonic(&events);
     let terminal = events.last().expect("终态");
     assert_eq!(terminal["type"], json!("turn.completed"));
     assert_eq!(terminal["payload"]["resultType"], json!("cancelled"));
@@ -1317,6 +1375,11 @@ async fn running_goal_management_rejected_but_pause_cancels_in_flight() {
         verification["payload"]["foregroundExecutionId"],
         json!("runtime_command_2")
     );
+    assert_eq!(
+        messages_with_source(&fixture.db_path, "goal_state_change").len(),
+        2,
+        "pause + resume 各一条 goal_state_change 行"
+    );
 
     // clear：应答快照含 cleared；turnCount 3（control + 两次 continuation）。
     let clear = goal_action(&mut conn, &session_id, "clear", json!({})).await;
@@ -1332,6 +1395,113 @@ async fn running_goal_management_rejected_but_pause_cancels_in_flight() {
         clear_events.last().expect("cleared")["seq"]
     );
     assert_eq!(count_rows(&fixture.db_path, "session_target"), 0);
+}
+
+#[tokio::test]
+async fn repeated_pause_keeps_pending_events_unique_and_monotonic() {
+    let (provider, _requests) = GoalProvider::new("slow answer");
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let provider = provider.with_gate(Arc::clone(&gate));
+    let fixture = fixture("double-pause", provider);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let set = goal_action(
+        &mut conn,
+        &session_id,
+        "set",
+        json!({ "objective": "Double pause goal", "inputId": "goal_dp_set" }),
+    )
+    .await;
+    assert_eq!(set["startedTurn"], json!(true));
+    fixture.provider.entered().notified().await;
+
+    let first_id = conn
+        .send(
+            "session/goal",
+            json!({ "sessionId": session_id, "action": "pause" }),
+        )
+        .await;
+    let second_id = conn
+        .send(
+            "session/goal",
+            json!({ "sessionId": session_id, "action": "pause" }),
+        )
+        .await;
+    let mut events = Vec::new();
+    let first = conn.result_collecting(first_id, &mut events).await;
+    assert_eq!(
+        first["snapshot"]["session"]["target"]["status"],
+        json!("paused")
+    );
+    let second = conn.result_collecting(second_id, &mut events).await;
+    assert_eq!(
+        second["snapshot"]["session"]["target"]["status"],
+        json!("paused")
+    );
+    let cancelled = |event: &Value| {
+        event["type"] == json!("turn.completed")
+            && event["payload"]["resultType"] == json!("cancelled")
+    };
+    if !events.iter().any(cancelled) {
+        events.extend(conn.drain_until(cancelled).await);
+    }
+    assert_unique_monotonic(&events);
+    let status_events: Vec<&Value> = events
+        .iter()
+        .filter(|event| event["payload"]["action"] == json!("status_updated"))
+        .collect();
+    assert_eq!(status_events.len(), 2, "两次 pause 都保留自己的状态事件");
+    gate.add_permits(1);
+}
+
+#[tokio::test]
+async fn verifier_cancellation_keeps_seq_unique_and_monotonic() {
+    let (provider, _requests) = GoalProvider::new("goal answer");
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let provider = provider.with_verifier_gate(Arc::clone(&gate));
+    let fixture = fixture("verifier-cancel", provider);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let set = goal_action(
+        &mut conn,
+        &session_id,
+        "set",
+        json!({ "objective": "Verifier cancel goal", "inputId": "goal_vc_set" }),
+    )
+    .await;
+    assert_eq!(set["startedTurn"], json!(true));
+    fixture.provider.verifier_entered().notified().await;
+
+    let pause = goal_action(&mut conn, &session_id, "pause", json!({})).await;
+    assert_eq!(
+        pause["snapshot"]["session"]["target"]["status"],
+        json!("paused")
+    );
+    let events = conn
+        .drain_until(|event| event["payload"]["status"] == json!("cancelled"))
+        .await;
+    assert_unique_monotonic(&events);
+    let status_position = events
+        .iter()
+        .position(|event| event["payload"]["action"] == json!("status_updated"))
+        .expect("status_updated");
+    let cancelled_position = events
+        .iter()
+        .position(|event| event["payload"]["status"] == json!("cancelled"))
+        .expect("verification cancelled");
+    assert!(status_position < cancelled_position);
+    let cancelled = &events[cancelled_position];
+    assert_eq!(cancelled["payload"]["goalIteration"], json!(1));
+    assert_eq!(
+        cancelled["payload"]["foregroundExecutionId"],
+        json!("runtime_command_1")
+    );
+    let _ = wait_idle(&mut conn, &session_id).await;
+    let target = target_row(&fixture.db_path, &session_id).expect("target row");
+    assert_eq!(target["status"], json!("paused"));
+    gate.add_permits(1);
 }
 
 // ---------------------------------------------------------------------------
@@ -1417,6 +1587,7 @@ async fn user_stop_before_provider_request_records_zero_requests() {
     pre_gate.add_permits(1);
 
     let events = conn.drain_until_terminal().await;
+    assert_unique_monotonic(&events);
     assert_eq!(
         events.last().expect("terminal")["payload"]["resultType"],
         json!("cancelled")
@@ -1451,6 +1622,8 @@ async fn user_stop_before_provider_request_records_zero_requests() {
 #[tokio::test]
 async fn set_over_existing_and_replace_change_target_id_single_row() {
     let (provider, _requests) = GoalProvider::new("goal answer");
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let provider = provider.with_gate(Arc::clone(&gate));
     let fixture = fixture("set-over", provider);
     let mut conn = connect(Arc::clone(&fixture.server)).await;
     let session_id = create_session(&mut conn, &fixture.ws).await;
@@ -1462,6 +1635,7 @@ async fn set_over_existing_and_replace_change_target_id_single_row() {
         json!({ "objective": "Goal one", "inputId": "goal_s1" }),
     )
     .await;
+    assert_eq!(first["snapshot"]["runtime"]["stateRevision"], json!(3));
     let first_id = first["snapshot"]["session"]["target"]["targetId"]
         .as_str()
         .expect("target-1")
@@ -1476,7 +1650,17 @@ async fn set_over_existing_and_replace_change_target_id_single_row() {
         .find(|event| event["type"] == json!("turn.started"))
         .expect("first control turn");
     assert_eq!(first_control["payload"]["turnNumber"], json!(0));
-    let _ = conn.drain_until_goal_status("complete").await;
+
+    // 夹具在第二个 set 前先 pause 第一个目标；pause + cancelled 各 +1 revision。
+    fixture.provider.entered().notified().await;
+    let pause = goal_action(&mut conn, &session_id, "pause", json!({})).await;
+    assert_eq!(pause["snapshot"]["runtime"]["stateRevision"], json!(4));
+    let _ = conn.drain_until_terminal().await;
+    let _ = wait_idle(&mut conn, &session_id).await;
+    assert_eq!(
+        target_row(&fixture.db_path, &session_id).expect("paused row")["status"],
+        json!("paused")
+    );
 
     let second = goal_action(
         &mut conn,
@@ -1485,6 +1669,8 @@ async fn set_over_existing_and_replace_change_target_id_single_row() {
         json!({ "objective": "Goal two", "inputId": "goal_s2" }),
     )
     .await;
+    // 替换已有目标：set 只 +1（paused 后 5 → 6）。
+    assert_eq!(second["snapshot"]["runtime"]["stateRevision"], json!(6));
     let second_id = second["snapshot"]["session"]["target"]["targetId"]
         .as_str()
         .expect("target-2")
@@ -1517,6 +1703,7 @@ async fn set_over_existing_and_replace_change_target_id_single_row() {
         second["snapshot"]["runtime"]["eventSeq"], set_event["seq"],
         "second set 应答快照是控制/set 事件之后"
     );
+    gate.add_permits(1);
     let events = conn.drain_until_goal_status("complete").await;
     let continuation = events
         .iter()
@@ -1791,6 +1978,7 @@ async fn user_stop_cancels_continuation_and_pauses_target() {
     assert_eq!(conn.result(stop_id).await, json!({}));
 
     let events = conn.drain_until_terminal().await;
+    assert_unique_monotonic(&events);
     assert_eq!(
         events.last().expect("terminal")["payload"]["resultType"],
         json!("cancelled")
