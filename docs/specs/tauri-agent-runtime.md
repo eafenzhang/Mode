@@ -1264,6 +1264,11 @@ spec 再改实现。
 - 真实端点 smoke：`scripts/agent-c3-smoke.mts`（**opt-in，人工凭据，不进 CI**；
   C2 smoke 同口径 + C3 场景：`session/goal` set → continuation → 真实端点 verifier →
   complete → `session/read`/`session_target` 断言 + 普通 turn 终态恰好一次）。
+- **Harness tsconfig coverage gap（follow-up）**：`agent-runtime-oracle/**` 不被任何
+  tsc project 覆盖（`.mts`→`.mjs` 导入写法依赖 tsx 解析；现有 typecheck 的 tsconfig
+  不含该目录，tsx 剥类型不检查）——类型断裂只能靠审计发现（T5 round-1/2 各修两处：
+  断裂 import 块、幻影 `PathContext`/`C3Diff` 类型导入）。为该目录建独立 tsc project
+  属后续 harness 卫生项，不在 C3 范围内。
 
 ## 验收场景（Task 0）
 

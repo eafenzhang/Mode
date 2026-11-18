@@ -4,7 +4,7 @@
 // `replay-c3.mts` 文件头与 `tauri-agent-runtime.md` §C3；这里只有两侧同一实现的
 // 过滤/折叠与纯结构比较入口（diffDeep / compareEventStream 来自 C2 的同一份）。
 import { compareEventStream } from "./compare.mjs";
-import { diffDeep } from "./replay-c2.mjs";
+import { diffDeep, type C2Diff as C3Diff } from "./replay-c2.mjs";
 import type { JsonObject } from "./session-lifecycle-fixtures.mjs";
 
 export type C3EventScope = {

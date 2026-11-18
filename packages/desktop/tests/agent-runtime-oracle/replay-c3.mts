@@ -62,7 +62,6 @@ import {
   normalizeC3Deep,
   readC3Db,
   type C3AliasState,
-  type PathContext,
 } from "./probe-c3-support.mjs";
 import {
   diffC3Value,
@@ -75,7 +74,7 @@ import {
   type C3EventScope,
   type NormalizedC3Event,
 } from "./replay-c3-compare.mjs";
-import type { JsonObject } from "./session-lifecycle-fixtures.mjs";
+import type { JsonObject, PathContext } from "./session-lifecycle-fixtures.mjs";
 
 export const C3_FIXTURE_DIR = fileURLToPath(new URL("./fixtures/c3/", import.meta.url));
 
