@@ -988,9 +988,12 @@ runtime——实际子代理执行归 C4）；行为基线是 §4.1–§4.6 的�
   session/read 可见也报 not found」）。
 - **参数**：严格 `{sessionId, endedCursor?, endedLimit?}`，未知键 `-32602`；
   `endedLimit` 缺省 **20**（协议 schema `modeSessionSubagentsParamsSchema` 的
-  `.default(20)` 镜像，schema 值而非行为观察，见 §4.1）；`endedLimit:0` / 负数 →
-  `-32602`，`message:"Invalid params — endedLimit: Too small: expected number to be >0"`
-  且 `data` 携带夹具的 ZodError 文本（逐字复现）。
+  `.int().positive().max(100).default(20)` 镜像，schema 值而非行为观察，见 §4.1）。
+  `endedLimit:0` / 负数 → `-32602`，`message:"Invalid params — endedLimit: Too small:
+  expected number to be >0"` 且 `data` 携带夹具的 ZodError 文本（逐字复现）；
+  `endedLimit > 100` → 同形状的 `too_big` `-32602`
+  （`"Too big: expected number to be <=100"`，`maximum:100` / `inclusive:true`）——
+  上界与文案按 schema `.max(100)` 派生，oracle 运行时未观察该值（登记项）。
 - **投影源**：会话库（`session-store`）。`session_task_link` 按 §4.5 观察**不读**（
   subagent 路径恒空表）；两条事实线：
   - `childSessionIds`：`session` 行 `parent_id = <sessionId>` 且
@@ -1008,15 +1011,20 @@ runtime——实际子代理执行归 C4）；行为基线是 §4.1–§4.6 的�
   消息文本里的 `<result>`（后台夹具的 `"background child result"`），没有匹配通知时取
   output 中 `agentId:` 行**之前**的前缀（前台夹具的 `"child result text"`）；两者皆缺
   → 键省略。`endedAt = state.time.end`（缺失回退 part 行时间）。
-- **分页**：ended 全集按 `endedAt` 倒序（同刻按创建序倒序），`total` 是全集条数；
-  `endedLimit` 截页，还有剩余时给 `nextCursor`，没有则**键省略**（§4.1）；cursor 是
-  不透明 base64(JSON `{childSessionId, endedAt}`)（§4.4 解码形状）；`endedCursor` 定位
-  `endedAt` 严格小于游标值的剩余项。
-- **revision**：夹具只给出六个观察值（空 4、running 3、ended 4、后台 mid 3 / after 4、
-  分页 6），DB 列不直接携带。Rust 用回合推进推导：`2 + startedTurns + completedTurns`
-  （started = 父会话 role=user 消息数；completed = `assistant_response` 且 `finish`
-  非空且 ≠ `tool-calls` 的消息数），六个观察值全部复现；基数 2（create/title 两类
-  状态推进）来源未观察，按常数标定。
+- **分页**：ended 全集按 `(endedAt, 创建序)` 倒序，`total` 是全集条数；`endedLimit`
+  截页，还有剩余时给 `nextCursor`，没有则**键省略**（§4.1）；cursor 是不透明
+  base64(JSON `{childSessionId, endedAt}`)（§4.4 解码形状）；`endedCursor` 的 keyset
+  与排序同键：在当前全集里解析游标条目此刻的 `(endedAt, 创建序)`，取严格排在其后
+  的剩余项——同刻平局组跨页不丢项（同毫秒完成的多个子代理按创建序倒序逐页返回）。
+- **revision**：夹具给出六个观察值（空 4、running 3、ended 4、后台 mid 3 / after 4、
+  分页 6），DB 列不直接携带。Rust 用回合推进推导：`2 + startedTurns + completedTurns`，
+  **后台通知 turn 不计入两个计数**（夹具 `after` 在通知 turn 持久化的前提下仍是 4；
+  `backgroundSubagentResultConsumed:true` 的自然读法是通知 turn 不推进该投影版本）：
+  started = role=user 且语义非 `background_notification` 的行；completed =
+  `assistant_response` 且 `finish:"stop"`（夹具只观察到 stop；`tool-calls` 是回合
+  继续、不计数）且其 `anchor.turnId` 不属于任何通知输入行（无 anchor 的行不可归属
+  通知 turn，按普通 turn 计入——fail-soft 回退）。该公式复现全部六个观察值；
+  基数 2（create/title 两类状态推进）来源未观察，按常数标定。
 - **fail-soft**：子会话行存在但没有对应 Agent tool part → 只有 `childSessionIds`，
   running/ended 为空；tool part 缺 `state`/`state.status` → 该 part 跳过；
   `state.input.description`/`subagentType` 缺失 → 必填 title/subagentType 用中性空串
@@ -1031,7 +1039,7 @@ runtime——实际子代理执行归 C4）；行为基线是 §4.1–§4.6 的�
 | `waiting` / `blocked` / `cancelled` / `lost` | 不产出（tool part 状态只有 pending/running/completed/error 可观察）；`error` 映射 ended `failed` 是唯一可观察的失败路径 | §4.7 |
 | 活跃 runtime | 读面不区分冷/热会话：两条路径都从会话库投影（live 子代理状态归 C4 的 runtime 面，本任务不存在该写入方） | §4.6 |
 | `endedCursor` 非法/过期 | 未观察；实现显式 `-32602`（opaque 游标 base64/JSON 解不开、或定位的 childSessionId 不在当前 ended 全集），不静默回第一页 | §4.7 |
-| `endedLimit` > 20 截断 | 未观察 >20 的行为；实现按 schema 语义截页 | §5 |
+| `endedLimit` > 20 / > 100 | 未观察 >20 的运行时截断；实现按 schema 语义截页；`>100` 按 `.max(100)` 显式 `-32602`（`too_big` 文案为 schema 派生，未观察） | §5 |
 | `backgroundSubagentResultConsumed` | 只属于 `turn.completed`/`turn.failed` 载荷（§4 夹具不在 subagents 结果里）；通知 turn 终态置 `true` 仍是 T3 未覆盖项（见 §3.5 表外的观察缺口），T4 不改 turn 面 | §4.3 |
 
 ## 5. 未观察到 / 不可触发汇总

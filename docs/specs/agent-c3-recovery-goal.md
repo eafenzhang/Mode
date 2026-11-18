@@ -171,16 +171,20 @@ C3 在 C1/C2 的 Rust `agent-server` 上补齐三件事，并保持「终态恰�
   只从 `session-store` 读（`session_task_link` 按观察不读——subagent 路径恒空表）；
   无 spawn/child runtime 路径，实际执行归 C4。
 - 边界：会话缺失或尚无任何 turn（父会话无 role=user 消息行）→ `-32004
-  Session not found: <sessionId>`；`endedLimit` 缺省 20 是协议 schema 值，`0`/负数
-  `-32602`（逐字夹具文案）。
+  Session not found: <sessionId>`；`endedLimit` 缺省 20 是协议 schema 值，
+  `0`/负数 `-32602`（逐字夹具文案），`>100` 按 schema `.max(100)` 显式 `-32602`
+  （`too_big` 文案为 schema 派生，未观察）。
 - 投影：`childSessionIds` 来自 `parent_id` + `task_type='subagent_child'` 的子会话行
   （创建序别名 `child-<n>`）；running/ended 项来自父会话的 Agent tool part
   （`callID`/`state.input.description`/`subagentType`/`state.status`/`state.time`），
   ended 的 summary/agentId 从 tool output 与匹配 `<task-id>` 的 `background_notification`
-  消息 `<result>` 投影；ended 按 `endedAt` 倒序、`endedLimit` 截页 + 不透明
-  base64 游标（解码形状 `{childSessionId, endedAt}`）。
-- revision 用回合推进推导（`2 + startedTurns + completedTurns`），复现全部六个夹具
-  观察值；基数来源未观察，已登记（`agent-c3-contract.md` §4.8）。
+  消息 `<result>` 投影；ended 按 `(endedAt, 创建序)` 倒序、`endedLimit` 截页 + 不透明
+  base64 游标（解码形状 `{childSessionId, endedAt}`；keyset 与排序同键，同刻平局
+  跨页不丢项）。
+- revision 用回合推进推导（`2 + startedTurns + completedTurns`，后台通知 turn 不计入
+  两个计数：started 排除 `background_notification` 输入，completed 按
+  `anchor.turnId` 排除通知 turn 的 `finish:"stop"` 行），复现全部六个夹具观察值；
+  基数来源未观察，已登记（`agent-c3-contract.md` §4.8）。
 - fail-soft：子会话行/tool part 缺失或损坏 → 空列表、键省略或中性空串，不 panic；
   库级读失败显式 `-32603`。`waiting`/`blocked`/`cancelled`/`lost` 不产出（未观察）；
   通知 turn 终态的 `backgroundSubagentResultConsumed:true` 仍属 T3 缺口（T4 不改

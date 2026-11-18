@@ -7,12 +7,14 @@
 //! 边界与形状（夹具观察值）：
 //! - 会话行缺失、或会话还没有任何 turn（父会话无 role=user 的 message 行）→
 //!   `-32004 Session not found: <sessionId>`；
-//! - `endedLimit` 缺省 20（协议 schema `.default(20)` 镜像），`0`/负数 `-32602`
-//!   （文案逐字对齐夹具的 ZodError 形状）；
+//! - `endedLimit` 缺省 20（协议 schema `.int().positive().max(100).default(20)`
+//!   镜像），`0`/负数与 `>100` 都是 `-32602`（`too_small` 文案逐字对齐夹具；
+//!   `too_big`/上界是 schema 派生值，运行时未观察，登记 §4.8）；
 //! - `childSessionIds` 来自 `task_type='subagent_child'` 的子会话行（创建顺序
 //!   别名 `child-<n>`）；running/ended 项来自父会话的 Agent tool part；
-//! - ended 按 `endedAt` 倒序，`endedLimit` 截页 + 不透明 base64 游标
-//!   （JSON `{childSessionId, endedAt}`），无更多页时键省略；
+//! - ended 按 `(endedAt, 创建序)` 倒序，`endedLimit` 截页 + 不透明 base64 游标
+//!   （JSON `{childSessionId, endedAt}`），keyset 按同序二元组取剩余项（同刻
+//!   平局不丢项），无更多页时 `nextCursor` 键省略；
 //! - **纯读**：不写任何表、不 spawn 会话——实际子代理执行归 C4。
 //!
 //! fail-soft 纪律（§4.8）：子会话行/tool part 缺失或损坏 → 列表为空、键省略或
@@ -31,12 +33,23 @@ use crate::server::ServerError;
 
 use super::{epoch_u64, parse_params, store_error};
 
+/// `endedLimit` 上界（协议 schema `.max(100)`；上界拒绝是 schema 派生值，
+/// oracle 运行时行为未观察，登记 §4.8）。
+const ENDED_LIMIT_MAX: u64 = 100;
+
 /// 夹具逐字错误文案（`endedLimit` 不满足 `>0` 时的 `-32602`）。
-const ENDED_LIMIT_ERROR_MESSAGE: &str =
+const ENDED_LIMIT_TOO_SMALL_MESSAGE: &str =
     "Invalid params — endedLimit: Too small: expected number to be >0";
 
 /// 夹具逐字 `data`（TS zod 的 too_small 详情；线格式事实源，不重排）。
-const ENDED_LIMIT_ERROR_DATA: &str = "[\n  {\n    \"origin\": \"number\",\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"inclusive\": false,\n    \"path\": [\n      \"endedLimit\"\n    ],\n    \"message\": \"Too small: expected number to be >0\"\n  }\n]";
+const ENDED_LIMIT_TOO_SMALL_DATA: &str = "[\n  {\n    \"origin\": \"number\",\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"inclusive\": false,\n    \"path\": [\n      \"endedLimit\"\n    ],\n    \"message\": \"Too small: expected number to be >0\"\n  }\n]";
+
+/// `endedLimit > 100` 的 `-32602`：文案与 data 按 schema `.max(100)` 的 zod
+/// `too_big` 形状构造（与观察到的 too_small 形状同构；运行时未观察，§4.8 登记）。
+const ENDED_LIMIT_TOO_BIG_MESSAGE: &str =
+    "Invalid params — endedLimit: Too big: expected number to be <=100";
+
+const ENDED_LIMIT_TOO_BIG_DATA: &str = "[\n  {\n    \"origin\": \"number\",\n    \"code\": \"too_big\",\n    \"maximum\": 100,\n    \"inclusive\": true,\n    \"path\": [\n      \"endedLimit\"\n    ],\n    \"message\": \"Too big: expected number to be <=100\"\n  }\n]";
 
 /// 后台启动输出里 agentId 行的前缀（夹具逐字模板 §4.3 / subagents-background）。
 const AGENT_ID_LINE_PREFIX: &str = "agentId:";
@@ -88,8 +101,9 @@ pub(crate) fn handle(
         }
     }
 
-    // §4.4：ended 按 endedAt 倒序（同刻按创建序倒序）；running 保持创建顺序
-    // （并行时顺序未观察，取稳定的消息序，§4.7 登记）。
+    // §4.4：ended 按 `(endedAt, 创建序)` 倒序（Important 3：keyset 与排序同键，
+    // 同刻平局不丢项）；running 保持创建顺序（并行时顺序未观察，取稳定的消息序，
+    // §4.7 登记）。
     ended.sort_by(|(left_ordinal, left), (right_ordinal, right)| {
         right
             .ended_at
@@ -97,14 +111,13 @@ pub(crate) fn handle(
             .cmp(&left.ended_at.unwrap_or(0))
             .then(right_ordinal.cmp(left_ordinal))
     });
-    let ended_items: Vec<EndedSubagent> = ended.into_iter().map(|(_, item)| item).collect();
 
     let revision = projection_revision(&messages);
     let result = paginate(
         revision,
         child_session_ids,
         running,
-        ended_items,
+        ended,
         params.ended_limit,
         params.ended_cursor.as_deref(),
     )?;
@@ -117,26 +130,54 @@ fn session_not_found(session_id: &str) -> ServerError {
     ServerError::rpc(-32004, format!("Session not found: {session_id}"), None)
 }
 
-/// `endedLimit` 的 `>0` 下界先行校验：serde 的 u64 解析对 `0` 会成功、对 `-1` 报
-/// 「invalid type」，都给不出夹具的 `too_small` 文案，所以在这里按数值显式判定。
-/// 非整数值仍走 serde 的 `-32602`（未观察边界，文案差异登记 §4.8）。
+/// `endedLimit` 的 schema 边界（`.int().positive().max(100)`）先行校验：serde 的
+/// u64 解析对 `0` 会成功、对 `-1` 报「invalid type」，都给不出夹具的 `too_small`
+/// 文案，所以在这里按数值显式判定。非整数值仍走 serde 的 `-32602`（未观察边界，
+/// 文案差异登记 §4.8）。
 fn validate_ended_limit(params: &Value) -> Result<(), ServerError> {
     let Some(limit) = params.get("endedLimit") else {
         return Ok(());
     };
-    let too_small = limit.as_i64().is_some_and(|value| value <= 0);
-    if too_small {
-        // `-32602` + 夹具的 ZodError data（线格式事实源，逐字不重排）。
-        return Err(ServerError::rpc(
-            -32602,
-            ENDED_LIMIT_ERROR_MESSAGE,
-            Some(json!({
-                "name": "ZodError",
-                "message": ENDED_LIMIT_ERROR_DATA,
-            })),
-        ));
+    match (limit.as_u64(), limit.as_i64()) {
+        // 非负整数：0 违反 `.positive()`，>100 违反 `.max(100)`。
+        (Some(value), _) => {
+            if value == 0 {
+                return Err(too_small_error());
+            }
+            if value > ENDED_LIMIT_MAX {
+                return Err(too_big_error());
+            }
+        }
+        // 负整数：as_u64 解析失败，只有 `.positive()` 违反一种可能。
+        (None, Some(value)) if value <= 0 => return Err(too_small_error()),
+        // 浮点/非数值：交给 serde 的严格 `-32602`。
+        _ => {}
     }
     Ok(())
+}
+
+fn too_small_error() -> ServerError {
+    // `-32602` + 夹具的 ZodError data（线格式事实源，逐字不重排）。
+    ServerError::rpc(
+        -32602,
+        ENDED_LIMIT_TOO_SMALL_MESSAGE,
+        Some(json!({
+            "name": "ZodError",
+            "message": ENDED_LIMIT_TOO_SMALL_DATA,
+        })),
+    )
+}
+
+fn too_big_error() -> ServerError {
+    // schema `.max(100)` 的 zod `too_big` 形状（schema 派生，未观察运行时值）。
+    ServerError::rpc(
+        -32602,
+        ENDED_LIMIT_TOO_BIG_MESSAGE,
+        Some(json!({
+            "name": "ZodError",
+            "message": ENDED_LIMIT_TOO_BIG_DATA,
+        })),
+    )
 }
 
 /// 夹具 message 行序的 Agent tool 记录（创建顺序 = 消息序 + part 序）。
@@ -415,17 +456,49 @@ fn child_alias(ordinal: usize) -> String {
 
 /// `revision` 的回合推进推导（§4.8）：`2 + startedTurns + completedTurns`。
 ///
-/// 夹具只给六个观察值（空 4 / running 3 / ended 4 / 后台 mid 3、after 4 / 分页 6），
-/// DB 列不直接携带；该公式复现全部六个值（基数 2 按 create/title 两类状态推进
-/// 标定，来源未观察——契约 §4.8 已登记）。started = role=user 消息行；
-/// completed = `assistant_response` 且 `finish:"stop"` 的行。
+/// 夹具六个观察值（空 4 / running 3 / ended 4 / 后台 mid 3、after 4 / 分页 6）。
+/// DB 列不直接携带 revision；**后台通知 turn 不计入两个计数**（夹具 `after` 的
+/// revision 是 4，而通知 turn 已持久化；`backgroundSubagentResultConsumed:true`
+/// 的自然读法是通知 turn 不推进该投影版本）：
+/// - started = role=user 且语义**非** `background_notification` 的行；
+/// - completed = `assistant_response` 且 `finish:"stop"`，且其 `anchor.turnId`
+///   不属于任何 `background_notification` 输入行的 turn（无 anchor 的行不可归属
+///   通知 turn，按普通 turn 计入——fail-soft 回退）。
+///
+/// 基数 2（create/title 类状态推进）来源未观察，按常数标定并登记 §4.8。
 fn projection_revision(messages: &[MessageWithParts]) -> u64 {
+    fn anchor_turn_id(data: &Value) -> Option<&str> {
+        data.get("anchor")
+            .and_then(|anchor| anchor.get("turnId"))
+            .and_then(Value::as_str)
+    }
+    let notification_turns: std::collections::HashSet<&str> = messages
+        .iter()
+        .filter_map(|message| {
+            let data = &message.message.data;
+            let is_notification = data.get("role").and_then(Value::as_str) == Some("user")
+                && data
+                    .get("semantics")
+                    .and_then(|semantics| semantics.get("kind"))
+                    .and_then(Value::as_str)
+                    == Some("background_notification");
+            is_notification.then(|| anchor_turn_id(data)).flatten()
+        })
+        .collect();
     let mut started = 0_u64;
     let mut completed = 0_u64;
     for message in messages {
         let data = &message.message.data;
         match data.get("role").and_then(Value::as_str) {
-            Some("user") => started += 1,
+            Some("user") => {
+                let kind = data
+                    .get("semantics")
+                    .and_then(|semantics| semantics.get("kind"))
+                    .and_then(Value::as_str);
+                if kind != Some("background_notification") {
+                    started += 1;
+                }
+            }
             Some("assistant") => {
                 let kind = data
                     .get("semantics")
@@ -434,7 +507,12 @@ fn projection_revision(messages: &[MessageWithParts]) -> u64 {
                 if kind == Some("assistant_response")
                     && data.get("finish").and_then(Value::as_str) == Some("stop")
                 {
-                    completed += 1;
+                    // 通知 turn 自己的 stop 不计（夹具 after：2+1+1=4）。
+                    let attributed_to_notification = anchor_turn_id(data)
+                        .is_some_and(|turn_id| notification_turns.contains(turn_id));
+                    if !attributed_to_notification {
+                        completed += 1;
+                    }
                 }
             }
             _ => {}
@@ -443,8 +521,14 @@ fn projection_revision(messages: &[MessageWithParts]) -> u64 {
     2 + started + completed
 }
 
-/// 分页：ended 全集按已排序的列表截页；游标是不透明 base64(JSON
-/// `{childSessionId, endedAt}`)，keyset 取 `endedAt` 严格小于游标值的剩余项。
+/// 分页：ended 全集按已排序的 `(创建序, 条目)` 列表截页；游标是不透明
+/// base64(JSON `{childSessionId, endedAt}`)。
+///
+/// keyset 按与排序一致的 `(endedAt, 创建序)` **二元组**取严格排在游标之后的剩余
+/// 项：游标条目在当前全集里解析出它此刻的 (endedAt, 创建序)，同刻平局按创建序
+/// 排在游标之后的项不会被丢（Important 3；夹具游标只解码
+/// `{childSessionId, endedAt}`，位置由当前全集解析——二元组自洽，过期 endedAt
+/// 不影响）。
 ///
 /// `nextCursor` 引用**本页最后一项**（夹具第一页返回 child-2 + 游标解码即
 /// child-2）；还有剩余项时才有该键，最后一页键省略（§4.1）。
@@ -452,28 +536,33 @@ fn paginate(
     revision: u64,
     child_session_ids: Vec<String>,
     running: Vec<RunningSubagent>,
-    ended: Vec<EndedSubagent>,
+    ended: Vec<(usize, EndedSubagent)>,
     ended_limit: u64,
     ended_cursor: Option<&str>,
 ) -> Result<SessionSubagentsResult, ServerError> {
     let total = ended.len() as u64;
-    let remaining: Vec<&EndedSubagent> = match ended_cursor {
+    let remaining: Vec<&(usize, EndedSubagent)> = match ended_cursor {
         None => ended.iter().collect(),
         Some(cursor) => {
             let decoded = decode_cursor(cursor)?;
-            if !ended
+            let Some((cursor_ordinal, cursor_item)) = ended
                 .iter()
-                .any(|item| item.child_session_id == decoded.child_session_id)
-            {
+                .find(|(_, item)| item.child_session_id == decoded.child_session_id)
+            else {
                 // 游标指向的条目不在当前全集（过期/被删）：显式 -32602，不静默
                 // 回第一页（未观察边界，§4.8 登记）。
                 return Err(ServerError::invalid_params(
                     "session/subagents 参数不合法: endedCursor 不匹配当前列表",
                 ));
-            }
+            };
+            let cursor_ended_at = cursor_item.ended_at.unwrap_or(0);
             ended
                 .iter()
-                .filter(|item| item.ended_at.unwrap_or(0) < decoded.ended_at)
+                .filter(|(ordinal, item)| {
+                    let item_ended_at = item.ended_at.unwrap_or(0);
+                    item_ended_at < cursor_ended_at
+                        || (item_ended_at == cursor_ended_at && *ordinal < *cursor_ordinal)
+                })
                 .collect()
         }
     };
@@ -481,7 +570,7 @@ fn paginate(
     let page: Vec<EndedSubagent> = remaining
         .iter()
         .take(limit)
-        .map(|item| (*item).clone())
+        .map(|(_, item)| (*item).clone())
         .collect();
     let next_cursor = if remaining.len() > page.len() {
         let last = page

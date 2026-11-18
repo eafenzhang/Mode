@@ -378,6 +378,8 @@ fn user_prompt(
 }
 
 /// `background_task` 通知 turn 的输入行（`runtime.rs` 的 BackgroundNotification 语义）。
+/// anchor.turnId 用固定前缀（`turn-notif-<sessionId>`），通知 turn 的终态步携带
+/// 同一 id——revision 推导据此把通知 turn 从两个计数里排除（Critical fix）。
 fn background_notification_row(
     session_id: &str,
     sequence: i64,
@@ -394,6 +396,7 @@ fn background_notification_row(
             "messageId": message_id,
             "sequence": sequence,
             "time": { "created": time },
+            "anchor": { "turnId": format!("turn-notif-{session_id}"), "origin": "realUser" },
             "model": { "providerID": "mock-chat", "modelID": "mock-1" },
             "semantics": {
                 "origin": "agent_runtime",
@@ -561,6 +564,63 @@ fn seed_turn_final_step(store: &SessionStore, session_id: &str, sequence: i64, t
         .expect("种 turn 终态步");
 }
 
+/// 通知 turn 的终态步：anchor.turnId 与通知输入行一致（revision 推导据此排除
+/// 通知 turn，Critical fix 的种子面）。
+fn seed_notification_turn_final_step(
+    store: &SessionStore,
+    session_id: &str,
+    sequence: i64,
+    time: i64,
+) {
+    let message_id = format!("msg-a-{session_id}-{sequence}");
+    let stop = message_row(
+        session_id,
+        &message_id,
+        sequence,
+        json!({
+            "role": "assistant",
+            "messageId": message_id,
+            "sequence": sequence,
+            "parentID": "msg-u",
+            "finish": "stop",
+            "providerId": "mock-chat",
+            "modelId": "mock-1",
+            "mode": "build",
+            "time": { "created": time, "completed": time },
+            "anchor": { "turnId": format!("turn-notif-{session_id}") },
+            "semantics": {
+                "origin": "agent_runtime",
+                "kind": "assistant_response",
+                "uiVisibility": "visible",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "visible",
+            },
+        }),
+        time,
+    );
+    let parts = vec![
+        part_row(
+            session_id,
+            &message_id,
+            &format!("part-s-{session_id}-{sequence}"),
+            0,
+            json!({ "type": "step-start" }),
+            time,
+        ),
+        part_row(
+            session_id,
+            &message_id,
+            &format!("part-f-{session_id}-{sequence}"),
+            1,
+            json!({ "type": "step-finish", "reason": "stop", "cost": 0 }),
+            time,
+        ),
+    ];
+    store
+        .append_message_with_parts(stop, &parts)
+        .expect("种通知 turn 终态步");
+}
+
 fn seed_child(
     store: &SessionStore,
     ws: &Path,
@@ -708,6 +768,44 @@ async fn ended_limit_zero_and_negative_are_invalid_params() {
         );
         assert_eq!(error.data(), Some(expected_data.clone()));
     }
+}
+
+/// 协议 schema `.max(100)`（Important 2）：`endedLimit:101` → `-32602` too_big
+/// （文案按 schema 派生的 zod 形状，运行时未观察，§4.8 登记）；100 是合法边界。
+#[tokio::test]
+async fn ended_limit_over_100_is_invalid_params() {
+    let fixture = fixture("big-limit").await;
+    {
+        let store = opened_store(&fixture.db_path);
+        seed_parent_base(&store, &fixture.ws, "sess_big");
+        seed_turn_final_step(&store, "sess_big", 2, T0 + 2_000);
+    }
+
+    let error = dispatch_subagents(
+        &fixture.server,
+        json!({ "sessionId": "sess_big", "endedLimit": 101 }),
+    )
+    .expect_err("endedLimit >100 必须显式拒绝");
+    assert_eq!(error.code(), -32602);
+    assert_eq!(
+        error.message(),
+        "Invalid params — endedLimit: Too big: expected number to be <=100"
+    );
+    assert_eq!(
+        error.data(),
+        Some(json!({
+            "name": "ZodError",
+            "message": "[\n  {\n    \"origin\": \"number\",\n    \"code\": \"too_big\",\n    \"maximum\": 100,\n    \"inclusive\": true,\n    \"path\": [\n      \"endedLimit\"\n    ],\n    \"message\": \"Too big: expected number to be <=100\"\n  }\n]",
+        }))
+    );
+
+    // 上界本身合法。
+    let result = dispatch_subagents(
+        &fixture.server,
+        json!({ "sessionId": "sess_big", "endedLimit": 100 }),
+    )
+    .expect("endedLimit=100 必须成功");
+    assert_eq!(result["ended"]["total"], json!(0));
 }
 
 /// 协议 schema 的缺省值是 20（`modeSessionSubagentsParamsSchema` 的 `.default(20)`；
@@ -985,8 +1083,10 @@ async fn background_running_then_settled_by_notification() {
         })
     );
 
-    // after：父 turn 0 完成（assistant stop）+ 完成通知 turn（输入 + 终态步）到达
-    // → started×2 + completed×2 → revision 6；ended 一项。
+    // after：父 turn 0 完成（assistant stop）+ 完成通知 turn（输入 + 终态步）持久化
+    // → ended 一项。夹具 `after` 的 revision 是 4：后台通知 turn 不计入 revision
+    // 的两个计数（started 排除通知输入；completed 按 anchor.turnId 排除通知 turn
+    // 的 stop）→ 2 + 1（user_prompt）+ 1（turn-0 stop）= 4。
     {
         let store = opened_store(&fixture.db_path);
         seed_turn_final_step(&store, "sess_bg", 3, T0 + 4_000);
@@ -997,14 +1097,14 @@ async fn background_running_then_settled_by_notification() {
         store
             .append_message_with_parts(notification, &notification_parts)
             .expect("种完成通知");
-        seed_turn_final_step(&store, "sess_bg", 5, T0 + 6_100);
+        seed_notification_turn_final_step(&store, "sess_bg", 5, T0 + 6_100);
     }
     let after = dispatch_subagents(&fixture.server, json!({ "sessionId": "sess_bg" }))
         .expect("后台 ended 投影");
     assert_eq!(
         after,
         json!({
-            "revision": 6,
+            "revision": 4,
             "childSessionIds": ["child-1"],
             "running": [],
             "ended": {
@@ -1247,6 +1347,109 @@ async fn pagination_returns_newest_first_with_opaque_cursor() {
         second_page["childSessionIds"],
         json!(["child-1", "child-2"])
     );
+}
+
+/// 同毫秒 `endedAt` 平局跨页不丢项（Important 3）：排序键是
+/// `(endedAt, 创建序)` 倒序，keyset 用同一二元组——平局组在页边界切开时，
+/// 第二页仍返回创建序更早的剩余项。
+#[tokio::test]
+async fn pagination_same_ended_at_tie_keeps_all_items() {
+    let fixture = fixture("tie").await;
+    let tie_end = T0 + 3_000;
+    {
+        let store = opened_store(&fixture.db_path);
+        seed_parent_base(&store, &fixture.ws, "sess_tie");
+        // 两个完成的 Agent 调用，endedAt 相同（同一毫秒），创建序 child-1 < child-2。
+        let tools = vec![
+            (
+                "toolu_tie_one".to_string(),
+                agent_state_completed(
+                    json!({
+                        "description": "tie one",
+                        "prompt": "tie one prompt",
+                        "subagent_type": "general-purpose",
+                    }),
+                    "tie one result\nagentId: agent_tie_one (use SendMessage with to: 'agent_tie_one' to continue this agent)",
+                    T0 + 200,
+                    tie_end,
+                ),
+            ),
+            (
+                "toolu_tie_two".to_string(),
+                agent_state_completed(
+                    json!({
+                        "description": "tie two",
+                        "prompt": "tie two prompt",
+                        "subagent_type": "Explore",
+                    }),
+                    "tie two result\nagentId: agent_tie_two (use SendMessage with to: 'agent_tie_two' to continue this agent)",
+                    T0 + 400,
+                    tie_end,
+                ),
+            ),
+        ];
+        let (assistant, parts) =
+            assistant_step("sess_tie", 2, "tool-calls", T0 + 200, T0 + 500, tools);
+        store
+            .append_message_with_parts(assistant, &parts)
+            .expect("种同刻完成的两个 Agent 调用");
+        seed_turn_final_step(&store, "sess_tie", 3, T0 + 3_100);
+        seed_child(
+            &store,
+            &fixture.ws,
+            "sess_tie",
+            1,
+            "tie one prompt",
+            T0 + 250,
+        );
+        seed_child(
+            &store,
+            &fixture.ws,
+            "sess_tie",
+            2,
+            "tie two prompt",
+            T0 + 450,
+        );
+    }
+
+    // 第一页：同刻平局按创建序倒序 → child-2 先返回，游标指向 child-2。
+    let first_page = dispatch_subagents(
+        &fixture.server,
+        json!({ "sessionId": "sess_tie", "endedLimit": 1 }),
+    )
+    .expect("平局第一页");
+    assert_eq!(first_page["ended"]["total"], json!(2));
+    let items = first_page["ended"]["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["childSessionId"], json!("child-2"));
+    assert_eq!(items[0]["endedAt"], json!(tie_end as u64));
+    let cursor_text = first_page["ended"]["nextCursor"]
+        .as_str()
+        .expect("平局截页必须给游标")
+        .to_string();
+    let decoded: Value =
+        serde_json::from_slice(&b64_decode(&cursor_text)).expect("游标解码为 JSON");
+    assert_eq!(
+        decoded,
+        json!({ "childSessionId": "child-2", "endedAt": tie_end as u64 })
+    );
+
+    // 第二页：同刻、创建序更早的 child-1 必须返回（keyset 二元组），无 nextCursor。
+    let second_page = dispatch_subagents(
+        &fixture.server,
+        json!({
+            "sessionId": "sess_tie",
+            "endedLimit": 1,
+            "endedCursor": cursor_text,
+        }),
+    )
+    .expect("平局第二页");
+    assert_eq!(second_page["ended"]["total"], json!(2));
+    let items = second_page["ended"]["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1, "同刻平局的剩余项不得丢失");
+    assert_eq!(items[0]["childSessionId"], json!("child-1"));
+    assert_eq!(items[0]["endedAt"], json!(tie_end as u64));
+    assert!(second_page["ended"].get("nextCursor").is_none());
 }
 
 /// 未观察边界（§4.8 登记）：非法/过期游标显式 `-32602`，不静默回第一页。
