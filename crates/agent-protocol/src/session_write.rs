@@ -169,6 +169,18 @@ pub struct SessionGoalResult {
 
 pub const SESSION_RESUME_METHOD: &str = "session/resume";
 
+/// `session/stop`（C3 T1）：取消当前运行中的 turn；应答 `{}`。
+///
+/// 参数形状来自 C3 夹具 `goal-user-stop.json`：只有 `{sessionId}`。
+pub const SESSION_STOP_METHOD: &str = "session/stop";
+
+/// `modeSessionStopParamsSchema` 的镜像（`.strict()`，`{sessionId}`）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionStopParams {
+    pub session_id: String,
+}
+
 /// `modeSessionResumeParamsSchema`：冷恢复重建 runtime 时必须沿用 create 的工具面约束。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

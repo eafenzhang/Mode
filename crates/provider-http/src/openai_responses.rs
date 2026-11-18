@@ -297,7 +297,7 @@ async fn stream_once(
             Some(chunk) => chunk,
             None => break,
         };
-        let chunk = chunk.map_err(|error| error::transport(describe_transport(&error)))?;
+        let chunk = chunk.map_err(|error| error::stream_abort(describe_transport(&error)))?;
         finished = ingest_payloads(decoder.push(&chunk), &mut tracker, deltas)?;
     }
     if !finished {
@@ -306,7 +306,8 @@ async fn stream_once(
         finished = ingest_payloads(decoder.finish(), &mut tracker, deltas)?;
     }
     if !finished {
-        return Err(error::malformed(
+        // 连接在终态事件前关闭 = 流中断（可重试）。
+        return Err(error::stream_abort(
             "OpenAI Responses 流在终态事件（response.completed/incomplete/failed）前结束（连接已关闭）"
                 .to_string(),
         ));
@@ -409,20 +410,17 @@ fn failed_error(value: &Value) -> ProviderError {
             let code = error.get("code").and_then(Value::as_str);
             let message = error.get("message").and_then(Value::as_str).unwrap_or("");
             match code {
-                Some(code) => ProviderError {
-                    message: format!(
-                        "OpenAI Responses response.failed（{code}）：{}",
-                        truncate(message)
-                    ),
-                },
-                None => ProviderError {
-                    message: format!("OpenAI Responses response.failed：{}", truncate(message)),
-                },
+                Some(code) => ProviderError::api(format!(
+                    "OpenAI Responses response.failed（{code}）：{}",
+                    truncate(message)
+                )),
+                None => ProviderError::api(format!(
+                    "OpenAI Responses response.failed：{}",
+                    truncate(message)
+                )),
             }
         }
-        None => ProviderError {
-            message: "OpenAI Responses response.failed 缺少 response.error".to_string(),
-        },
+        None => ProviderError::api("OpenAI Responses response.failed 缺少 response.error"),
     }
 }
 
@@ -434,18 +432,17 @@ fn in_stream_error(value: &Value) -> ProviderError {
         .and_then(Value::as_str)
         .filter(|text| !text.is_empty());
     match (code, message) {
-        (Some(code), Some(message)) => ProviderError {
-            message: format!(
-                "OpenAI Responses 流内 error 事件（{code}）：{}",
-                truncate(message)
-            ),
-        },
-        (Some(code), None) => ProviderError {
-            message: format!("OpenAI Responses 流内 error 事件（{code}）"),
-        },
-        (None, Some(message)) => ProviderError {
-            message: format!("OpenAI Responses 流内 error 事件：{}", truncate(message)),
-        },
+        (Some(code), Some(message)) => ProviderError::api(format!(
+            "OpenAI Responses 流内 error 事件（{code}）：{}",
+            truncate(message)
+        )),
+        (Some(code), None) => {
+            ProviderError::api(format!("OpenAI Responses 流内 error 事件（{code}）"))
+        }
+        (None, Some(message)) => ProviderError::api(format!(
+            "OpenAI Responses 流内 error 事件：{}",
+            truncate(message)
+        )),
         (None, None) => {
             error::malformed("OpenAI Responses 流内 error 事件缺少 message".to_string())
         }

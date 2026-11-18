@@ -123,9 +123,218 @@ pub struct ModelResponse {
     pub stop_reason: &'static str,
 }
 
+/// provider 错误的分类（C3 T2：重试决策只看分类，不解析错误文案）。
+///
+/// 分类来自观察到的两类路径（`docs/specs/agent-c3-contract.md` §2）：
+/// - HTTP 状态错误（5xx retryable、401/403 非 retryable）；
+/// - 传输/流中断（retryable；是否进入 stream recovery 由会话层按
+///   「本尝试是否已提交 delta」决定，而不是只看这个分类）。
+///
+/// 未观察到的状态码（403/400/429 等）按最小规则分类，登记在契约 §2.7。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderErrorKind {
+    /// 没被归类过的错误（脚本化 fake / 宿主自定义）。
+    Unknown,
+    /// 非 2xx HTTP 应答里没有更具体分类的状态（4xx 等）。
+    HttpStatus,
+    /// 5xx。
+    Server,
+    /// 401 / 403。
+    Auth,
+    /// 429。
+    RateLimited,
+    /// 传输失败（连接、TLS、DNS、请求未发出）。
+    Transport,
+    /// 流已开始但中途中断（读流失败、缺少终止事件）。
+    StreamAbort,
+    /// 响应/流不符合契约（非法 JSON、缺关键字段）。
+    Malformed,
+    /// 本地错误（delta sink 已关闭、请求体序列化失败）。
+    Local,
+    /// 流内 error 事件（供应商在 200 流里报错）。
+    Api,
+}
+
+impl ProviderErrorKind {
+    /// 线上 `turn.failed.attribution.reason` 的近似取值；未观察到的分类
+    /// 用稳定的小写串（登记在契约 §2.7）。
+    pub fn reason(self) -> &'static str {
+        match self {
+            Self::Unknown => "provider_error",
+            Self::HttpStatus => "http_error",
+            Self::Server => "server_error",
+            Self::Auth => "auth_failed",
+            Self::RateLimited => "rate_limited",
+            Self::Transport | Self::StreamAbort => "network_error",
+            Self::Malformed => "invalid_response",
+            Self::Local => "local_error",
+            Self::Api => "api_error",
+        }
+    }
+}
+
+/// 一次模型请求失败。
+///
+/// `message` 保持既有的可诊断文案（宿主直接进 `turn.failed`）；`kind`/`status`/
+/// `retryable` 是重试决策字段。构造器是唯一推荐入口：字段默认值保证旧的
+/// `message`-only 调用方语义不变（`Unknown` + 非 retryable）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderError {
     pub message: String,
+    pub kind: ProviderErrorKind,
+    pub status: Option<u16>,
+    pub retryable: bool,
+    /// 供应商正文/根因（不含适配器前缀）；`turn.failed.underlyingErrorMessage` 的来源。
+    /// 未分类/本地错误为 `None`。
+    pub underlying_message: Option<String>,
+}
+
+impl Default for ProviderError {
+    fn default() -> Self {
+        Self {
+            message: String::new(),
+            kind: ProviderErrorKind::Unknown,
+            status: None,
+            retryable: false,
+            underlying_message: None,
+        }
+    }
+}
+
+impl ProviderError {
+    /// 未分类错误（非 retryable，保持旧行为）。
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            ..Self::default()
+        }
+    }
+
+    /// 非 2xx HTTP 应答。分类只依赖状态码：
+    /// - 401/403 → auth（非 retryable）；
+    /// - 408 → transport（retryable；请求超时，未观察到，登记）；
+    /// - 429 → rate limited（retryable；未观察到，登记）；
+    /// - 5xx → server（retryable）；
+    /// - 其余 4xx/3xx → HTTP status（非 retryable）。
+    pub fn http_status(status: u16, message: impl Into<String>) -> Self {
+        let (kind, retryable) = match status {
+            401 | 403 => (ProviderErrorKind::Auth, false),
+            408 => (ProviderErrorKind::Transport, true),
+            429 => (ProviderErrorKind::RateLimited, true),
+            500..=599 => (ProviderErrorKind::Server, true),
+            _ => (ProviderErrorKind::HttpStatus, false),
+        };
+        Self {
+            message: message.into(),
+            kind,
+            status: Some(status),
+            retryable,
+            underlying_message: None,
+        }
+    }
+
+    /// 认证/权限失败（401/403）。`message` 作为 underlying 保留（原始供应商文案）。
+    pub fn auth(status: u16, message: impl Into<String>) -> Self {
+        let message = message.into();
+        Self {
+            underlying_message: Some(message.clone()),
+            message,
+            kind: ProviderErrorKind::Auth,
+            status: Some(status),
+            retryable: false,
+        }
+    }
+
+    /// 传输失败（请求未发出/连接中断；retryable）。
+    pub fn transport(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            kind: ProviderErrorKind::Transport,
+            status: None,
+            retryable: true,
+            underlying_message: None,
+        }
+    }
+
+    /// 流中断（已开始读流后的失败；retryable，会话层按已提交 delta 决定
+    /// 走 stream recovery 还是 adapter 重试）。
+    pub fn stream_abort(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            kind: ProviderErrorKind::StreamAbort,
+            status: None,
+            retryable: true,
+            underlying_message: None,
+        }
+    }
+
+    /// 响应/流不合契约（非 retryable）。
+    pub fn malformed(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            kind: ProviderErrorKind::Malformed,
+            status: None,
+            retryable: false,
+            underlying_message: None,
+        }
+    }
+
+    /// 本地错误（非 retryable）。
+    pub fn local(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            kind: ProviderErrorKind::Local,
+            status: None,
+            retryable: false,
+            underlying_message: None,
+        }
+    }
+
+    /// 流内 error 事件（非 retryable；供应商在成功 HTTP 流里报错）。
+    pub fn api(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            kind: ProviderErrorKind::Api,
+            status: None,
+            retryable: false,
+            underlying_message: None,
+        }
+    }
+
+    /// 保留既有文案，只替换分类字段（适配器按供应商错误类型细分时用）。
+    pub fn with_message(mut self, message: impl Into<String>) -> Self {
+        self.message = message.into();
+        self
+    }
+
+    /// 记录供应商原始正文/根因（`turn.failed.underlyingErrorMessage`）。
+    pub fn with_underlying(mut self, underlying: impl Into<String>) -> Self {
+        self.underlying_message = Some(underlying.into());
+        self
+    }
+
+    pub fn is_auth(&self) -> bool {
+        self.kind == ProviderErrorKind::Auth
+    }
+
+    /// `turn.failed.attribution.reason` 的稳定取值。
+    pub fn reason(&self) -> &'static str {
+        self.kind.reason()
+    }
+
+    /// 线上事件/终态的规范文案（夹具 §2.3/§2.4）；原始细节留在 `message` /
+    /// `underlying_message`，事件面不直接透传 `HTTP 503: …` 这类适配器前缀。
+    pub fn canonical_message(&self) -> &str {
+        match self.kind {
+            ProviderErrorKind::Auth => "Provider authentication failed.",
+            ProviderErrorKind::Server => "Provider returned a server error.",
+            ProviderErrorKind::Transport | ProviderErrorKind::StreamAbort => {
+                "Network connection failed for the provider request."
+            }
+            ProviderErrorKind::RateLimited => "Provider rate limited the request.",
+            _ => &self.message,
+        }
+    }
 }
 
 pub trait ModelProvider: Send + Sync {
@@ -177,9 +386,7 @@ impl ModelProvider for ScriptedProvider {
             let step = steps
                 .get(index)
                 .or_else(|| steps.last())
-                .ok_or_else(|| ProviderError {
-                    message: "scripted provider: 剧本为空".to_string(),
-                })?;
+                .ok_or_else(|| ProviderError::new("scripted provider: 剧本为空"))?;
             match step {
                 ScriptStep::Text(text) => {
                     send_delta(&deltas, ModelDelta::Text { text: text.clone() })?;
@@ -242,9 +449,9 @@ impl ModelProvider for ScriptedProvider {
 
 /// 把一条 delta 送进 sink；消费端已关闭时显式报错，而不是静默吞掉整条剧情的输出。
 fn send_delta(deltas: &DeltaSink, delta: ModelDelta) -> Result<(), ProviderError> {
-    deltas.send(delta).map_err(|_| ProviderError {
-        message: "scripted provider: delta sink 已关闭".to_string(),
-    })
+    deltas
+        .send(delta)
+        .map_err(|_| ProviderError::local("scripted provider: delta sink 已关闭"))
 }
 
 fn assistant_count(messages: &[ModelMessage]) -> usize {

@@ -9,7 +9,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { seedWorkspace, startOracleRuntime, type OracleSession } from "./driver.mjs";
+import {
+  seedWorkspace,
+  startOracleRuntime,
+  type OracleRuntimeOptions,
+  type OracleSession,
+} from "./driver.mjs";
 import type { MockStep } from "./mock-provider.mjs";
 import {
   capture,
@@ -289,6 +294,12 @@ export type C2HarnessOptions = {
   /** 复用已有隔离根（memory 探针的「写入文件后重启」）；不传则 mkdtemp。 */
   dataRoot?: string;
   cwd?: string;
+  /** 非流式/无工具请求的应答注入（C3 goal verifier 用；默认行为不变）。 */
+  mockAuxiliaryResponse?: OracleRuntimeOptions["mockAuxiliaryResponse"];
+  /** 纯观测钩子：mock provider 每收到一个请求体时回调（C3 记录重试到达时刻）。 */
+  onMockRequest?: (path: string, body: JsonObject) => void;
+  /** 纯观测钩子：每个原始 stdout 帧（C3 保留未二次规范化的 session/event）。 */
+  onRawFrame?: (frame: JsonObject) => void;
 };
 
 export type C2Harness = {
@@ -327,7 +338,11 @@ export async function startC2Harness(options: C2HarnessOptions): Promise<C2Harne
     cwd,
     script: options.script,
     runtimePreferencesReply: options.runtimePreferencesReply,
-    onRawFrame: hooks.onFrame,
+    mockAuxiliaryResponse: options.mockAuxiliaryResponse,
+    onRawFrame: (frame) => {
+      hooks.onFrame(frame);
+      options.onRawFrame?.(frame);
+    },
     onRawWrite: hooks.onWrite,
     onMockRequestBody: (path, body) => {
       const raw = body as JsonObject;
@@ -342,6 +357,7 @@ export async function startC2Harness(options: C2HarnessOptions): Promise<C2Harne
         path,
         body: projectModelRequest(raw, (value) => normalizeC2String(value, context)),
       });
+      options.onMockRequest?.(path, raw);
     },
   });
   const harness: C2Harness = {

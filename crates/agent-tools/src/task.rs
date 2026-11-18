@@ -10,12 +10,12 @@
 //! - `TaskOutput` 的 XML 结果、`display` 字段与两种错误形状；
 //! - `TaskStop` 的 JSON 字符串结果、`display` 字段与两种错误形状。
 //!
-//! # 刻意未实现（依赖 Task 5）
+//! # 通知接线
 //!
-//! **完成通知**：oracle 在任务结束后会**自动开一个新 turn** 并注入 `<task-notification>`。
-//! 本 crate 只维护任务状态；通知注入要由会话循环（Task 5）订阅注册表后完成。
-//! 因此 `Bash` 的后台结果文案仍照 oracle 逐字输出（「You will be notified…」），
-//! 但当前骨架会话**尚不会**真的发通知——这条差异必须在 Task 5 接线时消除。
+//! **完成通知**：任务进入终态时投递 [`TaskNotification`]；`agent-server` 的 worker
+//! 在空闲时取走并合并为一个 `<task-notification>` turn（C3 T3）。判据/唤醒钩子由
+//! [`TaskRegistry::set_notification_hooks`] 注入（前台工具执行窗口内完成的通知按
+//! C1 观察丢弃）。本 crate 只维护任务状态与通知通道，不直接跑会话 turn。
 //!
 //! # 观察与推断的边界
 //!
@@ -27,7 +27,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Child;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -108,6 +108,94 @@ pub struct TaskNotification {
     pub command: String,
 }
 
+/// 通知准入判据（C3 T3）：`false` = 丢弃（前台工具执行窗口，C1 观察）。
+///
+/// 回调在**任务完成线程**上同步调用；实现只能读快照状态，不能反向等待会话。
+pub type NotificationFilter = Arc<dyn Fn(&TaskNotification) -> bool + Send + Sync>;
+
+/// 通知入队后的唤醒信号（C3 T3）：只负责叫醒空闲 worker，不承载队列。
+pub type NotificationWaker = Arc<dyn Fn() + Send + Sync>;
+
+/// 通知通道的唯一所有者：队列入队/取走、准入判据与唤醒信号放在一起，
+/// 让 reaper / `TaskStop` / 会话三处用同一套投递语义。
+struct NotificationHub {
+    tx: Sender<TaskNotification>,
+    rx: Mutex<Receiver<TaskNotification>>,
+    filter: Mutex<Option<NotificationFilter>>,
+    waker: Mutex<Option<NotificationWaker>>,
+    /// 待取走条数（诊断/测试观察完成是否已经投递；不改变队列语义）。
+    pending: AtomicUsize,
+}
+
+impl NotificationHub {
+    fn new() -> Self {
+        let (tx, rx) = mpsc::channel();
+        Self {
+            tx,
+            rx: Mutex::new(rx),
+            filter: Mutex::new(None),
+            waker: Mutex::new(None),
+            pending: AtomicUsize::new(0),
+        }
+    }
+
+    /// 按当前判据投递：`false` 直接丢弃；入队后调用唤醒信号。
+    fn deliver(&self, notification: TaskNotification) {
+        self.enqueue(notification, true);
+    }
+
+    /// 控制工具（`TaskStop`）自己产生的通知：**跳过**前台工具窗口判据。
+    ///
+    /// `TaskStop` 在工具批次内执行，此时窗口判据恒为 true；丢弃它会让
+    /// `<status>killed</status>` 通知永远无法投递（C1 观察：停止后仍注入一条通知）。
+    fn deliver_control(&self, notification: TaskNotification) {
+        self.enqueue(notification, false);
+    }
+
+    fn enqueue(&self, notification: TaskNotification, apply_filter: bool) {
+        let accepted = if apply_filter {
+            self.filter
+                .lock()
+                .expect("task notification filter poisoned")
+                .as_ref()
+                .map(|filter| filter(&notification))
+                .unwrap_or(true)
+        } else {
+            true
+        };
+        if !accepted {
+            return;
+        }
+        if self.tx.send(notification).is_ok() {
+            self.pending.fetch_add(1, Ordering::SeqCst);
+        }
+        let waker = self
+            .waker
+            .lock()
+            .expect("task notification waker poisoned")
+            .clone();
+        if let Some(waker) = waker {
+            waker();
+        }
+    }
+
+    fn take(&self) -> Vec<TaskNotification> {
+        let notifications: Vec<TaskNotification> = self
+            .rx
+            .lock()
+            .expect("task notifications poisoned")
+            .try_iter()
+            .collect();
+        self.pending
+            .fetch_sub(notifications.len(), Ordering::SeqCst);
+        notifications
+    }
+
+    fn pending(&self) -> usize {
+        self.pending.load(Ordering::SeqCst)
+    }
+}
+
 impl TaskNotification {
     /// 注入新 turn 的 `input`（逐字形状见 spec §3.4）。
     ///
@@ -146,11 +234,12 @@ impl TaskNotification {
 /// 因此 `TaskOutput(block:true)` 等待时不会阻塞别的任务。
 ///
 /// 任务进入终态时经 channel 发一条 [`TaskNotification`]；会话在**空闲时**用
-/// [`Self::take_notifications`] 取走并开通知 turn（oracle 忙时直接丢弃，见 spec §3.5）。
+/// [`Self::take_notifications`] 取走并合并为一个通知 turn（C3 T3：模型流式等待期间
+/// 完成的通知延后合并，前台工具执行窗口内完成的通知按 C1 观察丢弃——判据由
+/// [`Self::set_notification_hooks`] 注入）。
 pub struct TaskRegistry {
     entries: Mutex<HashMap<String, Arc<Mutex<Entry>>>>,
-    notifications_tx: Sender<TaskNotification>,
-    notifications_rx: Mutex<Receiver<TaskNotification>>,
+    notifications: Arc<NotificationHub>,
 }
 
 impl Default for TaskRegistry {
@@ -170,21 +259,38 @@ impl std::fmt::Debug for TaskRegistry {
 
 impl TaskRegistry {
     pub fn new() -> Self {
-        let (notifications_tx, notifications_rx) = mpsc::channel();
         Self {
             entries: Mutex::new(HashMap::new()),
-            notifications_tx,
-            notifications_rx: Mutex::new(notifications_rx),
+            notifications: Arc::new(NotificationHub::new()),
         }
+    }
+
+    /// 接线通知判据与唤醒信号（C3 T3）。
+    ///
+    /// 判据在任务完成线程上同步执行：`false` = 不入队（前台工具执行窗口的丢弃）；
+    /// 唤醒信号只在通知入队后调用，用于叫醒空闲会话 worker，不承载顺序或队列。
+    /// 两者都是进程内回调，重复接线以后一次为准。
+    pub fn set_notification_hooks(&self, filter: NotificationFilter, waker: NotificationWaker) {
+        *self
+            .notifications
+            .filter
+            .lock()
+            .expect("task notification filter poisoned") = Some(filter);
+        *self
+            .notifications
+            .waker
+            .lock()
+            .expect("task notification waker poisoned") = Some(waker);
     }
 
     /// 取走当前已排队的完成通知（非阻塞）。调用方负责决定「忙时丢弃」还是「空闲时开 turn」。
     pub fn take_notifications(&self) -> Vec<TaskNotification> {
-        self.notifications_rx
-            .lock()
-            .expect("task notifications poisoned")
-            .try_iter()
-            .collect()
+        self.notifications.take()
+    }
+
+    /// 当前待取走的通知条数（诊断/测试用；不消费队列）。
+    pub fn pending_notifications(&self) -> usize {
+        self.notifications.pending()
     }
 
     /// 登记一个已经 spawn 的进程，并启动回收线程（`try_wait` 轮询，20ms）。
@@ -211,7 +317,7 @@ impl TaskRegistry {
             .lock()
             .expect("task registry poisoned")
             .insert(id.clone(), Arc::clone(&entry));
-        spawn_reaper(entry, self.notifications_tx.clone());
+        spawn_reaper(entry, Arc::clone(&self.notifications));
         TaskRegistration { id, output_path }
     }
 
@@ -251,7 +357,9 @@ impl TaskRegistry {
             // 观察值：停止后的 TaskOutput 报 `<exit_code>137</exit_code>`（128+SIGKILL）。
             guard.exit_code = Some(137);
             // 观察（spec §3.4）：TaskStop 之后仍会注入一条 `status=killed` 的通知。
-            let _ = self.notifications_tx.send(notification_from(&guard));
+            // 这是控制工具自己产生的通知，不能走前台窗口的丢弃判据。
+            self.notifications
+                .deliver_control(notification_from(&guard));
         }
         Some(snapshot_from(&guard))
     }
@@ -265,7 +373,7 @@ impl TaskRegistry {
     }
 }
 
-fn spawn_reaper(entry: Arc<Mutex<Entry>>, notifications: Sender<TaskNotification>) {
+fn spawn_reaper(entry: Arc<Mutex<Entry>>, notifications: Arc<NotificationHub>) {
     thread::spawn(move || loop {
         {
             let mut guard = entry.lock().expect("task entry poisoned");
@@ -284,14 +392,14 @@ fn spawn_reaper(entry: Arc<Mutex<Entry>>, notifications: Sender<TaskNotification
                         TaskStatus::Failed
                     };
                     guard.child = None;
-                    let _ = notifications.send(notification_from(&guard));
+                    notifications.deliver(notification_from(&guard));
                     return;
                 }
                 Ok(None) => {}
                 Err(_) => {
                     guard.status = TaskStatus::Failed;
                     guard.child = None;
-                    let _ = notifications.send(notification_from(&guard));
+                    notifications.deliver(notification_from(&guard));
                     return;
                 }
             }

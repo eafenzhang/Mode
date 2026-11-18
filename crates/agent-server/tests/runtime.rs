@@ -258,6 +258,7 @@ fn runtime_config() -> RuntimeConfig {
         data_root: None,
         event_log_capacity: 4096,
         broadcast_capacity: 256,
+        retry: agent_core::RetryPolicy::default(),
     }
 }
 
@@ -420,9 +421,7 @@ impl ModelProvider for ToolThenErrorProvider {
                 .filter(|message| matches!(message, agent_core::ModelMessage::Assistant { .. }))
                 .count();
             if assistants > 0 {
-                return Err(ProviderError {
-                    message: "第二次模型请求失败".to_string(),
-                });
+                return Err(ProviderError::new("第二次模型请求失败"));
             }
             let tool_call_id = "toolu_error_0_0".to_string();
             for delta in [
@@ -825,7 +824,7 @@ async fn provider_failure_mid_turn_keeps_committed_rows_only() {
         .expect("能解码")
         .expect("类型匹配");
     assert_eq!(failed_payload.error.message, "第二次模型请求失败");
-    assert_eq!(failed_payload.turn_phase, "model");
+    assert_eq!(failed_payload.turn_phase, "processing_input");
 
     // 行：user（turn 开始已提交）+ 工具 assistant（batch 边界已提交）。
     // 失败的那一步没有可提交的消息 → 没有半成品行。
@@ -850,7 +849,7 @@ async fn provider_failure_mid_turn_keeps_committed_rows_only() {
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .expect("turn_usage");
-    assert_eq!(status, "failed");
+    assert_eq!(status, "error");
     assert_eq!(tool_error_count, 0, "Read 成功，错误来自 provider");
     let tool_status: String = connection
         .query_row("SELECT status FROM tool_usage", [], |row| row.get(0))
@@ -1359,17 +1358,13 @@ impl ModelProvider for RecordingProvider {
         let call_index = self.next_call.fetch_add(1, Ordering::SeqCst);
         Box::pin(async move {
             let Some(step) = step else {
-                return Err(ProviderError {
-                    message: "recording provider 剧本已空".to_string(),
-                });
+                return Err(ProviderError::new("recording provider 剧本已空"));
             };
             match step {
                 ScriptStep::Text(text) => {
                     deltas
                         .send(ModelDelta::Text { text })
-                        .map_err(|_| ProviderError {
-                            message: "delta sink closed".to_string(),
-                        })?;
+                        .map_err(|_| ProviderError::local("delta sink closed"))?;
                     Ok(ModelResponse {
                         usage: ModelUsage {
                             input_tokens: 10,
@@ -1387,33 +1382,25 @@ impl ModelProvider for RecordingProvider {
                                 tool_call_id: tool_call_id.clone(),
                                 tool_name: call.name.clone(),
                             })
-                            .map_err(|_| ProviderError {
-                                message: "delta sink closed".to_string(),
-                            })?;
+                            .map_err(|_| ProviderError::local("delta sink closed"))?;
                         deltas
                             .send(ModelDelta::ToolInputDelta {
                                 tool_call_id: tool_call_id.clone(),
                                 delta: serde_json::to_string(&call.input).expect("入参可序列化"),
                             })
-                            .map_err(|_| ProviderError {
-                                message: "delta sink closed".to_string(),
-                            })?;
+                            .map_err(|_| ProviderError::local("delta sink closed"))?;
                         deltas
                             .send(ModelDelta::ToolInputEnd {
                                 tool_call_id: tool_call_id.clone(),
                             })
-                            .map_err(|_| ProviderError {
-                                message: "delta sink closed".to_string(),
-                            })?;
+                            .map_err(|_| ProviderError::local("delta sink closed"))?;
                         deltas
                             .send(ModelDelta::ToolCall {
                                 tool_call_id,
                                 tool_name: call.name.clone(),
                                 input: call.input.clone(),
                             })
-                            .map_err(|_| ProviderError {
-                                message: "delta sink closed".to_string(),
-                            })?;
+                            .map_err(|_| ProviderError::local("delta sink closed"))?;
                     }
                     Ok(ModelResponse {
                         usage: ModelUsage {
@@ -1777,9 +1764,7 @@ impl ModelProvider for GatedFailProvider {
         let release = Arc::clone(&self.release);
         Box::pin(async move {
             release.notified().await;
-            Err(ProviderError {
-                message: "provider 失败".to_string(),
-            })
+            Err(ProviderError::new("provider 失败"))
         })
     }
 }
@@ -1828,7 +1813,7 @@ async fn failure_usage_row_is_committed_before_turn_failed_is_published() {
     );
     let rows = turn_usage_rows(&fixture.db_path);
     assert_eq!(rows.len(), 1, "收到终态时 usage 行已可读");
-    assert_eq!(rows[0].1, "failed");
+    assert_eq!(rows[0].1, "error");
     wait_settled(&runtime).await;
     runtime.shutdown().await;
 }

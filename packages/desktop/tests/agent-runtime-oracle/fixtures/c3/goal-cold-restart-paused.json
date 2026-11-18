@@ -1,0 +1,1114 @@
+{
+  "case": "goal-cold-restart-paused",
+  "note": "C3 Task 0 oracle 捕获：paused 目标冷重启后 session_target 保持 paused；session/resume 返回 goalStats，恢复后不自动续跑；显式 resume 才启动新 turn 并完成。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "before": {
+      "action": "set",
+      "objective": "Restart goal",
+      "inputId": "goal_restart_set"
+    },
+    "restart": "same dataRoot + cwd; session/resume(oldSessionId)"
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages", "/v1/messages"]
+    },
+    "oldSessionId": "<session-id>",
+    "beforeRestart": {
+      "read": {
+        "target": {
+          "createdAt": "<time>",
+          "objective": "Restart goal",
+          "sessionId": "<id>",
+          "status": "paused",
+          "summaryTitle": "Restart goal",
+          "targetId": "target-1",
+          "timeUsedSeconds": "<time>",
+          "tokenBudget": null,
+          "tokensUsed": 0,
+          "activeInputId": null,
+          "activeRunStartedAtMs": null,
+          "activeRunLastSeenAtMs": null,
+          "updatedAt": "<time>"
+        },
+        "projectionTarget": {
+          "createdAt": "<time>",
+          "objective": "Restart goal",
+          "sessionId": "<id>",
+          "status": "paused",
+          "summaryTitle": "Restart goal",
+          "targetId": "target-1",
+          "timeUsedSeconds": "<time>",
+          "tokenBudget": null,
+          "tokensUsed": 0,
+          "activeInputId": null,
+          "activeRunStartedAtMs": null,
+          "activeRunLastSeenAtMs": null,
+          "updatedAt": "<time>"
+        },
+        "sessionStatus": "idle",
+        "projectionStatus": "idle",
+        "turnCount": 2,
+        "eventSeq": 10,
+        "stateRevision": 5,
+        "goalVerifications": [],
+        "goalVerificationTimeline": []
+      },
+      "db": {
+        "session_target": {
+          "columns": [
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": false,
+              "primaryKey": 1,
+              "defaultValue": null
+            },
+            {
+              "name": "target_id",
+              "type": "TEXT",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "objective",
+              "type": "TEXT",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "token_budget",
+              "type": "INTEGER",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "tokens_used",
+              "type": "INTEGER",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": "0"
+            },
+            {
+              "name": "time_used_seconds",
+              "type": "INTEGER",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": "0"
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "summary_title",
+              "type": "TEXT",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "active_input_id",
+              "type": "TEXT",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "active_run_started_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "active_run_last_seen_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            }
+          ],
+          "rowCount": 1,
+          "rows": [
+            {
+              "session_id": "<id>",
+              "target_id": "target-1",
+              "objective": "Restart goal",
+              "status": "paused",
+              "token_budget": null,
+              "tokens_used": 0,
+              "time_used_seconds": "<time>",
+              "time_created": "<time>",
+              "time_updated": "<time>",
+              "summary_title": "Restart goal",
+              "active_input_id": null,
+              "active_run_started_at": null,
+              "active_run_last_seen_at": null
+            }
+          ]
+        },
+        "session_task_link": {
+          "columns": [
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "primaryKey": 1,
+              "defaultValue": null
+            },
+            {
+              "name": "root_workflow_run_id",
+              "type": "TEXT",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "parent_link_id",
+              "type": "TEXT",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "activity_id",
+              "type": "TEXT",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "parent_session_id",
+              "type": "TEXT",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "child_session_id",
+              "type": "TEXT",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "role",
+              "type": "TEXT",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "depth",
+              "type": "INTEGER",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": "0"
+            },
+            {
+              "name": "path",
+              "type": "TEXT",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "phase",
+              "type": "TEXT",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "label",
+              "type": "TEXT",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "agent_type",
+              "type": "TEXT",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "model",
+              "type": "TEXT",
+              "notNull": false,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": null
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "primaryKey": 0,
+              "defaultValue": null
+            }
+          ],
+          "rowCount": 0,
+          "rows": []
+        },
+        "session_entry": {
+          "rowCount": 3,
+          "rows": []
+        },
+        "turn_usage": {
+          "rowCount": 1,
+          "rows": [
+            {
+              "session_id": "<id>",
+              "turn_id": "<id>",
+              "trace_id": "<id>",
+              "user_message_id": "<id>",
+              "status": "cancelled",
+              "started_at": "<time>",
+              "first_model_start_at": null,
+              "first_token_at": null,
+              "completed_at": "<time>",
+              "duration_ms": "<time>",
+              "time_to_first_token_ms": null,
+              "model_request_count": 0,
+              "model_retry_count": 0,
+              "tool_call_count": 0,
+              "tool_error_count": 0,
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "reasoning_tokens": 0,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 0,
+              "computed_total_tokens": 0,
+              "retryable": 0,
+              "cancelled_by_user": 1,
+              "context_exceeded": 0,
+              "error_type": "turn_cancelled",
+              "error_code": "TURN_CANCELLED"
+            }
+          ]
+        },
+        "model_usage": {
+          "rowCount": 0,
+          "rows": []
+        },
+        "messageSummary": [
+          {
+            "sequence": 0,
+            "role": "user",
+            "finish": null,
+            "semanticsKind": "user_prompt",
+            "source": null,
+            "parentID": null
+          },
+          {
+            "sequence": 1,
+            "role": "assistant",
+            "finish": "completed",
+            "semanticsKind": "timeline_event",
+            "source": null,
+            "parentID": "<id>"
+          },
+          {
+            "sequence": 2,
+            "role": "user",
+            "finish": null,
+            "semanticsKind": "system_reminder",
+            "source": "goal-continuation",
+            "parentID": null
+          },
+          {
+            "sequence": 3,
+            "role": "user",
+            "finish": null,
+            "semanticsKind": "system_reminder",
+            "source": "goal_state_change",
+            "parentID": null
+          }
+        ]
+      }
+    },
+    "resume": {
+      "keys": [
+        "goalStats",
+        "messages",
+        "projection",
+        "protocol",
+        "runtime",
+        "session",
+        "settings",
+        "slashCommands",
+        "todoGroups",
+        "todos"
+      ],
+      "goalStats": {
+        "contextUsed": 0,
+        "contextWindow": 200000,
+        "iterationCount": 1,
+        "timeUsedSeconds": "<time>",
+        "tokenBudget": null,
+        "tokensUsed": 0,
+        "toolCallCount": 0
+      },
+      "snapshot": {
+        "target": {
+          "createdAt": "<time>",
+          "objective": "Restart goal",
+          "sessionId": "<id>",
+          "status": "paused",
+          "summaryTitle": "Restart goal",
+          "targetId": "target-1",
+          "timeUsedSeconds": "<time>",
+          "tokenBudget": null,
+          "tokensUsed": 0,
+          "activeInputId": null,
+          "activeRunStartedAtMs": null,
+          "activeRunLastSeenAtMs": null,
+          "updatedAt": "<time>"
+        },
+        "projectionTarget": {
+          "createdAt": "<time>",
+          "objective": "Restart goal",
+          "sessionId": "<id>",
+          "status": "paused",
+          "summaryTitle": "Restart goal",
+          "targetId": "target-1",
+          "timeUsedSeconds": "<time>",
+          "tokenBudget": null,
+          "tokensUsed": 0,
+          "activeInputId": null,
+          "activeRunStartedAtMs": null,
+          "activeRunLastSeenAtMs": null,
+          "updatedAt": "<time>"
+        },
+        "sessionStatus": "idle",
+        "projectionStatus": "idle",
+        "turnCount": 0,
+        "eventSeq": 2,
+        "stateRevision": 0,
+        "goalVerifications": [],
+        "goalVerificationTimeline": []
+      }
+    },
+    "subscribe": {
+      "eventSeq": 2,
+      "eventCount": 0,
+      "snapshot": {
+        "target": {
+          "createdAt": "<time>",
+          "objective": "Restart goal",
+          "sessionId": "<id>",
+          "status": "paused",
+          "summaryTitle": "Restart goal",
+          "targetId": "target-1",
+          "timeUsedSeconds": "<time>",
+          "tokenBudget": null,
+          "tokensUsed": 0,
+          "activeInputId": null,
+          "activeRunStartedAtMs": null,
+          "activeRunLastSeenAtMs": null,
+          "updatedAt": "<time>"
+        },
+        "sessionTarget": {
+          "createdAt": "<time>",
+          "objective": "Restart goal",
+          "sessionId": "<id>",
+          "status": "paused",
+          "summaryTitle": "Restart goal",
+          "targetId": "target-1",
+          "timeUsedSeconds": "<time>",
+          "tokenBudget": null,
+          "tokensUsed": 0,
+          "activeInputId": null,
+          "activeRunStartedAtMs": null,
+          "activeRunLastSeenAtMs": null,
+          "updatedAt": "<time>"
+        },
+        "projectionStatus": "idle",
+        "turnCount": 0,
+        "currentTurnId": null,
+        "sessionStatus": "idle",
+        "eventSeq": 2,
+        "stateRevision": 0,
+        "goalVerifications": [],
+        "goalVerificationTimeline": []
+      }
+    },
+    "readAfterRestart": {
+      "target": {
+        "createdAt": "<time>",
+        "objective": "Restart goal",
+        "sessionId": "<id>",
+        "status": "paused",
+        "summaryTitle": "Restart goal",
+        "targetId": "target-1",
+        "timeUsedSeconds": "<time>",
+        "tokenBudget": null,
+        "tokensUsed": 0,
+        "activeInputId": null,
+        "activeRunStartedAtMs": null,
+        "activeRunLastSeenAtMs": null,
+        "updatedAt": "<time>"
+      },
+      "projectionTarget": {
+        "createdAt": "<time>",
+        "objective": "Restart goal",
+        "sessionId": "<id>",
+        "status": "paused",
+        "summaryTitle": "Restart goal",
+        "targetId": "target-1",
+        "timeUsedSeconds": "<time>",
+        "tokenBudget": null,
+        "tokensUsed": 0,
+        "activeInputId": null,
+        "activeRunStartedAtMs": null,
+        "activeRunLastSeenAtMs": null,
+        "updatedAt": "<time>"
+      },
+      "sessionStatus": "idle",
+      "projectionStatus": "idle",
+      "turnCount": 0,
+      "eventSeq": 2,
+      "stateRevision": 0,
+      "goalVerifications": [],
+      "goalVerificationTimeline": []
+    },
+    "showAfterRestart": {
+      "response": "Goal paused\nObjective: Restart goal\nUsage: <tokens> tokens / <budget>\nTime: <time>",
+      "startedTurn": false,
+      "snapshot": {
+        "target": {
+          "createdAt": "<time>",
+          "objective": "Restart goal",
+          "sessionId": "<id>",
+          "status": "paused",
+          "summaryTitle": "Restart goal",
+          "targetId": "target-1",
+          "timeUsedSeconds": "<time>",
+          "tokenBudget": null,
+          "tokensUsed": 0,
+          "activeInputId": null,
+          "activeRunStartedAtMs": null,
+          "activeRunLastSeenAtMs": null,
+          "updatedAt": "<time>"
+        },
+        "sessionTarget": {
+          "createdAt": "<time>",
+          "objective": "Restart goal",
+          "sessionId": "<id>",
+          "status": "paused",
+          "summaryTitle": "Restart goal",
+          "targetId": "target-1",
+          "timeUsedSeconds": "<time>",
+          "tokenBudget": null,
+          "tokensUsed": 0,
+          "activeInputId": null,
+          "activeRunStartedAtMs": null,
+          "activeRunLastSeenAtMs": null,
+          "updatedAt": "<time>"
+        },
+        "projectionStatus": "idle",
+        "turnCount": 0,
+        "currentTurnId": null,
+        "sessionStatus": "idle",
+        "eventSeq": 2,
+        "stateRevision": 0,
+        "goalVerifications": [],
+        "goalVerificationTimeline": []
+      }
+    },
+    "idleEventsAfterRestart": [],
+    "resumeGoal": {
+      "response": "Goal resumed\nObjective: Restart goal\nUsage: <tokens> tokens / <budget>\nTime: <time>",
+      "startedTurn": true,
+      "snapshot": {
+        "target": {
+          "createdAt": "<time>",
+          "objective": "Restart goal",
+          "sessionId": "<id>",
+          "status": "active",
+          "summaryTitle": "Restart goal",
+          "targetId": "target-1",
+          "timeUsedSeconds": "<time>",
+          "tokenBudget": null,
+          "tokensUsed": 0,
+          "activeInputId": null,
+          "activeRunStartedAtMs": null,
+          "activeRunLastSeenAtMs": null,
+          "updatedAt": "<time>"
+        },
+        "sessionTarget": {
+          "createdAt": "<time>",
+          "objective": "Restart goal",
+          "sessionId": "<id>",
+          "status": "active",
+          "summaryTitle": "Restart goal",
+          "targetId": "target-1",
+          "timeUsedSeconds": "<time>",
+          "tokenBudget": null,
+          "tokensUsed": 0,
+          "activeInputId": null,
+          "activeRunStartedAtMs": null,
+          "activeRunLastSeenAtMs": null,
+          "updatedAt": "<time>"
+        },
+        "projectionStatus": "idle",
+        "turnCount": 0,
+        "currentTurnId": null,
+        "sessionStatus": "idle",
+        "eventSeq": 3,
+        "stateRevision": 1,
+        "goalVerifications": [],
+        "goalVerificationTimeline": []
+      }
+    },
+    "readAfterResume": {
+      "target": {
+        "createdAt": "<time>",
+        "objective": "Restart goal",
+        "sessionId": "<id>",
+        "status": "complete",
+        "summaryTitle": "Restart goal",
+        "targetId": "target-1",
+        "timeUsedSeconds": "<time>",
+        "tokenBudget": null,
+        "tokensUsed": 22,
+        "activeInputId": null,
+        "activeRunStartedAtMs": null,
+        "activeRunLastSeenAtMs": null,
+        "updatedAt": "<time>"
+      },
+      "projectionTarget": {
+        "createdAt": "<time>",
+        "objective": "Restart goal",
+        "sessionId": "<id>",
+        "status": "complete",
+        "summaryTitle": "Restart goal",
+        "targetId": "target-1",
+        "timeUsedSeconds": "<time>",
+        "tokenBudget": null,
+        "tokensUsed": 22,
+        "activeInputId": null,
+        "activeRunStartedAtMs": null,
+        "activeRunLastSeenAtMs": null,
+        "updatedAt": "<time>"
+      },
+      "sessionStatus": "idle",
+      "projectionStatus": "idle",
+      "turnCount": 1,
+      "eventSeq": 19,
+      "stateRevision": 2,
+      "goalVerifications": [
+        {
+          "nextAction": null,
+          "passed": true,
+          "reason": "goal verified"
+        }
+      ],
+      "goalVerificationTimeline": [
+        {
+          "version": 1,
+          "kind": "synthetic",
+          "type": "goal_verification",
+          "display": "separator",
+          "targetId": "target-1",
+          "verificationId": "<id>",
+          "status": "completed",
+          "goalIteration": 1,
+          "anchorAssistantMessageId": "<message-id>",
+          "anchorTurnId": "<turn-id>",
+          "verification": {
+            "nextAction": null,
+            "passed": true,
+            "reason": "goal verified"
+          },
+          "startedAt": "<time>",
+          "updatedAt": "<time>"
+        }
+      ]
+    },
+    "dbAfterResume": {
+      "session_target": {
+        "columns": [
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "target_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "objective",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "token_budget",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "tokens_used",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "time_used_seconds",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "summary_title",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "active_input_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "active_run_started_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "active_run_last_seen_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 1,
+        "rows": [
+          {
+            "session_id": "<id>",
+            "target_id": "target-1",
+            "objective": "Restart goal",
+            "status": "complete",
+            "token_budget": null,
+            "tokens_used": 22,
+            "time_used_seconds": "<time>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "summary_title": "Restart goal",
+            "active_input_id": null,
+            "active_run_started_at": null,
+            "active_run_last_seen_at": null
+          }
+        ]
+      },
+      "session_task_link": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "root_workflow_run_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "parent_link_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "activity_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "parent_session_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "child_session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "role",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "depth",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "path",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "phase",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "label",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "agent_type",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "model",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 0,
+        "rows": []
+      },
+      "session_entry": {
+        "rowCount": 5,
+        "rows": [
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "type": "target_completion_verification",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "eventId": "<id>",
+              "payload": {
+                "anchorAssistantMessageId": "<message-id>",
+                "anchorTurnId": "<turn-id>",
+                "foregroundExecutionId": "runtime_command_1",
+                "goalIteration": 1,
+                "status": "started",
+                "targetId": "target-1",
+                "verificationId": "<id>"
+              },
+              "sequenceNumber": 17,
+              "traceId": "<id>"
+            }
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "type": "target_completion_verification",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "eventId": "<id>",
+              "payload": {
+                "anchorAssistantMessageId": "<message-id>",
+                "anchorTurnId": "<turn-id>",
+                "foregroundExecutionId": "runtime_command_1",
+                "goalIteration": 1,
+                "status": "completed",
+                "targetId": "target-1",
+                "verification": {
+                  "passed": true,
+                  "reason": "goal verified"
+                },
+                "verificationId": "<id>"
+              },
+              "sequenceNumber": 22,
+              "traceId": "<id>"
+            }
+          }
+        ]
+      },
+      "turn_usage": {
+        "rowCount": 2,
+        "rows": [
+          {
+            "session_id": "<id>",
+            "turn_id": "<id>",
+            "trace_id": "<id>",
+            "user_message_id": "<id>",
+            "status": "cancelled",
+            "started_at": "<time>",
+            "first_model_start_at": null,
+            "first_token_at": null,
+            "completed_at": "<time>",
+            "duration_ms": "<time>",
+            "time_to_first_token_ms": null,
+            "model_request_count": 0,
+            "model_retry_count": 0,
+            "tool_call_count": 0,
+            "tool_error_count": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "reasoning_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "computed_total_tokens": 0,
+            "retryable": 0,
+            "cancelled_by_user": 1,
+            "context_exceeded": 0,
+            "error_type": "turn_cancelled",
+            "error_code": "TURN_CANCELLED"
+          },
+          {
+            "session_id": "<id>",
+            "turn_id": "<id>",
+            "trace_id": "<id>",
+            "user_message_id": "<id>",
+            "status": "completed",
+            "started_at": "<time>",
+            "first_model_start_at": "<time>",
+            "first_token_at": "<time>",
+            "completed_at": "<time>",
+            "duration_ms": "<time>",
+            "time_to_first_token_ms": "<time>",
+            "model_request_count": 1,
+            "model_retry_count": 0,
+            "tool_call_count": 0,
+            "tool_error_count": 0,
+            "input_tokens": 10,
+            "output_tokens": 12,
+            "reasoning_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "computed_total_tokens": 22,
+            "retryable": 0,
+            "cancelled_by_user": 0,
+            "context_exceeded": 0,
+            "error_type": null,
+            "error_code": null
+          }
+        ]
+      },
+      "model_usage": {
+        "rowCount": 2,
+        "rows": [
+          {
+            "query_source": "main_turn",
+            "status": "completed",
+            "attempt_index": 0,
+            "retry_count": 0,
+            "retryable": 0,
+            "finish_reason": "stop",
+            "input_tokens": 10,
+            "output_tokens": 12,
+            "computed_total_tokens": 22,
+            "error_type": null,
+            "error_code": null
+          },
+          {
+            "query_source": "target_completion_verification",
+            "status": "completed",
+            "attempt_index": 0,
+            "retry_count": 0,
+            "retryable": 0,
+            "finish_reason": "stop",
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "computed_total_tokens": 2,
+            "error_type": null,
+            "error_code": null
+          }
+        ]
+      },
+      "messageSummary": [
+        {
+          "sequence": 0,
+          "role": "user",
+          "finish": null,
+          "semanticsKind": "user_prompt",
+          "source": null,
+          "parentID": null
+        },
+        {
+          "sequence": 1,
+          "role": "assistant",
+          "finish": "completed",
+          "semanticsKind": "timeline_event",
+          "source": null,
+          "parentID": "<id>"
+        },
+        {
+          "sequence": 2,
+          "role": "user",
+          "finish": null,
+          "semanticsKind": "system_reminder",
+          "source": "goal-continuation",
+          "parentID": null
+        },
+        {
+          "sequence": 3,
+          "role": "user",
+          "finish": null,
+          "semanticsKind": "system_reminder",
+          "source": "goal_state_change",
+          "parentID": null
+        },
+        {
+          "sequence": 4,
+          "role": "user",
+          "finish": null,
+          "semanticsKind": "system_reminder",
+          "source": "goal_state_change",
+          "parentID": null
+        },
+        {
+          "sequence": 5,
+          "role": "user",
+          "finish": null,
+          "semanticsKind": "system_reminder",
+          "source": "goal-continuation",
+          "parentID": null
+        },
+        {
+          "sequence": 6,
+          "role": "assistant",
+          "finish": "stop",
+          "semanticsKind": "assistant_response",
+          "source": null,
+          "parentID": "<id>"
+        },
+        {
+          "sequence": 7,
+          "role": "assistant",
+          "finish": "completed",
+          "semanticsKind": "timeline_event",
+          "source": null,
+          "parentID": "<id>"
+        }
+      ]
+    }
+  }
+}

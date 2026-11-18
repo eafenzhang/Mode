@@ -337,7 +337,8 @@ fn command_detail(command: &str, detail: CommandDetail) -> String {
 ///
 /// 观察（spec §3.4）：结果是 `success=true` 的一段固定文案，`budgetStrategy:"artifact"`，
 /// 并带 `artifactPath`；输出文件在命令结束前也可读。**完成通知**（新 turn）不在这里做，
-/// 归 Task 5 的会话循环——本函数只把任务写进注册表。
+/// 由注册表投递、`agent-server` worker 合并成一个通知 turn（C3 T3）——本函数只把任务
+/// 写进注册表。
 fn start_background(
     command: &str,
     description: Option<String>,

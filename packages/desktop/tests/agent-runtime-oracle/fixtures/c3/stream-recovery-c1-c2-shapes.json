@@ -1,0 +1,394 @@
+{
+  "case": "stream-recovery-c1-c2-shapes",
+  "note": "从既有 C1/C2 夹具机器提取的 streamRecovery.updated 去重形状；只读既有夹具，不修改它们。C3 注入流中断产生的四种新形状记录在 retry-stream-abort.json 的 events 里。",
+  "input": {
+    "fixtureRoot": "packages/desktop/tests/agent-runtime-oracle/fixtures",
+    "sources": [
+      "bash-command-not-found.json",
+      "bash-empty-args.json",
+      "bash-empty-output.json",
+      "bash-exit-7.json",
+      "bash-mixed-streams.json",
+      "bash-output-then-exit-7.json",
+      "bash-stderr.json",
+      "bash-stdout.json",
+      "bash-timeout-fractional.json",
+      "bash-timeout.json",
+      "bash-trailing-whitespace.json",
+      "edit-ambiguous.json",
+      "edit-empty-old-creates.json",
+      "edit-empty-old-existing.json",
+      "edit-missing-file.json",
+      "edit-missing-new-string.json",
+      "edit-no-read.json",
+      "edit-not-found.json",
+      "edit-replace-all.json",
+      "edit-same-string.json",
+      "edit-unique.json",
+      "read-absent-search-tools.json",
+      "read-dedup.json",
+      "read-error-paths.json",
+      "read-extension-tables.json",
+      "read-missing.json",
+      "read-offset-edges.json",
+      "read-partial-view.json",
+      "read-single.json",
+      "read-truncation-errors.json",
+      "read-twice-one-turn.json",
+      "write-empty-args.json",
+      "write-empty-path.json",
+      "write-missing-content.json",
+      "write-new.json",
+      "write-overwrite-read.json",
+      "write-overwrite-unread.json",
+      "write-relative-path.json"
+    ]
+  },
+  "expect": {
+    "shapeCount": 10,
+    "shapes": [
+      {
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Bash",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        },
+        "occurrences": [
+          {
+            "fixture": "bash-empty-args.json",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Edit",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        },
+        "occurrences": [
+          {
+            "fixture": "edit-ambiguous.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-empty-old-existing.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-missing-file.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-missing-new-string.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-no-read.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-not-found.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-same-string.json",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Glob",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        },
+        "occurrences": [
+          {
+            "fixture": "read-absent-search-tools.json",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Grep",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        },
+        "occurrences": [
+          {
+            "fixture": "read-absent-search-tools.json",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        },
+        "occurrences": [
+          {
+            "fixture": "read-dedup.json",
+            "count": 2
+          },
+          {
+            "fixture": "read-error-paths.json",
+            "count": 7
+          },
+          {
+            "fixture": "read-extension-tables.json",
+            "count": 1
+          },
+          {
+            "fixture": "read-missing.json",
+            "count": 1
+          },
+          {
+            "fixture": "read-truncation-errors.json",
+            "count": 6
+          }
+        ]
+      },
+      {
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Write",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        },
+        "occurrences": [
+          {
+            "fixture": "write-empty-args.json",
+            "count": 1
+          },
+          {
+            "fixture": "write-empty-path.json",
+            "count": 1
+          },
+          {
+            "fixture": "write-missing-content.json",
+            "count": 1
+          },
+          {
+            "fixture": "write-overwrite-unread.json",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_result",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Bash",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        },
+        "occurrences": [
+          {
+            "fixture": "bash-command-not-found.json",
+            "count": 1
+          },
+          {
+            "fixture": "bash-empty-output.json",
+            "count": 1
+          },
+          {
+            "fixture": "bash-exit-7.json",
+            "count": 1
+          },
+          {
+            "fixture": "bash-mixed-streams.json",
+            "count": 1
+          },
+          {
+            "fixture": "bash-output-then-exit-7.json",
+            "count": 1
+          },
+          {
+            "fixture": "bash-stderr.json",
+            "count": 1
+          },
+          {
+            "fixture": "bash-stdout.json",
+            "count": 1
+          },
+          {
+            "fixture": "bash-timeout-fractional.json",
+            "count": 1
+          },
+          {
+            "fixture": "bash-timeout.json",
+            "count": 1
+          },
+          {
+            "fixture": "bash-trailing-whitespace.json",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_result",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Edit",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        },
+        "occurrences": [
+          {
+            "fixture": "edit-empty-old-creates.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-replace-all.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-unique.json",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_result",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        },
+        "occurrences": [
+          {
+            "fixture": "edit-ambiguous.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-empty-old-existing.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-not-found.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-replace-all.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-same-string.json",
+            "count": 1
+          },
+          {
+            "fixture": "edit-unique.json",
+            "count": 1
+          },
+          {
+            "fixture": "read-dedup.json",
+            "count": 8
+          },
+          {
+            "fixture": "read-extension-tables.json",
+            "count": 3
+          },
+          {
+            "fixture": "read-offset-edges.json",
+            "count": 8
+          },
+          {
+            "fixture": "read-partial-view.json",
+            "count": 3
+          },
+          {
+            "fixture": "read-single.json",
+            "count": 1
+          },
+          {
+            "fixture": "read-twice-one-turn.json",
+            "count": 2
+          },
+          {
+            "fixture": "write-overwrite-read.json",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_result",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Write",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        },
+        "occurrences": [
+          {
+            "fixture": "write-new.json",
+            "count": 1
+          },
+          {
+            "fixture": "write-overwrite-read.json",
+            "count": 1
+          },
+          {
+            "fixture": "write-relative-path.json",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  }
+}

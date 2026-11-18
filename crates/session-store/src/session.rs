@@ -135,6 +135,31 @@ impl SessionStore {
         })
     }
 
+    /// 更新会话标题与来源（goal 的 `session.titleUpdated` 副作用落库）。
+    ///
+    /// 行不存在时报 [`StoreError::InvalidInput`]，不静默成功。
+    pub fn set_session_title(
+        &self,
+        session_id: &str,
+        title: &str,
+        title_source: &str,
+        time_updated: i64,
+    ) -> Result<(), StoreError> {
+        self.with_write_transaction(|transaction| {
+            let updated = transaction.execute(
+                "UPDATE session SET title = ?2, title_source = ?3, time_updated = ?4 \
+                 WHERE id = ?1",
+                params![session_id, title, title_source, time_updated],
+            )?;
+            if updated == 0 {
+                return Err(StoreError::InvalidInput(format!(
+                    "set_session_title：会话不存在：{session_id}"
+                )));
+            }
+            Ok(())
+        })
+    }
+
     /// 更新 `session.permission`（JSON 文本）与 `time_updated`。
     ///
     /// `session/setMode` 用：热快照的 mode 来自 runtime 配置，而 `session/list` /
@@ -210,6 +235,31 @@ impl SessionStore {
                 params![include_archived, crate::bound_limit(limit)],
                 session_from_row,
             )?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(records)
+    }
+
+    /// 列出某会话的子代理子会话（`parent_id = ?` 且 `task_type = 'subagent_child'`），
+    /// 按 `(time_created, id)` 创建顺序返回。
+    ///
+    /// C3 T4（`session/subagents`）的投影源：夹具观察（`agent-c3-contract.md` §4.5）
+    /// 是子会话行带 `task_type:"subagent_child"` + `parent_id`，而
+    /// `session_task_link` 在 subagent 路径下恒空——所以这里只按 session 行读，
+    /// 不碰 task link 表。`childSessionIds` 的 `child-<n>` 别名按这个创建顺序
+    /// 推导（契约 §4.8）。
+    pub fn subagent_child_sessions(
+        &self,
+        parent_id: &str,
+    ) -> Result<Vec<SessionRecord>, StoreError> {
+        let connection = self.connection();
+        let sql = format!(
+            "SELECT {SESSION_COLUMNS} FROM session \
+             WHERE parent_id = ?1 AND task_type = 'subagent_child' \
+             ORDER BY time_created ASC, id ASC"
+        );
+        let mut statement = connection.prepare(&sql)?;
+        let records = statement
+            .query_map(params![parent_id], session_from_row)?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(records)
     }

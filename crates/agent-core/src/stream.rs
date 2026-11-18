@@ -6,7 +6,7 @@
 
 use agent_protocol::session_event::SessionEvent;
 
-use crate::provider::ModelUsage;
+use crate::provider::{ModelUsage, ProviderError};
 
 /// 失败时刻**已知**的 turn 内累计事实（LT-1 C1 Task 7 控制器裁决 6）。
 ///
@@ -36,6 +36,20 @@ pub trait EventSink: Send {
     /// 该步骤请求的 tokens，而不是 turn 聚合值（最终评审 I2）。默认 no-op，保持既有
     /// 测试用 sink（`Vec<SessionEvent>`）无需改动。
     fn model_usage(&mut self, _usage: &ModelUsage) {}
+
+    /// turn 的 DB/轮次口径请求数（不是会话事件，不进入事件流）。
+    ///
+    /// C3 T2：取消终态的**事件**载荷按夹具省略 `usage` / 记 `historyRoundCount:0`，
+    /// 但 DB `turn_usage.model_request_count` 仍要记实际尝试/轮次数（夹具取消示例为
+    /// 1）。宿主用这个内部事实写行，避免把事件层数字当 DB 事实。默认 no-op。
+    fn model_request_rounds(&mut self, _rounds: u64) {}
+
+    /// 取消终态发布前的落库钩子（C3 T3）。
+    ///
+    /// `model_requested = true` 表示本 turn 已观察到模型请求：按夹具要补一条
+    /// `finish:null`、无 part 的 assistant 占位行。钩子在 `turn.completed(cancelled)`
+    /// 发布**之前**调用，保持「事件可见 ⇒ 行已提交」。默认 no-op。
+    fn cancelled_placeholder(&mut self, _model_requested: bool) {}
 }
 
 /// 测试与简单调用方可直接把事件收进 `Vec`。
@@ -59,6 +73,12 @@ pub struct TurnError {
     pub cancelled: bool,
     /// 失败时刻已知的累计事实（Task 7 裁决 6：失败 turn 的 `turn_usage` 记已知值）。
     pub progress: TurnProgress,
+    /// provider 错误的分类事实（状态码/类型/是否 retryable）；非 provider 路径为
+    /// `None`。宿主用它生成 `turn.failed` 的归属信息（C3 T2）。
+    ///
+    /// Box：`ProviderError` 带文案/底层文案，直接内联会让 `TurnError` 超过 clippy 的
+    /// 大 Err 阈值（`run_turn` 的 future 会把 Err 类型放大）。
+    pub provider_error: Option<Box<ProviderError>>,
 }
 
 impl TurnError {
@@ -67,6 +87,7 @@ impl TurnError {
             message: message.into(),
             cancelled: false,
             progress: TurnProgress::default(),
+            provider_error: None,
         }
     }
 
@@ -76,6 +97,17 @@ impl TurnError {
             message: message.into(),
             cancelled: false,
             progress,
+            provider_error: None,
+        }
+    }
+
+    /// provider 错误 + 已知累计 + 分类（重试耗尽/非 retryable 的出口）。
+    pub fn from_provider(error: ProviderError, progress: TurnProgress) -> Self {
+        Self {
+            message: error.message.clone(),
+            cancelled: false,
+            progress,
+            provider_error: Some(Box::new(error)),
         }
     }
 
@@ -85,6 +117,21 @@ impl TurnError {
             message: "turn cancelled".to_string(),
             cancelled: true,
             progress: TurnProgress::default(),
+            provider_error: None,
+        }
+    }
+
+    /// 取消退出，并带上取消时刻的已知累计事实（C3 T3）。
+    ///
+    /// `progress.model_requests` 让宿主区分「请求前取消」与「已发出模型请求后取消」：
+    /// 后者按夹具（`retry-cancel-during-backoff` / `goal-pause-in-flight`）要补一条
+    /// `finish:null` 的 assistant 占位行。
+    pub fn cancelled_with_progress(progress: TurnProgress) -> Self {
+        Self {
+            message: "turn cancelled".to_string(),
+            cancelled: true,
+            progress,
+            provider_error: None,
         }
     }
 

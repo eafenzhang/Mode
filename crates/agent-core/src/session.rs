@@ -71,6 +71,11 @@ use crate::provider::{
     ModelCapabilities, ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse,
     ModelUsage, ProviderError,
 };
+use crate::recovery::{
+    model_request_cancelled_payload, model_request_completed_payload,
+    model_retry_scheduled_payload, stream_recovery_failure_kind, stream_recovery_failure_message,
+    stream_recovery_payloads, RetryPolicy, StreamRecoveryFacts, StreamRecoverySummary,
+};
 use crate::rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
 use crate::stream::{EventSink, TurnError};
 use crate::tool::{error_object, result_object};
@@ -83,6 +88,29 @@ pub struct ToolCallRequest {
     pub input: Value,
 }
 
+/// turn 终态前一刻的已知累计事实（goal 续跑用它写 `run_finished`）。
+///
+/// 终态事件（`turn.completed`）由 `run_turn` 发布；C3 观察要求 goal 续跑的
+/// `run_finished` 出现在终态**之前**，所以调用方通过 `before_terminal` 钩子在这两个
+/// 事件之间落 target 账务。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TurnTerminalFacts {
+    pub usage: ModelUsage,
+    pub model_requests: u64,
+    pub tool_calls: u64,
+    pub cancelled: bool,
+    /// 取消时已投递的文本 / 成功时的最终文本。
+    pub response: String,
+}
+
+/// `turn.started` 之后的钩子（goal 用它发 `run_started` 并写 active run 账务）。
+pub type AfterStartHook<'a> = &'a mut (dyn FnMut(&mut Session, &mut dyn EventSink) + Send);
+
+/// `turn.completed` 之前的钩子（goal 用它发 `run_finished`；观察顺序：
+/// `run_finished` → `turn.completed`）。
+pub type BeforeTerminalHook<'a> =
+    &'a mut (dyn FnMut(&mut Session, &mut dyn EventSink, &TurnTerminalFacts) + Send);
+
 /// 会话循环：工具面 + 可选的模型驱动 turn（[`Session::run_turn`]）。
 ///
 /// 不落盘：消息历史只在内存里，持久化归宿主。`web-remote-replayable` 的快照/队列
@@ -91,7 +119,8 @@ pub struct Session {
     session_id: String,
     cwd: String,
     turn_number: u64,
-    sequence: u64,
+    /// 事件 seq 分配 + 发布的唯一所有者（与 `agent-server` 共享同一个 Arc）。
+    events: Arc<crate::events::EventPublisher>,
     current_turn_id: Option<String>,
     /// 会话内的文件记忆：`Read` 的重复读去重（跨 turn 命中）+ `Write` 的「先读再写」前置条件。
     /// 见 `agent_tools::FileState`。
@@ -141,15 +170,19 @@ pub struct Session {
     /// 由运行时每 turn 注入（[`Session::set_memory`]）；`None` = 不注入（与 C1 逐字
     /// 一致）。读取与 fail-soft 全在 `agent-server` 侧，本结构只持有装配事实。
     memory: Option<crate::context::MemorySection>,
+    /// C3 T2：重试次数/退避策略（默认值来自夹具观察；宿主可注入）。
+    retry_policy: RetryPolicy,
 }
 
 impl Session {
     pub fn new(session_id: impl Into<String>, cwd: impl Into<String>) -> Self {
+        let session_id = session_id.into();
+        let events = crate::events::EventPublisher::new(session_id.clone(), 256, 4096);
         Self {
-            session_id: session_id.into(),
+            session_id,
             cwd: cwd.into(),
             turn_number: 0,
-            sequence: 0,
+            events,
             current_turn_id: None,
             file_state: FileState::new(),
             data_root: None,
@@ -171,7 +204,20 @@ impl Session {
             used_turn_ids: BTreeSet::new(),
             denied_tool_results: HashMap::new(),
             memory: None,
+            retry_policy: RetryPolicy::default(),
         }
+    }
+
+    /// 接线重试策略（C3 T2）：默认 `maxRetries:10` 与带抖动的指数退避；测试/宿主
+    /// 可注入 `base_delay_ms:0` 等确定值。
+    pub fn with_retry_policy(mut self, retry_policy: RetryPolicy) -> Self {
+        self.retry_policy = retry_policy;
+        self
+    }
+
+    /// 当前重试策略（诊断/宿主投影用）。
+    pub fn retry_policy(&self) -> RetryPolicy {
+        self.retry_policy
     }
 
     /// 冷物化恢复模型历史（resume / create-on-existing / 重启）。
@@ -312,6 +358,13 @@ impl Session {
         }
     }
 
+    /// 共享宿主的事件发布器（同一个会话的 `Session` 与 `SessionRuntime` 必须用
+    /// 同一个 Arc；seq/日志/广播的唯一所有者）。
+    pub fn with_event_publisher(mut self, events: Arc<crate::events::EventPublisher>) -> Self {
+        self.events = events;
+        self
+    }
+
     /// 指定事件信封的投递链路（默认 `desktop-continuous`）。
     pub fn with_delivery_kind(mut self, delivery_kind: DeliveryKind) -> Self {
         self.delivery_kind = delivery_kind;
@@ -360,25 +413,45 @@ impl Session {
         self.tasks.take_notifications()
     }
 
-    /// 在**空闲时**把排队中的通知逐条跑成新 turn。
+    /// 在**空闲时**把当前排队的通知跑成**一个**新 turn（C3 T3）。
     ///
-    /// oracle 在忙时**直接丢弃**通知（spec §3.5）；因此调用方只能在空闲时调用本方法。
-    /// `&mut self` 保证它不会与 [`Self::run_turn`] 并发；是否在忙时丢弃由调用方决定，
-    /// 这里不偷偷替调用方排队。返回实际跑掉的通知条数。
+    /// 观察（`background-busy-coalesced.json`）：同一批完成的通知合并为一个
+    /// `background_task` turn，`input` 按完成顺序用空行分隔。是否在忙时丢弃由调用方
+    /// 决定（oracle 的前台工具时序；注册表已按判据过滤），这里不偷偷替调用方排队。
+    /// 返回本次合并的通知条数。
     ///
     /// `cancel` 与 [`Self::run_turn`] 同源：调用方给同一个 token，通知 turn 也遵守取消。
+    /// `execution_ordinal` 是宿主的执行序号（`foregroundExecutionId` 的数字部分）；
+    /// 由调用方显式给出，不从 turnNumber 推导。
+    #[allow(clippy::too_many_arguments)]
     pub async fn run_pending_notifications(
         &mut self,
         provider: &dyn ModelProvider,
         sink: &mut dyn EventSink,
         cancel: &CancelToken,
+        execution_ordinal: u64,
     ) -> Result<usize, TurnError> {
         let notifications = self.tasks.take_notifications();
-        let count = notifications.len();
-        for notification in notifications {
-            self.run_turn(&notification.to_xml(), provider, sink, cancel)
-                .await?;
+        if notifications.is_empty() {
+            return Ok(0);
         }
+        let count = notifications.len();
+        let input = notifications
+            .iter()
+            .map(TaskNotification::to_xml)
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        let input_id = format!("in_{}", new_uuid());
+        self.run_background_notification_turn(
+            &input,
+            &input_id,
+            &notifications,
+            provider,
+            sink,
+            cancel,
+            execution_ordinal,
+        )
+        .await?;
         Ok(count)
     }
 
@@ -441,17 +514,10 @@ impl Session {
         self.begin_turn_inner(input, Some(input_id), true)
     }
 
-    /// `begin_turn` / `begin_compact_turn` 的共用实现（turn id 分配与 `cacheStats`
-    /// 采样只有一份，避免两条路径漂移）。
-    fn begin_turn_inner(
-        &mut self,
-        prompt: &str,
-        input_id: Option<&str>,
-        compact: bool,
-    ) -> SessionEvent {
-        // 观察值（spec §3.5）：第一个 turn 的 `turnNumber` 是 **0**，之后逐次 +1。
-        // 冷物化时计数器已由持久化最大 turn 号 +1 初始化；这里再跳过已存在的 id，
-        // 保证 resume/重启后不会复用旧 `turn_N`（`turn_usage` 主键冲突，最终评审 C3）。
+    /// 分配 turn 序号与 id（三条 turn 路径共用；跳过冷物化时已存在的 id）。
+    ///
+    /// 同时在 turn 开始前采样 `cacheStats` 的「turn 前已有工具结果」事实。
+    fn allocate_turn(&mut self) -> (u64, String) {
         let (turn_number, turn_id) = loop {
             let candidate_number = self.turn_number;
             self.turn_number += 1;
@@ -461,12 +527,252 @@ impl Session {
             }
         };
         self.current_turn_id = Some(turn_id.clone());
-        // `cacheStats.totalMessages` 的口径要在 turn 开始前采样（turn 内追加的工具结果
-        // 不算「turn 前历史」；逐 turn 值见 `run_turn` 的注释）。
         self.prior_tool_history = self
             .messages
             .iter()
             .any(|message| matches!(message, ModelMessage::ToolResult { .. }));
+        (turn_number, turn_id)
+    }
+
+    /// 开一个 goal 控制 turn（`set`/`replace` 的 `executionKind:"controlOnly"`）。
+    ///
+    /// 观察载荷只有 `turnNumber` / `input`（objective）/ `messageId` / `executionKind`；
+    /// 没有 `executionStartedAt` / `queryId` / `foregroundExecutionId` / `inputId`。
+    /// 控制 turn 不发模型请求，其完成事件由 [`Self::emit_goal_control_completed`] 产出。
+    pub fn begin_goal_control_turn(&mut self, objective: &str) -> SessionEvent {
+        let (turn_number, turn_id) = self.allocate_turn();
+        let payload = TurnStartedPayload {
+            execution_started_at: None,
+            turn_number,
+            input: objective.to_string(),
+            input_id: None,
+            query_id: None,
+            message_id: Some(new_uuid()),
+            foreground_execution_id: None,
+            extra: {
+                let mut extra = ExtraFields::new();
+                extra.insert(
+                    "executionKind".to_string(),
+                    serde_json::json!("controlOnly"),
+                );
+                extra
+            },
+        };
+        self.emit(Some(&turn_id), SessionEventType::TurnStarted, &payload)
+    }
+
+    /// 控制 turn 的成功终态（`response:""`、tokens/tools 0）。
+    pub fn emit_goal_control_completed(&mut self, turn_id: &str, duration_ms: f64) -> SessionEvent {
+        let payload = TurnCompletedPayload {
+            response: String::new(),
+            token_count: 0,
+            usage: None,
+            tool_call_count: 0,
+            history_round_count: None,
+            duration: duration_ms,
+            cache_stats: None,
+            input_id: None,
+            result_type: TurnResultType::Success,
+            background_subagent_result_consumed: None,
+            extra: ExtraFields::new(),
+        };
+        self.emit(Some(turn_id), SessionEventType::TurnCompleted, &payload)
+    }
+
+    /// 开一个 goal-continuation turn（`inputSource:"goal-continuation"`）。
+    ///
+    /// 观察载荷：`executionStartedAt` / `turnNumber` / `input` / `messageId` / `inputId` /
+    /// `foregroundExecutionId` / `queryId` / `inputSource` / `inputVisibility:"model-only"` /
+    /// `targetId`。
+    pub fn begin_goal_continuation_turn(
+        &mut self,
+        prompt: &str,
+        input_id: &str,
+        target_id: &str,
+        turn_number: u64,
+        foreground_execution_id: &str,
+    ) -> SessionEvent {
+        // goal 的 turn 序号由运行时按「控制 turn + 目标轮次」决定，不复用普通
+        // `turn_N` 分配（观察：同一目标 resume 后 turnNumber 仍是 1，而
+        // foregroundExecutionId 每次尝试 +1）。
+        self.turn_number = self.turn_number.max(turn_number + 1);
+        let turn_id = format!("turn_{}", new_uuid());
+        self.current_turn_id = Some(turn_id.clone());
+        self.prior_tool_history = self
+            .messages
+            .iter()
+            .any(|message| matches!(message, ModelMessage::ToolResult { .. }));
+        let payload = TurnStartedPayload {
+            execution_started_at: Some(now_ms() as f64),
+            turn_number,
+            input: prompt.to_string(),
+            input_id: Some(input_id.to_string()),
+            query_id: Some(new_uuid()),
+            message_id: Some(new_uuid()),
+            foreground_execution_id: Some(foreground_execution_id.to_string()),
+            extra: {
+                let mut extra = ExtraFields::new();
+                extra.insert(
+                    "inputSource".to_string(),
+                    serde_json::json!("goal-continuation"),
+                );
+                extra.insert(
+                    "inputVisibility".to_string(),
+                    serde_json::json!("model-only"),
+                );
+                extra.insert("targetId".to_string(), serde_json::json!(target_id));
+                extra
+            },
+        };
+        self.emit(Some(&turn_id), SessionEventType::TurnStarted, &payload)
+    }
+
+    /// 开一个后台通知 turn（C3 T3；`inputSource:"background_task"`）。
+    ///
+    /// 观察载荷（`background-idle.json` / `background-busy-coalesced.json`）：
+    /// `executionStartedAt` / `turnNumber`（普通 turn 序号）/ `input` /
+    /// `messageId` / `inputId` / `foregroundExecutionId` / `queryId` /
+    /// `inputSource:"background_task"` / `inputVisibility:"model-only"` /
+    /// `originMeta:{backgroundSource,title,workId}` / `backgroundSource`。
+    /// 多条通知由调用方用空行拼进 `input`；`targetId` **不出现**（goal 通知 turn
+    /// 也如此，目标归属由 `run_started`/`run_finished` 承担）。
+    ///
+    /// `execution_ordinal` 是宿主的执行序号（`foregroundExecutionId` 的数字部分），
+    /// **显式传入**：goal 路径里它可能不等于 `turnNumber + 1`（通知 turn 紧跟在
+    /// 续跑 turn 之后，verifier 也回指同一个序号）。
+    pub fn begin_background_notification_turn(
+        &mut self,
+        input: &str,
+        input_id: &str,
+        notifications: &[TaskNotification],
+        execution_ordinal: u64,
+    ) -> SessionEvent {
+        let (turn_number, turn_id) = self.allocate_turn();
+        let title = notifications
+            .iter()
+            .map(|notification| {
+                notification
+                    .description
+                    .as_deref()
+                    .unwrap_or(&notification.command)
+            })
+            .collect::<Vec<_>>()
+            .join(" · ");
+        // 夹具把 workId 折叠成 `<id>`，无法区分多条时取哪一条；按完成顺序取首个。
+        let work_id = notifications
+            .first()
+            .map(|notification| notification.task_id.clone())
+            .unwrap_or_default();
+        let payload = TurnStartedPayload {
+            execution_started_at: Some(now_ms() as f64),
+            turn_number,
+            input: input.to_string(),
+            input_id: Some(input_id.to_string()),
+            query_id: Some(new_uuid()),
+            message_id: Some(new_uuid()),
+            foreground_execution_id: Some(format!("runtime_command_{execution_ordinal}")),
+            extra: {
+                let mut extra = ExtraFields::new();
+                extra.insert(
+                    "inputSource".to_string(),
+                    serde_json::json!("background_task"),
+                );
+                extra.insert(
+                    "inputVisibility".to_string(),
+                    serde_json::json!("model-only"),
+                );
+                extra.insert(
+                    "originMeta".to_string(),
+                    serde_json::json!({
+                        "backgroundSource": "bash",
+                        "title": title,
+                        "workId": work_id,
+                    }),
+                );
+                extra.insert("backgroundSource".to_string(), serde_json::json!("bash"));
+                extra
+            },
+        };
+        self.emit(Some(&turn_id), SessionEventType::TurnStarted, &payload)
+    }
+
+    /// 跑一个后台通知 turn（带 goal 的 `run_started`/`run_finished` 钩子；C3 T3）。
+    ///
+    /// 与 [`Self::run_goal_continuation_turn`] 的钩子语义相同，但 `turn.started`
+    /// 用后台通知形状（`inputSource:"background_task"`、无 `targetId`）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn run_background_notification_turn_with_hooks(
+        &mut self,
+        input: &str,
+        input_id: &str,
+        notifications: &[TaskNotification],
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+        cancel: &CancelToken,
+        execution_ordinal: u64,
+        after_start: AfterStartHook<'_>,
+        before_terminal: BeforeTerminalHook<'_>,
+    ) -> Result<(), TurnError> {
+        let started = self.begin_background_notification_turn(
+            input,
+            input_id,
+            notifications,
+            execution_ordinal,
+        );
+        self.run_turn_with_start(
+            started,
+            input,
+            provider,
+            sink,
+            cancel,
+            Some(after_start),
+            Some(before_terminal),
+            Some(input_id.to_string()),
+        )
+        .await
+    }
+
+    /// 跑一个后台通知 turn（C3 T3）。`input` 是已拼好的 `<task-notification>` 文本
+    /// （多条之间空行分隔）；`notifications` 只用于 `turn.started` 的来源元信息。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn run_background_notification_turn(
+        &mut self,
+        input: &str,
+        input_id: &str,
+        notifications: &[TaskNotification],
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+        cancel: &CancelToken,
+        execution_ordinal: u64,
+    ) -> Result<(), TurnError> {
+        let started = self.begin_background_notification_turn(
+            input,
+            input_id,
+            notifications,
+            execution_ordinal,
+        );
+        self.run_turn_with_start(
+            started,
+            input,
+            provider,
+            sink,
+            cancel,
+            None,
+            None,
+            Some(input_id.to_string()),
+        )
+        .await
+    }
+
+    /// `begin_turn` / `begin_compact_turn` 的共用实现（turn id 分配与 `cacheStats`
+    /// 采样只有一份，避免两条路径漂移）。
+    fn begin_turn_inner(
+        &mut self,
+        prompt: &str,
+        input_id: Option<&str>,
+        compact: bool,
+    ) -> SessionEvent {
+        let (turn_number, turn_id) = self.allocate_turn();
         let payload = TurnStartedPayload {
             // 观察值：`executionStartedAt` 是小数毫秒（compact 的 turn.started 没有该键）。
             execution_started_at: (!compact).then(|| now_ms() as f64),
@@ -513,6 +819,34 @@ impl Session {
         })
     }
 
+    /// 装配 completion verifier 的非流式请求（C3 T1；契约 §1.5）。
+    ///
+    /// 与普通请求的差异：**tools 恒空**（观察 `toolCount:0`）、不带项目记忆；
+    /// 历史沿用本会话的模型视角消息，末尾追加 verifier 提示。系统提示仍走统一
+    /// 装配（oracle 是 3 段 system；C1/C2 的请求面只有一条 System，登记差异）。
+    pub fn build_verification_request(&self, verifier_user_prompt: &str) -> ModelRequest {
+        let mut messages = self.messages.clone();
+        messages.push(ModelMessage::User(verifier_user_prompt.to_string()));
+        crate::context::build_model_request(&crate::context::ContextInput {
+            cwd: &self.cwd,
+            mode: &self.mode,
+            tools: &[],
+            messages: &messages,
+            model: &self.model_capabilities,
+            memory: None,
+        })
+    }
+
+    /// 当前（最近一次已开始）turn id；控制 turn 完成后也保留。
+    pub fn current_turn_id(&self) -> Option<&str> {
+        self.current_turn_id.as_deref()
+    }
+
+    /// 当前请求的 assistant 消息 id（verification timeline 的锚点；无请求时 `None`）。
+    pub fn current_assistant_message_id(&self) -> Option<&str> {
+        self.current_assistant_message_id.as_deref()
+    }
+
     /// 跑完一个完整 turn：模型流 →（可选）工具批次 → 终态。
     ///
     /// 事件顺序按 spec §3.5：`turn.started` → `model.streaming` ×N →（工具事件）→
@@ -542,8 +876,74 @@ impl Session {
         sink: &mut dyn EventSink,
         cancel: &CancelToken,
     ) -> Result<(), TurnError> {
+        let started = self.begin_turn(prompt);
+        self.run_turn_with_start(started, prompt, provider, sink, cancel, None, None, None)
+            .await
+    }
+
+    /// 跑一个 goal-continuation turn（C3 T1）。
+    ///
+    /// `turn.started` 用 goal 观察形状（`inputSource:"goal-continuation"` /
+    /// `inputVisibility:"model-only"` / `targetId`）；`before_terminal` 在
+    /// `turn.completed` 之前被调用，供调用方写 `run_finished` 与目标账务
+    /// （观察顺序：`run_finished` → `turn.completed`）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn run_goal_continuation_turn(
+        &mut self,
+        prompt: &str,
+        input_id: &str,
+        target_id: &str,
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+        cancel: &CancelToken,
+        after_start: AfterStartHook<'_>,
+        before_terminal: BeforeTerminalHook<'_>,
+        turn_number: u64,
+        foreground_execution_id: &str,
+    ) -> Result<(), TurnError> {
+        let started = self.begin_goal_continuation_turn(
+            prompt,
+            input_id,
+            target_id,
+            turn_number,
+            foreground_execution_id,
+        );
+        self.run_turn_with_start(
+            started,
+            prompt,
+            provider,
+            sink,
+            cancel,
+            Some(after_start),
+            Some(before_terminal),
+            Some(input_id.to_string()),
+        )
+        .await
+    }
+
+    /// [`Self::run_turn`] / [`Self::run_goal_continuation_turn`] 的共用执行体。
+    ///
+    /// `started` 是调用方已构造的 `turn.started` 事件（不同 turn 种类的载荷形状不同）；
+    /// `after_start` 在 `turn.started` 发布后、模型请求前调用（goal 的 `run_started`）；
+    /// `before_terminal` 只在本方法即将发布 `turn.completed` 前调用（成功与取消两条
+    /// 路径），provider 错误路径不发终态、也不调用钩子。
+    #[allow(clippy::too_many_arguments)]
+    async fn run_turn_with_start(
+        &mut self,
+        started: SessionEvent,
+        prompt: &str,
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+        cancel: &CancelToken,
+        mut after_start: Option<AfterStartHook<'_>>,
+        mut before_terminal: Option<BeforeTerminalHook<'_>>,
+        terminal_input_id: Option<String>,
+    ) -> Result<(), TurnError> {
         let started_at = std::time::Instant::now();
-        sink.emit(self.begin_turn(prompt));
+        sink.emit(started);
+        if let Some(hook) = after_start.as_mut() {
+            hook(self, sink);
+        }
         self.messages.push(ModelMessage::User(prompt.to_string()));
         let turn_id = self
             .current_turn_id
@@ -555,7 +955,13 @@ impl Session {
         // 每次迭代都从当前历史重新装配。
 
         let mut usage = ModelUsage::default();
+        // DB/轮次口径（`turn_usage.model_request_count` / `historyRoundCount`）：
+        // 每个模型步的初始尝试 + 每次 stream recovery 尝试各计一轮；HTTP 重试
+        // 仍是同一轮（契约 §2.2/§2.3）。
         let mut model_requests = 0_u64;
+        // 事件口径（`turn.completed.usage.modelRequestCount`）：只计成功完成的请求。
+        let mut completed_requests = 0_u64;
+        let mut request_index = 0_u64;
         let mut tool_call_count = 0_u64;
         let mut cancelled = false;
         // 取消时正在流的这一步已经到达的文本（终态如实携带，不丢已投递的 delta）。
@@ -568,12 +974,7 @@ impl Session {
                 cancelled = true;
                 break 'drive String::new();
             }
-            model_requests += 1;
-            // 本请求的 assistant 消息 id：`model.streaming` 与 `tool.updated(scheduled)`、
-            // `checkpoint.created` 的回指共用同一个（夹具里被 §3 折叠成 `<id>`，但同一条
-            // assistant 消息内取值一致是事件序的事实）。
-            self.current_assistant_message_id =
-                Some(format!("msg_{}_{model_requests}", self.session_id));
+            request_index += 1;
             let context_input = crate::context::ContextInput {
                 cwd: &self.cwd,
                 mode: &self.mode,
@@ -584,72 +985,225 @@ impl Session {
             };
             let request = crate::context::build_model_request(&context_input);
 
-            // 一次模型请求一条 delta 通道：provider 产出一条就 send，会话侧随到随发。
-            let (delta_sink, mut deltas) = tokio::sync::mpsc::unbounded_channel();
-            let mut provider_future = provider.stream(request, delta_sink);
-            let mut provider_result: Option<Result<ModelResponse, ProviderError>> = None;
-            let mut delta_channel_open = true;
-            let mut text = String::new();
-            let mut tool_calls: Vec<ToolCallRequest> = Vec::new();
-
-            while provider_result.is_none() {
-                tokio::select! {
-                    // `biased` + delta 优先：已到达的 delta 先发，future 就绪后队列里的尾巴
-                    // 仍按顺序走完，不会被「future 先完成」抢掉；取消也只在 delta 边界
-                    // （没有立即可消费的 delta 时）生效，不会打断半条 delta。
-                    biased;
-                    maybe_delta = deltas.recv(), if delta_channel_open => {
-                        match maybe_delta {
-                            Some(delta) => self.absorb_model_delta(
-                                &turn_id,
-                                model_requests,
-                                delta,
-                                &mut text,
-                                &mut tool_calls,
-                                sink,
-                            ),
-                            // provider 提前关掉发送端但 future 还没结束：继续等 future。
-                            None => delta_channel_open = false,
-                        }
+            // 一个模型步内的尝试循环（C3 T2）：
+            // - 未提交 delta 的 retryable 失败 → adapter 式退避重试；
+            // - 已提交 delta 的 retryable 失败 → stream recovery（立即重试）；
+            // - 非 retryable / 耗尽 → 交回宿主发唯一的 `turn.failed`。
+            let mut attempt: u32 = 1;
+            let mut recovery_count: u32 = 0;
+            // 本次尝试是否由 stream recovery 发起（只有它增加 DB/轮次计数；
+            // 恢复周期里的后续 adapter 重试不增加）。
+            let mut is_recovery_attempt = false;
+            // 最近一次恢复的追踪 id（成功收口事件的 `streamRecovery` 字段）。
+            let mut last_recovery: Option<StreamRecoverySummary> = None;
+            let (text, tool_calls, response) = 'attempt: loop {
+                // 取消优先于重试（契约 §2.3）：调度退避/恢复前后都先看取消位。
+                if cancel.is_cancelled() {
+                    cancelled = true;
+                    // 已经进入过重试/恢复的 turn 要清空 apiRetry（crate 的规则：
+                    // retryable=false 的 model_request_failed → null）。
+                    if attempt > 1 || recovery_count > 0 {
+                        self.emit_retry_cancelled(&turn_id, attempt.saturating_sub(1).max(1), sink);
                     }
-                    result = &mut provider_future => provider_result = Some(result),
-                    _ = cancel.cancelled() => {
-                        cancelled = true;
-                        break;
+                    break 'drive String::new();
+                }
+                // 本请求的 assistant 消息 id：`model.streaming` 与
+                // `tool.updated(scheduled)`、`checkpoint.created` 的回指共用同一个。
+                // stream recovery 的重试尝试用新 id，避免被丢弃的 partial delta
+                // 与恢复后的文本在落库侧合并成同一条 assistant 消息。
+                self.current_assistant_message_id =
+                    Some(attempt_message_id(&self.session_id, request_index, attempt));
+
+                // 一次模型请求一条 delta 通道：provider 产出一条就 send，会话侧随到随发。
+                let (delta_sink, mut deltas) = tokio::sync::mpsc::unbounded_channel();
+                let mut provider_future = provider.stream(request.clone(), delta_sink);
+                let mut provider_result: Option<Result<ModelResponse, ProviderError>> = None;
+                let mut delta_channel_open = true;
+                let mut text = String::new();
+                let mut tool_calls: Vec<ToolCallRequest> = Vec::new();
+                // 请求计数在**观察到该请求真的开始**时才 +1（第一个 delta 或 provider
+                // 应答）：pause 落在 provider 请求发出之前时 `model_request_count` 是 0
+                // （夹具 §1.6 的 pre-request 形状），不把尚未发出的请求算成一次尝试。
+                let mut attempt_counted = false;
+                // 这个尝试是否计入 DB/轮次口径：初始尝试与每个 stream recovery
+                // 尝试计入；HTTP 重试（含恢复周期里的后续 adapter 尝试）不增轮次。
+                let counts_toward_rounds = attempt == 1 || is_recovery_attempt;
+                let mut output_committed = false;
+
+                while provider_result.is_none() {
+                    tokio::select! {
+                        // `biased` + delta 优先：已到达的 delta 先发，future 就绪后队列里的尾巴
+                        // 仍按顺序走完，不会被「future 先完成」抢掉；取消也只在 delta 边界
+                        // （没有立即可消费的 delta 时）生效，不会打断半条 delta。
+                        biased;
+                        maybe_delta = deltas.recv(), if delta_channel_open => {
+                            match maybe_delta {
+                                Some(delta) => {
+                                    if counts_toward_rounds && !attempt_counted {
+                                        attempt_counted = true;
+                                        model_requests += 1;
+                                    }
+                                    output_committed = true;
+                                    self.absorb_model_delta(
+                                        &turn_id,
+                                        delta,
+                                        &mut text,
+                                        &mut tool_calls,
+                                        sink,
+                                    );
+                                }
+                                // provider 提前关掉发送端但 future 还没结束：继续等 future。
+                                None => delta_channel_open = false,
+                            }
+                        }
+                        // 取消优先于 provider 应答（C3：cancel 先于重试/终态）。
+                        _ = cancel.cancelled() => {
+                            cancelled = true;
+                            // 重试/恢复的 in-flight 取消也要清空 apiRetry。
+                            if attempt > 1 || recovery_count > 0 {
+                                self.emit_retry_cancelled(&turn_id, attempt, sink);
+                            }
+                            break;
+                        }
+                        result = &mut provider_future => provider_result = Some(result),
                     }
                 }
-            }
-            if cancelled {
-                cancelled_response = text;
-                break 'drive String::new();
-            }
+                if cancelled {
+                    cancelled_response = text;
+                    break 'drive String::new();
+                }
 
-            // future 结束前已经进入队列、但还没被 select 取走的 delta（tail）。
-            while let Ok(delta) = deltas.try_recv() {
-                self.absorb_model_delta(
-                    &turn_id,
-                    model_requests,
-                    delta,
-                    &mut text,
-                    &mut tool_calls,
-                    sink,
-                );
-            }
+                // future 结束前已经进入队列、但还没被 select 取走的 delta（tail）。
+                while let Ok(delta) = deltas.try_recv() {
+                    if counts_toward_rounds && !attempt_counted {
+                        attempt_counted = true;
+                        model_requests += 1;
+                    }
+                    output_committed = true;
+                    self.absorb_model_delta(&turn_id, delta, &mut text, &mut tool_calls, sink);
+                }
+                if counts_toward_rounds && !attempt_counted {
+                    model_requests += 1;
+                }
 
-            let response = provider_result
-                .expect("循环只在 provider future 结束后退出")
-                .map_err(|error| {
-                    // 失败时刻的已知累计（Task 7 裁决 6）：本请求之前的成功请求用量、
-                    // 请求次数与工具调用数随错误带回，供 `turn_usage` 记录已知值。
-                    TurnError::with_progress(
-                        error.message,
-                        crate::stream::TurnProgress {
-                            usage: usage.clone(),
-                            model_requests,
-                            tool_calls: tool_call_count,
-                        },
-                    )
-                })?;
+                let outcome = provider_result.expect("循环只在 provider future 结束后退出");
+                match outcome {
+                    Ok(response) => {
+                        completed_requests += 1;
+                        // 只有真正重试/恢复过的 turn 才补收口事件：正常 turn 仍保持
+                        // C1 的事件族缺省（`session.updated` 无 `model_request_*`）。
+                        if recovery_count > 0 || attempt > 1 {
+                            // 夹具的恢复请求 network attempt 仍是 1（不随 retryNumber
+                            // 递增）；HTTP 重试则如实记最终尝试号。
+                            let reported_attempt = if recovery_count > 0 { 1 } else { attempt };
+                            let payload = model_request_completed_payload(
+                                &self.retry_policy,
+                                reported_attempt,
+                                &response,
+                                last_recovery.as_ref(),
+                            );
+                            let event = self.emit(
+                                Some(&turn_id),
+                                SessionEventType::SessionUpdated,
+                                &payload,
+                            );
+                            sink.emit(event);
+                        }
+                        break 'attempt (text, tool_calls, response);
+                    }
+                    Err(error) => {
+                        let can_retry = if output_committed {
+                            // stream recovery 的次数上限同样来自夹具的 maxRetries。
+                            recovery_count < self.retry_policy.max_retries
+                        } else {
+                            attempt <= self.retry_policy.max_retries
+                        };
+                        if error.retryable && can_retry {
+                            if output_committed {
+                                // —— 流中断：4 条 streamRecovery.updated，立即重试 ——
+                                recovery_count += 1;
+                                let committed_tool_call_ids: Vec<String> = tool_calls
+                                    .iter()
+                                    .map(|call| call.tool_call_id.clone())
+                                    .collect();
+                                let facts = StreamRecoveryFacts {
+                                    policy: &self.retry_policy,
+                                    retry_number: recovery_count,
+                                    failure_kind: stream_recovery_failure_kind(&error),
+                                    failure_message: stream_recovery_failure_message(&error),
+                                    assistant_message_id: self
+                                        .current_assistant_message_id
+                                        .clone()
+                                        .unwrap_or_default(),
+                                    discarded_text_bytes: text.len() as u64,
+                                    discarded_reasoning_bytes: 0,
+                                    committed_tool_call_ids,
+                                };
+                                let (payloads, summary) = stream_recovery_payloads(&facts);
+                                for payload in payloads {
+                                    let event = self.emit(
+                                        Some(&turn_id),
+                                        SessionEventType::StreamRecoveryUpdated,
+                                        &payload,
+                                    );
+                                    sink.emit(event);
+                                }
+                                last_recovery = Some(summary);
+                                attempt += 1;
+                                is_recovery_attempt = true;
+                                continue 'attempt;
+                            }
+
+                            // —— 未提交 delta：adapter 式退避重试 ——
+                            let delay_ms = self.retry_policy.backoff_delay_ms(attempt);
+                            let payload = model_retry_scheduled_payload(
+                                &self.retry_policy,
+                                attempt,
+                                delay_ms,
+                                &error,
+                            );
+                            let event = self.emit(
+                                Some(&turn_id),
+                                SessionEventType::SessionUpdated,
+                                &payload,
+                            );
+                            sink.emit(event);
+                            // 退避与取消竞争：取消置位后不再发起下一次尝试。
+                            let cancelled_in_backoff = if delay_ms == 0 {
+                                cancel.is_cancelled()
+                            } else {
+                                tokio::select! {
+                                    biased;
+                                    _ = cancel.cancelled() => true,
+                                    _ = tokio::time::sleep(std::time::Duration::from_millis(delay_ms)) => false,
+                                }
+                            };
+                            if cancelled_in_backoff || cancel.is_cancelled() {
+                                cancelled = true;
+                                self.emit_retry_cancelled(&turn_id, attempt, sink);
+                                break 'drive String::new();
+                            }
+                            attempt += 1;
+                            is_recovery_attempt = false;
+                            // 后续成功的是 adapter 重试请求，不是恢复请求：不要把它
+                            // 标成 `callCause:"recovery"`（连续中断组合未观察到）。
+                            last_recovery = None;
+                            continue 'attempt;
+                        }
+
+                        // 非 retryable 或耗尽：把分类事实带回归属层（turn.failed 由
+                        // 宿主恰好发一次）。
+                        return Err(TurnError::from_provider(
+                            error,
+                            crate::stream::TurnProgress {
+                                usage: usage.clone(),
+                                model_requests,
+                                tool_calls: tool_call_count,
+                            },
+                        ));
+                    }
+                }
+            };
             usage.input_tokens += response.usage.input_tokens;
             usage.output_tokens += response.usage.output_tokens;
             usage.cache_read_tokens += response.usage.cache_read_tokens;
@@ -686,42 +1240,69 @@ impl Session {
         };
 
         if cancelled {
-            let total_tokens = usage.input_tokens + usage.output_tokens;
+            if let Some(hook) = before_terminal.as_mut() {
+                hook(
+                    self,
+                    sink,
+                    &TurnTerminalFacts {
+                        usage: usage.clone(),
+                        model_requests,
+                        tool_calls: tool_call_count,
+                        cancelled: true,
+                        response: cancelled_response.clone(),
+                    },
+                );
+            }
+            // 夹具 §2.5：取消终态没有 `usage`、`historyRoundCount:0`、`tokenCount:0`；
+            // DB 的 `model_request_count` 由内部事实通道单独给出（本例为 1）。
+            sink.model_request_rounds(model_requests);
+            // 已观察到模型请求的取消按夹具补一条 finish:null 占位（请求前取消不补）；
+            // 在终态发布前落库，保持「事件可见 ⇒ 行已提交」。
+            sink.cancelled_placeholder(model_requests > 0);
             let payload = TurnCompletedPayload {
                 response: cancelled_response,
-                token_count: total_tokens,
-                usage: Some(serde_json::json!({
-                    "source": "provider",
-                    "modelRequestCount": model_requests,
-                    "inputTokens": usage.input_tokens,
-                    "outputTokens": usage.output_tokens,
-                    "totalTokens": total_tokens,
-                    "cacheReadTokens": usage.cache_read_tokens,
-                    "cacheWriteTokens": usage.cache_write_tokens,
-                    "reasoningTokens": usage.reasoning_tokens,
-                    "webFetchRequests": 0,
-                    "webSearchRequests": 0,
-                })),
+                token_count: 0,
+                usage: None,
                 tool_call_count,
-                history_round_count: Some(model_requests),
+                history_round_count: Some(0),
                 duration: started_at.elapsed().as_millis() as f64,
                 cache_stats: None,
-                input_id: None,
+                input_id: terminal_input_id.clone(),
                 result_type: TurnResultType::Cancelled,
                 background_subagent_result_consumed: None,
                 extra: ExtraFields::new(),
             };
             sink.emit(self.emit(Some(&turn_id), SessionEventType::TurnCompleted, &payload));
-            return Err(TurnError::cancelled());
+            return Err(TurnError::cancelled_with_progress(
+                crate::stream::TurnProgress {
+                    usage,
+                    model_requests,
+                    tool_calls: tool_call_count,
+                },
+            ));
         }
 
         let total_tokens = usage.input_tokens + usage.output_tokens;
+        if let Some(hook) = before_terminal.as_mut() {
+            hook(
+                self,
+                sink,
+                &TurnTerminalFacts {
+                    usage: usage.clone(),
+                    model_requests,
+                    tool_calls: tool_call_count,
+                    cancelled: false,
+                    response: response_text.clone(),
+                },
+            );
+        }
         let payload = TurnCompletedPayload {
             response: response_text,
             token_count: total_tokens,
             usage: Some(serde_json::json!({
                 "source": "provider",
-                "modelRequestCount": model_requests,
+                // 事件层只计成功完成的模型请求（夹具：stream abort 事件 1 / DB 2）。
+                "modelRequestCount": completed_requests,
                 "inputTokens": usage.input_tokens,
                 "outputTokens": usage.output_tokens,
                 "totalTokens": total_tokens,
@@ -755,7 +1336,7 @@ impl Session {
                 cache_read_tokens: None,
                 extra: ExtraFields::new(),
             }),
-            input_id: None,
+            input_id: terminal_input_id.clone(),
             result_type: TurnResultType::Success,
             background_subagent_result_consumed: None,
             extra: ExtraFields::new(),
@@ -771,7 +1352,6 @@ impl Session {
     fn absorb_model_delta(
         &mut self,
         turn_id: &str,
-        request_index: u64,
         delta: ModelDelta,
         text: &mut String,
         tool_calls: &mut Vec<ToolCallRequest>,
@@ -790,18 +1370,27 @@ impl Session {
             }),
             _ => {}
         }
-        let event = self.model_streaming_event(turn_id, request_index, &delta);
+        let event = self.model_streaming_event(turn_id, &delta);
+        sink.emit(event);
+    }
+
+    /// 重试/恢复期间取消的收口事件：让 `mode-api-retry` 把状态清回 `null`
+    /// （`model_request_failed` + `retryable:false` 是 crate 的清除规则）。
+    fn emit_retry_cancelled(
+        &mut self,
+        turn_id: &str,
+        failed_attempt: u32,
+        sink: &mut dyn EventSink,
+    ) {
+        let payload = model_request_cancelled_payload(&self.retry_policy, failed_attempt);
+        let event = self.emit(Some(turn_id), SessionEventType::SessionUpdated, &payload);
         sink.emit(event);
     }
 
     /// 把模型 delta 投影成 `model.streaming` 事件（顺序即 delta 顺序）。
-    fn model_streaming_event(
-        &mut self,
-        turn_id: &str,
-        request_index: u64,
-        delta: &ModelDelta,
-    ) -> SessionEvent {
-        let assistant_message_id = Some(format!("msg_{}_{request_index}", self.session_id));
+    fn model_streaming_event(&mut self, turn_id: &str, delta: &ModelDelta) -> SessionEvent {
+        // 当前尝试的 assistant 消息 id（重试尝试用新 id；见尝试循环）。
+        let assistant_message_id = self.current_assistant_message_id.clone();
         let payload = match delta {
             ModelDelta::Text { text } => ModelStreamingPayload {
                 assistant_message_id,
@@ -1486,34 +2075,27 @@ impl Session {
     /// 被对拍的行为，单调 id 反而让用例可以断言。`traceId` 留空（追踪 id 由模型/会话层给）。
     /// `turn_id` 为 `None` 时信封省略 `turnId`（turn 尚未开始就失败的场景）。
     ///
-    /// 公开给宿主（`agent-server`）：compact turn 的终态事件由宿主在落库之后构造并
-    /// 发布（C2 T2），seq/信封仍归 [`Session`] 单调分配，不出现第二套编号。
+    /// 公开给宿主（`agent-server`）：事件由共享 [`crate::events::EventPublisher`] 分配 seq/`eventId`，
+    /// 宿主的 EventSink 在落库之后调用 `publish/commit`；信封不出现第二套编号。
     pub fn emit<T: Serialize>(
         &mut self,
         turn_id: Option<&str>,
         event_type: SessionEventType,
         payload: &T,
     ) -> SessionEvent {
-        self.sequence += 1;
-        SessionEvent {
-            event_id: format!("evt_{}", self.sequence),
-            session_id: self.session_id.clone(),
-            turn_id: turn_id.map(str::to_string),
-            seq: self.sequence,
-            trace_id: None,
-            timestamp: now_ms(),
-            // 默认 `desktop-continuous`（协议夹具的信封）；另一条链路只透传标记，
-            // 快照/队列归 Host/relay（DR-T5-1）。
-            delivery_kind: Some(self.delivery_kind),
+        self.events.allocate(
+            turn_id.map(str::to_string),
             event_type,
-            payload: Some(serde_json::to_value(payload).expect("镜像类型可序列化")),
-        }
+            serde_json::to_value(payload).expect("镜像类型可序列化"),
+            self.delivery_kind,
+        )
     }
 
     /// 发一条 `turn.failed` 终态（LT-1 C1 控制器裁决 3：终态恰好一次）。
     ///
-    /// 用于 provider 错误等 `run_turn` 自身没有发终态的失败路径：seq 归 [`Session`]
-    /// 统一分配，信封的 `turnId` 在 turn 尚未开始（如 turn 前持久化失败）时省略。
+    /// 用于 provider 错误等 `run_turn` 自身没有发终态的失败路径：seq 归共享
+    /// [`crate::events::EventPublisher`] 统一分配，信封的 `turnId` 在 turn 尚未开始（如 turn 前
+    /// 持久化失败）时省略。
     ///
     /// `error_type` 由调用方给：provider/模型请求失败用 `"runtime_error"`；缺模型等
     /// 配置失败用 `"CONFIGURATION_ERROR"`（oracle 观察：缺 `model` → `turn.failed`
@@ -1547,6 +2129,82 @@ impl Session {
             extra: ExtraFields::new(),
         };
         self.emit(turn_id, SessionEventType::TurnFailed, &payload)
+    }
+
+    /// provider 失败的 `turn.failed`（C3 T2）：分类字段进入 `attribution`，让 401 /
+    /// 耗尽等失败可诊断（状态码/原因/是否 retryable）。
+    ///
+    /// 夹具形状（`retry-401-non-retryable.json`）：顶层 `error.message` 用规范文案、
+    /// `underlyingErrorMessage` 保留供应商原文、`retryable` 只在 `attribution` 里；
+    /// `providerId`/`modelId`/`transport` 等追踪事实由宿主投影补齐（§2.7 登记）。
+    pub fn emit_turn_failed_for_provider(
+        &mut self,
+        turn_id: Option<&str>,
+        error: &ProviderError,
+        turn_phase: &str,
+    ) -> SessionEvent {
+        let mut attribution = serde_json::Map::new();
+        attribution.insert("source".to_string(), Value::String("provider".to_string()));
+        attribution.insert(
+            "reason".to_string(),
+            Value::String(error.reason().to_string()),
+        );
+        attribution.insert(
+            "errorPhase".to_string(),
+            Value::String("stream".to_string()),
+        );
+        if let Some(status) = error.status {
+            attribution.insert("statusCode".to_string(), Value::Number(status.into()));
+        }
+        attribution.insert("retryable".to_string(), Value::Bool(error.retryable));
+        let status = error
+            .status
+            .map(|status| status.to_string())
+            .unwrap_or_else(|| "none".to_string());
+        let mut detail = format!(
+            "Turn execution failed\nreason={} status={status} retryable={}",
+            error.reason(),
+            error.retryable
+        );
+        if let Some(underlying) = &error.underlying_message {
+            detail.push('\n');
+            detail.push_str(underlying);
+        }
+        let payload = TurnFailedPayload {
+            error: ProtocolErrorDetail {
+                error_type: "unknown_error".to_string(),
+                message: error.canonical_message().to_string(),
+                stack: None,
+                code: error
+                    .is_auth()
+                    .then(|| "provider_not_configured".to_string()),
+                detail: Some(detail),
+                underlying_error_message: error.underlying_message.clone(),
+                underlying_error_detail: None,
+                attribution: Some(Value::Object(attribution)),
+                // 夹具没有顶层 `error.retryable`（retryable 只在 attribution 内）。
+                retryable: None,
+                data: None,
+                extra: ExtraFields::new(),
+            },
+            turn_phase: turn_phase.to_string(),
+            input_id: None,
+            background_subagent_result_consumed: None,
+            extra: ExtraFields::new(),
+        };
+        self.emit(turn_id, SessionEventType::TurnFailed, &payload)
+    }
+}
+
+/// 一个模型尝试的 assistant 消息 id。
+///
+/// 初始尝试沿用 C1 的 `msg_<session>_<request_index>`；重试尝试追加 `_r<n>`，
+/// 让流恢复丢弃的 partial 消息与恢复后的最终消息在落库侧分组不同。
+fn attempt_message_id(session_id: &str, request_index: u64, attempt: u32) -> String {
+    if attempt <= 1 {
+        format!("msg_{session_id}_{request_index}")
+    } else {
+        format!("msg_{session_id}_{request_index}_r{attempt}")
     }
 }
 

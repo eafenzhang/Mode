@@ -923,13 +923,9 @@ fn dispatch_wires_provider_update_account_config() {
         .expect_err("非法参数");
     assert_eq!(error.code(), -32602);
 
-    // C2 T2 已接入 session/compact（tests/compact.rs）；goal 与其余未接入方法保持
-    // 显式 -32601（Task 7 接入其余 session 面）。
-    for method in [
-        "session/goal",
-        "provider/unknown",
-        "provider/updatePersonalConfig",
-    ] {
+    // C2 T2 已接入 session/compact（tests/compact.rs）；C3 T1 已接入 session/goal
+    // （tests/goal.rs）。其余未接入方法保持显式 -32601。
+    for method in ["provider/unknown", "provider/updatePersonalConfig"] {
         let error = server
             .dispatch(method, json!({}))
             .expect_err("未接入方法必须显式未实现");

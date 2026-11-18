@@ -26,13 +26,27 @@ fn unknown_method_returns_method_not_found() {
 fn skeleton_does_not_fake_any_method() {
     let server = AgentServer::new();
     // Task 7 已接入 create/send/read 等方法表（methods.rs 覆盖）；C2 T2 接入
-    // compact（tests/compact.rs 覆盖）。goal 明确不在当前方法表内，保持显式未实现。
-    for method in ["", "session/unknown", "session/goal", "provider/unknown"] {
+    // compact（tests/compact.rs 覆盖）；C3 T1 接入 goal（tests/goal.rs 覆盖）。
+    for method in ["", "session/unknown", "provider/unknown"] {
         let error = server
             .dispatch(method, json!({}))
             .expect_err("未接入方法必须显式未实现");
         assert_eq!(error.code(), -32601, "method={method}");
     }
+}
+
+#[test]
+fn goal_is_dispatched_and_validates_params() {
+    let server = AgentServer::new();
+    // 方法已接入：参数缺失/未知走严格解析 `-32602`，不再是 `-32601`。
+    let error = server
+        .dispatch("session/goal", json!({}))
+        .expect_err("非法参数必须显式拒绝");
+    assert_eq!(error.code(), -32602);
+    let error = server
+        .dispatch("session/stop", json!({}))
+        .expect_err("非法参数必须显式拒绝");
+    assert_eq!(error.code(), -32602);
 }
 
 #[test]

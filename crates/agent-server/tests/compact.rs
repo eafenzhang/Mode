@@ -435,9 +435,7 @@ impl ModelProvider for LongTextProvider {
         Box::pin(async move {
             deltas
                 .send(ModelDelta::Text { text: answer })
-                .map_err(|_| ProviderError {
-                    message: "delta sink closed".to_string(),
-                })?;
+                .map_err(|_| ProviderError::local("delta sink closed"))?;
             Ok(ModelResponse {
                 usage: ModelUsage {
                     input_tokens: 10,
@@ -499,9 +497,10 @@ impl ModelProvider for GatedCompactProvider {
         let gate = Arc::clone(&self.gate);
         let inner = Arc::clone(&self.inner);
         Box::pin(async move {
-            let _permit = gate.acquire().await.map_err(|_| ProviderError {
-                message: "compact gate closed".to_string(),
-            })?;
+            let _permit = gate
+                .acquire()
+                .await
+                .map_err(|_| ProviderError::local("compact gate closed"))?;
             inner.stream(request, deltas).await
         })
     }
@@ -528,9 +527,10 @@ impl ModelProvider for GatedPromptProvider {
         let gate = Arc::clone(&self.gate);
         let inner = Arc::clone(&self.inner);
         Box::pin(async move {
-            let _permit = gate.acquire().await.map_err(|_| ProviderError {
-                message: "prompt gate closed".to_string(),
-            })?;
+            let _permit = gate
+                .acquire()
+                .await
+                .map_err(|_| ProviderError::local("prompt gate closed"))?;
             inner.stream(request, deltas).await
         })
     }
@@ -2354,7 +2354,7 @@ async fn compact_without_model_fails_configuration_and_leaves_running() {
     assert_eq!(counts_after["turn_usage"], counts_before["turn_usage"] + 1);
 
     let usage = turn_usage_row(&fixture.db_path, &turn_id);
-    assert_eq!(usage["status"], json!("failed"));
+    assert_eq!(usage["status"], json!("error"));
     assert_eq!(usage["userMessageId"], Value::Null);
     assert_eq!(usage["modelRequestCount"], json!(0));
     assert_eq!(usage["inputTokens"], json!(0));

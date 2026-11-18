@@ -28,9 +28,12 @@ pub mod cancel;
 pub mod command_inbox;
 pub mod compact;
 pub mod context;
+pub mod events;
+pub mod goal;
 pub mod permission;
 pub mod plugin_tools;
 pub mod provider;
+pub mod recovery;
 pub mod rule_store;
 pub mod session;
 pub mod stream;
@@ -41,7 +44,10 @@ pub use agent_protocol::session_event::{
     ToolErrorPayload, ToolResultObject, ToolScheduledPayload, ToolStartedPayload,
     ToolUpdatedPayload,
 };
-pub use agent_tools::{FileState, ModeToolFamily, ToolContext, ToolError, ToolOutcome, ToolSpec};
+pub use agent_tools::{
+    FileState, ModeToolFamily, TaskNotification, TaskRegistry, ToolContext, ToolError, ToolOutcome,
+    ToolSpec,
+};
 pub use cancel::CancelToken;
 pub use command_inbox::{Admission, CommandInbox, Completion};
 pub use compact::{
@@ -53,6 +59,12 @@ pub use context::{
     ContextBudget, ContextCacheUsage, ContextCost, ContextInput, ContextUsage, MemorySection,
     TrimmedHistory,
 };
+pub use events::EventPublisher;
+pub use goal::{
+    continuation_prompt, continuation_stop_reason, parse_verifier_response, verifier_prompt,
+    GoalStatus, GoalStopReason, GoalTarget, VerifierVerdict, CANCELLED_VERIFIER_REASON,
+    CONTINUATION_MARKER, INVALID_VERIFIER_REASON, VERIFIER_MARKER,
+};
 pub use permission::{
     evaluate as evaluate_permission, ChannelPermissionHandler, Decision as PermissionDecision,
     FramePermissionHandler, PermissionHandler,
@@ -60,8 +72,10 @@ pub use permission::{
 pub use plugin_tools::{PluginToolDeclaration, PluginToolError, PluginToolSource};
 pub use provider::{
     ModelCapabilities, ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse,
-    ModelToolCall, ModelToolDefinition, ModelUsage, ProviderError, ScriptStep, ScriptToolCall,
-    ScriptedProvider,
+    ModelToolCall, ModelToolDefinition, ModelUsage, ProviderError, ProviderErrorKind, ScriptStep,
+    ScriptToolCall, ScriptedProvider,
 };
+pub use recovery::RetryPolicy;
 pub use rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
+pub use session::TurnTerminalFacts;
 pub use stream::{EventSink, TurnError, TurnProgress};

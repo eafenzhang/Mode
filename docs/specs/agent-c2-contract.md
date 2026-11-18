@@ -597,8 +597,9 @@ Rust `agent-server` 的快照/读面按 §4 对齐后的形状（`crates/agent-s
 `crates/agent-server/tests/snapshot.rs`）。逐条对照：
 
 - **顶层 9 键常驻**：`slashCommands` / `todos` / `todoGroups` 恒出现（空会话为 `[]`）；
-  `runtime.goalVerifications` / `goalVerificationTimeline` 恒为 `[]`（C1 观察形状，
-  此前 Rust 缺省省略，T6 起补齐）。`session/goal` 仍是 `-32601`（分派表 default）。
+  `runtime.goalVerifications` / `goalVerificationTimeline` 恒为数组（C1 观察形状，
+  此前 Rust 缺省省略，T6 起补齐；C3 T1 起填入目标验证事实）。`session/goal` 已由
+  C3 T1 接入（见 `agent-c3-contract.md` §1.11）。
 - **`target` 键恒在（显式 `null`）**：快照的 `session.target`（C1 契约 §2.1 观察键）
   与 `projection.target`（`context-usage-settings.json` 的 projection 录制值）在无
   goal 事实时为 `"target": null` 而不是缺键；`session/list` 行不带 target（观察的

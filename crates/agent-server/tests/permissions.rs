@@ -285,6 +285,7 @@ fn runtime_fixture(
         data_root: None,
         event_log_capacity: 4096,
         broadcast_capacity: 256,
+        retry: agent_core::RetryPolicy::default(),
     };
     let runtime = SessionRuntime::new(
         record,

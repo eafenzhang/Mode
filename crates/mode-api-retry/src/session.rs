@@ -151,6 +151,39 @@ impl SessionApiRetryTracker {
         event.clone()
     }
 
+    /// `model.streaming` 的恢复进展（text/reasoning/tool delta）到达时清空该会话的
+    /// apiRetry 状态。
+    ///
+    /// 判定复用 crate 内的 `is_mode_model_retry_recovery_progress_payload`（与
+    /// `track_api_retry_from_session_event` 的进度分支同一规则），不复制归一化逻辑。
+    /// 只在已有重试状态时清除；空 delta / 非进度事件不改变状态。
+    pub fn track_model_streaming_progress(&self, target: &SessionTarget, payload: &Value) {
+        let Some(payload) = payload.as_object() else {
+            return;
+        };
+        if !is_mode_model_retry_recovery_progress_payload(payload) {
+            return;
+        }
+        let key = session_key(target);
+        let mut by_session = self.by_session.lock().expect("api retry lock");
+        if by_session.get(&key).is_some_and(|value| value.is_some()) {
+            by_session.insert(key, None);
+        }
+    }
+
+    /// 终态清空（C3 T3）：任何 `turn.completed` / `turn.failed` 提交后不得再把
+    /// 上一 turn 的 retry 态投影进快照（goal 失败不会经过 completed/error 快照）。
+    ///
+    /// 只清除**已有条目**：从未发生过重试的会话保持「没有 apiRetry 键」的观察形状
+    /// （C2 的 compact 快照没有该键）；发生过重试的会话投影为 `null`。
+    pub fn clear_session(&self, target: &SessionTarget) {
+        let key = session_key(target);
+        let mut by_session = self.by_session.lock().expect("api retry lock");
+        if by_session.contains_key(&key) {
+            by_session.insert(key, None);
+        }
+    }
+
     pub fn with_api_retry_runtime(&self, snapshot: &Value) -> Value {
         let Some(snapshot_object) = snapshot.as_object() else {
             return snapshot.clone();

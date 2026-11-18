@@ -15,8 +15,12 @@ path = "src/main.rs"
 
 [dependencies]
 agent-core = { path = "../agent-core" }
+# C3 T4：`session/subagents` 的不透明分页游标（base64(JSON)）。
+base64.workspace = true
 agent-protocol = { path = "../agent-protocol" }
 indexmap = "2"
+# C3 T2：apiRetry 状态的唯一归一化/投影规则（不复制规则）。
+mode-api-retry = { path = "../mode-api-retry" }
 model-selection = { path = "../model-selection" }
 # C2 T3：项目记忆只读召回（记忆目录扫描 + MEMORY.md 索引读取的安全规则都在该 crate）。
 project-memory = { path = "../project-memory" }
