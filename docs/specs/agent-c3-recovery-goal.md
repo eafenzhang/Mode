@@ -73,6 +73,24 @@ C3 在 C1/C2 的 Rust `agent-server` 上补齐三件事，并保持「终态恰�
 - pause/clear/用户取消/目标完成/预算耗尽/最大轮次（以观察为准）；每个条件有测试；
 - 重启/冷恢复后 `session_target` 可继续（状态从 DB 重建，不重放已消费 turn）。
 
+### 3.4 Rust T1 现状（2026-11-18）
+
+- `agent-core::goal`：目标状态/响应文案、续跑停止判定、verifier 响应解析与两条
+  **自撰**提示词（正文不与 oracle 相同，保留结构性片段）。
+- `session_store::TargetRecord` + `get_target/upsert_target/delete_target`：
+  `session_target` 单行读写，`clear` 删行。
+- `session/goal`：六 action、严格参数、`-32009`/`-32010`、`startedTurn`；`pause`
+  立即置 paused 并取消 pending/in-flight 续跑；`session/stop` 同时落地。
+- worker：`set/replace` 控制 turn → `summary_updated`/`set` → 续跑循环；`resume`
+  直接续跑；每轮 `run_started` → turn → `run_finished` → verifier；无轮次/预算上限。
+- 账务：tokens/time 只在 `run_finished` 累计（取消不累计 tokens）；
+  verifier 独立 `model_usage(query_source:"target_completion_verification")`。
+- 冷恢复：`active` → `paused` + 清 active 字段，tokens/time/验证时间线保留，
+  无 idle turn；`session/resume` 带 `goalStats`。
+- 已知差异逐项登记在 `agent-c3-contract.md` §1.11（提示词正文、C1 未产出的
+  `session.updated` 子事件、控制 turn 消息行、verifier 请求分段、pre-request 计数边界、
+  `eventSeq` 物化差异、失败路径等）。
+
 ## 4. 后台通知与故障收口
 
 - 后台任务完成 → 空闲时开新 turn（`<task-notification>` 文本按 C1 观察）；

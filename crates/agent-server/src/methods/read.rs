@@ -38,7 +38,11 @@ pub(crate) fn handle(
             snapshot.messages = projected;
             snapshot
         }
-        None => super::cold_snapshot(&record, projected),
+        None => {
+            let (target, verifications, timeline) =
+                crate::runtime::load_goal_projection(&store, &record.id).map_err(store_error)?;
+            super::cold_snapshot(&record, projected, target, verifications, timeline)
+        }
     };
     serde_json::to_value(snapshot).map_err(|error| ServerError::internal(error.to_string()))
 }

@@ -28,6 +28,7 @@ pub mod cancel;
 pub mod command_inbox;
 pub mod compact;
 pub mod context;
+pub mod goal;
 pub mod permission;
 pub mod plugin_tools;
 pub mod provider;
@@ -53,6 +54,11 @@ pub use context::{
     ContextBudget, ContextCacheUsage, ContextCost, ContextInput, ContextUsage, MemorySection,
     TrimmedHistory,
 };
+pub use goal::{
+    continuation_prompt, continuation_stop_reason, parse_verifier_response, verifier_prompt,
+    GoalStatus, GoalStopReason, GoalTarget, VerifierVerdict, CANCELLED_VERIFIER_REASON,
+    INVALID_VERIFIER_REASON,
+};
 pub use permission::{
     evaluate as evaluate_permission, ChannelPermissionHandler, Decision as PermissionDecision,
     FramePermissionHandler, PermissionHandler,
@@ -64,4 +70,5 @@ pub use provider::{
     ScriptedProvider,
 };
 pub use rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
+pub use session::TurnTerminalFacts;
 pub use stream::{EventSink, TurnError, TurnProgress};

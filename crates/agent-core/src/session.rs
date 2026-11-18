@@ -83,6 +83,29 @@ pub struct ToolCallRequest {
     pub input: Value,
 }
 
+/// turn 终态前一刻的已知累计事实（goal 续跑用它写 `run_finished`）。
+///
+/// 终态事件（`turn.completed`）由 `run_turn` 发布；C3 观察要求 goal 续跑的
+/// `run_finished` 出现在终态**之前**，所以调用方通过 `before_terminal` 钩子在这两个
+/// 事件之间落 target 账务。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TurnTerminalFacts {
+    pub usage: ModelUsage,
+    pub model_requests: u64,
+    pub tool_calls: u64,
+    pub cancelled: bool,
+    /// 取消时已投递的文本 / 成功时的最终文本。
+    pub response: String,
+}
+
+/// `turn.started` 之后的钩子（goal 用它发 `run_started` 并写 active run 账务）。
+pub type AfterStartHook<'a> = &'a mut (dyn FnMut(&mut Session, &mut dyn EventSink) + Send);
+
+/// `turn.completed` 之前的钩子（goal 用它发 `run_finished`；观察顺序：
+/// `run_finished` → `turn.completed`）。
+pub type BeforeTerminalHook<'a> =
+    &'a mut (dyn FnMut(&mut Session, &mut dyn EventSink, &TurnTerminalFacts) + Send);
+
 /// 会话循环：工具面 + 可选的模型驱动 turn（[`Session::run_turn`]）。
 ///
 /// 不落盘：消息历史只在内存里，持久化归宿主。`web-remote-replayable` 的快照/队列
@@ -441,17 +464,10 @@ impl Session {
         self.begin_turn_inner(input, Some(input_id), true)
     }
 
-    /// `begin_turn` / `begin_compact_turn` 的共用实现（turn id 分配与 `cacheStats`
-    /// 采样只有一份，避免两条路径漂移）。
-    fn begin_turn_inner(
-        &mut self,
-        prompt: &str,
-        input_id: Option<&str>,
-        compact: bool,
-    ) -> SessionEvent {
-        // 观察值（spec §3.5）：第一个 turn 的 `turnNumber` 是 **0**，之后逐次 +1。
-        // 冷物化时计数器已由持久化最大 turn 号 +1 初始化；这里再跳过已存在的 id，
-        // 保证 resume/重启后不会复用旧 `turn_N`（`turn_usage` 主键冲突，最终评审 C3）。
+    /// 分配 turn 序号与 id（三条 turn 路径共用；跳过冷物化时已存在的 id）。
+    ///
+    /// 同时在 turn 开始前采样 `cacheStats` 的「turn 前已有工具结果」事实。
+    fn allocate_turn(&mut self) -> (u64, String) {
         let (turn_number, turn_id) = loop {
             let candidate_number = self.turn_number;
             self.turn_number += 1;
@@ -461,12 +477,104 @@ impl Session {
             }
         };
         self.current_turn_id = Some(turn_id.clone());
-        // `cacheStats.totalMessages` 的口径要在 turn 开始前采样（turn 内追加的工具结果
-        // 不算「turn 前历史」；逐 turn 值见 `run_turn` 的注释）。
         self.prior_tool_history = self
             .messages
             .iter()
             .any(|message| matches!(message, ModelMessage::ToolResult { .. }));
+        (turn_number, turn_id)
+    }
+
+    /// 开一个 goal 控制 turn（`set`/`replace` 的 `executionKind:"controlOnly"`）。
+    ///
+    /// 观察载荷只有 `turnNumber` / `input`（objective）/ `messageId` / `executionKind`；
+    /// 没有 `executionStartedAt` / `queryId` / `foregroundExecutionId` / `inputId`。
+    /// 控制 turn 不发模型请求，其完成事件由 [`Self::emit_goal_control_completed`] 产出。
+    pub fn begin_goal_control_turn(&mut self, objective: &str) -> SessionEvent {
+        let (turn_number, turn_id) = self.allocate_turn();
+        let payload = TurnStartedPayload {
+            execution_started_at: None,
+            turn_number,
+            input: objective.to_string(),
+            input_id: None,
+            query_id: None,
+            message_id: Some(new_uuid()),
+            foreground_execution_id: None,
+            extra: {
+                let mut extra = ExtraFields::new();
+                extra.insert(
+                    "executionKind".to_string(),
+                    serde_json::json!("controlOnly"),
+                );
+                extra
+            },
+        };
+        self.emit(Some(&turn_id), SessionEventType::TurnStarted, &payload)
+    }
+
+    /// 控制 turn 的成功终态（`response:""`、tokens/tools 0）。
+    pub fn emit_goal_control_completed(&mut self, turn_id: &str, duration_ms: f64) -> SessionEvent {
+        let payload = TurnCompletedPayload {
+            response: String::new(),
+            token_count: 0,
+            usage: None,
+            tool_call_count: 0,
+            history_round_count: None,
+            duration: duration_ms,
+            cache_stats: None,
+            input_id: None,
+            result_type: TurnResultType::Success,
+            background_subagent_result_consumed: None,
+            extra: ExtraFields::new(),
+        };
+        self.emit(Some(turn_id), SessionEventType::TurnCompleted, &payload)
+    }
+
+    /// 开一个 goal-continuation turn（`inputSource:"goal-continuation"`）。
+    ///
+    /// 观察载荷：`executionStartedAt` / `turnNumber` / `input` / `messageId` / `inputId` /
+    /// `foregroundExecutionId` / `queryId` / `inputSource` / `inputVisibility:"model-only"` /
+    /// `targetId`。
+    pub fn begin_goal_continuation_turn(
+        &mut self,
+        prompt: &str,
+        input_id: &str,
+        target_id: &str,
+    ) -> SessionEvent {
+        let (turn_number, turn_id) = self.allocate_turn();
+        let payload = TurnStartedPayload {
+            execution_started_at: Some(now_ms() as f64),
+            turn_number,
+            input: prompt.to_string(),
+            input_id: Some(input_id.to_string()),
+            query_id: Some(new_uuid()),
+            message_id: Some(new_uuid()),
+            foreground_execution_id: Some(format!("runtime_command_{}", turn_number + 1)),
+            extra: {
+                let mut extra = ExtraFields::new();
+                extra.insert(
+                    "inputSource".to_string(),
+                    serde_json::json!("goal-continuation"),
+                );
+                extra.insert(
+                    "inputVisibility".to_string(),
+                    serde_json::json!("model-only"),
+                );
+                extra.insert("targetId".to_string(), serde_json::json!(target_id));
+                extra
+            },
+        };
+        self.emit(Some(&turn_id), SessionEventType::TurnStarted, &payload)
+    }
+
+    /// `begin_turn` / `begin_compact_turn` 的共用实现（turn id 分配与 `cacheStats`
+    /// 采样只有一份，避免两条路径漂移）。
+    fn begin_turn_inner(
+        &mut self,
+        prompt: &str,
+        input_id: Option<&str>,
+        compact: bool,
+    ) -> SessionEvent {
+        let (turn_number, turn_id) = self.allocate_turn();
         let payload = TurnStartedPayload {
             // 观察值：`executionStartedAt` 是小数毫秒（compact 的 turn.started 没有该键）。
             execution_started_at: (!compact).then(|| now_ms() as f64),
@@ -513,6 +621,34 @@ impl Session {
         })
     }
 
+    /// 装配 completion verifier 的非流式请求（C3 T1；契约 §1.5）。
+    ///
+    /// 与普通请求的差异：**tools 恒空**（观察 `toolCount:0`）、不带项目记忆；
+    /// 历史沿用本会话的模型视角消息，末尾追加 verifier 提示。系统提示仍走统一
+    /// 装配（oracle 是 3 段 system；C1/C2 的请求面只有一条 System，登记差异）。
+    pub fn build_verification_request(&self, verifier_user_prompt: &str) -> ModelRequest {
+        let mut messages = self.messages.clone();
+        messages.push(ModelMessage::User(verifier_user_prompt.to_string()));
+        crate::context::build_model_request(&crate::context::ContextInput {
+            cwd: &self.cwd,
+            mode: &self.mode,
+            tools: &[],
+            messages: &messages,
+            model: &self.model_capabilities,
+            memory: None,
+        })
+    }
+
+    /// 当前（最近一次已开始）turn id；控制 turn 完成后也保留。
+    pub fn current_turn_id(&self) -> Option<&str> {
+        self.current_turn_id.as_deref()
+    }
+
+    /// 当前请求的 assistant 消息 id（verification timeline 的锚点；无请求时 `None`）。
+    pub fn current_assistant_message_id(&self) -> Option<&str> {
+        self.current_assistant_message_id.as_deref()
+    }
+
     /// 跑完一个完整 turn：模型流 →（可选）工具批次 → 终态。
     ///
     /// 事件顺序按 spec §3.5：`turn.started` → `model.streaming` ×N →（工具事件）→
@@ -542,8 +678,66 @@ impl Session {
         sink: &mut dyn EventSink,
         cancel: &CancelToken,
     ) -> Result<(), TurnError> {
+        let started = self.begin_turn(prompt);
+        self.run_turn_with_start(started, prompt, provider, sink, cancel, None, None, None)
+            .await
+    }
+
+    /// 跑一个 goal-continuation turn（C3 T1）。
+    ///
+    /// `turn.started` 用 goal 观察形状（`inputSource:"goal-continuation"` /
+    /// `inputVisibility:"model-only"` / `targetId`）；`before_terminal` 在
+    /// `turn.completed` 之前被调用，供调用方写 `run_finished` 与目标账务
+    /// （观察顺序：`run_finished` → `turn.completed`）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn run_goal_continuation_turn(
+        &mut self,
+        prompt: &str,
+        input_id: &str,
+        target_id: &str,
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+        cancel: &CancelToken,
+        after_start: AfterStartHook<'_>,
+        before_terminal: BeforeTerminalHook<'_>,
+    ) -> Result<(), TurnError> {
+        let started = self.begin_goal_continuation_turn(prompt, input_id, target_id);
+        self.run_turn_with_start(
+            started,
+            prompt,
+            provider,
+            sink,
+            cancel,
+            Some(after_start),
+            Some(before_terminal),
+            Some(input_id.to_string()),
+        )
+        .await
+    }
+
+    /// [`Self::run_turn`] / [`Self::run_goal_continuation_turn`] 的共用执行体。
+    ///
+    /// `started` 是调用方已构造的 `turn.started` 事件（不同 turn 种类的载荷形状不同）；
+    /// `after_start` 在 `turn.started` 发布后、模型请求前调用（goal 的 `run_started`）；
+    /// `before_terminal` 只在本方法即将发布 `turn.completed` 前调用（成功与取消两条
+    /// 路径），provider 错误路径不发终态、也不调用钩子。
+    #[allow(clippy::too_many_arguments)]
+    async fn run_turn_with_start(
+        &mut self,
+        started: SessionEvent,
+        prompt: &str,
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+        cancel: &CancelToken,
+        mut after_start: Option<AfterStartHook<'_>>,
+        mut before_terminal: Option<BeforeTerminalHook<'_>>,
+        terminal_input_id: Option<String>,
+    ) -> Result<(), TurnError> {
         let started_at = std::time::Instant::now();
-        sink.emit(self.begin_turn(prompt));
+        sink.emit(started);
+        if let Some(hook) = after_start.as_mut() {
+            hook(self, sink);
+        }
         self.messages.push(ModelMessage::User(prompt.to_string()));
         let turn_id = self
             .current_turn_id
@@ -556,6 +750,7 @@ impl Session {
 
         let mut usage = ModelUsage::default();
         let mut model_requests = 0_u64;
+        let mut request_index = 0_u64;
         let mut tool_call_count = 0_u64;
         let mut cancelled = false;
         // 取消时正在流的这一步已经到达的文本（终态如实携带，不丢已投递的 delta）。
@@ -568,12 +763,16 @@ impl Session {
                 cancelled = true;
                 break 'drive String::new();
             }
-            model_requests += 1;
+            request_index += 1;
+            // 请求计数在**观察到该请求真的开始**时才 +1（第一个 delta 或 provider
+            // 应答）：pause 落在 provider 请求发出之前时 `model_request_count` 是 0
+            // （夹具 §1.6 的 pre-request 形状），不把尚未发出的请求算成一次尝试。
+            let mut request_counted = false;
             // 本请求的 assistant 消息 id：`model.streaming` 与 `tool.updated(scheduled)`、
             // `checkpoint.created` 的回指共用同一个（夹具里被 §3 折叠成 `<id>`，但同一条
             // assistant 消息内取值一致是事件序的事实）。
             self.current_assistant_message_id =
-                Some(format!("msg_{}_{model_requests}", self.session_id));
+                Some(format!("msg_{}_{request_index}", self.session_id));
             let context_input = crate::context::ContextInput {
                 cwd: &self.cwd,
                 mode: &self.mode,
@@ -600,14 +799,20 @@ impl Session {
                     biased;
                     maybe_delta = deltas.recv(), if delta_channel_open => {
                         match maybe_delta {
-                            Some(delta) => self.absorb_model_delta(
-                                &turn_id,
-                                model_requests,
-                                delta,
-                                &mut text,
-                                &mut tool_calls,
-                                sink,
-                            ),
+                            Some(delta) => {
+                                if !request_counted {
+                                    request_counted = true;
+                                    model_requests += 1;
+                                }
+                                self.absorb_model_delta(
+                                    &turn_id,
+                                    request_index,
+                                    delta,
+                                    &mut text,
+                                    &mut tool_calls,
+                                    sink,
+                                );
+                            }
                             // provider 提前关掉发送端但 future 还没结束：继续等 future。
                             None => delta_channel_open = false,
                         }
@@ -626,9 +831,13 @@ impl Session {
 
             // future 结束前已经进入队列、但还没被 select 取走的 delta（tail）。
             while let Ok(delta) = deltas.try_recv() {
+                if !request_counted {
+                    request_counted = true;
+                    model_requests += 1;
+                }
                 self.absorb_model_delta(
                     &turn_id,
-                    model_requests,
+                    request_index,
                     delta,
                     &mut text,
                     &mut tool_calls,
@@ -636,6 +845,9 @@ impl Session {
                 );
             }
 
+            if !request_counted {
+                model_requests += 1;
+            }
             let response = provider_result
                 .expect("循环只在 provider future 结束后退出")
                 .map_err(|error| {
@@ -687,6 +899,19 @@ impl Session {
 
         if cancelled {
             let total_tokens = usage.input_tokens + usage.output_tokens;
+            if let Some(hook) = before_terminal.as_mut() {
+                hook(
+                    self,
+                    sink,
+                    &TurnTerminalFacts {
+                        usage: usage.clone(),
+                        model_requests,
+                        tool_calls: tool_call_count,
+                        cancelled: true,
+                        response: cancelled_response.clone(),
+                    },
+                );
+            }
             let payload = TurnCompletedPayload {
                 response: cancelled_response,
                 token_count: total_tokens,
@@ -706,7 +931,7 @@ impl Session {
                 history_round_count: Some(model_requests),
                 duration: started_at.elapsed().as_millis() as f64,
                 cache_stats: None,
-                input_id: None,
+                input_id: terminal_input_id.clone(),
                 result_type: TurnResultType::Cancelled,
                 background_subagent_result_consumed: None,
                 extra: ExtraFields::new(),
@@ -716,6 +941,19 @@ impl Session {
         }
 
         let total_tokens = usage.input_tokens + usage.output_tokens;
+        if let Some(hook) = before_terminal.as_mut() {
+            hook(
+                self,
+                sink,
+                &TurnTerminalFacts {
+                    usage: usage.clone(),
+                    model_requests,
+                    tool_calls: tool_call_count,
+                    cancelled: false,
+                    response: response_text.clone(),
+                },
+            );
+        }
         let payload = TurnCompletedPayload {
             response: response_text,
             token_count: total_tokens,
@@ -755,7 +993,7 @@ impl Session {
                 cache_read_tokens: None,
                 extra: ExtraFields::new(),
             }),
-            input_id: None,
+            input_id: terminal_input_id.clone(),
             result_type: TurnResultType::Success,
             background_subagent_result_consumed: None,
             extra: ExtraFields::new(),

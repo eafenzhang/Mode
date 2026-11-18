@@ -1,8 +1,9 @@
 # Spec：C3 Agent Server 黑盒契约（goal / stream recovery+retry / background / subagents）
 
-状态：**C3-T0 捕获完成（2026-11-18）**。本文只记录 oracle（现网 Node `mode.cjs` 源码入口）
-的黑盒观察结果，作为 C3 Rust `agent-server` / `agent-core` 的对拍基线；不是产品设计稿。
-实现细节以 `docs/specs/agent-c3-recovery-goal.md` 为准，本文只回答「线上到底长什么样」。
+状态：**C3-T0 捕获完成（2026-11-18）；T1（goal）Rust 实现已落（§1.11）**。本文只记录
+oracle（现网 Node `mode.cjs` 源码入口）的黑盒观察结果，作为 C3 Rust `agent-server` /
+`agent-core` 的对拍基线；不是产品设计稿。实现细节以
+`docs/specs/agent-c3-recovery-goal.md` 为准，本文只回答「线上到底长什么样」。
 
 关联：`docs/specs/agent-c3-recovery-goal.md`、`docs/plans/2026-11-18-lt1-c3-recovery-goal.md`、
 `docs/specs/agent-server-c1-contract.md`、`docs/specs/agent-c2-contract.md`、
@@ -339,6 +340,52 @@ toolCallCount,iterationCount`。冷恢复后 `contextUsed:0`、`iterationCount:1
   （只观察到 paused/idle/complete 组合；运行中的管理动作统一 `-32010`，`pause` 例外）；
 - target 完成后的冷重启；
 - 多 workspace / 远程 identity 下的 goal 行为。
+
+## 1.11 Rust C3 现状（T1，2026-11-18）
+
+本节登记 Rust `agent-server` / `agent-core` 在 C3 T1 的实现取舍与**已知差异**；实现以
+§1 的黑盒观察为基线，夹具与实际行为冲突时以夹具为准。测试入口
+`crates/agent-server/tests/goal.rs`（12 个用例）与 `crates/session-store/tests/target.rs`。
+
+已实现（与观察一致）：
+
+- `session/goal` 六种 action、严格参数（未知键/非法 action `-32602`）；
+  `{response, snapshot, startedTurn}` 三键恒在；
+- 运行中限制：show/set/replace/resume/clear → `-32010`，`pause` 例外；
+- `expectedRevision` 冲突 `-32009` + `{actualRevision, expectedRevision}`，零事件/零 DB 写；
+- `session_target` 单行事实源（`set`/`replace` 覆盖并产生新 target id，`clear` 删行）；
+  `session/read` 与快照的 `session.target` / `projection.target` 同源；
+- 续跑：`set`/`replace` 先控制 turn（`executionKind:"controlOnly"`）再
+  goal-continuation；`resume` 直接续跑；`run_started`/`run_finished` 包住每个目标
+  turn，tokens/time 只在 `run_finished` 累计（取消不累计 tokens）；
+- 停止条件：pause、clear、complete、user stop（新增 `session/stop`）；**无轮次/预算上限**；
+- completion verifier：非流式、0 tools、`query_source:"target_completion_verification"`；
+  合法 JSON 按值使用，非法 JSON 线上 fallback `passed:true` +
+  `The completion verifier did not return valid JSON.`；
+- 冷恢复：`active` → `paused` 并清空 active 字段、已入库 tokens/time/验证时间线保留、
+  **不自动续跑**；`session/resume` 带 `goalStats`。
+
+差异 / 未覆盖（不伪造观察值）：
+
+| 项                        | Rust 现状                                                                                                                                                                                                                                                         | 依据                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 提示词正文                | continuation / verifier 提示词是**本仓库自撰**；保留观察到的结构性片段（`<untrusted_objective>`、`Budget:` 四个事实行、verifier 的 JSON 形状）。正文不与夹具逐字相同。                                                                                            | clean-room；task-1-brief 要求 prompt 登记为 authored |
+| `session.updated` 事件族  | 只产出 goal 相关 action（`summary_updated`/`set`/`run_started`/`run_finished`/`status_updated`/`cleared`）与 verifier started/completed/cancelled；C1 未实现的 `messageCount`/`model_request_started`/`model_request_completed`/`content` 仍不产出。              | C1 既有差异                                          |
+| 控制 turn 的消息行        | 不写 oracle 的 assistant timeline 行；objective 写为 `user_prompt` 消息。goal 状态变更写 `system_reminder` + `source:"goal_state_change"`（正文 `Goal paused/resumed/cleared` 为自撰）。continuation prompt 写 `system_reminder` + `source:"goal-continuation"`。 | messageSummary 只观察到 role/kind/source             |
+| verifier 请求形状         | system 只有 1 段（C1 的请求面），不是 oracle 的 3 段；tools 0、非流式消费、deltas 不进事件流。                                                                                                                                                                    | 请求面差异                                           |
+| `model_usage`             | 只有 goal-continuation（`main_turn`）与 verifier（`target_completion_verification`）写行；C1 普通 turn 仍不写 `model_usage`。暂停/取消的续跑行 `status:"cancelled"`、tokens 0。                                                                                   | 夹具 §1.3/§1.6                                       |
+| pre-request pause 计数    | `model_request_count` 在**观察到请求真的开始**（首个 delta/provider 应答）时才 +1；因此 provider 尚未产出任何内容的暂停是 0，in-flight（已产出 delta）是 1。真实网络已发出但尚无 delta 的极窄窗口也会记 0（夹具只覆盖两个端点形状）。                             | §1.6 两个形状                                        |
+| `time_used_seconds`       | 墙钟秒向上取整，任何发生过 run 的段至少 1 秒；夹具折叠 `<time>`，测试只断言非负/保留/非零。                                                                                                                                                                       | §1.3                                                 |
+| verifier 取消/错误        | pause/stop 取消 verifier → timeline `cancelled` + `Completion verifier request was cancelled.`；provider 错误 → `failed_closed`（未观察组合）。                                                                                                                   | §1.5 只观察 pause 取消                               |
+| valid JSON 缺 `passed`    | 与非法 JSON 同走 fallback（`passed:true` + 同一 reason）。                                                                                                                                                                                                        | 未观察组合                                           |
+| `goalVerifications` 窗口  | 只保留最近 2 条 **completed** 验证；`cancelled`/`failed_closed` 不进窗口，但保留在 timeline。                                                                                                                                                                     | loop 观察 `length:2`                                 |
+| `goalStats.toolCallCount` | 恒 0（未观察到独立的目标工具计数事实）。                                                                                                                                                                                                                          | §1.8                                                 |
+| 目标 id                   | `target_<毫秒>_<计数>`；夹具别名 `target-1`/`target-2` 只用于可读性。                                                                                                                                                                                             | 值折叠                                               |
+| 失败路径                  | provider 错误：发 `turn.failed`、清 active 字段、停止续跑（target 仍 active）；配置失败（无模型/解析失败）：target 暂停、不发 turn、不伪造事件。                                                                                                                  | §1.10 未观察                                         |
+| 冷恢复 `eventSeq`         | resume 后 `eventSeq:0`（C1/C2 已登记的物化差异）；oracle 是 2。`stateRevision:0`、`turnCount:0` 与观察一致。                                                                                                                                                      | C2 snapshot 测试同款登记                             |
+| 冷读副作用                | 无 runtime 的 `session/read` 对 `active` 目标执行 active→paused 落库（与 resume 同一冷恢复语义）。oracle 只在 resume 后观察过该迁移。                                                                                                                             | §1.8                                                 |
+| 预算                      | 协议无 `tokenBudget` 字段，不产生 `budget_limited`。                                                                                                                                                                                                              | §1.9                                                 |
+| 轮次上限                  | **不实现**任何自动轮次/时间上限（只在 40 轮内观察到仍在继续）。                                                                                                                                                                                                   | §1.6                                                 |
 
 ## 2. Stream recovery 与重试
 

@@ -6,13 +6,13 @@
 //! [`projection`]（DB 富形状 ≠ wire 投影，见 `docs/specs/agent-server-c1-contract.md`
 //! §3.7）。
 //!
-//! 方法清单（控制器裁决 3 + C2 T2）：`session/create|send|subscribe|read|messages|
-//! list|close|resume|setModel|setThoughtLevel|setMode|compact`。`session/goal`
-//! 保持显式 `-32601`（分派表的 default 分支）。
+//! 方法清单（控制器裁决 3 + C2 T2 + C3 T1）：`session/create|send|subscribe|read|messages|
+//! list|close|resume|stop|setModel|setThoughtLevel|setMode|compact|goal`。
 
 pub mod close;
 pub mod compact;
 pub mod create;
+pub mod goal;
 pub mod list;
 pub mod messages;
 pub mod projection;
@@ -44,8 +44,9 @@ pub use agent_protocol::session_read::{
 };
 pub use agent_protocol::session_send::SESSION_SEND_METHOD;
 pub use agent_protocol::session_write::{
-    SESSION_CLOSE_METHOD, SESSION_COMPACT_METHOD, SESSION_CREATE_METHOD, SESSION_RESUME_METHOD,
-    SESSION_SET_MODEL_METHOD, SESSION_SET_MODE_METHOD, SESSION_SET_THOUGHT_LEVEL_METHOD,
+    SESSION_CLOSE_METHOD, SESSION_COMPACT_METHOD, SESSION_CREATE_METHOD, SESSION_GOAL_METHOD,
+    SESSION_RESUME_METHOD, SESSION_SET_MODEL_METHOD, SESSION_SET_MODE_METHOD,
+    SESSION_SET_THOUGHT_LEVEL_METHOD, SESSION_STOP_METHOD,
 };
 
 /// 严格解析 params：未知键 / 类型不符一律 `-32602`，不静默吞掉。
@@ -169,14 +170,19 @@ pub(crate) fn session_info(record: &SessionRecord, status: SessionStatus) -> Ses
 pub(crate) fn cold_snapshot(
     record: &SessionRecord,
     messages: Vec<agent_protocol::message::MessageWithParts>,
+    target: Option<agent_protocol::session_read::SessionGoal>,
+    goal_verifications: Vec<agent_protocol::snapshot::GoalVerification>,
+    goal_verification_timeline: Vec<agent_protocol::snapshot::GoalVerificationTimeline>,
 ) -> SessionStateSnapshot {
     let mode = permission_mode(record);
+    let mut info = session_info(record, SessionStatus::Idle);
+    info.target = Some(target.clone());
     SessionStateSnapshot {
         protocol: ProtocolInfo {
             name: ProtocolName::ModeProtocol,
             version: 1,
         },
-        session: session_info(record, SessionStatus::Idle),
+        session: info,
         settings: SessionSettings {
             model: SessionModelSettings {
                 current: None,
@@ -208,7 +214,7 @@ pub(crate) fn cold_snapshot(
             active_tool_calls: Vec::new(),
             background_jobs: Vec::new(),
             // 与热快照同面：projection 的 target 键恒在（无 goal 事实为 null）。
-            target: Some(None),
+            target: Some(target),
             last_error: None,
         },
         runtime: SessionRuntimeState {
@@ -220,8 +226,8 @@ pub(crate) fn cold_snapshot(
             pending_request_ids: Vec::new(),
             api_retry: None,
             context_usage: None,
-            goal_verifications: Some(Vec::new()),
-            goal_verification_timeline: Some(Vec::new()),
+            goal_verifications: Some(goal_verifications),
+            goal_verification_timeline: Some(goal_verification_timeline),
         },
         messages,
         goal_stats: None,

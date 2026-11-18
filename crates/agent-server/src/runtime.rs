@@ -49,8 +49,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use agent_core::command_inbox::{CommandInbox, Completion};
 use agent_core::compact::{compact_prompt, summary_continuation, validate_compact_response};
 use agent_core::context::{ContextCacheUsage, ContextUsage};
+use agent_core::goal::{
+    continuation_prompt, continuation_stop_reason, parse_verifier_response, verifier_prompt,
+    GoalStatus, GoalTarget, CANCELLED_VERIFIER_REASON,
+};
 use agent_core::provider::{ModelDelta, ModelMessage, ProviderError};
 use agent_core::session::Session;
+use agent_core::session::TurnTerminalFacts;
 use agent_core::{
     estimate_history_tokens, CancelToken, EventSink, ModelProvider, ModelUsage, SessionEvent,
     SessionEventType, SUMMARY_TITLE,
@@ -59,12 +64,17 @@ use agent_protocol::session_event::{
     CacheStats, ModelStreamingKind, ModelStreamingPayload, ProtocolErrorDetail, ToolUpdatedPayload,
     TurnCompletedPayload, TurnFailedPayload, TurnResultType,
 };
-use agent_protocol::session_write::SessionCompactParams;
+use agent_protocol::session_read::{SessionGoal, SessionGoalStatus};
+use agent_protocol::session_write::{SessionCompactParams, SessionGoalAction, SessionGoalParams};
+use agent_protocol::snapshot::{
+    GoalVerification, GoalVerificationStatus, GoalVerificationTimeline, GoalVerificationType,
+    SeparatorDisplay, SessionGoalStats, SessionStateSnapshot, SyntheticKind,
+};
 use agent_protocol::ExtraFields;
 use serde_json::{json, Value};
 use session_store::{
-    MessageRecord, MessageWithParts, ModelUsageRecord, PartRecord, SessionRecord, SessionStore,
-    ToolUsageRecord, TurnUsageRecord,
+    MessageRecord, MessageWithParts, ModelUsageRecord, PartRecord, SessionEntryRecord,
+    SessionRecord, SessionStore, TargetRecord, ToolUsageRecord, TurnUsageRecord,
 };
 
 use crate::reverse::{RuntimePreferences, RuntimeWiring};
@@ -114,6 +124,108 @@ struct QueuedInput {
     /// `Some` = compact 任务（`input.content` 是 `"/compact …"` 展示串；
     /// prompt 任务恒 `None`）。
     compact: Option<CompactJob>,
+    /// `Some` = goal 任务（控制 turn / 续跑循环 / 仅事件）。
+    goal: Option<GoalJob>,
+}
+
+/// goal worker 任务的种类（C3 T1）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GoalJobKind {
+    /// `set` / `replace`：控制 turn → summary_updated → set → 续跑循环。
+    Set,
+    /// `resume`：status_updated(active) → 续跑循环。
+    Resume,
+    /// 目标已 active 但任务未在跑时的 pause：只发状态事件。
+    PauseEvent,
+    /// clear：只发 cleared 事件。
+    ClearEvent,
+    /// 无 goal 的 pause：首个 mutating action 的 titleUpdated 副作用。
+    NoGoalPause,
+}
+
+/// 一个已受理的 goal 任务（进入 worker 队列的事实）。
+#[derive(Debug, Clone)]
+struct GoalJob {
+    kind: GoalJobKind,
+    /// 生效 inputId（权限/幂等/run_started.activeInputId）。
+    input_id: String,
+    /// set/replace 的控制 turn 输入（objective）；resume 为 `None`。
+    control_objective: Option<String>,
+    /// `set` 事件的 `previousTarget`；无旧目标为 `None`。
+    previous_target: Option<GoalTarget>,
+    /// PauseEvent / ClearEvent 的先前目标（事件 payload 用）。
+    event_previous: Option<GoalTarget>,
+}
+
+/// 目标续跑的热状态。唯一事实源是 `session_target` 行；这里的字段是同一把
+/// `Live` 锁下的同步副本，用于快照与判定，每次变更都先落库。
+#[derive(Debug, Clone, Default)]
+struct GoalState {
+    target: Option<GoalTarget>,
+    /// 完整验证时间线（`runtime.goalVerificationTimeline`）。
+    timeline: Vec<GoalVerificationTimeline>,
+    /// 最近验证窗口（观察 `length:2`）。
+    verifications: Vec<GoalVerification>,
+    /// 当前目标的续跑轮次（从 1 起）。
+    iteration: u64,
+    /// 正在进行/已受理的 goal 任务（运行中限制的依据）。
+    job_active: bool,
+    /// pause 前目标状态（status_updated 事件的 `previousTarget`）。
+    pause_previous_status: Option<GoalStatus>,
+    /// pause 状态事件尚未发出（由 worker 在取消收口/取消 verifier 时发）。
+    pause_event_pending: bool,
+    /// 无 goal 的首个 mutating action 已发过 titleUpdated。
+    title_emitted: bool,
+}
+
+impl GoalState {
+    /// 冷恢复：`active` 目标转 `paused`，并清空 active run 字段（观察 §1.8）。
+    fn restore(target: GoalTarget, timeline: Vec<GoalVerificationTimeline>) -> Self {
+        let mut target = target;
+        let clear_active = target.status != GoalStatus::Complete
+            && (target.active_input_id.is_some()
+                || target.active_run_started_at.is_some()
+                || target.active_run_last_seen_at.is_some());
+        if target.status == GoalStatus::Active {
+            target.status = GoalStatus::Paused;
+        }
+        if target.status != GoalStatus::Active || clear_active {
+            target.active_input_id = None;
+            target.active_run_started_at = None;
+            target.active_run_last_seen_at = None;
+        }
+        let verifications = recent_verifications(&timeline);
+        Self {
+            target: Some(target),
+            timeline,
+            verifications,
+            iteration: 1,
+            job_active: false,
+            pause_previous_status: None,
+            pause_event_pending: false,
+            title_emitted: false,
+        }
+    }
+}
+
+/// `session/goal` 的受理结果（应答三键）。
+pub(crate) struct GoalOutcome {
+    pub response: String,
+    pub snapshot: SessionStateSnapshot,
+    pub started_turn: bool,
+}
+
+/// `session/goal` 的显式拒绝面（JSON-RPC 错误，零事件零落库）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum GoalReject {
+    RevisionConflict {
+        expected: u64,
+        current: u64,
+    },
+    /// `-32010`：有 prompt/continuation 在跑（`pause` 例外）。
+    PromptRunning,
+    Store(String),
+    RuntimeClosed,
 }
 
 /// 一个已受理的 compact 任务（进入 worker 队列的事实）。
@@ -365,6 +477,10 @@ struct Live {
     compact: CompactCoordinator,
     /// `runtime.contextUsage` 的累计事实（最近一次请求 + 会话请求总数/缓存合计）。
     usage: UsageAccounting,
+    /// goal 热状态（唯一事实源是 `session_target` 行）。
+    goal: GoalState,
+    /// 当前 goal 任务的取消令牌（pause/stop/close 命中；队列等待期也有效）。
+    goal_cancel: Option<CancelToken>,
 }
 
 /// 跨 submit/worker/snapshot 共享的状态 + 事件总线。
@@ -381,6 +497,8 @@ struct Shared {
     bus: tokio::sync::broadcast::Sender<SessionEvent>,
     drained: tokio::sync::watch::Sender<bool>,
     record: SessionRecord,
+    /// 会话库句柄：goal 命令（方法层）与 worker 共用同一事实源。
+    store: Arc<SessionStore>,
     preferences: RwLock<Option<RuntimePreferences>>,
     /// 最近一次 prompt turn 的项目记忆 fail-soft 原因（C2 T3 复核修复）。
     ///
@@ -473,6 +591,10 @@ impl SessionRuntime {
         // 不从 projection 计数器重算（T0：resume 后 projection 归 0，contextUsage 保留）。
         let usage = UsageAccounting::from_messages(&existing);
         let restored = crate::history::restore(&record.directory, &existing, &turn_ids);
+        // C3 T1：目标从 `session_target` 冷恢复（active 转 paused、清 active 字段），
+        // 验证时间线从 `session_entry` 重建；不自动续跑（无 idle turn）。
+        let goal = load_goal_state(&store, &record.id)
+            .map_err(|error| RuntimeError::Store(error.to_string()))?;
 
         let (bus, _bus_receiver) =
             tokio::sync::broadcast::channel(config.broadcast_capacity.max(1));
@@ -500,10 +622,13 @@ impl SessionRuntime {
                 current_kind: None,
                 compact: CompactCoordinator::default(),
                 usage,
+                goal,
+                goal_cancel: None,
             }),
             config: RwLock::new(config),
             bus,
             drained,
+            store: Arc::clone(&store),
             preferences: RwLock::new(None),
             last_memory_error: RwLock::new(None),
             record,
@@ -582,6 +707,7 @@ impl SessionRuntime {
                 input,
                 input_id: input_id.clone(),
                 compact: None,
+                goal: None,
             })
             .map_err(|_| RuntimeError::RuntimeClosed)?;
         live.seen_inputs.insert(input_id, accepted.clone());
@@ -635,10 +761,32 @@ impl SessionRuntime {
     }
 
     /// 取消当前运行中的 turn（裁决 4）。空闲时是幂等 no-op；排队中的输入不受影响。
+    ///
+    /// C3 T1：goal 续跑/verifier 也由同一个取消面收口——取消 goal 任务令牌并把目标
+    /// 置为 `paused`（`session/stop` 的观察：target paused、turn cancelled）。
+    /// `status_updated` 事件由 worker 在终态/verifier 取消前补发（同一把锁下的
+    /// `pause_event_pending`），保证 `status_updated → run_finished → turn.completed`
+    /// 的观察顺序。
     pub fn cancel_turn(&self) -> Result<(), RuntimeError> {
-        let live = self.shared.lock();
+        let mut live = self.shared.lock();
         if let Some(token) = &live.current_cancel {
             token.cancel();
+        }
+        if let Some(token) = &live.goal_cancel {
+            token.cancel();
+        }
+        if let Some(mut target) = live.goal.target.clone() {
+            if target.status == GoalStatus::Active {
+                live.goal.pause_previous_status = Some(GoalStatus::Active);
+                target.set_status(GoalStatus::Paused, now_ms());
+                target.time_updated = now_ms();
+                self.shared
+                    .store
+                    .upsert_target(&target_record(&target))
+                    .map_err(|error| RuntimeError::Store(error.to_string()))?;
+                live.goal.target = Some(target);
+                live.goal.pause_event_pending = true;
+            }
         }
         Ok(())
     }
@@ -738,8 +886,31 @@ impl SessionRuntime {
                 .running_turn_id
                 .clone()
                 .map(|turn_id| (turn_id, TurnKind::Compact)),
+            target: live.goal.target.as_ref().map(goal_target_protocol),
+            goal_verifications: live.goal.verifications.clone(),
+            goal_verification_timeline: live.goal.timeline.clone(),
         };
         build_snapshot(&self.shared.record, &config, &view)
+    }
+
+    /// `session/resume` 的 `goalStats` 投影（观察键：timeUsedSeconds/tokensUsed/
+    /// tokenBudget/contextUsed/contextWindow/toolCallCount/iterationCount）。
+    ///
+    /// 冷恢复观察 `contextUsed:0`、`iterationCount:1`；toolCallCount 未观察到独立
+    /// 事实，按 0（登记 §1.11）。
+    pub(crate) fn goal_stats(&self) -> Option<SessionGoalStats> {
+        let live = self.shared.lock();
+        let target = live.goal.target.as_ref()?;
+        let config = self.shared.read_config();
+        Some(SessionGoalStats {
+            time_used_seconds: target.time_used_seconds,
+            tokens_used: target.tokens_used,
+            token_budget: target.token_budget,
+            context_used: live.context_used,
+            context_window: config.capabilities.context_window.unwrap_or(0),
+            tool_call_count: 0,
+            iteration_count: live.goal.iteration.max(1),
+        })
     }
 
     /// `session/compact` 的受理入口（C2 T2；契约 §1.1/§1.6）。
@@ -801,6 +972,7 @@ impl SessionRuntime {
             },
             input_id: job.input_id.clone(),
             compact: Some(job),
+            goal: None,
         };
         // 先入队、后改状态：worker 取任务需要 `live` 锁，本临界区内不会被插队；
         // 入队失败（worker 已退出）时不留下半截受理状态。
@@ -811,6 +983,311 @@ impl SessionRuntime {
         live.revision += 1;
         let snapshot = self.snapshot_locked(&live);
         Ok((CompactAccept::Accepted { input_id }, snapshot))
+    }
+
+    /// `session/goal` 的受理入口（C3 T1；契约 §1.1–§1.9）。
+    ///
+    /// 判定与状态迁移都在同一把 `Live` 锁内：revision 冲突先于一切（零副作用），
+    /// 运行中除 `pause` 外统一 `-32010`。目标行立即落 `session_target`（应答快照
+    /// 带新目标）；控制 turn / 续跑循环由 worker 在队列里异步产出事件。
+    pub(crate) fn request_goal(
+        &self,
+        params: &SessionGoalParams,
+    ) -> Result<GoalOutcome, GoalReject> {
+        let mut live = self.shared.lock();
+        if let Some(expected) = params.expected_revision {
+            if expected != live.revision {
+                return Err(GoalReject::RevisionConflict {
+                    expected,
+                    current: live.revision,
+                });
+            }
+        }
+        // 观察（§1.1）：prompt/continuation 运行中，show/set/replace/resume/clear 都是
+        // `-32010`；`pause` 是唯一例外。
+        let running = live.goal.job_active
+            || live
+                .current_kind
+                .map(TurnKind::is_prompt_running)
+                .unwrap_or(false);
+        if running && params.action != SessionGoalAction::Pause {
+            return Err(GoalReject::PromptRunning);
+        }
+        match params.action {
+            SessionGoalAction::Show => Ok(self.goal_show(&live)),
+            SessionGoalAction::Pause => self.goal_pause(&mut live),
+            SessionGoalAction::Clear => self.goal_clear(&mut live),
+            SessionGoalAction::Resume => self.goal_resume(&mut live, params),
+            SessionGoalAction::Set | SessionGoalAction::Replace => self.goal_set(&mut live, params),
+        }
+    }
+
+    /// `show`：只读；运行中同样 `-32010`（观察：show 不是例外）。
+    fn goal_show(&self, live: &Live) -> GoalOutcome {
+        let target = live.goal.target.as_ref();
+        let response = match target {
+            Some(target) => target.status_response(),
+            None => "No goal is set. Use /goal <objective> to set one.".to_string(),
+        };
+        // show 的运行中拒绝在 handler 层统一处理（这里只读）；为保证与观察一致，
+        // handler 在调用前检查。
+        GoalOutcome {
+            response,
+            snapshot: self.snapshot_locked(live),
+            started_turn: false,
+        }
+    }
+
+    fn goal_set(
+        &self,
+        live: &mut Live,
+        params: &SessionGoalParams,
+    ) -> Result<GoalOutcome, GoalReject> {
+        if live.goal.job_active
+            || live
+                .current_kind
+                .map(TurnKind::is_prompt_running)
+                .unwrap_or(false)
+        {
+            return Err(GoalReject::PromptRunning);
+        }
+        let Some(objective) = params
+            .objective
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            let response = match params.action {
+                SessionGoalAction::Replace => "Usage: /goal replace <objective>",
+                _ => "Usage: /goal <objective>",
+            };
+            return Ok(GoalOutcome {
+                response: response.to_string(),
+                snapshot: self.snapshot_locked(live),
+                started_turn: false,
+            });
+        };
+        let now = now_ms();
+        let previous = live.goal.target.clone();
+        let target = GoalTarget::new(
+            self.shared.record.id.clone(),
+            fresh_id("target"),
+            objective.to_string(),
+            now,
+        );
+        self.persist_goal_target(&target)?;
+        live.goal = GoalState {
+            target: Some(target.clone()),
+            ..GoalState::default()
+        };
+        let input_id = goal_input_id(params.input_id.as_deref());
+        let cancel = CancelToken::new();
+        live.goal_cancel = Some(cancel);
+        live.goal.job_active = true;
+        let job = GoalJob {
+            kind: GoalJobKind::Set,
+            input_id: input_id.clone(),
+            control_objective: Some(objective.to_string()),
+            previous_target: previous,
+            event_previous: None,
+        };
+        self.enqueue_goal(live, job, true)?;
+        live.revision += 1;
+        Ok(GoalOutcome {
+            response: target.status_response(),
+            snapshot: self.snapshot_locked(live),
+            started_turn: true,
+        })
+    }
+
+    fn goal_resume(
+        &self,
+        live: &mut Live,
+        params: &SessionGoalParams,
+    ) -> Result<GoalOutcome, GoalReject> {
+        let Some(target) = live.goal.target.clone() else {
+            return Ok(GoalOutcome {
+                response: "No goal to resume.".to_string(),
+                snapshot: self.snapshot_locked(live),
+                started_turn: false,
+            });
+        };
+        if live.goal.job_active
+            || live
+                .current_kind
+                .map(TurnKind::is_prompt_running)
+                .unwrap_or(false)
+        {
+            return Err(GoalReject::PromptRunning);
+        }
+        if target.status != GoalStatus::Paused {
+            return Ok(GoalOutcome {
+                response: target.status_response(),
+                snapshot: self.snapshot_locked(live),
+                started_turn: false,
+            });
+        }
+        let now = now_ms();
+        let previous = target.clone();
+        let mut resumed = target;
+        resumed.set_status(GoalStatus::Active, now);
+        resumed.active_input_id = None;
+        resumed.active_run_started_at = None;
+        resumed.active_run_last_seen_at = None;
+        self.persist_goal_target(&resumed)?;
+        live.goal.target = Some(resumed.clone());
+        live.goal.job_active = true;
+        live.goal.pause_event_pending = false;
+        live.goal.pause_previous_status = None;
+        let input_id = goal_input_id(params.input_id.as_deref());
+        live.goal_cancel = Some(CancelToken::new());
+        let job = GoalJob {
+            kind: GoalJobKind::Resume,
+            input_id: input_id.clone(),
+            control_objective: None,
+            previous_target: None,
+            event_previous: Some(previous),
+        };
+        self.enqueue_goal(live, job, true)?;
+        live.revision += 1;
+        Ok(GoalOutcome {
+            response: goal_resumed_response(&resumed),
+            snapshot: self.snapshot_locked(live),
+            started_turn: true,
+        })
+    }
+
+    fn goal_pause(&self, live: &mut Live) -> Result<GoalOutcome, GoalReject> {
+        let Some(target) = live.goal.target.clone() else {
+            // 无 goal 的副作用：首个 mutating action 发 titleUpdated（观察 §1.1）。
+            let emit_title = !live.goal.title_emitted && self.shared.record.title.is_empty();
+            live.goal.title_emitted = true;
+            if emit_title {
+                let job = GoalJob {
+                    kind: GoalJobKind::NoGoalPause,
+                    input_id: fresh_id("goal_event"),
+                    control_objective: None,
+                    previous_target: None,
+                    event_previous: None,
+                };
+                self.enqueue_goal(live, job, false)?;
+            }
+            live.revision += 1;
+            return Ok(GoalOutcome {
+                response: "No goal to pause.".to_string(),
+                snapshot: self.snapshot_locked(live),
+                started_turn: false,
+            });
+        };
+        let now = now_ms();
+        let previous = target.clone();
+        let mut paused = target;
+        if paused.status == GoalStatus::Active {
+            live.goal.pause_previous_status = Some(GoalStatus::Active);
+            paused.set_status(GoalStatus::Paused, now);
+            self.persist_goal_target(&paused)?;
+            live.goal.target = Some(paused.clone());
+        }
+        if live.goal.job_active || live.goal_cancel.is_some() {
+            live.goal.pause_event_pending = true;
+            if let Some(cancel) = &live.goal_cancel {
+                cancel.cancel();
+            }
+        } else {
+            let job = GoalJob {
+                kind: GoalJobKind::PauseEvent,
+                input_id: fresh_id("goal_event"),
+                control_objective: None,
+                previous_target: None,
+                event_previous: Some(previous),
+            };
+            self.enqueue_goal(live, job, false)?;
+        }
+        live.revision += 1;
+        Ok(GoalOutcome {
+            response: String::new(),
+            snapshot: self.snapshot_locked(live),
+            started_turn: false,
+        })
+    }
+
+    fn goal_clear(&self, live: &mut Live) -> Result<GoalOutcome, GoalReject> {
+        let Some(target) = live.goal.target.clone() else {
+            let job = GoalJob {
+                kind: GoalJobKind::ClearEvent,
+                input_id: fresh_id("goal_event"),
+                control_objective: None,
+                previous_target: None,
+                event_previous: None,
+            };
+            self.enqueue_goal(live, job, false)?;
+            live.revision += 1;
+            return Ok(GoalOutcome {
+                response: "No goal to clear.".to_string(),
+                snapshot: self.snapshot_locked(live),
+                started_turn: false,
+            });
+        };
+        if live.goal.job_active
+            || live
+                .current_kind
+                .map(TurnKind::is_prompt_running)
+                .unwrap_or(false)
+        {
+            return Err(GoalReject::PromptRunning);
+        }
+        self.shared
+            .store
+            .delete_target(&self.shared.record.id)
+            .map_err(|error| GoalReject::Store(error.to_string()))?;
+        live.goal.target = None;
+        live.goal.iteration = 0;
+        // 观察：clear 保留 runtime 的 goalVerifications / timeline。
+        let job = GoalJob {
+            kind: GoalJobKind::ClearEvent,
+            input_id: fresh_id("goal_event"),
+            control_objective: None,
+            previous_target: None,
+            event_previous: Some(target),
+        };
+        self.enqueue_goal(live, job, false)?;
+        live.revision += 1;
+        Ok(GoalOutcome {
+            response: "Goal cleared.".to_string(),
+            snapshot: self.snapshot_locked(live),
+            started_turn: false,
+        })
+    }
+
+    fn enqueue_goal(&self, live: &mut Live, job: GoalJob, admit: bool) -> Result<(), GoalReject> {
+        if admit {
+            live.inbox
+                .admit(&self.shared.record.id, job.input_id.clone());
+        }
+        let item = QueuedInput {
+            input: SessionInput {
+                input_id: Some(job.input_id.clone()),
+                content: job.control_objective.clone().unwrap_or_default(),
+                expected_revision: None,
+            },
+            input_id: job.input_id.clone(),
+            compact: None,
+            goal: Some(job),
+        };
+        if self.queue.send(item).is_err() {
+            live.goal.job_active = false;
+            live.goal_cancel = None;
+            return Err(GoalReject::RuntimeClosed);
+        }
+        Ok(())
+    }
+
+    fn persist_goal_target(&self, target: &GoalTarget) -> Result<(), GoalReject> {
+        let record = target_record(target);
+        self.shared
+            .store
+            .upsert_target(&record)
+            .map_err(|error| GoalReject::Store(error.to_string()))
     }
 
     /// 会话记录（方法层构造冷/热快照的 session 信息用）。
@@ -899,13 +1376,19 @@ async fn worker_loop(
         // 照常跑完，drain 等不到终态（methods 的 close-drain 用例因此挂死）。
         // 这里提前登记后，close 的取消必然命中本输入（终态 `cancelled`）；
         // 排队中的后续输入照常执行（裁决 4 不变）。
-        let cancel = CancelToken::new();
+        let cancel = if item.goal.is_some() {
+            shared.lock().goal_cancel.clone().unwrap_or_default()
+        } else {
+            CancelToken::new()
+        };
         {
             let mut live = shared.lock();
             live.status = RuntimeStatus::Running;
             live.current_cancel = Some(cancel.clone());
             live.current_kind = Some(if item.compact.is_some() {
                 TurnKind::Compact
+            } else if item.goal.is_some() {
+                TurnKind::GoalContinuation
             } else {
                 TurnKind::Prompt
             });
@@ -913,6 +1396,16 @@ async fn worker_loop(
             // 第二个 compact 仍会被受理为排队，见 `CompactCoordinator` 注释）。
             if item.compact.is_some() {
                 live.compact.on_pickup();
+            }
+        }
+        // 仅事件的 goal 任务（pause/clear/no-goal pause）不需要 provider。
+        if let Some(job) = item.goal.clone() {
+            if matches!(
+                job.kind,
+                GoalJobKind::PauseEvent | GoalJobKind::ClearEvent | GoalJobKind::NoGoalPause
+            ) {
+                session = run_goal_event_job(session, &shared, &store, job).await;
+                continue;
             }
         }
         if let Some(reverse) = &reverse {
@@ -970,29 +1463,37 @@ async fn worker_loop(
                     }
                     Ok(Err(message)) => {
                         current = None;
-                        run_configuration_failure(
-                            &mut session,
-                            &shared,
-                            &store,
-                            &item,
-                            &message,
-                            cancel,
-                        )
-                        .await;
+                        if item.goal.is_some() {
+                            run_goal_configuration_failure(&shared, &store, &item, &message).await;
+                        } else {
+                            run_configuration_failure(
+                                &mut session,
+                                &shared,
+                                &store,
+                                &item,
+                                &message,
+                                cancel,
+                            )
+                            .await;
+                        }
                         continue;
                     }
                     Err(join_error) => {
                         current = None;
                         let message = format!("provider 装配任务失败: {join_error}");
-                        run_configuration_failure(
-                            &mut session,
-                            &shared,
-                            &store,
-                            &item,
-                            &message,
-                            cancel,
-                        )
-                        .await;
+                        if item.goal.is_some() {
+                            run_goal_configuration_failure(&shared, &store, &item, &message).await;
+                        } else {
+                            run_configuration_failure(
+                                &mut session,
+                                &shared,
+                                &store,
+                                &item,
+                                &message,
+                                cancel,
+                            )
+                            .await;
+                        }
                         continue;
                     }
                 }
@@ -1002,21 +1503,34 @@ async fn worker_loop(
             Some(provider) if item.compact.is_some() => {
                 session = run_compact(session, &shared, &store, provider, item).await;
             }
+            Some(provider) if item.goal.is_some() => {
+                session = run_goal_job(session, &shared, &store, provider, item).await;
+            }
             Some(provider) => {
                 session = run_one_input(session, &shared, &store, provider, item, cancel).await;
             }
             // 没有配置模型：显式配置错误，不启动模型请求（compact 任务同样走这支，
             // 终态是带 `"/compact …"` 展示串的 `turn.failed`；协调器在收口处复位）。
             None => {
-                run_configuration_failure(
-                    &mut session,
-                    &shared,
-                    &store,
-                    &item,
-                    "Select a model before continuing",
-                    cancel,
-                )
-                .await;
+                if item.goal.is_some() {
+                    run_goal_configuration_failure(
+                        &shared,
+                        &store,
+                        &item,
+                        "Select a model before continuing",
+                    )
+                    .await;
+                } else {
+                    run_configuration_failure(
+                        &mut session,
+                        &shared,
+                        &store,
+                        &item,
+                        "Select a model before continuing",
+                        cancel,
+                    )
+                    .await;
+                }
             }
         }
     }
@@ -1711,6 +2225,1269 @@ fn settle_compact(shared: &Arc<Shared>, session_id: &str, outcome: CompactSettle
     live.updated_at = now_ms();
 }
 
+// ---------------------------------------------------------------------------
+// C3 T1：goal 状态投影 / 落库 / worker 执行
+// ---------------------------------------------------------------------------
+
+/// `GoalTarget` → `session_target` 行。
+fn target_record(target: &GoalTarget) -> TargetRecord {
+    TargetRecord {
+        session_id: target.session_id.clone(),
+        target_id: target.target_id.clone(),
+        objective: target.objective.clone(),
+        status: target.status.as_str().to_string(),
+        token_budget: target.token_budget.map(|value| value as i64),
+        tokens_used: target.tokens_used as i64,
+        time_used_seconds: target.time_used_seconds as i64,
+        time_created: target.time_created,
+        time_updated: target.time_updated,
+        summary_title: target.summary_title.clone(),
+        active_input_id: target.active_input_id.clone(),
+        active_run_started_at: target.active_run_started_at,
+        active_run_last_seen_at: target.active_run_last_seen_at,
+    }
+}
+
+/// `session_target` 行 → `GoalTarget`。未知 status 按 `paused` 落（fail-closed：
+/// 不把坏行当成可续跑的 active）。
+fn goal_target_from_record(record: TargetRecord) -> GoalTarget {
+    GoalTarget {
+        session_id: record.session_id,
+        target_id: record.target_id,
+        objective: record.objective,
+        status: GoalStatus::parse(&record.status).unwrap_or(GoalStatus::Paused),
+        token_budget: record
+            .token_budget
+            .and_then(|value| u64::try_from(value).ok()),
+        tokens_used: record.tokens_used.max(0) as u64,
+        time_used_seconds: record.time_used_seconds.max(0) as u64,
+        time_created: record.time_created,
+        time_updated: record.time_updated,
+        summary_title: record.summary_title,
+        active_input_id: record.active_input_id,
+        active_run_started_at: record.active_run_started_at,
+        active_run_last_seen_at: record.active_run_last_seen_at,
+    }
+}
+
+/// `GoalTarget` → 快照 / 协议 `SessionGoal`（camelCase 键）。
+fn goal_target_protocol(target: &GoalTarget) -> SessionGoal {
+    SessionGoal {
+        session_id: target.session_id.clone(),
+        target_id: target.target_id.clone(),
+        objective: target.objective.clone(),
+        summary_title: Some(target.summary_title.clone()),
+        status: match target.status {
+            GoalStatus::Active => SessionGoalStatus::Active,
+            GoalStatus::Paused => SessionGoalStatus::Paused,
+            GoalStatus::BudgetLimited => SessionGoalStatus::BudgetLimited,
+            GoalStatus::Complete => SessionGoalStatus::Complete,
+        },
+        token_budget: target.token_budget,
+        tokens_used: target.tokens_used,
+        time_used_seconds: target.time_used_seconds,
+        active_input_id: Some(target.active_input_id.clone()),
+        active_run_started_at_ms: Some(target.active_run_started_at.map(|value| value as u64)),
+        active_run_last_seen_at_ms: Some(target.active_run_last_seen_at.map(|value| value as u64)),
+        created_at: target.time_created.max(0) as u64,
+        updated_at: target.time_updated.max(0) as u64,
+    }
+}
+
+/// `session.updated` 的 target 事件形状（观察键：`sessionID`/`targetID`/`time`）。
+fn target_event_json(target: &GoalTarget) -> Value {
+    json!({
+        "sessionID": target.session_id,
+        "targetID": target.target_id,
+        "objective": target.objective,
+        "summaryTitle": target.summary_title,
+        "status": target.status.as_str(),
+        "tokenBudget": target.token_budget,
+        "tokensUsed": target.tokens_used,
+        "timeUsedSeconds": target.time_used_seconds,
+        "activeInputId": target.active_input_id,
+        "activeRunStartedAtMs": target.active_run_started_at,
+        "activeRunLastSeenAtMs": target.active_run_last_seen_at,
+        "time": {
+            "created": target.time_created,
+            "updated": target.time_updated,
+        }
+    })
+}
+
+/// `session.updated` 的 goal action 载荷。
+fn target_update_payload(
+    action: &str,
+    source: &str,
+    previous: Option<&GoalTarget>,
+    target: Option<&GoalTarget>,
+) -> Value {
+    json!({
+        "action": action,
+        "source": source,
+        "previousTarget": previous.map(target_event_json).unwrap_or(Value::Null),
+        "target": target.map(target_event_json).unwrap_or(Value::Null),
+    })
+}
+
+/// 生效 inputId（请求缺省/空白时生成）。
+fn goal_input_id(provided: Option<&str>) -> String {
+    provided
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(|| fresh_id("in"))
+}
+
+/// `resume` 的响应文案（观察值是 `Goal resumed` 前缀 + 同构字段）。
+fn goal_resumed_response(target: &GoalTarget) -> String {
+    format!(
+        "Goal resumed\nObjective: {}\nUsage: {} tokens / {}\nTime: {} seconds",
+        target.objective,
+        target.tokens_used,
+        target.budget_label(),
+        target.time_used_seconds
+    )
+}
+
+/// `goalVerifications` 的最近窗口（观察 loop 夹具 `length:2`）。
+fn recent_verifications(timeline: &[GoalVerificationTimeline]) -> Vec<GoalVerification> {
+    timeline
+        .iter()
+        .filter(|item| item.status == GoalVerificationStatus::Completed)
+        .filter_map(|item| item.verification.clone())
+        .rev()
+        .take(2)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect()
+}
+
+/// 冷恢复：目标行 + 验证 entry → 热状态。
+fn load_goal_state(
+    store: &SessionStore,
+    session_id: &str,
+) -> Result<GoalState, session_store::StoreError> {
+    let (timeline, verifications) = load_verification_state(store, session_id)?;
+    let Some(record) = store.get_target(session_id)? else {
+        return Ok(GoalState {
+            timeline,
+            verifications,
+            ..GoalState::default()
+        });
+    };
+    let target = goal_target_from_record(record);
+    let restored = GoalState::restore(target, timeline);
+    if let Some(target) = &restored.target {
+        // active → paused / 清 active 字段必须落库（观察 §1.8 的 read/dbAfterRestart）。
+        let current = store.get_target(session_id)?.map(goal_target_from_record);
+        let changed = current
+            .as_ref()
+            .map(|current| {
+                current.status != target.status
+                    || current.active_input_id.is_some()
+                    || current.active_run_started_at.is_some()
+                    || current.active_run_last_seen_at.is_some()
+            })
+            .unwrap_or(true);
+        if changed {
+            let mut persisted = target.clone();
+            persisted.time_updated = now_ms();
+            store.upsert_target(&target_record(&persisted))?;
+        }
+    }
+    Ok(restored)
+}
+
+/// 冷读面的 goal 投影（`session/read` 无活跃 runtime 时用；不拉起 runtime）。
+pub(crate) type GoalProjection = (
+    Option<SessionGoal>,
+    Vec<GoalVerification>,
+    Vec<GoalVerificationTimeline>,
+);
+
+pub(crate) fn load_goal_projection(
+    store: &SessionStore,
+    session_id: &str,
+) -> Result<GoalProjection, session_store::StoreError> {
+    let goal = load_goal_state(store, session_id)?;
+    Ok((
+        goal.target.as_ref().map(goal_target_protocol),
+        goal.verifications,
+        goal.timeline,
+    ))
+}
+
+/// 从 `session_entry(type = target_completion_verification)` 重建验证时间线。
+fn load_verification_state(
+    store: &SessionStore,
+    session_id: &str,
+) -> Result<(Vec<GoalVerificationTimeline>, Vec<GoalVerification>), session_store::StoreError> {
+    let entries = store.entries(session_id)?;
+    let mut timeline: Vec<GoalVerificationTimeline> = Vec::new();
+    for entry in entries
+        .into_iter()
+        .filter(|entry| entry.entry_type == "target_completion_verification")
+    {
+        let payload = entry.data.get("payload").cloned().unwrap_or(Value::Null);
+        let Some(verification_id) = payload
+            .get("verificationId")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
+            continue;
+        };
+        let target_id = payload
+            .get("targetId")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let status = match payload.get("status").and_then(Value::as_str) {
+            Some("started") => GoalVerificationStatus::Started,
+            Some("completed") => GoalVerificationStatus::Completed,
+            Some("cancelled") => GoalVerificationStatus::Cancelled,
+            _ => GoalVerificationStatus::FailedClosed,
+        };
+        let verification = payload.get("verification").map(|value| GoalVerification {
+            passed: value
+                .get("passed")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            reason: value
+                .get("reason")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            next_action: Some(
+                value
+                    .get("nextAction")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned),
+            ),
+        });
+        let goal_iteration = payload.get("goalIteration").and_then(Value::as_u64);
+        let anchor_assistant_message_id = payload
+            .get("anchorAssistantMessageId")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        let anchor_turn_id = payload
+            .get("anchorTurnId")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        if let Some(existing) = timeline
+            .iter_mut()
+            .find(|item| item.verification_id == verification_id)
+        {
+            existing.status = status;
+            existing.verification = verification;
+            existing.updated_at = entry.time_updated.max(0) as u64;
+            if existing.started_at.is_none() && status == GoalVerificationStatus::Started {
+                existing.started_at = Some(entry.time_created.max(0) as u64);
+            }
+            continue;
+        }
+        timeline.push(GoalVerificationTimeline {
+            version: 1,
+            kind: SyntheticKind::Synthetic,
+            timeline_type: GoalVerificationType::GoalVerification,
+            display: SeparatorDisplay::Separator,
+            target_id,
+            verification_id,
+            status,
+            verification,
+            goal_iteration,
+            anchor_assistant_message_id,
+            anchor_turn_id,
+            started_at: (status == GoalVerificationStatus::Started)
+                .then(|| entry.time_created.max(0) as u64),
+            updated_at: entry.time_updated.max(0) as u64,
+        });
+    }
+    timeline.sort_by_key(|item| item.started_at.unwrap_or(item.updated_at));
+    let verifications = recent_verifications(&timeline);
+    Ok((timeline, verifications))
+}
+
+/// 仅事件的 goal 任务（pause/clear/no-goal pause）——不发模型请求。
+async fn run_goal_event_job(
+    mut session: Session,
+    shared: &Arc<Shared>,
+    store: &Arc<SessionStore>,
+    job: GoalJob,
+) -> Session {
+    let session_id = shared.record.id.clone();
+    match job.kind {
+        GoalJobKind::PauseEvent => {
+            let current = shared.lock().goal.target.clone();
+            let previous = job.event_previous.clone().or_else(|| current.clone());
+            if let Some(current) = current {
+                let payload = target_update_payload(
+                    "status_updated",
+                    "command",
+                    previous.as_ref(),
+                    Some(&current),
+                );
+                let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
+                shared.publish(&event);
+                persist_goal_system_message(
+                    shared,
+                    store,
+                    &session_id,
+                    "Goal paused",
+                    "goal_state_change",
+                );
+            }
+            shared.lock().goal.pause_event_pending = false;
+        }
+        GoalJobKind::ClearEvent => {
+            let payload =
+                target_update_payload("cleared", "command", job.event_previous.as_ref(), None);
+            let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
+            shared.publish(&event);
+            persist_goal_system_message(
+                shared,
+                store,
+                &session_id,
+                "Goal cleared",
+                "goal_state_change",
+            );
+        }
+        GoalJobKind::NoGoalPause => {
+            let payload = json!({
+                "previousTitle": "",
+                "source": "first_input",
+                "title": "/goal paused",
+            });
+            let event = session.emit(None, SessionEventType::SessionTitleUpdated, &payload);
+            shared.publish(&event);
+        }
+        GoalJobKind::Set | GoalJobKind::Resume => {}
+    }
+    finish_goal_job(shared, &session_id, &job.input_id, false, false);
+    session
+}
+
+/// 配置失败的 goal 任务：不启动模型请求、不发 prompt turn；目标暂停并收口。
+///
+/// 线上未观察该组合（`agent-c3-contract.md` §1.10），登记在 §1.11；测试不覆盖。
+async fn run_goal_configuration_failure(
+    shared: &Arc<Shared>,
+    store: &Arc<SessionStore>,
+    item: &QueuedInput,
+    message: &str,
+) {
+    let session_id = shared.record.id.clone();
+    let mut live = shared.lock();
+    live.current_cancel = None;
+    live.current_kind = None;
+    live.goal.job_active = false;
+    live.goal_cancel = None;
+    if let Some(mut target) = live.goal.target.clone() {
+        if target.status == GoalStatus::Active {
+            target.set_status(GoalStatus::Paused, now_ms());
+        }
+        target.active_input_id = None;
+        target.active_run_started_at = None;
+        target.active_run_last_seen_at = None;
+        target.time_updated = now_ms();
+        let _ = store.upsert_target(&target_record(&target));
+        live.goal.target = Some(target);
+    }
+    if let Some(job) = &item.goal {
+        live.inbox.complete(&session_id, &job.input_id);
+    }
+    live.status = RuntimeStatus::Error;
+    live.last_error = Some(message.to_string());
+    live.revision += 1;
+    live.updated_at = now_ms();
+}
+
+/// goal 任务的统一收口：清 worker 相位、结算 CommandInbox 并恢复状态。
+fn finish_goal_job(
+    shared: &Arc<Shared>,
+    session_id: &str,
+    input_id: &str,
+    admitted: bool,
+    failed: bool,
+) {
+    let mut live = shared.lock();
+    live.current_cancel = None;
+    live.current_kind = None;
+    live.goal.job_active = false;
+    live.goal_cancel = None;
+    live.goal.pause_event_pending = false;
+    live.goal.pause_previous_status = None;
+    if admitted {
+        live.inbox.complete(session_id, input_id);
+    }
+    live.revision += 1;
+    live.updated_at = now_ms();
+    live.status = if failed {
+        RuntimeStatus::Error
+    } else if live.inbox.running(session_id).is_some() {
+        RuntimeStatus::Running
+    } else {
+        RuntimeStatus::Idle
+    };
+}
+
+/// 写一条 goal 相关的 system_reminder 用户消息行（`goal-continuation` /
+/// `goal_state_change`）。行形状近似线上观察（messageSummary 的 role/kind/source），
+/// 正文与 part 结构登记在契约 §1.11。
+fn persist_goal_system_message(
+    shared: &Shared,
+    store: &SessionStore,
+    session_id: &str,
+    text: &str,
+    source: &str,
+) {
+    let now = now_ms();
+    let message_id = fresh_id("msg");
+    let sequence = take_sequence(shared);
+    let data = json!({
+        "role": "user",
+        "messageId": message_id,
+        "sequence": sequence,
+        "time": { "created": now },
+        "semantics": {
+            "origin": "agent_runtime",
+            "kind": "system_reminder",
+            "source": source,
+            "uiVisibility": "hidden",
+            "providerVisibility": "visible",
+            "transcriptVisibility": "hidden",
+        },
+    });
+    let message = MessageRecord {
+        id: message_id.clone(),
+        session_id: session_id.to_string(),
+        time_created: now,
+        time_updated: now,
+        data,
+        sequence: Some(sequence),
+    };
+    let part = PartRecord {
+        id: fresh_id("part"),
+        message_id,
+        session_id: session_id.to_string(),
+        time_created: now,
+        time_updated: now,
+        data: json!({
+            "type": "text",
+            "text": text,
+            "time": { "start": now, "end": now },
+        }),
+        sequence: Some(0),
+    };
+    let _ = store.append_message_with_parts(message, &[part]);
+}
+
+/// 写一条 goal 的 user_prompt 行（set/replace 控制 turn 的 objective）。
+fn persist_goal_user_prompt(shared: &Shared, store: &SessionStore, session_id: &str, text: &str) {
+    let now = now_ms();
+    let message_id = fresh_id("msg");
+    let sequence = take_sequence(shared);
+    let data = json!({
+        "role": "user",
+        "messageId": message_id,
+        "sequence": sequence,
+        "time": { "created": now },
+        "semantics": {
+            "origin": "real_user",
+            "kind": "user_prompt",
+            "uiVisibility": "visible",
+            "providerVisibility": "visible",
+            "transcriptVisibility": "visible",
+        },
+    });
+    let message = MessageRecord {
+        id: message_id.clone(),
+        session_id: session_id.to_string(),
+        time_created: now,
+        time_updated: now,
+        data,
+        sequence: Some(sequence),
+    };
+    let part = PartRecord {
+        id: fresh_id("part"),
+        message_id,
+        session_id: session_id.to_string(),
+        time_created: now,
+        time_updated: now,
+        data: json!({
+            "type": "text",
+            "text": text,
+            "time": { "start": now, "end": now },
+        }),
+        sequence: Some(0),
+    };
+    let _ = store.append_message_with_parts(message, &[part]);
+}
+
+/// 秒级墙钟（向上取整；任何发生过的时间段至少记 1 秒——夹具的
+/// `time_used_seconds` 折叠为 `<time>`，只断言非负/保留）。
+fn elapsed_seconds(started_at: i64, now: i64) -> u64 {
+    let millis = (now - started_at).max(0) as u64;
+    millis.div_ceil(1000).max(1)
+}
+
+/// 取走「pause/stop 待发状态事件」的载荷（一次）。
+fn take_pending_pause_payload(shared: &Arc<Shared>) -> Option<Value> {
+    let mut live = shared.lock();
+    if !live.goal.pause_event_pending {
+        return None;
+    }
+    live.goal.pause_event_pending = false;
+    let current = live.goal.target.clone()?;
+    let previous_status = live
+        .goal
+        .pause_previous_status
+        .take()
+        .unwrap_or(GoalStatus::Active);
+    let mut previous = current.clone();
+    previous.status = previous_status;
+    Some(target_update_payload(
+        "status_updated",
+        "command",
+        Some(&previous),
+        Some(&current),
+    ))
+}
+
+/// 发布一条 pending pause 的 `status_updated`（若存在）。
+fn publish_pending_pause(session: &mut Session, shared: &Arc<Shared>) -> Option<SessionEvent> {
+    let payload = take_pending_pause_payload(shared)?;
+    let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
+    shared.publish(&event);
+    Some(event)
+}
+
+/// 写 goal 续跑/verifier 的 `model_usage` 行（夹具的 `query_source` 区分：
+/// `main_turn` / `target_completion_verification`）。
+#[allow(clippy::too_many_arguments)]
+fn record_goal_model_usage(
+    store: &SessionStore,
+    session_id: &str,
+    task_type: &str,
+    config: &RuntimeConfig,
+    query_source: &str,
+    usage: &ModelUsage,
+    started_at: i64,
+    completed_at: i64,
+    status: &str,
+    error_type: Option<&str>,
+    turn_id: Option<&str>,
+) {
+    let total = usage.input_tokens + usage.output_tokens;
+    let record = ModelUsageRecord {
+        id: fresh_id("usage_model_goal"),
+        session_id: session_id.to_string(),
+        logical_request_id: fresh_id("req"),
+        provider_id: config.provider_id.clone(),
+        model_id: config.model_id.clone(),
+        query_source: query_source.to_string(),
+        started_at: started_at.max(1),
+        status: status.to_string(),
+        agent: Some("mode-agent".to_string()),
+        attempt_index: 0,
+        cache_read_input_tokens: usage.cache_read_tokens as i64,
+        cancelled_by_user: status == "cancelled",
+        completed_at: Some(completed_at),
+        computed_total_tokens: total as i64,
+        duration_ms: Some((completed_at - started_at.max(1)).max(0)),
+        finish_reason: (status == "completed").then(|| "stop".to_string()),
+        input_tokens: usage.input_tokens as i64,
+        mode: Some(config.mode.clone()),
+        output_tokens: usage.output_tokens as i64,
+        provider_total_tokens: Some(total as i64),
+        reasoning_tokens: usage.reasoning_tokens as i64,
+        span_id: Some(uuid::Uuid::new_v4().to_string()),
+        task_type: Some(task_type.to_string()),
+        trace_id: Some(uuid::Uuid::new_v4().to_string()),
+        turn_id: turn_id.map(str::to_owned),
+        variant: config.thought_level.clone(),
+        error_type: error_type.map(str::to_owned),
+        ..ModelUsageRecord::default()
+    };
+    let _ = store.record_model_usage(record);
+}
+
+/// 一个 goal 任务（set/replace/resume）的 worker 执行体。
+async fn run_goal_job(
+    mut session: Session,
+    shared: &Arc<Shared>,
+    store: &Arc<SessionStore>,
+    provider: Arc<dyn ModelProvider>,
+    item: QueuedInput,
+) -> Session {
+    let job = item.goal.clone().expect("run_goal_job 只处理 goal 队列项");
+    let session_id = shared.record.id.clone();
+    let config = shared.read_config();
+    let admitted = matches!(job.kind, GoalJobKind::Set | GoalJobKind::Resume);
+    match job.kind {
+        GoalJobKind::Set => {
+            let objective = job.control_objective.clone().unwrap_or_default();
+            // 控制 turn：`executionKind:"controlOnly"`，不发模型请求。
+            let control_started_at = now_ms();
+            let started = session.begin_goal_control_turn(&objective);
+            let turn_id = session
+                .current_turn_id()
+                .expect("控制 turn 已分配 turn id")
+                .to_string();
+            shared.publish(&started);
+            let completed = session.emit_goal_control_completed(
+                &turn_id,
+                (now_ms() - control_started_at).max(0) as f64,
+            );
+            shared.publish(&completed);
+            {
+                let mut live = shared.lock();
+                live.turn_count += 1;
+                live.revision += 1;
+                live.updated_at = now_ms();
+            }
+            persist_goal_user_prompt(shared, store, &session_id, &objective);
+
+            // summary_updated → set（事件里的 target summaryTitle 为 null；落库行
+            // 的 summary_title 是 objective，与观察一致）。
+            let (target, previous) = {
+                let mut live = shared.lock();
+                let target = live.goal.target.clone();
+                let previous = job.previous_target.clone();
+                if let Some(target) = &mut live.goal.target {
+                    target.summary_title = Some(objective.clone());
+                    target.time_updated = now_ms();
+                }
+                (target, previous)
+            };
+            if let Some(target) = target {
+                let mut event_target = target.clone();
+                event_target.summary_title = None;
+                let summary_payload = target_update_payload(
+                    "summary_updated",
+                    "runtime",
+                    Some(&event_target),
+                    Some(&target),
+                );
+                let event = session.emit(None, SessionEventType::SessionUpdated, &summary_payload);
+                shared.publish(&event);
+                let set_payload =
+                    target_update_payload("set", "command", previous.as_ref(), Some(&event_target));
+                let event = session.emit(None, SessionEventType::SessionUpdated, &set_payload);
+                shared.publish(&event);
+            }
+            run_goal_loop(&mut session, shared, store, provider, &job, &config).await;
+        }
+        GoalJobKind::Resume => {
+            let (target, previous) = {
+                let live = shared.lock();
+                (live.goal.target.clone(), job.event_previous.clone())
+            };
+            if let Some(target) = target {
+                let payload = target_update_payload(
+                    "status_updated",
+                    "runtime",
+                    previous.as_ref(),
+                    Some(&target),
+                );
+                let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
+                shared.publish(&event);
+            }
+            persist_goal_system_message(
+                shared,
+                store,
+                &session_id,
+                "Goal resumed",
+                "goal_state_change",
+            );
+            run_goal_loop(&mut session, shared, store, provider, &job, &config).await;
+        }
+        GoalJobKind::PauseEvent | GoalJobKind::ClearEvent | GoalJobKind::NoGoalPause => {}
+    }
+    finish_goal_job(shared, &session_id, &job.input_id, admitted, false);
+    session
+}
+
+/// 续跑循环：每轮一个 goal-continuation turn + completion verifier；无轮次上限。
+async fn run_goal_loop(
+    session: &mut Session,
+    shared: &Arc<Shared>,
+    store: &Arc<SessionStore>,
+    provider: Arc<dyn ModelProvider>,
+    job: &GoalJob,
+    config: &RuntimeConfig,
+) {
+    let session_id = shared.record.id.clone();
+    loop {
+        let Some((target, _iteration)) = ({
+            let mut live = shared.lock();
+            if continuation_stop_reason(live.goal.target.as_ref(), false).is_some() {
+                None
+            } else {
+                live.goal.iteration += 1;
+                live.goal
+                    .target
+                    .clone()
+                    .map(|target| (target, live.goal.iteration))
+            }
+        }) else {
+            // pause/stop 在任务队列等待期/轮次间到达：状态事件由这里补发。
+            publish_pending_pause(session, shared);
+            break;
+        };
+        let cancel = shared.lock().goal_cancel.clone().unwrap_or_default();
+        if cancel.is_cancelled() {
+            publish_pending_pause(session, shared);
+            break;
+        }
+        let prompt = continuation_prompt(
+            &target.objective,
+            target.tokens_used,
+            target.token_budget,
+            target.time_used_seconds,
+        );
+        let turn_input_id = fresh_id("goal_input");
+        let target_id = target.target_id.clone();
+        let active_input_id = job.input_id.clone();
+        let run_started_at = std::sync::Arc::new(std::sync::atomic::AtomicI64::new(now_ms()));
+
+        let shared_after = Arc::clone(shared);
+        let store_after = Arc::clone(store);
+        let run_started_for_after = Arc::clone(&run_started_at);
+        let target_id_for_after = target_id.clone();
+        let active_input_for_after = active_input_id.clone();
+        let mut after_start = move |session: &mut Session, sink: &mut dyn EventSink| {
+            let now = now_ms();
+            run_started_for_after.store(now, std::sync::atomic::Ordering::SeqCst);
+            let payload = {
+                let mut live = shared_after.lock();
+                let Some(target) = live.goal.target.as_mut() else {
+                    return;
+                };
+                let previous = target.clone();
+                target.start_run(&active_input_for_after, now);
+                let _ = store_after.upsert_target(&target_record(target));
+                target_update_payload("run_started", "runtime", Some(&previous), Some(target))
+            };
+            let turn_id = session.current_turn_id().map(str::to_owned);
+            let event = session.emit(
+                turn_id.as_deref(),
+                SessionEventType::SessionUpdated,
+                &payload,
+            );
+            sink.emit(event);
+            let _ = target_id_for_after;
+        };
+
+        let shared_before = Arc::clone(shared);
+        let store_before = Arc::clone(store);
+        let session_id_before = session_id.clone();
+        let config_before = config.clone();
+        let task_type_before = shared.record.task_type.clone();
+        let run_started_for_before = Arc::clone(&run_started_at);
+        let mut before_terminal =
+            move |session: &mut Session, sink: &mut dyn EventSink, facts: &TurnTerminalFacts| {
+                let now = now_ms();
+                let status_event = take_pending_pause_payload(&shared_before);
+                let payload = {
+                    let mut live = shared_before.lock();
+                    let Some(current) = live.goal.target.clone() else {
+                        return;
+                    };
+                    let mut next = current.clone();
+                    let tokens = if facts.cancelled {
+                        0
+                    } else {
+                        facts.usage.input_tokens + facts.usage.output_tokens
+                    };
+                    let started_at = current.active_run_started_at.unwrap_or_else(now_ms);
+                    let seconds = elapsed_seconds(started_at, now);
+                    next.finish_run(now, tokens, seconds);
+                    let _ = store_before.upsert_target(&target_record(&next));
+                    live.goal.target = Some(next.clone());
+                    target_update_payload("run_finished", "runtime", Some(&current), Some(&next))
+                };
+                let turn_id = session.current_turn_id().map(str::to_owned);
+                if let Some(payload) = status_event {
+                    let event = session.emit(
+                        turn_id.as_deref(),
+                        SessionEventType::SessionUpdated,
+                        &payload,
+                    );
+                    sink.emit(event);
+                }
+                let event = session.emit(
+                    turn_id.as_deref(),
+                    SessionEventType::SessionUpdated,
+                    &payload,
+                );
+                sink.emit(event);
+                // 只有真的发出过模型请求才写 model_usage（pre-request pause 观察 0 行）。
+                if facts.model_requests > 0 {
+                    record_goal_model_usage(
+                        &store_before,
+                        &session_id_before,
+                        &task_type_before,
+                        &config_before,
+                        "main_turn",
+                        &facts.usage,
+                        run_started_for_before.load(std::sync::atomic::Ordering::SeqCst),
+                        now,
+                        if facts.cancelled {
+                            "cancelled"
+                        } else {
+                            "completed"
+                        },
+                        facts.cancelled.then_some("cancelled"),
+                        turn_id.as_deref(),
+                    );
+                }
+            };
+
+        let mut recorder =
+            TurnRecorder::goal_turn(Arc::clone(shared), Arc::clone(store), prompt.clone());
+        let result = session
+            .run_goal_continuation_turn(
+                &prompt,
+                &turn_input_id,
+                &target_id,
+                provider.as_ref(),
+                &mut recorder,
+                &cancel,
+                &mut after_start,
+                &mut before_terminal,
+            )
+            .await;
+        match result {
+            Ok(()) => {
+                {
+                    let mut live = shared.lock();
+                    live.turn_count += 1;
+                    live.revision += 1;
+                    live.updated_at = now_ms();
+                }
+                // turn 与 verifier 之间可能到达 pause/stop：先补状态事件再停止。
+                let stop_between = {
+                    let live = shared.lock();
+                    live.goal.pause_event_pending
+                        || live
+                            .goal
+                            .target
+                            .as_ref()
+                            .map(|target| target.status != GoalStatus::Active)
+                            .unwrap_or(true)
+                };
+                if stop_between {
+                    publish_pending_pause(session, shared);
+                    break;
+                }
+                let verdict =
+                    run_goal_verifier(session, shared, store, provider.clone(), config).await;
+                match verdict {
+                    Some(verdict) if verdict.passed => {
+                        complete_goal_target(session, shared, store);
+                        break;
+                    }
+                    Some(_) => {
+                        // verifier 未通过：继续下一轮（无轮次上限）。
+                    }
+                    None => break,
+                }
+            }
+            Err(error) if error.is_cancelled() => {
+                {
+                    let mut live = shared.lock();
+                    live.turn_count += 1;
+                    live.revision += 1;
+                    live.updated_at = now_ms();
+                }
+                break;
+            }
+            Err(error) => {
+                recorder.record_failure_progress(&error.progress);
+                let failed = session.emit_turn_failed(
+                    recorder.turn_id().map(String::as_str),
+                    "runtime_error",
+                    &error.message,
+                    "model",
+                );
+                recorder.emit(failed);
+                {
+                    let mut live = shared.lock();
+                    live.turn_count += 1;
+                    live.revision += 1;
+                    live.last_error = Some(error.message);
+                    live.status = RuntimeStatus::Error;
+                    if let Some(target) = &mut live.goal.target {
+                        target.active_input_id = None;
+                        target.active_run_started_at = None;
+                        target.active_run_last_seen_at = None;
+                    }
+                }
+                break;
+            }
+        }
+    }
+}
+
+/// verifier 的 event payload（`session.updated`，无 action）。
+fn verification_event_payload(
+    target_id: &str,
+    verification_id: &str,
+    goal_iteration: u64,
+    anchor_assistant_message_id: &str,
+    anchor_turn_id: &str,
+    status: &str,
+    verification: Option<&GoalVerification>,
+) -> Value {
+    let mut payload = json!({
+        "anchorAssistantMessageId": anchor_assistant_message_id,
+        "anchorTurnId": anchor_turn_id,
+        "foregroundExecutionId": format!("runtime_command_{goal_iteration}"),
+        "goalIteration": goal_iteration,
+        "status": status,
+        "targetId": target_id,
+        "verificationId": verification_id,
+    });
+    if let Some(verification) = verification {
+        let mut value = json!({
+            "passed": verification.passed,
+            "reason": verification.reason,
+        });
+        if let Some(Some(next_action)) = &verification.next_action {
+            value["nextAction"] = json!(next_action);
+        }
+        payload["verification"] = value;
+    }
+    payload
+}
+
+/// 写一条 `session_entry(target_completion_verification)`。
+fn persist_verification_entry(
+    store: &SessionStore,
+    session_id: &str,
+    payload: &Value,
+    sequence_number: u64,
+    event_id: &str,
+) {
+    let now = now_ms();
+    let _ = store.append_entry(SessionEntryRecord {
+        id: fresh_id("entry"),
+        session_id: session_id.to_string(),
+        entry_type: "target_completion_verification".to_string(),
+        time_created: now,
+        time_updated: now,
+        data: json!({
+            "eventId": event_id,
+            "payload": payload,
+            "sequenceNumber": sequence_number,
+            "traceId": uuid::Uuid::new_v4().to_string(),
+        }),
+    });
+}
+
+/// 把 timeline 中同一 `verificationId` 的条目更新到终态；缺失时补一条。
+fn settle_verification_timeline(
+    live: &mut Live,
+    verification_id: &str,
+    status: GoalVerificationStatus,
+    verification: GoalVerification,
+    updated_at: u64,
+) {
+    if let Some(item) = live
+        .goal
+        .timeline
+        .iter_mut()
+        .find(|item| item.verification_id == verification_id)
+    {
+        item.status = status;
+        item.verification = Some(verification);
+        item.updated_at = updated_at;
+    } else {
+        live.goal.timeline.push(GoalVerificationTimeline {
+            version: 1,
+            kind: SyntheticKind::Synthetic,
+            timeline_type: GoalVerificationType::GoalVerification,
+            display: SeparatorDisplay::Separator,
+            target_id: String::new(),
+            verification_id: verification_id.to_string(),
+            status,
+            verification: Some(verification),
+            goal_iteration: None,
+            anchor_assistant_message_id: None,
+            anchor_turn_id: None,
+            started_at: None,
+            updated_at,
+        });
+    }
+    live.goal.verifications = recent_verifications(&live.goal.timeline);
+}
+
+/// 运行 completion verifier（非流式、无 tools；观察 §1.5）。
+///
+/// 返回 `None` = 停止续跑（pause/stop 取消、provider 失败）；`Some(verdict)` =
+/// 拿到合法/fallback 判定。
+async fn run_goal_verifier(
+    session: &mut Session,
+    shared: &Arc<Shared>,
+    store: &Arc<SessionStore>,
+    provider: Arc<dyn ModelProvider>,
+    config: &RuntimeConfig,
+) -> Option<agent_core::goal::VerifierVerdict> {
+    let (target, iteration, anchor_turn_id, anchor_assistant_message_id) = {
+        let live = shared.lock();
+        let target = live.goal.target.clone()?;
+        if target.status != GoalStatus::Active {
+            return None;
+        }
+        (
+            target,
+            live.goal.iteration,
+            session.current_turn_id().unwrap_or_default().to_string(),
+            session
+                .current_assistant_message_id()
+                .unwrap_or_default()
+                .to_string(),
+        )
+    };
+    let cancel = shared.lock().goal_cancel.clone().unwrap_or_default();
+    if cancel.is_cancelled() {
+        publish_pending_pause(session, shared);
+        return None;
+    }
+    let verification_id = fresh_id("verify");
+    let started_at = now_ms();
+    let started_payload = verification_event_payload(
+        &target.target_id,
+        &verification_id,
+        iteration,
+        &anchor_assistant_message_id,
+        &anchor_turn_id,
+        "started",
+        None,
+    );
+    let event = session.emit(None, SessionEventType::SessionUpdated, &started_payload);
+    let sequence = event.seq;
+    let event_id = event.event_id.clone();
+    shared.publish(&event);
+    persist_verification_entry(
+        store,
+        &shared.record.id,
+        &started_payload,
+        sequence,
+        &event_id,
+    );
+    {
+        let mut live = shared.lock();
+        live.goal.timeline.push(GoalVerificationTimeline {
+            version: 1,
+            kind: SyntheticKind::Synthetic,
+            timeline_type: GoalVerificationType::GoalVerification,
+            display: SeparatorDisplay::Separator,
+            target_id: target.target_id.clone(),
+            verification_id: verification_id.clone(),
+            status: GoalVerificationStatus::Started,
+            verification: None,
+            goal_iteration: Some(iteration),
+            anchor_assistant_message_id: Some(anchor_assistant_message_id.clone()),
+            anchor_turn_id: Some(anchor_turn_id.clone()),
+            started_at: Some(started_at.max(0) as u64),
+            updated_at: started_at.max(0) as u64,
+        });
+    }
+
+    let prompt = verifier_prompt(
+        &target.objective,
+        target.status,
+        target.tokens_used,
+        target.token_budget,
+        target.time_used_seconds,
+    );
+    let request = session.build_verification_request(&prompt);
+    let (delta_sink, mut deltas) = tokio::sync::mpsc::unbounded_channel();
+    let mut future = provider.stream(request, delta_sink);
+    let mut text = String::new();
+    let mut delta_channel_open = true;
+    let mut response: Option<Result<agent_core::ModelResponse, ProviderError>> = None;
+    let mut cancelled = false;
+    while response.is_none() {
+        tokio::select! {
+            biased;
+            maybe_delta = deltas.recv(), if delta_channel_open => {
+                match maybe_delta {
+                    Some(ModelDelta::Text { text: chunk }) => text.push_str(&chunk),
+                    Some(_) => {}
+                    None => delta_channel_open = false,
+                }
+            }
+            // 取消优先于 verifier 应答（pause 时 timeline 记 cancelled）。
+            _ = cancel.cancelled() => {
+                cancelled = true;
+                break;
+            }
+            result = &mut future => response = Some(result),
+        }
+    }
+    // future 结束前已进入队列、但 select 没取走的 delta（tail）：与 run_turn 同口径。
+    while let Ok(delta) = deltas.try_recv() {
+        if let ModelDelta::Text { text: chunk } = delta {
+            text.push_str(&chunk);
+        }
+    }
+    let finished_at = now_ms();
+    if cancelled {
+        publish_pending_pause(session, shared);
+        let verification = GoalVerification {
+            passed: false,
+            reason: CANCELLED_VERIFIER_REASON.to_string(),
+            next_action: Some(None),
+        };
+        let payload = verification_event_payload(
+            &target.target_id,
+            &verification_id,
+            iteration,
+            &anchor_assistant_message_id,
+            &anchor_turn_id,
+            "cancelled",
+            Some(&verification),
+        );
+        let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
+        let sequence = event.seq;
+        let event_id = event.event_id.clone();
+        shared.publish(&event);
+        persist_verification_entry(store, &shared.record.id, &payload, sequence, &event_id);
+        {
+            let mut live = shared.lock();
+            settle_verification_timeline(
+                &mut live,
+                &verification_id,
+                GoalVerificationStatus::Cancelled,
+                verification,
+                finished_at.max(0) as u64,
+            );
+        }
+        record_goal_model_usage(
+            store,
+            &shared.record.id,
+            &shared.record.task_type,
+            config,
+            "target_completion_verification",
+            &ModelUsage::default(),
+            started_at,
+            finished_at,
+            "cancelled",
+            Some("cancelled"),
+            None,
+        );
+        return None;
+    }
+    let response = response.expect("循环只在 provider future 结束后退出");
+    let usage = match &response {
+        Ok(response) => response.usage.clone(),
+        Err(error) => {
+            publish_pending_pause(session, shared);
+            let verification = GoalVerification {
+                passed: false,
+                reason: format!("Completion verifier failed: {}", error.message),
+                next_action: Some(None),
+            };
+            let payload = verification_event_payload(
+                &target.target_id,
+                &verification_id,
+                iteration,
+                &anchor_assistant_message_id,
+                &anchor_turn_id,
+                "cancelled",
+                Some(&verification),
+            );
+            let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
+            let sequence = event.seq;
+            let event_id = event.event_id.clone();
+            shared.publish(&event);
+            persist_verification_entry(store, &shared.record.id, &payload, sequence, &event_id);
+            {
+                let mut live = shared.lock();
+                settle_verification_timeline(
+                    &mut live,
+                    &verification_id,
+                    GoalVerificationStatus::FailedClosed,
+                    verification,
+                    finished_at.max(0) as u64,
+                );
+            }
+            return None;
+        }
+    };
+    record_goal_model_usage(
+        store,
+        &shared.record.id,
+        &shared.record.task_type,
+        config,
+        "target_completion_verification",
+        &usage,
+        started_at,
+        finished_at,
+        "completed",
+        None,
+        None,
+    );
+    let verdict = parse_verifier_response(&text);
+    let verification = GoalVerification {
+        passed: verdict.passed,
+        reason: verdict.reason.clone(),
+        next_action: Some(verdict.next_action.clone()),
+    };
+    let payload = verification_event_payload(
+        &target.target_id,
+        &verification_id,
+        iteration,
+        &anchor_assistant_message_id,
+        &anchor_turn_id,
+        "completed",
+        Some(&verification),
+    );
+    let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
+    let sequence = event.seq;
+    let event_id = event.event_id.clone();
+    shared.publish(&event);
+    persist_verification_entry(store, &shared.record.id, &payload, sequence, &event_id);
+    {
+        let mut live = shared.lock();
+        settle_verification_timeline(
+            &mut live,
+            &verification_id,
+            GoalVerificationStatus::Completed,
+            verification,
+            finished_at.max(0) as u64,
+        );
+    }
+    Some(verdict)
+}
+
+/// verifier 通过：target `complete` + `status_updated(runtime)`。
+fn complete_goal_target(session: &mut Session, shared: &Arc<Shared>, store: &Arc<SessionStore>) {
+    let event_payload = {
+        let mut live = shared.lock();
+        let Some(previous) = live.goal.target.clone() else {
+            return;
+        };
+        let mut target = previous.clone();
+        target.set_status(GoalStatus::Complete, now_ms());
+        target.active_input_id = None;
+        target.active_run_started_at = None;
+        target.active_run_last_seen_at = None;
+        target.time_updated = now_ms();
+        let _ = store.upsert_target(&target_record(&target));
+        live.goal.target = Some(target.clone());
+        live.revision += 1;
+        live.updated_at = now_ms();
+        target_update_payload("status_updated", "runtime", Some(&previous), Some(&target))
+    };
+    let event = session.emit(None, SessionEventType::SessionUpdated, &event_payload);
+    shared.publish(&event);
+}
+
 /// compact 终态的落库事实（行构造的唯一输入）。
 ///
 /// id 在进入终态前一次性预生成：timeline 行先于摘要行落库，但它要引用
@@ -2201,6 +3978,14 @@ fn compact_cache_stats(messages_len: usize, prior_tool_history: bool) -> CacheSt
 ///
 /// 落库失败记进 [`Self::persist_error`]，不改变事件流（实时事件优先），终态后由
 /// worker 折进 `last_error`。
+/// `turn.started` 落库的 user 消息语义（goal 续跑用 `system_reminder`，观察
+/// `source:"goal-continuation"`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UserMessageSemantics {
+    UserPrompt,
+    GoalContinuation,
+}
+
 struct TurnRecorder {
     shared: Arc<Shared>,
     store: Arc<SessionStore>,
@@ -2210,6 +3995,8 @@ struct TurnRecorder {
     /// 是否在 `turn.started` 写 user message 行（compact 任务恒 `false`：
     /// compact 没有 user 行 / `session_input` 行，契约 §1.3）。
     persist_user: bool,
+    /// user message 行的语义（prompt vs goal-continuation）。
+    user_semantics: UserMessageSemantics,
     turn_id: Option<String>,
     turn_started_at: i64,
     user_message_id: Option<String>,
@@ -2254,6 +4041,29 @@ impl TurnRecorder {
             session_id: shared.record.id.clone(),
             content: item.input.content.clone(),
             persist_user: item.compact.is_none(),
+            user_semantics: UserMessageSemantics::UserPrompt,
+            turn_id: None,
+            turn_started_at: 0,
+            user_message_id: None,
+            last_message_id: None,
+            current: None,
+            tool_error_count: 0,
+            turn_total_tokens: 0,
+            last_step_usage: None,
+            persist_error: None,
+            shared,
+            store,
+        }
+    }
+
+    /// goal-continuation turn 的 recorder：prompt 落库为 `system_reminder` /
+    /// `source:"goal-continuation"`（观察 messageSummary）。
+    fn goal_turn(shared: Arc<Shared>, store: Arc<SessionStore>, prompt: String) -> Self {
+        Self {
+            session_id: shared.record.id.clone(),
+            content: prompt,
+            persist_user: true,
+            user_semantics: UserMessageSemantics::GoalContinuation,
             turn_id: None,
             turn_started_at: 0,
             user_message_id: None,
@@ -2536,6 +4346,23 @@ impl TurnRecorder {
         let turn_id = self.turn_id.clone().unwrap_or_default();
         // 落库行的模型事实取写入时刻的配置（setter 改模型后，新行记新值）。
         let config = self.shared.read_config();
+        let semantics = match self.user_semantics {
+            UserMessageSemantics::UserPrompt => json!({
+                "origin": "real_user",
+                "kind": "user_prompt",
+                "uiVisibility": "visible",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "visible",
+            }),
+            UserMessageSemantics::GoalContinuation => json!({
+                "origin": "agent_runtime",
+                "kind": "system_reminder",
+                "source": "goal-continuation",
+                "uiVisibility": "hidden",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "hidden",
+            }),
+        };
         let mut data = json!({
             "role": "user",
             "messageId": message_id,
@@ -2545,13 +4372,7 @@ impl TurnRecorder {
                 "providerID": config.provider_id,
                 "modelID": config.model_id,
             },
-            "semantics": {
-                "origin": "real_user",
-                "kind": "user_prompt",
-                "uiVisibility": "visible",
-                "providerVisibility": "visible",
-                "transcriptVisibility": "visible",
-            },
+            "semantics": semantics,
         });
         if !turn_id.is_empty() {
             data["anchor"] = json!({ "turnId": turn_id, "origin": "realUser" });
@@ -2757,6 +4578,9 @@ impl TurnRecorder {
             tool_call_count: tool_calls,
             tool_error_count: self.tool_error_count as i64,
             user_message_id: self.user_message_id.clone(),
+            // 观察（C3 §1.6 user stop / pause）：取消行带 `turn_cancelled`。
+            error_type: cancelled.then(|| "turn_cancelled".to_string()),
+            error_code: cancelled.then(|| "TURN_CANCELLED".to_string()),
             ..TurnUsageRecord::default()
         };
         if let Err(error) = self.store.record_turn_usage(record) {

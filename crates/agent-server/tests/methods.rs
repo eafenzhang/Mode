@@ -5,7 +5,8 @@
 //! `session/subscribe`（replay+live 无重复无缺口）、`session/read`（冷读 + messageLimit）、
 //! `session/messages`（after/limit）、`session/list`（directory / includeArchived / limit）、
 //! `session/close`+`session/resume`（历史恢复、序号不撞）、三个 setter、
-//! `session/compact`/`session/goal` 显式 `-32601`、启动存储门（checking→ready/failed）。
+//! `session/compact`（C2）与 `session/goal`（C3，行为见 tests/goal.rs）的严格参数面、
+//! 启动存储门（checking→ready/failed）。
 //!
 //! 测试库 DDL 从 `scripts/sqlite-schema-baseline.json` 生成（与 session-store /
 //! runtime 测试同一口径）；provider 配置走临时 builtin/personal 文件；模型端点
@@ -1439,19 +1440,31 @@ async fn setters_update_runtime_and_persist_entries() {
 }
 
 // ---------------------------------------------------------------------------
-// 9. goal：显式 -32601（`session/compact` 已在 C2 T2 接入，行为见 tests/compact.rs）
+// 9. goal：C3 T1 起已接入（行为见 tests/goal.rs）；这里只锁严格参数面
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn goal_stays_method_not_found() {
+async fn goal_method_parses_strictly() {
     let fixture = fixture("goal", vec![ScriptStep::Text("x".to_string())]);
     let mut conn = connect(Arc::clone(&fixture.server)).await;
+    // 未知键 → -32602（C3 观察：`tokenBudget` 不是协议面字段）。
     let id = conn
-        .send("session/goal", json!({ "sessionId": "sess-1" }))
+        .send(
+            "session/goal",
+            json!({ "sessionId": "sess-1", "action": "show", "tokenBudget": 100 }),
+        )
         .await;
-    let (code, message, _) = conn.error(id).await;
-    assert_eq!(code, -32601);
-    assert_eq!(message, "Method not found");
+    let (code, _, _) = conn.error(id).await;
+    assert_eq!(code, -32602);
+    // 非法 action → -32602。
+    let id = conn
+        .send(
+            "session/goal",
+            json!({ "sessionId": "sess-1", "action": "bogus" }),
+        )
+        .await;
+    let (code, _, _) = conn.error(id).await;
+    assert_eq!(code, -32602);
 }
 
 // ---------------------------------------------------------------------------

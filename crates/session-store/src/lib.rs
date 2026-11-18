@@ -35,6 +35,7 @@ mod migrations;
 mod part;
 mod schema;
 mod session;
+mod target;
 mod usage;
 
 use std::fmt;
@@ -52,6 +53,7 @@ pub use migrations::{
 pub use part::PartRecord;
 pub use schema::{REQUIRED_TABLES, SCHEMA_MIGRATION_TABLE};
 pub use session::{SessionEntryRecord, SessionRecord};
+pub use target::TargetRecord;
 pub use usage::{ModelUsageRecord, ToolUsageRecord, TurnUsageRecord};
 
 /// 与 Host 写同一文件时的短锁等待，口径与 `agent-core::rule_store` 一致。

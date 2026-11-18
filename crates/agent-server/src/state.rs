@@ -16,15 +16,17 @@ use agent_core::context::{ContextCacheUsage, ContextUsage};
 use agent_core::{Admission, ModelCapabilities};
 use agent_protocol::message::{MessageModel, ModelOptions};
 use agent_protocol::session_read::{
-    SessionInfo, SessionKind, SessionMode, SessionModel, SessionStatus, SessionWorkspaceRef,
+    SessionGoal, SessionInfo, SessionKind, SessionMode, SessionModel, SessionStatus,
+    SessionWorkspaceRef,
 };
 use agent_protocol::snapshot::{
     ActiveTurnKind, ContextCacheUsage as ProtocolContextCacheUsage,
-    ContextCost as ProtocolContextCost, ModelInputFormat, ModelOption, ModelOutputFormat,
-    ModelProperties, ModelReasoningOptions, PermissionSettings, ProtocolInfo, ProtocolName,
-    SessionContextUsage, SessionLastError, SessionModeSettings, SessionModelSettings,
-    SessionProjection, SessionRuntimeState, SessionSettings, SessionStateSnapshot, SlashCommand,
-    SlashCommandSource, ThoughtLevelOption, ThoughtLevelSettings,
+    ContextCost as ProtocolContextCost, GoalVerification, GoalVerificationTimeline,
+    ModelInputFormat, ModelOption, ModelOutputFormat, ModelProperties, ModelReasoningOptions,
+    PermissionSettings, ProtocolInfo, ProtocolName, SessionContextUsage, SessionLastError,
+    SessionModeSettings, SessionModelSettings, SessionProjection, SessionRuntimeState,
+    SessionSettings, SessionStateSnapshot, SlashCommand, SlashCommandSource, ThoughtLevelOption,
+    ThoughtLevelSettings,
 };
 use serde_json::Number;
 use session_store::SessionRecord;
@@ -52,6 +54,15 @@ pub(crate) enum TurnKind {
     Prompt,
     /// compact turn。
     Compact,
+    /// goal-continuation turn（C3 T1）：运行中限制与 prompt 同档，`pause` 例外。
+    GoalContinuation,
+}
+
+impl TurnKind {
+    /// goal 管理动作的「运行中」判定：普通 prompt 与 goal-continuation 都算。
+    pub(crate) fn is_prompt_running(self) -> bool {
+        matches!(self, Self::Prompt | Self::GoalContinuation)
+    }
 }
 
 impl RuntimeStatus {
@@ -212,6 +223,12 @@ pub(crate) struct LiveView {
     /// 活跃 turn（compact 执行窗口；观察值 `activeTurnId` + `activeTurnKind:"compact"`）。
     /// 常规 prompt turn 不产出该事实（归 T6 快照补齐，登记在契约「Rust C2 现状」）。
     pub active_turn: Option<(String, TurnKind)>,
+    /// `session.target` / `projection.target`。`None` = 没有目标；`Some` 时两处同源。
+    pub target: Option<SessionGoal>,
+    /// `runtime.goalVerifications`（最近验证窗口）。
+    pub goal_verifications: Vec<GoalVerification>,
+    /// `runtime.goalVerificationTimeline`（完整时间线）。
+    pub goal_verification_timeline: Vec<GoalVerificationTimeline>,
 }
 
 /// `mode` 字符串 → 协议枚举。未登记的取值按 `build` 落（与 DB `permission.mode`
@@ -299,7 +316,7 @@ pub(crate) fn build_snapshot(
             model,
             // 观察形状：create 快照的 session 带 `target:null`（C1 契约 §2.1；
             // list 行不带 target——投影面不同，`session_info` 保持省略）。
-            target: Some(None),
+            target: Some(live.target.clone()),
             created_at: epoch_ms_to_u64(record.time_created),
             updated_at: epoch_ms_to_u64(live.updated_at.max(record.time_updated)),
             archived_at: record.time_archived.map(epoch_ms_to_u64),
@@ -334,7 +351,7 @@ pub(crate) fn build_snapshot(
             background_jobs: Vec::new(),
             // 观察形状（`context-usage-settings.json` 的 projection）：键恒在，
             // 无 goal 事实时为显式 `null`（不是缺键）。
-            target: Some(None),
+            target: Some(live.target.clone()),
             // 活跃事实：最近一次失败（provider 错误 / 落库失败）原样带出。
             last_error: live.last_error.clone().map(|message| SessionLastError {
                 error_type: "runtime_error".to_owned(),
@@ -353,7 +370,7 @@ pub(crate) fn build_snapshot(
                 .as_ref()
                 .map(|(turn_id, _)| turn_id.clone()),
             active_turn_kind: live.active_turn.as_ref().map(|(_, kind)| match kind {
-                TurnKind::Prompt => ActiveTurnKind::Regular,
+                TurnKind::Prompt | TurnKind::GoalContinuation => ActiveTurnKind::Regular,
                 TurnKind::Compact => ActiveTurnKind::Compact,
             }),
             pending_request_ids: Vec::new(),
@@ -361,8 +378,8 @@ pub(crate) fn build_snapshot(
             context_usage: live.context_usage.as_ref().map(project_context_usage),
             // C1 观察形状（`agent-server-c1-contract.md` §2.1）：create 的 runtime
             // 恒带这两个空数组，缺省省略是登记过的 T6 前缺口。
-            goal_verifications: Some(Vec::new()),
-            goal_verification_timeline: Some(Vec::new()),
+            goal_verifications: Some(live.goal_verifications.clone()),
+            goal_verification_timeline: Some(live.goal_verification_timeline.clone()),
         },
         // 活跃快照不带历史消息；冷读（store → 消息行）归 Task 7 的 session/read。
         messages: Vec::new(),

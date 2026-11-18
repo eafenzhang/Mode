@@ -55,6 +55,8 @@ pub(crate) fn handle(
         .map_err(store_error)?;
     let mut snapshot = runtime.snapshot();
     snapshot.messages = super::projection::project_messages(&record, messages)?;
+    // 观察（`agent-c3-contract.md` §1.8）：resume 应答比 create/read 多 `goalStats`。
+    snapshot.goal_stats = runtime.goal_stats();
     serde_json::to_value(snapshot).map_err(|error| ServerError::internal(error.to_string()))
 }
 

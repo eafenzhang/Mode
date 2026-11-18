@@ -12,7 +12,9 @@
 //! fail-closed）。C2 T2 接入 `session/compact`（per-session 单飞受理 + worker 上的
 //! 摘要执行）；C2 T3 接入项目记忆召回（[`memory::MemoryContext`]：宿主偏好
 //! `memoryEnabled` 开启时按数据根只读注入 `# Memory` 段与首条 user 消息的 agentsMd
-//! 索引块，失败 fail-soft）；未支持的方法（含 `session/goal`）显式返回 `-32601`。
+//! 索引块，失败 fail-soft）；C3 T1 接入 `session/goal`（目标六 action、续跑 turn、
+//! completion verifier、`session_target` 单一事实源与冷恢复）与 `session/stop`。
+//! 未支持的方法显式返回 `-32601`。
 //!
 //! 行为依据：`docs/specs/agent-core-parity.md` §2/§5.4、
 //! `docs/specs/mode-protocol-client.md`「帧」、`docs/specs/agent-process.md`
