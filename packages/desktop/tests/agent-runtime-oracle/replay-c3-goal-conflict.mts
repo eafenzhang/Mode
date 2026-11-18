@@ -305,9 +305,6 @@ async function replayContinuationLoop(fixture: C3Fixture): Promise<C3ReplayResul
     if (run.session.invalidLines.length > 0) {
       throw new Error(`replay-c3：stdout 解析失败行：${run.session.invalidLines[0]}`);
     }
-    notes.push(
-      "-32602 参数校验文案不比（serde vs ZodError 镜像，§C3 登记）；replace 的 goal_state_change 行缺口登记（§C3），本 case 两侧同删该类行",
-    );
     return { case: fixture.case, diffs, notes, stderr: run.session.stderr };
   } finally {
     await stopC3Replay(run);

@@ -1208,7 +1208,7 @@ spec 再改实现。
 
 | # | 差异 | 说明 |
 | - | --- | --- |
-| 11 | 重试事件未接线字段 | `providerKind`/`transport`/`baseURL`/`requestHeader(s)`/`responseHeader(s)`/`exceptionType`/`streamOutputCommitted`/timing（`timeToFirst*`/`streamStallCount`/`durationMs`）不产出（§2.7）——回放两侧同删。 |
+| 11 | 重试事件未接线字段 | `providerKind`/`transport`/`baseURL`/`requestHeader(s)`/`responseHeader(s)`/`exceptionType`/`streamOutputCommitted`/timing（`timeToFirst*`/`streamStallCount`/`durationMs`）不产出（§2.7）；transport/stream-abort 的 `underlying_message` 同为「声明宽于实现」（§2.7 遗留项，T5 收口登记）——回放两侧同删。 |
 | 12 | `model_request_started` / 失败的 `model_request_failed` | 每次尝试的 started 与每次失败的 failed 不产出；取消收口的 `model_request_failed{reason:"cancelled"}` 与 retry/recovery 收口的 `model_request_completed` 产出——回放两侧同删（#1/#2 规则见 replay-c3.mts 文件头）。 |
 | 13 | `turn.failed` 归属字段 | `providerId`/`modelId`/`exceptionKind` 未填、`detail` 的 provider/model/request 段省略（§2.7）——回放两侧同删。 |
 | 14 | `model_usage` | C1 普通 turn 不写（§1.11 既有差异）——retry/background 回放整表同删；goal 路径（main_turn + verifier）两侧逐行一致。 |

@@ -18,12 +18,10 @@ import {
   type C3ReplayResult,
   type C3Run,
 } from "./replay-c3.mjs";
-import {
-  backgroundScript,
-  foldRead,
-  notificationTurnsOf,
-  taskSummaries,
-} from "./replay-c3-mixed.mjs";
+import { backgroundScript } from "./replay-c3-mixed.mjs";
+
+/** 夹具 `input.background` 的形状（idle 单任务 / busy 数组）。 */
+type BackgroundSpec = { command: string; description: string };
 
 // background 共用驱动面（idle / busy-coalesced）
 // ---------------------------------------------------------------------------
