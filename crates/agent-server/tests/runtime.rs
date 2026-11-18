@@ -849,7 +849,7 @@ async fn provider_failure_mid_turn_keeps_committed_rows_only() {
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .expect("turn_usage");
-    assert_eq!(status, "failed");
+    assert_eq!(status, "error");
     assert_eq!(tool_error_count, 0, "Read 成功，错误来自 provider");
     let tool_status: String = connection
         .query_row("SELECT status FROM tool_usage", [], |row| row.get(0))
@@ -1813,7 +1813,7 @@ async fn failure_usage_row_is_committed_before_turn_failed_is_published() {
     );
     let rows = turn_usage_rows(&fixture.db_path);
     assert_eq!(rows.len(), 1, "收到终态时 usage 行已可读");
-    assert_eq!(rows[0].1, "failed");
+    assert_eq!(rows[0].1, "error");
     wait_settled(&runtime).await;
     runtime.shutdown().await;
 }

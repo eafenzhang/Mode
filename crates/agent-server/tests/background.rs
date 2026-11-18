@@ -1183,7 +1183,7 @@ async fn provider_error_terminal_is_once_and_placeholder_has_no_parts() {
     assert_eq!(placeholders[0].1, 0, "占位没有 part");
     let usage = turn_usage_rows(&fixture.db_path, &session_id);
     assert_eq!(usage.len(), 1);
-    assert_eq!(usage[0]["status"], json!("failed"));
+    assert_eq!(usage[0]["status"], json!("error"));
 }
 
 #[tokio::test]
@@ -1216,7 +1216,7 @@ async fn timeout_failure_terminal_is_once() {
     wait_settled(&runtime).await;
     let usage = turn_usage_rows(&fixture.db_path, &session_id);
     assert_eq!(usage.len(), 1);
-    assert_eq!(usage[0]["status"], json!("failed"));
+    assert_eq!(usage[0]["status"], json!("error"));
 }
 
 #[tokio::test]

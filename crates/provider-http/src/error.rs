@@ -14,7 +14,9 @@ const DETAIL_MAX_CHARS: usize = 512;
 /// `message` 字段），提取失败回退原文截断——错误必须可诊断，不静默吞正文。
 ///
 /// 状态码分类（`ProviderError::http_status`）：401/403 auth、5xx server（retryable）、
-/// 408/429 rate limited（retryable）、其余 4xx/3xx 非 retryable。
+/// 408 transport / 429 rate limited（均 retryable）、其余 4xx/3xx 非 retryable。
+/// 408 归 transport 不是 rate limited——旧注释把两者并为「rate limited」与
+/// `agent-core::ProviderError::http_status` 的实际分类不符（T5 更正）。
 pub fn http_status(status: u16, body: &str) -> ProviderError {
     let message = serde_json::from_str::<Value>(body.trim())
         .ok()

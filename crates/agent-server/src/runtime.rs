@@ -1484,7 +1484,10 @@ impl SessionRuntime {
             &self.shared.events,
             None,
             SessionEventType::SessionUpdated,
-            target_update_payload("status_updated", "runtime", Some(&previous), Some(&resumed)),
+            // resume 与 pause 同为用户发起的命令：观察值 source:"command"
+            // （goal-pause-resume-clear.json 的 status_updated；此前误写 "runtime"，
+            // C3 T5 回放对拍发现的契约偏差，按夹具修正）。
+            target_update_payload("status_updated", "command", Some(&previous), Some(&resumed)),
         );
         live.goal.job_active = true;
         debug_assert!(
@@ -4899,7 +4902,11 @@ impl TurnRecorder {
             session_id: self.session_id.clone(),
             turn_id: self.turn_id.clone().unwrap_or_default(),
             started_at: self.turn_started_at.max(1),
-            status: "failed".to_string(),
+            // 状态词必须是 schema 的 `error`（fresh-install 迁移的 CHECK 只收
+            // running/completed/error/cancelled；夹具 §2.4 观察值也是 "error"）。
+            // 首版写 "failed"：基线 DDL 测试库没有该 CHECK 所以单测绿了，但真实
+            // fresh-install 库上 INSERT 违反约束静默丢行（C3 T5 回放对拍发现）。
+            status: "error".to_string(),
             completed_at: Some(now_ms()),
             duration_ms: Some((now_ms() - self.turn_started_at.max(1)).max(0)),
             cancelled_by_user: false,

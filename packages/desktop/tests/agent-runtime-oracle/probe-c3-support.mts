@@ -381,9 +381,16 @@ export type GoalCall = {
   [key: string]: unknown;
 };
 
+/** callGoal 只需要的最小结构面（oracle harness 与回放 run 都满足）。 */
+export type GoalCaller = {
+  session: { request(method: string, params: unknown): Promise<unknown> };
+  context: PathContext;
+  aliases: C3AliasState;
+};
+
 /** 调用 `session/goal`；成功/失败都规范化，失败不抛出。 */
 export async function callGoal(
-  harness: C3Harness,
+  harness: GoalCaller,
   params: Record<string, unknown>,
 ): Promise<{ ok: true; result: GoalCall } | { ok: false; error: JsonObject }> {
   try {

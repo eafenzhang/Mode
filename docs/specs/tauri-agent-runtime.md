@@ -1181,6 +1181,90 @@ C2 各切片的差异已在 `docs/specs/agent-c2-contract.md` 的 §1.9 / §3.5 
   文本 turn + Read turn +（Anthropic）双工具 turn——同一 assistant 轮两个 tool_use 的
   tool_result 分组进同一条 user 消息，真实端点接受并收口）。
 
+## C3 差异登记（goal / stream recovery+retry / background / subagents，T1–T4 + T5 对拍）
+
+状态：**C3 收口登记（2026-11-19）**。C3 各切片的差异已在
+`docs/specs/agent-c3-contract.md` 的 §1.11 / §2.7 / §2.8 / §3.5 / §3.6 / §4.8 逐条
+登记；本表按主题汇总为一张可查的面（行内容以契约注记为准），并收录 T5 对拍
+（C3 回放 harness）的新发现。规则同 §C1/§C2：只登记，不伪造——修复任何一条都先改
+spec 再改实现。
+
+**goal（T1；契约 §1.11）**
+
+| # | 差异 | 说明 |
+| - | --- | --- |
+| 1 | 事件面收窄 | goal 路径产出 goal 相关 `session.updated`（`summary_updated`/`set`/`run_started`/`run_finished`/`status_updated`/`cleared` + verifier started/completed/failed_closed/cancelled）与 `session.titleUpdated`；C1 缺省族（`model_request_started`、`messageCount` 边界推送、`content` 内容推送）不产出——回放两侧同删。 |
+| 2 | 提示词正文 clean-room 自撰 | continuation / verifier 提示词只保留接口结构（`<system-reminder>`/`<untrusted_objective>`/`Budget:` 事实行与 verifier 的 JSON 契约）；回放对 goal-continuation `turn.started.input` 两侧同删，其余 turn 的 `input` 逐字比。 |
+| 3 | verifier 请求形状 | `tools:0`、`query_source:"target_completion_verification"`；system 1 段（C1 请求面）vs oracle 3 段；**wire 走 `stream:true`（SSE 消费、deltas 不进事件流），oracle 是非流式 JSON**——T5 对拍确认（mock 收到 `stream:true,tools:0`）；请求体不比。 |
+| 4 | 控制 turn 消息行 | 不写 oracle 的 assistant timeline 行；objective 写 `user_prompt`；goal 状态变更/continuation prompt 写 `system_reminder`。**DB 行 `source` 键位置不同**：oracle 在 `data.source`，Rust 在 `data.semantics.source`（T5 对拍发现；`messageSummary` 投影读 `data.source`，Rust 行显示 null——不为此改行形状，回放两侧同删 `source`）。 |
+| 5 | `eventSeq`/`stateRevision`/`turnCount` 绝对值 | 运行时起点事实（冷恢复 `eventSeq` 0/1 vs oracle 2 等，§1.11 已登记）——回放不比绝对值，`session/read` 与快照投影同删。 |
+| 6 | 多迭代执行序号 | oracle 复用同一 goal 执行 id（40 轮全 rc1）；Rust 每次续跑 +1（rc1、rc2、rc3…）且 notification/verifier 回指规则见 §3.5——单迭代值与夹具一致，多迭代 rc 序数不比（Rust 单测断言单调）。 |
+| 7 | replace 的 `goal_state_change` 行 | oracle 对**覆盖已有目标**的 replace 多写一条 `goal_state_change` 行（正文未观察——T5 对拍发现）；Rust 只在 pause/resume/clear 写。不伪造正文，回放对该类行两侧同删（存在性由 pause-resume-clear 覆盖）。 |
+| 8 | 参数校验错误文案 | `-32602` 的 `message`/`data` 是 serde 严格反序列化产物（`session/goal 参数不合法: unknown variant …`），oracle 是 ZodError 镜像（`Invalid params — action: …` + ZodError data）——code 一致，文案/data 不比（T5 对拍发现）。`-32009`/`-32010` 形状与文案逐字一致。 |
+| 9 | `goalVerifications` 窗口 | Rust 只保留最近 2 条 **completed** 验证（§1.11）；oracle 窗口含最近一次 cancelled——loop 回放以窗口计数（2）与 timeline 形状为准。 |
+| 10 | `turn_usage` 计时列 | `trace_id`/`first_model_start_at`/`first_token_at`/`time_to_first_token_ms`：oracle 有值、Rust null（§C2.8 #24 同族）——回放两侧同删。verifier 的 `model_usage` 行 token 数是 mock SSE/JSON 路径的 usage 差（mock 产物，非行为），两侧同删 token 列。 |
+
+**stream recovery / retry（T2；契约 §2.7/§2.8）**
+
+| # | 差异 | 说明 |
+| - | --- | --- |
+| 11 | 重试事件未接线字段 | `providerKind`/`transport`/`baseURL`/`requestHeader(s)`/`responseHeader(s)`/`exceptionType`/`streamOutputCommitted`/timing（`timeToFirst*`/`streamStallCount`/`durationMs`）不产出（§2.7）——回放两侧同删。 |
+| 12 | `model_request_started` / 失败的 `model_request_failed` | 每次尝试的 started 与每次失败的 failed 不产出；取消收口的 `model_request_failed{reason:"cancelled"}` 与 retry/recovery 收口的 `model_request_completed` 产出——回放两侧同删（#1/#2 规则见 replay-c3.mts 文件头）。 |
+| 13 | `turn.failed` 归属字段 | `providerId`/`modelId`/`exceptionKind` 未填、`detail` 的 provider/model/request 段省略（§2.7）——回放两侧同删。 |
+| 14 | `model_usage` | C1 普通 turn 不写（§1.11 既有差异）——retry/background 回放整表同删；goal 路径（main_turn + verifier）两侧逐行一致。 |
+| 15 | `session/debug` | oracle 的 `session/debug.networkEntries`（retry 观察辅助面）Rust 不产出该方法——回放不比，retry 计数改由事件面 + `turn_usage.model_retry_count` 断言。 |
+| 16 | 失败 turn 的 `turn_usage.status` | **T5 对拍发现的修复**：首版写 `"failed"`，fresh-install 迁移的 CHECK 只收 `running/completed/error/cancelled`——真实库上 INSERT 静默丢行（基线 DDL 测试库无该 CHECK，单测未暴露）。已按夹具 §2.4 改为 `"error"`（provider/配置失败同口径），相关测试断言同步更正。 |
+
+**background（T3；契约 §3.5）**
+
+| # | 差异 | 说明 |
+| - | --- | --- |
+| 17 | 任务状态事件 | `session.updated {taskId,…,status:"running"/"completed"}` 不产出（§3.5）——回放两侧同删；任务完成证据改由通知 turn 与 `session/subagents`/DB 行承担。 |
+| 18 | 后台命令的 `perf.detail` | tool result 的 `perf.detail.command`（`status:"backgrounded"`/`hash`/`count`）是 C1 foreground 观察组合，backgrounded 组合未在 C1 夹具出现、Rust 不产出——T5 对拍发现，回放两侧同删 `perf.detail`（`totalMs` 仍比）。 |
+| 19 | `originalBytes`/`returnedBytes`（后台命令） | 按 id 原文计字节：oracle/Rust 的 exec id 长度不同（uuid vs `{:08x}-…`），折叠后文本相同、字节数差——mock 形状差，回放两侧同删。 |
+| 20 | 多调用批次的 scheduling 面 | oracle 每调用一个 batch（started→result→batch ×N）+ `canRunParallel:false` 逐调用分组；C1/C3 整批 scheduled + 最后一个 batch——§C1.5-6 已登记缺口，C3 后台夹具必须两调用一批（无法回避），回放两侧同删 batch 事件与 `parallelGroupIndex`/`parallelGroups`（started/result 顺序仍逐条比）。 |
+| 21 | 合并通知顺序 | 按完成顺序合并（§3.2）；完成序由 OS 调度决定——回放对 `input` 块序与 `originMeta.title` 段序两侧同折为排序正典形（条数与每条形状逐字比），交付 summaries 以集合相等 + 注记观察序（C2 same-tick 同款时序登记）。 |
+
+**subagents（T4；契约 §4.8）**
+
+| # | 差异 | 说明 |
+| - | --- | --- |
+| 22 | spawn/child runtime 缺位 | Rust runtime 无 Agent 工具执行器（spawn/child runtime 归 C4）——`subagents-foreground`/`background`/`pagination` 无法端到端回放；读投影由 `crates/agent-server/tests/subagents.rs`（18 用例，直接种库）断言。`subagents-empty` 回放全绿（`-32004` 边界/空数据/endedLimit 校验）。 |
+
+**T5 对拍 harness（非运行时行为）**
+
+- 入口：`packages/desktop/tests/agent-runtime-oracle/replay-c3.mts`（CLI 单跑）与
+  `agent-server-c3-replay.test.mts`（`pnpm test:agent-runtime-oracle` 成员）。比较器
+  与 C1/C2 同一份（`compare.mts` 的 `compareEventStream` + `replay-c2.mts` 的
+  `diffDeep`）；投影用 `probe-c3-support.mts` 的 `normalizeC3Deep`（与录制同一份函数，
+  两侧同投）。驱动用本地 mock provider（C3 扩展：failure/abort/textChunks/attempt
+  上下文 + `auxiliaryResponse` 注入——`sse:true` 为 C3 追加，覆盖 Rust verifier 的
+  流式消费形状；oracle 探针的非流式 aux 路径行为不变）。
+- 登记缺省过滤与折叠（两侧同删/同折；清单见 replay-c3.mts 文件头）：事件信封投影
+  `{type,payload}`（seq/eventId/timestamp 等绝对值不比）、#1/#12/#17 的缺省事件族、
+  C1 工具锚点形状的 `streamRecovery.updated`、Rust 生成 id 形状折叠
+  （`<prefix>_<毫秒>_<计数>` → `<id>`/`<message-id>`/`<turn-id>`）、`turn_usage` 计时列、
+  timeline_event 合成行（§C2.8 #22/#23 同族）。
+- 覆盖：`goal-show-set-complete` / `goal-pause-resume-clear` /
+  `goal-replace-revision-conflict`（-32009 冲突零副作用 + replace + 运行中拒绝）/
+  `goal-continuation-loop`（**有界**——夹具观察 40 轮，回放跑 3 轮确定性子集：
+  首轮事件切片 + 前 5 个 goalIteration + pause 形状 + 验证历史形状；绝对计数与
+  多迭代账务由 `crates/agent-server/tests/goal.rs` 断言）/
+  `retry-5xx-then-success` / `retry-401-non-retryable` / `retry-stream-abort` /
+  `retry-cancel-during-backoff` / `background-idle` / `background-busy-coalesced` /
+  `subagents-empty`，共 **11 条全绿**。
+- 登记未覆盖：`goal-cold-restart-paused/active/complete`（跨进程 kill 窗口 stdio 驱动
+  无法确定性构造；`cold_restart_*` 单测断言，含 T5 补的 `runtime_command_1`/
+  `goalIteration:1` 序号断言）、`goal-user-stop`/`goal-pause-in-flight`/
+  `goal-set-over-existing`/`goal-verifier-invalid-json`（交互语义单测）、
+  `retry-backoff-sequence`（多失败退避序列单测，回放不重复长退避）、
+  `subagents-foreground`/`background`/`pagination`（#22）、
+  `background-goal-interaction`（notification turn 先于 verifier 且计入目标，单测）、
+  `stream-recovery-c1-c2-shapes`（C1 夹具静态提取面，无可执行语义）。
+- 真实端点 smoke：`scripts/agent-c3-smoke.mts`（**opt-in，人工凭据，不进 CI**；
+  C2 smoke 同口径 + C3 场景：`session/goal` set → continuation → 真实端点 verifier →
+  complete → `session/read`/`session_target` 断言 + 普通 turn 终态恰好一次）。
+
 ## 验收场景（Task 0）
 
 1. `pnpm test:agent-runtime-oracle`（唯一入口；等价于

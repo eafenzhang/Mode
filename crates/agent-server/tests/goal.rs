@@ -2933,7 +2933,29 @@ async fn cold_restart_paused_resumes_explicitly_and_completes() {
     assert_eq!(resumed["startedTurn"], json!(true));
     let response = resumed["response"].as_str().expect("response");
     assert!(response.starts_with("Goal resumed\nObjective: Restart goal\n"));
-    let _ = conn.drain_until_goal_status("complete").await;
+    // 冷恢复序号断言（T1 收口项，数值与夹具一致）：GoalState::restore 把
+    // continuation_ordinal / iteration 归零，因此重启后的首个续跑 turn 是
+    // `runtime_command_1`，verifier 的 goalIteration 从 1 起（夹具
+    // goal-cold-restart-paused.json 的 timeline.goalIteration:1）。
+    let resumed_events = conn.drain_until_goal_status("complete").await;
+    let resumed_start = resumed_events
+        .iter()
+        .find(|event| event["type"] == json!("turn.started"))
+        .expect("resumed continuation turn");
+    assert_eq!(
+        resumed_start["payload"]["foregroundExecutionId"],
+        json!("runtime_command_1"),
+        "冷恢复后的首个续跑 turn 从会话级序号 1 重新起算"
+    );
+    let verification = resumed_events
+        .iter()
+        .find(|event| event["payload"]["status"] == json!("started"))
+        .expect("verification started");
+    assert_eq!(
+        verification["payload"]["goalIteration"],
+        json!(1),
+        "冷恢复后 verifier 的 goalIteration 从 1 起"
+    );
     let read = conn.read_snapshot(&session_id).await;
     assert_eq!(read["session"]["target"]["status"], json!("complete"));
     assert_eq!(read["session"]["target"]["tokensUsed"], json!(22));

@@ -2354,7 +2354,7 @@ async fn compact_without_model_fails_configuration_and_leaves_running() {
     assert_eq!(counts_after["turn_usage"], counts_before["turn_usage"] + 1);
 
     let usage = turn_usage_row(&fixture.db_path, &turn_id);
-    assert_eq!(usage["status"], json!("failed"));
+    assert_eq!(usage["status"], json!("error"));
     assert_eq!(usage["userMessageId"], Value::Null);
     assert_eq!(usage["modelRequestCount"], json!(0));
     assert_eq!(usage["inputTokens"], json!(0));

@@ -218,3 +218,16 @@ C3 在 C1/C2 的 Rust `agent-server` 上补齐三件事，并保持「终态恰�
 - 不读 `apps/mode-cli/**`、`packages/services/**`、`packages/client/**` 实现体；只读
   协议类型、测试断言、specs、公开资料与黑盒观察。
 - 重试/恢复/目标事件形状只从真实录制获取；不手写期望值；不复制上游提示词。
+
+### 7.1 验收记录（C3 收口，2026-11-19）
+
+| 项 | 结果 |
+| --- | --- |
+| T0 契约 + 夹具 | 24 夹具 / 5 探针（机器录制，重复录制逐字节一致） |
+| goal | `cargo test -p agent-server --test goal` 25/25（含 T5 补的冷恢复 `runtime_command_1`/`goalIteration:1` 序号断言）；revision 冲突零副作用、冷恢复不自动续跑 |
+| 流恢复/重试 | `agent-core/tests/recovery` 7/7 + `agent-server/tests/retry` 7/7；失败 `turn_usage.status` 修正为 schema/夹具的 `error`（fresh-install CHECK 下不再静默丢行，T5 回放发现） |
+| 后台通知 | `agent-server/tests/background` 11/11；终态恰好一次 |
+| subagents 只读 | `agent-server/tests/subagents` 18/18（fail-soft + 分页平局） |
+| 回放 | C1 38/38 + C2 11/11 保持；**C3 夹具回放 11/11 全绿**（`replay-c3.mts`，登记过滤/折叠见 `tauri-agent-runtime.md` §C3；未覆盖项逐条登记并指向覆盖测试） |
+| smoke | `scripts/agent-c3-smoke.mts`（opt-in、env-only 凭据、临时数据根；goal set→continuation→verifier→complete + 普通 turn 终态一次；缺凭据显式退出，不进 CI） |
+| 门禁 | `cargo test`（6 crates 473 passed）全绿；`cargo clippy --all-targets -- -D warnings` 0 告警；`pnpm typecheck` 0 错误；`pnpm lint` 0 errors（91 条基线 warning）；`pnpm architecture:check --changed` OK；`pnpm check:sqlite-schema` 通过 |

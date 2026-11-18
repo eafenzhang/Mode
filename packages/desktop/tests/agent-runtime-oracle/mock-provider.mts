@@ -269,6 +269,13 @@ function writeJsonResponse(
 export type MockAuxiliaryResponse = {
   text?: string;
   httpError?: { status: number; message?: string };
+  /**
+   * 无工具但**流式消费**的请求（C3 回放里 Rust 的 completion verifier 走
+   * `stream:true` + 0 tools；oracle 是非流式 JSON——形状差异登记 §C3）也拿到
+   * 注入文本：置 `sse:true` 时该请求回 SSE 而不是 JSON 报文。oracle 探针的
+   * aux 请求都是非流式，不受此字段影响（缺省行为不变）。
+   */
+  sse?: boolean;
 };
 
 export type MockProviderOptions = {
@@ -325,6 +332,10 @@ export async function startMockProvider(
             return;
           }
           if (!usesScript(parsed)) {
+            if (parsed.stream === true && auxiliary?.sse === true) {
+              await writeSseResponse(response, { text: auxiliary.text }, 0);
+              return;
+            }
             writeJsonResponse(response, auxiliary?.text, auxiliary?.httpError);
             return;
           }

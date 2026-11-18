@@ -1077,7 +1077,7 @@ async fn auth_401_fails_once_without_retry() {
 
     wait_settled(&runtime).await;
     let usage = turn_usage_row(&fixture.db_path, "sess_retry");
-    assert_eq!(usage["status"], json!("failed"));
+    assert_eq!(usage["status"], json!("error"));
     assert_eq!(usage["modelRequestCount"], json!(1));
     assert_eq!(usage["modelRetryCount"], json!(0));
     assert_eq!(usage["errorType"], json!("unknown_error"));
@@ -1212,7 +1212,7 @@ async fn retry_exhaustion_fails_once_at_observed_attempt_count() {
 
     wait_settled(&runtime).await;
     let usage = turn_usage_row(&fixture.db_path, "sess_retry");
-    assert_eq!(usage["status"], json!("failed"));
+    assert_eq!(usage["status"], json!("error"));
     assert_eq!(usage["modelRequestCount"], json!(1));
     assert_eq!(usage["modelRetryCount"], json!(10));
 }
