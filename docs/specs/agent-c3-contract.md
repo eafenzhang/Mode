@@ -305,7 +305,7 @@ goalStats, todos, todoGroups
 `goalStats` 键：`timeUsedSeconds,tokensUsed,tokenBudget,contextUsed,contextWindow,
 toolCallCount,iterationCount`。冷恢复后 `contextUsed:0`、`iterationCount:1`（观察到）。
 
-两种冷恢复观察：
+四种冷恢复观察：
 
 | 场景                               | 观察值                                                                                                                                                                                                                                      |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -338,7 +338,6 @@ toolCallCount,iterationCount`。冷恢复后 `contextUsed:0`、`iterationCount:1
 - `show` 在 active-idle 时的独立文案（`set` 的 `Goal active…` 是同一构造，但没有单独 `show`）；
 - `resume` 在 active/运行中、`clear` 在 active-idle、`replace` 在 active-idle 的行为
   （只观察到 paused/idle/complete 组合；运行中的管理动作统一 `-32010`，`pause` 例外）；
-- target 完成后的冷重启；
 - 多 workspace / 远程 identity 下的 goal 行为。
 
 ## 1.11 Rust C3 现状（T1，2026-11-18）
@@ -656,7 +655,7 @@ errorCode:"model_request_cancelled", _meta.apiRetry:null})`；
 | 恢复后的重试再失败       | 恢复尝试若未产出任何 delta 又失败，Rust 按「无已提交 delta」走 adapter 退避；该 adapter 尝试不增轮次（`is_recovery_attempt=false`），成功收口事件不带 `streamRecovery`/`callCause:"recovery"`。夹具未覆盖连续中断。                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | §2.8 未观察到           |
 | `model_usage` 行         | C1 普通 turn 仍不写 `model_usage`（§1.11 既有差异），因此夹具的「stream abort 两行（error + completed）/5xx 一行」没有逐行复刻；重试账务只在 `turn_usage` 层可断言。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | §1.11 + §2.2/§2.3       |
 | `turn.failed` 归属       | 401 形状与夹具一致（`turnPhase:"processing_input"`、规范 message、underlyingErrorMessage、无顶层 retryable、finish:null 占位）；`providerId`/`modelId`/`providerKind`/`transport`/`exceptionKind` 仍未填（agent-core 不持有这些事实），`detail` 的 provider/model/request 段为自撰/省略。                                                                                                                                                                                                                                                                                                                                                                                                  | §2.4                    |
-| `turnPhase`              | 只有首次请求的 401 夹具观察到 `processing_input`。Rust 对 `run_turn` 内所有 provider 失败沿用该值（含工具批次之后的后续请求）；「首次请求 vs 后续步」的阶段化命名**未观察**，不发明新枚举，登记为泛化差异。 | §2.4 / §2.8 |
+| `turnPhase`              | 只有首次请求的 401 夹具观察到 `processing_input`。Rust 对 `run_turn` 内所有 provider 失败沿用该值（含工具批次之后的后续请求）；「首次请求 vs 后续步」的阶段化命名**未观察**，不发明新枚举，登记为泛化差异。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | §2.4 / §2.8             |
 | compact / verifier 请求  | 不在 `run_turn` 内，未接重试（未观察到这两类请求的失败重试）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | §2.8 未观察到           |
 | 取消 turn.completed 形状 | 与夹具一致：无 `usage`、`historyRoundCount:0`、`tokenCount:0`；DB `model_request_count` 改走内部轮次事实通道（夹具取消示例为 1），不再从事件 `historyRoundCount` 取。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | §2.5                    |
 
@@ -787,16 +786,17 @@ T3 在 `agent-server` 的 per-session worker 上接线后台通知，行为基�
 
 差异 / 未覆盖（不伪造观察值）：
 
-| 项 | Rust 现状 | 依据 |
-| --- | --- | --- |
-| 任务状态事件 | 不产出任务 `session.updated {taskId,…,status:"running"/"completed"}`（C1 事件族缺省）；通知 turn 本身完整。 | §3.1 |
-| 前台工具执行窗口的丢弃 | 用「`tool.updated started` 到 `batch`」近似 C1 的时序；C3 只录到模型流式窗口的合并，二者是否同一判据**未验证**（§5 已登记）。 | C1 §3.5 / §3.2 |
-| `originMeta` | `backgroundSource` 恒 `"bash"`（当前只有 Bash 后台任务）；`title` 是多条描述的 `" · "` 连接；`workId` 取首批第一条 task id（夹具折叠为 `<id>`，无法区分具体取哪条）。 | §3.2 |
-| 通知 turn 计数 | 非 goal 路径按普通输入计 `turnCount`，并补两次 revision（起点 + 终态），与 `background-idle`/`background-busy-coalesced` 的 `stateRevision` 一致；goal 路径的 revision 仍按 T1 规则，未逐值对齐 §3.3。 | §3.1/§3.2/§3.3 |
-| 通知 turn 取消 | 未观察；实现与普通 turn 同口径（`session/stop` 取消 token、终态 cancelled 一次）。 | §3.6 |
-| 通知 turn provider 失败 | 未观察；实现发唯一 `turn.failed`、清 active 目标字段并停止续跑（与 goal 续跑失败同口径）。 | §3.6 |
-| verifier 期间完成 | 未观察；通知留在注册表，verifier/目标收口后由 worker 按空闲通知投递（可能产生 `targetId:null` 的通知 turn）。 | §3.6 |
-| 3+ pending 合并上限 | 未观察；实现无上限、按完成顺序一次投递。 | §3.6 |
+| 项                         | Rust 现状                                                                                                                                                                                                                                                                                                                                                                                           | 依据           |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| 任务状态事件               | 不产出任务 `session.updated {taskId,…,status:"running"/"completed"}`（C1 事件族缺省）；通知 turn 本身完整。                                                                                                                                                                                                                                                                                         | §3.1           |
+| 前台工具执行窗口的丢弃     | 用「`tool.updated started` 到 `batch`」近似 C1 的时序；C3 只录到模型流式窗口的合并，二者是否同一判据**未验证**（§5 已登记）。                                                                                                                                                                                                                                                                       | C1 §3.5 / §3.2 |
+| `originMeta`               | `backgroundSource` 恒 `"bash"`（当前只有 Bash 后台任务）；`title` 是多条描述的 `" · "` 连接；`workId` 取首批第一条 task id（夹具折叠为 `<id>`，无法区分具体取哪条）。                                                                                                                                                                                                                               | §3.2           |
+| 通知 turn 计数             | 非 goal 路径按普通输入计 `turnCount`，并补两次 revision（起点 + 终态），与 `background-idle`/`background-busy-coalesced` 的 `stateRevision` 一致；goal 路径的 revision 仍按 T1 规则，未逐值对齐 §3.3。                                                                                                                                                                                              | §3.1/§3.2/§3.3 |
+| 通知 turn 取消             | 未观察；实现与普通 turn 同口径（`session/stop` 取消 token、终态 cancelled 一次）。                                                                                                                                                                                                                                                                                                                  | §3.6           |
+| 通知 turn provider 失败    | 未观察；实现发唯一 `turn.failed`、清 active 目标字段并停止续跑（与 goal 续跑失败同口径）。                                                                                                                                                                                                                                                                                                          | §3.6           |
+| verifier 期间完成          | 未观察；通知留在注册表，verifier/目标收口后由 worker 按空闲通知投递（可能产生 `targetId:null` 的通知 turn）。                                                                                                                                                                                                                                                                                       | §3.6           |
+| 3+ pending 合并上限        | 未观察；实现无上限、按完成顺序一次投递。                                                                                                                                                                                                                                                                                                                                                            | §3.6           |
+| 通知与排队用户输入的优先级 | **Rust 方案（裁决行）**：worker 每轮先 `drain_notification_input` 再 `receiver.recv()`（`crates/agent-server/src/runtime.rs` 的 `worker_loop`）——pending 通知**先于**已排队用户输入投递，排队 prompt 等在通知 turn 之后。oracle 未观察该优先级：stdio 面并发 `session/send` 被 `-32010` 拒绝、不排队，没有「通知 vs 排队输入」可观察；本行是登记的实现裁决，不是 oracle 观察，T5 文档引用此处为准。 | §3.6           |
 
 ### 3.6 后台通知未观察到
 
@@ -807,7 +807,10 @@ T3 在 `agent-server` 的 per-session worker 上接线后台通知，行为基�
 - 通知 turn 与 retry/stream recovery 的组合；
 - notification turn 被 `session/stop` 取消时的目标/账务；
 - 前台工具执行期间的忙时完成（C1 观察到丢弃；C3 只录了模型流式等待窗口的合并
-  延后，二者未统一；Rust 用工具窗口近似丢弃，属待补测语义）。
+  延后，二者未统一；Rust 用工具窗口近似丢弃，属待补测语义）；
+- 通知 turn 与排队用户输入的先后优先级（oracle 的 stdio 面不排队、并发 send 被
+  `-32010` 拒绝，无法观察；Rust worker 先投递 pending 通知再取用户输入，见 §3.5
+  的裁决行，属登记的 Rust 方案）。
 
 ## 4. Subagents 只读面（`session/subagents`）
 
@@ -990,7 +993,7 @@ runtime——实际子代理执行归 C4）；行为基线是 §4.1–§4.6 的�
   `endedLimit` 缺省 **20**（协议 schema `modeSessionSubagentsParamsSchema` 的
   `.int().positive().max(100).default(20)` 镜像，schema 值而非行为观察，见 §4.1）。
   `endedLimit:0` / 负数 → `-32602`，`message:"Invalid params — endedLimit: Too small:
-  expected number to be >0"` 且 `data` 携带夹具的 ZodError 文本（逐字复现）；
+expected number to be >0"` 且 `data` 携带夹具的 ZodError 文本（逐字复现）；
   `endedLimit > 100` → 同形状的 `too_big` `-32602`
   （`"Too big: expected number to be <=100"`，`maximum:100` / `inclusive:true`）——
   上界与文案按 schema `.max(100)` 派生，oracle 运行时未观察该值（登记项）。
@@ -1033,36 +1036,36 @@ runtime——实际子代理执行归 C4）；行为基线是 §4.1–§4.6 的�
 
 差异 / 未覆盖（不伪造观察值）：
 
-| 项 | Rust 现状 | 依据 |
-| --- | --- | --- |
-| 子代理 ↔ 子会话行的关联 | 夹具的库行没有可观察外键（`session_task_link` 空）；别名与条目都按「创建顺序」各自推导（子会话行按 time_created，tool part 按消息序），两源一致时与夹具逐字段一致，不一致时 fail-soft 各自表达 | §4.5 |
-| `waiting` / `blocked` / `cancelled` / `lost` | 不产出（tool part 状态只有 pending/running/completed/error 可观察）；`error` 映射 ended `failed` 是唯一可观察的失败路径 | §4.7 |
-| 活跃 runtime | 读面不区分冷/热会话：两条路径都从会话库投影（live 子代理状态归 C4 的 runtime 面，本任务不存在该写入方） | §4.6 |
-| `endedCursor` 非法/过期 | 未观察；实现显式 `-32602`（opaque 游标 base64/JSON 解不开、或定位的 childSessionId 不在当前 ended 全集），不静默回第一页 | §4.7 |
-| `endedLimit` > 20 / > 100 | 未观察 >20 的运行时截断；实现按 schema 语义截页；`>100` 按 `.max(100)` 显式 `-32602`（`too_big` 文案为 schema 派生，未观察） | §5 |
-| `backgroundSubagentResultConsumed` | 只属于 `turn.completed`/`turn.failed` 载荷（§4 夹具不在 subagents 结果里）；通知 turn 终态置 `true` 仍是 T3 未覆盖项（见 §3.5 表外的观察缺口），T4 不改 turn 面 | §4.3 |
+| 项                                           | Rust 现状                                                                                                                                                                                      | 依据 |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| 子代理 ↔ 子会话行的关联                      | 夹具的库行没有可观察外键（`session_task_link` 空）；别名与条目都按「创建顺序」各自推导（子会话行按 time_created，tool part 按消息序），两源一致时与夹具逐字段一致，不一致时 fail-soft 各自表达 | §4.5 |
+| `waiting` / `blocked` / `cancelled` / `lost` | 不产出（tool part 状态只有 pending/running/completed/error 可观察）；`error` 映射 ended `failed` 是唯一可观察的失败路径                                                                        | §4.7 |
+| 活跃 runtime                                 | 读面不区分冷/热会话：两条路径都从会话库投影（live 子代理状态归 C4 的 runtime 面，本任务不存在该写入方）                                                                                        | §4.6 |
+| `endedCursor` 非法/过期                      | 未观察；实现显式 `-32602`（opaque 游标 base64/JSON 解不开、或定位的 childSessionId 不在当前 ended 全集），不静默回第一页                                                                       | §4.7 |
+| `endedLimit` > 20 / > 100                    | 未观察 >20 的运行时截断；实现按 schema 语义截页；`>100` 按 `.max(100)` 显式 `-32602`（`too_big` 文案为 schema 派生，未观察）                                                                   | §5   |
+| `backgroundSubagentResultConsumed`           | 只属于 `turn.completed`/`turn.failed` 载荷（§4 夹具不在 subagents 结果里）；通知 turn 终态置 `true` 仍是 T3 未覆盖项（见 §3.5 表外的观察缺口），T4 不改 turn 面                                | §4.3 |
 
 ## 5. 未观察到 / 不可触发汇总
 
-| 项                                             | 状态                                                           |
-| ---------------------------------------------- | -------------------------------------------------------------- |
-| goal `budget_limited` / 预算耗尽               | 当前协议无 `tokenBudget` 字段；传未知键 `-32602`               |
-| goal 轮次/迭代上限                             | 只验证 40 个 continuation turn 未停；上限是否 >40/具体值未知   |
-| `summary_title` 生成/截断规则                  | 只观察 equals objective                                        |
-| `show`(active-idle) 独立文案                   | 未单独捕获；`set` 的 `Goal active…` 是同一构造                 |
-| 重试耗尽（10 次）                              | 未驱动；只观察到 `maxAttempts:11`/`maxRetries:10`              |
-| 403/400/429 分类                               | 未驱动                                                         |
-| `model_stream_stalled` / idle timeout          | 未触发（耗时不可控）                                           |
-| 工具调用中途断流的 recovery                    | 只注入文本 delta 中断                                          |
-| stream recovery 期间取消                       | 未观察（retryDelay 0，窗口太短）                               |
-| `retry-after` 覆盖退避                         | 未观察                                                         |
-| 后台 Bash 失败/killed 通知（C3 时序）          | C1 已观察，C3 未重录                                           |
+| 项                                             | 状态                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| goal `budget_limited` / 预算耗尽               | 当前协议无 `tokenBudget` 字段；传未知键 `-32602`                                                        |
+| goal 轮次/迭代上限                             | 只验证 40 个 continuation turn 未停；上限是否 >40/具体值未知                                            |
+| `summary_title` 生成/截断规则                  | 只观察 equals objective                                                                                 |
+| `show`(active-idle) 独立文案                   | 未单独捕获；`set` 的 `Goal active…` 是同一构造                                                          |
+| 重试耗尽（10 次）                              | 未驱动；只观察到 `maxAttempts:11`/`maxRetries:10`                                                       |
+| 403/400/429 分类                               | 未驱动                                                                                                  |
+| `model_stream_stalled` / idle timeout          | 未触发（耗时不可控）                                                                                    |
+| 工具调用中途断流的 recovery                    | 只注入文本 delta 中断                                                                                   |
+| stream recovery 期间取消                       | 未观察（retryDelay 0，窗口太短）                                                                        |
+| `retry-after` 覆盖退避                         | 未观察                                                                                                  |
+| 后台 Bash 失败/killed 通知（C3 时序）          | C1 已观察，C3 未重录                                                                                    |
 | 前台工具执行期间的忙时完成（C1 时序）          | C1 观察到丢弃；C3 只录了模型流式等待窗口的合并延后，二者未统一（Rust 以工具窗口近似丢弃，见 §3.5/§3.6） |
-| 3+ pending 通知的合并顺序                      | 未观察                                                         |
-| notification turn 与 retry/goal 的更多组合     | 只观察 §3.3 一种                                               |
-| subagent waiting/blocked/failed/cancelled/lost | 未观察                                                         |
-| `session_task_link` 的 subagent 行             | 三种路径都是空表                                               |
-| `endedLimit` 默认 20 的运行时行为              | 20 来自协议 schema；空数据下省略与 20 不可区分；>20 截断未观察 |
+| 3+ pending 通知的合并顺序                      | 未观察                                                                                                  |
+| notification turn 与 retry/goal 的更多组合     | 只观察 §3.3 一种                                                                                        |
+| subagent waiting/blocked/failed/cancelled/lost | 未观察                                                                                                  |
+| `session_task_link` 的 subagent 行             | 三种路径都是空表                                                                                        |
+| `endedLimit` 默认 20 的运行时行为              | 20 来自协议 schema；空数据下省略与 20 不可区分；>20 截断未观察                                          |
 
 ## 6. 夹具与复现
 

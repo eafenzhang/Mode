@@ -5,8 +5,9 @@
 //
 // 关键问题（不按产品直觉写期望）：
 //   1. 后台任务完成且会话空闲 → 是否自动开 turn；
-//   2. 完成时另一个 turn 正在跑 → 通知被丢弃、排队还是延后；
-//   3. 多个任务在忙时完成 → 每个都开 turn 还是只保留最后一个；
+//   2. 完成落在另一个 turn 的模型流式等待窗口内 → 合并延后还是丢弃
+//      （观察：合并延后；前台工具执行窗口的 C1 丢弃时序未在本探针重录）；
+//   3. 多个任务在忙时完成 → 每个都开 turn 还是合并（观察：合并为一个通知 turn）；
 //   4. goal 续跑期间后台完成 → 通知 turn 与 goal verifier 的先后/计入关系。
 import type { JsonObject } from "./session-lifecycle-fixtures.mjs";
 import {
@@ -133,7 +134,9 @@ async function caseIdle(): Promise<JsonObject> {
   }
 }
 
-/** 忙时：两个任务在 busy turn 中完成 → 只保留最后一个通知（晚到覆盖早到）。 */
+/** 忙时（模型流式等待窗口）：两个任务在 busy turn 中完成 → 合并为一个 notification
+ * turn，两条通知都保留（`background-busy-coalesced.json`）。前台工具执行窗口的
+ * C1 丢弃时序未在本探针重录（登记在契约 §3.5/§3.6/§5）。 */
 async function caseBusyCoalesced(): Promise<JsonObject> {
   const harness = await startC3Harness({
     prefix: "c3-bg-busy",
