@@ -13,6 +13,15 @@ export const databaseStartupErrorCodeSchema = z.enum([
   "startup_status_timeout",
   "transport_closed",
   "unsupported_runtime",
+  // —— Rust agent-server 存储门的稳定错误码（LT-1 C1 Task 10；只增不改）——
+  // 来源：`crates/session-store/src/error.rs::StoreError::code()` 与
+  // `crates/agent-server/src/state.rs::RuntimeError::code()`。Host 据此解析
+  // Rust 存储门的 failed 帧，而不是退化成 `startup_status_timeout`。
+  "storage_schema_unsupported",
+  "storage_locked",
+  "storage_io",
+  "storage_json_invalid",
+  "invalid_input",
 ]);
 export type DatabaseStartupErrorCode = z.infer<typeof databaseStartupErrorCodeSchema>;
 

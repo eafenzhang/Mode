@@ -21,8 +21,9 @@
 //! 与 `Read` 的图片路径同一条纪律：任何把它当成 oracle 答复的地方都是缺陷。
 
 use std::fs;
+use std::time::Instant;
 
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::messages::{validation_error, CREATED_TEMPLATE, NOT_READ_MESSAGE, UPDATED_TEMPLATE};
 use crate::path_policy::{empty_path_error, resolve};
@@ -105,12 +106,14 @@ pub fn invoke(
 
     // 写失败（IO 错误 / 父目录不存在 / 目标是目录）的形状**没有观察**——不假装，
     // 走显式标记让它在对拍里报红（见文件头的说明）。
+    let write_started = Instant::now();
     if let Err(error) = fs::write(&target, content) {
         return Err(unimplemented_surface(
             "write_io_error",
             format!("{file_path}：{error}"),
         ));
     }
+    let write_ms = write_started.elapsed().as_millis() as u64;
 
     let template = if existed {
         UPDATED_TEMPLATE
@@ -120,10 +123,31 @@ pub fn invoke(
     let text = template.replace("{path}", file_path);
 
     let display = previous.and_then(|before| {
-        file_diff::file_diff_display(&target.to_string_lossy(), &before, content)
+        file_diff::file_diff_display(
+            &file_diff::display_path(&target, &ctx.cwd),
+            &before,
+            content,
+        )
+    });
+    // `perf.detail`（C1.1-#6 对齐；夹具 `write-new` / `write-overwrite-read` /
+    // `write-relative-path` 的录制）：`{kind:"filesystem", filesystem:{…}}`，
+    // `totalBytes` / `maxFileBytes` = **写入正文**的 UTF-8 字节数（24 / 4 / 9 逐字命中）。
+    let detail = json!({
+        "kind": "filesystem",
+        "filesystem": {
+            // `readMs` 只有时间白名单盖着（录制里全部折叠）；本实现没有独立读步骤，按 0。
+            "readMs": 0_u64,
+            "writeMs": write_ms,
+            "fileCount": 1_u64,
+            "totalBytes": content.len() as u64,
+            "maxFileBytes": content.len() as u64,
+            "workspaceKind": "local",
+        },
     });
     Ok(match display {
-        Some(display) => ToolOutcome::text_with_display(text, display),
-        None => ToolOutcome::text(text),
+        Some(display) => {
+            ToolOutcome::text_with_display(text, display).with_detail(detail.to_string())
+        }
+        None => ToolOutcome::text(text).with_detail(detail.to_string()),
     })
 }

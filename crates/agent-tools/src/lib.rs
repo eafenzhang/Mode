@@ -41,6 +41,8 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::messages::validation_error;
+
 pub mod bash;
 pub mod edit;
 pub mod file_diff;
@@ -203,6 +205,11 @@ pub struct ToolOutcome {
     /// `result.display` 的 JSON 文本：`TaskOutput` / `TaskStop` 的结果带它。
     /// 存文本而不是 `Value` 是为了让 `ToolOutcome` 保持 `Eq`。
     pub display_json: Option<String>,
+    /// `result.perf.detail` 的 JSON 文本（C1.1-#6 对齐）：Bash 是
+    /// `{kind:"command", command:{…}}`，Write 是 `{kind:"filesystem", filesystem:{…}}`，
+    /// Edit 是 `{kind:"patch", filesystem:{…}, patch:{…}}`（全部来自行为夹具的录制）。
+    /// `Read` 没有 detail（观察如此），保持 `None`。
+    pub detail_json: Option<String>,
 }
 
 impl ToolOutcome {
@@ -219,6 +226,7 @@ impl ToolOutcome {
             budget_strategy: "truncate",
             artifact_path: None,
             display_json: None,
+            detail_json: None,
         }
     }
 
@@ -235,6 +243,16 @@ impl ToolOutcome {
             budget_strategy: "artifact",
             artifact_path: None,
             display_json: None,
+            detail_json: None,
+        }
+    }
+
+    /// 带 `perf.detail` 的结果（C1.1-#6）：`detail_json` 是完整的 detail 对象文本
+    /// （含 `kind` 判别键），由各工具按观察到的形状拼装。
+    pub fn with_detail(self, detail_json: impl Into<String>) -> Self {
+        Self {
+            detail_json: Some(detail_json.into()),
+            ..self
         }
     }
 
@@ -345,9 +363,13 @@ pub fn registry() -> Vec<ToolSpec> {
             name: "Bash".to_string(),
             family: ModeToolFamily::Shell,
             schema: bash_input_schema(),
-            // 观察（spec §3.4）：`started` 载荷是 `readOnly:true` / `sideEffectScope:"none"`，
-            // 且本次没有发审批请求。按观察值登记，不按直觉推断。
-            read_only: true,
+            // 观察（行为夹具 bash-* + Task 10 回放 F3/F6）：`scheduled.canRunParallel` 对
+            // Bash 恒为 `false`（Read 是 `true`），而 `canRunParallel` 按工具的取值与
+            // `read_only` 档位一致，所以这里按非只读登记。注意 `started` 的
+            // `readOnly`/`sideEffectScope` 不是直接取本档位——Bash 走审批（Ask→allow）
+            // 时录到 `false`/`system`，安全命令直通时录到 `true`/`none`（逐夹具观察，
+            // 会话侧按审批路径决定，见 `agent-core` 的 `started_event`）。
+            read_only: false,
             plugin: None,
         },
         ToolSpec {
@@ -385,6 +407,102 @@ pub fn lookup(tool_name: &str) -> Option<ToolSpec> {
     registry().into_iter().find(|spec| spec.name == tool_name)
 }
 
+/// **schema 级入参校验**（C1.2-#1 对齐，观察出处见各行为夹具）。
+///
+/// oracle 在**权限评估之前**就做这一步：schema 级非法入参（缺必填字段 / 字段类型不对）
+/// 直接 `scheduled → error`，**不产生审批对、也没有 `started`**
+/// （夹具 `bash-empty-args` / `edit-missing-new-string` / `write-empty-args` /
+/// `write-missing-content`；反证：`Read` 的 `limit:0` 与 `file_path:""` 都**通过**
+/// schema、照常走 `started → error`，见夹具 `read-error-paths` / `write-empty-path`）。
+///
+/// 校验器只实现声明里**实际观察到被执行**的两件事：`required`、`properties.type`。
+/// 声明的 `additionalProperties:false` **不执行**（观察：`Read` 带未知键 `nope:1`
+/// 仍然成功——`probe-read.mts` 的 `unknown-key` 组与 `read.rs` 文件头；spec §3.2 明写
+/// 「声明的 `additionalProperties: false` 没被执行」）。`minimum` / `exclusiveMinimum`
+/// 这类**语义**约束也不在这里判——它们在工具内校验（观察：`limit:0` 带 `started` 报
+/// `ZodError`）。未注册的工具不校验（它们在调度层就以 `tool_not_found` 出局）；
+/// 插件工具的 schema 校验行为未观察，同样不判。
+pub fn input_validation_error(name: &str, args: &Value) -> Option<ToolError> {
+    let spec = lookup(name)?;
+    validate_against_schema(&spec.schema, args)
+}
+
+/// 按 JSON Schema 的一个可观察子集校验入参；失败返回与 oracle 逐字同形的错误。
+///
+/// 只判 `required` 与 `properties.type`：`additionalProperties:false` 在声明里有、
+/// 但**观察到的执行面没有它**（未知键被忽略），所以这里不判。
+fn validate_against_schema(schema: &Value, args: &Value) -> Option<ToolError> {
+    let schema = schema.as_object()?;
+    // 必填字段（`bash-empty-args` / `write-empty-args` / `write-missing-content` /
+    // `edit-missing-new-string` 的观察）。
+    if let Some(required) = schema.get("required").and_then(Value::as_array) {
+        let present = args.as_object();
+        if required.iter().any(|field| {
+            field
+                .as_str()
+                .is_some_and(|field| !present.is_some_and(|map| map.contains_key(field)))
+        }) {
+            return Some(validation_error());
+        }
+    }
+    // 字段类型（夹具 `read-error-paths` 的 `offset:"2"`：字符串当数字 → schema 错误）。
+    if let Some(properties) = schema.get("properties").and_then(Value::as_object) {
+        for (key, property) in properties {
+            let Some(value) = args.get(key) else {
+                continue;
+            };
+            let matches = match property.get("type").and_then(Value::as_str) {
+                Some("string") => value.is_string(),
+                Some("number") => value.is_number(),
+                // Read 的 offset/limit 声明是 `integer`（夹具 `read-error-paths` 里
+                // `offset:"2"` 走 schema 错误、`limit:0` 通过 schema 后在工具内报语义错误）。
+                Some("integer") => {
+                    value.is_i64()
+                        || value.is_u64()
+                        || value.as_f64().is_some_and(|number| number.fract() == 0.0)
+                }
+                Some("boolean") => value.is_boolean(),
+                Some("object") => value.is_object(),
+                Some("array") => value.is_array(),
+                // 未声明类型或未观察的组合：不猜，放行给工具内的语义校验。
+                _ => true,
+            };
+            if !matches {
+                return Some(validation_error());
+            }
+        }
+    }
+    None
+}
+
+/// 按 schema 的 property `default` 补齐入参（不修改调用方持有的原始入参）。
+///
+/// 观察出处（C1.1-#8 的伴随事实）：`Edit` 的 `permission.requested.input` 里带
+/// `"replace_all":false`，而模型流的 `tool_call` 入参与 `scheduled.inputByteLength`
+/// 都是**原始三键**——即默认值是在 schema 校验之后才补进**审批请求**入参的。
+/// 未注册工具没有 schema，原样返回。
+pub fn input_with_schema_defaults(name: &str, args: &Value) -> Value {
+    let Some(spec) = lookup(name) else {
+        return args.clone();
+    };
+    let Some(properties) = spec.schema.get("properties").and_then(Value::as_object) else {
+        return args.clone();
+    };
+    let Some(arguments) = args.as_object() else {
+        return args.clone();
+    };
+    let mut filled = arguments.clone();
+    for (key, property) in properties {
+        if filled.contains_key(key) {
+            continue;
+        }
+        if let Some(default) = property.get("default") {
+            filled.insert(key.clone(), default.clone());
+        }
+    }
+    Value::Object(filled)
+}
+
 /// 按名字执行一次工具调用；未注册的名字得到 [`not_found`]（与 oracle 的答复同形）。
 ///
 /// `files` 是会话内的文件记忆（[`FileState`]）——`Write` 的「先读再写」前置条件要读它，
@@ -403,5 +521,45 @@ pub fn invoke_by_name(
         "TaskOutput" => task::task_output(args, ctx),
         "TaskStop" => task::task_stop(args, ctx),
         other => Err(not_found(other)),
+    }
+}
+
+#[cfg(test)]
+mod input_validation_tests {
+    use super::*;
+    use serde_json::json;
+
+    /// 观察（`probe-read.mts` 的 `unknown-key` 组、`read.rs` 文件头、spec §3.2）：
+    /// 声明里的 `additionalProperties:false` **没有**被执行——`Read` 带未知键照样成功。
+    /// 校验器因此不判未知键（否则 `scheduled → error`，与 oracle 相反）。
+    #[test]
+    fn unknown_keys_are_ignored_like_the_oracle() {
+        assert!(input_validation_error(
+            "Read",
+            &json!({ "file_path": "/ws/hello.txt", "nope": 1 })
+        )
+        .is_none());
+        // 其余工具同样不判未知键（同一张声明面；未观察到反例）。
+        assert!(input_validation_error(
+            "Write",
+            &json!({ "file_path": "/ws/a.txt", "content": "x", "nope": true })
+        )
+        .is_none());
+    }
+
+    /// F8 的正例仍然成立：缺必填 / 类型不对在权限之前就报 schema 错误。
+    #[test]
+    fn required_and_types_still_error_before_permission() {
+        assert!(input_validation_error("Read", &json!({})).is_some());
+        assert!(input_validation_error("Bash", &json!({})).is_some());
+        assert!(
+            input_validation_error("Read", &json!({ "file_path": "a.txt", "offset": "2" }))
+                .is_some()
+        );
+        // 语义约束不在这一层：`limit:0` / 空串路径都通过 schema。
+        assert!(
+            input_validation_error("Read", &json!({ "file_path": "a.txt", "limit": 0 })).is_none()
+        );
+        assert!(input_validation_error("Read", &json!({ "file_path": "" })).is_none());
     }
 }

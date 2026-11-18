@@ -16,6 +16,7 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::sync::Mutex as AsyncMutex;
 
+use crate::resolve::RuntimeKind;
 use crate::storage::{StorageStartupPhase, StorageStartupState};
 use crate::{spawn, AgentProcess, AgentProcessError, AgentProcessSpec};
 
@@ -55,6 +56,8 @@ struct Entry {
     generation: u64,
     /// 拉起时的 workspace 身份；供 `syncAppRuntimePreferences` 等广播写入复用。
     target: WorkspaceTarget,
+    /// 拉起 spec 标注的运行时归属（健康面只读字段，Task 9）。
+    runtime: RuntimeKind,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -88,6 +91,8 @@ pub struct RuntimeHealth {
     pub process_id: Option<u32>,
     pub storage_state: Option<StorageStartupState>,
     pub last_error: Option<String>,
+    /// 运行时归属（additive 只读字段，Task 9）：`"rust"` / `"node"`。
+    pub runtime: RuntimeKind,
 }
 
 /// 现有 runtime 的不透明身份；用于区分换代前后的订阅/命令。
@@ -268,6 +273,7 @@ impl AgentRuntimeRegistry {
             process_id: Some(process_id),
             storage_state,
             last_error,
+            runtime: entry.runtime,
         })
     }
 
@@ -386,6 +392,7 @@ impl AgentRuntimeRegistry {
         self.remove_stale(&key).await;
 
         let spec = (self.factory)(target)?;
+        let runtime = spec.runtime;
         let spawned = spawn(spec).await?;
         let process = Arc::new(spawned.process);
         if let Some(handler) = self
@@ -410,6 +417,7 @@ impl AgentRuntimeRegistry {
                     process: Arc::clone(&process),
                     generation,
                     target: target.clone(),
+                    runtime,
                 },
             );
         }

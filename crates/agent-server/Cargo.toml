@@ -1,0 +1,44 @@
+[package]
+name = "agent-server"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Rust 版 app-server --stdio：LF 分帧、方法分派与进程生命周期（LT-1 C1）"
+
+[lib]
+name = "agent_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "agent-server"
+path = "src/main.rs"
+
+[dependencies]
+agent-core = { path = "../agent-core" }
+agent-protocol = { path = "../agent-protocol" }
+indexmap = "2"
+model-selection = { path = "../model-selection" }
+provider-config = { path = "../provider-config" }
+provider-config-repository = { path = "../provider-config-repository" }
+provider-config-source = { path = "../provider-config-source" }
+provider-http = { path = "../provider-http" }
+provider-resolver = { path = "../provider-resolver" }
+serde.workspace = true
+serde_json.workspace = true
+session-store = { path = "../session-store" }
+tokio = { workspace = true, features = ["io-std", "io-util", "time"] }
+uuid.workspace = true
+
+[dev-dependencies]
+# Task 9 切换测试：跨包拿不到本包二进制的 CARGO_BIN_EXE，由本包集成测试驱动
+# agent-process 的 spawn API（MODE_AGENT_SERVER_COMMAND 指向本二进制）。
+agent-process = { path = "../agent-process" }
+rusqlite.workspace = true
+tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "time"] }
+
+# 切换测试的无孤儿断言：Toolhelp 快照枚举 pid/父 pid/映像名（进程树观测）。
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_System_Diagnostics_ToolHelp",
+] }

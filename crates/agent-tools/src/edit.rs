@@ -21,8 +21,9 @@
 //! 读文件失败（IO 错误 / 目标是目录）的形状没有观察，走 [`crate::unimplemented_surface`]。
 
 use std::fs;
+use std::time::Instant;
 
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::messages::{validation_error, NOT_READ_MESSAGE, UPDATED_TEMPLATE};
 use crate::path_policy::{empty_path_error, resolve};
@@ -95,6 +96,54 @@ fn coded_error(code: &'static str, message: String) -> ToolError {
     }
 }
 
+/// `perf.detail` 的 `{kind:"patch", filesystem:{…}, patch:{…}}`（C1.1-#6 对齐；
+/// 夹具 `edit-unique` / `edit-replace-all` / `edit-empty-old-creates` 的录制）。
+///
+/// - `filesystem.totalBytes` / `maxFileBytes` = **替换后正文**的字节数
+///   （`edit-unique` 17 / `edit-replace-all` 12 / `edit-empty-old-creates` 8，逐字命中）；
+/// - `patch.hunkCount` = `display.structuredPatch` 的 hunk 数（三例都是 1）；
+/// - `patch.matchAttempts`：替换路径观察值 1（`replace_all` 命中两次也是 1），
+///   新建路径观察值 0（没有匹配步骤）；
+/// - `readMs` / `writeMs` / `matchMs` 是时间白名单键，按实测填。
+fn patch_detail(
+    total_bytes: u64,
+    write_ms: u64,
+    match_ms: u64,
+    hunk_count: u64,
+    match_attempts: u64,
+) -> Value {
+    json!({
+        "kind": "patch",
+        "filesystem": {
+            "readMs": 0_u64,
+            "writeMs": write_ms,
+            "fileCount": 1_u64,
+            "totalBytes": total_bytes,
+            "maxFileBytes": total_bytes,
+            "workspaceKind": "local",
+        },
+        "patch": {
+            "matchMs": match_ms,
+            "hunkCount": hunk_count,
+            "matchAttempts": match_attempts,
+        },
+    })
+}
+
+/// 从 `file_diff` 的 `structuredPatch` 取 hunk 数（display 缺席时按 0，不猜）。
+fn hunk_count_from_display(display: &Option<String>) -> u64 {
+    display
+        .as_deref()
+        .and_then(|text| serde_json::from_str::<Value>(text).ok())
+        .and_then(|value| {
+            value
+                .get("structuredPatch")
+                .and_then(Value::as_array)
+                .map(|hunks| hunks.len() as u64)
+        })
+        .unwrap_or(0)
+}
+
 /// 执行一次 `Edit`。
 pub fn invoke(
     args: &Value,
@@ -128,6 +177,7 @@ pub fn invoke(
         // 文案是 **UPDATED 那条**，不是 `Write` 的「File created successfully at: …」——
         // 夹具 `edit-empty-old-creates` 录到的就是前者，别照 `Write` 抄。
         if old_string.is_empty() {
+            let write_started = Instant::now();
             if let Err(error) = fs::write(&target, new_string) {
                 return Err(unimplemented_surface(
                     "edit_io_error",
@@ -137,10 +187,24 @@ pub fn invoke(
             // 观察（夹具 `edit-empty-old-creates`）：`Edit` 新建**有** `file_diff`（空 → 新内容），
             // 与 `Write` 新建不同。
             let text = UPDATED_TEMPLATE.replace("{path}", file_path);
-            let display = file_diff::file_diff_display(&target.to_string_lossy(), "", new_string);
+            let display = file_diff::file_diff_display(
+                &file_diff::display_path(&target, &ctx.cwd),
+                "",
+                new_string,
+            );
+            let detail = patch_detail(
+                new_string.len() as u64,
+                write_started.elapsed().as_millis() as u64,
+                // 新建没有匹配步骤（观察值 `matchAttempts: 0`）。
+                0,
+                hunk_count_from_display(&display),
+                0,
+            );
             return Ok(match display {
-                Some(display) => ToolOutcome::text_with_display(text, display),
-                None => ToolOutcome::text(text),
+                Some(display) => {
+                    ToolOutcome::text_with_display(text, display).with_detail(detail.to_string())
+                }
+                None => ToolOutcome::text(text).with_detail(detail.to_string()),
             });
         }
         // 判据 2：决定性样本是「文件不存在 + 未读」→ code=4（不是 6），所以存在性**先于**未读检查。
@@ -167,7 +231,9 @@ pub fn invoke(
             format!("{file_path}：不是可读的 UTF-8 文本"),
         ));
     };
+    let match_started = Instant::now();
     let matches = content.matches(old_string).count();
+    let match_ms = match_started.elapsed().as_millis() as u64;
     if matches == 0 {
         return Err(coded_error(
             "8",
@@ -189,12 +255,14 @@ pub fn invoke(
     } else {
         content.replacen(old_string, new_string, 1)
     };
+    let write_started = Instant::now();
     if let Err(error) = fs::write(&target, &updated) {
         return Err(unimplemented_surface(
             "edit_io_error",
             format!("{file_path}：{error}"),
         ));
     }
+    let write_ms = write_started.elapsed().as_millis() as u64;
     // 成功文案**只看 `replace_all` 这个开关**，不看实际命中几次（观察：只命中 1 次时仍是
     // 「All occurrences were successfully replaced.」）。
     let template = if replace_all {
@@ -204,9 +272,22 @@ pub fn invoke(
     };
     let text = template.replace("{path}", file_path);
     // 观察（夹具 `edit-unique` / `edit-replace-all`）：成功结果带 `file_diff`，旧正文是替换前内容。
-    let display = file_diff::file_diff_display(&target.to_string_lossy(), &content, &updated);
+    let display = file_diff::file_diff_display(
+        &file_diff::display_path(&target, &ctx.cwd),
+        &content,
+        &updated,
+    );
+    let detail = patch_detail(
+        updated.len() as u64,
+        write_ms,
+        match_ms,
+        hunk_count_from_display(&display),
+        1,
+    );
     Ok(match display {
-        Some(display) => ToolOutcome::text_with_display(text, display),
-        None => ToolOutcome::text(text),
+        Some(display) => {
+            ToolOutcome::text_with_display(text, display).with_detail(detail.to_string())
+        }
+        None => ToolOutcome::text(text).with_detail(detail.to_string()),
     })
 }

@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use agent_core::plugin_tools::{PluginToolDeclaration, PluginToolError, PluginToolSource};
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::session::Session;
+use agent_core::CancelToken;
 use agent_core::{SessionEvent, SessionEventType};
 use agent_protocol::session_event::ToolUpdatedPayload;
 
@@ -129,8 +130,8 @@ fn tool_result(events: &[SessionEvent]) -> (bool, String) {
     panic!("没有工具结果");
 }
 
-#[test]
-fn plugin_tools_are_injected_and_invoked() {
+#[tokio::test]
+async fn plugin_tools_are_injected_and_invoked() {
     let dir = temp_dir("invoke");
     let mut session = Session::new("sess_plugin", dir.to_string_lossy().to_string())
         .with_plugin_tools(Arc::new(FakeSource))
@@ -149,7 +150,8 @@ fn plugin_tools_are_injected_and_invoked() {
     }]);
     let mut sink = Vec::new();
     session
-        .run_turn("use plugin", &provider, &mut sink)
+        .run_turn("use plugin", &provider, &mut sink, &CancelToken::new())
+        .await
         .expect("turn 应成功");
 
     let (ok, content) = tool_result(&sink);
@@ -157,18 +159,15 @@ fn plugin_tools_are_injected_and_invoked() {
     assert_eq!(content, "hello");
 
     // 观察：`mcp__node_repl__js` 是 high 审批；插件工具先按同一口径处理。
-    let requests: Vec<agent_protocol::permission::PermissionRequest> = sink
+    // 事件载荷是投影形状（C1.1-#8：无 sessionId/turnId、多 fullAccessSupported），按 Value 断言。
+    let requests: Vec<serde_json::Value> = sink
         .iter()
         .filter(|event| event.event_type == SessionEventType::PermissionRequested)
-        .filter_map(|event| {
-            event
-                .payload_as::<agent_protocol::permission::PermissionRequest>()
-                .expect("能解码")
-        })
+        .filter_map(|event| event.payload.clone())
         .collect();
     assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].risk_level, "medium");
-    assert_eq!(requests[0].tool_name, "plugin_echo");
+    assert_eq!(requests[0]["riskLevel"], "medium");
+    assert_eq!(requests[0]["toolName"], "plugin_echo");
 
     let started = sink
         .iter()
@@ -200,8 +199,8 @@ fn plugin_tools_are_injected_and_invoked() {
     );
 }
 
-#[test]
-fn plugin_tool_errors_map_to_tool_execution_failed() {
+#[tokio::test]
+async fn plugin_tool_errors_map_to_tool_execution_failed() {
     let dir = temp_dir("fail");
     let mut session = Session::new("sess_plugin", dir.to_string_lossy().to_string())
         .with_plugin_tools(Arc::new(FakeSource))
@@ -212,7 +211,8 @@ fn plugin_tool_errors_map_to_tool_execution_failed() {
     }]);
     let mut sink = Vec::new();
     session
-        .run_turn("fail", &provider, &mut sink)
+        .run_turn("fail", &provider, &mut sink, &CancelToken::new())
+        .await
         .expect("turn");
 
     let (ok, message) = tool_result(&sink);
@@ -220,8 +220,8 @@ fn plugin_tool_errors_map_to_tool_execution_failed() {
     assert_eq!(message, "boom");
 }
 
-#[test]
-fn unknown_plugin_names_stay_tool_not_found() {
+#[tokio::test]
+async fn unknown_plugin_names_stay_tool_not_found() {
     let dir = temp_dir("unknown");
     let mut session = Session::new("sess_plugin", dir.to_string_lossy().to_string())
         .with_plugin_tools(Arc::new(FakeSource))
@@ -232,7 +232,8 @@ fn unknown_plugin_names_stay_tool_not_found() {
     }]);
     let mut sink = Vec::new();
     session
-        .run_turn("missing", &provider, &mut sink)
+        .run_turn("missing", &provider, &mut sink, &CancelToken::new())
+        .await
         .expect("turn");
 
     let (ok, message) = tool_result(&sink);
@@ -252,8 +253,8 @@ fn list_tools_failure_surfaces_to_the_caller() {
     assert_eq!(error, "sidecar unavailable");
 }
 
-#[test]
-fn declared_high_risk_plugin_tool_uses_its_metadata() {
+#[tokio::test]
+async fn declared_high_risk_plugin_tool_uses_its_metadata() {
     let dir = temp_dir("high");
     let mut session = Session::new("sess_plugin", dir.to_string_lossy().to_string())
         .with_plugin_tools(Arc::new(FakeSource))
@@ -264,20 +265,17 @@ fn declared_high_risk_plugin_tool_uses_its_metadata() {
     }]);
     let mut sink = Vec::new();
     session
-        .run_turn("high", &provider, &mut sink)
+        .run_turn("high", &provider, &mut sink, &CancelToken::new())
+        .await
         .expect("turn");
 
-    let requests: Vec<agent_protocol::permission::PermissionRequest> = sink
+    let requests: Vec<serde_json::Value> = sink
         .iter()
         .filter(|event| event.event_type == SessionEventType::PermissionRequested)
-        .filter_map(|event| {
-            event
-                .payload_as::<agent_protocol::permission::PermissionRequest>()
-                .expect("能解码")
-        })
+        .filter_map(|event| event.payload.clone())
         .collect();
     assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].risk_level, "high");
+    assert_eq!(requests[0]["riskLevel"], "high");
 
     let started = sink
         .iter()
@@ -309,8 +307,8 @@ fn declared_high_risk_plugin_tool_uses_its_metadata() {
     );
 }
 
-#[test]
-fn sdk_error_shape_is_preserved() {
+#[tokio::test]
+async fn sdk_error_shape_is_preserved() {
     let dir = temp_dir("sdk-error");
     let mut session = Session::new("sess_plugin", dir.to_string_lossy().to_string())
         .with_plugin_tools(Arc::new(FakeSource))
@@ -321,7 +319,8 @@ fn sdk_error_shape_is_preserved() {
     }]);
     let mut sink = Vec::new();
     session
-        .run_turn("crash", &provider, &mut sink)
+        .run_turn("crash", &provider, &mut sink, &CancelToken::new())
+        .await
         .expect("turn");
 
     let error = sink

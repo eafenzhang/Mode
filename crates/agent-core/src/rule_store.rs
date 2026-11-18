@@ -43,7 +43,10 @@ pub const LOCAL_SETTING_DDL: &str = "CREATE TABLE local_setting (
       )";
 
 /// 规则持久化的消费端。会话只依赖这个 trait；SQLite 实现见 [`SqliteRuleStore`]。
-pub trait RuleStore {
+///
+/// `Send` 上界（LT-1 C1 控制器裁决 1）：[`crate::session::Session`] 持有
+/// `Box<dyn RuleStore>`，turn future 要跨 tokio worker，因此必须 `Send`。
+pub trait RuleStore: Send {
     fn load(&self, scope_id: &str) -> Option<Ruleset>;
     /// 在**单个写事务**里把 `updates` 追加到当前行。
     ///

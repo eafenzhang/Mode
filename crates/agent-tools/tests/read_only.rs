@@ -167,10 +167,12 @@ fn registry_contains_only_read_from_the_read_only_slice() {
         assert_eq!(spec.family, ModeToolFamily::FileWrite);
         assert!(!spec.read_only, "{} 不该是只读的", spec.name);
     }
-    // `Bash`：`shell` 档，但观察到的 `started` 是 `readOnly:true` / `sideEffectScope:"none"`
-    // 且没有发审批请求（spec §3.4）——按观察值登记，不按直觉推断。
+    // `Bash`：`shell` 档，**非只读**——C1 Task 11（F3/F6）按夹具登记：
+    // `scheduled.canRunParallel` 对 Bash 恒为 `false`（Read 才是 `true`），与 `read_only`
+    // 档位一致；`started` 的 `readOnly`/`sideEffectScope` 不取本档位，而是按审批路径
+    // 在会话层决定（安全直通 `true`/`none`，审批后 `false`/`system`，见 `agent-core`）。
     assert_eq!(specs[3].family, ModeToolFamily::Shell);
-    assert!(specs[3].read_only);
+    assert!(!specs[3].read_only);
     // 未注册的三个：Glob / Grep（Task 2 实测）与 ApplyPatch（Task 3 实测）都不在表里。
     for absent in ["Glob", "Grep", "ApplyPatch"] {
         assert!(

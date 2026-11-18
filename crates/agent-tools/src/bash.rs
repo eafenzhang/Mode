@@ -35,7 +35,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{json, Map, Value};
 
 use crate::messages::validation_error;
 use crate::{unimplemented_surface, ToolContext, ToolError, ToolOutcome};
@@ -210,7 +210,20 @@ pub fn invoke_with_control(
             let _ = child.kill();
             let _ = child.wait();
             // 观察：超时同样是 `budgetStrategy:"artifact"`（Bash 的通用预算策略）。
-            return Ok(ToolOutcome::artifact(timeout_content(timeout_ms)));
+            // `perf.detail`（夹具 `bash-timeout`）：`exitCode` 是 143（SIGTERM 的线上取值）、
+            // `timedOut:true`、`status:"timed_out"`；管道没读，`outputBytes` 按观察值 0。
+            return Ok(
+                ToolOutcome::artifact(timeout_content(timeout_ms)).with_detail(command_detail(
+                    &input.command,
+                    CommandDetail {
+                        run_ms: started.elapsed().as_millis() as u64,
+                        no_output_ms: started.elapsed().as_millis() as u64,
+                        exit_code: Some(143),
+                        timed_out: true,
+                        output_bytes: 0,
+                    },
+                )),
+            );
         }
         thread::sleep(Duration::from_millis(20));
     }
@@ -218,13 +231,106 @@ pub fn invoke_with_control(
     let output = child
         .wait_with_output()
         .map_err(|error| unimplemented_surface("bash_wait_failed", error.to_string()))?;
-    let content = normalize_output(&output.stdout, &output.stderr, output.status.code());
+    let run_ms = started.elapsed().as_millis() as u64;
+    let (content, original_bytes) =
+        normalize_output(&output.stdout, &output.stderr, output.status.code());
+    // `perf.detail.command.outputBytes`：**原始**合并输出的字节数（trim 前；夹具
+    // `bash-stdout`：原始 12 = "hello\nworld\n"，正文 trim 后是 11）。
+    let output_bytes = (output.stdout.len() + output.stderr.len()) as u64;
     if content.len() > LARGE_OUTPUT_BYTES {
-        return persist_large_output(content, control).map(ToolOutcome::artifact);
+        let detail = command_detail(
+            &input.command,
+            CommandDetail {
+                run_ms,
+                no_output_ms: run_ms,
+                exit_code: output.status.code(),
+                timed_out: false,
+                output_bytes,
+            },
+        );
+        return persist_large_output(content, control).map(|wrapped| {
+            let mut outcome = ToolOutcome::artifact(wrapped);
+            // 大输出包装的 `originalBytes` 仍是包装后正文的字节数（未观察到别的口径）。
+            outcome.original_bytes = outcome.content.len() as u64;
+            outcome.with_detail(detail)
+        });
     }
     // 观察（probe-bash-threshold）：小输出的 `budgetStrategy` 也是 `"artifact"`，
     // 只是没有 `artifactPath`。别把它当成 `"truncate"`（那是 TaskStop 等工具的取值）。
-    Ok(ToolOutcome::artifact(content))
+    let mut outcome = ToolOutcome::artifact(content);
+    // `bash-empty-output`：`originalBytes` 是 trim 后真实输出的字节数（空 → 0），
+    // `returnedBytes` 是占位文案的长度——占位文案不算原始输出。
+    outcome.original_bytes = original_bytes;
+    Ok(outcome.with_detail(command_detail(
+        &input.command,
+        CommandDetail {
+            run_ms,
+            no_output_ms: run_ms,
+            exit_code: output.status.code(),
+            timed_out: false,
+            output_bytes,
+        },
+    )))
+}
+
+/// `perf.detail.command` 的已测量事实（C1.1-#6 对齐；形状来自行为夹具 bash-* 的录制）。
+struct CommandDetail {
+    run_ms: u64,
+    no_output_ms: u64,
+    exit_code: Option<i32>,
+    timed_out: bool,
+    output_bytes: u64,
+}
+
+/// 组装 `perf.detail`：`{kind:"command", command:{…}}`。
+///
+/// - `category` 恒为 `"other"`（全部已观察命令都如此）；空命令走观察到的**缺省形态**
+///   （探针实测：`category:"empty"` / `count:0` / `name:"empty"` / `status:"completed"`，
+///   且没有 `runMs` / `noOutputMs` / `exitCode` / `timedOut` / `outputBytes` 键）。
+/// - `count` 是 `;` 分段数（夹具 `bash-mixed-streams`：3 段；`bash-output-then-exit-7`：2 段）；
+///   `name` 按观察值映射：多段 `"compound"`、单段 `"other"`、空 `"empty"`。
+/// - `status`：退出 0 且未超时 `"completed"`；超时 `"timed_out"`；其余 `"failed"`。
+/// - **`hash` 不产出**：oracle 录的是命令内容指纹，其算法无法从黑盒观察推导
+///   （探针实测它与 cwd/描述/输出/耗时无关、只随命令文本变化，但 sha256/sha1/md5/blake/
+///   xxh64/fnv/murmur/crc64 及带盐变体均不复现）。按 C1 纪律缺省而不是编一个数，
+///   差异登记在 spec §C1。
+fn command_detail(command: &str, detail: CommandDetail) -> String {
+    let empty = command.trim().is_empty();
+    let count = if empty { 0 } else { command.split(';').count() };
+    let name = if empty {
+        "empty"
+    } else if count > 1 {
+        "compound"
+    } else {
+        "other"
+    };
+    let status = if empty {
+        "completed"
+    } else if detail.timed_out {
+        "timed_out"
+    } else if detail.exit_code == Some(0) {
+        "completed"
+    } else {
+        "failed"
+    };
+    let mut inner = Map::new();
+    if !empty {
+        inner.insert("runMs".to_string(), json!(detail.run_ms));
+        inner.insert("noOutputMs".to_string(), json!(detail.no_output_ms));
+        if let Some(code) = detail.exit_code {
+            inner.insert("exitCode".to_string(), json!(code));
+        }
+        inner.insert("timedOut".to_string(), json!(detail.timed_out));
+        inner.insert("outputBytes".to_string(), json!(detail.output_bytes));
+    }
+    inner.insert(
+        "category".to_string(),
+        json!(if empty { "empty" } else { "other" }),
+    );
+    inner.insert("count".to_string(), json!(count));
+    inner.insert("name".to_string(), json!(name));
+    inner.insert("status".to_string(), json!(status));
+    json!({ "kind": "command", "command": Value::Object(inner) }).to_string()
 }
 
 /// 后台执行：立即登记任务并返回（不等待命令结束）。
@@ -357,13 +463,17 @@ fn timeout_content(timeout_ms: u64) -> String {
 ///
 /// 观察（spec §3.4）：`Exit code N` 是**首行**（有输出时在输出之前）；空输出只在退出码为 0 时
 /// 才用 `(Bash completed with no output)`（`exit 7` 只有 `Exit code 7`）。
-fn normalize_output(stdout: &[u8], stderr: &[u8], code: Option<i32>) -> String {
+///
+/// 返回值里的第二个分量是 `result.originalBytes`：夹具 `bash-empty-output` 的
+/// `originalBytes` 是 **0**（trim 后的真实输出为空），而 `returnedBytes` 是占位文案的长度
+/// （31）——占位文案不算「原始输出」。其余分支两个字节数都等于正文长度。
+fn normalize_output(stdout: &[u8], stderr: &[u8], code: Option<i32>) -> (String, u64) {
     let mut combined = String::from_utf8_lossy(stdout).to_string();
     if !stderr.is_empty() {
         combined.push_str(&String::from_utf8_lossy(stderr));
     }
     let trimmed = combined.trim_end();
-    match code {
+    let content = match code {
         Some(0) if trimmed.is_empty() => EMPTY_OUTPUT.to_string(),
         Some(0) => trimmed.to_string(),
         Some(code) if trimmed.is_empty() => format!("Exit code {code}"),
@@ -371,7 +481,13 @@ fn normalize_output(stdout: &[u8], stderr: &[u8], code: Option<i32>) -> String {
         // 被信号终止（Unix）：oracle 未观察；用 -1 显式暴露，不编一个 shell 风格的数字。
         None if trimmed.is_empty() => "Exit code -1".to_string(),
         None => format!("Exit code -1\n{trimmed}"),
-    }
+    };
+    let original_bytes = if code == Some(0) && trimmed.is_empty() {
+        0
+    } else {
+        content.len() as u64
+    };
+    (content, original_bytes)
 }
 
 fn persist_large_output(content: String, control: &BashControl) -> Result<String, ToolError> {

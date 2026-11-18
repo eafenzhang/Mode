@@ -560,6 +560,33 @@ impl FileState {
             .contains(&resolve(file_path, ctx).to_string_lossy().to_string())
     }
 
+    /// 冷物化恢复：记下一条**成功** `Read` 的路径与（可选）去重键。
+    ///
+    /// `mtime` 来自持久化的 `readFileState.mtimeMs`；缺失时只恢复「本会话碰过这个
+    /// 路径」（Write/Edit 的前置条件），**不**恢复去重键——用当前 mtime 填充会在
+    /// 「文件在会话外被改过、然后又读一次」时错误地给出填充语。
+    pub fn seed_read(
+        &mut self,
+        file_path: &str,
+        offset: Option<i64>,
+        limit: Option<i64>,
+        mtime: Option<std::time::SystemTime>,
+        ctx: &ToolContext,
+    ) {
+        let path = resolve(file_path, ctx).to_string_lossy().to_string();
+        self.known_paths.insert(path.clone());
+        if let Some(mtime) = mtime {
+            self.entries.insert(
+                ReadKey {
+                    path,
+                    offset: offset.unwrap_or(1),
+                    limit,
+                },
+                mtime,
+            );
+        }
+    }
+
     /// 记下「写成功了」：`Write` / `Edit` 成功后该文件也进入「已读」状态（观察：成功文案里的
     /// 「file state is current in your context — no need to Read it back」是这条语义的自述）。
     pub fn record_written(&mut self, file_path: &str, ctx: &ToolContext) {

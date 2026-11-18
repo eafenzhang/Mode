@@ -16,3 +16,5 @@ serde_json.workspace = true
 
 [dev-dependencies]
 agent-protocol = { path = "../agent-protocol" }
+# `#[tokio::test]`：agent-core 的 run_turn 已异步化。
+tokio = { workspace = true, features = ["macros", "rt"] }

@@ -14,6 +14,7 @@ use serde_json::json;
 use agent_core::permission::FramePermissionHandler;
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::session::Session;
+use agent_core::CancelToken;
 use agent_core::{SessionEvent, SessionEventType};
 use agent_protocol::frame::{
     ErrorObject, ErrorResponseFrame, Frame, RequestId, ResponseFrame, ReverseRequestIds,
@@ -77,8 +78,8 @@ fn recv_request(frames: &Receiver<Frame>) -> (RequestId, PermissionRequest) {
     (request.id, parsed)
 }
 
-#[test]
-fn frame_allow_round_trip_lets_the_tool_run() {
+#[tokio::test]
+async fn frame_allow_round_trip_lets_the_tool_run() {
     let dir = temp_dir("allow");
     let path = dir.join("a.txt");
     let (handler, frames, replies) = FramePermissionHandler::pair();
@@ -104,7 +105,9 @@ fn frame_allow_round_trip_lets_the_tool_run() {
             "write it",
             &provider(&[path.to_string_lossy().to_string()]),
             &mut sink,
+            &CancelToken::new(),
         )
+        .await
         .expect("turn 应成功");
 
     let parsed = worker.join().expect("线程不应 panic");
@@ -115,8 +118,8 @@ fn frame_allow_round_trip_lets_the_tool_run() {
     assert!(path.exists(), "allow 后应写入文件");
 }
 
-#[test]
-fn error_frame_fails_closed() {
+#[tokio::test]
+async fn error_frame_fails_closed() {
     let dir = temp_dir("error");
     let path = dir.join("denied.txt");
     let (handler, frames, replies) = FramePermissionHandler::pair();
@@ -142,7 +145,9 @@ fn error_frame_fails_closed() {
             "deny it",
             &provider(&[path.to_string_lossy().to_string()]),
             &mut sink,
+            &CancelToken::new(),
         )
+        .await
         .expect("turn 应成功");
     worker.join().expect("线程不应 panic");
 
@@ -150,8 +155,8 @@ fn error_frame_fails_closed() {
     assert_eq!(tool_kinds(&sink), vec!["scheduled", "batch"]);
 }
 
-#[test]
-fn malformed_result_fails_closed() {
+#[tokio::test]
+async fn malformed_result_fails_closed() {
     let dir = temp_dir("malformed");
     let path = dir.join("malformed.txt");
     let (handler, frames, replies) = FramePermissionHandler::pair();
@@ -173,7 +178,9 @@ fn malformed_result_fails_closed() {
             "deny it",
             &provider(&[path.to_string_lossy().to_string()]),
             &mut sink,
+            &CancelToken::new(),
         )
+        .await
         .expect("turn 应成功");
     worker.join().expect("线程不应 panic");
 
@@ -181,8 +188,8 @@ fn malformed_result_fails_closed() {
     assert_eq!(tool_kinds(&sink), vec!["scheduled", "batch"]);
 }
 
-#[test]
-fn responses_with_other_ids_are_ignored() {
+#[tokio::test]
+async fn responses_with_other_ids_are_ignored() {
     let dir = temp_dir("other-id");
     let path = dir.join("other-id.txt");
     let (handler, frames, replies) = FramePermissionHandler::pair();
@@ -213,7 +220,9 @@ fn responses_with_other_ids_are_ignored() {
             "deny it",
             &provider(&[path.to_string_lossy().to_string()]),
             &mut sink,
+            &CancelToken::new(),
         )
+        .await
         .expect("turn 应成功");
     worker.join().expect("线程不应 panic");
 
@@ -221,8 +230,8 @@ fn responses_with_other_ids_are_ignored() {
     assert_eq!(tool_kinds(&sink), vec!["scheduled", "batch"]);
 }
 
-#[test]
-fn closed_frame_channel_fails_closed() {
+#[tokio::test]
+async fn closed_frame_channel_fails_closed() {
     let dir = temp_dir("closed");
     let path = dir.join("closed.txt");
     let (handler, frames, _replies) = FramePermissionHandler::pair();
@@ -236,15 +245,17 @@ fn closed_frame_channel_fails_closed() {
             "closed",
             &provider(&[path.to_string_lossy().to_string()]),
             &mut sink,
+            &CancelToken::new(),
         )
+        .await
         .expect("turn 应成功，不 panic");
 
     assert!(!path.exists(), "帧通道断开时应按 deny 处理");
     assert_eq!(tool_kinds(&sink), vec!["scheduled", "batch"]);
 }
 
-#[test]
-fn request_ids_are_monotonic_across_a_batch() {
+#[tokio::test]
+async fn request_ids_are_monotonic_across_a_batch() {
     let dir = temp_dir("batch");
     let first = dir.join("first.txt");
     let second = dir.join("second.txt");
@@ -272,7 +283,9 @@ fn request_ids_are_monotonic_across_a_batch() {
                 second.to_string_lossy().to_string(),
             ]),
             &mut sink,
+            &CancelToken::new(),
         )
+        .await
         .expect("turn 应成功");
     worker.join().expect("线程不应 panic");
 
@@ -280,7 +293,7 @@ fn request_ids_are_monotonic_across_a_batch() {
     assert!(second.exists(), "第二条 allow 应写入");
 }
 
-fn run_session(name: &str, dir: &Path, handler: FramePermissionHandler, path: &Path) {
+async fn run_session(name: &str, dir: &Path, handler: FramePermissionHandler, path: &Path) {
     let mut session = Session::new(name, dir.to_string_lossy().to_string())
         .with_permission_handler(Box::new(handler));
     let mut sink = Vec::new();
@@ -289,12 +302,14 @@ fn run_session(name: &str, dir: &Path, handler: FramePermissionHandler, path: &P
             "write it",
             &provider(&[path.to_string_lossy().to_string()]),
             &mut sink,
+            &CancelToken::new(),
         )
+        .await
         .expect("turn 应成功");
 }
 
-#[test]
-fn sessions_share_the_reverse_request_id_space() {
+#[tokio::test]
+async fn sessions_share_the_reverse_request_id_space() {
     let dir = temp_dir("shared-ids");
     let first_path = dir.join("first.txt");
     let second_path = dir.join("second.txt");
@@ -314,7 +329,7 @@ fn sessions_share_the_reverse_request_id_space() {
             )
             .expect("应能回 allow_once");
     });
-    run_session("sess_shared_1", &dir, first_handler, &first_path);
+    run_session("sess_shared_1", &dir, first_handler, &first_path).await;
     first_worker.join().expect("first worker 不应 panic");
 
     let (second_handler, second_frames, second_replies) =
@@ -331,7 +346,7 @@ fn sessions_share_the_reverse_request_id_space() {
             )
             .expect("应能回 allow_once");
     });
-    run_session("sess_shared_2", &dir, second_handler, &second_path);
+    run_session("sess_shared_2", &dir, second_handler, &second_path).await;
     second_worker.join().expect("second worker 不应 panic");
 
     assert!(

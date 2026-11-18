@@ -9,6 +9,7 @@ use serde_json::json;
 use agent_core::plugin_tools::PluginToolSource;
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::session::Session;
+use agent_core::CancelToken;
 use agent_core::{SessionEvent, SessionEventType};
 use agent_protocol::session_event::ToolUpdatedPayload;
 use plugin_host::supervisor::{SidecarSupervisor, SupervisorConfig};
@@ -92,8 +93,8 @@ fn tool_result(events: &[SessionEvent]) -> String {
     panic!("没有工具结果");
 }
 
-#[test]
-fn session_runs_a_plugin_tool_end_to_end() {
+#[tokio::test]
+async fn session_runs_a_plugin_tool_end_to_end() {
     let dir = std::env::temp_dir().join(format!("mode-plugin-adapter-e2e-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("建临时目录");
     let mut session = Session::new("sess_adapter", dir.to_string_lossy().to_string())
@@ -109,7 +110,8 @@ fn session_runs_a_plugin_tool_end_to_end() {
     ]);
     let mut sink = Vec::new();
     session
-        .run_turn("run plugin tool", &provider, &mut sink)
+        .run_turn("run plugin tool", &provider, &mut sink, &CancelToken::new())
+        .await
         .expect("turn 应成功");
     assert_eq!(tool_result(&sink), "e2e");
 }

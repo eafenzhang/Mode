@@ -95,7 +95,7 @@ fn bash_command_battery_matches_the_observed_matrix() {
         assert_risk(command, None);
     }
 
-    const HIGH: [&str; 32] = [
+    const HIGH: [&str; 37] = [
         "echo hi > out.txt",
         "echo hi >> out.txt",
         "echo $(echo hi)",
@@ -128,9 +128,31 @@ fn bash_command_battery_matches_the_observed_matrix() {
         "tee file4 <<< \"hi\"",
         "echo hi &",
         "echo $HOME",
+        // C1 Task 11（F9）的对抗样本：`>&2` 的剔除**不能**把风险段一起放过。
+        "rm -rf / >&2",
+        "echo x >&2 > file",
+        "echo x >&2 >> file",
+        "sleep 1 &",
+        "sleep 1; rm -rf dir1",
     ];
     for command in HIGH {
         assert_risk(command, Some("high"));
+    }
+}
+
+/// C1 Task 11（F9）放宽的正面样本：写 stderr / `sleep` / `;` 复合**不**触发审批；
+/// `>&2` 与 `2>/dev/null` 一样先剔除，其余段仍逐段判定。
+#[test]
+fn stderr_redirect_and_sleep_are_allowlisted_after_the_f9_relaxation() {
+    for command in [
+        "sleep 5",
+        "sleep 3",
+        "printf 'oops\\n' >&2",
+        "printf 'out1\\n'; printf 'err1\\n' >&2; printf 'out2\\n'",
+        "echo hi >&2",
+        "true; sleep 1",
+    ] {
+        assert_risk(command, None);
     }
 }
 

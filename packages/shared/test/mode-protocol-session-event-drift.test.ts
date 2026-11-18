@@ -98,3 +98,52 @@ test("tool.updated/started 信封覆盖 scope 词表边界与缺省兼容", () =
   );
   assert.equal(legacy.type, "tool.updated");
 });
+
+test("permission.requested 信封接受 fullAccessSupported（C1 Task 11 / F5）", () => {
+  // 回归背景三（C1 Task 11）：Rust `agent-server` 的 permission.requested 事件载荷按
+  // oracle 行为夹具携带恒 true 的 fullAccessSupported；Host 侧 strict schema 缺声明会
+  // 把整条事件判成 unrecognized_keys 并丢弃（与上面两族同一类漂移）。
+  const parsed = modeSessionEventSchema.parse(
+    sessionEnvelope("permission.requested", {
+      requestId: "perm_1",
+      toolCallId: "toolu_mock_1_0",
+      toolName: "Write",
+      riskLevel: "medium",
+      reason: "Tool has side effects and requires approval",
+      input: { file_path: "/ws/a.txt", content: "x\n" },
+      fullAccessSupported: true,
+      options: [
+        {
+          optionId: "allow_once",
+          kind: "allow_once",
+          name: "Allow once",
+          response: { decision: "allow", reason: "Approved once" },
+        },
+      ],
+    }),
+  );
+  assert.equal(parsed.type, "permission.requested");
+  const payload = parsed.payload as { fullAccessSupported?: boolean } | undefined;
+  assert.equal(payload?.fullAccessSupported, true);
+
+  // 缺省该键的旧形状（早于该字段的事件）继续可解析。
+  const legacy = modeSessionEventSchema.parse(
+    sessionEnvelope("permission.requested", {
+      requestId: "perm_2",
+      toolCallId: "toolu_mock_1_1",
+      toolName: "Write",
+      riskLevel: "medium",
+      reason: "Tool has side effects and requires approval",
+      input: {},
+      options: [
+        {
+          optionId: "allow_once",
+          kind: "allow_once",
+          name: "Allow once",
+          response: { decision: "allow" },
+        },
+      ],
+    }),
+  );
+  assert.equal(legacy.type, "permission.requested");
+});

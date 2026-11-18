@@ -38,6 +38,8 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -58,6 +60,29 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "agent-server"
+version = "0.1.0"
+dependencies = [
+ "agent-core",
+ "agent-process",
+ "agent-protocol",
+ "indexmap 2.14.2",
+ "model-selection",
+ "provider-config",
+ "provider-config-repository",
+ "provider-config-source",
+ "provider-http",
+ "provider-resolver",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "session-store",
+ "tokio",
+ "uuid",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3640,6 +3665,7 @@ dependencies = [
  "agent-protocol",
  "plugin-host",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -3906,6 +3932,18 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "provider-http"
+version = "0.1.0"
+dependencies = [
+ "agent-core",
+ "futures-util",
+ "reqwest",
+ "rustls",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -4680,6 +4718,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "170fb83ab34de17dc69aa7c67482b22218ddb85da56546f9bd6b929e32a05930"
 dependencies = [
  "stable_deref_trait",
+]
+
+[[package]]
+name = "session-store"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "serde_json",
 ]
 
 [[package]]

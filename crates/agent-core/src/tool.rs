@@ -43,9 +43,30 @@ pub fn invoke(
 ///
 /// `perf.totalMs` 与 `duration` 都是计时字段（spec §3 的时间白名单），由调用方测量后传进来；
 /// 其余字段逐条对应观察到的形状。
-pub fn result_object(outcome: &ToolOutcome, elapsed_ms: u64) -> ToolResultObject {
+///
+/// `perf` 的两个可选键（C1.1-#6 对齐，形状来自行为夹具的录制）：
+/// - `permissionWaitMs`：**只在本次调用真的等过审批**时出现（`bash-exit-7` /
+///   `write-new` 有；`bash-stdout` / `read-single` 没有）；
+/// - `detail`：工具级统计对象，由各工具按观察形状产出（Bash `command` /
+///   Write `filesystem` / Edit `patch`；`Read` 没有）。
+pub fn result_object(
+    outcome: &ToolOutcome,
+    elapsed_ms: u64,
+    permission_wait_ms: Option<u64>,
+) -> ToolResultObject {
+    let mut perf = json!({ "totalMs": elapsed_ms });
+    if let Some(wait_ms) = permission_wait_ms {
+        perf["permissionWaitMs"] = json!(wait_ms);
+    }
+    if let Some(detail) = &outcome.detail_json {
+        // detail 文本由本仓库各工具拼装（`json!` 宏产出），必然是合法 JSON；
+        // 万一坏了就省略 detail 键，不编一个假形状（也不让事件发布路径 panic）。
+        if let Ok(value) = serde_json::from_str::<Value>(detail) {
+            perf["detail"] = value;
+        }
+    }
     let mut extra = ExtraFields::new();
-    extra.insert("perf".to_string(), json!({ "totalMs": elapsed_ms }));
+    extra.insert("perf".to_string(), perf);
     extra.insert("truncated".to_string(), Value::Bool(outcome.truncated));
     extra.insert("originalBytes".to_string(), json!(outcome.original_bytes));
     extra.insert("returnedBytes".to_string(), json!(outcome.returned_bytes));

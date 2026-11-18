@@ -1,0 +1,1069 @@
+{
+  "case": "session-lifecycle-db",
+  "note": "C1 Task 0 oracle 捕获：同一隔离数据根的 db.sqlite 行形状（session/message/part/session_input/session_entry）。JSON 文本列已解析成对象；id/时间/机器路径/工具面已折叠成占位符。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "script": [
+      {
+        "text": "first turn answer"
+      },
+      {
+        "toolCalls": [
+          {
+            "name": "Read",
+            "input": {
+              "file_path": "${cwd}/hello.txt"
+            }
+          }
+        ]
+      },
+      {
+        "text": "second turn answer"
+      }
+    ],
+    "prompts": ["first prompt", "Read hello.txt and summarize"]
+  },
+  "expect": {
+    "tables": {
+      "session": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "project_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "workspace_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "parent_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "slug",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "directory",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "path",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "title",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "version",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "share_url",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "summary_additions",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "summary_deletions",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "summary_files",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "summary_diffs",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "revert",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "permission",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_compacting",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_archived",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "task_type",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "'interactive'"
+          },
+          {
+            "name": "title_source",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "'first_input'"
+          },
+          {
+            "name": "title_message_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_title_updated",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "trace_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 1,
+        "rows": [
+          {
+            "id": "<id>",
+            "project_id": "<project-id>",
+            "workspace_id": null,
+            "parent_id": null,
+            "slug": "<id>",
+            "directory": "<cwd>",
+            "path": "<cwd>",
+            "title": "first prompt",
+            "version": "0.0.0",
+            "share_url": null,
+            "summary_additions": null,
+            "summary_deletions": null,
+            "summary_files": null,
+            "summary_diffs": null,
+            "revert": null,
+            "permission": {
+              "mode": "build"
+            },
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "time_compacting": null,
+            "time_archived": null,
+            "task_type": "interactive",
+            "title_source": "first_input",
+            "title_message_id": null,
+            "time_title_updated": "<time>",
+            "trace_id": "<id>"
+          }
+        ]
+      },
+      "message": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "data",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "sequence",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 6,
+        "rows": [
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "role": "assistant",
+              "time": {
+                "created": "<time>",
+                "completed": "<time>"
+              },
+              "parentID": "<id>",
+              "modelId": "mock-1",
+              "providerId": "oracle-mock",
+              "mode": "build",
+              "planEnabled": false,
+              "agent": "mode-agent",
+              "path": {
+                "cwd": "<cwd>",
+                "root": "<cwd>"
+              },
+              "cost": 0,
+              "tokens": {
+                "input": 0,
+                "output": 0,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              },
+              "finish": "completed",
+              "semantics": {
+                "origin": "system",
+                "kind": "timeline_event",
+                "uiVisibility": "visible",
+                "providerVisibility": "hidden",
+                "transcriptVisibility": "visible"
+              }
+            },
+            "sequence": 0
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "role": "user",
+              "time": {
+                "created": "<time>"
+              },
+              "agent": "mode-agent",
+              "modelSelection": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "options": {
+                  "reasoningLevel": "disabled"
+                }
+              },
+              "contextSnapshot": {
+                "envInfo": {
+                  "cwd": "<cwd>",
+                  "platform": "<platform>",
+                  "shell": "<shell>",
+                  "osVersion": "<os-version>",
+                  "nodeVersion": "<node-version>",
+                  "isGitRepository": false,
+                  "gitStatus": "not_repo"
+                }
+              },
+              "semantics": {
+                "origin": "real_user",
+                "kind": "user_prompt",
+                "uiVisibility": "visible",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "visible"
+              },
+              "anchor": {
+                "turnId": "<id>",
+                "origin": "realUser"
+              },
+              "tools": "<tool-flags>",
+              "model": {
+                "providerID": "oracle-mock",
+                "modelID": "mock-1",
+                "variant": "disabled"
+              }
+            },
+            "sequence": 1
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "role": "assistant",
+              "time": {
+                "created": "<time>",
+                "completed": "<time>"
+              },
+              "parentID": "<id>",
+              "modelId": "mock-1",
+              "providerId": "oracle-mock",
+              "mode": "build",
+              "planEnabled": false,
+              "agent": "mode-agent",
+              "path": {
+                "cwd": "<cwd>",
+                "root": "<cwd>"
+              },
+              "cost": 0,
+              "tokens": {
+                "total": 22,
+                "input": 10,
+                "output": 12,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              },
+              "finish": "stop",
+              "semantics": {
+                "origin": "agent_runtime",
+                "kind": "assistant_response",
+                "uiVisibility": "visible",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "visible"
+              },
+              "anchor": {
+                "turnId": "<id>",
+                "historyRoundCount": 1,
+                "orderedMessageIds": ["<id>", "<id>"],
+                "boundaryMessageId": "<id>",
+                "goalBoundary": {
+                  "kind": "none"
+                }
+              }
+            },
+            "sequence": 2
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "role": "user",
+              "time": {
+                "created": "<time>"
+              },
+              "agent": "mode-agent",
+              "modelSelection": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "options": {
+                  "reasoningLevel": "disabled"
+                }
+              },
+              "contextSnapshot": {
+                "envInfo": {
+                  "cwd": "<cwd>",
+                  "platform": "<platform>",
+                  "shell": "<shell>",
+                  "osVersion": "<os-version>",
+                  "nodeVersion": "<node-version>",
+                  "isGitRepository": false,
+                  "gitStatus": "not_repo"
+                }
+              },
+              "semantics": {
+                "origin": "real_user",
+                "kind": "user_prompt",
+                "uiVisibility": "visible",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "visible"
+              },
+              "anchor": {
+                "turnId": "<id>",
+                "origin": "realUser"
+              },
+              "tools": "<tool-flags>",
+              "model": {
+                "providerID": "oracle-mock",
+                "modelID": "mock-1",
+                "variant": "disabled"
+              }
+            },
+            "sequence": 3
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "role": "assistant",
+              "time": {
+                "created": "<time>",
+                "completed": "<time>"
+              },
+              "parentID": "<id>",
+              "modelId": "mock-1",
+              "providerId": "oracle-mock",
+              "mode": "build",
+              "planEnabled": false,
+              "agent": "mode-agent",
+              "path": {
+                "cwd": "<cwd>",
+                "root": "<cwd>"
+              },
+              "cost": 0,
+              "tokens": {
+                "total": 30,
+                "input": 10,
+                "output": 20,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              },
+              "finish": "tool-calls",
+              "semantics": {
+                "origin": "agent_runtime",
+                "kind": "assistant_response",
+                "uiVisibility": "visible",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "visible"
+              },
+              "anchor": {
+                "turnId": "<id>"
+              }
+            },
+            "sequence": 4
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "role": "assistant",
+              "time": {
+                "created": "<time>",
+                "completed": "<time>"
+              },
+              "parentID": "<id>",
+              "modelId": "mock-1",
+              "providerId": "oracle-mock",
+              "mode": "build",
+              "planEnabled": false,
+              "agent": "mode-agent",
+              "path": {
+                "cwd": "<cwd>",
+                "root": "<cwd>"
+              },
+              "cost": 0,
+              "tokens": {
+                "total": 22,
+                "input": 10,
+                "output": 12,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              },
+              "finish": "stop",
+              "semantics": {
+                "origin": "agent_runtime",
+                "kind": "assistant_response",
+                "uiVisibility": "visible",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "visible"
+              },
+              "anchor": {
+                "turnId": "<id>",
+                "historyRoundCount": 2,
+                "orderedMessageIds": ["<id>", "<id>", "<id>"],
+                "boundaryMessageId": "<id>",
+                "goalBoundary": {
+                  "kind": "none"
+                }
+              }
+            },
+            "sequence": 5
+          }
+        ]
+      },
+      "part": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "message_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "data",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "sequence",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 12,
+        "rows": [
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "timelineType": "model_change",
+              "display": "separator",
+              "status": "completed",
+              "time": {
+                "start": "<time>",
+                "end": "<time>"
+              },
+              "type": "timeline",
+              "toModel": {
+                "providerID": "oracle-mock",
+                "modelID": "mock-1",
+                "label": "oracle-mock/mock-1"
+              },
+              "fromModelSelection": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "options": {
+                  "reasoningLevel": "disabled"
+                },
+                "label": "oracle-mock/mock-1"
+              },
+              "toModelSelection": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "label": "oracle-mock/mock-1"
+              }
+            },
+            "sequence": 0
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "text",
+              "text": "first prompt",
+              "time": {
+                "start": "<time>",
+                "end": "<time>"
+              }
+            },
+            "sequence": 0
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "step-start"
+            },
+            "sequence": 0
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "text",
+              "text": "first turn answer",
+              "time": {
+                "start": "<time>",
+                "end": "<time>"
+              }
+            },
+            "sequence": 1
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "step-finish",
+              "reason": "stop",
+              "cost": 0,
+              "tokens": {
+                "total": 22,
+                "input": 10,
+                "output": 12,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              }
+            },
+            "sequence": 2
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "text",
+              "text": "Read hello.txt and summarize",
+              "time": {
+                "start": "<time>",
+                "end": "<time>"
+              }
+            },
+            "sequence": 0
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "step-start"
+            },
+            "sequence": 0
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "tool",
+              "callID": "<id>",
+              "declarationIndex": 0,
+              "tool": "Read",
+              "state": {
+                "status": "completed",
+                "input": {
+                  "file_path": "<cwd>/hello.txt"
+                },
+                "output": "1\thello\n2\t",
+                "title": "Read",
+                "metadata": {
+                  "schemaVersion": 1,
+                  "serialization": {
+                    "truncated": false,
+                    "originalBytes": 10,
+                    "returnedBytes": 10,
+                    "budgetStrategy": "truncate"
+                  },
+                  "readFileState": {
+                    "schemaVersion": 1,
+                    "tool": "Read",
+                    "path": "<cwd>\\hello.txt",
+                    "content": "hello\n",
+                    "isPartialView": false,
+                    "readAtMs": "<time>",
+                    "revisionId": "<revision>",
+                    "mtimeMs": "<time>",
+                    "sizeBytes": 6
+                  }
+                },
+                "time": {
+                  "start": "<time>",
+                  "end": "<time>"
+                }
+              }
+            },
+            "sequence": 1
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "step-finish",
+              "reason": "tool-calls",
+              "cost": 0,
+              "tokens": {
+                "total": 30,
+                "input": 10,
+                "output": 20,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              }
+            },
+            "sequence": 2
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "step-start"
+            },
+            "sequence": 0
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "text",
+              "text": "second turn answer",
+              "time": {
+                "start": "<time>",
+                "end": "<time>"
+              }
+            },
+            "sequence": 1
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "step-finish",
+              "reason": "stop",
+              "cost": 0,
+              "tokens": {
+                "total": 22,
+                "input": 10,
+                "output": 12,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              }
+            },
+            "sequence": 2
+          }
+        ]
+      },
+      "session_input": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "kind",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "delivery",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "payload",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "admitted_sequence",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "promoted_sequence",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "promoted_message_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status_reason",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 0,
+        "rows": []
+      },
+      "session_entry": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "type",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "data",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 3,
+        "rows": [
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "type": "runtime/model_selection",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "modelSelection": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "options": {
+                  "reasoningLevel": "disabled"
+                }
+              }
+            }
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "type": "runtime/bash_shell_selection",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "dialect": "<shell-dialect>",
+              "display": {
+                "name": "<shell-name>"
+              },
+              "id": "<id>",
+              "label": "<shell-label>",
+              "path": "<bash-path>",
+              "source": "auto-detected"
+            }
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "type": "runtime/execution_state",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "mode": "build",
+              "planEnabled": false
+            }
+          }
+        ]
+      }
+    }
+  }
+}
