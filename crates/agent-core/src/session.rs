@@ -68,8 +68,8 @@ use crate::cancel::CancelToken;
 use crate::permission::{AutoAllow, PermissionHandler, DENY_REASON};
 use crate::plugin_tools::{PluginToolDeclaration, PluginToolSource};
 use crate::provider::{
-    ModelCapabilities, ModelDelta, ModelMessage, ModelProvider, ModelResponse, ModelUsage,
-    ProviderError,
+    ModelCapabilities, ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse,
+    ModelUsage, ProviderError,
 };
 use crate::rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
 use crate::stream::{EventSink, TurnError};
@@ -137,6 +137,10 @@ pub struct Session {
     /// 本批被拒绝（deny/timeout/closed）的调用 → 宿主给的拒绝原因。工具批次结束后
     /// 模型历史要补 tool result（最终评审 C4）。
     denied_tool_results: HashMap<String, String>,
+    /// 本 turn 的项目记忆段（C2 T3）：宿主偏好 `memoryEnabled` 开启且记忆目录可读时
+    /// 由运行时每 turn 注入（[`Session::set_memory`]）；`None` = 不注入（与 C1 逐字
+    /// 一致）。读取与 fail-soft 全在 `agent-server` 侧，本结构只持有装配事实。
+    memory: Option<crate::context::MemorySection>,
 }
 
 impl Session {
@@ -166,6 +170,7 @@ impl Session {
             prior_tool_history: false,
             used_turn_ids: BTreeSet::new(),
             denied_tool_results: HashMap::new(),
+            memory: None,
         }
     }
 
@@ -205,6 +210,12 @@ impl Session {
     /// 就地更新模式（`session/setMode` 后由 worker 在下个 turn 前应用）。
     pub fn set_mode(&mut self, mode: impl Into<String>) {
         self.mode = mode.into();
+    }
+
+    /// 就地更新本 turn 的项目记忆段（C2 T3）：运行时在每 turn 开始前按宿主偏好
+    /// `memoryEnabled` 读取并传入；`None` = 关闭或 fail-soft（不注入）。
+    pub fn set_memory(&mut self, memory: Option<crate::context::MemorySection>) {
+        self.memory = memory;
     }
 
     /// 就地更新模型能力（`session/setModel` 后由 worker 在下个 turn 前应用）。
@@ -416,6 +427,28 @@ impl Session {
     /// - `inputId`：**不产出**（行为夹具的 `turn.started` 里没有这个键；
     ///   `session-lifecycle-events.json` 同样没有）。
     pub fn begin_turn(&mut self, prompt: &str) -> SessionEvent {
+        self.begin_turn_inner(prompt, None, false)
+    }
+
+    /// 开一个 compact turn（C2 T2；观察形状 `agent-c2-contract.md` §1.2）。
+    ///
+    /// 与 [`Self::begin_turn`] 的差异（按 compact 夹具的 `turn.started` 载荷逐键对齐）：
+    /// - 载荷只有 `turnNumber` / `input` / `inputId` / `inputVisibility` 四个键：
+    ///   `executionStartedAt`、`queryId`、`messageId`、`foregroundExecutionId` 都**不**产出；
+    /// - `input` 是 `"/compact"` 或 `"/compact <instructions>"`；
+    /// - `inputVisibility` 固定 `"model-only"`（观察值）。
+    pub fn begin_compact_turn(&mut self, input: &str, input_id: &str) -> SessionEvent {
+        self.begin_turn_inner(input, Some(input_id), true)
+    }
+
+    /// `begin_turn` / `begin_compact_turn` 的共用实现（turn id 分配与 `cacheStats`
+    /// 采样只有一份，避免两条路径漂移）。
+    fn begin_turn_inner(
+        &mut self,
+        prompt: &str,
+        input_id: Option<&str>,
+        compact: bool,
+    ) -> SessionEvent {
         // 观察值（spec §3.5）：第一个 turn 的 `turnNumber` 是 **0**，之后逐次 +1。
         // 冷物化时计数器已由持久化最大 turn 号 +1 初始化；这里再跳过已存在的 id，
         // 保证 resume/重启后不会复用旧 `turn_N`（`turn_usage` 主键冲突，最终评审 C3）。
@@ -435,17 +468,49 @@ impl Session {
             .iter()
             .any(|message| matches!(message, ModelMessage::ToolResult { .. }));
         let payload = TurnStartedPayload {
-            // 观察值：`executionStartedAt` 是小数毫秒。
-            execution_started_at: Some(now_ms() as f64),
+            // 观察值：`executionStartedAt` 是小数毫秒（compact 的 turn.started 没有该键）。
+            execution_started_at: (!compact).then(|| now_ms() as f64),
             turn_number,
             input: prompt.to_string(),
-            input_id: None,
-            query_id: Some(new_uuid()),
-            message_id: Some(new_uuid()),
-            foreground_execution_id: Some(format!("runtime_command_{}", turn_number + 1)),
-            extra: ExtraFields::new(),
+            input_id: input_id.map(str::to_owned),
+            query_id: (!compact).then(new_uuid),
+            message_id: (!compact).then(new_uuid),
+            foreground_execution_id: (!compact)
+                .then(|| format!("runtime_command_{}", turn_number + 1)),
+            extra: if compact {
+                let mut extra = ExtraFields::new();
+                extra.insert(
+                    "inputVisibility".to_string(),
+                    serde_json::json!("model-only"),
+                );
+                extra
+            } else {
+                ExtraFields::new()
+            },
         };
         self.emit(Some(&turn_id), SessionEventType::TurnStarted, &payload)
+    }
+
+    /// 替换模型视角的历史（compact 成功后只保留摘要续接消息；DB 行不动）。
+    pub fn replace_history(&mut self, messages: Vec<ModelMessage>) {
+        self.messages = messages;
+    }
+
+    /// 按当前会话事实装配一次模型请求（系统提示 / 工具 / 能力取自本会话）。
+    ///
+    /// compact 路径用它在**不追加事件**的前提下构造摘要请求；正常 turn 仍走
+    /// [`crate::context::build_model_request`] 的内联装配（行为不变）。compact 请求
+    /// **不带**项目记忆段（T0 没有观察到带记忆的 compact 请求；`memory: None` 与
+    /// C2 T2 的行为逐字一致，偏差登记在 `agent-c2-contract.md` §3.5）。
+    pub fn build_request(&self, messages: &[ModelMessage]) -> ModelRequest {
+        crate::context::build_model_request(&crate::context::ContextInput {
+            cwd: &self.cwd,
+            mode: &self.mode,
+            tools: &self.tools(),
+            messages,
+            model: &self.model_capabilities,
+            memory: None,
+        })
     }
 
     /// 跑完一个完整 turn：模型流 →（可选）工具批次 → 终态。
@@ -515,6 +580,7 @@ impl Session {
                 tools: &self.tools(),
                 messages: &self.messages,
                 model: &self.model_capabilities,
+                memory: self.memory.as_ref(),
             };
             let request = crate::context::build_model_request(&context_input);
 
@@ -1419,7 +1485,10 @@ impl Session {
     /// `eventId` 用单调 id 而不是 uuid：spec §3 把 `eventId` 归一成 `<id>`，它的真实形态不是
     /// 被对拍的行为，单调 id 反而让用例可以断言。`traceId` 留空（追踪 id 由模型/会话层给）。
     /// `turn_id` 为 `None` 时信封省略 `turnId`（turn 尚未开始就失败的场景）。
-    fn emit<T: Serialize>(
+    ///
+    /// 公开给宿主（`agent-server`）：compact turn 的终态事件由宿主在落库之后构造并
+    /// 发布（C2 T2），seq/信封仍归 [`Session`] 单调分配，不出现第二套编号。
+    pub fn emit<T: Serialize>(
         &mut self,
         turn_id: Option<&str>,
         event_type: SessionEventType,

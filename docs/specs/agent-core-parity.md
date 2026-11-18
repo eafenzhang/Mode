@@ -127,7 +127,7 @@ sequenceDiagram
 | 检查点                  | 交付                                                                                                                                                                   | 明确不做                                                                                                             |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | **C1 最小闭环**（已完成 2026-11-17） | `agent-server` + OpenAI Chat Completions + `session-store`（已有数据根）+ 6 个工具 + 权限 + create/send/subscribe/read/messages/list/close/resume + setter + 切换/回滚 | MCP/Skills/Plugins/Subagents/Workflows/附件/v4 帧；compact/memory/goal；Anthropic/Responses；fresh-install migration |
-| **C2 上下文/记忆/压缩** | 上下文装配、compact、memory、token 预算、会话快照齐全；Anthropic Messages / OpenAI Responses                                                                           | 生态面                                                                                                               |
+| **C2 上下文/记忆/压缩**（已完成 2026-11-18） | 上下文装配、compact、memory、token 预算、会话快照齐全；Anthropic Messages / OpenAI Responses；C2 夹具回放 9/9 全绿（T8 对拍 harness），差异登记见 `tauri-agent-runtime.md` §C2.8 | 生态面；自动 compact 阈值（未观察）；memory 写路径（extraction 子代理，未观察）                                     |
 | **C3 恢复/目标/故障**   | stream recovery、retry、goal/target、后台通知、子代理基础面、终态收口                                                                                                  | 生态面                                                                                                               |
 | **C4 生态与默认翻转**   | MCP/Skills/Plugins/Subagents/Workflows/附件/v4；20 任务；默认 Rust；Node 仅显式回退                                                                                    | 新功能                                                                                                               |
 
@@ -150,7 +150,7 @@ C1 必须实现：
 | `session/close`                                    | 关闭 runtime；`persistence` 语义按参数；不删除事实                                                                   |
 | `session/resume`                                   | 冷会话恢复为活跃 runtime；返回快照                                                                                   |
 | `session/setModel` / `setThoughtLevel` / `setMode` | 更新 runtime 设置并返回快照；`persistAsWorkspaceLastUsed` 按协议省略/下发                                            |
-| `session/compact`                                  | C2；C1 返回 `unsupported_method`（显式）                                                                             |
+| `session/compact`                                  | C2 已实现：异步受理（`{response:"", snapshot, compact:{state:"accepted"|"already_running", inputId}}`）；`expectedRevision` 冲突 `-32009`、prompt 运行中 `-32010`；并发第二单 `already_running` / 排队后 `accepted→skipped`；失败异步 `turn.failed`（契约 §1）。 |
 | `session/goal`                                     | C3；C1 返回 `unsupported_method`（显式）                                                                             |
 
 未知方法统一 `-32601 Method not found`，频道 facade 映射为 `unsupported_method`；
@@ -269,6 +269,25 @@ accepted → turn.started → model.streaming×N
 - compact：阈值 = `contextWindow - maxOutputTokens` 的可配置比例；摘要落
   `session_entry`/`message` 投影；compact 失败不阻断下一轮，但必须可见。
 - memory recall/write：只在 `memoryEnabled` 时启用；写入失败 fail-soft，不污染 turn。
+
+**C2 交付状态（2026-11-18，T1–T8）**：按机器录制契约
+`agent-c2-contract.md`（T0 oracle 观察）实现并对拍——
+
+- compact（T2a/T2b）：`session/compact` 异步受理、`already_running` / 排队后
+  `accepted→skipped` 两分支、provider 失败行、resume 边界（最后一条 completed
+  compaction）；**自动 compact 未实现**（T0 未观察到触发，不启用阈值）——上面
+  「阈值 = contextWindow − maxOutputTokens」的设想未被观察支持，登记为未实现项。
+- memory（T3）：只读召回（`# Memory` 系统段 + 首条 user agentsMd 索引块，逐字重建自
+  夹具）；写路径（extraction 子代理）未实现——T0 只观察到请求形状，没有真实写入的
+  观察；fail-soft 失败线上静默（诊断面 `last_memory_error`）。
+- 快照/读面（T6）：顶层 9 键、`settings.model.available` 目录投影、
+  `contextUsage`（无 breakdown）、slashCommands builtin 4 条；四处登记缺省
+  （create `stateRevision=0`、resume `eventSeq=0`、`deliveryKind`、breakdown）。
+- fresh-install（T7）：22 条账本 + 69 条 sqlite_master 逐字节对齐；单步 SQL 切分
+  不可观察（no-op 占位登记）。
+- 对拍（T8）：C2 夹具回放 9/9 全绿（`replay-c2.mts`）；DB 层新发现的 C1 时代未对齐面
+  （prompt turn 行字段、per-turn model_usage、会话 timeline 行、session_entry 第三行、
+  title 三列）登记在 `tauri-agent-runtime.md` §C2.8「DB 层未对齐面」。
 
 ### 5.8 流恢复、目标、故障（C3）
 

@@ -1,0 +1,2510 @@
+{
+  "case": "compact-provider-empty",
+  "note": "C2 Task 0 oracle 捕获：compact 模型请求被 mock provider 回成空 toolCalls（无文本）；session/compact 先 accepted，随后异步 turn.failed（MODEL_ERROR，retryable=true）。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "prompts": ["first prompt", "second prompt"],
+    "compactMarker": "Respond with TEXT ONLY"
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages", "/v1/messages", "/v1/messages"]
+    },
+    "mode": "empty",
+    "compactResponse": {
+      "response": "",
+      "compact": {
+        "state": "accepted",
+        "inputId": "<id>"
+      },
+      "snapshotRuntime": {
+        "deliveryKind": "desktop-continuous",
+        "eventSeq": 15,
+        "pendingRequestIds": [],
+        "contextUsage": {
+          "cache": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 2,
+            "totalInputTokens": 20,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "cost": null,
+          "size": 200000,
+          "used": 22,
+          "breakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ]
+        },
+        "goalVerifications": [],
+        "goalVerificationTimeline": [],
+        "stateRevision": 7
+      }
+    },
+    "events": [
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "turnNumber": 2,
+          "input": "/compact",
+          "inputId": "<id>",
+          "inputVisibility": "model-only"
+        },
+        "seq": 16,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.started"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "operationId": "<id>",
+          "messageId": "<id>",
+          "partId": "<part-id>",
+          "status": "started",
+          "trigger": "manual",
+          "phase": "standalone_turn",
+          "compactReason": "user_requested",
+          "display": "separator",
+          "preCompactTokenCount": 2720,
+          "sourceCommandId": "input_compact_empty",
+          "startedAt": "<time>"
+        },
+        "seq": 17,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "messageCount": 10,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>"
+        },
+        "seq": 18,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "compact",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "context_compaction",
+            "actorKind": "system",
+            "attributes": {
+              "compactionOuterAttempt": 1,
+              "compactionTrigger": "manual"
+            },
+            "operationId": "<id>",
+            "callCause": "initial",
+            "logicalCallId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            }
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 19,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "compact",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "context_compaction",
+            "actorKind": "system",
+            "attributes": {
+              "compactionOuterAttempt": 1,
+              "compactionTrigger": "manual"
+            },
+            "operationId": "<id>",
+            "callCause": "initial",
+            "logicalCallId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            }
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": false,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 20,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "operationId": "<id>",
+          "messageId": "<id>",
+          "partId": "<part-id>",
+          "status": "failed",
+          "trigger": "manual",
+          "phase": "standalone_turn",
+          "compactReason": "user_requested",
+          "display": "separator",
+          "preCompactTokenCount": 2720,
+          "sourceCommandId": "input_compact_empty",
+          "startedAt": "<time>",
+          "replace": true,
+          "reason": "model_error",
+          "attempt": 1,
+          "endedAt": "<time>"
+        },
+        "seq": 21,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "error": {
+            "type": "unknown_error",
+            "attribution": {
+              "retryable": true
+            },
+            "code": "MODEL_ERROR",
+            "message": "Failed to generate compact summary",
+            "detail": "Compact failed",
+            "underlyingErrorMessage": "Failed to generate compact summary"
+          },
+          "turnPhase": "compact",
+          "inputId": "<id>"
+        },
+        "seq": 22,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.failed"
+      }
+    ],
+    "eventTypes": [
+      "turn.started",
+      "session.updated",
+      "session.updated",
+      "session.updated",
+      "session.updated",
+      "session.updated",
+      "turn.failed"
+    ],
+    "failureEvent": {
+      "deliveryKind": "desktop-continuous",
+      "eventId": "<id>",
+      "payload": {
+        "error": {
+          "type": "unknown_error",
+          "attribution": {
+            "retryable": true
+          },
+          "code": "MODEL_ERROR",
+          "message": "Failed to generate compact summary",
+          "detail": "Compact failed",
+          "underlyingErrorMessage": "Failed to generate compact summary"
+        },
+        "turnPhase": "compact",
+        "inputId": "<id>"
+      },
+      "seq": 22,
+      "sessionId": "<id>",
+      "timestamp": "<time>",
+      "traceId": "<id>",
+      "turnId": "<id>",
+      "type": "turn.failed"
+    },
+    "dbBefore": {
+      "messages": 5,
+      "compactSummaryMessages": 0,
+      "compactionParts": 0,
+      "failedTimelineMessages": 0
+    },
+    "dbAfter": {
+      "messages": 6,
+      "compactSummaryMessages": 0,
+      "compactionParts": 1,
+      "failedTimelineMessages": 1
+    },
+    "dbAfterRows": {
+      "session": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "project_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "workspace_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "parent_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "slug",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "directory",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "path",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "title",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "version",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "share_url",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "summary_additions",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "summary_deletions",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "summary_files",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "summary_diffs",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "revert",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "permission",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_compacting",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_archived",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "task_type",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "'interactive'"
+          },
+          {
+            "name": "title_source",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "'first_input'"
+          },
+          {
+            "name": "title_message_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_title_updated",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "trace_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 1,
+        "rows": [
+          {
+            "id": "<id>",
+            "project_id": "<project-id>",
+            "workspace_id": null,
+            "parent_id": null,
+            "slug": "<id>",
+            "directory": "<cwd>",
+            "path": "<cwd>",
+            "title": "first prompt",
+            "version": "0.0.0",
+            "share_url": null,
+            "summary_additions": null,
+            "summary_deletions": null,
+            "summary_files": null,
+            "summary_diffs": null,
+            "revert": null,
+            "permission": {
+              "mode": "build"
+            },
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "time_compacting": null,
+            "time_archived": null,
+            "task_type": "interactive",
+            "title_source": "first_input",
+            "title_message_id": null,
+            "time_title_updated": "<time>",
+            "trace_id": "<id>"
+          }
+        ]
+      },
+      "message": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "data",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "sequence",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 6,
+        "rows": [
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "role": "assistant",
+              "time": {
+                "created": "<time>",
+                "completed": "<time>"
+              },
+              "parentID": "<id>",
+              "modelId": "mock-1",
+              "providerId": "oracle-mock",
+              "mode": "build",
+              "planEnabled": false,
+              "agent": "mode-agent",
+              "path": {
+                "cwd": "<cwd>",
+                "root": "<cwd>"
+              },
+              "cost": 0,
+              "tokens": {
+                "input": 0,
+                "output": 0,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              },
+              "finish": "completed",
+              "semantics": {
+                "origin": "system",
+                "kind": "timeline_event",
+                "uiVisibility": "visible",
+                "providerVisibility": "hidden",
+                "transcriptVisibility": "visible"
+              }
+            },
+            "sequence": 0
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "role": "user",
+              "time": {
+                "created": "<time>"
+              },
+              "agent": "mode-agent",
+              "modelSelection": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "options": {
+                  "reasoningLevel": "disabled"
+                }
+              },
+              "contextSnapshot": {
+                "envInfo": {
+                  "cwd": "<cwd>",
+                  "platform": "<platform>",
+                  "shell": "<shell>",
+                  "osVersion": "<os-version>",
+                  "nodeVersion": "<node-version>",
+                  "isGitRepository": false,
+                  "gitStatus": "not_repo"
+                }
+              },
+              "semantics": {
+                "origin": "real_user",
+                "kind": "user_prompt",
+                "uiVisibility": "visible",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "visible"
+              },
+              "anchor": {
+                "turnId": "<id>",
+                "origin": "realUser"
+              },
+              "tools": "<tool-flags>",
+              "model": {
+                "providerID": "oracle-mock",
+                "modelID": "mock-1",
+                "variant": "disabled"
+              }
+            },
+            "sequence": 1
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "role": "assistant",
+              "time": {
+                "created": "<time>",
+                "completed": "<time>"
+              },
+              "parentID": "<id>",
+              "modelId": "mock-1",
+              "providerId": "oracle-mock",
+              "mode": "build",
+              "planEnabled": false,
+              "agent": "mode-agent",
+              "path": {
+                "cwd": "<cwd>",
+                "root": "<cwd>"
+              },
+              "cost": 0,
+              "tokens": {
+                "total": 22,
+                "input": 10,
+                "output": 12,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              },
+              "finish": "stop",
+              "semantics": {
+                "origin": "agent_runtime",
+                "kind": "assistant_response",
+                "uiVisibility": "visible",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "visible"
+              },
+              "anchor": {
+                "turnId": "<id>",
+                "historyRoundCount": 1,
+                "orderedMessageIds": ["<id>", "<id>"],
+                "boundaryMessageId": "<id>",
+                "goalBoundary": {
+                  "kind": "none"
+                }
+              }
+            },
+            "sequence": 2
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "role": "user",
+              "time": {
+                "created": "<time>"
+              },
+              "agent": "mode-agent",
+              "modelSelection": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "options": {
+                  "reasoningLevel": "disabled"
+                }
+              },
+              "contextSnapshot": {
+                "envInfo": {
+                  "cwd": "<cwd>",
+                  "platform": "<platform>",
+                  "shell": "<shell>",
+                  "osVersion": "<os-version>",
+                  "nodeVersion": "<node-version>",
+                  "isGitRepository": false,
+                  "gitStatus": "not_repo"
+                }
+              },
+              "semantics": {
+                "origin": "real_user",
+                "kind": "user_prompt",
+                "uiVisibility": "visible",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "visible"
+              },
+              "anchor": {
+                "turnId": "<id>",
+                "origin": "realUser"
+              },
+              "tools": "<tool-flags>",
+              "model": {
+                "providerID": "oracle-mock",
+                "modelID": "mock-1",
+                "variant": "disabled"
+              }
+            },
+            "sequence": 3
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "role": "assistant",
+              "time": {
+                "created": "<time>",
+                "completed": "<time>"
+              },
+              "parentID": "<id>",
+              "modelId": "mock-1",
+              "providerId": "oracle-mock",
+              "mode": "build",
+              "planEnabled": false,
+              "agent": "mode-agent",
+              "path": {
+                "cwd": "<cwd>",
+                "root": "<cwd>"
+              },
+              "cost": 0,
+              "tokens": {
+                "total": 22,
+                "input": 10,
+                "output": 12,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              },
+              "finish": "stop",
+              "semantics": {
+                "origin": "agent_runtime",
+                "kind": "assistant_response",
+                "uiVisibility": "visible",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "visible"
+              },
+              "anchor": {
+                "turnId": "<id>",
+                "historyRoundCount": 1,
+                "orderedMessageIds": ["<id>", "<id>"],
+                "boundaryMessageId": "<id>",
+                "goalBoundary": {
+                  "kind": "none"
+                }
+              }
+            },
+            "sequence": 4
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "role": "assistant",
+              "time": {
+                "created": "<time>",
+                "completed": "<time>"
+              },
+              "parentID": "<id>",
+              "modelId": "mock-1",
+              "providerId": "oracle-mock",
+              "mode": "build",
+              "planEnabled": false,
+              "agent": "mode-agent",
+              "path": {
+                "cwd": "<cwd>",
+                "root": "<cwd>"
+              },
+              "cost": 0,
+              "tokens": {
+                "input": 0,
+                "output": 0,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              },
+              "finish": "failed",
+              "semantics": {
+                "origin": "system",
+                "kind": "timeline_event",
+                "uiVisibility": "visible",
+                "providerVisibility": "hidden",
+                "transcriptVisibility": "visible"
+              }
+            },
+            "sequence": 5
+          }
+        ]
+      },
+      "part": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "message_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "data",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "sequence",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 11,
+        "rows": [
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "timelineType": "model_change",
+              "display": "separator",
+              "status": "completed",
+              "time": {
+                "start": "<time>",
+                "end": "<time>"
+              },
+              "type": "timeline",
+              "toModel": {
+                "providerID": "oracle-mock",
+                "modelID": "mock-1",
+                "label": "oracle-mock/mock-1"
+              },
+              "fromModelSelection": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "options": {
+                  "reasoningLevel": "disabled"
+                },
+                "label": "oracle-mock/mock-1"
+              },
+              "toModelSelection": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "label": "oracle-mock/mock-1"
+              }
+            },
+            "sequence": 0,
+            "messageSequence": 0
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "text",
+              "text": "first prompt",
+              "time": {
+                "start": "<time>",
+                "end": "<time>"
+              }
+            },
+            "sequence": 0,
+            "messageSequence": 1
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "step-start"
+            },
+            "sequence": 0,
+            "messageSequence": 2
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "text",
+              "text": "normal turn answer",
+              "time": {
+                "start": "<time>",
+                "end": "<time>"
+              }
+            },
+            "sequence": 1,
+            "messageSequence": 2
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "step-finish",
+              "reason": "stop",
+              "cost": 0,
+              "tokens": {
+                "total": 22,
+                "input": 10,
+                "output": 12,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              }
+            },
+            "sequence": 2,
+            "messageSequence": 2
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "text",
+              "text": "second prompt",
+              "time": {
+                "start": "<time>",
+                "end": "<time>"
+              }
+            },
+            "sequence": 0,
+            "messageSequence": 3
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "step-start"
+            },
+            "sequence": 0,
+            "messageSequence": 4
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "text",
+              "text": "normal turn answer",
+              "time": {
+                "start": "<time>",
+                "end": "<time>"
+              }
+            },
+            "sequence": 1,
+            "messageSequence": 4
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "step-finish",
+              "reason": "stop",
+              "cost": 0,
+              "tokens": {
+                "total": 22,
+                "input": 10,
+                "output": 12,
+                "reasoning": 0,
+                "cache": {
+                  "read": 0,
+                  "write": 0
+                }
+              }
+            },
+            "sequence": 2,
+            "messageSequence": 4
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "timelineType": "context_compaction",
+              "display": "separator",
+              "status": "failed",
+              "operationId": "<id>",
+              "sourceCommandId": "input_compact_empty",
+              "trigger": "manual",
+              "phase": "standalone_turn",
+              "compactReason": "user_requested",
+              "preCompactTokenCount": 2720,
+              "attempt": 1,
+              "reason": "model_error",
+              "time": {
+                "start": "<time>",
+                "end": "<time>"
+              },
+              "type": "timeline"
+            },
+            "sequence": 0,
+            "messageSequence": 5
+          },
+          {
+            "id": "<id>",
+            "message_id": "<id>",
+            "session_id": "<id>",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "type": "compaction",
+              "auto": false,
+              "trigger": "manual",
+              "phase": "standalone_turn",
+              "compactReason": "user_requested",
+              "operationId": "<id>",
+              "timelineStatus": "failed",
+              "timelineDisplay": "separator",
+              "replace": true,
+              "reason": "model_error",
+              "attempt": 1,
+              "preCompactTokenCount": 2720,
+              "time": {
+                "start": "<time>",
+                "end": "<time>"
+              }
+            },
+            "sequence": 1,
+            "messageSequence": 5
+          }
+        ]
+      },
+      "session_input": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "kind",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "delivery",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "payload",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "admitted_sequence",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "promoted_sequence",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "promoted_message_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status_reason",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 0,
+        "rows": []
+      },
+      "session_entry": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "type",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "data",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 3,
+        "rows": [
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "type": "runtime/model_selection",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "modelSelection": {
+                "providerId": "oracle-mock",
+                "modelId": "mock-1",
+                "options": {
+                  "reasoningLevel": "disabled"
+                }
+              }
+            }
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "type": "runtime/bash_shell_selection",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "dialect": "<shell-dialect>",
+              "display": {
+                "name": "<shell-name>"
+              },
+              "id": "<id>",
+              "label": "<shell-label>",
+              "path": "<bash-path>",
+              "source": "auto-detected"
+            }
+          },
+          {
+            "id": "<id>",
+            "session_id": "<id>",
+            "type": "runtime/execution_state",
+            "time_created": "<time>",
+            "time_updated": "<time>",
+            "data": {
+              "mode": "build",
+              "planEnabled": false
+            }
+          }
+        ]
+      },
+      "tool_usage": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "turn_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "trace_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "tool_call_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "tool_name",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "side_effect_scope",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "read_only",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "destructive",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "approval_status",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "started_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "first_output_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "completed_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "duration_ms",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_to_first_output_ms",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "exit_code",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "output_bytes",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "stdout_bytes",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "stderr_bytes",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "truncated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "retry_count",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "retryable",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "cancelled_by_user",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "error_type",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "error_code",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "error_message",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 0,
+        "rows": []
+      },
+      "turn_usage": {
+        "columns": [
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "turn_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 2,
+            "defaultValue": null
+          },
+          {
+            "name": "trace_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "user_message_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "started_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "first_model_start_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "first_token_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "completed_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "duration_ms",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_to_first_token_ms",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "model_request_count",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "model_retry_count",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "tool_call_count",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "tool_error_count",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "input_tokens",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "output_tokens",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "reasoning_tokens",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "cache_creation_input_tokens",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "cache_read_input_tokens",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "computed_total_tokens",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "retryable",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "cancelled_by_user",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "context_exceeded",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "error_type",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "error_code",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 3,
+        "rows": [
+          {
+            "session_id": "<id>",
+            "turn_id": "<id>",
+            "trace_id": "<id>",
+            "user_message_id": "<id>",
+            "status": "completed",
+            "started_at": "<time>",
+            "first_model_start_at": "<time>",
+            "first_token_at": "<time>",
+            "completed_at": "<time>",
+            "duration_ms": "<time>",
+            "time_to_first_token_ms": "<time>",
+            "model_request_count": 1,
+            "model_retry_count": 0,
+            "tool_call_count": 0,
+            "tool_error_count": 0,
+            "input_tokens": 10,
+            "output_tokens": 12,
+            "reasoning_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "computed_total_tokens": 22,
+            "retryable": 0,
+            "cancelled_by_user": 0,
+            "context_exceeded": 0,
+            "error_type": null,
+            "error_code": null
+          },
+          {
+            "session_id": "<id>",
+            "turn_id": "<id>",
+            "trace_id": "<id>",
+            "user_message_id": "<id>",
+            "status": "completed",
+            "started_at": "<time>",
+            "first_model_start_at": "<time>",
+            "first_token_at": "<time>",
+            "completed_at": "<time>",
+            "duration_ms": "<time>",
+            "time_to_first_token_ms": "<time>",
+            "model_request_count": 1,
+            "model_retry_count": 0,
+            "tool_call_count": 0,
+            "tool_error_count": 0,
+            "input_tokens": 10,
+            "output_tokens": 12,
+            "reasoning_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "computed_total_tokens": 22,
+            "retryable": 0,
+            "cancelled_by_user": 0,
+            "context_exceeded": 0,
+            "error_type": null,
+            "error_code": null
+          },
+          {
+            "session_id": "<id>",
+            "turn_id": "<id>",
+            "trace_id": "<id>",
+            "user_message_id": null,
+            "status": "error",
+            "started_at": "<time>",
+            "first_model_start_at": "<time>",
+            "first_token_at": null,
+            "completed_at": "<time>",
+            "duration_ms": "<time>",
+            "time_to_first_token_ms": null,
+            "model_request_count": 1,
+            "model_retry_count": 0,
+            "tool_call_count": 0,
+            "tool_error_count": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "reasoning_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "computed_total_tokens": 0,
+            "retryable": 0,
+            "cancelled_by_user": 0,
+            "context_exceeded": 0,
+            "error_type": "unknown_error",
+            "error_code": "UNKNOWN_ERROR"
+          }
+        ]
+      },
+      "model_usage": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "logical_request_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "attempt_index",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "turn_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "trace_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "span_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "assistant_message_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "parent_user_message_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "query_source",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "provider_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "model_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "variant",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "agent",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "mode",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "task_type",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "started_at",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "first_token_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "completed_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "duration_ms",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_to_first_token_ms",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "finish_reason",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "tool_call_count",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "input_tokens",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "output_tokens",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "reasoning_tokens",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "cache_creation_input_tokens",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "cache_read_input_tokens",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "provider_total_tokens",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "computed_total_tokens",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "retry_count",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "retryable",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "cancelled_by_user",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "context_exceeded",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "error_type",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "error_code",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "error_message",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "raw_usage_json",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "provider_metadata_json",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
+        "rowCount": 3,
+        "rows": [
+          {
+            "id": "<id>",
+            "logical_request_id": "<id>",
+            "attempt_index": 0,
+            "session_id": "<id>",
+            "turn_id": "<id>",
+            "trace_id": "<id>",
+            "span_id": "<id>",
+            "assistant_message_id": "<id>",
+            "parent_user_message_id": "<id>",
+            "query_source": "main_turn",
+            "provider_id": "oracle-mock",
+            "model_id": "mock-1",
+            "variant": "disabled",
+            "agent": "mode-agent",
+            "mode": "build",
+            "task_type": "interactive",
+            "status": "completed",
+            "started_at": "<time>",
+            "first_token_at": "<time>",
+            "completed_at": "<time>",
+            "duration_ms": "<time>",
+            "time_to_first_token_ms": "<time>",
+            "finish_reason": "stop",
+            "tool_call_count": 0,
+            "input_tokens": 10,
+            "output_tokens": 12,
+            "reasoning_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "provider_total_tokens": 22,
+            "computed_total_tokens": 22,
+            "retry_count": 0,
+            "retryable": 0,
+            "cancelled_by_user": 0,
+            "context_exceeded": 0,
+            "error_type": null,
+            "error_code": null,
+            "error_message": null,
+            "raw_usage_json": {
+              "inputTokens": 10,
+              "outputTokens": 12,
+              "totalTokens": 22,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": 0
+            },
+            "provider_metadata_json": {
+              "rawFinishReason": "end_turn"
+            }
+          },
+          {
+            "id": "<id>",
+            "logical_request_id": "<id>",
+            "attempt_index": 0,
+            "session_id": "<id>",
+            "turn_id": "<id>",
+            "trace_id": "<id>",
+            "span_id": "<id>",
+            "assistant_message_id": "<id>",
+            "parent_user_message_id": "<id>",
+            "query_source": "main_turn",
+            "provider_id": "oracle-mock",
+            "model_id": "mock-1",
+            "variant": "disabled",
+            "agent": "mode-agent",
+            "mode": "build",
+            "task_type": "interactive",
+            "status": "completed",
+            "started_at": "<time>",
+            "first_token_at": "<time>",
+            "completed_at": "<time>",
+            "duration_ms": "<time>",
+            "time_to_first_token_ms": "<time>",
+            "finish_reason": "stop",
+            "tool_call_count": 0,
+            "input_tokens": 10,
+            "output_tokens": 12,
+            "reasoning_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "provider_total_tokens": 22,
+            "computed_total_tokens": 22,
+            "retry_count": 0,
+            "retryable": 0,
+            "cancelled_by_user": 0,
+            "context_exceeded": 0,
+            "error_type": null,
+            "error_code": null,
+            "error_message": null,
+            "raw_usage_json": {
+              "inputTokens": 10,
+              "outputTokens": 12,
+              "totalTokens": 22,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": 0
+            },
+            "provider_metadata_json": {
+              "rawFinishReason": "end_turn"
+            }
+          },
+          {
+            "id": "<id>",
+            "logical_request_id": "<id>",
+            "attempt_index": 0,
+            "session_id": "<id>",
+            "turn_id": "<id>",
+            "trace_id": "<id>",
+            "span_id": "<id>",
+            "assistant_message_id": null,
+            "parent_user_message_id": null,
+            "query_source": "compact",
+            "provider_id": "oracle-mock",
+            "model_id": "mock-1",
+            "variant": "disabled",
+            "agent": "mode-agent",
+            "mode": "build",
+            "task_type": "interactive",
+            "status": "completed",
+            "started_at": "<time>",
+            "first_token_at": null,
+            "completed_at": "<time>",
+            "duration_ms": "<time>",
+            "time_to_first_token_ms": null,
+            "finish_reason": "tool-calls",
+            "tool_call_count": 0,
+            "input_tokens": 10,
+            "output_tokens": 20,
+            "reasoning_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "provider_total_tokens": 30,
+            "computed_total_tokens": 30,
+            "retry_count": 0,
+            "retryable": 0,
+            "cancelled_by_user": 0,
+            "context_exceeded": 0,
+            "error_type": null,
+            "error_code": null,
+            "error_message": null,
+            "raw_usage_json": {
+              "inputTokens": 10,
+              "outputTokens": 20,
+              "totalTokens": 30,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": 0
+            },
+            "provider_metadata_json": {
+              "rawFinishReason": "tool_use"
+            }
+          }
+        ]
+      }
+    },
+    "sessionAfter": {
+      "id": "<id>",
+      "project_id": "<project-id>",
+      "workspace_id": null,
+      "parent_id": null,
+      "slug": "<id>",
+      "directory": "<cwd>",
+      "path": "<cwd>",
+      "title": "first prompt",
+      "version": "0.0.0",
+      "share_url": null,
+      "summary_additions": null,
+      "summary_deletions": null,
+      "summary_files": null,
+      "summary_diffs": null,
+      "revert": null,
+      "permission": {
+        "mode": "build"
+      },
+      "time_created": "<time>",
+      "time_updated": "<time>",
+      "time_compacting": null,
+      "time_archived": null,
+      "task_type": "interactive",
+      "title_source": "first_input",
+      "title_message_id": null,
+      "time_title_updated": "<time>",
+      "trace_id": "<id>"
+    },
+    "turnUsageLast": {
+      "session_id": "<id>",
+      "turn_id": "<id>",
+      "trace_id": "<id>",
+      "user_message_id": null,
+      "status": "error",
+      "started_at": "<time>",
+      "first_model_start_at": "<time>",
+      "first_token_at": null,
+      "completed_at": "<time>",
+      "duration_ms": "<time>",
+      "time_to_first_token_ms": null,
+      "model_request_count": 1,
+      "model_retry_count": 0,
+      "tool_call_count": 0,
+      "tool_error_count": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "computed_total_tokens": 0,
+      "retryable": 0,
+      "cancelled_by_user": 0,
+      "context_exceeded": 0,
+      "error_type": "unknown_error",
+      "error_code": "UNKNOWN_ERROR"
+    },
+    "modelUsageLast": {
+      "id": "<id>",
+      "logical_request_id": "<id>",
+      "attempt_index": 0,
+      "session_id": "<id>",
+      "turn_id": "<id>",
+      "trace_id": "<id>",
+      "span_id": "<id>",
+      "assistant_message_id": null,
+      "parent_user_message_id": null,
+      "query_source": "compact",
+      "provider_id": "oracle-mock",
+      "model_id": "mock-1",
+      "variant": "disabled",
+      "agent": "mode-agent",
+      "mode": "build",
+      "task_type": "interactive",
+      "status": "completed",
+      "started_at": "<time>",
+      "first_token_at": null,
+      "completed_at": "<time>",
+      "duration_ms": "<time>",
+      "time_to_first_token_ms": null,
+      "finish_reason": "tool-calls",
+      "tool_call_count": 0,
+      "input_tokens": 10,
+      "output_tokens": 20,
+      "reasoning_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "provider_total_tokens": 30,
+      "computed_total_tokens": 30,
+      "retry_count": 0,
+      "retryable": 0,
+      "cancelled_by_user": 0,
+      "context_exceeded": 0,
+      "error_type": null,
+      "error_code": null,
+      "error_message": null,
+      "raw_usage_json": {
+        "inputTokens": 10,
+        "outputTokens": 20,
+        "totalTokens": 30,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0
+      },
+      "provider_metadata_json": {
+        "rawFinishReason": "tool_use"
+      }
+    },
+    "compactRequestBody": {
+      "path": "/v1/messages",
+      "body": {
+        "keys": [
+          "max_tokens",
+          "messages",
+          "metadata",
+          "model",
+          "stream",
+          "system",
+          "thinking",
+          "tool_choice",
+          "tools"
+        ],
+        "model": "mock-1",
+        "max_tokens": 8192,
+        "stream": true,
+        "thinking": {
+          "type": "disabled"
+        },
+        "system": [
+          {
+            "type": "text",
+            "chars": 41,
+            "head": "You are Mode, an interactive coding agent",
+            "memorySection": false,
+            "memoryFileHeader": false
+          },
+          {
+            "type": "text",
+            "chars": 1218,
+            "head": "\nYou are Mode, an interactive coding agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational co",
+            "memorySection": false,
+            "memoryFileHeader": false
+          },
+          {
+            "type": "text",
+            "chars": 5404,
+            "head": "\n\n# Communicating with the user\n\nYour text output is what the user reads; they usually can't see your thinking or the raw tool results. Write it for a teammate who stepped away and is catching up, not",
+            "memorySection": false,
+            "memoryFileHeader": false
+          }
+        ],
+        "messages": [
+          {
+            "role": "user",
+            "contentTypes": ["text", "text"],
+            "textChars": 313,
+            "textHeads": [
+              "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# currentDate\nToday's date is <date>.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>",
+              "first prompt"
+            ],
+            "lastTextTail": "first prompt"
+          },
+          {
+            "role": "system",
+            "contentTypes": "string",
+            "textChars": 931,
+            "textHeads": [
+              "The following skills are available for use with the Skill tool:\n\n- browser-use:control-browser: Use when opening, navigating, inspecting, testing, clicking, typing, filling, screenshotting, or verifying web pages and local HTTP targets (localhost, 127.0.0.1, ::1) inside Mode, including browser/web-U"
+            ],
+            "lastTextTail": "gets (localhost, 127.0.0.1, ::1) inside Mode, including browser/web-UI automation, rendered-page scraping, fronten... (also loadable as control-browser) (file: <data-root>\\.mode\\cli\\plugins\\cache\\mode-plugins-official\\browser-use\\0.5.1\\skills\\control-browser\\SKILL.md)\n- browser-use:web-gui-tester: Use the browser automation tooling available in the session to test web frontends interactively in a purely GUI-based, black-box manner: simulate real user clicks, text input, scrolling, and other actions; use screenshots for visual verification and... (also loadable as web-gui-tester) (file: <data-root>\\.mode\\cli\\plugins\\cache\\mode-plugins-official\\browser-use\\0.5.1\\skills\\web-gui-tester\\SKILL.md)"
+          },
+          {
+            "role": "assistant",
+            "contentTypes": ["text"],
+            "textChars": 18,
+            "textHeads": ["normal turn answer"],
+            "lastTextTail": "normal turn answer"
+          },
+          {
+            "role": "user",
+            "contentTypes": ["text"],
+            "textChars": 13,
+            "textHeads": ["second prompt"],
+            "lastTextTail": "second prompt"
+          },
+          {
+            "role": "assistant",
+            "contentTypes": ["text"],
+            "textChars": 18,
+            "textHeads": ["normal turn answer"],
+            "lastTextTail": "normal turn answer"
+          },
+          {
+            "role": "user",
+            "contentTypes": ["text"],
+            "textChars": 5977,
+            "textHeads": [
+              "CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.\n\n- Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool.\n- You already have all the context you need in the conversation above.\n- Tool calls will be REJECTED and will waste your only turn — you will fail the task.\n- Your entire re"
+            ],
+            "lastTextTail": "nse. \n\nThere may be additional summarization instructions provided in the included context. If so, remember to follow these instructions when creating the above summary. Examples of instructions include:\n<example>\n## Compact Instructions\nWhen summarizing the conversation focus on typescript code changes and also remember the mistakes you made and how you fixed them.\n</example>\n\n<example>\n# Summary instructions\nWhen you are using compact - please focus on test output and code changes. Include file reads verbatim.\n</example>\n\nREMINDER: Do NOT call any tools. Respond with plain text only — an <analysis> block followed by a <summary> block. Tool calls will be rejected and you will fail the task."
+          }
+        ],
+        "toolCount": 23,
+        "toolNames": [
+          "Agent",
+          "AskUserQuestion",
+          "Bash",
+          "CronCreate",
+          "CronDelete",
+          "CronList",
+          "CronUpdate",
+          "Edit",
+          "EnterPlanMode",
+          "ExitPlanMode",
+          "Read",
+          "Skill",
+          "TaskOutput",
+          "TaskStop",
+          "TodoRead",
+          "TodoWrite",
+          "WebFetch",
+          "Write",
+          "SendFile",
+          "HandoffMessage",
+          "SendMessage",
+          "ReadSessionContext",
+          "mcp__node_repl__js"
+        ]
+      }
+    }
+  }
+}

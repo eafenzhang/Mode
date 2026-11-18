@@ -1,9 +1,10 @@
 //! 二进制生命周期：真实子进程拉起、一帧进一帧出、额外参数忽略并记录、非法启动参数
 //! 与非 EOF 场景的退出码、EOF 干净退出。
 //!
-//! Task 7 起，二进制入口带启动存储门：连接的前两帧是 `startup/storageState`
-//! 通知（`checking` → `ready`/`failed`）。本文件的用例把 `MODE_DATA_BASE_DIR`
-//! 指向临时目录（**绝不**让测试进程触碰真实 `~/.mode`），读响应前先跳过门通知。
+//! Task 7 起，二进制入口带启动存储门；C2 T7 起 fresh 根走迁移，门帧是
+//! `checking ×3 → migrating ×22 → committing ×1 → ready ×1`（27 帧）。本文件的用例把
+//! `MODE_DATA_BASE_DIR` 指向临时目录（**绝不**让测试进程触碰真实 `~/.mode`），读响应前
+//! 先跳过门通知。
 
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -56,7 +57,8 @@ async fn next_frame(
     serde_json::from_str(&line).expect("出站必须是合法帧")
 }
 
-/// 存储门通知（`startup/storageState`，本二进制恒发两帧：checking → ready/failed）。
+/// 存储门通知（`startup/storageState`，fresh 根 27 帧：checking ×3 → migrating ×22 →
+/// committing → ready；失败路径以 failed 终止）。
 async fn skip_storage_gate(
     stdout: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
 ) -> Vec<Value> {
@@ -93,17 +95,22 @@ async fn round_trip_then_eof_exits_successfully() {
     let stdout = child.stdout.take().expect("stdout 必须被 pipe");
     let mut stdout = BufReader::new(stdout).lines();
 
-    // 启动存储门：临时基目录没有已迁移库 → checking → failed（fail-closed）。
+    // 启动存储门：临时基目录是空根 → fresh-install 迁移 → checking ×3 →
+    // migrating ×22 → committing ×1 → ready ×1（27 帧，C2 契约 §5.1）。
     let gate = skip_storage_gate(&mut stdout).await;
-    assert_eq!(gate.len(), 2);
-    assert_eq!(gate[0]["phase"], json!("checking"));
-    assert_eq!(gate[1]["phase"], json!("failed"));
+    assert_eq!(gate.len(), 27, "fresh 启动必须发 27 帧");
+    let phases: Vec<&str> = gate
+        .iter()
+        .map(|state| state["phase"].as_str().expect("phase"))
+        .collect();
+    let mut expected_phases = vec!["checking", "checking", "checking"];
+    expected_phases.extend(std::iter::repeat_n("migrating", 22));
+    expected_phases.push("committing");
+    expected_phases.push("ready");
+    assert_eq!(phases, expected_phases);
     assert_eq!(gate[0]["schemaVersion"], json!(1));
     assert_eq!(gate[0]["databaseKind"], json!("session"));
-    assert!(
-        gate[1].get("errorCode").is_some(),
-        "failed 必须带 errorCode"
-    );
+    assert_eq!(gate[26]["migration"]["committedCount"], json!(22));
 
     let line = format!("{}\n", request_line());
     stdin

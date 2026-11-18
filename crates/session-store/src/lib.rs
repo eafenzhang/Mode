@@ -1,18 +1,21 @@
-//! `session-store`：CLI 会话库 `db.sqlite` 的 schema 门与核心读写（LT-1 C1）。
+//! `session-store`：CLI 会话库 `db.sqlite` 的 schema 门、迁移与核心读写（LT-1）。
 //!
-//! 数据库路径由调用方给出（CLI 布局是 `{dataRoot}/.mode/cli/db/db.sqlite`）。C1 只接
-//! **已由 Node 迁移完成**的数据根：
+//! 数据库路径由调用方给出（CLI 布局是 `{dataRoot}/.mode/cli/db/db.sqlite`）。
 //!
-//! - [`SessionStore::open`] 不建库、不建表、不跑迁移；文件不存在、必需表缺失、
-//!   `schema_migration` 账本缺失或为空都返回 [`StoreError::StorageSchemaUnsupported`]。
-//! - schema 契约是 `scripts/sqlite-schema-baseline.json` 的 `session-store` 段；
-//!   fresh-install migration 属于 C2。
+//! - C1 只读 **已由 Node 迁移完成**的数据根；C2 起 [`SessionStore::open`] 接管
+//!   fresh-install：文件缺失或空 schema 时按冻结迁移清单创建与 oracle 逐字节一致的
+//!   schema + `schema_migration` 账本（`agent-c2-contract.md` §5、
+//!   `agent-c2-context-memory.md` §6.1）。
+//! - 非 fresh 形态保持 fail-closed：schema 存在但账本缺失/为空、冻结迁移 checksum
+//!   不一致都返回 [`StoreError::StorageSchemaUnsupported`]；必需表缺失同样
+//!   fail-closed（[`Self::ensure_supported_schema`]）。
+//! - schema 契约是 `scripts/sqlite-schema-baseline.json` 的 `session-store` 段。
 //! - `message.data` / `part.data` 保持 `serde_json::Value`，写入时按 `serde_json`
 //!   规范文本落库；读取再写入逐字节稳定。
 //!
 //! # 写者并发（2026-11-17 控制器裁决 (a)）
 //!
-//! **不再**创建 `<db>.agent-write.lock` 进程独占锁。多个合法 owner 的 workspace
+//! **不创建** `<db>.agent-write.lock` 进程独占锁。多个合法 owner 的 workspace
 //! 进程（以及 Node 回退路径）可以同时打开同一会话库：
 //!
 //! - 写操作使用短事务 `BEGIN IMMEDIATE` + `busy_timeout`，由 SQLite/WAL 串行化；
@@ -20,13 +23,15 @@
 //! - 「一个 workspace 一个 Agent」的唯一 owner 保证来自 `AgentRuntimeRegistry` /
 //!   `agent-process` 的进程调度，而不是库文件锁。Node 不识别 Rust 的锁文件，独占锁
 //!   既挡不住 Node 重叠，又会误伤第二个 workspace（最终评审 C1）。
-//! - schema 门保持不变：打开时仍只接受已迁移库，缺表/缺账本 fail-closed。
+//! - fresh-install 的并发首启同样由 `BEGIN IMMEDIATE` 裁决：单事务内创建 schema +
+//!   账本，后到者在锁内重读并跳过全部已应用迁移（无半截 schema）。
 //!
 //! 读操作共用同一个连接并在进程内互斥，避免同一 `SessionStore` 的读看到写事务的
 //! 中间状态。
 
 mod error;
 mod message;
+mod migrations;
 mod part;
 mod schema;
 mod session;
@@ -41,6 +46,9 @@ use rusqlite::{Connection, OpenFlags, TransactionBehavior};
 
 pub use error::StoreError;
 pub use message::{MessageRecord, MessageWithParts};
+pub use migrations::{
+    migration_definitions, MigrationDefinition, MigrationEvent, MigrationFacts, MigrationKind,
+};
 pub use part::PartRecord;
 pub use schema::{REQUIRED_TABLES, SCHEMA_MIGRATION_TABLE};
 pub use session::{SessionEntryRecord, SessionRecord};
@@ -65,30 +73,44 @@ impl fmt::Debug for SessionStore {
 }
 
 impl SessionStore {
-    /// 打开一个已迁移的会话库。
+    /// 打开（必要时创建并迁移）一个会话库。
     ///
-    /// 不创建数据库：路径不存在或不是普通文件直接报
-    /// [`StoreError::StorageSchemaUnsupported`]（权限等真实 IO 错误仍报 `Io`）。
-    /// 打开后立即执行 [`Self::ensure_supported_schema`]；不创建任何进程锁文件，多个
-    /// `SessionStore` 可以同时打开同一文件（写由 SQLite 串行化）。
+    /// C2 行为：文件缺失或空 schema → 跑冻结迁移创建（父目录一并创建）；schema
+    /// 存在但账本缺失/为空、迁移 checksum 不一致 → fail-closed。打开后仍执行
+    /// [`Self::ensure_supported_schema`]；不创建任何进程锁文件，多个 `SessionStore`
+    /// 可以同时打开同一文件（写由 SQLite 串行化）。
     pub fn open(path: &Path) -> Result<Self, StoreError> {
-        match std::fs::metadata(path) {
-            Ok(metadata) if metadata.is_file() => {}
-            Ok(_) => {
+        Self::open_with_progress(path, &mut |_| {})
+    }
+
+    /// [`Self::open`] 的迁移事件版：`on_event` 收到
+    /// [`MigrationEvent::Inspected`] / [`MigrationEvent::Migrating`] /
+    /// [`MigrationEvent::Committing`]（无缺失步时没有 `Migrating`）。
+    /// 存储门用它产出 `startup/storageState` 的 `migrating/committing` 帧。
+    pub fn open_with_progress(
+        path: &Path,
+        on_event: &mut dyn FnMut(MigrationEvent),
+    ) -> Result<Self, StoreError> {
+        // 目录与特殊文件保持 C1 的显式报错；缺失文件交给迁移 runner 创建。
+        if let Ok(metadata) = std::fs::metadata(path) {
+            if !metadata.is_file() {
                 return Err(StoreError::StorageSchemaUnsupported {
                     reason: format!("路径不是普通文件：{}", path.display()),
-                })
+                });
             }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Err(StoreError::StorageSchemaUnsupported {
-                    reason: format!("会话库不存在：{}", path.display()),
-                })
-            }
-            Err(error) => return Err(StoreError::Io(error)),
+        }
+        // 空数据根的 CLI 布局（`{root}/cli/db/`）由这里补齐。
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
         }
 
-        let connection = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+        let connection = Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
+        )?;
         connection.busy_timeout(BUSY_TIMEOUT)?;
+
+        migrations::run_open_migrations(&connection, path, on_event)?;
 
         let store = Self {
             path: path.to_path_buf(),

@@ -25,20 +25,24 @@ fn unknown_method_returns_method_not_found() {
 #[test]
 fn skeleton_does_not_fake_any_method() {
     let server = AgentServer::new();
-    // Task 7 已接入 create/send/read 等方法表（methods.rs 覆盖）；
-    // compact / goal 明确不在 C1 方法表内，保持显式未实现。
-    for method in [
-        "",
-        "session/unknown",
-        "session/compact",
-        "session/goal",
-        "provider/unknown",
-    ] {
+    // Task 7 已接入 create/send/read 等方法表（methods.rs 覆盖）；C2 T2 接入
+    // compact（tests/compact.rs 覆盖）。goal 明确不在当前方法表内，保持显式未实现。
+    for method in ["", "session/unknown", "session/goal", "provider/unknown"] {
         let error = server
             .dispatch(method, json!({}))
             .expect_err("未接入方法必须显式未实现");
         assert_eq!(error.code(), -32601, "method={method}");
     }
+}
+
+#[test]
+fn compact_is_dispatched_and_validates_params() {
+    let server = AgentServer::new();
+    // 方法已接入：参数缺失/未知走严格解析 `-32602`，不再是 `-32601`。
+    let error = server
+        .dispatch("session/compact", json!({}))
+        .expect_err("非法参数必须显式拒绝");
+    assert_eq!(error.code(), -32602);
 }
 
 #[tokio::test]

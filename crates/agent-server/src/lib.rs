@@ -9,8 +9,10 @@
 //! `session/subscribe` 的 live 转发；Task 8 接入反向请求（[`ReverseHub`]：审批
 //! `interaction/requestPermission`、偏好 `session/requestRuntimePreferences`、账号
 //! 凭据 `interaction/requestProviderRuntimeHeaders`；pending 应答/超时/关闭均
-//! fail-closed）。未支持的方法（含 `session/compact`、`session/goal`）显式返回
-//! `-32601`。
+//! fail-closed）。C2 T2 接入 `session/compact`（per-session 单飞受理 + worker 上的
+//! 摘要执行）；C2 T3 接入项目记忆召回（[`memory::MemoryContext`]：宿主偏好
+//! `memoryEnabled` 开启时按数据根只读注入 `# Memory` 段与首条 user 消息的 agentsMd
+//! 索引块，失败 fail-soft）；未支持的方法（含 `session/goal`）显式返回 `-32601`。
 //!
 //! 行为依据：`docs/specs/agent-core-parity.md` §2/§5.4、
 //! `docs/specs/mode-protocol-client.md`「帧」、`docs/specs/agent-process.md`
@@ -20,6 +22,7 @@
 mod dispatch;
 mod history;
 mod lifecycle;
+mod memory;
 mod methods;
 mod provider_config;
 mod reverse;
@@ -30,6 +33,7 @@ mod state;
 
 pub use dispatch::{AgentServer, HubProviderSource, ServerConfig};
 pub use lifecycle::{parse_startup_args, run_main, StartupArgs, APP_SERVER_MODE, STDIO_FLAG};
+pub use memory::{load_memory_section, MemoryContext, MemoryLoad};
 pub use provider_config::{
     AccountRuntimeHeadersTarget, ApiFormat, ProviderConfigError, ProviderConfigHub, Resolution,
     ResolvedProvider, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,

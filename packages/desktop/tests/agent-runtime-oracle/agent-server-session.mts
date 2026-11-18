@@ -59,6 +59,29 @@ export type StartOptions = {
    * 方法序回放自行写临时夹具传入）。
    */
   fixturePath?: string;
+  /**
+   * 预建 C1 基线库（默认 `true`，C1 回放不变）。C2 回放传 `false`：夹具录制时
+   * oracle 在空数据根上自建库，T7 起 Rust 也在空根上自迁移（fresh-install 路径
+   * 与录制条件一致），预建基线反而会写进伪造的 `0001_fixture` 账本行。
+   */
+  freshStorage?: boolean;
+  /**
+   * `session/requestRuntimePreferences` 的应答覆盖（默认仍是 spec §1.3 表）。
+   * C2 memory 对拍需要 `memoryEnabled:true`；其余字段保持默认表。
+   */
+  runtimePreferences?: Record<string, unknown>;
+  /**
+   * `MODE_PERSONAL_PROVIDER_CONFIG_FILE` 覆盖。默认仍指向数据根里的占位文件
+   * （屏蔽开发机真实凭据）；C2 mock 对拍传本地 mock provider 的配置路径，
+   * 让 Rust 走与 oracle 录制时同一形状的 HTTP 端点（请求体可观测）。
+   */
+  providerConfigPath?: string;
+  /**
+   * `MODE_BUILTIN_PROVIDER_CONFIG_FILE` 覆盖。真实 hub 装配（mock 路径）必须给
+   * builtin 层（仓库的 `config/provider/mode-builtin.json`，与 oracle driver 同源），
+   * 否则 hub 解析直接失败（「Bundled 与 Active … 均不可用」）；scripted 装配不需要。
+   */
+  builtinConfigPath?: string;
 };
 
 /** 回放驱动器：起 Rust 二进制、答反向请求、收帧；不实现任何比较规则。 */
@@ -66,7 +89,7 @@ export async function startAgentServer(options: StartOptions): Promise<AgentServ
   const dataRoot = options.dataRoot;
   const cwd = options.cwd;
   assertDataRootIsolated(dataRoot);
-  await createBaselineDatabase(dataRoot);
+  if (options.freshStorage !== true) await createBaselineDatabase(dataRoot);
 
   const binary = ensureAgentServerBinary();
   const frames: AgentServerEvent[] = [];
@@ -106,7 +129,7 @@ export async function startAgentServer(options: StartOptions): Promise<AgentServ
   /** 反向请求应答（宿主职责的一半；口径与 `driver.mts` 相同）。 */
   const answerReverse = (method: string, frame: Record<string, unknown>): boolean => {
     if (method === "session/requestRuntimePreferences") {
-      write({ id: frame.id, result: RUNTIME_PREFERENCES_RESULT });
+      write({ id: frame.id, result: options.runtimePreferences ?? RUNTIME_PREFERENCES_RESULT });
       return true;
     }
     if (method === "interaction/requestPermission") {
@@ -170,8 +193,11 @@ export async function startAgentServer(options: StartOptions): Promise<AgentServ
       MODE_AGENT_SERVER_SCRIPTED_PROVIDER: options.fixturePath ?? "",
       // 开发机上这两个变量指向真实凭据文件，必须屏蔽（scripted 装配不用它们，
       // 但能力解析会读 hub——屏蔽只影响能力数字，不产生任何真实端点访问）。
-      MODE_PERSONAL_PROVIDER_CONFIG_FILE: join(dataRoot, "replay-no-personal-provider.json"),
-      MODE_BUILTIN_PROVIDER_CONFIG_FILE: join(dataRoot, "replay-no-builtin-provider.json"),
+      // memory 对拍传入本地 mock 配置路径时按覆盖走（仍是隔离根内的文件）。
+      MODE_PERSONAL_PROVIDER_CONFIG_FILE:
+        options.providerConfigPath ?? join(dataRoot, "replay-no-personal-provider.json"),
+      MODE_BUILTIN_PROVIDER_CONFIG_FILE:
+        options.builtinConfigPath ?? join(dataRoot, "replay-no-builtin-provider.json"),
     },
     stdio: ["pipe", "pipe", "pipe"],
   });

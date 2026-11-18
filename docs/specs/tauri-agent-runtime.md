@@ -1076,6 +1076,105 @@ mkdtemp 前缀保证本机长度一致；换机器需重录（§6.4 同约束）
   `session-stream.json`（M2 投影快照）；回放用例断言跳过清单**逐字等于**
   `["session-stream"]`，新增/减少都报红，不静默跳过。
 
+### C1.7 C2 追加登记（provider 扩展）
+
+| # | 差异 | 出处 |
+| --- | --- | --- |
+| 1 | Anthropic 请求体：`system` 用顶层 text 块数组（不借用 oracle 的字符串拼接形状；公开 API 两种都合法），`max_tokens` 未配置能力时取文档化常量 8192 | C2 §4.1.1；T4（2026-11-17） |
+| 2 | Anthropic thinking：请求侧不发 `thinking`（无能力输入）；流侧 thinking 内容不产出 `ModelDelta`（中立枚举无 reasoning 变体），只消费不转发 | C2 §4.1.1；T4（2026-11-17） |
+| 3 | Anthropic `stop_reason`：`max_tokens` / `stop_sequence` / 未列举值折叠为 `"stop"`（会话层只区分 `stop` / `tool-calls`） | C2 §4.1.1；T4（2026-11-17） |
+| 4 | Anthropic 流缺 `message_stop` 或仍有未收口 content block 时显式 `ProviderError`（不把截断流当成功终态；delta 保留、turn.failed 一次归 C2 §8） | C2 §4.1.1；T4（2026-11-17） |
+| 5 | `api_format=anthropic-messages` 由 `provider_config` 解析并在 `HubProviderSource` 装配 Anthropic provider；`to_openai_chat_config` 仍只接受 chat-completions，`to_anthropic_messages_config` 只接受 anthropic-messages | C2 §4.3；T4（2026-11-17） |
+| 6 | Responses 请求体：多条 `System` 用 `"\n\n"` 拼接进 `instructions`（装配恒一条 System；分隔符是登记的确定性选择，非观察值），`input` 为项数组（user `input_text` / assistant `output_text` / `function_call` / `function_call_output`，保序），工具用扁平 `{type:"function",name,description?,parameters}` | C2 §4.2.1；T5（2026-11-17） |
+| 7 | Responses 流只消费登记事件（`output_text.delta` / `function_call_arguments.delta` / `output_item.added`·`done` 的 function_call / `completed` / `incomplete` / `failed` / `error`）；`response.created`·`in_progress`、message/reasoning 项事件、`output_text.done`、`function_call_arguments.done` 等公开流必发事件安静忽略，不按未知类型报错 | C2 §4.2.1；T5（2026-11-17） |
+| 8 | Responses `stop_reason`：`response.incomplete`（任何 `incomplete_details.reason`，含 `max_output_tokens`）一律折叠为 `"stop"`（会话层按 delta 决定工具批次）；`response.failed` → `ProviderError`；`completed` 按已产出工具调用推断 | C2 §4.2.1；T5（2026-11-17） |
+| 9 | Responses 流缺终态事件（`completed`/`incomplete`/`failed`）时显式 `ProviderError`（不把截断流当成功终态；delta 保留、turn.failed 一次归 C2 §8）；工具入参按 `output_index` 分键累积，不可解析入参显式报错 | C2 §4.2.1；T5（2026-11-17） |
+| 10 | `api_format=openai-responses` 由 `provider_config` 解析并在 `HubProviderSource` 装配 Responses provider；`to_openai_responses_config` 只接受 openai-responses，chat/anthropic 映射方向仍一一对应 | C2 §4.3；T5（2026-11-17） |
+| 11 | 快照顶层 9 键常驻（`slashCommands`/`todos`/`todoGroups` 空会话 `[]`）、`settings` 4 键、`model.available` 走 hub 目录投影、builtin slashCommands 4 条；create `stateRevision=0`（观察 2）、resume 后 `eventSeq=0`（观察 2）、read 不产出 `deliveryKind`、`contextUsage.breakdown` 不产出——四处登记缺省，不硬凑 | C2 §4.5；T6（2026-11-18） |
+| 12 | `reasoning.defaultLevel` 投影为档位列表最后一项（观察 `["disabled","enabled"]→"enabled"` 的单点假设；oracle 真实推导未观察）；`thoughtLevel.enabled` = 模型有档位；冷恢复 `thoughtLevel.current` 回退 entry 的 `options.reasoningLevel` | C2 §4.5；T6（2026-11-18） |
+
+### C2.8 差异登记汇总（context / memory / compact / fresh-install，T1–T8）
+
+C2 各切片的差异已在 `docs/specs/agent-c2-contract.md` 的 §1.9 / §3.5 / §4.5 / §5.5
+逐条登记；本表按主题汇总为一张可查的面（行内容以契约注记为准），并收录 T8 对拍
+（回放 harness）的新发现。
+
+**compact（T2a/T2b；契约 §1.9）**
+
+| # | 差异 | 说明 |
+| - | --- | --- |
+| 1 | `session/compact` 异步受理 | accepted 应答只表达受理；摘要/失败经后续 `turn.*` 事件表达。accepted 的 `snapshot` 是**请求时**状态（pre-compact），不是完成后的最终快照（契约 §1.7）。 |
+| 2 | 事件面收窄 | Rust 产出 `turn.started → turn.completed/turn.failed`；oracle 的 `session.updated`（status 推送、`model_request_started/completed`、边界推送）不在产出面——与 C1 登记缺省事件类型同一口径，回放两侧同删。 |
+| 3 | 并发第二单两种形状 | 执行中第二个 → `already_running`（不动 revision，快照带 `activeTurnId`+`activeTurnKind:"compact"`）；仍在 Queued 窗口受理的第二个 → `accepted → skipped`（`turn.completed` response=`Context is up to date; no compression needed`，只落 skipped timeline 消息 + 2 个 part，不写第二份摘要、不发模型请求）。两种都是真实契约（§1.6）。skipped 的 timeline part 为家族一致性推断（失败路径同形），探针过滤器无法单独裁定 timeline part。 |
+| 4 | skipped 不写 `turn_usage` | 夹具 `dbSkippedRows` 只有 message + compaction part；Rust 不按「每个终态一行」补零值 usage 行。 |
+| 5 | `preCompactTokenCount` / `truePostCompactTokenCount` 是本地估算 | 4 字符 ≈ 1 token 的本地定义（契约 §1.9）；oracle 公式未观察——绝对值不比（回放登记折叠），skipped 终态 `turn.completed.tokenCount` 同族。 |
+| 6 | 失败判定按实际工具调用数 | `tool_call_count > 0` → `Tool use is not allowed during compaction`（retryable false）；零调用+空文本 → `Failed to generate compact summary`（retryable true）。失败行：`finish:"failed"` timeline 消息 + timeline/compaction part（`reason:"model_error"`、`attempt:1`）+ `turn_usage(error/UNKNOWN_ERROR/零 tokens)` + 保留 provider 原始 usage 的 `model_usage`。 |
+| 7 | 自动 compact 未实现 | §2 的观察是「未触发」；C2 不启用阈值（15 轮长历史 = 普通请求）。 |
+| 8 | 摘要行 `tools` 为空对象占位 | 夹具只保留「对象」事实（折叠 `<tool-flags>`）；键集合未观察。 |
+
+**memory（T3；契约 §3.5）**
+
+| # | 差异 | 说明 |
+| - | --- | --- |
+| 9 | 装配形状保持 C1 `[System, User]` | oracle wire 的 roles `["user","system"]` 与双 text part 不在 `ModelRequest` 层镜像（wire 投影归 T4/T5 适配层）；reminder 与 prompt 并入同一文本（单 text part）。 |
+| 10 | 注入文案逐字重建 | `# Memory` 段并入系统提示末尾（T1 槽位）；agentsMd 块并入**首条 user 消息**文本开头（`<system-reminder>` → `# agentsMd` → `# currentDate`，与夹具 `memoryFileBlock` 逐字一致）；`# currentDate` 取 UTC `YYYY-MM-DD`（格式未观察，登记假设）。 |
+| 11 | 目录只读不创建 | oracle 在 `memoryEnabled:true` 启用时创建记忆目录；Rust 只读不创建（fresh root + enabled → fail-soft 不注入）。 |
+| 12 | 写路径缺口 | memory extraction 子代理未实现——enabled 会话只有 1 个模型请求（oracle 录 2：主请求 + extraction）。 |
+| 13 | fail-soft 静默 | T0 没有观察到 oracle 的记忆失败诊断面，C2 不发明——失败路径线上静默（无日志/协议字段）；替代诊断是 per-session `SessionRuntime::last_memory_error`（每个 prompt turn 覆盖写，仅供测试与宿主诊断）。 |
+| 14 | workspaceId 扫描发现 | hash 算法未观察；扫描 `projects/` 下 `<slug(cwd 基名小写)>-<16 位小写 hex>` 形状目录，恰好一个命中才使用；零命中/多命中 fail-soft。 |
+
+**快照与读面（T6；契约 §4.5）**
+
+| # | 差异 | 说明 |
+| - | --- | --- |
+| 15 | create `runtime.stateRevision` | Rust `0`（观察 `2`；revision 语义 = 每次接受/终态 +1，create 无接受动作）。 |
+| 16 | resume 后 `runtime.eventSeq` | Rust `0`（观察 `2`；物化不发事件）。compact 受理 +1 / 终态再 +1（§1.9），与 oracle 观察的「受理后 10→11」一致但绝对值不同源。 |
+| 17 | hot read `runtime.deliveryKind` | 不产出（观察有 `desktop-continuous`）；`session/subscribe` 快照仍回显订阅链路（C1 口径）。 |
+| 18 | `contextUsage.breakdown` | 不产出（键固定 `cache,cost,size,used`）。 |
+| 19 | `reasoning.defaultLevel` 单点假设 | 取档位列表最后一项（观察一致；真实推导未观察）。 |
+| 20 | `cache.latestHitRate` / `hitRate` 公式为确定性选择 | `latestHitRate = cache_read/(input+cache_read)`（最近一次请求）、`hitRate = total_cache_read/(total_input+total_cache_read)`（会话合计）；T0 观察点恒 `0`（契约 §4.2），非零公式真实推导未观察（出处：T1 实现 / T0 契约 §4.2）。 |
+
+**fresh-install 迁移（T7；契约 §5.5）**
+
+| # | 差异 | 说明 |
+| - | --- | --- |
+| 21 | 单步 SQL 切分不可观察 | 22 步的对象归属按迁移名推导，纯数据回填/枚举扩列等无法推导的步登记为 no-op 占位或缺列守卫；可观察契约只有最终 schema + 账本字节（两者均逐字节对齐）。 |
+
+**DB 层未对齐面（T8 对拍新发现；此前任何门禁只比事件/工具/文件三层，未比 DB 行）**
+
+| # | 差异 | 说明 |
+| - | --- | --- |
+| 22 | 会话起点 timeline 行 | oracle 在会话创建时写一条 `assistant/timeline_event` 消息 + `timeline` part（uiVisibility visible / provider hidden）；Rust 不写——compact 前后的 message/part 绝对行号整体差 1（回放按增量行 + 位置折叠比较）。 |
+| 23 | prompt turn 行字段 | oracle 的 user 行带 `agent`/`modelSelection`/`contextSnapshot.envInfo`/`tools`/`model.variant`，assistant 行带 `planEnabled`/`agent`/`path`/`cost` 且不带 `messageId`；Rust 的行缺前者、多 `messageId`/`anchor`。compact/memory 增量行的形状已对齐（T2a/T2b），prompt turn 行未对齐。 |
+| 24 | per-turn `model_usage` | oracle 每个 prompt turn 写 1 行 `model_usage`（query_source `main_turn`）；Rust 只在 compact（含失败）写 `model_usage`，prompt turn 不写。`turn_usage` 的 prompt 行还有 `trace_id`/`first_model_start_at`/`first_token_at` 为 null（oracle 有值）。 |
+| 25 | `session_entry` 第三行 | oracle 有 3 行 runtime entry（`runtime/model_selection`、`runtime/bash_shell_selection`、`runtime/execution_state`）；Rust 2 行。 |
+| 26 | title 三列 | oracle 会话 title = 首条输入（`title_source:"first_input"`）；Rust title 空、`time_title_updated` null——与 C1 登记缺省事件类型 `session.titleUpdated` 同源的快照/DB 物化（回放两侧同删 title/titleSource/time_title_updated）。 |
+| 27 | 热快照 `titleSource` | 热快照（compact accepted 应答等）的 `session.titleSource` 为 `None`（省略）；oracle 录制值 `first_input`（同 #26 的事实源）。 |
+
+**T8 对拍 harness（非运行时行为）**
+
+- 入口：`packages/desktop/tests/agent-runtime-oracle/replay-c2.mts`（CLI 单跑）与
+  `agent-server-c2-replay.test.mts`（`pnpm test:agent-runtime-oracle` 成员）；
+  比较器复用 `normalize.mts` / `session-lifecycle-fixtures.mts`（normalizeDeep）/
+  `compare.mts`，C2 夹具不修改。驱动用与 oracle 录制同形状的**本地 mock provider**
+  （模型能力事实来自 provider 配置；scripted 装配无能力事实，快照面不可比）。
+- 覆盖：`compact-manual` / `compact-no-instructions` / `compact-expected-revision` /
+  `compact-same-tick`（单次 trial，两种 outcome 都是登记结果，注记留痕）/
+  `compact-provider-tool-call` / `compact-provider-empty` / `memory-recall`（enabled
+  注入面）+ `memory-recall:disabled` + `memory-recall:fresh-disabled`，共 9 条全绿。
+- 登记未覆盖：`compact-while-turn-running`（需要钉住「turn 执行中」窗口，TS 驱动无法
+  确定性构造；`-32010` 拒绝形状由 Rust 单测
+  `compact_while_prompt_running_is_rejected_with_zero_side_effects`
+  （`crates/agent-server/tests/compact.rs`，门控 provider 钉住 prompt 相位）断言）、
+  `auto-compact-long-history`（未触发观察；Rust 断言同文件）、
+  `context-usage-settings`（T6 断言在 `crates/agent-server/tests/snapshot.rs`）、
+  `fresh-install-ledger`（T7 断言在 `crates/agent-server/tests/lifecycle.rs`）——
+  同一条夹具只在一层做精确比较（单比较器纪律），另一层引用。
+- 真实端点 smoke：`scripts/agent-c2-smoke.mts`（**opt-in，人工凭据，不进 CI**；
+  `MODE_SMOKE_PROVIDER=anthropic|responses` + BASE_URL/MODEL/API_KEY，临时数据根；
+  文本 turn + Read turn +（Anthropic）双工具 turn——同一 assistant 轮两个 tool_use 的
+  tool_result 分组进同一条 user 消息，真实端点接受并收口）。
+
 ## 验收场景（Task 0）
 
 1. `pnpm test:agent-runtime-oracle`（唯一入口；等价于

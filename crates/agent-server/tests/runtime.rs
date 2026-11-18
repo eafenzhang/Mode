@@ -248,11 +248,13 @@ fn runtime_config() -> RuntimeConfig {
         mode: "build".to_string(),
         provider_id: "fixture-provider".to_string(),
         model_id: "fixture-model".to_string(),
+        reasoning_level: None,
         capabilities: agent_core::ModelCapabilities {
             context_window: Some(128_000),
             max_output_tokens: Some(8_192),
         },
         thought_level: None,
+        model_catalog: None,
         data_root: None,
         event_log_capacity: 4096,
         broadcast_capacity: 256,
@@ -274,11 +276,21 @@ impl agent_server::ProviderSource for FixedSource {
 }
 
 fn spawn_runtime(fixture: &Fixture, provider: Arc<dyn ModelProvider>) -> SessionRuntime {
+    spawn_runtime_with_capabilities(fixture, provider, runtime_config().capabilities)
+}
+
+fn spawn_runtime_with_capabilities(
+    fixture: &Fixture,
+    provider: Arc<dyn ModelProvider>,
+    capabilities: agent_core::ModelCapabilities,
+) -> SessionRuntime {
+    let mut config = runtime_config();
+    config.capabilities = capabilities;
     SessionRuntime::new(
         fixture.record.clone(),
         Arc::clone(&fixture.store),
         Arc::new(FixedSource(provider)),
-        runtime_config(),
+        config,
         agent_server::RuntimeWiring::default(),
     )
     .expect("构造运行时")
@@ -1108,6 +1120,196 @@ async fn snapshot_reflects_live_state_and_serializes() {
 
     drop(runtime);
     settle().await;
+}
+
+// ---------------------------------------------------------------------------
+// C2 T1：runtime.contextUsage（观察形状见 agent-c2-contract.md §4）
+// ---------------------------------------------------------------------------
+
+async fn run_prompt(
+    runtime: &SessionRuntime,
+    receiver: &mut tokio::sync::broadcast::Receiver<SessionEvent>,
+    prompt: &str,
+) {
+    runtime
+        .submit(SessionInput::text(prompt))
+        .expect("提交 prompt");
+    drain_until_terminal(receiver).await;
+    wait_settled(runtime).await;
+}
+
+fn context_usage_json(snapshot: &SessionStateSnapshot) -> Value {
+    serde_json::to_value(
+        snapshot
+            .runtime
+            .context_usage
+            .as_ref()
+            .expect("快照应包含 runtime.contextUsage"),
+    )
+    .expect("contextUsage 可序列化")
+}
+
+fn context_usage_keys(value: &Value) -> Vec<String> {
+    let mut keys: Vec<String> = value
+        .as_object()
+        .expect("contextUsage 是对象")
+        .keys()
+        .cloned()
+        .collect();
+    keys.sort();
+    keys
+}
+
+#[tokio::test]
+async fn context_usage_after_scripted_turn_matches_the_observed_shape() {
+    let fixture = fixture("context-usage-shape");
+    let runtime = spawn_runtime(
+        &fixture,
+        Arc::new(ScriptedProvider::new(vec![ScriptStep::Text(
+            "answer".to_string(),
+        )])),
+    );
+    let (_, mut receiver) = runtime.subscribe(None);
+
+    assert!(
+        runtime.snapshot().runtime.context_usage.is_none(),
+        "首个模型请求之前没有 contextUsage（与 create 快照一致）"
+    );
+
+    run_prompt(&runtime, &mut receiver, "first prompt").await;
+
+    let snapshot = runtime.snapshot();
+    let usage = context_usage_json(&snapshot);
+    assert_eq!(
+        context_usage_keys(&usage),
+        vec!["cache", "cost", "size", "used"],
+        "T0 观察键固定为 cache,cost,size,used（没有 percent/breakdown）"
+    );
+    assert_eq!(usage["used"], 22, "used = 最后一次请求的 total tokens");
+    assert_eq!(usage["size"], 128_000, "size 来自 context_window");
+    assert!(usage["cost"].is_null(), "T0 观察 cost 恒为 null");
+    assert!(usage.get("percent").is_none(), "T0 没有 percent 字段");
+    assert!(
+        usage.get("breakdown").is_none(),
+        "T1 不产出 breakdown（T6 再对齐）"
+    );
+
+    let cache = &usage["cache"];
+    assert_eq!(cache["inputTokens"], 10);
+    assert_eq!(cache["cacheReadTokens"], 0);
+    assert_eq!(cache["cacheWriteTokens"], 0);
+    assert_eq!(cache["latestHitRate"], 0);
+    assert_eq!(cache["hitRate"], 0);
+    assert_eq!(cache["hitRateRequestCount"], 1);
+    assert_eq!(cache["totalInputTokens"], 10);
+    assert_eq!(cache["totalCacheReadTokens"], 0);
+    assert_eq!(cache["totalCacheWriteTokens"], 0);
+
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn context_usage_uses_the_last_request_instead_of_the_turn_total() {
+    let fixture = fixture("context-usage-last-request");
+    let file_path = fixture.cwd.join("hello.txt").to_string_lossy().to_string();
+    let runtime = spawn_runtime(
+        &fixture,
+        Arc::new(ScriptedProvider::new(vec![
+            ScriptStep::ToolCalls(vec![ScriptToolCall {
+                name: "Read".to_string(),
+                input: json!({ "file_path": file_path }),
+            }]),
+            ScriptStep::Text("finished".to_string()),
+        ])),
+    );
+    let (_, mut receiver) = runtime.subscribe(None);
+
+    run_prompt(&runtime, &mut receiver, "read the file").await;
+
+    let snapshot = runtime.snapshot();
+    let usage = context_usage_json(&snapshot);
+    // 工具调用请求 10+20，收尾请求 10+12；turn 聚合是 52，但 contextUsage.used
+    // 必须只是最后一次请求的 22（T0 明确 used 不是累计值）。
+    assert_eq!(snapshot.projection.total_token_count, 52);
+    assert_eq!(usage["used"], 22);
+    assert_eq!(usage["cache"]["inputTokens"], 10);
+    assert_eq!(usage["cache"]["hitRateRequestCount"], 2);
+    assert_eq!(usage["cache"]["totalInputTokens"], 20);
+
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn context_usage_does_not_fabricate_an_unknown_window() {
+    let fixture = fixture("context-usage-unknown-window");
+    let runtime = spawn_runtime_with_capabilities(
+        &fixture,
+        Arc::new(ScriptedProvider::new(vec![ScriptStep::Text(
+            "answer".to_string(),
+        )])),
+        agent_core::ModelCapabilities::default(),
+    );
+    let (_, mut receiver) = runtime.subscribe(None);
+
+    run_prompt(&runtime, &mut receiver, "first prompt").await;
+
+    let snapshot = runtime.snapshot();
+    let usage = context_usage_json(&snapshot);
+    assert_eq!(
+        usage["size"], 0,
+        "窗口未知时 size 为 0，不编 200000 之类的默认值"
+    );
+    assert_eq!(snapshot.projection.context_window, 0);
+    assert_eq!(usage["used"], 22, "窗口未知不影响 provider usage");
+
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn resumed_materialization_rebuilds_context_usage_without_breakdown() {
+    let fixture = fixture("context-usage-resume");
+    let runtime = spawn_runtime(
+        &fixture,
+        Arc::new(ScriptedProvider::new(vec![
+            ScriptStep::Text("first answer".to_string()),
+            ScriptStep::Text("second answer".to_string()),
+            ScriptStep::Text("third answer".to_string()),
+        ])),
+    );
+    let (_, mut receiver) = runtime.subscribe(None);
+    for prompt in ["first prompt", "second prompt", "third prompt"] {
+        run_prompt(&runtime, &mut receiver, prompt).await;
+    }
+    runtime.shutdown().await;
+
+    // 冷 resume：从持久化的 assistant 消息重建用量，而不是从投影计数器。
+    let resumed = spawn_runtime(
+        &fixture,
+        Arc::new(ScriptedProvider::new(vec![ScriptStep::Text(
+            "unused".to_string(),
+        )])),
+    );
+    let snapshot = resumed.snapshot();
+    let usage = context_usage_json(&snapshot);
+    assert_eq!(
+        context_usage_keys(&usage),
+        vec!["cache", "cost", "size", "used"],
+        "resume 后 contextUsage 没有 breakdown（T0 观察）"
+    );
+    assert_eq!(usage["used"], 22);
+    assert_eq!(usage["size"], 128_000);
+    assert_eq!(usage["cache"]["inputTokens"], 10);
+    assert_eq!(usage["cache"]["hitRateRequestCount"], 3);
+    assert_eq!(usage["cache"]["totalInputTokens"], 30);
+    assert_eq!(usage["cache"]["totalCacheReadTokens"], 0);
+    assert_eq!(usage["cache"]["totalCacheWriteTokens"], 0);
+    assert!(usage["cost"].is_null());
+    // T0 的 resume：projection 计数归 0，但 contextUsage 保留。
+    assert_eq!(snapshot.projection.turn_count, 0);
+    assert_eq!(snapshot.projection.total_token_count, 0);
+    assert_eq!(snapshot.projection.context_used, 0);
+
+    resumed.shutdown().await;
 }
 
 // ---------------------------------------------------------------------------

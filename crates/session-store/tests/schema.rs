@@ -1,4 +1,9 @@
-//! schema 门：只接受已迁移的 Node 会话库，缺库/缺表/缺账本或空账本都 fail-closed。
+//! schema 门（LT-1 C2 T7 后的口径）：
+//!
+//! - fresh-install（文件缺失 / 空 schema）由迁移 runner 创建（`tests/fresh_install.rs`
+//!   覆盖与 oracle 的逐字节对齐）；
+//! - 非 fresh 形态保持 C1 的 fail-closed：schema 存在但缺账本/账本为空、冻结迁移
+//!   checksum 不一致，一律 [`session_store::StoreError::StorageSchemaUnsupported`]。
 
 mod common;
 
@@ -11,7 +16,8 @@ fn opens_database_created_from_schema_baseline() {
     let db_path = root.db_path();
     create_baseline_database(&db_path, &FixtureOptions::default());
 
-    let store = SessionStore::open(&db_path).expect("已迁移库必须能打开");
+    // 夹具账本只有占位行：首次打开按 upgrade 补齐冻结迁移（幂等 DDL），随后可打开。
+    let store = SessionStore::open(&db_path).expect("基线库必须能打开");
     store
         .ensure_supported_schema()
         .expect("显式复查 schema 仍应通过");
@@ -20,37 +26,29 @@ fn opens_database_created_from_schema_baseline() {
 }
 
 #[test]
-fn missing_database_is_schema_unsupported_and_is_not_created() {
-    let root = TempRoot::new("schema-missing-db");
+fn checksum_mismatch_is_schema_unsupported() {
+    let root = TempRoot::new("schema-checksum");
     let db_path = root.db_path();
+    create_baseline_database(&db_path, &FixtureOptions::default());
+    let connection = rusqlite::Connection::open(&db_path).expect("打开库改账本");
+    connection
+        .execute(
+            "INSERT INTO schema_migration (id, checksum, app_version, time_applied) \
+             VALUES ('0002_local_setting', 'checksum-from-another-impl', '0.2.0', 1)",
+            [],
+        )
+        .expect("写入冲突账本行");
+    drop(connection);
 
-    let error = SessionStore::open(&db_path).expect_err("缺库必须 fail-closed");
+    let error = SessionStore::open(&db_path).expect_err("checksum 不一致必须 fail-closed");
     assert!(
         matches!(error, StoreError::StorageSchemaUnsupported { .. }),
-        "缺库应报 StorageSchemaUnsupported，实际：{error:?}"
+        "应报 StorageSchemaUnsupported，实际：{error:?}"
     );
-    assert_eq!(error.code(), "storage_schema_unsupported");
-    assert!(!db_path.exists(), "open 不能顺手创建数据库文件");
-}
-
-#[test]
-fn missing_required_table_is_schema_unsupported() {
-    let root = TempRoot::new("schema-missing-table");
-    let db_path = root.db_path();
-    create_baseline_database(
-        &db_path,
-        &FixtureOptions {
-            omit_tables: vec!["part".to_owned()],
-            ..FixtureOptions::default()
-        },
-    );
-
-    let error = SessionStore::open(&db_path).expect_err("缺必需表必须 fail-closed");
-    assert!(matches!(error, StoreError::StorageSchemaUnsupported { .. }));
     assert_eq!(error.code(), "storage_schema_unsupported");
     assert!(
-        error.to_string().contains("part"),
-        "错误信息必须点出缺少的表：{error}"
+        error.to_string().contains("0002_local_setting"),
+        "错误信息必须点出冲突的迁移 id：{error}"
     );
 }
 

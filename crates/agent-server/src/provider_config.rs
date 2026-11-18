@@ -14,9 +14,10 @@
 //! [`ResolvedProvider`]（端点 + 凭据 + 能力），供 Task 7 的 `session/create` 构造
 //! `provider-http` 适配器。
 //!
-//! 安全边界：`Debug`/`Display` 与错误文案永不携带 API key（镜像 `OpenAiChatConfig`
-//! 的掩码做法）；Anthropic / Responses 的适配器属 C2，这里显式报不支持而不是静默
-//! 走错协议。本模块不做任何网络请求、不做 env 级模型 URL 重写、不连官方平台。
+//! 安全边界：`Debug`/`Display` 与错误文案永不携带 API key（镜像
+//! `OpenAiChatConfig` / `AnthropicMessagesConfig` / `OpenAiResponsesConfig` 的掩码
+//! 做法）；协议选择只在适配器映射出口（`to_*_config`）裁决，格式不匹配显式报错而
+//! 不静默走错协议。本模块不做任何网络请求、不做 env 级模型 URL 重写、不连官方平台。
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -36,16 +37,16 @@ use provider_config_repository::{
     MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
 };
 use provider_config_source::{read_snapshot, ProviderConfigSnapshot};
-use provider_http::OpenAiChatConfig;
-use provider_resolver::ProviderConfigResolverInput;
+use provider_http::{AnthropicMessagesConfig, OpenAiChatConfig, OpenAiResponsesConfig};
+use provider_resolver::{ProviderConfigResolution, ProviderConfigResolverInput};
 use serde::Deserialize;
 use serde_json::Value;
 
 /// 宿主 → Agent 的账号 Provider 配置交付方法名（与 `agent-process` 的发送方常量同值）。
 pub const PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD: &str = "provider/updateAccountConfig";
 
-/// 模型端点的线上协议格式。C1 只适配 OpenAI Chat Completions；其余值保留枚举身份，
-/// 在解析出口显式报错（Anthropic / Responses 属 C2）。
+/// 模型端点的线上协议格式。C1 适配 OpenAI Chat Completions，C2 · T4 增加
+/// Anthropic Messages，C2 · T5 增加 OpenAI Responses；三者与适配器一一对应。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApiFormat {
     OpenAiChatCompletions,
@@ -89,7 +90,7 @@ pub enum ProviderConfigError {
         model_id: String,
         field: &'static str,
     },
-    /// `api.type` 存在但不是 C1 支持的 OpenAI Chat Completions。
+    /// `api.type` 存在但当前没有对应适配器（或请求的映射方向不匹配）。
     UnsupportedApiFormat {
         provider_id: String,
         model_id: String,
@@ -144,7 +145,7 @@ impl fmt::Display for ProviderConfigError {
                 api_format,
             } => write!(
                 formatter,
-                "Provider {provider_id} 模型 {model_id} 的 apiFormat {api_format} 暂不支持（Anthropic/Responses 属 C2）"
+                "Provider {provider_id} 模型 {model_id} 的 apiFormat {api_format} 暂不支持（当前适配 openai-chat-completions / anthropic-messages / openai-responses）"
             ),
         }
     }
@@ -220,17 +221,13 @@ impl fmt::Debug for AccountRuntimeHeadersTarget {
 }
 
 impl ResolvedProvider {
-    /// 映射到 Task 4 的 OpenAI Chat Completions 适配器配置。
+    /// 映射到 OpenAI Chat Completions 适配器配置。
     ///
-    /// `api_format` 不是 `openai-chat-completions` 时显式报不支持——Anthropic /
-    /// Responses 适配器属 C2，不允许静默走错协议。
+    /// `api_format` 不是 `openai-chat-completions` 时显式报不支持，不允许静默走错协议
+    /// （Anthropic 走 [`Self::to_anthropic_messages_config`]）。
     pub fn to_openai_chat_config(&self) -> Result<OpenAiChatConfig, ProviderConfigError> {
         if self.api_format != ApiFormat::OpenAiChatCompletions {
-            return Err(ProviderConfigError::UnsupportedApiFormat {
-                provider_id: self.provider_id.clone(),
-                model_id: self.model_id.clone(),
-                api_format: self.api_format.as_str().to_owned(),
-            });
+            return Err(self.unsupported_format());
         }
         Ok(OpenAiChatConfig {
             base_url: self.base_url.clone(),
@@ -239,6 +236,52 @@ impl ResolvedProvider {
             max_output_tokens: self.max_output_tokens,
             extra_headers: self.headers.clone(),
         })
+    }
+
+    /// 映射到 Anthropic Messages 适配器配置（C2 · Task 4）。
+    ///
+    /// `api_format` 不是 `anthropic-messages` 时显式报不支持。provider 配置没有
+    /// `anthropic-version` 字段，版本头用适配器的公开文档默认值（`None`）。
+    pub fn to_anthropic_messages_config(
+        &self,
+    ) -> Result<AnthropicMessagesConfig, ProviderConfigError> {
+        if self.api_format != ApiFormat::AnthropicMessages {
+            return Err(self.unsupported_format());
+        }
+        Ok(AnthropicMessagesConfig {
+            base_url: self.base_url.clone(),
+            api_key: self.api_key.clone(),
+            model: self.model_id.clone(),
+            max_output_tokens: self.max_output_tokens,
+            extra_headers: self.headers.clone(),
+            anthropic_version: None,
+        })
+    }
+
+    /// 映射到 OpenAI Responses 适配器配置（C2 · Task 5）。
+    ///
+    /// `api_format` 不是 `openai-responses` 时显式报不支持。provider 配置没有
+    /// `store` 字段，`store` 保持 `None`（不发明默认值）。
+    pub fn to_openai_responses_config(&self) -> Result<OpenAiResponsesConfig, ProviderConfigError> {
+        if self.api_format != ApiFormat::OpenAiResponses {
+            return Err(self.unsupported_format());
+        }
+        Ok(OpenAiResponsesConfig {
+            base_url: self.base_url.clone(),
+            api_key: self.api_key.clone(),
+            model: self.model_id.clone(),
+            max_output_tokens: self.max_output_tokens,
+            extra_headers: self.headers.clone(),
+            store: None,
+        })
+    }
+
+    fn unsupported_format(&self) -> ProviderConfigError {
+        ProviderConfigError::UnsupportedApiFormat {
+            provider_id: self.provider_id.clone(),
+            model_id: self.model_id.clone(),
+            api_format: self.api_format.as_str().to_owned(),
+        }
     }
 }
 
@@ -275,6 +318,49 @@ impl fmt::Display for ResolvedProvider {
             self.provider_id, self.model_id, self.base_url, self.api_format
         )
     }
+}
+
+/// 目录投影里的一个模型条目（C2 T6：`settings.model.available` 的事实源）。
+///
+/// 只带快照面需要的事实（`agent-c2-contract.md` §4.4 观察字段）；目录没有的
+/// 字段（独立 label、description 等）不伪造。`reasoning_levels` 是
+/// `optionSpecs.reasoningLevel.values` 的保序原文。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelCatalogEntry {
+    pub model_id: String,
+    pub context_window: Option<u64>,
+    pub max_output_tokens: Option<u64>,
+    pub reasoning_levels: Vec<String>,
+    pub input_format: Option<ModelInputFormatFacts>,
+    pub output_format: Option<ModelOutputFormatFacts>,
+}
+
+/// `properties.inputFormat` 的已观察事实（缺档位按无事实，投影时落中性 `false`）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelInputFormatFacts {
+    pub supports_text: Option<bool>,
+    pub supports_image: Option<bool>,
+    pub supports_video: Option<bool>,
+    pub supports_audio: Option<bool>,
+    pub supports_pdf: Option<bool>,
+}
+
+/// `properties.outputFormat` 的已观察事实。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelOutputFormatFacts {
+    pub supports_text: Option<bool>,
+}
+
+/// 一个 provider 的模型目录（`settings.model.available` 的投影输入）。
+///
+/// 不含凭据与端点；目录解析失败时调用方退「无目录」（快照 `available:[]`）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderCatalog {
+    pub provider_id: String,
+    /// `providerName` 的已观察事实；缺失按 `None`（快照省略 `providerLabel`）。
+    pub provider_label: Option<String>,
+    /// resolver 保序的全部模型（builtin + personal 的 owned-order）。
+    pub models: Vec<ModelCatalogEntry>,
 }
 
 /// `provider/updateAccountConfig` 的信封。信封级 `deny_unknown_fields`（严格解析）；
@@ -493,8 +579,9 @@ impl ProviderConfigHub {
 
     /// 宿主回 `requestAuth.apiKey` 后把账号型事实拼回可执行端点。
     ///
-    /// `api_format` 不是 OpenAI Chat Completions 时显式报不支持（与
-    /// [`ResolvedProvider::to_openai_chat_config`] 同一出口）。
+    /// 返回的 `api_format` 由适配器选择出口（[`ResolvedProvider::to_openai_chat_config`]
+    /// / [`ResolvedProvider::to_anthropic_messages_config`] /
+    /// [`ResolvedProvider::to_openai_responses_config`]）校验，本方法不做协议裁决。
     pub fn resolve_account_provider(
         &self,
         target: &AccountRuntimeHeadersTarget,
@@ -512,8 +599,11 @@ impl ProviderConfigHub {
         })
     }
 
-    /// 合并 + 端点事实的公共段；凭据来源分叉成 [`Resolution`]。
-    fn resolve_inner(&self, selection: &ModelSelection) -> Result<Resolution, ProviderConfigError> {
+    /// 三层合并的公共段：文件层现读 + 账号层快照 → resolver 输出。
+    ///
+    /// `resolve_inner`（端点解析）与 [`Self::provider_catalog`]（目录投影）共用，
+    /// 保证两条读取路径看到同一份合并事实。
+    fn merged_resolution(&self) -> Result<ProviderConfigResolution, ProviderConfigError> {
         let file_snapshot = self.read_file_snapshot()?;
         let account = self
             .state
@@ -536,7 +626,76 @@ impl ProviderConfigHub {
             account_states,
             personal_provider_order: Some(&file_snapshot.personal_provider_order),
         };
-        let resolution = provider_resolver::ProviderConfigResolver.resolve(&input);
+        Ok(provider_resolver::ProviderConfigResolver.resolve(&input))
+    }
+
+    /// 会话 provider 的模型目录（C2 T6：`settings.model.available` 的投影输入）。
+    ///
+    /// 只做合并与查找，不做端点/凭据校验（目录面与可执行面是两件事：目录里的
+    /// 模型即使缺凭据也进快照，turn 才按 resolve 的显式错误暴露）。
+    pub fn provider_catalog(
+        &self,
+        provider_id: &str,
+    ) -> Result<ProviderCatalog, ProviderConfigError> {
+        let resolution = self.merged_resolution()?;
+        let resolved = resolution
+            .resolved_providers
+            .iter()
+            .find(|provider| provider.provider_id == provider_id)
+            .ok_or_else(|| ProviderConfigError::ProviderNotFound {
+                provider_id: provider_id.to_owned(),
+            })?;
+        let models = resolved
+            .models
+            .iter()
+            .map(|model| {
+                let config = &model.config;
+                let properties = config.properties.value();
+                let option_specs = config.option_specs.value();
+                ModelCatalogEntry {
+                    model_id: model.model_id.clone(),
+                    context_window: capability_u64(
+                        properties
+                            .and_then(|properties| properties.context_window.value())
+                            .copied(),
+                    ),
+                    max_output_tokens: capability_u64(
+                        option_specs
+                            .and_then(|specs| specs.max_output_tokens.value())
+                            .and_then(|limit| limit.max.value())
+                            .copied(),
+                    ),
+                    reasoning_levels: option_specs
+                        .and_then(|specs| specs.reasoning_level.value())
+                        .and_then(|spec| spec.values.value().cloned())
+                        .unwrap_or_default(),
+                    input_format: properties
+                        .and_then(|properties| properties.input_format.value())
+                        .map(|format| ModelInputFormatFacts {
+                            supports_text: format.supports_text.value().copied(),
+                            supports_image: format.supports_image.value().copied(),
+                            supports_video: format.supports_video.value().copied(),
+                            supports_audio: format.supports_audio.value().copied(),
+                            supports_pdf: format.supports_pdf.value().copied(),
+                        }),
+                    output_format: properties
+                        .and_then(|properties| properties.output_format.value())
+                        .map(|format| ModelOutputFormatFacts {
+                            supports_text: format.supports_text.value().copied(),
+                        }),
+                }
+            })
+            .collect();
+        Ok(ProviderCatalog {
+            provider_id: provider_id.to_owned(),
+            provider_label: resolved.provider_name.value().cloned(),
+            models,
+        })
+    }
+
+    /// 合并 + 端点事实的公共段；凭据来源分叉成 [`Resolution`]。
+    fn resolve_inner(&self, selection: &ModelSelection) -> Result<Resolution, ProviderConfigError> {
+        let resolution = self.merged_resolution()?;
 
         let resolved = resolution
             .resolved_providers
@@ -562,20 +721,8 @@ impl ProviderConfigHub {
                 Field::Value(ProviderApiType::OpenAiChatCompletions) => {
                     ApiFormat::OpenAiChatCompletions
                 }
-                Field::Value(ProviderApiType::AnthropicMessages) => {
-                    return Err(ProviderConfigError::UnsupportedApiFormat {
-                        provider_id: selection.provider_id.clone(),
-                        model_id: selection.model_id.clone(),
-                        api_format: ProviderApiType::AnthropicMessages.as_str().to_owned(),
-                    });
-                }
-                Field::Value(ProviderApiType::OpenAiResponses) => {
-                    return Err(ProviderConfigError::UnsupportedApiFormat {
-                        provider_id: selection.provider_id.clone(),
-                        model_id: selection.model_id.clone(),
-                        api_format: ProviderApiType::OpenAiResponses.as_str().to_owned(),
-                    });
-                }
+                Field::Value(ProviderApiType::AnthropicMessages) => ApiFormat::AnthropicMessages,
+                Field::Value(ProviderApiType::OpenAiResponses) => ApiFormat::OpenAiResponses,
                 _ => {
                     return Err(missing_field(selection, "api.type"));
                 }

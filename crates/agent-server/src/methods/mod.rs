@@ -6,11 +6,12 @@
 //! [`projection`]（DB 富形状 ≠ wire 投影，见 `docs/specs/agent-server-c1-contract.md`
 //! §3.7）。
 //!
-//! 方法清单（控制器裁决 3）：`session/create|send|subscribe|read|messages|list|
-//! close|resume|setModel|setThoughtLevel|setMode`。`session/compact` 与
-//! `session/goal` 保持显式 `-32601`（分派表的 default 分支）。
+//! 方法清单（控制器裁决 3 + C2 T2）：`session/create|send|subscribe|read|messages|
+//! list|close|resume|setModel|setThoughtLevel|setMode|compact`。`session/goal`
+//! 保持显式 `-32601`（分派表的 default 分支）。
 
 pub mod close;
+pub mod compact;
 pub mod create;
 pub mod list;
 pub mod messages;
@@ -27,9 +28,9 @@ use agent_protocol::session_read::{
     SessionInfo, SessionKind, SessionMode, SessionStatus, SessionTitleSource, SessionWorkspaceRef,
 };
 use agent_protocol::snapshot::{
-    ProtocolInfo, ProtocolName, SessionModeSettings, SessionModelSettings, SessionProjection,
-    SessionRuntimeState, SessionSettings, SessionStateSnapshot, ThoughtLevelOption,
-    ThoughtLevelSettings,
+    PermissionSettings, ProtocolInfo, ProtocolName, SessionModeSettings, SessionModelSettings,
+    SessionProjection, SessionRuntimeState, SessionSettings, SessionStateSnapshot,
+    ThoughtLevelOption, ThoughtLevelSettings,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -43,8 +44,8 @@ pub use agent_protocol::session_read::{
 };
 pub use agent_protocol::session_send::SESSION_SEND_METHOD;
 pub use agent_protocol::session_write::{
-    SESSION_CLOSE_METHOD, SESSION_CREATE_METHOD, SESSION_RESUME_METHOD, SESSION_SET_MODEL_METHOD,
-    SESSION_SET_MODE_METHOD, SESSION_SET_THOUGHT_LEVEL_METHOD,
+    SESSION_CLOSE_METHOD, SESSION_COMPACT_METHOD, SESSION_CREATE_METHOD, SESSION_RESUME_METHOD,
+    SESSION_SET_MODEL_METHOD, SESSION_SET_MODE_METHOD, SESSION_SET_THOUGHT_LEVEL_METHOD,
 };
 
 /// 严格解析 params：未知键 / 类型不符一律 `-32602`，不静默吞掉。
@@ -104,24 +105,31 @@ pub(crate) fn mode_to_string(mode: agent_protocol::session_read::SessionMode) ->
 ///
 /// create 阶段允许模型不可解析（控制器裁决 7）：能力解析失败只放弃能力数字
 /// （调用方传缺省），模型事实仍进配置——真正的失败在 send 的 turn
-/// （`CONFIGURATION_ERROR`）或 setModel 上显式暴露。
+/// （`CONFIGURATION_ERROR`）或 setModel 上显式暴露。`model_catalog` 由调用方
+/// 预先解析（fail-soft 退 `None`，快照 `available:[]`）。
 pub(crate) fn runtime_config(
     data_root: Option<std::path::PathBuf>,
     mode: &str,
     model: Option<&MessageModel>,
     capabilities: ModelCapabilities,
     thought_level: Option<String>,
+    model_catalog: Option<crate::provider_config::ProviderCatalog>,
 ) -> RuntimeConfig {
     let mut config = RuntimeConfig {
         mode: mode.to_string(),
         capabilities,
         thought_level,
+        model_catalog,
         data_root,
         ..RuntimeConfig::default()
     };
     if let Some(model) = model {
         config.provider_id = model.provider_id.clone();
         config.model_id = model.model_id.clone();
+        config.reasoning_level = model
+            .options
+            .as_ref()
+            .and_then(|options| options.reasoning_level.clone());
     }
     config
 }
@@ -155,7 +163,9 @@ pub(crate) fn session_info(record: &SessionRecord, status: SessionStatus) -> Ses
 /// 冷快照（无活跃 runtime 的 `session/read`；不拉起 runtime——控制器裁决 8）。
 ///
 /// 计数不按历史重算（Task 0 观察：oracle 的 resume/read 投影计数保持 0）；
-/// `titleSource` 按库行投影（oracle 的 read/list 行带它）。
+/// `titleSource` 按库行投影（oracle 的 read/list 行带它）。顶层 9 键与热快照同面
+/// （`slashCommands` builtin 数据契约、todos/todoGroups/goal 数组恒在）；`settings.model`
+/// 不带事实（store 无模型选择行面，模型目录归热 runtime——契约 §4.5 登记）。
 pub(crate) fn cold_snapshot(
     record: &SessionRecord,
     messages: Vec<agent_protocol::message::MessageWithParts>,
@@ -180,7 +190,10 @@ pub(crate) fn cold_snapshot(
                 available: Vec::<ThoughtLevelOption>::new(),
             },
             mode: SessionModeSettings { current: mode },
-            permission: None,
+            permission: Some(PermissionSettings {
+                mode: Some(mode),
+                rules_revision: None,
+            }),
         },
         projection: SessionProjection {
             session_id: record.id.clone(),
@@ -194,7 +207,8 @@ pub(crate) fn cold_snapshot(
             pending_permissions: Vec::new(),
             active_tool_calls: Vec::new(),
             background_jobs: Vec::new(),
-            target: None,
+            // 与热快照同面：projection 的 target 键恒在（无 goal 事实为 null）。
+            target: Some(None),
             last_error: None,
         },
         runtime: SessionRuntimeState {
@@ -206,14 +220,14 @@ pub(crate) fn cold_snapshot(
             pending_request_ids: Vec::new(),
             api_retry: None,
             context_usage: None,
-            goal_verifications: None,
-            goal_verification_timeline: None,
+            goal_verifications: Some(Vec::new()),
+            goal_verification_timeline: Some(Vec::new()),
         },
         messages,
         goal_stats: None,
-        todos: None,
-        todo_groups: None,
-        slash_commands: None,
+        todos: Some(Vec::new()),
+        todo_groups: Some(Vec::new()),
+        slash_commands: Some(crate::state::builtin_slash_commands()),
     }
 }
 

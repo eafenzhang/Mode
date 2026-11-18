@@ -1,9 +1,9 @@
 //! schema 门。
 //!
-//! C1 只读已迁移库：必需表来自 `docs/specs/agent-core-parity.md` §5.5；账本
-//! `schema_migration` 的 DDL 由 Node 迁移 runner 创建（列：`id/checksum/app_version/
-//! time_applied`），这里只要求它存在且至少有一行，不校验 checksum（C2 才实现迁移
-//! runner 与账本比对）。
+//! 必需表来自 `docs/specs/agent-core-parity.md` §5.5。C2 起迁移 runner
+//! （`migrations.rs`）负责 fresh-install 创建与冻结 checksum 比对；本门在其之后
+//! 兜底：必需表缺失或账本为空仍 fail-closed（升级路径漏建表、外部手改库等
+//! 情况不静默放行）。
 //!
 //! 这里**不**做进程级写锁：库级写者由 SQLite WAL + `busy_timeout` 串行化，
 //! 唯一 owner 由 `AgentRuntimeRegistry` / `agent-process` 调度（见 crate 文档）。

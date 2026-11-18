@@ -3,12 +3,13 @@
 //! [`AgentServer`] 持有：
 //! - [`ProviderConfigHub`]：provider/updateAccountConfig 与模型端点解析（Task 4b）；
 //! - `ServerConfig`（`.mode` 数据根 → `{root}/cli/db/db.sqlite`）与启动存储门
-//!   （`startup/storageState` 通知，形状见 `docs/specs/agent-process.md` §存储启动门）；
+//!   （`startup/storageState` 通知，形状见 `docs/specs/agent-process.md` §存储启动门
+//!   与 `docs/specs/agent-c2-contract.md` §5）；
 //! - 会话注册表 `HashMap<sessionId, Arc<SessionRuntime>>` 与共享 [`SessionStore`]
 //!   （单写者：crate 文档的锁纪律）。
 //!
-//! session 方法归 `crate::methods`；未知/未实现方法（含 `session/compact`、
-//! `session/goal`）显式 `-32601`，不返回空结果。stdio 循环与帧契约归
+//! session 方法归 `crate::methods`；未知/未实现方法（含 `session/goal`）
+//! 显式 `-32601`，不返回空结果。stdio 循环与帧契约归
 //! [`crate::server`]，本模块不复制。
 
 use std::collections::HashMap;
@@ -20,12 +21,15 @@ use agent_protocol::session::WorkspaceRef;
 use agent_protocol::NotificationFrame;
 
 use crate::provider_config::{
-    ProviderConfigError, ProviderConfigHub, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
+    ApiFormat, ProviderConfigError, ProviderConfigHub, ResolvedProvider,
+    PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
 };
 use crate::reverse::ReverseHub;
 use crate::runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
 use crate::server::ServerError;
-use provider_http::{OpenAiChatConfig, OpenAiChatProvider};
+use provider_http::{
+    AnthropicMessagesProvider, OpenAiChatConfig, OpenAiChatProvider, OpenAiResponsesProvider,
+};
 
 use agent_core::ModelCapabilities;
 use tokio::io::AsyncWrite;
@@ -65,9 +69,9 @@ impl ServerConfig {
     }
 }
 
-/// 生产 provider 装配源：hub 三层合并解析 → OpenAI Chat Completions 适配器。
+/// 生产 provider 装配源：hub 三层合并解析 → 按 `api_format` 选适配器
+/// （OpenAI Chat Completions / Anthropic Messages / OpenAI Responses，C2 §4.3）。
 ///
-/// Anthropic / Responses 属 C2（`ResolvedProvider::to_openai_chat_config` 显式报不支持）。
 /// 账号型 provider（`zhipu-account` 族）的鉴权材料来自宿主反向请求
 /// `interaction/requestProviderRuntimeHeaders`（Task 8 控制器裁决 4）：连接级
 /// [`ReverseHub`] 存在且带会话上下文时发起请求；`headersApplied:true` 用
@@ -86,6 +90,8 @@ impl HubProviderSource {
 
     /// 解析成 OpenAI Chat Completions 配置（不含 provider 实例化；测试断言 key 用）。
     ///
+    /// Anthropic / Responses 等其它格式在这里显式报不支持
+    /// （`to_openai_chat_config` 的格式校验）。
     /// 阻塞等待宿主应答——调用方（worker）把 resolve 放在 `spawn_blocking` 上。
     pub fn resolve_openai_config(
         &self,
@@ -93,26 +99,34 @@ impl HubProviderSource {
         model_id: &str,
         context: Option<&ProviderRequestContext>,
     ) -> Result<OpenAiChatConfig, String> {
+        self.resolve_provider_facts(provider_id, model_id, context)?
+            .to_openai_chat_config()
+            .map_err(|error| error.to_string())
+    }
+
+    /// 解析 provider 事实（端点 + 凭据 + `api_format`），不实例化适配器。
+    ///
+    /// 账号型 provider：凭据在宿主手里（OAuth→API Key 兑换）。钩子不可用
+    /// （无连接级 hub / 无会话上下文）或宿主拒绝时，落回既有显式缺 key 错误。
+    fn resolve_provider_facts(
+        &self,
+        provider_id: &str,
+        model_id: &str,
+        context: Option<&ProviderRequestContext>,
+    ) -> Result<ResolvedProvider, String> {
         let selection = model_selection::ModelSelection {
             provider_id: provider_id.to_owned(),
             model_id: model_id.to_owned(),
             options: None,
         };
-        let config = match self.hub.resolve(&selection) {
-            Ok(resolved) => resolved
-                .to_openai_chat_config()
-                .map_err(|error| error.to_string())?,
+        match self.hub.resolve(&selection) {
+            Ok(resolved) => Ok(resolved),
             Err(ProviderConfigError::MissingEndpointField {
                 field: "access.apiKey",
                 ..
-            }) => {
-                // 账号型 provider：凭据在宿主手里（OAuth→API Key 兑换）。钩子不可用
-                // （无连接级 hub / 无会话上下文）或宿主拒绝时，落回既有显式错误。
-                self.resolve_account_via_host(&selection, context)?
-            }
-            Err(error) => return Err(error.to_string()),
-        };
-        Ok(config)
+            }) => self.resolve_account_via_host(&selection, context),
+            Err(error) => Err(error.to_string()),
+        }
     }
 
     /// 账号型 provider 的宿主钩子路径（`interaction/requestProviderRuntimeHeaders`）。
@@ -120,7 +134,7 @@ impl HubProviderSource {
         &self,
         selection: &model_selection::ModelSelection,
         context: Option<&ProviderRequestContext>,
-    ) -> Result<OpenAiChatConfig, String> {
+    ) -> Result<ResolvedProvider, String> {
         let missing_key = || {
             crate::provider_config::ProviderConfigError::MissingEndpointField {
                 provider_id: selection.provider_id.clone(),
@@ -184,12 +198,8 @@ impl HubProviderSource {
         let Some(api_key) = api_key else {
             return Err(missing_key());
         };
-        let resolved = self
-            .hub
+        self.hub
             .resolve_account_provider(&target, api_key)
-            .map_err(|error| error.to_string())?;
-        resolved
-            .to_openai_chat_config()
             .map_err(|error| error.to_string())
     }
 }
@@ -201,10 +211,34 @@ impl ProviderSource for HubProviderSource {
         model_id: &str,
         context: Option<&ProviderRequestContext>,
     ) -> Result<Arc<dyn agent_core::ModelProvider>, String> {
-        let config = self.resolve_openai_config(provider_id, model_id, context)?;
-        let provider = OpenAiChatProvider::new(config)
-            .map_err(|error| format!("构建模型适配器失败: {error}"))?;
-        Ok(Arc::new(provider))
+        let resolved = self.resolve_provider_facts(provider_id, model_id, context)?;
+        // C2 §4.3：api_format 决定适配器；未支持格式显式报错，不静默回落。
+        match resolved.api_format {
+            ApiFormat::OpenAiChatCompletions => {
+                let config = resolved
+                    .to_openai_chat_config()
+                    .map_err(|error| error.to_string())?;
+                let provider = OpenAiChatProvider::new(config)
+                    .map_err(|error| format!("构建模型适配器失败: {error}"))?;
+                Ok(Arc::new(provider))
+            }
+            ApiFormat::AnthropicMessages => {
+                let config = resolved
+                    .to_anthropic_messages_config()
+                    .map_err(|error| error.to_string())?;
+                let provider = AnthropicMessagesProvider::new(config)
+                    .map_err(|error| format!("构建模型适配器失败: {error}"))?;
+                Ok(Arc::new(provider))
+            }
+            ApiFormat::OpenAiResponses => {
+                let config = resolved
+                    .to_openai_responses_config()
+                    .map_err(|error| error.to_string())?;
+                let provider = OpenAiResponsesProvider::new(config)
+                    .map_err(|error| format!("构建模型适配器失败: {error}"))?;
+                Ok(Arc::new(provider))
+            }
+        }
     }
 
     /// 账号 revision + builtin/personal 文件指纹；personal 配置轮换后下一个 turn
@@ -277,7 +311,7 @@ impl AgentServer {
     ///
     /// provider 装配源（Task 10）：`MODE_AGENT_SERVER_SCRIPTED_PROVIDER` 指向 oracle
     /// 行为夹具时改用脚本化装配（**仅测试可达**，无默认路径）；否则生产恒为
-    /// [`HubProviderSource`]（三层合并 → OpenAI Chat Completions）。
+    /// [`HubProviderSource`]（三层合并 → 按 `api_format` 选适配器）。
     pub fn new() -> Self {
         let hub = Arc::new(ProviderConfigHub::from_env());
         let reverse = Arc::new(RwLock::new(None));
@@ -362,6 +396,7 @@ impl AgentServer {
             crate::methods::SESSION_SET_MODE_METHOD => {
                 methods::setters::handle_set_mode(self, params)
             }
+            crate::methods::SESSION_COMPACT_METHOD => methods::compact::handle(self, params),
             _ => Err(ServerError::method_not_found(method)),
         }
     }
@@ -538,13 +573,15 @@ impl AgentServer {
         })
     }
 
-    /// 启动存储门（`agent-process.md` §存储启动门）。
+    /// 启动存储门（`agent-process.md` §存储启动门；C2 帧契约见
+    /// `agent-c2-contract.md` §5.1/§5.5）。
     ///
-    /// 一次性：`checking` → 打开 [`session_store::SessionStore`]（fail-closed 的
-    /// schema 门，不建库不迁移）→ `ready` / `failed`。通知帧**直接写出**（保证
-    /// 它们是本连接的第一批帧，宿主 `prepare_storage` 靠它们放行）。骨架构造
-    /// （无存储配置）不发通知、不碰盘。`databaseKind` 恒为 `session`（本进程只有
-    /// 会话库一个门）；`failed` 带稳定 `errorCode`。
+    /// 一次性：`checking ×2`（无 migration 事实）→ [`session_store::SessionStore`]
+    /// 打开（缺库/空 schema 走 fresh-install 迁移）→ 第 3 个 `checking`（带预检
+    /// 事实）→ `migrating ×N`（每缺失步一帧，执行前发出）→ `committing` →
+    /// `ready`。全迁移完成时（第二次启动）没有 `migrating` 帧，共 5 帧；fresh 共
+    /// 27 帧。打开是同步 SQLite 操作，迁移事件先收集、按序写出（帧序不变）。
+    /// 骨架构造（无存储配置）不发通知、不碰盘；`failed` 带稳定 `errorCode`。
     pub(crate) async fn run_storage_gate<W>(&self, writer: &mut W) -> Result<(), ServerError>
     where
         W: AsyncWrite + Unpin,
@@ -558,12 +595,79 @@ impl AgentServer {
             return Ok(());
         };
         let started = std::time::Instant::now();
-        self.notify_storage(writer, "checking", None, started)
+        self.notify_storage(writer, "checking", started, serde_json::json!({}))
+            .await?;
+        self.notify_storage(writer, "checking", started, serde_json::json!({}))
             .await?;
 
-        match session_store::SessionStore::open(&config.db_path()) {
+        let mut events = Vec::new();
+        let open_result =
+            session_store::SessionStore::open_with_progress(&config.db_path(), &mut |event| {
+                events.push(event)
+            });
+
+        match open_result {
             Ok(store) => {
-                self.notify_storage(writer, "ready", None, started).await?;
+                let mut committing_facts = None;
+                for event in &events {
+                    match event {
+                        session_store::MigrationEvent::Inspected { facts } => {
+                            // 第 3 个 checking 帧：预检事实（锁内基线尚未取得）。
+                            self.notify_storage(
+                                writer,
+                                "checking",
+                                started,
+                                serde_json::json!({
+                                    "migration": migration_facts_json(facts, false),
+                                }),
+                            )
+                            .await?;
+                        }
+                        session_store::MigrationEvent::Migrating {
+                            migration_id,
+                            facts,
+                        } => {
+                            self.notify_storage(
+                                writer,
+                                "migrating",
+                                started,
+                                serde_json::json!({
+                                    "migration": migration_facts_json(facts, true),
+                                    "completed": facts.executed_count,
+                                    "total": session_store::migration_definitions().len(),
+                                    "migrationId": migration_id,
+                                }),
+                            )
+                            .await?;
+                        }
+                        session_store::MigrationEvent::Committing { facts } => {
+                            self.notify_storage(
+                                writer,
+                                "committing",
+                                started,
+                                serde_json::json!({
+                                    "migration": migration_facts_json(facts, true),
+                                }),
+                            )
+                            .await?;
+                            committing_facts = Some(facts.clone());
+                        }
+                    }
+                }
+                // ready 帧：`committedCount` 追平 `executedCount`（C1 观察的 ready 形状；
+                // 全部已应用时 executed/committed 恒 0）。
+                let mut ready_facts =
+                    committing_facts.unwrap_or(session_store::MigrationFacts::default());
+                ready_facts.committed_count = ready_facts.executed_count;
+                self.notify_storage(
+                    writer,
+                    "ready",
+                    started,
+                    serde_json::json!({
+                        "migration": migration_facts_json(&ready_facts, true),
+                    }),
+                )
+                .await?;
                 // 数据根随 store 一起保留：会话物化时用它接线工具 artifact 落点。
                 *self.storage.lock().expect("storage poisoned") = StorageState::Ready {
                     store: Arc::new(store),
@@ -575,8 +679,13 @@ impl AgentServer {
                 // 稳定错误码来自 `session_store::StoreError::code()`（`agent-core-parity.md`
                 // §6 的事实源），这里不另造取值。
                 let error_code = error.code();
-                self.notify_storage(writer, "failed", Some(error_code.to_owned()), started)
-                    .await?;
+                self.notify_storage(
+                    writer,
+                    "failed",
+                    started,
+                    serde_json::json!({ "errorCode": error_code }),
+                )
+                .await?;
                 *self.storage.lock().expect("storage poisoned") =
                     StorageState::Failed(error.to_string());
                 Ok(())
@@ -588,8 +697,8 @@ impl AgentServer {
         &self,
         writer: &mut W,
         phase: &str,
-        error_code: Option<String>,
         started: std::time::Instant,
+        extra: serde_json::Value,
     ) -> Result<(), ServerError>
     where
         W: AsyncWrite + Unpin,
@@ -605,8 +714,10 @@ impl AgentServer {
             "phase": phase,
             "elapsedMs": started.elapsed().as_secs_f64() * 1000.0,
         });
-        if let Some(code) = error_code {
-            params["errorCode"] = serde_json::json!(code);
+        if let Some(object) = extra.as_object() {
+            for (key, value) in object {
+                params[key.as_str()] = value.clone();
+            }
         }
         crate::server::write_frame(
             writer,
@@ -618,4 +729,23 @@ impl AgentServer {
         )
         .await
     }
+}
+
+/// 迁移事实 → 帧 `migration` 字段。
+///
+/// `include_last_applied=false` 用于预检帧（oracle 第 3 个 checking 帧没有
+/// `lastAppliedMigrationId`）；其余帧带该键（空账本为 `null`）。
+fn migration_facts_json(
+    facts: &session_store::MigrationFacts,
+    include_last_applied: bool,
+) -> serde_json::Value {
+    let mut value = serde_json::json!({
+        "kind": facts.kind.as_str(),
+        "executedCount": facts.executed_count,
+        "committedCount": facts.committed_count,
+    });
+    if include_last_applied {
+        value["lastAppliedMigrationId"] = serde_json::json!(facts.last_applied_migration_id);
+    }
+    value
 }

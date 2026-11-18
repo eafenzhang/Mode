@@ -31,6 +31,12 @@ pub(crate) struct RestoredSession {
 ///
 /// `turn_ids` 是 `turn_usage` 里已落库的 turn id；消息 `anchor.turnId` 也会并入
 /// `used_turn_ids`（历史库可能只有消息、没有 usage 行）。
+///
+/// **compact 边界（C2 T2，契约 §1.3/§1.5）**：最后一条带
+/// `compaction(timelineStatus:"completed")` part 的消息是 timeline 分隔行——它**之前**
+/// 的消息已被摘要替换，不再进入模型请求（DB 行保留，回退属 C3）；边界起（含紧随的
+/// `compact_summary` 摘要消息）照常恢复。失败 / skipped 的 compaction part 不建立
+/// 边界（历史未变，契约 §1.8 / §1.6）。C1 夹具没有 compaction part，行为不变。
 pub(crate) fn restore(
     directory: &str,
     rows: &[MessageWithParts],
@@ -41,12 +47,20 @@ pub(crate) fn restore(
         artifact: None,
         tasks: None,
     };
+    let boundary = rows.iter().rposition(|row| {
+        row.parts.iter().any(|part| {
+            part.data.get("type").and_then(Value::as_str) == Some("compaction")
+                && part.data.get("timelineStatus").and_then(Value::as_str) == Some("completed")
+        })
+    });
     let mut messages = Vec::new();
     let mut file_state = FileState::new();
     let mut used_turn_ids: BTreeSet<String> = turn_ids.iter().cloned().collect();
 
-    for row in rows {
+    for (index, row) in rows.iter().enumerate() {
         let data = &row.message.data;
+        // turn id 锚点对**全部**行收集（含被摘要替换的历史）：`turn_usage` 缺行时
+        // 仍要跳过旧 turn 号，避免 resume 后主键冲突。
         if let Some(turn_id) = data
             .get("anchor")
             .and_then(|anchor| anchor.get("turnId"))
@@ -55,6 +69,11 @@ pub(crate) fn restore(
             .filter(|value| !value.is_empty())
         {
             used_turn_ids.insert(turn_id.to_string());
+        }
+        // 边界之前的消息（含被摘要替换的全部历史）不进模型视角；timeline 行本身
+        // 由 `restore_assistant` 的 `timeline_event` 判定跳过。
+        if boundary.is_some_and(|boundary| index < boundary) {
+            continue;
         }
         match data.get("role").and_then(Value::as_str) {
             Some("user") => {

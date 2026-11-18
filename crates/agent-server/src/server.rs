@@ -50,6 +50,14 @@ pub enum ServerError {
     InvalidFrame { message: String },
     /// `-32603`：内部错误。
     Internal { message: String },
+    /// 自定义 JSON-RPC 错误码 + 可选 `data`（C2 compact 的观察形状：
+    /// `-32009` revision 冲突带 `{actualRevision, expectedRevision}`、
+    /// `-32010` prompt 运行中拒绝，见 `agent-c2-contract.md` §1.1）。
+    Rpc {
+        code: i64,
+        message: String,
+        data: Option<Value>,
+    },
     /// stdio 传输错误。
     Io(io::Error),
 }
@@ -79,12 +87,22 @@ impl ServerError {
         }
     }
 
+    /// 自定义错误码 + `data`（compact 的 `-32009` / `-32010` 观察形状）。
+    pub fn rpc(code: i64, message: impl Into<String>, data: Option<Value>) -> Self {
+        Self::Rpc {
+            code,
+            message: message.into(),
+            data,
+        }
+    }
+
     pub fn code(&self) -> i64 {
         match self {
             Self::MethodNotFound { .. } => -32601,
             Self::InvalidParams { .. } => -32602,
             Self::InvalidFrame { .. } => -32700,
             Self::Internal { .. } | Self::Io(_) => -32603,
+            Self::Rpc { code, .. } => *code,
         }
     }
 
@@ -94,14 +112,18 @@ impl ServerError {
             Self::MethodNotFound { .. } => "Method not found".to_string(),
             Self::InvalidParams { message }
             | Self::InvalidFrame { message }
-            | Self::Internal { message } => message.clone(),
+            | Self::Internal { message }
+            | Self::Rpc { message, .. } => message.clone(),
             Self::Io(error) => format!("stdio transport error: {error}"),
         }
     }
 
-    /// 错误应答的可选 `data`。当前不需要附加结构化细节。
+    /// 错误应答的可选 `data`（`Rpc` 携带结构化细节，其余为 `None`）。
     pub fn data(&self) -> Option<Value> {
-        None
+        match self {
+            Self::Rpc { data, .. } => data.clone(),
+            _ => None,
+        }
     }
 }
 
@@ -113,7 +135,8 @@ impl fmt::Display for ServerError {
             }
             Self::InvalidParams { message }
             | Self::InvalidFrame { message }
-            | Self::Internal { message } => formatter.write_str(message),
+            | Self::Internal { message }
+            | Self::Rpc { message, .. } => formatter.write_str(message),
             Self::Io(error) => write!(formatter, "stdio transport error: {error}"),
         }
     }
