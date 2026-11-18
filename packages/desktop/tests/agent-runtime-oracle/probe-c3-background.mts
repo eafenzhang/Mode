@@ -106,13 +106,13 @@ async function caseIdle(): Promise<JsonObject> {
       (payload) => payload.inputSource === "background_task",
       "空闲后 background_task turn.started",
     );
+    const notificationWindowStart = harness.eventCount();
     await harness.waitForEvent(
-      firstTerminalAt,
-      (event) => event.type === "turn.completed" && event !== notificationStart,
+      notificationWindowStart,
+      (event) => event.type === "turn.completed",
       "notification turn.completed",
       60_000,
     );
-    await delay(500);
     const events = harness.eventsSince(start);
     const notificationInput = String((notificationStart.payload as JsonObject)?.input ?? "");
     return {
@@ -218,21 +218,21 @@ async function caseBusyCoalesced(): Promise<JsonObject> {
       "busy turn.completed",
       60_000,
     );
+    // 通知 turn 的边界从 busy turn 终态之后开始：只等这个窗口里的终态，
+    // 不再用 inputId/delay 猜测是哪一轮。
+    const notificationWindowStart = harness.eventCount();
     await waitForTurnStart(
       harness,
-      busyStart,
+      notificationWindowStart,
       (payload) => payload.inputSource === "background_task",
       "busy 后的 background_task turn.started",
     );
     await harness.waitForEvent(
-      busyStart,
-      (event) =>
-        event.type === "turn.completed" &&
-        (event.payload as JsonObject | undefined)?.inputId !== undefined,
+      notificationWindowStart,
+      (event) => event.type === "turn.completed",
       "notification turn.completed",
       60_000,
     );
-    await delay(1500);
     const events = harness.eventsSince(start);
     const notificationTurns = events
       .filter((event) => event.type === "turn.started")

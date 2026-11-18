@@ -22,7 +22,7 @@
     "runningPayload": {
       "agentId": "agent_<id>",
       "agentType": "general-purpose",
-      "childSessionId": "<id>",
+      "childSessionId": "child-1",
       "description": "child task",
       "prompt": "child task prompt: inspect the workspace",
       "parentToolCallId": "<tool-call-id>",
@@ -33,10 +33,10 @@
       "ok": true,
       "result": {
         "revision": 3,
-        "childSessionIds": ["sess_subagent_agent_<id>"],
+        "childSessionIds": ["child-1"],
         "running": [
           {
-            "childSessionId": "<id>",
+            "childSessionId": "child-1",
             "agentId": "agent_<id>",
             "toolCallId": "<id>",
             "subagentType": "general-purpose",
@@ -55,13 +55,13 @@
       "ok": true,
       "result": {
         "revision": 4,
-        "childSessionIds": ["sess_subagent_agent_<id>"],
+        "childSessionIds": ["child-1"],
         "running": [],
         "ended": {
           "total": 1,
           "items": [
             {
-              "childSessionId": "<id>",
+              "childSessionId": "child-1",
               "agentId": "agent_<id>",
               "toolCallId": "<id>",
               "subagentType": "general-purpose",
@@ -90,7 +90,7 @@
       "error": {
         "frame": {
           "code": -32004,
-          "message": "Session is not active: sess_subagent_agent_<id>"
+          "message": "Session is not active: child-1"
         }
       }
     },
@@ -466,7 +466,7 @@
         "payload": {
           "agentId": "agent_<id>",
           "agentType": "general-purpose",
-          "childSessionId": "<id>",
+          "childSessionId": "child-1",
           "description": "child task",
           "prompt": "child task prompt: inspect the workspace",
           "parentToolCallId": "<tool-call-id>",
@@ -486,7 +486,7 @@
         "payload": {
           "agentId": "agent_<id>",
           "agentType": "general-purpose",
-          "childSessionId": "<id>",
+          "childSessionId": "child-1",
           "parentToolCallId": "<tool-call-id>",
           "status": "completed",
           "totalDurationMs": "<time>",

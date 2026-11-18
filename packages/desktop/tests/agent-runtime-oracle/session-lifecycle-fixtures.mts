@@ -134,6 +134,11 @@ export type NormalizeDeepOptions = {
    * C1/C2 不传时行为不变）。
    */
   preserveNumericKeys?: ReadonlySet<string>;
+  /**
+   * 这些键的原始值不规范化（C3 需要先保留目标/子会话 id，再映射成可比较的别名；
+   * C1/C2 不传时行为不变）。
+   */
+  preserveValueKeys?: ReadonlySet<string>;
 };
 
 export function normalizeDeep(
@@ -145,6 +150,7 @@ export function normalizeDeep(
   if (Array.isArray(value)) return value.map((item) => normalizeDeep(item, context, options));
   if (value === null || typeof value !== "object") return value;
   const entries = Object.entries(value as JsonObject).map(([key, inner]) => {
+    if (options.preserveValueKeys?.has(key)) return [key, inner];
     if (options.preserveNumericKeys?.has(key) && typeof inner === "number") {
       return [key, inner];
     }

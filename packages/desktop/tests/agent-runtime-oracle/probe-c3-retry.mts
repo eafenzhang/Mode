@@ -48,7 +48,11 @@ async function conversation(harness: C3Harness): Promise<JsonObject[]> {
   const result = (await harness.session.request("session/messages", {
     sessionId: harness.session.sessionId,
   })) as { messages?: JsonObject[] };
-  const normalized = normalizeC3Deep(result.messages ?? [], harness.context) as JsonObject[];
+  const normalized = normalizeC3Deep(
+    result.messages ?? [],
+    harness.context,
+    harness.aliases,
+  ) as JsonObject[];
   return normalized.slice(-5).map((message) => {
     const info = (message.info ?? {}) as JsonObject;
     const parts = Array.isArray(message.parts) ? (message.parts as JsonObject[]) : [];

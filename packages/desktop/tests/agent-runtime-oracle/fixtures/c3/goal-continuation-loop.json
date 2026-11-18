@@ -111,7 +111,7 @@
     "verificationEventCount": 80,
     "firstIterations": [1, 1, 2, 2, 3],
     "lastIterations": [38, 39, 39, 40, 40],
-    "sawTurnLimit": false,
+    "configuredTurnBound": 40,
     "pause": {
       "response": "",
       "startedTurn": false
@@ -123,7 +123,7 @@
         "sessionId": "<id>",
         "status": "paused",
         "summaryTitle": "Loop goal",
-        "targetId": "<target-id>",
+        "targetId": "target-1",
         "timeUsedSeconds": "<time>",
         "tokenBudget": null,
         "tokensUsed": 880,
@@ -149,7 +149,7 @@
         "kind": "synthetic",
         "type": "goal_verification",
         "display": "separator",
-        "targetId": "<target-id>",
+        "targetId": "target-1",
         "verificationId": "<id>",
         "status": "completed",
         "goalIteration": 1,
@@ -168,7 +168,7 @@
         "kind": "synthetic",
         "type": "goal_verification",
         "display": "separator",
-        "targetId": "<target-id>",
+        "targetId": "target-1",
         "verificationId": "<id>",
         "status": "cancelled",
         "goalIteration": 40,
@@ -238,7 +238,7 @@
           "action": "summary_updated",
           "previousTarget": {
             "sessionID": "<session-id>",
-            "targetID": "<target-id>",
+            "targetID": "target-1",
             "objective": "Loop goal",
             "summaryTitle": null,
             "status": "active",
@@ -256,7 +256,7 @@
           "source": "runtime",
           "target": {
             "sessionID": "<session-id>",
-            "targetID": "<target-id>",
+            "targetID": "target-1",
             "objective": "Loop goal",
             "summaryTitle": "Loop goal",
             "status": "active",
@@ -287,7 +287,7 @@
           "source": "command",
           "target": {
             "sessionID": "<session-id>",
-            "targetID": "<target-id>",
+            "targetID": "target-1",
             "objective": "Loop goal",
             "summaryTitle": null,
             "status": "active",
@@ -322,7 +322,7 @@
           "queryId": "<id>",
           "inputSource": "goal-continuation",
           "inputVisibility": "model-only",
-          "targetId": "<target-id>"
+          "targetId": "target-1"
         },
         "seq": 6,
         "sessionId": "<id>",
@@ -338,7 +338,7 @@
           "action": "run_started",
           "previousTarget": {
             "sessionID": "<session-id>",
-            "targetID": "<target-id>",
+            "targetID": "target-1",
             "objective": "Loop goal",
             "summaryTitle": "Loop goal",
             "status": "active",
@@ -356,7 +356,7 @@
           "source": "runtime",
           "target": {
             "sessionID": "<session-id>",
-            "targetID": "<target-id>",
+            "targetID": "target-1",
             "objective": "Loop goal",
             "summaryTitle": "Loop goal",
             "status": "active",
@@ -803,7 +803,7 @@
           "action": "run_finished",
           "previousTarget": {
             "sessionID": "<session-id>",
-            "targetID": "<target-id>",
+            "targetID": "target-1",
             "objective": "Loop goal",
             "summaryTitle": "Loop goal",
             "status": "active",
@@ -821,7 +821,7 @@
           "source": "runtime",
           "target": {
             "sessionID": "<session-id>",
-            "targetID": "<target-id>",
+            "targetID": "target-1",
             "objective": "Loop goal",
             "summaryTitle": "Loop goal",
             "status": "active",
@@ -889,7 +889,7 @@
           "foregroundExecutionId": "runtime_command_1",
           "goalIteration": 40,
           "status": "started",
-          "targetId": "<target-id>",
+          "targetId": "target-1",
           "verificationId": "<id>"
         },
         "seq": 600,
@@ -969,7 +969,7 @@
           "action": "status_updated",
           "previousTarget": {
             "sessionID": "<session-id>",
-            "targetID": "<target-id>",
+            "targetID": "target-1",
             "objective": "Loop goal",
             "summaryTitle": "Loop goal",
             "status": "active",
@@ -987,7 +987,7 @@
           "source": "command",
           "target": {
             "sessionID": "<session-id>",
-            "targetID": "<target-id>",
+            "targetID": "target-1",
             "objective": "Loop goal",
             "summaryTitle": "Loop goal",
             "status": "paused",
@@ -1076,7 +1076,7 @@
           "foregroundExecutionId": "runtime_command_1",
           "goalIteration": 40,
           "status": "cancelled",
-          "targetId": "<target-id>",
+          "targetId": "target-1",
           "verification": {
             "passed": false,
             "reason": "Completion verifier request was cancelled."
@@ -1092,11 +1092,104 @@
     ],
     "db": {
       "session_target": {
+        "columns": [
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "target_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "objective",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "token_budget",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "tokens_used",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "time_used_seconds",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "summary_title",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "active_input_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "active_run_started_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "active_run_last_seen_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
         "rowCount": 1,
         "rows": [
           {
             "session_id": "<id>",
-            "target_id": "<target-id>",
+            "target_id": "target-1",
             "objective": "Loop goal",
             "status": "paused",
             "token_budget": null,
@@ -1112,6 +1205,120 @@
         ]
       },
       "session_task_link": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "root_workflow_run_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "parent_link_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "activity_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "parent_session_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "child_session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "role",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "depth",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "path",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "phase",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "label",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "agent_type",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "model",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
         "rowCount": 0,
         "rows": []
       },
@@ -1132,7 +1339,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 1,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 19,
@@ -1153,7 +1360,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 1,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1179,7 +1386,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 2,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 38,
@@ -1200,7 +1407,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 2,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1226,7 +1433,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 3,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 57,
@@ -1247,7 +1454,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 3,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1273,7 +1480,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 4,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 76,
@@ -1294,7 +1501,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 4,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1320,7 +1527,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 5,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 95,
@@ -1341,7 +1548,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 5,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1367,7 +1574,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 6,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 114,
@@ -1388,7 +1595,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 6,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1414,7 +1621,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 7,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 133,
@@ -1435,7 +1642,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 7,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1461,7 +1668,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 8,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 152,
@@ -1482,7 +1689,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 8,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1508,7 +1715,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 9,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 171,
@@ -1529,7 +1736,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 9,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1555,7 +1762,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 10,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 190,
@@ -1576,7 +1783,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 10,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1602,7 +1809,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 11,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 209,
@@ -1623,7 +1830,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 11,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1649,7 +1856,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 12,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 228,
@@ -1670,7 +1877,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 12,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1696,7 +1903,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 13,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 247,
@@ -1717,7 +1924,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 13,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1743,7 +1950,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 14,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 266,
@@ -1764,7 +1971,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 14,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1790,7 +1997,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 15,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 285,
@@ -1811,7 +2018,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 15,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1837,7 +2044,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 16,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 304,
@@ -1858,7 +2065,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 16,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1884,7 +2091,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 17,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 323,
@@ -1905,7 +2112,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 17,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1931,7 +2138,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 18,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 342,
@@ -1952,7 +2159,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 18,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -1978,7 +2185,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 19,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 361,
@@ -1999,7 +2206,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 19,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2025,7 +2232,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 20,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 380,
@@ -2046,7 +2253,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 20,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2072,7 +2279,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 21,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 399,
@@ -2093,7 +2300,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 21,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2119,7 +2326,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 22,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 418,
@@ -2140,7 +2347,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 22,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2166,7 +2373,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 23,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 437,
@@ -2187,7 +2394,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 23,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2213,7 +2420,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 24,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 456,
@@ -2234,7 +2441,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 24,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2260,7 +2467,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 25,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 475,
@@ -2281,7 +2488,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 25,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2307,7 +2514,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 26,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 494,
@@ -2328,7 +2535,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 26,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2354,7 +2561,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 27,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 513,
@@ -2375,7 +2582,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 27,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2401,7 +2608,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 28,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 532,
@@ -2422,7 +2629,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 28,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2448,7 +2655,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 29,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 551,
@@ -2469,7 +2676,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 29,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2495,7 +2702,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 30,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 570,
@@ -2516,7 +2723,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 30,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2542,7 +2749,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 31,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 589,
@@ -2563,7 +2770,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 31,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2589,7 +2796,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 32,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 608,
@@ -2610,7 +2817,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 32,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2636,7 +2843,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 33,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 627,
@@ -2657,7 +2864,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 33,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2683,7 +2890,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 34,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 646,
@@ -2704,7 +2911,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 34,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2730,7 +2937,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 35,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 665,
@@ -2751,7 +2958,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 35,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2777,7 +2984,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 36,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 684,
@@ -2798,7 +3005,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 36,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2824,7 +3031,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 37,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 703,
@@ -2845,7 +3052,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 37,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2871,7 +3078,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 38,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 722,
@@ -2892,7 +3099,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 38,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2918,7 +3125,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 39,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 741,
@@ -2939,7 +3146,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 39,
                 "status": "completed",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "nextAction": "continue",
                   "passed": false,
@@ -2965,7 +3172,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 40,
                 "status": "started",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verificationId": "<id>"
               },
               "sequenceNumber": 760,
@@ -2986,7 +3193,7 @@
                 "foregroundExecutionId": "runtime_command_1",
                 "goalIteration": 40,
                 "status": "cancelled",
-                "targetId": "<target-id>",
+                "targetId": "target-1",
                 "verification": {
                   "passed": false,
                   "reason": "Completion verifier request was cancelled."

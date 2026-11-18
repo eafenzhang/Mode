@@ -50,10 +50,10 @@ async function subagents(
     })) as JsonObject;
     return {
       ok: true,
-      result: redactCursor(normalizeC3Deep(raw, harness.context) as JsonObject),
+      result: redactCursor(normalizeC3Deep(raw, harness.context, harness.aliases) as JsonObject),
     };
   } catch (error) {
-    return { ok: false, error: normalizeError(error, harness.context) };
+    return { ok: false, error: normalizeError(error, harness.context, harness.aliases) };
   }
 }
 
@@ -81,9 +81,9 @@ async function readSessionById(harness: C3Harness, sessionId: string): Promise<J
   try {
     raw = (await harness.session.request("session/read", { sessionId })) as JsonObject;
   } catch (error) {
-    return { error: normalizeError(error, harness.context) };
+    return { error: normalizeError(error, harness.context, harness.aliases) };
   }
-  const normalized = normalizeC3Deep(raw, harness.context) as JsonObject;
+  const normalized = normalizeC3Deep(raw, harness.context, harness.aliases) as JsonObject;
   const session = (normalized.session ?? {}) as JsonObject;
   const projection = (normalized.projection ?? {}) as JsonObject;
   const messages = Array.isArray(normalized.messages) ? (normalized.messages as JsonObject[]) : [];
@@ -127,6 +127,7 @@ function decodeCursor(cursor: string, harness: C3Harness): JsonObject | null {
     return normalizeC3Deep(
       JSON.parse(Buffer.from(cursor, "base64").toString("utf8")),
       harness.context,
+      harness.aliases,
     ) as JsonObject;
   } catch {
     return null;
@@ -149,7 +150,7 @@ async function caseEmpty(): Promise<JsonObject> {
         endedLimit: 20,
       });
     } catch (error) {
-      badSessionError = normalizeError(error, harness.context);
+      badSessionError = normalizeError(error, harness.context, harness.aliases);
     }
     await harness.sendAndWait("plain prompt");
     const emptyWithLimit = await subagents(harness, { endedLimit: 20 });
@@ -263,7 +264,9 @@ async function caseForeground(): Promise<JsonObject> {
       childRead,
       requests: harness.requests.map(({ body }) => ({
         toolCount: Array.isArray(body.tools) ? body.tools.length : 0,
-        lastUserText: String(normalizeC3Deep(lastUserText(body), harness.context)).slice(-160),
+        lastUserText: String(
+          normalizeC3Deep(lastUserText(body), harness.context, harness.aliases),
+        ).slice(-160),
       })),
       events: projectEvents(events),
       eventSummary: eventSummary(events),
@@ -369,10 +372,10 @@ async function casePagination(): Promise<JsonObject> {
     script: [
       (body) => {
         const text = lastUserText(body);
-        if (text.includes("child one prompt")) return { text: "child one result", delayMs: 2000 };
-        if (text.includes("child two prompt")) return { text: "child two result", delayMs: 2500 };
-        if (text === "") return { text: "parent after two children" };
-        if (text.includes("spawn two subagents")) {
+        if (text.includes("child one prompt")) return { text: "child one result", delayMs: 1000 };
+        if (text.includes("child two prompt")) return { text: "child two result", delayMs: 1000 };
+        if (text === "") return { text: "parent after child" };
+        if (text.includes("spawn child one")) {
           return {
             toolCalls: [
               {
@@ -383,6 +386,12 @@ async function casePagination(): Promise<JsonObject> {
                   subagent_type: "general-purpose",
                 },
               },
+            ],
+          };
+        }
+        if (text.includes("spawn child two")) {
+          return {
+            toolCalls: [
               {
                 name: "Agent",
                 input: {
@@ -400,11 +409,19 @@ async function casePagination(): Promise<JsonObject> {
   });
   try {
     const start = harness.eventCount();
-    await harness.session.send("spawn two subagents");
+    await harness.session.send("spawn child one");
     await harness.waitForEvent(
       start,
       (event) => event.type === "turn.completed",
-      "pagination parent turn.completed",
+      "child one parent turn.completed",
+      60_000,
+    );
+    const secondTurnStart = harness.eventCount();
+    await harness.session.send("spawn child two");
+    await harness.waitForEvent(
+      secondTurnStart,
+      (event) => event.type === "turn.completed",
+      "child two parent turn.completed",
       60_000,
     );
     await delay(200);
@@ -412,7 +429,9 @@ async function casePagination(): Promise<JsonObject> {
       sessionId: harness.session.sessionId,
       endedLimit: 1,
     })) as JsonObject;
-    const first = redactCursor(normalizeC3Deep(rawFirst, harness.context) as JsonObject);
+    const first = redactCursor(
+      normalizeC3Deep(rawFirst, harness.context, harness.aliases) as JsonObject,
+    );
     const rawCursor = String(
       ((rawFirst.ended as JsonObject | undefined)?.nextCursor as string | undefined) ?? "",
     );
@@ -424,9 +443,12 @@ async function casePagination(): Promise<JsonObject> {
               endedLimit: 1,
               endedCursor: rawCursor,
             })) as JsonObject;
-            return { ok: true, result: normalizeC3Deep(raw, harness.context) as JsonObject };
+            return {
+              ok: true,
+              result: normalizeC3Deep(raw, harness.context, harness.aliases) as JsonObject,
+            };
           } catch (error) {
-            return { ok: false, error: normalizeError(error, harness.context) };
+            return { ok: false, error: normalizeError(error, harness.context, harness.aliases) };
           }
         })()
       : null;
@@ -527,11 +549,13 @@ const fixtures: Record<string, JsonObject> = {
   "subagents-pagination": {
     case: "subagents-pagination",
     note:
-      "C3 Task 0 oracle 捕获：两个已结束子代理按 endedAt 倒序分页；endedLimit:1 返回最新一个与 " +
-      "不透明 base64 nextCursor，第二页返回剩余项；childSessionIds 保持创建顺序。",
+      "C3 Task 0 oracle 捕获：两个**串行创建**的子代理（保证创建顺序确定）按 endedAt 倒序分页；" +
+      "endedLimit:1 返回最新完成的一个与不透明 base64 nextCursor，第二页返回剩余项；" +
+      "childSessionIds 保持创建顺序 child-1,child-2。",
     input: {
       seed: SEED,
       scriptKind: "user-text-keyed step function",
+      prompts: ["spawn child one", "spawn child two"],
       agents: [
         { subagent_type: "general-purpose", description: "child one" },
         { subagent_type: "Explore", description: "child two" },

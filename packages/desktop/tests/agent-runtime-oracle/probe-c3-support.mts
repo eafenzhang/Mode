@@ -68,18 +68,69 @@ const C3_PRESERVE_NUMERIC_KEYS = new Set([
   "pid",
 ]);
 
-const TARGET_ID_RE = /\btarget_[a-z0-9]+_(?:<id>|[0-9a-f]{8}-[0-9a-f-]{27,})\b/giu;
+/** 这些键保留原始 id，再由 walker 映射成夹具内稳定的 target-N / child-N。 */
+const C3_PRESERVE_VALUE_KEYS = new Set([
+  "target_id",
+  "targetId",
+  "targetID",
+  "childSessionId",
+  "childSessionIds",
+]);
 
-/** 字符串里的目标 id / 用量文案折叠；其余保持观察原文。 */
-export function normalizeC3String(value: string, context: PathContext): string {
-  return (
-    normalizeC2String(value, context)
+const TARGET_ID_RE = /\btarget_[a-z0-9]+_(?:<id>|[0-9a-f]{8}-[0-9a-f-]{27,})\b/giu;
+const CHILD_SESSION_ID_RE =
+  /\bsess_subagent_agent_(?:<id>|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/giu;
+
+/** 每个夹具一份的目标/子会话别名状态；首次出现顺序决定 target-1/child-1。 */
+export type C3AliasState = {
+  targets: Map<string, string>;
+  children: Map<string, string>;
+};
+
+export function createC3Aliases(): C3AliasState {
+  return { targets: new Map(), children: new Map() };
+}
+
+function aliasFor(map: Map<string, string>, raw: string, prefix: string): string {
+  const existing = map.get(raw);
+  if (existing !== undefined) return existing;
+  const alias = `${prefix}-${map.size + 1}`;
+  map.set(raw, alias);
+  return alias;
+}
+
+function aliasTarget(raw: string, aliases: C3AliasState): string {
+  return aliasFor(aliases.targets, raw, "target");
+}
+
+function aliasChild(raw: string, aliases: C3AliasState): string {
+  return aliasFor(aliases.children, raw, "child");
+}
+
+/** 字符串里的 id / 用量文案折叠；`aliases` 存在时保留可比较的稳定别名。 */
+export function normalizeC3String(
+  value: string,
+  context: PathContext,
+  aliases?: C3AliasState,
+): string {
+  let text = normalizeC2String(value, context);
+  if (aliases !== undefined) {
+    text = text
+      .replace(TARGET_ID_RE, (raw) => aliasTarget(raw, aliases))
+      .replace(CHILD_SESSION_ID_RE, (raw) => aliasChild(raw, aliases));
+  } else {
+    text = text
       .replace(TARGET_ID_RE, "<target-id>")
+      .replace(CHILD_SESSION_ID_RE, "<child-session-id>");
+  }
+  return (
+    text
       // verificationId 是截短 UUID（8-4-2），完整 UUID 正则不会命中。
       .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{2,12}\b/giu, "<id>")
       .replace(/Usage: \d+ tokens \/ (?:none|\d+)/gu, "Usage: <tokens> tokens / <budget>")
       .replace(/Time: \d+ seconds/gu, "Time: <time>")
       .replace(/Time spent pursuing goal: \d+ seconds/gu, "Time spent pursuing goal: <time>")
+      .replace(/Time used: \d+ seconds/gu, "Time used: <time>")
       .replace(/Tokens used: \d+/gu, "Tokens used: <tokens>")
       .replace(/Tokens remaining: (?:\d+|unbounded)/gu, "Tokens remaining: <tokens>")
       .replace(/Token budget: \d+/gu, "Token budget: <tokens>")
@@ -89,14 +140,25 @@ export function normalizeC3String(value: string, context: PathContext): string {
   );
 }
 
-/** 对 `normalizeDeep` 的输出再做 C3 稳定化（目标 id、退避、速率、pid）。 */
-export function normalizeC3Deep(value: unknown, context: PathContext): unknown {
+/** 对 `normalizeDeep` 的输出再做 C3 稳定化（目标/子会话别名、退避、速率、pid）。 */
+export function normalizeC3Deep(
+  value: unknown,
+  context: PathContext,
+  aliases: C3AliasState = createC3Aliases(),
+): unknown {
   const base = normalizeDeep(value, context, {
     preserveNumericKeys: C3_PRESERVE_NUMERIC_KEYS,
+    preserveValueKeys: C3_PRESERVE_VALUE_KEYS,
   });
   const walk = (inner: unknown, key?: string): unknown => {
     if (key === "target_id" || key === "targetId" || key === "targetID") {
-      return inner === null || inner === undefined ? inner : "<target-id>";
+      return typeof inner === "string" ? aliasTarget(inner, aliases) : inner;
+    }
+    if (key === "childSessionId") {
+      return typeof inner === "string" ? aliasChild(inner, aliases) : inner;
+    }
+    if (key === "childSessionIds" && Array.isArray(inner)) {
+      return inner.map((item) => (typeof item === "string" ? aliasChild(item, aliases) : item));
     }
     if (key === "pid") return inner === null || inner === undefined ? inner : "<pid>";
     if (key === "timeUsedSeconds" || key === "time_used_seconds") {
@@ -108,7 +170,7 @@ export function normalizeC3Deep(value: unknown, context: PathContext): unknown {
     if (key === "tokensPerSecond" || key === "prefillTokensPerSecond") {
       return inner === null || inner === undefined ? inner : "<rate>";
     }
-    if (typeof inner === "string") return normalizeC3String(inner, context);
+    if (typeof inner === "string") return normalizeC3String(inner, context, aliases);
     if (Array.isArray(inner)) return inner.map((item) => walk(item));
     if (inner === null || typeof inner !== "object") return inner;
     return Object.fromEntries(
@@ -122,7 +184,11 @@ export function normalizeC3Deep(value: unknown, context: PathContext): unknown {
 }
 
 /** 读全部 C3 表；JSON 列解析、null ID 保留、part 行补 messageSequence。 */
-export function readC3Db(path: string, context: PathContext): JsonObject {
+export function readC3Db(
+  path: string,
+  context: PathContext,
+  aliases: C3AliasState = createC3Aliases(),
+): JsonObject {
   const db = new DatabaseSync(path, { readOnly: true });
   try {
     const tables: JsonObject = {};
@@ -154,7 +220,7 @@ export function readC3Db(path: string, context: PathContext): JsonObject {
           if (table === "part") {
             parsed.messageSequence = messageSequences.get(String(row.message_id)) ?? null;
           }
-          const normalized = normalizeC3Deep(parsed, context) as JsonObject;
+          const normalized = normalizeC3Deep(parsed, context, aliases) as JsonObject;
           // normalizeDeep 会把 null 的 ID 键也折叠；C3 需要保留「显式为 null」。
           for (const [key, value] of Object.entries(parsed)) {
             if (value === null) normalized[key] = null;
@@ -177,6 +243,8 @@ export type C3RequestRecord = { at: number; path: string; body: JsonObject };
 export type C3Harness = C2Harness & {
   /** mock provider 收到的请求（含到达时刻，用于观察重试间隔）。 */
   requests: C3RequestRecord[];
+  /** 本夹具的目标/子会话别名状态（跨事件、读面、DB 共享）。 */
+  aliases: C3AliasState;
   /** 读 C3 全表（每次调用都读当前磁盘状态）。 */
   readTables(): JsonObject;
   /** `session/read` 的规范化投影。 */
@@ -219,23 +287,25 @@ export async function startC3Harness(options: C3HarnessOptions): Promise<C3Harne
       options.onRawFrame?.(frame);
     },
   });
+  const aliases = createC3Aliases();
   const c3: C3Harness = {
     ...harness,
     requests,
+    aliases,
     readTables() {
-      return readC3Db(harness.dbPath, harness.context);
+      return readC3Db(harness.dbPath, harness.context, aliases);
     },
     async readSession() {
       const result = await harness.session.request("session/read", {
         sessionId: harness.session.sessionId,
       });
-      return normalizeC3Deep(result, harness.context) as JsonObject;
+      return normalizeC3Deep(result, harness.context, aliases) as JsonObject;
     },
     async readDebug() {
       const result = await harness.session.request("session/debug", {
         sessionId: harness.session.sessionId,
       });
-      return normalizeC3Deep(result, harness.context) as JsonObject;
+      return normalizeC3Deep(result, harness.context, aliases) as JsonObject;
     },
     eventCount() {
       return rawEvents.length;
@@ -243,14 +313,14 @@ export async function startC3Harness(options: C3HarnessOptions): Promise<C3Harne
     eventsSince(start) {
       return rawEvents
         .slice(start)
-        .map((event) => normalizeC3Deep(event, harness.context) as JsonObject);
+        .map((event) => normalizeC3Deep(event, harness.context, aliases) as JsonObject);
     },
     async waitForEvent(start, predicate, what, timeoutMs = 60_000) {
       const deadline = Date.now() + timeoutMs;
       while (true) {
         const found = rawEvents
           .slice(start)
-          .map((event) => normalizeC3Deep(event, harness.context) as JsonObject)
+          .map((event) => normalizeC3Deep(event, harness.context, aliases) as JsonObject)
           .find(predicate);
         if (found !== undefined) return found;
         if (Date.now() > deadline) {
@@ -278,8 +348,30 @@ export function errorRecord(error: unknown): JsonObject {
 }
 
 /** 错误帧的规范化投影（C3 的 -32009/-32010/-32602 形状会进夹具）。 */
-export function normalizeError(error: unknown, context: PathContext): JsonObject {
-  return normalizeC3Deep(stripErrorStack(errorRecord(error)), context) as JsonObject;
+/** 错误正文里的原始目标/子会话 id 先换成夹具别名（normalizeDeep 之后 uuid 已丢失）。 */
+function aliasRawIds(value: unknown, aliases: C3AliasState): unknown {
+  if (typeof value === "string") {
+    return value
+      .replace(TARGET_ID_RE, (raw) => aliasTarget(raw, aliases))
+      .replace(CHILD_SESSION_ID_RE, (raw) => aliasChild(raw, aliases));
+  }
+  if (Array.isArray(value)) return value.map((item) => aliasRawIds(item, aliases));
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as JsonObject).map(([key, inner]) => [key, aliasRawIds(inner, aliases)]),
+  );
+}
+
+export function normalizeError(
+  error: unknown,
+  context: PathContext,
+  aliases: C3AliasState = createC3Aliases(),
+): JsonObject {
+  return normalizeC3Deep(
+    aliasRawIds(stripErrorStack(errorRecord(error)), aliases),
+    context,
+    aliases,
+  ) as JsonObject;
 }
 
 export type GoalCall = {
@@ -301,10 +393,13 @@ export async function callGoal(
     })) as GoalCall;
     return {
       ok: true,
-      result: normalizeC3Deep(result, harness.context) as GoalCall,
+      result: normalizeC3Deep(result, harness.context, harness.aliases) as GoalCall,
     };
   } catch (error) {
-    return { ok: false, error: normalizeError(error, harness.context) };
+    return {
+      ok: false,
+      error: normalizeError(error, harness.context, harness.aliases),
+    };
   }
 }
 
@@ -332,7 +427,7 @@ export function projectGoalSnapshot(result: GoalCall | undefined): JsonObject | 
 /** 对指定会话调用 `session/read`（冷重启后读旧会话时用）。 */
 export async function readSessionById(harness: C3Harness, sessionId: string): Promise<JsonObject> {
   const result = await harness.session.request("session/read", { sessionId });
-  return normalizeC3Deep(result, harness.context) as JsonObject;
+  return normalizeC3Deep(result, harness.context, harness.aliases) as JsonObject;
 }
 
 /** `session/read` 的 goal 投影（与 snapshot 同源，但读面会带上完整快照键）。 */
@@ -404,10 +499,12 @@ export function projectGoalDb(tables: JsonObject): JsonObject {
     (((tables[table] as JsonObject | undefined)?.rows as JsonObject[] | undefined) ?? []).slice();
   return {
     session_target: {
+      columns: (tables.session_target as JsonObject | undefined)?.columns ?? null,
       rowCount: (tables.session_target as JsonObject | undefined)?.rowCount ?? null,
       rows: tableRows("session_target"),
     },
     session_task_link: {
+      columns: (tables.session_task_link as JsonObject | undefined)?.columns ?? null,
       rowCount: (tables.session_task_link as JsonObject | undefined)?.rowCount ?? null,
       rows: tableRows("session_task_link"),
     },

@@ -23,10 +23,10 @@
       "ok": true,
       "result": {
         "revision": 3,
-        "childSessionIds": ["sess_subagent_agent_<id>"],
+        "childSessionIds": ["child-1"],
         "running": [
           {
-            "childSessionId": "<id>",
+            "childSessionId": "child-1",
             "agentId": "agent_<id>",
             "toolCallId": "<id>",
             "subagentType": "general-purpose",
@@ -45,13 +45,13 @@
       "ok": true,
       "result": {
         "revision": 4,
-        "childSessionIds": ["sess_subagent_agent_<id>"],
+        "childSessionIds": ["child-1"],
         "running": [],
         "ended": {
           "total": 1,
           "items": [
             {
-              "childSessionId": "<id>",
+              "childSessionId": "child-1",
               "agentId": "agent_<id>",
               "toolCallId": "<id>",
               "subagentType": "general-purpose",
@@ -456,7 +456,7 @@
           "agentId": "agent_<id>",
           "agentType": "general-purpose",
           "background": true,
-          "childSessionId": "<id>",
+          "childSessionId": "child-1",
           "description": "background child",
           "prompt": "background child prompt: inspect in background",
           "parentToolCallId": "<tool-call-id>",
@@ -505,7 +505,7 @@
           "toolCallId": "<id>",
           "toolName": "Agent",
           "taskKind": "subagent",
-          "childSessionId": "<id>",
+          "childSessionId": "child-1",
           "cancellable": true,
           "description": "background child",
           "status": "running",
@@ -527,7 +527,7 @@
           "toolCallId": "<id>",
           "toolName": "Agent",
           "taskKind": "subagent",
-          "childSessionId": "<id>",
+          "childSessionId": "child-1",
           "cancellable": true,
           "description": "background child",
           "status": "running",
@@ -838,7 +838,7 @@
           "toolCallId": "<id>",
           "toolName": "Agent",
           "taskKind": "subagent",
-          "childSessionId": "<id>",
+          "childSessionId": "child-1",
           "cancellable": false,
           "description": "background child",
           "status": "completed",
@@ -861,7 +861,7 @@
           "agentId": "agent_<id>",
           "agentType": "general-purpose",
           "background": true,
-          "childSessionId": "<id>",
+          "childSessionId": "child-1",
           "parentToolCallId": "<tool-call-id>",
           "status": "completed",
           "outputFile": "<data-root>\\.mode\\cli\\agents\\<session-id>\\agent_<id>\\output.txt",

@@ -1138,10 +1138,217 @@
     },
     "db": {
       "session_target": {
+        "columns": [
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "target_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "objective",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "token_budget",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "tokens_used",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "time_used_seconds",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "summary_title",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "active_input_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "active_run_started_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "active_run_last_seen_at",
+            "type": "INTEGER",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
         "rowCount": 0,
         "rows": []
       },
       "session_task_link": {
+        "columns": [
+          {
+            "name": "id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 1,
+            "defaultValue": null
+          },
+          {
+            "name": "root_workflow_run_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "parent_link_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "activity_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "parent_session_id",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "child_session_id",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "role",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "depth",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": "0"
+          },
+          {
+            "name": "path",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "phase",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "label",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "agent_type",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "model",
+            "type": "TEXT",
+            "notNull": false,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_created",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          },
+          {
+            "name": "time_updated",
+            "type": "INTEGER",
+            "notNull": true,
+            "primaryKey": 0,
+            "defaultValue": null
+          }
+        ],
         "rowCount": 0,
         "rows": []
       },

@@ -65,7 +65,7 @@ function verifierRequest(harness: C3Harness): JsonObject | null {
         : typeof message.content,
       texts: (Array.isArray(message.content) ? (message.content as JsonObject[]) : [])
         .filter((part) => typeof part.text === "string")
-        .map((part) => normalizeC3Deep(part.text, harness.context)),
+        .map((part) => normalizeC3Deep(part.text, harness.context, harness.aliases)),
     })),
   };
 }
@@ -128,6 +128,8 @@ async function caseShowSetComplete(): Promise<JsonObject> {
     const summary = await goalSummary(harness, start);
     return {
       isolation: summary.isolation,
+      // 无 goal 的 show/pause/resume/clear 在 set 之前产生的副作用。
+      noGoalEvents: projectEvents(harness.eventsSince(start).slice(0, setStart - start)),
       showEmpty: {
         ok: showEmpty.ok,
         response: showEmpty.ok ? showEmpty.result.response : null,
@@ -271,6 +273,73 @@ async function casePauseResumeClear(): Promise<JsonObject> {
   }
 }
 
+/** Case 2b：模型请求已经发出后再 pause（观察 in-flight 取消的真实账务）。 */
+async function casePauseInFlight(): Promise<JsonObject> {
+  const harness = await startC3Harness({
+    prefix: "c3-goal-pause-in-flight",
+    seed: SEED,
+    script: [{ text: "slow in-flight answer", delayMs: 6000 }],
+    mockAuxiliaryResponse: verifierAux(true),
+  });
+  try {
+    const start = harness.eventCount();
+    await callGoal(harness, {
+      action: "set",
+      objective: "Pause in-flight goal",
+      inputId: "goal_pif_set",
+    });
+    await harness.waitForEvent(start, isGoalContinuation, "in-flight pause 续跑开始", 30_000);
+    await harness.waitForEvent(
+      start,
+      (event) => {
+        const payload = (event.payload ?? {}) as JsonObject;
+        return event.type === "session.updated" && payload.type === "model_request_started";
+      },
+      "in-flight pause 前的 model_request_started",
+      30_000,
+    );
+    // `model_request_started` 是运行时事件；等 provider 真正收到请求后再 pause，
+    // 才能稳定得到 in-flight 场景（否则 cancel 可能赢在 HTTP 请求之前）。
+    const requestDeadline = Date.now() + 15_000;
+    while (harness.requests.length === 0) {
+      if (Date.now() > requestDeadline) {
+        throw new Error("in-flight pause：15s 内 provider 没有收到请求");
+      }
+      await delay(20);
+    }
+    const pauseStart = harness.eventCount();
+    const pause = await callGoal(harness, { action: "pause", inputId: "goal_pif_pause" });
+    await harness.waitForEvent(
+      pauseStart,
+      (event) => {
+        const payload = (event.payload ?? {}) as JsonObject;
+        return event.type === "turn.completed" && payload.resultType === "cancelled";
+      },
+      "in-flight pause 取消终态",
+      30_000,
+    );
+    await delay(300);
+    const read = await harness.readSession();
+    const events = harness.eventsSince(start);
+    return {
+      isolation: isolationRecord(harness),
+      pause: pause.ok
+        ? {
+            response: pause.result.response,
+            startedTurn: pause.result.startedTurn,
+            snapshot: projectGoalSnapshot(pause.result),
+          }
+        : pause,
+      read: projectGoalRead(read),
+      events: projectEvents(events),
+      eventSummary: eventSummary(events),
+      db: projectGoalDb(harness.readTables()),
+    };
+  } finally {
+    await harness.stop();
+  }
+}
+
 /** Case 3：replace + expectedRevision 冲突 + 运行中管理拒绝 + 参数校验。 */
 async function caseReplaceRevision(): Promise<JsonObject> {
   const harness = await startC3Harness({
@@ -328,6 +397,19 @@ async function caseReplaceRevision(): Promise<JsonObject> {
       objective: "set while running",
       inputId: "goal_r_running",
     });
+    const replaceWhileRunning = await callGoal(harness, {
+      action: "replace",
+      objective: "replace while running",
+      inputId: "goal_r_replace_running",
+    });
+    const resumeWhileRunning = await callGoal(harness, {
+      action: "resume",
+      inputId: "goal_r_resume_running",
+    });
+    const clearWhileRunning = await callGoal(harness, {
+      action: "clear",
+      inputId: "goal_r_clear_running",
+    });
     await harness.waitForEvent(
       replaceStart,
       isTargetStatus("complete"),
@@ -343,6 +425,7 @@ async function caseReplaceRevision(): Promise<JsonObject> {
       tokenBudget: 100,
     });
     const missingObjective = await callGoal(harness, { action: "set", inputId: "goal_r_missing" });
+    const missingReplaceObjective = await callGoal(harness, { action: "replace" });
     const db = harness.readTables();
     return {
       isolation: isolationRecord(harness),
@@ -372,6 +455,15 @@ async function caseReplaceRevision(): Promise<JsonObject> {
           }
         : replace,
       setWhileRunning: whileRunning.ok ? whileRunning.result : { error: whileRunning.error },
+      replaceWhileRunning: replaceWhileRunning.ok
+        ? replaceWhileRunning.result
+        : { error: replaceWhileRunning.error },
+      resumeWhileRunning: resumeWhileRunning.ok
+        ? resumeWhileRunning.result
+        : { error: resumeWhileRunning.error },
+      clearWhileRunning: clearWhileRunning.ok
+        ? clearWhileRunning.result
+        : { error: clearWhileRunning.error },
       invalidAction: invalidAction.ok ? invalidAction.result : { error: invalidAction.error },
       tokenBudget: tokenBudget.ok ? tokenBudget.result : { error: tokenBudget.error },
       missingObjective: missingObjective.ok
@@ -380,11 +472,82 @@ async function caseReplaceRevision(): Promise<JsonObject> {
             startedTurn: missingObjective.result.startedTurn,
           }
         : { error: missingObjective.error },
+      missingReplaceObjective: missingReplaceObjective.ok
+        ? {
+            response: missingReplaceObjective.result.response,
+            startedTurn: missingReplaceObjective.result.startedTurn,
+          }
+        : { error: missingReplaceObjective.error },
       readBefore: projectGoalRead(before),
       readAfter: projectGoalRead(after),
       events: projectEvents(harness.eventsSince(start)),
       eventSummary: eventSummary(harness.eventsSince(start)),
       db: projectGoalDb(db),
+    };
+  } finally {
+    await harness.stop();
+  }
+}
+
+/** Case 3b：对已存在的 paused 目标再次 `set`（覆盖语义，事件 previousTarget 非 null）。 */
+async function caseSetOverExisting(): Promise<JsonObject> {
+  const harness = await startC3Harness({
+    prefix: "c3-goal-set-over",
+    seed: SEED,
+    script: [{ text: "first target answer", delayMs: 3000 }, { text: "second target answer" }],
+    mockAuxiliaryResponse: verifierAux(true),
+  });
+  try {
+    const start = harness.eventCount();
+    const first = await callGoal(harness, {
+      action: "set",
+      objective: "Goal one",
+      inputId: "goal_s1",
+    });
+    await harness.waitForEvent(start, isGoalContinuation, "Goal one 续跑", 30_000);
+    await callGoal(harness, { action: "pause", inputId: "goal_s1_pause" });
+    const pauseStart = harness.eventCount();
+    await harness.waitForEvent(
+      pauseStart,
+      (event) => {
+        const payload = (event.payload ?? {}) as JsonObject;
+        return event.type === "turn.completed" && payload.resultType === "cancelled";
+      },
+      "Goal one pause 取消",
+      30_000,
+    );
+    const secondStart = harness.eventCount();
+    const second = await callGoal(harness, {
+      action: "set",
+      objective: "Goal two",
+      inputId: "goal_s2",
+    });
+    await harness.waitForEvent(secondStart, isGoalContinuation, "Goal two 续跑", 30_000);
+    await harness.waitForEvent(
+      secondStart,
+      isTargetStatus("complete"),
+      "Goal two complete",
+      30_000,
+    );
+    await delay(200);
+    const read = await harness.readSession();
+    const events = harness.eventsSince(start);
+    return {
+      isolation: isolationRecord(harness),
+      first: first.ok
+        ? { response: first.result.response, startedTurn: first.result.startedTurn }
+        : first,
+      second: second.ok
+        ? {
+            response: second.result.response,
+            startedTurn: second.result.startedTurn,
+            snapshot: projectGoalSnapshot(second.result),
+          }
+        : second,
+      read: projectGoalRead(read),
+      events: projectEvents(events),
+      eventSummary: eventSummary(events),
+      db: projectGoalDb(harness.readTables()),
     };
   } finally {
     await harness.stop();
@@ -496,8 +659,12 @@ async function caseColdRestart(): Promise<JsonObject> {
         deliveryKind: "desktop-continuous",
         includeSnapshot: true,
       })) as JsonObject;
-      const resumeNorm = normalizeC3Deep(resume, second.context) as JsonObject;
-      const subscribeNorm = normalizeC3Deep(subscribe, second.context) as JsonObject;
+      const resumeNorm = normalizeC3Deep(resume, second.context, second.aliases) as JsonObject;
+      const subscribeNorm = normalizeC3Deep(
+        subscribe,
+        second.context,
+        second.aliases,
+      ) as JsonObject;
       const readAfterRestart = await readSessionById(second, oldSessionId);
       const showAfterRestart = await callGoal(second, {
         sessionId: oldSessionId,
@@ -610,7 +777,7 @@ async function caseActiveRestart(): Promise<JsonObject> {
       const resume = (await second.session.request("session/resume", {
         sessionId: oldSessionId,
       })) as JsonObject;
-      const resumeNorm = normalizeC3Deep(resume, second.context) as JsonObject;
+      const resumeNorm = normalizeC3Deep(resume, second.context, second.aliases) as JsonObject;
       const readAfterRestart = await readSessionById(second, oldSessionId);
       const showAfterRestart = await callGoal(second, {
         sessionId: oldSessionId,
@@ -710,7 +877,7 @@ async function caseContinuationLoop(): Promise<JsonObject> {
       verificationEventCount: verifications.length,
       firstIterations: iterations.slice(0, 5),
       lastIterations: iterations.slice(-5),
-      sawTurnLimit: false,
+      configuredTurnBound: targetTurns,
       pause: pause.ok
         ? { response: pause.result.response, startedTurn: pause.result.startedTurn }
         : pause,
@@ -737,6 +904,163 @@ async function caseContinuationLoop(): Promise<JsonObject> {
   }
 }
 
+/** Case 8：verifier 返回默认非 JSON 文本（非法 JSON）时的线上 fallback。 */
+async function caseVerifierInvalidJson(): Promise<JsonObject> {
+  const harness = await startC3Harness({
+    prefix: "c3-goal-verifier-invalid",
+    seed: SEED,
+    script: [{ text: "answer before invalid verifier" }],
+    // 不注入 mockAuxiliaryResponse：mock provider 默认回 "oracle-mock"（非法 JSON）。
+  });
+  try {
+    const start = harness.eventCount();
+    const set = await callGoal(harness, {
+      action: "set",
+      objective: "Verifier invalid JSON goal",
+      inputId: "goal_vij_set",
+    });
+    await harness.waitForEvent(start, isGoalContinuation, "invalid verifier 续跑", 30_000);
+    await harness.waitForEvent(
+      start,
+      isTargetStatus("complete"),
+      "invalid verifier fallback complete",
+      30_000,
+    );
+    await delay(200);
+    const read = await harness.readSession();
+    const show = await callGoal(harness, { action: "show", inputId: "goal_vij_show" });
+    const events = harness.eventsSince(start);
+    return {
+      isolation: isolationRecord(harness),
+      set: set.ok ? { response: set.result.response, startedTurn: set.result.startedTurn } : set,
+      show: show.ok
+        ? { response: show.result.response, snapshot: projectGoalSnapshot(show.result) }
+        : show,
+      verifierRequest: verifierRequest(harness),
+      read: projectGoalRead(read),
+      events: projectEvents(events),
+      eventSummary: eventSummary(events),
+      db: projectGoalDb(harness.readTables()),
+    };
+  } finally {
+    await harness.stop();
+  }
+}
+
+/** Case 9：completed goal（tokensUsed 非 0）冷重启，观察 target 账务是否保留。 */
+async function caseColdRestartComplete(): Promise<JsonObject> {
+  const dataRoot = await mkdtemp(join(tmpdir(), "mode-c3-goal-complete-restart-"));
+  const cwd = await mkdtemp(join(tmpdir(), "mode-c3-goal-complete-restart-ws-"));
+  let oldSessionId = "";
+  let beforeRestart: JsonObject = {};
+  let rawTimeBefore = -1;
+  try {
+    const first = await startC3Harness({
+      prefix: "c3-goal-complete-restart-1",
+      dataRoot,
+      cwd,
+      seed: SEED,
+      script: [{ text: "complete restart answer" }],
+      mockAuxiliaryResponse: verifierAux(true),
+    });
+    try {
+      oldSessionId = first.session.sessionId;
+      const start = first.eventCount();
+      await callGoal(first, {
+        action: "set",
+        objective: "Complete restart goal",
+        inputId: "goal_cr_set",
+      });
+      await first.waitForEvent(start, isGoalContinuation, "complete restart 续跑", 30_000);
+      await first.waitForEvent(
+        start,
+        isTargetStatus("complete"),
+        "complete restart complete",
+        30_000,
+      );
+      await delay(200);
+      const rawBeforeRead = (await first.session.request("session/read", {
+        sessionId: oldSessionId,
+      })) as JsonObject;
+      rawTimeBefore = Number(
+        ((rawBeforeRead.session as JsonObject | undefined)?.target as JsonObject | undefined)
+          ?.timeUsedSeconds ?? -1,
+      );
+      beforeRestart = {
+        read: projectGoalRead(await first.readSession()),
+        db: projectGoalDb(first.readTables()),
+      };
+    } finally {
+      await first.stop();
+    }
+    const second = await startC3Harness({
+      prefix: "c3-goal-complete-restart-2",
+      dataRoot,
+      cwd,
+      seed: SEED,
+      script: [{ text: "after complete restart" }],
+      mockAuxiliaryResponse: verifierAux(true),
+    });
+    try {
+      const resume = (await second.session.request("session/resume", {
+        sessionId: oldSessionId,
+      })) as JsonObject;
+      const resumeNorm = normalizeC3Deep(resume, second.context, second.aliases) as JsonObject;
+      const readAfterRestart = await readSessionById(second, oldSessionId);
+      const showAfterRestart = await callGoal(second, {
+        sessionId: oldSessionId,
+        action: "show",
+      });
+      const restartStart = second.eventCount();
+      await delay(1500);
+      // `beforeRestart.read` 已经是 projectGoalRead 的产物，不能再套一层投影。
+      const beforeRead = beforeRestart.read as JsonObject;
+      const rawAfterRead = (await second.session.request("session/read", {
+        sessionId: oldSessionId,
+      })) as JsonObject;
+      const rawTimeAfter = Number(
+        ((rawAfterRead.session as JsonObject | undefined)?.target as JsonObject | undefined)
+          ?.timeUsedSeconds ?? -1,
+      );
+      const afterRead = projectGoalRead(readAfterRestart);
+      const beforeTarget = (beforeRead.target ?? {}) as JsonObject;
+      const afterTarget = (afterRead.target ?? {}) as JsonObject;
+      return {
+        isolation: isolationRecord(second),
+        oldSessionId: "<session-id>",
+        beforeRestart,
+        usagePreservation: {
+          tokensUsedBefore: beforeTarget.tokensUsed ?? null,
+          tokensUsedAfter: afterTarget.tokensUsed ?? null,
+          timeUsedSecondsBeforeNormalized: beforeTarget.timeUsedSeconds ?? null,
+          timeUsedSecondsAfterNormalized: afterTarget.timeUsedSeconds ?? null,
+          timeUsedSecondsPreserved: rawTimeBefore >= 0 && rawTimeBefore === rawTimeAfter,
+        },
+        resume: {
+          keys: Object.keys(resumeNorm).sort(),
+          goalStats: resumeNorm.goalStats ?? null,
+          snapshot: projectGoalRead(resumeNorm),
+        },
+        readAfterRestart: afterRead,
+        showAfterRestart: showAfterRestart.ok
+          ? {
+              response: showAfterRestart.result.response,
+              startedTurn: showAfterRestart.result.startedTurn,
+              snapshot: projectGoalSnapshot(showAfterRestart.result),
+            }
+          : showAfterRestart,
+        idleEventsAfterRestart: second.eventsSince(restartStart),
+        dbAfterRestart: projectGoalDb(second.readTables()),
+      };
+    } finally {
+      await second.stop();
+    }
+  } finally {
+    await rm(dataRoot, { recursive: true, force: true });
+    await rm(cwd, { recursive: true, force: true });
+  }
+}
+
 const fixtures: Record<string, JsonObject> = {
   "goal-show-set-complete": {
     case: "goal-show-set-complete",
@@ -756,8 +1080,9 @@ const fixtures: Record<string, JsonObject> = {
   "goal-pause-resume-clear": {
     case: "goal-pause-resume-clear",
     note:
-      "C3 Task 0 oracle 捕获：set 后续跑 turn 运行中 pause（目标立即 paused，turn 在模型返回后" +
-      "以 cancelled 结束）→ resume → verifier complete → clear（target 删除，验证历史保留）。",
+      "C3 Task 0 oracle 捕获：set 后续跑 turn 的 turn.started 之后、provider 请求之前 pause：" +
+      "目标立即 paused，continuation 在 provider 请求前以 cancelled 结束（model_request_count:0）→ " +
+      "resume → verifier complete → clear（target 删除，验证历史保留）。",
     input: {
       seed: SEED,
       script: [{ text: "slow goal answer", delayMs: 4000 }, { text: "resumed goal answer" }],
@@ -770,7 +1095,8 @@ const fixtures: Record<string, JsonObject> = {
     case: "goal-replace-revision-conflict",
     note:
       "C3 Task 0 oracle 捕获：expectedRevision 不匹配 → -32009 且零事件/零写；正确 revision 的 " +
-      "replace 启动新目标；运行中 set → -32010；非法 action/未知 tokenBudget/缺 objective 的参数形状。",
+      "replace 启动新目标；运行中 set/replace/resume/clear → -32010；非法 action/未知 " +
+      "tokenBudget/缺 objective（set 与 replace）的参数形状。",
     input: {
       seed: SEED,
       script: [{ text: "replace goal answer", delayMs: 4000 }, { text: "second replace answer" }],
@@ -780,13 +1106,39 @@ const fixtures: Record<string, JsonObject> = {
         "pause",
         "set(expectedRevision=mismatch)",
         "replace(expectedRevision=match)",
-        "set(while running)",
+        "set/replace/resume/clear(while running)",
         "invalid action",
         "set(tokenBudget=100)",
-        "set(no objective)",
+        "set/replace(no objective)",
       ],
     },
     expect: await caseReplaceRevision(),
+  },
+  "goal-pause-in-flight": {
+    case: "goal-pause-in-flight",
+    note:
+      "C3 Task 0 oracle 捕获：goal-continuation 的 model_request_started 之后再 pause；" +
+      "记录 in-flight 模型请求与取消的账务（与 provider 请求前 pause 对照）。",
+    input: {
+      seed: SEED,
+      script: [{ text: "slow in-flight answer", delayMs: 6000 }],
+      goal: { action: "set", objective: "Pause in-flight goal", inputId: "goal_pif_set" },
+      pauseAfter: "model_request_started",
+    },
+    expect: await casePauseInFlight(),
+  },
+  "goal-set-over-existing": {
+    case: "goal-set-over-existing",
+    note:
+      "C3 Task 0 oracle 捕获：对已存在的 paused 目标再次 set（不是 replace）；" +
+      "事件 previousTarget 非 null、目标被覆盖，随后续跑并完成。",
+    input: {
+      seed: SEED,
+      script: [{ text: "first target answer", delayMs: 3000 }, { text: "second target answer" }],
+      first: { action: "set", objective: "Goal one", inputId: "goal_s1" },
+      second: { action: "set", objective: "Goal two", inputId: "goal_s2" },
+    },
+    expect: await caseSetOverExisting(),
   },
   "goal-user-stop": {
     case: "goal-user-stop",
@@ -828,6 +1180,30 @@ const fixtures: Record<string, JsonObject> = {
       restart: "kill oracle mid-turn; same dataRoot + cwd; session/resume(oldSessionId)",
     },
     expect: await caseActiveRestart(),
+  },
+  "goal-verifier-invalid-json": {
+    case: "goal-verifier-invalid-json",
+    note:
+      "C3 Task 0 oracle 捕获：verifier 返回默认非 JSON 文本（mock provider 默认 `oracle-mock`）时，" +
+      "运行时的 fallback 结果（target 状态/verification reason/timeline/DB 全是录制值）。",
+    input: {
+      seed: SEED,
+      script: [{ text: "answer before invalid verifier" }],
+      verifier: "mock default (invalid JSON)",
+    },
+    expect: await caseVerifierInvalidJson(),
+  },
+  "goal-cold-restart-complete": {
+    case: "goal-cold-restart-complete",
+    note:
+      "C3 Task 0 oracle 捕获：completed goal（tokensUsed 非 0）冷重启后 target 状态与账务" +
+      "（tokensUsed / timeUsedSeconds）保留；resume 不自动开 turn。",
+    input: {
+      seed: SEED,
+      before: { action: "set", objective: "Complete restart goal", inputId: "goal_cr_set" },
+      restart: "same dataRoot + cwd; session/resume(oldSessionId)",
+    },
+    expect: await caseColdRestartComplete(),
   },
   "goal-continuation-loop": {
     case: "goal-continuation-loop",

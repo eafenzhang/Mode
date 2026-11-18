@@ -1,11 +1,12 @@
 {
   "case": "subagents-pagination",
-  "note": "C3 Task 0 oracle 捕获：两个已结束子代理按 endedAt 倒序分页；endedLimit:1 返回最新一个与 不透明 base64 nextCursor，第二页返回剩余项；childSessionIds 保持创建顺序。",
+  "note": "C3 Task 0 oracle 捕获：两个**串行创建**的子代理（保证创建顺序确定）按 endedAt 倒序分页；endedLimit:1 返回最新完成的一个与不透明 base64 nextCursor，第二页返回剩余项；childSessionIds 保持创建顺序 child-1,child-2。",
   "input": {
     "seed": {
       "hello.txt": "hello\n"
     },
     "scriptKind": "user-text-keyed step function",
+    "prompts": ["spawn child one", "spawn child two"],
     "agents": [
       {
         "subagent_type": "general-purpose",
@@ -23,17 +24,24 @@
       "dataRootManifest": true,
       "cliLayoutSentinel": true,
       "invalidStdoutLines": 0,
-      "mockRequestPaths": ["/v1/messages", "/v1/messages", "/v1/messages", "/v1/messages"]
+      "mockRequestPaths": [
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages"
+      ]
     },
     "firstPage": {
-      "revision": 4,
-      "childSessionIds": ["sess_subagent_agent_<id>", "sess_subagent_agent_<id>"],
+      "revision": 6,
+      "childSessionIds": ["child-1", "child-2"],
       "running": [],
       "ended": {
         "total": 2,
         "items": [
           {
-            "childSessionId": "<id>",
+            "childSessionId": "child-2",
             "agentId": "agent_<id>",
             "toolCallId": "<id>",
             "subagentType": "Explore",
@@ -50,21 +58,21 @@
     "cursor": {
       "present": true,
       "decoded": {
-        "childSessionId": "<id>",
+        "childSessionId": "child-2",
         "endedAt": "<time>"
       }
     },
     "secondPage": {
       "ok": true,
       "result": {
-        "revision": 4,
-        "childSessionIds": ["sess_subagent_agent_<id>", "sess_subagent_agent_<id>"],
+        "revision": 6,
+        "childSessionIds": ["child-1", "child-2"],
         "running": [],
         "ended": {
           "total": 2,
           "items": [
             {
-              "childSessionId": "<id>",
+              "childSessionId": "child-1",
               "agentId": "agent_<id>",
               "toolCallId": "<id>",
               "subagentType": "general-purpose",
@@ -98,14 +106,14 @@
         "payload": {
           "agentId": "agent_<id>",
           "agentType": "general-purpose",
-          "childSessionId": "<id>",
+          "childSessionId": "child-1",
           "parentToolCallId": "<tool-call-id>",
           "status": "completed",
           "totalDurationMs": "<time>",
           "totalToolUseCount": 0,
           "totalTokens": 22
         },
-        "seq": 21,
+        "seq": 14,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -118,14 +126,14 @@
         "payload": {
           "agentId": "agent_<id>",
           "agentType": "Explore",
-          "childSessionId": "<id>",
+          "childSessionId": "child-2",
           "parentToolCallId": "<tool-call-id>",
           "status": "completed",
           "totalDurationMs": "<time>",
           "totalToolUseCount": 0,
           "totalTokens": 22
         },
-        "seq": 23,
+        "seq": 36,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -138,14 +146,14 @@
         "payload": {
           "agentId": "agent_<id>",
           "agentType": "general-purpose",
-          "childSessionId": "<id>",
+          "childSessionId": "child-1",
           "description": "child one",
           "prompt": "child one prompt",
           "parentToolCallId": "<tool-call-id>",
           "status": "running",
           "allowedTools": ["*"]
         },
-        "seq": 19,
+        "seq": 13,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -158,14 +166,14 @@
         "payload": {
           "agentId": "agent_<id>",
           "agentType": "Explore",
-          "childSessionId": "<id>",
+          "childSessionId": "child-2",
           "description": "child two",
           "prompt": "child two prompt",
           "parentToolCallId": "<tool-call-id>",
           "status": "running",
           "allowedTools": ["Bash", "Read", "WebFetch", "WebSearch", "TodoWrite"]
         },
-        "seq": 20,
+        "seq": 35,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -180,7 +188,7 @@
         "payload": {
           "previousTitle": "",
           "source": "first_input",
-          "title": "spawn two subagents"
+          "title": "spawn child one"
         },
         "seq": 1,
         "sessionId": "<id>",
@@ -195,7 +203,7 @@
         "payload": {
           "executionStartedAt": "<time>",
           "turnNumber": 0,
-          "input": "spawn two subagents",
+          "input": "spawn child one",
           "messageId": "<id>",
           "foregroundExecutionId": "runtime_command_1",
           "queryId": "<id>"
@@ -356,81 +364,6 @@
         "deliveryKind": "desktop-continuous",
         "eventId": "<id>",
         "payload": {
-          "assistantMessageId": "<id>",
-          "delta": "",
-          "done": false,
-          "kind": "tool_input_start",
-          "toolCallId": "<id>",
-          "toolName": "Agent"
-        },
-        "seq": 9,
-        "sessionId": "<id>",
-        "timestamp": "<time>",
-        "traceId": "<id>",
-        "turnId": "<id>",
-        "type": "model.streaming"
-      },
-      {
-        "deliveryKind": "desktop-continuous",
-        "eventId": "<id>",
-        "payload": {
-          "assistantMessageId": "<id>",
-          "delta": "{\"description\":\"child two\",\"prompt\":\"child two prompt\",\"subagent_type\":\"Explore\"}",
-          "done": false,
-          "kind": "tool_input_delta",
-          "toolCallId": "<id>"
-        },
-        "seq": 10,
-        "sessionId": "<id>",
-        "timestamp": "<time>",
-        "traceId": "<id>",
-        "turnId": "<id>",
-        "type": "model.streaming"
-      },
-      {
-        "deliveryKind": "desktop-continuous",
-        "eventId": "<id>",
-        "payload": {
-          "assistantMessageId": "<id>",
-          "delta": "",
-          "done": false,
-          "kind": "tool_input_end",
-          "toolCallId": "<id>"
-        },
-        "seq": 11,
-        "sessionId": "<id>",
-        "timestamp": "<time>",
-        "traceId": "<id>",
-        "turnId": "<id>",
-        "type": "model.streaming"
-      },
-      {
-        "deliveryKind": "desktop-continuous",
-        "eventId": "<id>",
-        "payload": {
-          "assistantMessageId": "<id>",
-          "delta": "",
-          "done": false,
-          "input": {
-            "description": "child two",
-            "prompt": "child two prompt",
-            "subagent_type": "Explore"
-          },
-          "kind": "tool_call",
-          "toolCallId": "<id>",
-          "toolName": "Agent"
-        },
-        "seq": 12,
-        "sessionId": "<id>",
-        "timestamp": "<time>",
-        "traceId": "<id>",
-        "turnId": "<id>",
-        "type": "model.streaming"
-      },
-      {
-        "deliveryKind": "desktop-continuous",
-        "eventId": "<id>",
-        "payload": {
           "baseURL": "<loopback-url>",
           "maxAttempts": 11,
           "providerId": "oracle-mock",
@@ -488,7 +421,7 @@
             }
           }
         },
-        "seq": 13,
+        "seq": 9,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -547,9 +480,9 @@
               "chars": "<count>"
             }
           ],
-          "toolCallCount": 2
+          "toolCallCount": 1
         },
-        "seq": 14,
+        "seq": 10,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -567,41 +500,15 @@
           "parallelGroupIndex": 0,
           "canRunParallel": true,
           "schedule": {
-            "parallelGroups": [["<id>", "<id>"]],
-            "executionOrder": ["<id>", "<id>"]
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
           },
           "kind": "scheduled",
           "inputByteLength": "<count>",
           "inputOmitted": true,
           "inputRef": "model_stream"
         },
-        "seq": 15,
-        "sessionId": "<id>",
-        "timestamp": "<time>",
-        "traceId": "<id>",
-        "turnId": "<id>",
-        "type": "tool.updated"
-      },
-      {
-        "deliveryKind": "desktop-continuous",
-        "eventId": "<id>",
-        "payload": {
-          "toolCallId": "<id>",
-          "assistantMessageId": "<id>",
-          "toolName": "Agent",
-          "dependencies": [],
-          "parallelGroupIndex": 0,
-          "canRunParallel": true,
-          "schedule": {
-            "parallelGroups": [["<id>", "<id>"]],
-            "executionOrder": ["<id>", "<id>"]
-          },
-          "kind": "scheduled",
-          "inputByteLength": "<count>",
-          "inputOmitted": true,
-          "inputRef": "model_stream"
-        },
-        "seq": 16,
+        "seq": 11,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -619,25 +526,7 @@
           "sideEffectScope": "session",
           "kind": "started"
         },
-        "seq": 17,
-        "sessionId": "<id>",
-        "timestamp": "<time>",
-        "traceId": "<id>",
-        "turnId": "<id>",
-        "type": "tool.updated"
-      },
-      {
-        "deliveryKind": "desktop-continuous",
-        "eventId": "<id>",
-        "payload": {
-          "toolCallId": "<id>",
-          "toolName": "Agent",
-          "startedAt": "<time>",
-          "readOnly": true,
-          "sideEffectScope": "session",
-          "kind": "started"
-        },
-        "seq": 18,
+        "seq": 12,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -663,7 +552,7 @@
           "duration": "<time>",
           "kind": "result"
         },
-        "seq": 22,
+        "seq": 15,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -674,38 +563,12 @@
         "deliveryKind": "desktop-continuous",
         "eventId": "<id>",
         "payload": {
-          "toolCallId": "<id>",
-          "result": {
-            "success": true,
-            "content": "child two result\nagentId: agent_<id> (use SendMessage with to: 'agent_<id>' to continue this agent)\n<usage>subagent_tokens: 22\ntool_uses: 0\nduration_ms: <time></usage>",
-            "perf": {
-              "totalMs": "<time>"
-            },
-            "truncated": false,
-            "originalBytes": 229,
-            "returnedBytes": 229,
-            "budgetStrategy": "artifact"
-          },
-          "duration": "<time>",
-          "kind": "result"
-        },
-        "seq": 24,
-        "sessionId": "<id>",
-        "timestamp": "<time>",
-        "traceId": "<id>",
-        "turnId": "<id>",
-        "type": "tool.updated"
-      },
-      {
-        "deliveryKind": "desktop-continuous",
-        "eventId": "<id>",
-        "payload": {
-          "toolCallIds": ["<id>", "<id>"],
-          "successCount": 2,
+          "toolCallIds": ["<id>"],
+          "successCount": 1,
           "errorCount": 0,
           "kind": "batch"
         },
-        "seq": 25,
+        "seq": 16,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -726,7 +589,7 @@
           "committedToolCallIds": ["<id>"],
           "committedAt": "<time>"
         },
-        "seq": 26,
+        "seq": 17,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -737,34 +600,13 @@
         "deliveryKind": "desktop-continuous",
         "eventId": "<id>",
         "payload": {
-          "anchorId": "<id>",
-          "attemptId": "<id>",
-          "kind": "tool_result",
-          "assistantMessageId": "<id>",
-          "toolCallId": "<id>",
-          "toolName": "Agent",
-          "resultPartId": "<id>",
-          "committedToolCallIds": ["<id>"],
-          "committedAt": "<time>"
-        },
-        "seq": 27,
-        "sessionId": "<id>",
-        "timestamp": "<time>",
-        "traceId": "<id>",
-        "turnId": "<id>",
-        "type": "streamRecovery.updated"
-      },
-      {
-        "deliveryKind": "desktop-continuous",
-        "eventId": "<id>",
-        "payload": {
-          "messageCount": 9,
+          "messageCount": 8,
           "providerId": "oracle-mock",
           "modelId": "mock-1",
           "toolCount": "<count>",
           "iteration": 1
         },
-        "seq": 28,
+        "seq": 18,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -817,7 +659,7 @@
             }
           }
         },
-        "seq": 29,
+        "seq": 19,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -829,11 +671,11 @@
         "eventId": "<id>",
         "payload": {
           "assistantMessageId": "<id>",
-          "delta": "default answer",
+          "delta": "parent after child",
           "done": false,
           "kind": "text_delta"
         },
-        "seq": 30,
+        "seq": 20,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -902,7 +744,7 @@
             }
           }
         },
-        "seq": 31,
+        "seq": 21,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -913,7 +755,7 @@
         "deliveryKind": "desktop-continuous",
         "eventId": "<id>",
         "payload": {
-          "content": "default answer",
+          "content": "parent after child",
           "contextWindow": 200000,
           "querySource": "main_turn",
           "stopReason": "stop",
@@ -963,7 +805,7 @@
           ],
           "toolCallCount": 0
         },
-        "seq": 32,
+        "seq": 22,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -974,7 +816,7 @@
         "deliveryKind": "desktop-continuous",
         "eventId": "<id>",
         "payload": {
-          "response": "default answer",
+          "response": "parent after child",
           "tokenCount": 52,
           "usage": {
             "source": "provider",
@@ -988,17 +830,667 @@
             "webFetchRequests": 0,
             "webSearchRequests": 0
           },
-          "toolCallCount": 2,
+          "toolCallCount": 1,
           "historyRoundCount": 2,
           "duration": "<time>",
           "resultType": "success",
           "cacheStats": {
-            "totalMessages": 10,
+            "totalMessages": 9,
             "cachedMessages": 5,
             "lastCacheHit": false
           }
         },
+        "seq": 23,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.completed"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "executionStartedAt": "<time>",
+          "turnNumber": 1,
+          "input": "spawn child two",
+          "messageId": "<id>",
+          "foregroundExecutionId": "runtime_command_3",
+          "queryId": "<id>"
+        },
+        "seq": 24,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.started"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "messageCount": 10,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 0
+        },
+        "seq": 25,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 26,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Agent"
+        },
+        "seq": 27,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "model.streaming"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"description\":\"child two\",\"prompt\":\"child two prompt\",\"subagent_type\":\"Explore\"}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        },
+        "seq": 28,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "model.streaming"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        },
+        "seq": 29,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "model.streaming"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "description": "child two",
+            "prompt": "child two prompt",
+            "subagent_type": "Explore"
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Agent"
+        },
+        "seq": 30,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "model.streaming"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 31,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 3,
+            "totalInputTokens": 30,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        },
+        "seq": 32,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Agent",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": true,
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": "<count>",
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        },
         "seq": 33,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallId": "<id>",
+          "toolName": "Agent",
+          "startedAt": "<time>",
+          "readOnly": true,
+          "sideEffectScope": "session",
+          "kind": "started"
+        },
+        "seq": 34,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallId": "<id>",
+          "result": {
+            "success": true,
+            "content": "child two result\nagentId: agent_<id> (use SendMessage with to: 'agent_<id>' to continue this agent)\n<usage>subagent_tokens: 22\ntool_uses: 0\nduration_ms: <time></usage>",
+            "perf": {
+              "totalMs": "<time>"
+            },
+            "truncated": false,
+            "originalBytes": 229,
+            "returnedBytes": 229,
+            "budgetStrategy": "artifact"
+          },
+          "duration": "<time>",
+          "kind": "result"
+        },
+        "seq": 37,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallIds": ["<id>"],
+          "successCount": 1,
+          "errorCount": 0,
+          "kind": "batch"
+        },
+        "seq": 38,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_result",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Agent",
+          "resultPartId": "<id>",
+          "committedToolCallIds": ["<id>"],
+          "committedAt": "<time>"
+        },
+        "seq": 39,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "streamRecovery.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "messageCount": 12,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        },
+        "seq": 40,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 41,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "parent after child",
+          "done": false,
+          "kind": "text_delta"
+        },
+        "seq": 42,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "model.streaming"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "timeToFirstTextMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 43,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "content": "parent after child",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 4,
+            "totalInputTokens": 40,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 0
+        },
+        "seq": 44,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "response": "parent after child",
+          "tokenCount": 52,
+          "usage": {
+            "source": "provider",
+            "modelRequestCount": 2,
+            "inputTokens": 20,
+            "outputTokens": 32,
+            "totalTokens": 52,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "webFetchRequests": 0,
+            "webSearchRequests": 0
+          },
+          "toolCallCount": 1,
+          "historyRoundCount": 2,
+          "duration": "<time>",
+          "resultType": "success",
+          "cacheStats": {
+            "totalMessages": 13,
+            "cachedMessages": 5,
+            "lastCacheHit": false
+          }
+        },
+        "seq": 45,
         "sessionId": "<id>",
         "timestamp": "<time>",
         "traceId": "<id>",
@@ -1016,24 +1508,36 @@
         "model.streaming",
         "model.streaming",
         "model.streaming",
-        "model.streaming",
-        "model.streaming",
-        "model.streaming",
-        "model.streaming",
         "session.updated",
         "session.updated",
         "tool.updated",
         "tool.updated",
-        "tool.updated",
-        "tool.updated",
         "session.updated",
-        "session.updated",
-        "session.updated",
-        "tool.updated",
         "session.updated",
         "tool.updated",
         "tool.updated",
         "streamRecovery.updated",
+        "session.updated",
+        "session.updated",
+        "model.streaming",
+        "session.updated",
+        "session.updated",
+        "turn.completed",
+        "turn.started",
+        "session.updated",
+        "session.updated",
+        "model.streaming",
+        "model.streaming",
+        "model.streaming",
+        "model.streaming",
+        "session.updated",
+        "session.updated",
+        "tool.updated",
+        "tool.updated",
+        "session.updated",
+        "session.updated",
+        "tool.updated",
+        "tool.updated",
         "streamRecovery.updated",
         "session.updated",
         "session.updated",
@@ -1046,6 +1550,10 @@
         {
           "type": "turn.completed",
           "resultType": "success"
+        },
+        {
+          "type": "turn.completed",
+          "resultType": "success"
         }
       ],
       "turnStarts": [
@@ -1053,7 +1561,14 @@
           "turnNumber": 0,
           "executionKind": null,
           "inputSource": null,
-          "input": "spawn two subagents",
+          "input": "spawn child one",
+          "targetId": null
+        },
+        {
+          "turnNumber": 1,
+          "executionKind": null,
+          "inputSource": null,
+          "input": "spawn child two",
           "targetId": null
         }
       ]
@@ -1080,13 +1595,13 @@
           "id": "<id>",
           "parent_id": null,
           "task_type": "interactive",
-          "title": "spawn two subagents",
+          "title": "spawn child one",
           "slug": "<id>",
           "directory": "<cwd>"
         }
       ],
       "sessionTaskLink": [],
-      "messageCount": 10
+      "messageCount": 13
     }
   }
 }
