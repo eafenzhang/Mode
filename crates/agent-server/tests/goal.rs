@@ -175,7 +175,7 @@ fn target_row(path: &Path, session_id: &str) -> Option<Value> {
         .query_row(
             "SELECT session_id, target_id, objective, status, token_budget, tokens_used, \
                     time_used_seconds, summary_title, active_input_id, active_run_started_at, \
-                    active_run_last_seen_at \
+                    active_run_last_seen_at, time_created, time_updated \
              FROM session_target WHERE session_id = ?1",
             [session_id],
             |row| {
@@ -191,6 +191,8 @@ fn target_row(path: &Path, session_id: &str) -> Option<Value> {
                     "activeInputId": row.get::<_, Option<String>>(8)?,
                     "activeRunStartedAt": row.get::<_, Option<i64>>(9)?,
                     "activeRunLastSeenAt": row.get::<_, Option<i64>>(10)?,
+                    "timeCreated": row.get::<_, i64>(11)?,
+                    "timeUpdated": row.get::<_, i64>(12)?,
                 }))
             },
         )
@@ -249,6 +251,31 @@ fn model_usage_rows(path: &Path, session_id: &str) -> Vec<Value> {
         .collect()
 }
 
+fn session_title(path: &Path, session_id: &str) -> String {
+    raw_connection(path)
+        .query_row(
+            "SELECT title FROM session WHERE id = ?1",
+            [session_id],
+            |row| row.get::<_, String>(0),
+        )
+        .expect("读取 session.title")
+}
+
+fn messages_with_source(path: &Path, source: &str) -> Vec<Value> {
+    let connection = raw_connection(path);
+    let mut statement = connection
+        .prepare("SELECT data FROM message ORDER BY COALESCE(sequence, -1), time_created, id")
+        .expect("准备 message 查询");
+    statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .expect("查询 message")
+        .map(|row| {
+            serde_json::from_str::<Value>(&row.expect("读取 message")).expect("message JSON")
+        })
+        .filter(|data| data["semantics"]["source"] == json!(source))
+        .collect()
+}
+
 fn set_target_active_for_cold_kill(db_path: &Path, session_id: &str) {
     // 直接改库模拟「进程在 continuation 中被杀」：状态回 active、active run 字段非空。
     let connection = Connection::open(db_path).expect("打开库模拟 kill");
@@ -289,6 +316,8 @@ struct GoalProvider {
     /// 请求已发出后的通知/闸门（in-flight 窗口）。
     entered: Arc<tokio::sync::Notify>,
     gate: Option<Arc<tokio::sync::Semaphore>>,
+    /// 下一次 continuation 请求返回 provider 错误（未观察失败路径的落库一致性）。
+    fail_next_continuation: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl GoalProvider {
@@ -303,6 +332,7 @@ impl GoalProvider {
                 pre_gate: None,
                 entered: Arc::new(tokio::sync::Notify::new()),
                 gate: None,
+                fail_next_continuation: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             },
             requests,
         )
@@ -329,6 +359,11 @@ impl GoalProvider {
             .push_back(response.to_string());
     }
 
+    fn fail_next_continuation(&self) {
+        self.fail_next_continuation
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
     fn entered(&self) -> &tokio::sync::Notify {
         &self.entered
     }
@@ -346,7 +381,7 @@ fn is_verifier_request(request: &ModelRequest) -> bool {
     matches!(
         request.messages.last(),
         Some(ModelMessage::User(text))
-            if text.contains("Verify whether the active session goal is actually complete.")
+            if text.contains(agent_core::goal::VERIFIER_MARKER)
     )
 }
 
@@ -376,6 +411,7 @@ impl ModelProvider for GoalProvider {
         let pre_gate = self.pre_gate.clone();
         let entered = Arc::clone(&self.entered);
         let gate = self.gate.clone();
+        let fail = Arc::clone(&self.fail_next_continuation);
         if kind == RequestKind::Continuation {
             let text = self.continuation_text.clone();
             return Box::pin(async move {
@@ -396,6 +432,12 @@ impl ModelProvider for GoalProvider {
                     let _permit = gate.acquire().await.map_err(|_| ProviderError {
                         message: "goal gate closed".to_string(),
                     })?;
+                }
+                if fail.load(std::sync::atomic::Ordering::SeqCst) {
+                    fail.store(false, std::sync::atomic::Ordering::SeqCst);
+                    return Err(ProviderError {
+                        message: "mock provider failure".to_string(),
+                    });
                 }
                 let _ = deltas.send(ModelDelta::Text { text });
                 Ok(ModelResponse {
@@ -874,6 +916,8 @@ async fn goal_all_actions_events_db_and_snapshot() {
         cleared.last().expect("cleared")["payload"]["previousTarget"],
         Value::Null
     );
+    // 无 goal 的 pause/clear 都不写 message 行（夹具 messageSummary 为空）。
+    assert_eq!(count_rows(&fixture.db_path, "message"), 0);
 
     // set → 控制 turn + set + 续跑 + verifier → complete。
     let set = goal_action(
@@ -913,6 +957,14 @@ async fn goal_all_actions_events_db_and_snapshot() {
         .expect("continuation input")
         .contains("<untrusted_objective>\nShip the C3 goal contract\n</untrusted_objective>"));
     let event_kinds = kinds(&events);
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event["type"] == json!("session.titleUpdated"))
+            .count(),
+        0,
+        "title 已由无 goal 的 pause 发出，set 不再重复"
+    );
     assert!(event_kinds.iter().any(|kind| kind == "turn.completed"));
     assert_eq!(
         event_kinds
@@ -1004,6 +1056,112 @@ async fn goal_all_actions_events_db_and_snapshot() {
 }
 
 // ---------------------------------------------------------------------------
+// 1b. 缺 objective 的 usage 文案（成功应答、零状态变化）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn missing_objective_returns_usage_without_state_change() {
+    let (provider, _requests) = GoalProvider::new("goal answer");
+    let fixture = fixture("missing-objective", provider);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let before = conn.read_snapshot(&session_id).await;
+    let set = goal_action(&mut conn, &session_id, "set", json!({})).await;
+    assert_eq!(set["response"], json!("Usage: /goal <objective>"));
+    assert_eq!(set["startedTurn"], json!(false));
+    assert_eq!(set["snapshot"]["session"]["target"], Value::Null);
+    let replace = goal_action(&mut conn, &session_id, "replace", json!({})).await;
+    assert_eq!(
+        replace["response"],
+        json!("Usage: /goal replace <objective>")
+    );
+    assert_eq!(replace["startedTurn"], json!(false));
+    let after = conn.read_snapshot(&session_id).await;
+    assert_eq!(
+        after["runtime"]["stateRevision"],
+        before["runtime"]["stateRevision"]
+    );
+    assert_eq!(after["runtime"]["eventSeq"], before["runtime"]["eventSeq"]);
+    assert_eq!(count_rows(&fixture.db_path, "session_target"), 0);
+}
+
+// ---------------------------------------------------------------------------
+// 1c. 首次 set：titleUpdated 在控制 turn 之前，应答快照是控制 turn 之后
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn first_set_emits_title_and_returns_post_control_snapshot() {
+    let (provider, _requests) = GoalProvider::new("goal answer");
+    let fixture = fixture("first-set-title", provider);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let set = goal_action(
+        &mut conn,
+        &session_id,
+        "set",
+        json!({ "objective": "Goal one", "inputId": "goal_s1" }),
+    )
+    .await;
+    assert_eq!(set["startedTurn"], json!(true));
+    assert_eq!(set["snapshot"]["runtime"]["stateRevision"], json!(3));
+    assert_eq!(set["snapshot"]["projection"]["turnCount"], json!(1));
+    let control_turn_id = set["snapshot"]["projection"]["currentTurnId"]
+        .as_str()
+        .expect("currentTurnId")
+        .to_string();
+    assert!(set["snapshot"]["runtime"]["eventSeq"].as_u64().unwrap_or(0) >= 4);
+
+    // 事件缓冲里 set 之前的部分：title → 控制 turn → summary → set。
+    let prep = conn
+        .drain_until(|event| event["payload"]["action"] == json!("set"))
+        .await;
+    assert_eq!(prep[0]["type"], json!("session.titleUpdated"));
+    assert_eq!(prep[0]["payload"]["title"], json!("Goal one"));
+    assert_eq!(prep[0]["payload"]["previousTitle"], json!(""));
+    assert_eq!(prep[0]["payload"]["source"], json!("first_input"));
+    let control = prep
+        .iter()
+        .find(|event| event["type"] == json!("turn.started"))
+        .expect("控制 turn");
+    assert_eq!(control["payload"]["turnNumber"], json!(0));
+    assert_eq!(control["payload"]["executionKind"], json!("controlOnly"));
+    assert_eq!(control["turnId"].as_str(), Some(control_turn_id.as_str()));
+    assert_eq!(
+        prep.last().expect("set event")["seq"],
+        set["snapshot"]["runtime"]["eventSeq"],
+        "应答快照的 eventSeq 是 set 事件之后的序号"
+    );
+    assert_eq!(session_title(&fixture.db_path, &session_id), "Goal one");
+
+    let _ = conn.drain_until_goal_status("complete").await;
+}
+
+#[tokio::test]
+async fn first_replace_also_emits_title() {
+    let (provider, _requests) = GoalProvider::new("goal answer");
+    let fixture = fixture("first-replace-title", provider);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let replace = goal_action(
+        &mut conn,
+        &session_id,
+        "replace",
+        json!({ "objective": "Replace goal", "inputId": "goal_r1" }),
+    )
+    .await;
+    assert_eq!(replace["startedTurn"], json!(true));
+    let prep = conn
+        .drain_until(|event| event["payload"]["action"] == json!("set"))
+        .await;
+    assert_eq!(prep[0]["type"], json!("session.titleUpdated"));
+    assert_eq!(prep[0]["payload"]["title"], json!("Replace goal"));
+    let _ = conn.drain_until_goal_status("complete").await;
+}
+
+// ---------------------------------------------------------------------------
 // 2. 运行中限制 + pause 例外（in-flight）
 // ---------------------------------------------------------------------------
 
@@ -1050,6 +1208,18 @@ async fn running_goal_management_rejected_but_pause_cancels_in_flight() {
         pause["snapshot"]["session"]["target"]["activeInputId"],
         json!("goal_pif_set")
     );
+    // set 3 + pause 1；快照已含 status_updated 的 seq，turnCount 含已开始的续跑。
+    assert_eq!(pause["snapshot"]["runtime"]["stateRevision"], json!(4));
+    assert_eq!(pause["snapshot"]["projection"]["turnCount"], json!(2));
+    assert!(
+        pause["snapshot"]["projection"]["currentTurnId"].is_string(),
+        "pause 快照保留运行中的 continuation turnId"
+    );
+    assert_eq!(
+        pause["snapshot"]["session"]["status"],
+        json!("running"),
+        "pause 应答是取消中的快照"
+    );
 
     let events = conn.drain_until_terminal().await;
     let terminal = events.last().expect("终态");
@@ -1073,6 +1243,10 @@ async fn running_goal_management_rejected_but_pause_cancels_in_flight() {
     assert_eq!(
         run_finished["payload"]["target"]["activeInputId"],
         Value::Null
+    );
+    assert_eq!(
+        pause["snapshot"]["runtime"]["eventSeq"], status["seq"],
+        "pause 应答快照的 eventSeq 已包含 status_updated"
     );
     // status_updated 在 run_finished 与终态之前（观察顺序）。
     let status_position = events
@@ -1106,9 +1280,58 @@ async fn running_goal_management_rejected_but_pause_cancels_in_flight() {
     assert_eq!(target["status"], json!("paused"));
     assert_eq!(target["tokensUsed"], json!(0));
     assert_eq!(requests.lock().expect("requests").len(), 1);
+    assert_eq!(
+        messages_with_source(&fixture.db_path, "goal_state_change").len(),
+        1,
+        "pause 在续跑用户消息之后写 goal_state_change 行"
+    );
 
-    // 解除 gate 让残留 future 自然结束（已被取消，不应再有请求）。
+    // resume：status_updated 同步进应答快照；续跑 foreground 序号 +1，goalIteration 从 1。
     gate.add_permits(1);
+    let resume = goal_action(
+        &mut conn,
+        &session_id,
+        "resume",
+        json!({ "inputId": "goal_pif_resume" }),
+    )
+    .await;
+    assert_eq!(resume["startedTurn"], json!(true));
+    assert_eq!(resume["snapshot"]["runtime"]["stateRevision"], json!(6));
+    assert_eq!(resume["snapshot"]["projection"]["turnCount"], json!(2));
+    let resumed_events = conn.drain_until_goal_status("complete").await;
+    let resumed_start = resumed_events
+        .iter()
+        .find(|event| event["type"] == json!("turn.started"))
+        .expect("resumed continuation turn");
+    assert_eq!(resumed_start["payload"]["turnNumber"], json!(1));
+    assert_eq!(
+        resumed_start["payload"]["foregroundExecutionId"],
+        json!("runtime_command_2")
+    );
+    let verification = resumed_events
+        .iter()
+        .find(|event| event["payload"]["status"] == json!("started"))
+        .expect("verification started");
+    assert_eq!(verification["payload"]["goalIteration"], json!(1));
+    assert_eq!(
+        verification["payload"]["foregroundExecutionId"],
+        json!("runtime_command_2")
+    );
+
+    // clear：应答快照含 cleared；turnCount 3（control + 两次 continuation）。
+    let clear = goal_action(&mut conn, &session_id, "clear", json!({})).await;
+    assert_eq!(clear["response"], json!("Goal cleared."));
+    assert_eq!(clear["snapshot"]["runtime"]["stateRevision"], json!(8));
+    assert_eq!(clear["snapshot"]["projection"]["turnCount"], json!(3));
+    assert_eq!(clear["snapshot"]["session"]["target"], Value::Null);
+    let clear_events = conn
+        .drain_until(|event| event["payload"]["action"] == json!("cleared"))
+        .await;
+    assert_eq!(
+        clear["snapshot"]["runtime"]["eventSeq"],
+        clear_events.last().expect("cleared")["seq"]
+    );
+    assert_eq!(count_rows(&fixture.db_path, "session_target"), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1165,6 +1388,63 @@ async fn pause_before_provider_request_records_zero_model_requests() {
 }
 
 // ---------------------------------------------------------------------------
+// 3b. user stop 在 provider 请求前（model_request_count 0）+ goal_state_change 行
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn user_stop_before_provider_request_records_zero_requests() {
+    let (provider, requests) = GoalProvider::new("never requested");
+    let pre_gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let provider = provider.with_pre_gate(Arc::clone(&pre_gate));
+    let fixture = fixture("stop-before", provider);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let set = goal_action(
+        &mut conn,
+        &session_id,
+        "set",
+        json!({ "objective": "Stop before request", "inputId": "goal_stop_before_set" }),
+    )
+    .await;
+    assert_eq!(set["startedTurn"], json!(true));
+    fixture.provider.pre_entered().notified().await;
+
+    let stop_id = conn
+        .send("session/stop", json!({ "sessionId": session_id }))
+        .await;
+    assert_eq!(conn.result(stop_id).await, json!({}));
+    pre_gate.add_permits(1);
+
+    let events = conn.drain_until_terminal().await;
+    assert_eq!(
+        events.last().expect("terminal")["payload"]["resultType"],
+        json!("cancelled")
+    );
+    assert!(events.iter().any(|event| {
+        event["payload"]["action"] == json!("status_updated")
+            && event["payload"]["target"]["status"] == json!("paused")
+    }));
+    let _ = wait_idle(&mut conn, &session_id).await;
+
+    assert!(requests.lock().expect("requests").is_empty());
+    let usage = turn_usage_rows(&fixture.db_path, &session_id);
+    assert_eq!(usage.len(), 1);
+    assert_eq!(usage[0]["status"], json!("cancelled"));
+    assert_eq!(usage[0]["modelRequestCount"], json!(0));
+    assert_eq!(usage[0]["cancelledByUser"], json!(1));
+    assert!(model_usage_rows(&fixture.db_path, &session_id).is_empty());
+    assert_eq!(
+        messages_with_source(&fixture.db_path, "goal_state_change").len(),
+        1,
+        "stop 写 goal_state_change 行"
+    );
+    let target = target_row(&fixture.db_path, &session_id).expect("target row");
+    assert_eq!(target["status"], json!("paused"));
+    assert_eq!(target["activeInputId"], Value::Null);
+}
+
+// ---------------------------------------------------------------------------
 // 4. set-over-existing / replace 目标 id 变化
 // ---------------------------------------------------------------------------
 
@@ -1186,6 +1466,16 @@ async fn set_over_existing_and_replace_change_target_id_single_row() {
         .as_str()
         .expect("target-1")
         .to_string();
+    let first_prep = conn
+        .drain_until(|event| event["payload"]["action"] == json!("set"))
+        .await;
+    assert_eq!(first_prep[0]["type"], json!("session.titleUpdated"));
+    assert_eq!(first_prep[0]["payload"]["title"], json!("Goal one"));
+    let first_control = first_prep
+        .iter()
+        .find(|event| event["type"] == json!("turn.started"))
+        .expect("first control turn");
+    assert_eq!(first_control["payload"]["turnNumber"], json!(0));
     let _ = conn.drain_until_goal_status("complete").await;
 
     let second = goal_action(
@@ -1200,16 +1490,59 @@ async fn set_over_existing_and_replace_change_target_id_single_row() {
         .expect("target-2")
         .to_string();
     assert_ne!(first_id, second_id, "set 覆盖已有目标产生新 id");
-    let events = conn.drain_until_goal_status("complete").await;
-    let set_event = events
+    // 应答快照在控制 turn 之后：turnCount 3（两次控制 + 一次续跑），currentTurnId 有值。
+    assert_eq!(second["snapshot"]["projection"]["turnCount"], json!(3));
+    assert!(second["snapshot"]["projection"]["currentTurnId"].is_string());
+    let second_prep = conn
+        .drain_until(|event| event["payload"]["action"] == json!("set"))
+        .await;
+    assert!(
+        !second_prep
+            .iter()
+            .any(|event| event["type"] == json!("session.titleUpdated")),
+        "title 只由首次 set 发出"
+    );
+    let second_control = second_prep
         .iter()
-        .find(|event| event["payload"]["action"] == json!("set"))
-        .expect("set event");
+        .find(|event| event["type"] == json!("turn.started"))
+        .expect("second control turn");
+    assert_eq!(second_control["payload"]["turnNumber"], json!(1));
+    let set_event = second_prep.last().expect("set event");
     assert_eq!(
         set_event["payload"]["previousTarget"]["targetID"],
         json!(first_id)
     );
     assert_eq!(set_event["payload"]["target"]["targetID"], json!(second_id));
+    assert_eq!(
+        second["snapshot"]["runtime"]["eventSeq"], set_event["seq"],
+        "second set 应答快照是控制/set 事件之后"
+    );
+    let events = conn.drain_until_goal_status("complete").await;
+    let continuation = events
+        .iter()
+        .find(|event| event["type"] == json!("turn.started"))
+        .expect("second target continuation");
+    assert_eq!(continuation["payload"]["turnNumber"], json!(2));
+    assert_eq!(
+        continuation["payload"]["foregroundExecutionId"],
+        json!("runtime_command_2")
+    );
+    let verification = events
+        .iter()
+        .find(|event| event["payload"]["status"] == json!("started"))
+        .expect("second target verifier started");
+    assert_eq!(verification["payload"]["goalIteration"], json!(1));
+    assert_eq!(
+        verification["payload"]["foregroundExecutionId"],
+        json!("runtime_command_2")
+    );
+
+    // DB 的新目标 time_created 与快照一致（替换语义，不保留旧创建的 time_created）。
+    let row_after_second = target_row(&fixture.db_path, &session_id).expect("second target row");
+    assert_eq!(
+        second["snapshot"]["session"]["target"]["createdAt"].as_u64(),
+        row_after_second["timeCreated"].as_u64()
+    );
 
     let replace = goal_action(
         &mut conn,
@@ -1237,6 +1570,51 @@ async fn set_over_existing_and_replace_change_target_id_single_row() {
     let target = target_row(&fixture.db_path, &session_id).expect("target row");
     assert_eq!(target["objective"], json!("Goal three"));
     assert_eq!(target["targetId"], json!(replace_id));
+}
+
+// ---------------------------------------------------------------------------
+// 4b. provider 错误：清 active 字段并同步落库（hot/cold 同源）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn provider_error_clears_active_fields_in_db_and_snapshot() {
+    let (provider, _requests) = GoalProvider::new("unused");
+    provider.fail_next_continuation();
+    let fixture = fixture("provider-error", provider);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let set = goal_action(
+        &mut conn,
+        &session_id,
+        "set",
+        json!({ "objective": "Provider error goal", "inputId": "goal_err_set" }),
+    )
+    .await;
+    assert_eq!(set["startedTurn"], json!(true));
+    let events = conn
+        .drain_until(|event| event["type"] == json!("turn.failed"))
+        .await;
+    assert_eq!(
+        events.last().expect("terminal")["type"],
+        json!("turn.failed")
+    );
+    let snapshot = wait_idle(&mut conn, &session_id).await;
+    assert_eq!(snapshot["session"]["target"]["status"], json!("active"));
+    assert_eq!(
+        snapshot["session"]["target"]["activeInputId"],
+        Value::Null,
+        "失败 turn 不能把 activeInputId 留在热状态"
+    );
+    let row = target_row(&fixture.db_path, &session_id).expect("target row");
+    assert_eq!(row["status"], json!("active"));
+    assert_eq!(row["activeInputId"], Value::Null);
+    assert_eq!(row["activeRunStartedAt"], Value::Null);
+    assert_eq!(row["activeRunLastSeenAt"], Value::Null);
+    assert_eq!(
+        snapshot["session"]["target"]["activeInputId"],
+        row["activeInputId"]
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1431,6 +1809,11 @@ async fn user_stop_cancels_continuation_and_pauses_target() {
     assert_eq!(usage[0]["status"], json!("cancelled"));
     assert_eq!(usage[0]["cancelledByUser"], json!(1));
     assert_eq!(requests.lock().expect("requests").len(), 1);
+    assert_eq!(
+        messages_with_source(&fixture.db_path, "goal_state_change").len(),
+        1,
+        "stop 在续跑用户消息之后写 goal_state_change 行"
+    );
     gate.add_permits(1);
 }
 
@@ -1639,6 +2022,12 @@ async fn cold_restart_active_target_becomes_paused_without_idle_turn() {
     assert_eq!(cold_read["session"]["target"]["status"], json!("paused"));
     assert_eq!(cold_read["projection"]["target"]["status"], json!("paused"));
     assert_eq!(cold_read["session"]["target"]["activeInputId"], Value::Null);
+    let cold_row = target_row(&fixture.db_path, &session_id).expect("cold target row");
+    assert_eq!(
+        cold_read["session"]["target"]["updatedAt"].as_u64(),
+        cold_row["timeUpdated"].as_u64(),
+        "冷读返回的是落库后的 time_updated"
+    );
     let resume = resume_session(&mut conn, &session_id).await;
     assert_eq!(resume["session"]["target"]["status"], json!("paused"));
     assert_eq!(resume["session"]["target"]["activeInputId"], Value::Null);
@@ -1702,6 +2091,7 @@ async fn cold_restart_paused_resumes_explicitly_and_completes() {
     close_session(&mut conn, &session_id).await;
     let resume = resume_session(&mut conn, &session_id).await;
     assert_eq!(resume["session"]["target"]["status"], json!("paused"));
+    assert_eq!(resume["goalStats"]["iterationCount"], json!(1));
     let show = goal_action(&mut conn, &session_id, "show", json!({})).await;
     assert!(show["response"]
         .as_str()

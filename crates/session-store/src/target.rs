@@ -62,6 +62,7 @@ impl SessionStore {
                  token_budget = excluded.token_budget, \
                  tokens_used = excluded.tokens_used, \
                  time_used_seconds = excluded.time_used_seconds, \
+                 time_created = excluded.time_created, \
                  time_updated = excluded.time_updated, \
                  summary_title = excluded.summary_title, \
                  active_input_id = excluded.active_input_id, \

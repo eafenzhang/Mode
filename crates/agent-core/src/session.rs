@@ -539,8 +539,19 @@ impl Session {
         prompt: &str,
         input_id: &str,
         target_id: &str,
+        turn_number: u64,
+        foreground_execution_id: &str,
     ) -> SessionEvent {
-        let (turn_number, turn_id) = self.allocate_turn();
+        // goal 的 turn 序号由运行时按「控制 turn + 目标轮次」决定，不复用普通
+        // `turn_N` 分配（观察：同一目标 resume 后 turnNumber 仍是 1，而
+        // foregroundExecutionId 每次尝试 +1）。
+        self.turn_number = self.turn_number.max(turn_number + 1);
+        let turn_id = format!("turn_{}", new_uuid());
+        self.current_turn_id = Some(turn_id.clone());
+        self.prior_tool_history = self
+            .messages
+            .iter()
+            .any(|message| matches!(message, ModelMessage::ToolResult { .. }));
         let payload = TurnStartedPayload {
             execution_started_at: Some(now_ms() as f64),
             turn_number,
@@ -548,7 +559,7 @@ impl Session {
             input_id: Some(input_id.to_string()),
             query_id: Some(new_uuid()),
             message_id: Some(new_uuid()),
-            foreground_execution_id: Some(format!("runtime_command_{}", turn_number + 1)),
+            foreground_execution_id: Some(foreground_execution_id.to_string()),
             extra: {
                 let mut extra = ExtraFields::new();
                 extra.insert(
@@ -700,8 +711,16 @@ impl Session {
         cancel: &CancelToken,
         after_start: AfterStartHook<'_>,
         before_terminal: BeforeTerminalHook<'_>,
+        turn_number: u64,
+        foreground_execution_id: &str,
     ) -> Result<(), TurnError> {
-        let started = self.begin_goal_continuation_turn(prompt, input_id, target_id);
+        let started = self.begin_goal_continuation_turn(
+            prompt,
+            input_id,
+            target_id,
+            turn_number,
+            foreground_execution_id,
+        );
         self.run_turn_with_start(
             started,
             prompt,
@@ -817,11 +836,12 @@ impl Session {
                             None => delta_channel_open = false,
                         }
                     }
-                    result = &mut provider_future => provider_result = Some(result),
+                    // 取消优先于 provider 应答（C3：cancel 先于重试/终态）。
                     _ = cancel.cancelled() => {
                         cancelled = true;
                         break;
                     }
+                    result = &mut provider_future => provider_result = Some(result),
                 }
             }
             if cancelled {
@@ -1726,6 +1746,13 @@ impl Session {
     ///
     /// 公开给宿主（`agent-server`）：compact turn 的终态事件由宿主在落库之后构造并
     /// 发布（C2 T2），seq/信封仍归 [`Session`] 单调分配，不出现第二套编号。
+    /// 把事件序号推进到运行时方法层已经发布的 `seq`（goal 的控制/状态事件由
+    /// `SessionRuntime` 在方法层发布，worker 拿到 Session 后必须对齐，避免续跑事件
+    /// 与已发布事件重号）。
+    pub fn sync_event_seq(&mut self, seq: u64) {
+        self.sequence = self.sequence.max(seq);
+    }
+
     pub fn emit<T: Serialize>(
         &mut self,
         turn_id: Option<&str>,

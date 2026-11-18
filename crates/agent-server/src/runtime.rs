@@ -61,8 +61,8 @@ use agent_core::{
     SessionEventType, SUMMARY_TITLE,
 };
 use agent_protocol::session_event::{
-    CacheStats, ModelStreamingKind, ModelStreamingPayload, ProtocolErrorDetail, ToolUpdatedPayload,
-    TurnCompletedPayload, TurnFailedPayload, TurnResultType,
+    CacheStats, DeliveryKind, ModelStreamingKind, ModelStreamingPayload, ProtocolErrorDetail,
+    ToolUpdatedPayload, TurnCompletedPayload, TurnFailedPayload, TurnResultType,
 };
 use agent_protocol::session_read::{SessionGoal, SessionGoalStatus};
 use agent_protocol::session_write::{SessionCompactParams, SessionGoalAction, SessionGoalParams};
@@ -128,33 +128,13 @@ struct QueuedInput {
     goal: Option<GoalJob>,
 }
 
-/// goal worker 任务的种类（C3 T1）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum GoalJobKind {
-    /// `set` / `replace`：控制 turn → summary_updated → set → 续跑循环。
-    Set,
-    /// `resume`：status_updated(active) → 续跑循环。
-    Resume,
-    /// 目标已 active 但任务未在跑时的 pause：只发状态事件。
-    PauseEvent,
-    /// clear：只发 cleared 事件。
-    ClearEvent,
-    /// 无 goal 的 pause：首个 mutating action 的 titleUpdated 副作用。
-    NoGoalPause,
-}
-
 /// 一个已受理的 goal 任务（进入 worker 队列的事实）。
 #[derive(Debug, Clone)]
 struct GoalJob {
-    kind: GoalJobKind,
     /// 生效 inputId（权限/幂等/run_started.activeInputId）。
     input_id: String,
-    /// set/replace 的控制 turn 输入（objective）；resume 为 `None`。
-    control_objective: Option<String>,
-    /// `set` 事件的 `previousTarget`；无旧目标为 `None`。
-    previous_target: Option<GoalTarget>,
-    /// PauseEvent / ClearEvent 的先前目标（事件 payload 用）。
-    event_previous: Option<GoalTarget>,
+    /// 方法层已发布到的事件序号；worker 的 Session 必须从这里续号。
+    event_seq: u64,
 }
 
 /// 目标续跑的热状态。唯一事实源是 `session_target` 行；这里的字段是同一把
@@ -166,15 +146,17 @@ struct GoalState {
     timeline: Vec<GoalVerificationTimeline>,
     /// 最近验证窗口（观察 `length:2`）。
     verifications: Vec<GoalVerification>,
-    /// 当前目标的续跑轮次（从 1 起）。
+    /// 达到 verifier 的轮次（每目标从 1 起；pre-request 取消不增加）。
     iteration: u64,
+    /// 会话级 goal-continuation 尝试序号（`runtime_command_<n>`，跨目标累计）。
+    continuation_ordinal: u64,
+    /// 控制 turn 计数（0 起；`turn.started.turnNumber` 的基数）。
+    control_turns: u64,
     /// 正在进行/已受理的 goal 任务（运行中限制的依据）。
     job_active: bool,
-    /// pause 前目标状态（status_updated 事件的 `previousTarget`）。
-    pause_previous_status: Option<GoalStatus>,
-    /// pause 状态事件尚未发出（由 worker 在取消收口/取消 verifier 时发）。
-    pause_event_pending: bool,
-    /// 无 goal 的首个 mutating action 已发过 titleUpdated。
+    /// pause/stop 已预分配、等待 worker 在终态/verifier 取消前发布的 status 事件。
+    pending_cancel_event: Option<SessionEvent>,
+    /// 无 goal / 首次 set 的 titleUpdated 已发过。
     title_emitted: bool,
 }
 
@@ -199,10 +181,11 @@ impl GoalState {
             target: Some(target),
             timeline,
             verifications,
-            iteration: 1,
+            iteration: 0,
+            continuation_ordinal: 0,
+            control_turns: 0,
             job_active: false,
-            pause_previous_status: None,
-            pause_event_pending: false,
+            pending_cancel_event: None,
             title_emitted: false,
         }
     }
@@ -530,15 +513,44 @@ impl Shared {
     /// 订阅方在**同一把锁内**「读日志 + 建 receiver」，因此：日志里已有的事件不会
     /// 再出现在 receiver 缓冲里（无重复），锁释放后发布的事件必进 receiver（无缺口）。
     fn publish(&self, event: &SessionEvent) {
+        self.publish_many(vec![event.clone()]);
+    }
+
+    /// 顺序发布一批已分配 seq 的事件（goal 方法层的同步事件）。
+    fn publish_many(&self, events: Vec<SessionEvent>) {
         let mut live = self.lock();
-        live.event_seq = live.event_seq.max(event.seq);
-        live.log.push_back(event.clone());
         let capacity = self.read_config().event_log_capacity.max(1);
-        while live.log.len() > capacity {
-            live.log.pop_front();
+        for event in events {
+            live.event_seq = live.event_seq.max(event.seq);
+            live.log.push_back(event.clone());
+            while live.log.len() > capacity {
+                live.log.pop_front();
+            }
+            // 没有订阅方时 send 返回 Err：事件仍在内存日志里，回放可补——不是错误。
+            let _ = self.bus.send(event);
         }
-        // 没有订阅方时 send 返回 Err：事件仍在内存日志里，回放可补——不是错误。
-        let _ = self.bus.send(event.clone());
+    }
+}
+
+/// 在 `Live` 锁内分配一条事件（goal 方法层与控制 turn 用）。
+fn make_event(
+    live: &mut Live,
+    session_id: &str,
+    turn_id: Option<String>,
+    event_type: SessionEventType,
+    payload: Value,
+) -> SessionEvent {
+    live.event_seq += 1;
+    SessionEvent {
+        event_id: format!("evt_{}", live.event_seq),
+        session_id: session_id.to_string(),
+        turn_id,
+        seq: live.event_seq,
+        trace_id: None,
+        timestamp: now_ms(),
+        delivery_kind: Some(DeliveryKind::DesktopContinuous),
+        event_type,
+        payload: Some(payload),
     }
 }
 
@@ -764,9 +776,9 @@ impl SessionRuntime {
     ///
     /// C3 T1：goal 续跑/verifier 也由同一个取消面收口——取消 goal 任务令牌并把目标
     /// 置为 `paused`（`session/stop` 的观察：target paused、turn cancelled）。
-    /// `status_updated` 事件由 worker 在终态/verifier 取消前补发（同一把锁下的
-    /// `pause_event_pending`），保证 `status_updated → run_finished → turn.completed`
-    /// 的观察顺序。
+    /// `status_updated` 事件在锁内预分配（seq 立即进入快照），由 worker 在终态/
+    /// verifier 取消前发布，保证 `status_updated → run_finished → turn.completed`
+    /// 的观察顺序；`goal_state_change` 消息行在这里落库。
     pub fn cancel_turn(&self) -> Result<(), RuntimeError> {
         let mut live = self.shared.lock();
         if let Some(token) = &live.current_cancel {
@@ -775,18 +787,55 @@ impl SessionRuntime {
         if let Some(token) = &live.goal_cancel {
             token.cancel();
         }
+        let mut publish_now = None;
         if let Some(mut target) = live.goal.target.clone() {
             if target.status == GoalStatus::Active {
-                live.goal.pause_previous_status = Some(GoalStatus::Active);
+                let previous = target.clone();
                 target.set_status(GoalStatus::Paused, now_ms());
                 target.time_updated = now_ms();
                 self.shared
                     .store
                     .upsert_target(&target_record(&target))
                     .map_err(|error| RuntimeError::Store(error.to_string()))?;
-                live.goal.target = Some(target);
-                live.goal.pause_event_pending = true;
+                live.goal.target = Some(target.clone());
+                live.revision += 1;
+                let session_id = self.shared.record.id.clone();
+                let event = make_event(
+                    &mut live,
+                    &session_id,
+                    None,
+                    SessionEventType::SessionUpdated,
+                    target_update_payload(
+                        "status_updated",
+                        "command",
+                        Some(&previous),
+                        Some(&target),
+                    ),
+                );
+                if live.goal.job_active || live.current_kind.is_some() {
+                    live.goal.pending_cancel_event = Some(event);
+                } else {
+                    publish_now = Some(event);
+                }
+                let sequence = live.next_message_sequence;
+                live.next_message_sequence += 1;
+                let (message, part) = goal_message_rows(
+                    &session_id,
+                    "Goal paused",
+                    "system_reminder",
+                    Some("goal_state_change"),
+                    sequence,
+                    now_ms(),
+                );
+                let _ = self
+                    .shared
+                    .store
+                    .append_message_with_parts(message, &[part]);
             }
+        }
+        drop(live);
+        if let Some(event) = publish_now {
+            self.shared.publish(&event);
         }
         Ok(())
     }
@@ -987,14 +1036,28 @@ impl SessionRuntime {
 
     /// `session/goal` 的受理入口（C3 T1；契约 §1.1–§1.9）。
     ///
-    /// 判定与状态迁移都在同一把 `Live` 锁内：revision 冲突先于一切（零副作用），
-    /// 运行中除 `pause` 外统一 `-32010`。目标行立即落 `session_target`（应答快照
-    /// 带新目标）；控制 turn / 续跑循环由 worker 在队列里异步产出事件。
+    /// 每个 action 在自己的 `Live` 临界区里做 revision/运行中判定并准备事件；
+    /// 临界区释放后才发布事件（`publish_many` 需要同一把锁）与入队。
     pub(crate) fn request_goal(
         &self,
         params: &SessionGoalParams,
     ) -> Result<GoalOutcome, GoalReject> {
-        let mut live = self.shared.lock();
+        match params.action {
+            SessionGoalAction::Show => self.goal_show(params),
+            SessionGoalAction::Pause => self.goal_pause(params),
+            SessionGoalAction::Clear => self.goal_clear(params),
+            SessionGoalAction::Resume => self.goal_resume(params),
+            SessionGoalAction::Set | SessionGoalAction::Replace => self.goal_set(params),
+        }
+    }
+
+    /// 取得 goal 命令的 `Live` 临界区并做 revision/运行中判定。
+    fn goal_lock(
+        &self,
+        params: &SessionGoalParams,
+        reject_running: bool,
+    ) -> Result<MutexGuard<'_, Live>, GoalReject> {
+        let live = self.shared.lock();
         if let Some(expected) = params.expected_revision {
             if expected != live.revision {
                 return Err(GoalReject::RevisionConflict {
@@ -1003,54 +1066,35 @@ impl SessionRuntime {
                 });
             }
         }
-        // 观察（§1.1）：prompt/continuation 运行中，show/set/replace/resume/clear 都是
-        // `-32010`；`pause` 是唯一例外。
-        let running = live.goal.job_active
-            || live
-                .current_kind
-                .map(TurnKind::is_prompt_running)
-                .unwrap_or(false);
-        if running && params.action != SessionGoalAction::Pause {
+        if reject_running
+            && (live.goal.job_active
+                || live
+                    .current_kind
+                    .map(TurnKind::is_prompt_running)
+                    .unwrap_or(false))
+        {
             return Err(GoalReject::PromptRunning);
         }
-        match params.action {
-            SessionGoalAction::Show => Ok(self.goal_show(&live)),
-            SessionGoalAction::Pause => self.goal_pause(&mut live),
-            SessionGoalAction::Clear => self.goal_clear(&mut live),
-            SessionGoalAction::Resume => self.goal_resume(&mut live, params),
-            SessionGoalAction::Set | SessionGoalAction::Replace => self.goal_set(&mut live, params),
-        }
+        Ok(live)
     }
 
     /// `show`：只读；运行中同样 `-32010`（观察：show 不是例外）。
-    fn goal_show(&self, live: &Live) -> GoalOutcome {
+    fn goal_show(&self, params: &SessionGoalParams) -> Result<GoalOutcome, GoalReject> {
+        let live = self.goal_lock(params, true)?;
         let target = live.goal.target.as_ref();
         let response = match target {
             Some(target) => target.status_response(),
             None => "No goal is set. Use /goal <objective> to set one.".to_string(),
         };
-        // show 的运行中拒绝在 handler 层统一处理（这里只读）；为保证与观察一致，
-        // handler 在调用前检查。
-        GoalOutcome {
+        Ok(GoalOutcome {
             response,
-            snapshot: self.snapshot_locked(live),
+            snapshot: self.snapshot_locked(&live),
             started_turn: false,
-        }
+        })
     }
 
-    fn goal_set(
-        &self,
-        live: &mut Live,
-        params: &SessionGoalParams,
-    ) -> Result<GoalOutcome, GoalReject> {
-        if live.goal.job_active
-            || live
-                .current_kind
-                .map(TurnKind::is_prompt_running)
-                .unwrap_or(false)
-        {
-            return Err(GoalReject::PromptRunning);
-        }
+    fn goal_set(&self, params: &SessionGoalParams) -> Result<GoalOutcome, GoalReject> {
+        let mut live = self.goal_lock(params, true)?;
         let Some(objective) = params
             .objective
             .as_deref()
@@ -1063,71 +1107,160 @@ impl SessionRuntime {
             };
             return Ok(GoalOutcome {
                 response: response.to_string(),
-                snapshot: self.snapshot_locked(live),
+                snapshot: self.snapshot_locked(&live),
                 started_turn: false,
             });
         };
         let now = now_ms();
+        let session_id = self.shared.record.id.clone();
         let previous = live.goal.target.clone();
         let target = GoalTarget::new(
-            self.shared.record.id.clone(),
+            session_id.clone(),
             fresh_id("target"),
             objective.to_string(),
             now,
         );
         self.persist_goal_target(&target)?;
+
+        let mut events = Vec::new();
+        let emit_title = !live.goal.title_emitted && self.shared.record.title.is_empty();
+        if emit_title {
+            events.push(make_event(
+                &mut live,
+                &session_id,
+                None,
+                SessionEventType::SessionTitleUpdated,
+                json!({
+                    "previousTitle": "",
+                    "source": "first_input",
+                    "title": objective,
+                }),
+            ));
+        }
+
+        // 控制 turn：`turnNumber` 用控制 turn 自己的 0 起序号（观察：第二个目标
+        // 的控制 turn 仍是 1，与上一次已开始的 continuation turn 序号重叠）。
+        let control_number = live.goal.control_turns;
+        let control_turn_id = fresh_id("turn_control");
+        let control_started_at = now_ms();
+        events.push(make_event(
+            &mut live,
+            &session_id,
+            Some(control_turn_id.clone()),
+            SessionEventType::TurnStarted,
+            json!({
+                "turnNumber": control_number,
+                "input": objective,
+                "messageId": uuid::Uuid::new_v4().to_string(),
+                "executionKind": "controlOnly",
+            }),
+        ));
+        events.push(make_event(
+            &mut live,
+            &session_id,
+            Some(control_turn_id.clone()),
+            SessionEventType::TurnCompleted,
+            json!({
+                "response": "",
+                "tokenCount": 0,
+                "toolCallCount": 0,
+                "duration": (now_ms() - control_started_at).max(0) as f64,
+                "resultType": "success",
+            }),
+        ));
+
+        // summary_updated → set（事件 target 的 summaryTitle 为 null；落库行是 objective）。
+        let mut event_target = target.clone();
+        event_target.summary_title = None;
+        events.push(make_event(
+            &mut live,
+            &session_id,
+            None,
+            SessionEventType::SessionUpdated,
+            target_update_payload(
+                "summary_updated",
+                "runtime",
+                Some(&event_target),
+                Some(&target),
+            ),
+        ));
+        events.push(make_event(
+            &mut live,
+            &session_id,
+            None,
+            SessionEventType::SessionUpdated,
+            target_update_payload("set", "command", previous.as_ref(), Some(&event_target)),
+        ));
+
+        let old_goal = live.goal.clone();
         live.goal = GoalState {
             target: Some(target.clone()),
-            ..GoalState::default()
+            timeline: Vec::new(),
+            verifications: Vec::new(),
+            iteration: 0,
+            continuation_ordinal: old_goal.continuation_ordinal,
+            control_turns: control_number + 1,
+            job_active: true,
+            pending_cancel_event: None,
+            title_emitted: old_goal.title_emitted || emit_title,
         };
+        live.current_turn_id = Some(control_turn_id);
+        live.turn_count += 1;
+        // set/replace 的 revision 增量（夹具：2 → 5；命令 + 控制 turn + 目标切换）。
+        live.revision += 3;
+        let objective_sequence = live.next_message_sequence;
+        live.next_message_sequence += 1;
         let input_id = goal_input_id(params.input_id.as_deref());
         let cancel = CancelToken::new();
         live.goal_cancel = Some(cancel);
-        live.goal.job_active = true;
+        live.inbox.admit(&session_id, input_id.clone());
+        let event_seq = live.event_seq;
+        let snapshot = self.snapshot_locked(&live);
+        drop(live);
+
+        self.shared.publish_many(events);
+        self.persist_goal_user_prompt_with_sequence(&session_id, objective, objective_sequence);
+        if emit_title {
+            let _ = self
+                .shared
+                .store
+                .set_session_title(&session_id, objective, "first_input", now);
+        }
         let job = GoalJob {
-            kind: GoalJobKind::Set,
-            input_id: input_id.clone(),
-            control_objective: Some(objective.to_string()),
-            previous_target: previous,
-            event_previous: None,
+            input_id,
+            event_seq,
         };
-        self.enqueue_goal(live, job, true)?;
-        live.revision += 1;
+        if let Err(error) = self.enqueue_goal_item(job) {
+            let mut live = self.shared.lock();
+            live.goal.job_active = false;
+            live.goal_cancel = None;
+            return Err(error);
+        }
         Ok(GoalOutcome {
             response: target.status_response(),
-            snapshot: self.snapshot_locked(live),
+            snapshot,
             started_turn: true,
         })
     }
 
-    fn goal_resume(
-        &self,
-        live: &mut Live,
-        params: &SessionGoalParams,
-    ) -> Result<GoalOutcome, GoalReject> {
+    fn goal_resume(&self, params: &SessionGoalParams) -> Result<GoalOutcome, GoalReject> {
+        let mut live = self.goal_lock(params, true)?;
         let Some(target) = live.goal.target.clone() else {
             return Ok(GoalOutcome {
                 response: "No goal to resume.".to_string(),
-                snapshot: self.snapshot_locked(live),
+                snapshot: self.snapshot_locked(&live),
                 started_turn: false,
             });
         };
-        if live.goal.job_active
-            || live
-                .current_kind
-                .map(TurnKind::is_prompt_running)
-                .unwrap_or(false)
-        {
-            return Err(GoalReject::PromptRunning);
-        }
         if target.status != GoalStatus::Paused {
             return Ok(GoalOutcome {
                 response: target.status_response(),
-                snapshot: self.snapshot_locked(live),
+                snapshot: self.snapshot_locked(&live),
                 started_turn: false,
             });
         }
         let now = now_ms();
+        let session_id = self.shared.record.id.clone();
         let previous = target.clone();
         let mut resumed = target;
         resumed.set_status(GoalStatus::Active, now);
@@ -1136,46 +1269,78 @@ impl SessionRuntime {
         resumed.active_run_last_seen_at = None;
         self.persist_goal_target(&resumed)?;
         live.goal.target = Some(resumed.clone());
+        let status_event = make_event(
+            &mut live,
+            &session_id,
+            None,
+            SessionEventType::SessionUpdated,
+            target_update_payload("status_updated", "runtime", Some(&previous), Some(&resumed)),
+        );
         live.goal.job_active = true;
-        live.goal.pause_event_pending = false;
-        live.goal.pause_previous_status = None;
+        live.goal.pending_cancel_event = None;
+        live.revision += 1;
         let input_id = goal_input_id(params.input_id.as_deref());
         live.goal_cancel = Some(CancelToken::new());
+        live.inbox.admit(&session_id, input_id.clone());
+        let event_seq = live.event_seq;
+        let snapshot = self.snapshot_locked(&live);
+        drop(live);
+
+        self.shared.publish_many(vec![status_event]);
         let job = GoalJob {
-            kind: GoalJobKind::Resume,
-            input_id: input_id.clone(),
-            control_objective: None,
-            previous_target: None,
-            event_previous: Some(previous),
+            input_id,
+            event_seq,
         };
-        self.enqueue_goal(live, job, true)?;
-        live.revision += 1;
+        if let Err(error) = self.enqueue_goal_item(job) {
+            let mut live = self.shared.lock();
+            live.goal.job_active = false;
+            live.goal_cancel = None;
+            return Err(error);
+        }
         Ok(GoalOutcome {
             response: goal_resumed_response(&resumed),
-            snapshot: self.snapshot_locked(live),
+            snapshot,
             started_turn: true,
         })
     }
 
-    fn goal_pause(&self, live: &mut Live) -> Result<GoalOutcome, GoalReject> {
+    fn goal_pause(&self, params: &SessionGoalParams) -> Result<GoalOutcome, GoalReject> {
+        let mut live = self.goal_lock(params, false)?;
+        let session_id = self.shared.record.id.clone();
         let Some(target) = live.goal.target.clone() else {
-            // 无 goal 的副作用：首个 mutating action 发 titleUpdated（观察 §1.1）。
+            // 无 goal 的副作用：首个 mutating action 发 titleUpdated（观察 §1.1）；
+            // 不写任何 message 行。
             let emit_title = !live.goal.title_emitted && self.shared.record.title.is_empty();
             live.goal.title_emitted = true;
+            let mut events = Vec::new();
             if emit_title {
-                let job = GoalJob {
-                    kind: GoalJobKind::NoGoalPause,
-                    input_id: fresh_id("goal_event"),
-                    control_objective: None,
-                    previous_target: None,
-                    event_previous: None,
-                };
-                self.enqueue_goal(live, job, false)?;
+                events.push(make_event(
+                    &mut live,
+                    &session_id,
+                    None,
+                    SessionEventType::SessionTitleUpdated,
+                    json!({
+                        "previousTitle": "",
+                        "source": "first_input",
+                        "title": "/goal paused",
+                    }),
+                ));
             }
             live.revision += 1;
+            let snapshot = self.snapshot_locked(&live);
+            drop(live);
+            self.shared.publish_many(events);
+            if emit_title {
+                let _ = self.shared.store.set_session_title(
+                    &session_id,
+                    "/goal paused",
+                    "first_input",
+                    now_ms(),
+                );
+            }
             return Ok(GoalOutcome {
                 response: "No goal to pause.".to_string(),
-                snapshot: self.snapshot_locked(live),
+                snapshot,
                 started_turn: false,
             });
         };
@@ -1183,103 +1348,111 @@ impl SessionRuntime {
         let previous = target.clone();
         let mut paused = target;
         if paused.status == GoalStatus::Active {
-            live.goal.pause_previous_status = Some(GoalStatus::Active);
             paused.set_status(GoalStatus::Paused, now);
             self.persist_goal_target(&paused)?;
             live.goal.target = Some(paused.clone());
         }
-        if live.goal.job_active || live.goal_cancel.is_some() {
-            live.goal.pause_event_pending = true;
+        let cancel_event = make_event(
+            &mut live,
+            &session_id,
+            None,
+            SessionEventType::SessionUpdated,
+            target_update_payload("status_updated", "command", Some(&previous), Some(&paused)),
+        );
+        let running = live.goal.job_active || live.goal_cancel.is_some();
+        let mut publish_now = None;
+        if running {
+            // 事件 seq 已包含在应答快照里；实际发布由 worker 在终态/verifier 取消前
+            // 完成，保证 status_updated → run_finished → turn.completed 的顺序。
+            live.goal.pending_cancel_event = Some(cancel_event);
             if let Some(cancel) = &live.goal_cancel {
                 cancel.cancel();
             }
         } else {
-            let job = GoalJob {
-                kind: GoalJobKind::PauseEvent,
-                input_id: fresh_id("goal_event"),
-                control_objective: None,
-                previous_target: None,
-                event_previous: Some(previous),
-            };
-            self.enqueue_goal(live, job, false)?;
+            publish_now = Some(cancel_event);
         }
+        let message_sequence = live.next_message_sequence;
+        live.next_message_sequence += 1;
         live.revision += 1;
+        let snapshot = self.snapshot_locked(&live);
+        drop(live);
+
+        if let Some(event) = publish_now {
+            self.shared.publish_many(vec![event]);
+        }
+        self.persist_goal_state_message_with_sequence(
+            &session_id,
+            "Goal paused",
+            "goal_state_change",
+            message_sequence,
+        );
         Ok(GoalOutcome {
             response: String::new(),
-            snapshot: self.snapshot_locked(live),
+            snapshot,
             started_turn: false,
         })
     }
 
-    fn goal_clear(&self, live: &mut Live) -> Result<GoalOutcome, GoalReject> {
-        let Some(target) = live.goal.target.clone() else {
-            let job = GoalJob {
-                kind: GoalJobKind::ClearEvent,
-                input_id: fresh_id("goal_event"),
-                control_objective: None,
-                previous_target: None,
-                event_previous: None,
-            };
-            self.enqueue_goal(live, job, false)?;
-            live.revision += 1;
-            return Ok(GoalOutcome {
-                response: "No goal to clear.".to_string(),
-                snapshot: self.snapshot_locked(live),
-                started_turn: false,
-            });
-        };
-        if live.goal.job_active
-            || live
-                .current_kind
-                .map(TurnKind::is_prompt_running)
-                .unwrap_or(false)
-        {
-            return Err(GoalReject::PromptRunning);
+    fn goal_clear(&self, params: &SessionGoalParams) -> Result<GoalOutcome, GoalReject> {
+        let mut live = self.goal_lock(params, true)?;
+        let session_id = self.shared.record.id.clone();
+        let previous = live.goal.target.clone();
+        let mut events = Vec::new();
+        let mut message_sequence = None;
+        if previous.is_some() {
+            self.shared
+                .store
+                .delete_target(&session_id)
+                .map_err(|error| GoalReject::Store(error.to_string()))?;
+            live.goal.target = None;
+            live.goal.iteration = 0;
+            message_sequence = Some(live.next_message_sequence);
+            live.next_message_sequence += 1;
         }
-        self.shared
-            .store
-            .delete_target(&self.shared.record.id)
-            .map_err(|error| GoalReject::Store(error.to_string()))?;
-        live.goal.target = None;
-        live.goal.iteration = 0;
         // 观察：clear 保留 runtime 的 goalVerifications / timeline。
-        let job = GoalJob {
-            kind: GoalJobKind::ClearEvent,
-            input_id: fresh_id("goal_event"),
-            control_objective: None,
-            previous_target: None,
-            event_previous: Some(target),
-        };
-        self.enqueue_goal(live, job, false)?;
+        events.push(make_event(
+            &mut live,
+            &session_id,
+            None,
+            SessionEventType::SessionUpdated,
+            target_update_payload("cleared", "command", previous.as_ref(), None),
+        ));
         live.revision += 1;
+        let snapshot = self.snapshot_locked(&live);
+        drop(live);
+
+        self.shared.publish_many(events);
+        if let Some(sequence) = message_sequence {
+            self.persist_goal_state_message_with_sequence(
+                &session_id,
+                "Goal cleared",
+                "goal_state_change",
+                sequence,
+            );
+        }
         Ok(GoalOutcome {
-            response: "Goal cleared.".to_string(),
-            snapshot: self.snapshot_locked(live),
+            response: if previous.is_some() {
+                "Goal cleared.".to_string()
+            } else {
+                "No goal to clear.".to_string()
+            },
+            snapshot,
             started_turn: false,
         })
     }
 
-    fn enqueue_goal(&self, live: &mut Live, job: GoalJob, admit: bool) -> Result<(), GoalReject> {
-        if admit {
-            live.inbox
-                .admit(&self.shared.record.id, job.input_id.clone());
-        }
+    fn enqueue_goal_item(&self, job: GoalJob) -> Result<(), GoalReject> {
         let item = QueuedInput {
             input: SessionInput {
                 input_id: Some(job.input_id.clone()),
-                content: job.control_objective.clone().unwrap_or_default(),
+                content: String::new(),
                 expected_revision: None,
             },
             input_id: job.input_id.clone(),
             compact: None,
             goal: Some(job),
         };
-        if self.queue.send(item).is_err() {
-            live.goal.job_active = false;
-            live.goal_cancel = None;
-            return Err(GoalReject::RuntimeClosed);
-        }
-        Ok(())
+        self.queue.send(item).map_err(|_| GoalReject::RuntimeClosed)
     }
 
     fn persist_goal_target(&self, target: &GoalTarget) -> Result<(), GoalReject> {
@@ -1288,6 +1461,38 @@ impl SessionRuntime {
             .store
             .upsert_target(&record)
             .map_err(|error| GoalReject::Store(error.to_string()))
+    }
+
+    fn persist_goal_user_prompt_with_sequence(&self, session_id: &str, text: &str, sequence: i64) {
+        let now = now_ms();
+        let (message, part) =
+            goal_message_rows(session_id, text, "user_prompt", None, sequence, now);
+        let _ = self
+            .shared
+            .store
+            .append_message_with_parts(message, &[part]);
+    }
+
+    fn persist_goal_state_message_with_sequence(
+        &self,
+        session_id: &str,
+        text: &str,
+        source: &str,
+        sequence: i64,
+    ) {
+        let now = now_ms();
+        let (message, part) = goal_message_rows(
+            session_id,
+            text,
+            "system_reminder",
+            Some(source),
+            sequence,
+            now,
+        );
+        let _ = self
+            .shared
+            .store
+            .append_message_with_parts(message, &[part]);
     }
 
     /// 会话记录（方法层构造冷/热快照的 session 信息用）。
@@ -1396,16 +1601,6 @@ async fn worker_loop(
             // 第二个 compact 仍会被受理为排队，见 `CompactCoordinator` 注释）。
             if item.compact.is_some() {
                 live.compact.on_pickup();
-            }
-        }
-        // 仅事件的 goal 任务（pause/clear/no-goal pause）不需要 provider。
-        if let Some(job) = item.goal.clone() {
-            if matches!(
-                job.kind,
-                GoalJobKind::PauseEvent | GoalJobKind::ClearEvent | GoalJobKind::NoGoalPause
-            ) {
-                session = run_goal_event_job(session, &shared, &store, job).await;
-                continue;
             }
         }
         if let Some(reverse) = &reverse {
@@ -2378,7 +2573,7 @@ fn load_goal_state(
         });
     };
     let target = goal_target_from_record(record);
-    let restored = GoalState::restore(target, timeline);
+    let mut restored = GoalState::restore(target, timeline);
     if let Some(target) = &restored.target {
         // active → paused / 清 active 字段必须落库（观察 §1.8 的 read/dbAfterRestart）。
         let current = store.get_target(session_id)?.map(goal_target_from_record);
@@ -2392,9 +2587,9 @@ fn load_goal_state(
             })
             .unwrap_or(true);
         if changed {
-            let mut persisted = target.clone();
+            let persisted = restored.target.as_mut().expect("上面已判定 Some");
             persisted.time_updated = now_ms();
-            store.upsert_target(&target_record(&persisted))?;
+            store.upsert_target(&target_record(persisted))?;
         }
     }
     Ok(restored)
@@ -2509,65 +2704,6 @@ fn load_verification_state(
     Ok((timeline, verifications))
 }
 
-/// 仅事件的 goal 任务（pause/clear/no-goal pause）——不发模型请求。
-async fn run_goal_event_job(
-    mut session: Session,
-    shared: &Arc<Shared>,
-    store: &Arc<SessionStore>,
-    job: GoalJob,
-) -> Session {
-    let session_id = shared.record.id.clone();
-    match job.kind {
-        GoalJobKind::PauseEvent => {
-            let current = shared.lock().goal.target.clone();
-            let previous = job.event_previous.clone().or_else(|| current.clone());
-            if let Some(current) = current {
-                let payload = target_update_payload(
-                    "status_updated",
-                    "command",
-                    previous.as_ref(),
-                    Some(&current),
-                );
-                let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
-                shared.publish(&event);
-                persist_goal_system_message(
-                    shared,
-                    store,
-                    &session_id,
-                    "Goal paused",
-                    "goal_state_change",
-                );
-            }
-            shared.lock().goal.pause_event_pending = false;
-        }
-        GoalJobKind::ClearEvent => {
-            let payload =
-                target_update_payload("cleared", "command", job.event_previous.as_ref(), None);
-            let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
-            shared.publish(&event);
-            persist_goal_system_message(
-                shared,
-                store,
-                &session_id,
-                "Goal cleared",
-                "goal_state_change",
-            );
-        }
-        GoalJobKind::NoGoalPause => {
-            let payload = json!({
-                "previousTitle": "",
-                "source": "first_input",
-                "title": "/goal paused",
-            });
-            let event = session.emit(None, SessionEventType::SessionTitleUpdated, &payload);
-            shared.publish(&event);
-        }
-        GoalJobKind::Set | GoalJobKind::Resume => {}
-    }
-    finish_goal_job(shared, &session_id, &job.input_id, false, false);
-    session
-}
-
 /// 配置失败的 goal 任务：不启动模型请求、不发 prompt turn；目标暂停并收口。
 ///
 /// 线上未观察该组合（`agent-c3-contract.md` §1.10），登记在 §1.11；测试不覆盖。
@@ -2599,11 +2735,13 @@ async fn run_goal_configuration_failure(
     }
     live.status = RuntimeStatus::Error;
     live.last_error = Some(message.to_string());
-    live.revision += 1;
     live.updated_at = now_ms();
 }
 
 /// goal 任务的统一收口：清 worker 相位、结算 CommandInbox 并恢复状态。
+///
+/// revision 不在这里推进（夹具按命令/控制 turn/取消/完成为口径；turn 收口本身
+/// 不额外计数）。
 fn finish_goal_job(
     shared: &Arc<Shared>,
     session_id: &str,
@@ -2616,12 +2754,10 @@ fn finish_goal_job(
     live.current_kind = None;
     live.goal.job_active = false;
     live.goal_cancel = None;
-    live.goal.pause_event_pending = false;
-    live.goal.pause_previous_status = None;
+    live.goal.pending_cancel_event = None;
     if admitted {
         live.inbox.complete(session_id, input_id);
     }
-    live.revision += 1;
     live.updated_at = now_ms();
     live.status = if failed {
         RuntimeStatus::Error
@@ -2632,39 +2768,38 @@ fn finish_goal_job(
     };
 }
 
-/// 写一条 goal 相关的 system_reminder 用户消息行（`goal-continuation` /
-/// `goal_state_change`）。行形状近似线上观察（messageSummary 的 role/kind/source），
-/// 正文与 part 结构登记在契约 §1.11。
-fn persist_goal_system_message(
-    shared: &Shared,
-    store: &SessionStore,
+/// 一条 goal 相关的消息行（`user_prompt` 或 `system_reminder`）。
+fn goal_message_rows(
     session_id: &str,
     text: &str,
-    source: &str,
-) {
-    let now = now_ms();
+    kind: &str,
+    source: Option<&str>,
+    sequence: i64,
+    now: i64,
+) -> (MessageRecord, PartRecord) {
     let message_id = fresh_id("msg");
-    let sequence = take_sequence(shared);
-    let data = json!({
-        "role": "user",
-        "messageId": message_id,
-        "sequence": sequence,
-        "time": { "created": now },
-        "semantics": {
-            "origin": "agent_runtime",
-            "kind": "system_reminder",
-            "source": source,
-            "uiVisibility": "hidden",
-            "providerVisibility": "visible",
-            "transcriptVisibility": "hidden",
-        },
+    let mut semantics = json!({
+        "origin": if kind == "user_prompt" { "real_user" } else { "agent_runtime" },
+        "kind": kind,
+        "uiVisibility": if kind == "user_prompt" { "visible" } else { "hidden" },
+        "providerVisibility": "visible",
+        "transcriptVisibility": if kind == "user_prompt" { "visible" } else { "hidden" },
     });
+    if let Some(source) = source {
+        semantics["source"] = json!(source);
+    }
     let message = MessageRecord {
         id: message_id.clone(),
         session_id: session_id.to_string(),
         time_created: now,
         time_updated: now,
-        data,
+        data: json!({
+            "role": "user",
+            "messageId": message_id,
+            "sequence": sequence,
+            "time": { "created": now },
+            "semantics": semantics,
+        }),
         sequence: Some(sequence),
     };
     let part = PartRecord {
@@ -2680,49 +2815,7 @@ fn persist_goal_system_message(
         }),
         sequence: Some(0),
     };
-    let _ = store.append_message_with_parts(message, &[part]);
-}
-
-/// 写一条 goal 的 user_prompt 行（set/replace 控制 turn 的 objective）。
-fn persist_goal_user_prompt(shared: &Shared, store: &SessionStore, session_id: &str, text: &str) {
-    let now = now_ms();
-    let message_id = fresh_id("msg");
-    let sequence = take_sequence(shared);
-    let data = json!({
-        "role": "user",
-        "messageId": message_id,
-        "sequence": sequence,
-        "time": { "created": now },
-        "semantics": {
-            "origin": "real_user",
-            "kind": "user_prompt",
-            "uiVisibility": "visible",
-            "providerVisibility": "visible",
-            "transcriptVisibility": "visible",
-        },
-    });
-    let message = MessageRecord {
-        id: message_id.clone(),
-        session_id: session_id.to_string(),
-        time_created: now,
-        time_updated: now,
-        data,
-        sequence: Some(sequence),
-    };
-    let part = PartRecord {
-        id: fresh_id("part"),
-        message_id,
-        session_id: session_id.to_string(),
-        time_created: now,
-        time_updated: now,
-        data: json!({
-            "type": "text",
-            "text": text,
-            "time": { "start": now, "end": now },
-        }),
-        sequence: Some(0),
-    };
-    let _ = store.append_message_with_parts(message, &[part]);
+    (message, part)
 }
 
 /// 秒级墙钟（向上取整；任何发生过的时间段至少记 1 秒——夹具的
@@ -2732,35 +2825,13 @@ fn elapsed_seconds(started_at: i64, now: i64) -> u64 {
     millis.div_ceil(1000).max(1)
 }
 
-/// 取走「pause/stop 待发状态事件」的载荷（一次）。
-fn take_pending_pause_payload(shared: &Arc<Shared>) -> Option<Value> {
-    let mut live = shared.lock();
-    if !live.goal.pause_event_pending {
-        return None;
+/// 发布方法层预分配的 pause/stop `status_updated` 事件（若存在）。
+fn publish_pending_cancel_event(shared: &Arc<Shared>) -> Option<SessionEvent> {
+    let event = shared.lock().goal.pending_cancel_event.take();
+    if let Some(event) = &event {
+        shared.publish(event);
     }
-    live.goal.pause_event_pending = false;
-    let current = live.goal.target.clone()?;
-    let previous_status = live
-        .goal
-        .pause_previous_status
-        .take()
-        .unwrap_or(GoalStatus::Active);
-    let mut previous = current.clone();
-    previous.status = previous_status;
-    Some(target_update_payload(
-        "status_updated",
-        "command",
-        Some(&previous),
-        Some(&current),
-    ))
-}
-
-/// 发布一条 pending pause 的 `status_updated`（若存在）。
-fn publish_pending_pause(session: &mut Session, shared: &Arc<Shared>) -> Option<SessionEvent> {
-    let payload = take_pending_pause_payload(shared)?;
-    let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
-    shared.publish(&event);
-    Some(event)
+    event
 }
 
 /// 写 goal 续跑/verifier 的 `model_usage` 行（夹具的 `query_source` 区分：
@@ -2814,6 +2885,9 @@ fn record_goal_model_usage(
 }
 
 /// 一个 goal 任务（set/replace/resume）的 worker 执行体。
+///
+/// 方法层已经同步产出 title/控制 turn/summary/set/status 事件并落库；worker 只
+/// 对齐事件序号后进入续跑循环。
 async fn run_goal_job(
     mut session: Session,
     shared: &Arc<Shared>,
@@ -2824,88 +2898,9 @@ async fn run_goal_job(
     let job = item.goal.clone().expect("run_goal_job 只处理 goal 队列项");
     let session_id = shared.record.id.clone();
     let config = shared.read_config();
-    let admitted = matches!(job.kind, GoalJobKind::Set | GoalJobKind::Resume);
-    match job.kind {
-        GoalJobKind::Set => {
-            let objective = job.control_objective.clone().unwrap_or_default();
-            // 控制 turn：`executionKind:"controlOnly"`，不发模型请求。
-            let control_started_at = now_ms();
-            let started = session.begin_goal_control_turn(&objective);
-            let turn_id = session
-                .current_turn_id()
-                .expect("控制 turn 已分配 turn id")
-                .to_string();
-            shared.publish(&started);
-            let completed = session.emit_goal_control_completed(
-                &turn_id,
-                (now_ms() - control_started_at).max(0) as f64,
-            );
-            shared.publish(&completed);
-            {
-                let mut live = shared.lock();
-                live.turn_count += 1;
-                live.revision += 1;
-                live.updated_at = now_ms();
-            }
-            persist_goal_user_prompt(shared, store, &session_id, &objective);
-
-            // summary_updated → set（事件里的 target summaryTitle 为 null；落库行
-            // 的 summary_title 是 objective，与观察一致）。
-            let (target, previous) = {
-                let mut live = shared.lock();
-                let target = live.goal.target.clone();
-                let previous = job.previous_target.clone();
-                if let Some(target) = &mut live.goal.target {
-                    target.summary_title = Some(objective.clone());
-                    target.time_updated = now_ms();
-                }
-                (target, previous)
-            };
-            if let Some(target) = target {
-                let mut event_target = target.clone();
-                event_target.summary_title = None;
-                let summary_payload = target_update_payload(
-                    "summary_updated",
-                    "runtime",
-                    Some(&event_target),
-                    Some(&target),
-                );
-                let event = session.emit(None, SessionEventType::SessionUpdated, &summary_payload);
-                shared.publish(&event);
-                let set_payload =
-                    target_update_payload("set", "command", previous.as_ref(), Some(&event_target));
-                let event = session.emit(None, SessionEventType::SessionUpdated, &set_payload);
-                shared.publish(&event);
-            }
-            run_goal_loop(&mut session, shared, store, provider, &job, &config).await;
-        }
-        GoalJobKind::Resume => {
-            let (target, previous) = {
-                let live = shared.lock();
-                (live.goal.target.clone(), job.event_previous.clone())
-            };
-            if let Some(target) = target {
-                let payload = target_update_payload(
-                    "status_updated",
-                    "runtime",
-                    previous.as_ref(),
-                    Some(&target),
-                );
-                let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
-                shared.publish(&event);
-            }
-            persist_goal_system_message(
-                shared,
-                store,
-                &session_id,
-                "Goal resumed",
-                "goal_state_change",
-            );
-            run_goal_loop(&mut session, shared, store, provider, &job, &config).await;
-        }
-        GoalJobKind::PauseEvent | GoalJobKind::ClearEvent | GoalJobKind::NoGoalPause => {}
-    }
-    finish_goal_job(shared, &session_id, &job.input_id, admitted, false);
+    session.sync_event_seq(job.event_seq);
+    run_goal_loop(&mut session, shared, store, provider, &job, &config).await;
+    finish_goal_job(shared, &session_id, &job.input_id, true, false);
     session
 }
 
@@ -2920,25 +2915,27 @@ async fn run_goal_loop(
 ) {
     let session_id = shared.record.id.clone();
     loop {
-        let Some((target, _iteration)) = ({
+        let Some((target, turn_number, continuation_ordinal)) = ({
             let mut live = shared.lock();
             if continuation_stop_reason(live.goal.target.as_ref(), false).is_some() {
                 None
             } else {
-                live.goal.iteration += 1;
+                live.goal.continuation_ordinal += 1;
+                let ordinal = live.goal.continuation_ordinal;
+                let turn_number = live.goal.control_turns;
                 live.goal
                     .target
                     .clone()
-                    .map(|target| (target, live.goal.iteration))
+                    .map(|target| (target, turn_number, ordinal))
             }
         }) else {
             // pause/stop 在任务队列等待期/轮次间到达：状态事件由这里补发。
-            publish_pending_pause(session, shared);
+            publish_pending_cancel_event(shared);
             break;
         };
         let cancel = shared.lock().goal_cancel.clone().unwrap_or_default();
         if cancel.is_cancelled() {
-            publish_pending_pause(session, shared);
+            publish_pending_cancel_event(shared);
             break;
         }
         let prompt = continuation_prompt(
@@ -2950,25 +2947,33 @@ async fn run_goal_loop(
         let turn_input_id = fresh_id("goal_input");
         let target_id = target.target_id.clone();
         let active_input_id = job.input_id.clone();
+        let foreground_execution_id = format!("runtime_command_{continuation_ordinal}");
         let run_started_at = std::sync::Arc::new(std::sync::atomic::AtomicI64::new(now_ms()));
 
         let shared_after = Arc::clone(shared);
         let store_after = Arc::clone(store);
         let run_started_for_after = Arc::clone(&run_started_at);
-        let target_id_for_after = target_id.clone();
         let active_input_for_after = active_input_id.clone();
         let mut after_start = move |session: &mut Session, sink: &mut dyn EventSink| {
             let now = now_ms();
             run_started_for_after.store(now, std::sync::atomic::Ordering::SeqCst);
             let payload = {
                 let mut live = shared_after.lock();
-                let Some(target) = live.goal.target.as_mut() else {
-                    return;
+                let payload = {
+                    let Some(target) = live.goal.target.as_mut() else {
+                        return;
+                    };
+                    let previous = target.clone();
+                    target.start_run(&active_input_for_after, now);
+                    let _ = store_after.upsert_target(&target_record(target));
+                    let next = target.clone();
+                    target_update_payload("run_started", "runtime", Some(&previous), Some(&next))
                 };
-                let previous = target.clone();
-                target.start_run(&active_input_for_after, now);
-                let _ = store_after.upsert_target(&target_record(target));
-                target_update_payload("run_started", "runtime", Some(&previous), Some(target))
+                // goal continuation 在 turn 开始时就计入 projection.turnCount（观察：
+                // pause 应答快照在终态前已是 control+continuation）。
+                live.turn_count += 1;
+                live.updated_at = now;
+                payload
             };
             let turn_id = session.current_turn_id().map(str::to_owned);
             let event = session.emit(
@@ -2977,7 +2982,6 @@ async fn run_goal_loop(
                 &payload,
             );
             sink.emit(event);
-            let _ = target_id_for_after;
         };
 
         let shared_before = Arc::clone(shared);
@@ -2989,7 +2993,6 @@ async fn run_goal_loop(
         let mut before_terminal =
             move |session: &mut Session, sink: &mut dyn EventSink, facts: &TurnTerminalFacts| {
                 let now = now_ms();
-                let status_event = take_pending_pause_payload(&shared_before);
                 let payload = {
                     let mut live = shared_before.lock();
                     let Some(current) = live.goal.target.clone() else {
@@ -3006,17 +3009,17 @@ async fn run_goal_loop(
                     next.finish_run(now, tokens, seconds);
                     let _ = store_before.upsert_target(&target_record(&next));
                     live.goal.target = Some(next.clone());
+                    if facts.cancelled {
+                        // 夹具：取消的续跑终态会让 stateRevision +1（pause/stop 之后）。
+                        live.revision += 1;
+                    }
+                    live.updated_at = now;
                     target_update_payload("run_finished", "runtime", Some(&current), Some(&next))
                 };
+                // 取消的 status_updated 用方法层预分配的事件（seq 已进应答快照），
+                // 必须在 run_finished 与 turn.completed 之前发布。
+                publish_pending_cancel_event(&shared_before);
                 let turn_id = session.current_turn_id().map(str::to_owned);
-                if let Some(payload) = status_event {
-                    let event = session.emit(
-                        turn_id.as_deref(),
-                        SessionEventType::SessionUpdated,
-                        &payload,
-                    );
-                    sink.emit(event);
-                }
                 let event = session.emit(
                     turn_id.as_deref(),
                     SessionEventType::SessionUpdated,
@@ -3057,20 +3060,16 @@ async fn run_goal_loop(
                 &cancel,
                 &mut after_start,
                 &mut before_terminal,
+                turn_number,
+                &foreground_execution_id,
             )
             .await;
         match result {
             Ok(()) => {
-                {
-                    let mut live = shared.lock();
-                    live.turn_count += 1;
-                    live.revision += 1;
-                    live.updated_at = now_ms();
-                }
                 // turn 与 verifier 之间可能到达 pause/stop：先补状态事件再停止。
                 let stop_between = {
                     let live = shared.lock();
-                    live.goal.pause_event_pending
+                    live.goal.pending_cancel_event.is_some()
                         || live
                             .goal
                             .target
@@ -3079,7 +3078,7 @@ async fn run_goal_loop(
                             .unwrap_or(true)
                 };
                 if stop_between {
-                    publish_pending_pause(session, shared);
+                    publish_pending_cancel_event(shared);
                     break;
                 }
                 let verdict =
@@ -3096,12 +3095,6 @@ async fn run_goal_loop(
                 }
             }
             Err(error) if error.is_cancelled() => {
-                {
-                    let mut live = shared.lock();
-                    live.turn_count += 1;
-                    live.revision += 1;
-                    live.updated_at = now_ms();
-                }
                 break;
             }
             Err(error) => {
@@ -3115,15 +3108,18 @@ async fn run_goal_loop(
                 recorder.emit(failed);
                 {
                     let mut live = shared.lock();
-                    live.turn_count += 1;
-                    live.revision += 1;
                     live.last_error = Some(error.message);
                     live.status = RuntimeStatus::Error;
-                    if let Some(target) = &mut live.goal.target {
-                        target.active_input_id = None;
-                        target.active_run_started_at = None;
-                        target.active_run_last_seen_at = None;
+                    if let Some(target) = live.goal.target.clone() {
+                        let mut cleared = target;
+                        cleared.active_input_id = None;
+                        cleared.active_run_started_at = None;
+                        cleared.active_run_last_seen_at = None;
+                        cleared.time_updated = now_ms();
+                        let _ = store.upsert_target(&target_record(&cleared));
+                        live.goal.target = Some(cleared);
                     }
+                    live.updated_at = now_ms();
                 }
                 break;
             }
@@ -3132,9 +3128,11 @@ async fn run_goal_loop(
 }
 
 /// verifier 的 event payload（`session.updated`，无 action）。
+#[allow(clippy::too_many_arguments)]
 fn verification_event_payload(
     target_id: &str,
     verification_id: &str,
+    continuation_ordinal: u64,
     goal_iteration: u64,
     anchor_assistant_message_id: &str,
     anchor_turn_id: &str,
@@ -3144,7 +3142,7 @@ fn verification_event_payload(
     let mut payload = json!({
         "anchorAssistantMessageId": anchor_assistant_message_id,
         "anchorTurnId": anchor_turn_id,
-        "foregroundExecutionId": format!("runtime_command_{goal_iteration}"),
+        "foregroundExecutionId": format!("runtime_command_{continuation_ordinal}"),
         "goalIteration": goal_iteration,
         "status": status,
         "targetId": target_id,
@@ -3235,7 +3233,7 @@ async fn run_goal_verifier(
     provider: Arc<dyn ModelProvider>,
     config: &RuntimeConfig,
 ) -> Option<agent_core::goal::VerifierVerdict> {
-    let (target, iteration, anchor_turn_id, anchor_assistant_message_id) = {
+    let (target, anchor_turn_id, anchor_assistant_message_id) = {
         let live = shared.lock();
         let target = live.goal.target.clone()?;
         if target.status != GoalStatus::Active {
@@ -3243,7 +3241,6 @@ async fn run_goal_verifier(
         }
         (
             target,
-            live.goal.iteration,
             session.current_turn_id().unwrap_or_default().to_string(),
             session
                 .current_assistant_message_id()
@@ -3253,14 +3250,21 @@ async fn run_goal_verifier(
     };
     let cancel = shared.lock().goal_cancel.clone().unwrap_or_default();
     if cancel.is_cancelled() {
-        publish_pending_pause(session, shared);
+        publish_pending_cancel_event(shared);
         return None;
     }
+    // 只有真正进入 verifier 的尝试才增加 `goalIteration`（pre-request 取消不算）。
+    let (iteration, continuation_ordinal) = {
+        let mut live = shared.lock();
+        live.goal.iteration += 1;
+        (live.goal.iteration, live.goal.continuation_ordinal)
+    };
     let verification_id = fresh_id("verify");
     let started_at = now_ms();
     let started_payload = verification_event_payload(
         &target.target_id,
         &verification_id,
+        continuation_ordinal,
         iteration,
         &anchor_assistant_message_id,
         &anchor_turn_id,
@@ -3337,7 +3341,7 @@ async fn run_goal_verifier(
     }
     let finished_at = now_ms();
     if cancelled {
-        publish_pending_pause(session, shared);
+        publish_pending_cancel_event(shared);
         let verification = GoalVerification {
             passed: false,
             reason: CANCELLED_VERIFIER_REASON.to_string(),
@@ -3346,6 +3350,7 @@ async fn run_goal_verifier(
         let payload = verification_event_payload(
             &target.target_id,
             &verification_id,
+            continuation_ordinal,
             iteration,
             &anchor_assistant_message_id,
             &anchor_turn_id,
@@ -3386,7 +3391,7 @@ async fn run_goal_verifier(
     let usage = match &response {
         Ok(response) => response.usage.clone(),
         Err(error) => {
-            publish_pending_pause(session, shared);
+            publish_pending_cancel_event(shared);
             let verification = GoalVerification {
                 passed: false,
                 reason: format!("Completion verifier failed: {}", error.message),
@@ -3395,10 +3400,11 @@ async fn run_goal_verifier(
             let payload = verification_event_payload(
                 &target.target_id,
                 &verification_id,
+                continuation_ordinal,
                 iteration,
                 &anchor_assistant_message_id,
                 &anchor_turn_id,
-                "cancelled",
+                "failed_closed",
                 Some(&verification),
             );
             let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
@@ -3441,6 +3447,7 @@ async fn run_goal_verifier(
     let payload = verification_event_payload(
         &target.target_id,
         &verification_id,
+        continuation_ordinal,
         iteration,
         &anchor_assistant_message_id,
         &anchor_turn_id,

@@ -135,6 +135,31 @@ impl SessionStore {
         })
     }
 
+    /// 更新会话标题与来源（goal 的 `session.titleUpdated` 副作用落库）。
+    ///
+    /// 行不存在时报 [`StoreError::InvalidInput`]，不静默成功。
+    pub fn set_session_title(
+        &self,
+        session_id: &str,
+        title: &str,
+        title_source: &str,
+        time_updated: i64,
+    ) -> Result<(), StoreError> {
+        self.with_write_transaction(|transaction| {
+            let updated = transaction.execute(
+                "UPDATE session SET title = ?2, title_source = ?3, time_updated = ?4 \
+                 WHERE id = ?1",
+                params![session_id, title, title_source, time_updated],
+            )?;
+            if updated == 0 {
+                return Err(StoreError::InvalidInput(format!(
+                    "set_session_title：会话不存在：{session_id}"
+                )));
+            }
+            Ok(())
+        })
+    }
+
     /// 更新 `session.permission`（JSON 文本）与 `time_updated`。
     ///
     /// `session/setMode` 用：热快照的 mode 来自 runtime 配置，而 `session/list` /

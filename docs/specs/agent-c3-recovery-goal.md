@@ -76,13 +76,17 @@ C3 在 C1/C2 的 Rust `agent-server` 上补齐三件事，并保持「终态恰�
 ### 3.4 Rust T1 现状（2026-11-18）
 
 - `agent-core::goal`：目标状态/响应文案、续跑停止判定、verifier 响应解析与两条
-  **自撰**提示词（正文不与 oracle 相同，保留结构性片段）。
+  **从头自撰**提示词（仅保留 `<untrusted_objective>`/Budget/JSON 等接口结构；
+  与夹具最长公共子串只命中这些结构片段）。
 - `session_store::TargetRecord` + `get_target/upsert_target/delete_target`：
   `session_target` 单行读写，`clear` 删行。
 - `session/goal`：六 action、严格参数、`-32009`/`-32010`、`startedTurn`；`pause`
   立即置 paused 并取消 pending/in-flight 续跑；`session/stop` 同时落地。
-- worker：`set/replace` 控制 turn → `summary_updated`/`set` → 续跑循环；`resume`
-  直接续跑；每轮 `run_started` → turn → `run_finished` → verifier；无轮次/预算上限。
+- 方法层：`set/replace` 同步产出 title/控制 turn/`summary_updated`/`set` 后再返回
+  应答快照；pause/resume/clear 的 status/cleared 事件也同步进入快照。worker 只跑
+  续跑循环；每轮 `run_started` → turn → `run_finished` → verifier；无轮次/预算上限。
+- 序号：continuation turn 编号沿用控制 turn 基数；`foregroundExecutionId` 是会话级
+  continuation ordinal；verifier `goalIteration` 只对到达 verifier 的尝试递增。
 - 账务：tokens/time 只在 `run_finished` 累计（取消不累计 tokens）；
   verifier 独立 `model_usage(query_source:"target_completion_verification")`。
 - 冷恢复：`active` → `paused` + 清 active 字段，tokens/time/验证时间线保留，

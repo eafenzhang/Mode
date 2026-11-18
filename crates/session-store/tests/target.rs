@@ -56,8 +56,8 @@ fn target_upsert_overwrites_single_row_and_preserves_created_at() {
         .get_target("sess_goal")
         .expect("读取目标")
         .expect("目标必须存在");
-    // 覆盖写不改 `time_created`（首次创建时间保留），其余字段整行替换。
-    assert_eq!(read.time_created, 1_000);
+    // 覆盖写是「替换目标」语义：新目标的 `time_created` 一并覆盖。
+    assert_eq!(read.time_created, 2_000);
     assert_eq!(read.target_id, "target-2");
     assert_eq!(read.objective, "Goal two");
     assert_eq!(read.status, "paused");

@@ -57,7 +57,7 @@ pub use context::{
 pub use goal::{
     continuation_prompt, continuation_stop_reason, parse_verifier_response, verifier_prompt,
     GoalStatus, GoalStopReason, GoalTarget, VerifierVerdict, CANCELLED_VERIFIER_REASON,
-    INVALID_VERIFIER_REASON,
+    CONTINUATION_MARKER, INVALID_VERIFIER_REASON, VERIFIER_MARKER,
 };
 pub use permission::{
     evaluate as evaluate_permission, ChannelPermissionHandler, Decision as PermissionDecision,
