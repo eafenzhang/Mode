@@ -138,9 +138,13 @@ C3 在 C1/C2 的 Rust `agent-server` 上补齐三件事，并保持「终态恰�
 
 - **准入判据分相位**：后台通知在 `TaskRegistry` 完成时，由运行时看「前台工具执行
   窗口」（`tool.updated started` → `batch`）决定丢弃或入队；窗口外（含模型流式等待）
-  的通知留在注册表既有通道。worker 在 turn 结束/空闲时一次取走全部通知，只开
-  **一个**合并后的 `background_task` turn（多条 `<task-notification>` 之间空行分隔）。
+  的通知留在注册表既有通道。`TaskStop` 自己产生的 killed 通知走控制投递通道，
+  不受该窗口判据影响。worker 在 turn 结束/空闲时一次取走全部通知，只开**一个**
+  合并后的 `background_task` turn（多条 `<task-notification>` 之间空行分隔）。
   空闲 worker 由注册表完成信号唤醒，不新增第二队列/定时器。
+- **执行序号**：通知 turn 的 `foregroundExecutionId` 由显式执行序号给出；goal
+  continuation rcN → 通知 turn rc(N+1) → verifier 回指通知 turn → 下一轮 continuation
+  rc(N+2)，单调且不重复。
 - **goal 交互**：续跑 turn 成功后、completion verifier 之前投递 pending 通知；
   通知 turn 的 `targetId:null`，但包在目标 `run_started`/`run_finished` 中并计入
   target 的 tokens/time（夹具 §3.3 的 52+22=74）。

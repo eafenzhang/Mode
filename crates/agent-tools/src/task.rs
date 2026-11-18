@@ -27,7 +27,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Child;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -123,6 +123,8 @@ struct NotificationHub {
     rx: Mutex<Receiver<TaskNotification>>,
     filter: Mutex<Option<NotificationFilter>>,
     waker: Mutex<Option<NotificationWaker>>,
+    /// 待取走条数（诊断/测试观察完成是否已经投递；不改变队列语义）。
+    pending: AtomicUsize,
 }
 
 impl NotificationHub {
@@ -133,22 +135,40 @@ impl NotificationHub {
             rx: Mutex::new(rx),
             filter: Mutex::new(None),
             waker: Mutex::new(None),
+            pending: AtomicUsize::new(0),
         }
     }
 
     /// 按当前判据投递：`false` 直接丢弃；入队后调用唤醒信号。
     fn deliver(&self, notification: TaskNotification) {
-        let accepted = self
-            .filter
-            .lock()
-            .expect("task notification filter poisoned")
-            .as_ref()
-            .map(|filter| filter(&notification))
-            .unwrap_or(true);
+        self.enqueue(notification, true);
+    }
+
+    /// 控制工具（`TaskStop`）自己产生的通知：**跳过**前台工具窗口判据。
+    ///
+    /// `TaskStop` 在工具批次内执行，此时窗口判据恒为 true；丢弃它会让
+    /// `<status>killed</status>` 通知永远无法投递（C1 观察：停止后仍注入一条通知）。
+    fn deliver_control(&self, notification: TaskNotification) {
+        self.enqueue(notification, false);
+    }
+
+    fn enqueue(&self, notification: TaskNotification, apply_filter: bool) {
+        let accepted = if apply_filter {
+            self.filter
+                .lock()
+                .expect("task notification filter poisoned")
+                .as_ref()
+                .map(|filter| filter(&notification))
+                .unwrap_or(true)
+        } else {
+            true
+        };
         if !accepted {
             return;
         }
-        let _ = self.tx.send(notification);
+        if self.tx.send(notification).is_ok() {
+            self.pending.fetch_add(1, Ordering::SeqCst);
+        }
         let waker = self
             .waker
             .lock()
@@ -160,11 +180,19 @@ impl NotificationHub {
     }
 
     fn take(&self) -> Vec<TaskNotification> {
-        self.rx
+        let notifications: Vec<TaskNotification> = self
+            .rx
             .lock()
             .expect("task notifications poisoned")
             .try_iter()
-            .collect()
+            .collect();
+        self.pending
+            .fetch_sub(notifications.len(), Ordering::SeqCst);
+        notifications
+    }
+
+    fn pending(&self) -> usize {
+        self.pending.load(Ordering::SeqCst)
     }
 }
 
@@ -260,6 +288,11 @@ impl TaskRegistry {
         self.notifications.take()
     }
 
+    /// 当前待取走的通知条数（诊断/测试用；不消费队列）。
+    pub fn pending_notifications(&self) -> usize {
+        self.notifications.pending()
+    }
+
     /// 登记一个已经 spawn 的进程，并启动回收线程（`try_wait` 轮询，20ms）。
     pub fn register(
         &self,
@@ -324,7 +357,9 @@ impl TaskRegistry {
             // 观察值：停止后的 TaskOutput 报 `<exit_code>137</exit_code>`（128+SIGKILL）。
             guard.exit_code = Some(137);
             // 观察（spec §3.4）：TaskStop 之后仍会注入一条 `status=killed` 的通知。
-            self.notifications.deliver(notification_from(&guard));
+            // 这是控制工具自己产生的通知，不能走前台窗口的丢弃判据。
+            self.notifications
+                .deliver_control(notification_from(&guard));
         }
         Some(snapshot_from(&guard))
     }

@@ -115,7 +115,7 @@ async fn pending_notifications_run_as_a_new_turn_when_idle() {
     let provider = ScriptedProvider::new(vec![ScriptStep::Text("handled".to_string())]);
     let mut sink = Vec::new();
     let count = session
-        .run_pending_notifications(&provider, &mut sink, &CancelToken::new())
+        .run_pending_notifications(&provider, &mut sink, &CancelToken::new(), 1)
         .await
         .expect("通知 turn 应成功");
     assert_eq!(count, 1);
@@ -158,7 +158,7 @@ async fn pending_notifications_coalesce_into_one_turn() {
     let provider = ScriptedProvider::new(vec![ScriptStep::Text("handled".to_string())]);
     let mut sink = Vec::new();
     let count = session
-        .run_pending_notifications(&provider, &mut sink, &CancelToken::new())
+        .run_pending_notifications(&provider, &mut sink, &CancelToken::new(), 1)
         .await
         .expect("通知 turn 应成功");
     assert_eq!(count, 2);

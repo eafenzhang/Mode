@@ -529,6 +529,11 @@ struct Shared {
     /// `TaskRegistry` 的通知判据在任务完成线程上读它：窗口内完成的通知按 C1 观察
     /// 丢弃；窗口外（含模型流式等待）入队，等当前 turn 结束后合并投递。
     tool_execution: AtomicBool,
+    /// 后台任务注册表（与 `Session` 共享同一 Arc）。
+    ///
+    /// **诊断/测试面，不是协议面**：[`SessionRuntime::pending_task_notifications`]
+    /// 用它观察「任务完成通知是否已入队」，避免测试靠 sleep 判断完成时序。
+    tasks: std::sync::OnceLock<Arc<agent_core::TaskRegistry>>,
 }
 
 impl Shared {
@@ -835,6 +840,7 @@ impl SessionRuntime {
             last_memory_error: RwLock::new(None),
             api_retry: mode_api_retry::SessionApiRetryTracker::new(),
             tool_execution: AtomicBool::new(false),
+            tasks: std::sync::OnceLock::new(),
             retry_traces: Mutex::new(HashMap::new()),
             record,
         });
@@ -857,6 +863,7 @@ impl SessionRuntime {
         if let Some(rule_db_path) = wiring.rule_db_path {
             session = session.with_sqlite_rules(rule_db_path);
         }
+        let _ = shared.tasks.set(session.tasks().clone());
         // C3 T3：后台通知的准入判据 + 空闲唤醒。队列仍在 `TaskRegistry`；
         // 这里只提供「前台工具窗口丢弃」与「入队后叫醒 worker」两个钩子。
         let notification_signal = Arc::new(tokio::sync::Notify::new());
@@ -1744,6 +1751,25 @@ impl SessionRuntime {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
     }
+
+    /// 当前待投递的后台完成通知数（诊断/测试面，不是协议面）。
+    ///
+    /// 只读 `TaskRegistry` 的待取走计数，不消费队列；用于测试确认「任务完成通知
+    /// 已入队」后再放行模型闸门，避免用 sleep 猜完成时序。
+    pub fn pending_task_notifications(&self) -> usize {
+        self.shared
+            .tasks
+            .get()
+            .map(|tasks| tasks.pending_notifications())
+            .unwrap_or(0)
+    }
+}
+
+/// 非 goal 路径的通知 turn 执行序号：已完成 turn 数 + 1（`runtime_command_<n>`）。
+///
+/// goal 路径不使用它（由 goal 执行计数器递增给出，保证 notification/verifier 同 id）。
+fn next_notification_execution_ordinal(shared: &Shared) -> u64 {
+    shared.lock().turn_count + 1
 }
 
 /// 取走当前排队的后台完成通知，拼成 `(input, notifications)` 批次（C3 T3）。
@@ -2047,6 +2073,7 @@ async fn run_configuration_failure(
             &item.input.content,
             &item.input_id,
             &item.notifications,
+            next_notification_execution_ordinal(shared),
         )
     } else {
         session.begin_turn(&item.input.content)
@@ -2130,6 +2157,11 @@ async fn run_one_input(
     let input_id = item.input_id.clone();
     let notifications = item.notifications.clone();
     let is_notification_turn = !notifications.is_empty();
+    let notification_execution_ordinal = if is_notification_turn {
+        next_notification_execution_ordinal(shared)
+    } else {
+        0
+    };
     let session_id = shared.record.id.clone();
     let shared_for_turn = Arc::clone(shared);
     let handle = tokio::runtime::Handle::current();
@@ -2180,6 +2212,7 @@ async fn run_one_input(
                         provider.as_ref(),
                         &mut recorder,
                         &token,
+                        notification_execution_ordinal,
                     )
                     .await
             } else {
@@ -3349,6 +3382,9 @@ async fn run_goal_loop(
         let target_id = target.target_id.clone();
         let active_input_id = job.input_id.clone();
         let foreground_execution_id = format!("runtime_command_{continuation_ordinal}");
+        // verifier 回指「最后一个模型运行 turn」：默认是续跑 turn；通知 turn 运行时
+        // 递增会话级 goal 执行序号并成为新的回指目标（夹具 §3.3）。
+        let mut last_execution_ordinal = continuation_ordinal;
         let run_started_at = std::sync::Arc::new(std::sync::atomic::AtomicI64::new(now_ms()));
 
         let shared_after = Arc::clone(shared);
@@ -3494,6 +3530,14 @@ async fn run_goal_loop(
                 // run_started/run_finished 钩子里，tokens/time 计入目标。
                 if let Some((input, notifications)) = take_notification_batch(session) {
                     let notification_input_id = fresh_id("in");
+                    // 通知 turn 占用下一个执行序号：continuation rcN → notification
+                    // rc(N+1) → 下一轮 continuation rc(N+2)；verifier 回指通知 turn。
+                    let notification_execution_ordinal = {
+                        let mut live = shared.lock();
+                        live.goal.continuation_ordinal += 1;
+                        live.goal.continuation_ordinal
+                    };
+                    last_execution_ordinal = notification_execution_ordinal;
                     *active_input_handle
                         .lock()
                         .unwrap_or_else(|poisoned| poisoned.into_inner()) =
@@ -3511,6 +3555,7 @@ async fn run_goal_loop(
                             provider.as_ref(),
                             &mut notification_recorder,
                             &cancel,
+                            notification_execution_ordinal,
                             &mut after_start,
                             &mut before_terminal,
                         )
@@ -3532,8 +3577,15 @@ async fn run_goal_loop(
                         }
                     }
                 }
-                let verdict =
-                    run_goal_verifier(session, shared, store, provider.clone(), config).await;
+                let verdict = run_goal_verifier(
+                    session,
+                    shared,
+                    store,
+                    provider.clone(),
+                    config,
+                    last_execution_ordinal,
+                )
+                .await;
                 match verdict {
                     Some(verdict) if verdict.passed => {
                         complete_goal_target(session, shared, store);
@@ -3661,6 +3713,7 @@ async fn run_goal_verifier(
     store: &Arc<SessionStore>,
     provider: Arc<dyn ModelProvider>,
     config: &RuntimeConfig,
+    execution_ordinal: u64,
 ) -> Option<agent_core::goal::VerifierVerdict> {
     let (target, anchor_turn_id, anchor_assistant_message_id) = {
         let live = shared.lock();
@@ -3683,17 +3736,19 @@ async fn run_goal_verifier(
         return None;
     }
     // 只有真正进入 verifier 的尝试才增加 `goalIteration`（pre-request 取消不算）。
-    let (iteration, continuation_ordinal) = {
+    // `execution_ordinal` 由续跑循环显式给出：有通知 turn 时它回指通知 turn 的序号
+    // （夹具 §3.3：verifier 与最后一个模型运行 turn 同 id），否则回指续跑 turn。
+    let iteration = {
         let mut live = shared.lock();
         live.goal.iteration += 1;
-        (live.goal.iteration, live.goal.continuation_ordinal)
+        live.goal.iteration
     };
     let verification_id = fresh_id("verify");
     let started_at = now_ms();
     let started_payload = verification_event_payload(
         &target.target_id,
         &verification_id,
-        continuation_ordinal,
+        execution_ordinal,
         iteration,
         &anchor_assistant_message_id,
         &anchor_turn_id,
@@ -3780,7 +3835,7 @@ async fn run_goal_verifier(
         let payload = verification_event_payload(
             &target.target_id,
             &verification_id,
-            continuation_ordinal,
+            execution_ordinal,
             iteration,
             &anchor_assistant_message_id,
             &anchor_turn_id,
@@ -3830,7 +3885,7 @@ async fn run_goal_verifier(
             let payload = verification_event_payload(
                 &target.target_id,
                 &verification_id,
-                continuation_ordinal,
+                execution_ordinal,
                 iteration,
                 &anchor_assistant_message_id,
                 &anchor_turn_id,
@@ -3877,7 +3932,7 @@ async fn run_goal_verifier(
     let payload = verification_event_payload(
         &target.target_id,
         &verification_id,
-        continuation_ordinal,
+        execution_ordinal,
         iteration,
         &anchor_assistant_message_id,
         &anchor_turn_id,

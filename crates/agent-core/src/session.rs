@@ -421,11 +421,15 @@ impl Session {
     /// 返回本次合并的通知条数。
     ///
     /// `cancel` 与 [`Self::run_turn`] 同源：调用方给同一个 token，通知 turn 也遵守取消。
+    /// `execution_ordinal` 是宿主的执行序号（`foregroundExecutionId` 的数字部分）；
+    /// 由调用方显式给出，不从 turnNumber 推导。
+    #[allow(clippy::too_many_arguments)]
     pub async fn run_pending_notifications(
         &mut self,
         provider: &dyn ModelProvider,
         sink: &mut dyn EventSink,
         cancel: &CancelToken,
+        execution_ordinal: u64,
     ) -> Result<usize, TurnError> {
         let notifications = self.tasks.take_notifications();
         if notifications.is_empty() {
@@ -445,6 +449,7 @@ impl Session {
             provider,
             sink,
             cancel,
+            execution_ordinal,
         )
         .await?;
         Ok(count)
@@ -631,11 +636,16 @@ impl Session {
     /// `originMeta:{backgroundSource,title,workId}` / `backgroundSource`。
     /// 多条通知由调用方用空行拼进 `input`；`targetId` **不出现**（goal 通知 turn
     /// 也如此，目标归属由 `run_started`/`run_finished` 承担）。
+    ///
+    /// `execution_ordinal` 是宿主的执行序号（`foregroundExecutionId` 的数字部分），
+    /// **显式传入**：goal 路径里它可能不等于 `turnNumber + 1`（通知 turn 紧跟在
+    /// 续跑 turn 之后，verifier 也回指同一个序号）。
     pub fn begin_background_notification_turn(
         &mut self,
         input: &str,
         input_id: &str,
         notifications: &[TaskNotification],
+        execution_ordinal: u64,
     ) -> SessionEvent {
         let (turn_number, turn_id) = self.allocate_turn();
         let title = notifications
@@ -660,7 +670,7 @@ impl Session {
             input_id: Some(input_id.to_string()),
             query_id: Some(new_uuid()),
             message_id: Some(new_uuid()),
-            foreground_execution_id: Some(format!("runtime_command_{}", turn_number + 1)),
+            foreground_execution_id: Some(format!("runtime_command_{execution_ordinal}")),
             extra: {
                 let mut extra = ExtraFields::new();
                 extra.insert(
@@ -699,10 +709,16 @@ impl Session {
         provider: &dyn ModelProvider,
         sink: &mut dyn EventSink,
         cancel: &CancelToken,
+        execution_ordinal: u64,
         after_start: AfterStartHook<'_>,
         before_terminal: BeforeTerminalHook<'_>,
     ) -> Result<(), TurnError> {
-        let started = self.begin_background_notification_turn(input, input_id, notifications);
+        let started = self.begin_background_notification_turn(
+            input,
+            input_id,
+            notifications,
+            execution_ordinal,
+        );
         self.run_turn_with_start(
             started,
             input,
@@ -727,8 +743,14 @@ impl Session {
         provider: &dyn ModelProvider,
         sink: &mut dyn EventSink,
         cancel: &CancelToken,
+        execution_ordinal: u64,
     ) -> Result<(), TurnError> {
-        let started = self.begin_background_notification_turn(input, input_id, notifications);
+        let started = self.begin_background_notification_turn(
+            input,
+            input_id,
+            notifications,
+            execution_ordinal,
+        );
         self.run_turn_with_start(
             started,
             input,

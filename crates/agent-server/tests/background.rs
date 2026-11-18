@@ -21,7 +21,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use agent_core::provider::{
     BoxFuture, DeltaSink, ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse,
@@ -309,6 +309,8 @@ enum MainStep {
         entered: Arc<tokio::sync::Notify>,
         gate: Arc<tokio::sync::Semaphore>,
     },
+    /// 从最近一条工具结果里解析后台 task id，并发起 `TaskStop`（C3 T3 回归）。
+    StopLastBackgroundTask,
     Error(ProviderError),
 }
 
@@ -356,6 +358,29 @@ fn last_user(request: &ModelRequest) -> String {
     }
 }
 
+fn last_tool_result(request: &ModelRequest) -> Option<String> {
+    request
+        .messages
+        .iter()
+        .rev()
+        .find_map(|message| match message {
+            ModelMessage::ToolResult { content, .. } => Some(content.clone()),
+            _ => None,
+        })
+}
+
+/// 后台 Bash 结果里的 `exec_…` id（`Command running in background with ID: <id>.`）。
+fn background_task_id(text: &str) -> Option<String> {
+    let start = text.find("ID: ")? + 4;
+    let rest = &text[start..];
+    let end = rest
+        .find(|character: char| {
+            !(character.is_ascii_alphanumeric() || character == '_' || character == '-')
+        })
+        .unwrap_or(rest.len());
+    (end > 0).then(|| rest[..end].to_string())
+}
+
 fn response_usage((input, output): (u64, u64)) -> ModelUsage {
     ModelUsage {
         input_tokens: input,
@@ -400,6 +425,7 @@ impl ModelProvider for BackgroundProvider {
             });
         }
         self.calls.fetch_add(1, Ordering::SeqCst);
+        let stop_task_id = last_tool_result(&request).and_then(|text| background_task_id(&text));
         let step = self
             .steps
             .lock()
@@ -449,6 +475,18 @@ impl ModelProvider for BackgroundProvider {
                     Ok(ModelResponse {
                         usage: response_usage(usage),
                         stop_reason: "stop",
+                    })
+                }
+                MainStep::StopLastBackgroundTask => {
+                    let task_id = stop_task_id.unwrap_or_else(|| "exec_missing".to_string());
+                    let _ = deltas.send(ModelDelta::ToolCall {
+                        tool_call_id: "toolu_stop".to_string(),
+                        tool_name: "TaskStop".to_string(),
+                        input: json!({ "task_id": task_id }),
+                    });
+                    Ok(ModelResponse {
+                        usage: response_usage((10, 3)),
+                        stop_reason: "tool-calls",
                     })
                 }
                 MainStep::Error(error) => Err(error),
@@ -666,6 +704,23 @@ async fn wait_for_file(path: &Path, needle: &str) {
     panic!("{} 未在限期内出现 {:?}", path.display(), needle);
 }
 
+/// 等任务完成通知真正进入 `TaskRegistry` 队列（不是只等输出文件出现）。
+///
+/// reaper 以 20ms 轮询发现退出；只等文件内容可能在 reaper 入队前放行模型闸门，
+/// 让通知错过 post-turn drain。这里用运行时的只读诊断计数同步。
+async fn wait_pending_notifications(runtime: &SessionRuntime, at_least: usize) {
+    for _ in 0..600 {
+        if runtime.pending_task_notifications() >= at_least {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    panic!(
+        "待投递通知未达 {at_least}（当前 {}）",
+        runtime.pending_task_notifications()
+    );
+}
+
 fn notification_xml(
     task_id: &str,
     tool_call_id: &str,
@@ -701,6 +756,61 @@ fn bash_foreground(id: &str, command: &str) -> ToolCallSpec {
 // ---------------------------------------------------------------------------
 // 1. 空闲完成 → 一个通知 turn
 // ---------------------------------------------------------------------------
+
+/// 回归：通知在 worker「最后一次 drain 之后、进入 `select!` 之前」入队时，
+/// `Notify` 的 permit 语义保证唤醒不会丢失（与 idle 用例的时序窗口互补）。
+#[tokio::test]
+async fn notification_wake_permit_survives_delivery_before_idle_wait() {
+    let signal = Arc::new(tokio::sync::Notify::new());
+    let waker = Arc::clone(&signal);
+    let registry = Arc::new(agent_core::TaskRegistry::new());
+    registry.set_notification_hooks(Arc::new(|_| true), Arc::new(move || waker.notify_one()));
+
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_nanos())
+        .unwrap_or(0);
+    let path = std::env::temp_dir().join(format!(
+        "mode-background-permit-{}-{unique}.log",
+        std::process::id()
+    ));
+    let output = fs::File::create(&path).expect("建输出文件");
+    #[cfg(windows)]
+    let mut command = {
+        let mut command = std::process::Command::new("cmd");
+        command.args(["/C", "exit 0"]);
+        command
+    };
+    #[cfg(not(windows))]
+    let mut command = {
+        let mut command = std::process::Command::new("sh");
+        command.args(["-c", "true"]);
+        command
+    };
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::from(output))
+        .stderr(std::process::Stdio::null());
+    let child = command.spawn().expect("spawn 后台进程");
+    registry.register(child, "toolu_permit", "true", None, path.clone());
+
+    // 先确认通知已入队（唤醒信号已发出），再 await：permit 必须仍然有效。
+    for _ in 0..400 {
+        if registry.pending_notifications() == 1 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    assert_eq!(registry.pending_notifications(), 1);
+    within(tokio::time::timeout(
+        Duration::from_secs(2),
+        signal.notified(),
+    ))
+    .await
+    .expect("通知入队后唤醒不得丢失");
+    assert_eq!(registry.take_notifications().len(), 1);
+    let _ = fs::remove_file(path);
+}
 
 #[tokio::test]
 async fn idle_completion_opens_one_background_notification_turn() {
@@ -839,6 +949,7 @@ async fn busy_completions_coalesce_into_one_notification_turn() {
     // 两个后台任务在窗口内完成（输出文件内容即完成证据）。
     wait_for_file(&fixture.output_path("toolu_bg_one"), "busy-one").await;
     wait_for_file(&fixture.output_path("toolu_bg_two"), "busy-two").await;
+    wait_pending_notifications(&runtime, 2).await;
     // 放行 busy turn。
     gate.add_permits(1);
 
@@ -942,6 +1053,65 @@ async fn foreground_tool_busy_completion_is_dropped() {
     );
     assert_eq!(turn_usage_rows(&fixture.db_path, &session_id).len(), 1);
     assert_eq!(runtime.snapshot().projection.turn_count, 1);
+}
+
+// ---------------------------------------------------------------------------
+// 3b. TaskStop 自己产生的 killed 通知不被前台窗口过滤
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn task_stop_killed_notification_is_delivered_after_the_turn() {
+    let fixture = Fixture::new("task-stop");
+    let (provider, _calls) = BackgroundProvider::new(vec![
+        MainStep::ToolCalls(vec![bash_background(
+            "toolu_bg_stop",
+            "sleep 30",
+            "stop me",
+        )]),
+        MainStep::StopLastBackgroundTask,
+        MainStep::Text {
+            text: "stopped".to_string(),
+            usage: (10, 12),
+        },
+    ]);
+    let provider = provider.with_notification_text("stop notification handled");
+    let runtime = spawn_runtime(&fixture, Arc::new(provider), fast_retry());
+    let (_replay, mut receiver) = runtime.subscribe(None);
+    let session_id = fixture.record.id.clone();
+
+    runtime
+        .submit(SessionInput::text("stop a background task"))
+        .expect("受理输入");
+    let first = within(next_terminal(&mut receiver)).await;
+    assert_eq!(terminals(&first).len(), 1);
+    assert!(first.iter().any(|event| {
+        event.event_type == SessionEventType::ToolUpdated
+            && event
+                .payload
+                .as_ref()
+                .is_some_and(|payload| payload["kind"] == json!("result"))
+    }));
+
+    // TaskStop 在工具批次内执行（前台窗口为 true），但它自己产生的 killed 通知
+    // 必须绕过窗口判据，成为下一个 `background_task` turn。
+    let second = within(next_terminal(&mut receiver)).await;
+    let note_starts = background_turn_starts(&second);
+    assert_eq!(note_starts.len(), 1, "TaskStop 后恰好一个通知 turn");
+    let input = note_starts[0].payload.as_ref().expect("payload")["input"]
+        .as_str()
+        .expect("input");
+    assert!(input.starts_with("<task-notification>"));
+    assert!(input.contains("<status>killed</status>"));
+    assert!(input.contains("was stopped"));
+    assert!(input.contains("stop me"));
+
+    wait_settled(&runtime).await;
+    assert_eq!(runtime.snapshot().projection.turn_count, 2);
+    assert_eq!(
+        message_kind_count(&fixture.db_path, &session_id, "background_notification"),
+        1
+    );
+    assert_eq!(turn_usage_rows(&fixture.db_path, &session_id).len(), 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -1464,6 +1634,11 @@ async fn goal_notification_turn_runs_before_verifier_and_counts_tokens() {
         .join(&session_id)
         .join("toolu_bg_goal-stdout.log");
     wait_for_file(&output_path, "goal-bg").await;
+    let goal_runtime = fixture
+        .server
+        .find_runtime(&session_id)
+        .expect("活跃 runtime");
+    wait_pending_notifications(&goal_runtime, 1).await;
     gate.add_permits(1);
 
     // continuation turn 完成 → notification turn 完成；之后 verifier 完成、目标 complete。
@@ -1493,6 +1668,11 @@ async fn goal_notification_turn_runs_before_verifier_and_counts_tokens() {
         .as_u64()
         .expect("turnNumber");
     assert_eq!(notification_turn_number, 2);
+    assert_eq!(
+        starts[2]["payload"]["foregroundExecutionId"],
+        json!("runtime_command_2"),
+        "通知 turn 占用 continuation 之后的下一个执行序号"
+    );
 
     // 顺序：notification turn 的终态在 verifier started 之前。
     let notification_completed = events
@@ -1513,6 +1693,23 @@ async fn goal_notification_turn_runs_before_verifier_and_counts_tokens() {
     assert!(
         notification_completed < verifier_started,
         "通知 turn 必须在 verifier 之前"
+    );
+    assert_eq!(
+        events[verifier_started]["payload"]["foregroundExecutionId"],
+        json!("runtime_command_2"),
+        "verifier 回指最后一个模型运行 turn（通知 turn）"
+    );
+    let verifier_completed = events
+        .iter()
+        .position(|event| {
+            event["type"] == json!("session.updated")
+                && event["payload"]["status"] == json!("completed")
+                && event["payload"].get("targetId").is_some()
+        })
+        .expect("verifier completed");
+    assert_eq!(
+        events[verifier_completed]["payload"]["foregroundExecutionId"],
+        json!("runtime_command_2")
     );
 
     // 通知 turn 包在目标 run_started/run_finished 中（fixture §3.3）。

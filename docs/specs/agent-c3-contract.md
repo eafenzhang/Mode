@@ -765,7 +765,15 @@ T3 在 `agent-server` 的 per-session worker 上接线后台通知，行为基�
   `turn.started` 的 `turnNumber` 用普通 turn 序号（`goal` 交互见下）。
 - **前台工具执行期间完成 → 丢弃**：worker 在工具 `started` 与 `batch` 之间标记
   「前台工具执行窗口」，该窗口内到达的通知不入队（C1 §3.5 的丢弃观察；C3 未重录
-  该组合，见 §3.6）。
+  该组合，见 §3.6）。**例外**：`TaskStop` 自己产生的 killed 通知走控制投递通道，
+  跳过该判据（否则停止任务后永远收不到 C1 观察到的 `<status>killed</status>`
+  notification turn）。
+- **执行序号**：`foregroundExecutionId` 的数字部分由显式执行序号给出，不再从
+  `turnNumber` 推导。非 goal 通知 turn 用「已完成 turn 数 + 1」；goal 路径里
+  continuation 用续跑序号，通知 turn 递增同一个 goal 执行计数器（`rc(N+1)`），
+  completion verifier 回指通知 turn（无通知时回指续跑 turn），下一轮 continuation
+  继续 `rc(N+2)`，保持单调（夹具 `background-goal-interaction.json` 的
+  `runtime_command_2`）。
 - **goal 续跑交互**：续跑 turn 结束、verifier 之前，先投递 pending 通知为一个
   `background_task` turn（`targetId:null`，但包在目标 `run_started`/`run_finished`
   里，tokens/time 计入目标）；verifier 仍在其后运行。
