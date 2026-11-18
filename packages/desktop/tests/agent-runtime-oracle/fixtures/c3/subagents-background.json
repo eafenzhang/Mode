@@ -1,0 +1,1319 @@
+{
+  "case": "subagents-background",
+  "note": "C3 Task 0 oracle 捕获：后台 Agent 完成后由 `background_task` notification turn 消费结果，turn.completed 带 `backgroundSubagentResultConsumed:true`；subagents ended 项 summary 是子代理结果。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "scriptKind": "user-text-keyed step function",
+    "agent": {
+      "subagent_type": "general-purpose",
+      "description": "background child",
+      "run_in_background": true
+    }
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages", "/v1/messages", "/v1/messages", "/v1/messages"]
+    },
+    "mid": {
+      "ok": true,
+      "result": {
+        "revision": 3,
+        "childSessionIds": ["sess_subagent_agent_<id>"],
+        "running": [
+          {
+            "childSessionId": "<id>",
+            "agentId": "agent_<id>",
+            "toolCallId": "<id>",
+            "subagentType": "general-purpose",
+            "title": "background child",
+            "startedAt": "<time>",
+            "status": "running"
+          }
+        ],
+        "ended": {
+          "total": 0,
+          "items": []
+        }
+      }
+    },
+    "after": {
+      "ok": true,
+      "result": {
+        "revision": 4,
+        "childSessionIds": ["sess_subagent_agent_<id>"],
+        "running": [],
+        "ended": {
+          "total": 1,
+          "items": [
+            {
+              "childSessionId": "<id>",
+              "agentId": "agent_<id>",
+              "toolCallId": "<id>",
+              "subagentType": "general-purpose",
+              "title": "background child",
+              "startedAt": "<time>",
+              "status": "success",
+              "summary": "background child result",
+              "endedAt": "<time>"
+            }
+          ]
+        }
+      }
+    },
+    "notificationTurn": {
+      "inputSource": "background_task",
+      "input": "<task-notification>\n<task-id>agent_<id></task-id>\n<tool-use-id><tool-call-id></tool-use-id>\n<output-file><data-root>\\.mode\\cli\\agents\\<session-id>\\agent_<id>\\output.txt</output-file>\n<status>completed</status>\n<summary>Agent general-purpose task &quot;background child&quot; completed.</summary>\n<result>background child result</result>\n<usage><subagent_tokens>22</subagent_tokens><tool_uses>0</tool_uses><duration_ms><time></duration_ms></usage>\n</task-notification>"
+    },
+    "notificationTerminal": {
+      "response": "notification turn",
+      "tokenCount": 22,
+      "usage": {
+        "source": "provider",
+        "modelRequestCount": 1,
+        "inputTokens": 10,
+        "outputTokens": 12,
+        "totalTokens": 22,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0,
+        "webFetchRequests": 0,
+        "webSearchRequests": 0
+      },
+      "toolCallCount": 0,
+      "historyRoundCount": 1,
+      "duration": "<time>",
+      "resultType": "success",
+      "backgroundSubagentResultConsumed": true,
+      "cacheStats": {
+        "totalMessages": 11,
+        "cachedMessages": 5,
+        "lastCacheHit": false
+      },
+      "inputId": "<id>"
+    },
+    "events": [
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "previousTitle": "",
+          "source": "first_input",
+          "title": "spawn background subagent"
+        },
+        "seq": 1,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.titleUpdated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "executionStartedAt": "<time>",
+          "turnNumber": 0,
+          "input": "spawn background subagent",
+          "messageId": "<id>",
+          "foregroundExecutionId": "runtime_command_1",
+          "queryId": "<id>"
+        },
+        "seq": 2,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.started"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "messageCount": 6,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 0
+        },
+        "seq": 3,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 4,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Agent"
+        },
+        "seq": 5,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "model.streaming"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"description\":\"background child\",\"prompt\":\"background child prompt: inspect in background\",\"subagent_type\":\"general-purpose\",\"run_in_background\":true}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        },
+        "seq": 6,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "model.streaming"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        },
+        "seq": 7,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "model.streaming"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "description": "background child",
+            "prompt": "background child prompt: inspect in background",
+            "subagent_type": "general-purpose",
+            "run_in_background": true
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Agent"
+        },
+        "seq": 8,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "model.streaming"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 9,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 1,
+            "totalInputTokens": 10,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        },
+        "seq": 10,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Agent",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": true,
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": "<count>",
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        },
+        "seq": 11,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallId": "<id>",
+          "toolName": "Agent",
+          "startedAt": "<time>",
+          "readOnly": true,
+          "sideEffectScope": "session",
+          "kind": "started"
+        },
+        "seq": 12,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "agentId": "agent_<id>",
+          "agentType": "general-purpose",
+          "background": true,
+          "childSessionId": "<id>",
+          "description": "background child",
+          "prompt": "background child prompt: inspect in background",
+          "parentToolCallId": "<tool-call-id>",
+          "status": "running",
+          "allowedTools": ["*"],
+          "outputFile": "<data-root>\\.mode\\cli\\agents\\<session-id>\\agent_<id>\\output.txt"
+        },
+        "seq": 13,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallId": "<id>",
+          "result": {
+            "success": true,
+            "content": "Async agent launched successfully.\nagentId: agent_<id> (internal ID - do not mention to user. Use SendMessage with to: 'agent_<id>' to continue this agent.)\nThe agent is working in the background. You will be notified automatically when it completes.\nDo not duplicate this agent's work - avoid working with the same files or topics it is using. Work on non-overlapping tasks, or briefly tell the user what you launched and end your response.\noutput_file: <data-root>\\.mode\\cli\\agents\\<session-id>\\agent_<id>\\output.txt\nDo NOT Read or tail this file via the shell tool. If the user asks for progress, say the agent is still running; you'll get a completion notification.",
+            "perf": {
+              "totalMs": "<time>"
+            },
+            "truncated": false,
+            "originalBytes": 852,
+            "returnedBytes": 852,
+            "budgetStrategy": "artifact"
+          },
+          "duration": "<time>",
+          "kind": "result"
+        },
+        "seq": 14,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "taskId": "agent_<id>",
+          "toolCallId": "<id>",
+          "toolName": "Agent",
+          "taskKind": "subagent",
+          "childSessionId": "<id>",
+          "cancellable": true,
+          "description": "background child",
+          "status": "running",
+          "outputPath": "<data-root>\\.mode\\cli\\agents\\<session-id>\\agent_<id>\\output.txt",
+          "terminalId": "agent_<id>"
+        },
+        "seq": 15,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "taskId": "agent_<id>",
+          "toolCallId": "<id>",
+          "toolName": "Agent",
+          "taskKind": "subagent",
+          "childSessionId": "<id>",
+          "cancellable": true,
+          "description": "background child",
+          "status": "running",
+          "startedAt": "<time>",
+          "outputPath": "<data-root>\\.mode\\cli\\agents\\<session-id>\\agent_<id>\\output.txt",
+          "terminalId": "agent_<id>"
+        },
+        "seq": 16,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallIds": ["<id>"],
+          "successCount": 1,
+          "errorCount": 0,
+          "kind": "batch"
+        },
+        "seq": 17,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_result",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Agent",
+          "resultPartId": "<id>",
+          "committedToolCallIds": ["<id>"],
+          "committedAt": "<time>"
+        },
+        "seq": 18,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "streamRecovery.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "messageCount": 8,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        },
+        "seq": 19,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 20,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "parent after background child",
+          "done": false,
+          "kind": "text_delta"
+        },
+        "seq": 21,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "model.streaming"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "timeToFirstTextMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 22,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "content": "parent after background child",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 2,
+            "totalInputTokens": 20,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 0
+        },
+        "seq": 23,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "response": "parent after background child",
+          "tokenCount": 52,
+          "usage": {
+            "source": "provider",
+            "modelRequestCount": 2,
+            "inputTokens": 20,
+            "outputTokens": 32,
+            "totalTokens": 52,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "webFetchRequests": 0,
+            "webSearchRequests": 0
+          },
+          "toolCallCount": 1,
+          "historyRoundCount": 2,
+          "duration": "<time>",
+          "resultType": "success",
+          "cacheStats": {
+            "totalMessages": 9,
+            "cachedMessages": 5,
+            "lastCacheHit": false
+          }
+        },
+        "seq": 24,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.completed"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "taskId": "agent_<id>",
+          "toolCallId": "<id>",
+          "toolName": "Agent",
+          "taskKind": "subagent",
+          "childSessionId": "<id>",
+          "cancellable": false,
+          "description": "background child",
+          "status": "completed",
+          "startedAt": "<time>",
+          "completedAt": "<time>",
+          "outputPath": "<data-root>\\.mode\\cli\\agents\\<session-id>\\agent_<id>\\output.txt",
+          "terminalId": "agent_<id>"
+        },
+        "seq": 25,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "agentId": "agent_<id>",
+          "agentType": "general-purpose",
+          "background": true,
+          "childSessionId": "<id>",
+          "parentToolCallId": "<tool-call-id>",
+          "status": "completed",
+          "outputFile": "<data-root>\\.mode\\cli\\agents\\<session-id>\\agent_<id>\\output.txt",
+          "totalDurationMs": "<time>",
+          "totalToolUseCount": 0,
+          "totalTokens": 22
+        },
+        "seq": 26,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "executionStartedAt": "<time>",
+          "turnNumber": 1,
+          "input": "<task-notification>\n<task-id>agent_<id></task-id>\n<tool-use-id><tool-call-id></tool-use-id>\n<output-file><data-root>\\.mode\\cli\\agents\\<session-id>\\agent_<id>\\output.txt</output-file>\n<status>completed</status>\n<summary>Agent general-purpose task &quot;background child&quot; completed.</summary>\n<result>background child result</result>\n<usage><subagent_tokens>22</subagent_tokens><tool_uses>0</tool_uses><duration_ms><time></duration_ms></usage>\n</task-notification>",
+          "messageId": "<id>",
+          "inputId": "<id>",
+          "foregroundExecutionId": "runtime_command_3",
+          "queryId": "<id>",
+          "inputSource": "background_task",
+          "inputVisibility": "model-only",
+          "originMeta": {
+            "backgroundSource": "subagent",
+            "title": "background child",
+            "workId": "agent_<id>"
+          },
+          "backgroundSource": "subagent"
+        },
+        "seq": 27,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.started"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "messageCount": 10,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 0
+        },
+        "seq": 28,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 29,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "notification turn",
+          "done": false,
+          "kind": "text_delta"
+        },
+        "seq": 30,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "model.streaming"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "timeToFirstTextMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 31,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "content": "notification turn",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 3,
+            "totalInputTokens": 30,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 0
+        },
+        "seq": 32,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "response": "notification turn",
+          "tokenCount": 22,
+          "usage": {
+            "source": "provider",
+            "modelRequestCount": 1,
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "webFetchRequests": 0,
+            "webSearchRequests": 0
+          },
+          "toolCallCount": 0,
+          "historyRoundCount": 1,
+          "duration": "<time>",
+          "resultType": "success",
+          "backgroundSubagentResultConsumed": true,
+          "cacheStats": {
+            "totalMessages": 11,
+            "cachedMessages": 5,
+            "lastCacheHit": false
+          },
+          "inputId": "<id>"
+        },
+        "seq": 33,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.completed"
+      }
+    ],
+    "eventSummary": {
+      "types": [
+        "session.titleUpdated",
+        "turn.started",
+        "session.updated",
+        "session.updated",
+        "model.streaming",
+        "model.streaming",
+        "model.streaming",
+        "model.streaming",
+        "session.updated",
+        "session.updated",
+        "tool.updated",
+        "tool.updated",
+        "session.updated",
+        "tool.updated",
+        "session.updated",
+        "session.updated",
+        "tool.updated",
+        "streamRecovery.updated",
+        "session.updated",
+        "session.updated",
+        "model.streaming",
+        "session.updated",
+        "session.updated",
+        "turn.completed",
+        "session.updated",
+        "session.updated",
+        "turn.started",
+        "session.updated",
+        "session.updated",
+        "model.streaming",
+        "session.updated",
+        "session.updated",
+        "turn.completed"
+      ],
+      "terminals": [
+        {
+          "type": "turn.completed",
+          "resultType": "success"
+        },
+        {
+          "type": "turn.completed",
+          "resultType": "success"
+        }
+      ],
+      "turnStarts": [
+        {
+          "turnNumber": 0,
+          "executionKind": null,
+          "inputSource": null,
+          "input": "spawn background subagent",
+          "targetId": null
+        },
+        {
+          "turnNumber": 1,
+          "executionKind": null,
+          "inputSource": "background_task",
+          "input": "<task-notification>\n<task-id>agent_<id></task-id>\n<tool-use-id><tool-call-id></tool-use-id>\n<output-file><data-root>\\.mode\\cli\\agents\\<session-id>\\agent_<id>\\output.txt</output-file>\n<status>completed</status>\n<summary>Agent general-purpose task &quot;background child&quot; completed.</summary>\n<result>background child result</result>\n<usage><subagent_tokens>22</subagent_tokens><tool_uses>0</tool_uses><duration_ms><time></duration_ms></usage>\n</task-notification>",
+          "targetId": null
+        }
+      ]
+    },
+    "db": {
+      "sessions": [
+        {
+          "id": "<id>",
+          "parent_id": null,
+          "task_type": "interactive",
+          "title": "spawn background subagent",
+          "slug": "<id>",
+          "directory": "<cwd>"
+        },
+        {
+          "id": "<id>",
+          "parent_id": "<session-id>",
+          "task_type": "subagent_child",
+          "title": "background child prompt: inspect in background",
+          "slug": "<id>",
+          "directory": "<cwd>"
+        }
+      ],
+      "sessionTaskLink": [],
+      "messages": [
+        {
+          "sequence": 0,
+          "role": "assistant",
+          "finish": "completed",
+          "semanticsKind": "timeline_event",
+          "source": null,
+          "parentID": "<id>"
+        },
+        {
+          "sequence": 1,
+          "role": "user",
+          "finish": null,
+          "semanticsKind": "user_prompt",
+          "source": null,
+          "parentID": null
+        },
+        {
+          "sequence": 2,
+          "role": "assistant",
+          "finish": "tool-calls",
+          "semanticsKind": "assistant_response",
+          "source": null,
+          "parentID": "<id>"
+        },
+        {
+          "sequence": 3,
+          "role": "assistant",
+          "finish": "stop",
+          "semanticsKind": "assistant_response",
+          "source": null,
+          "parentID": "<id>"
+        },
+        {
+          "sequence": 0,
+          "role": "assistant",
+          "finish": "completed",
+          "semanticsKind": "timeline_event",
+          "source": null,
+          "parentID": "<id>"
+        },
+        {
+          "sequence": 1,
+          "role": "user",
+          "finish": null,
+          "semanticsKind": "user_prompt",
+          "source": null,
+          "parentID": null
+        },
+        {
+          "sequence": 2,
+          "role": "assistant",
+          "finish": "stop",
+          "semanticsKind": "assistant_response",
+          "source": null,
+          "parentID": "<id>"
+        },
+        {
+          "sequence": 4,
+          "role": "user",
+          "finish": null,
+          "semanticsKind": "background_notification",
+          "source": "background_task",
+          "parentID": null
+        },
+        {
+          "sequence": 5,
+          "role": "assistant",
+          "finish": "stop",
+          "semanticsKind": "assistant_response",
+          "source": null,
+          "parentID": "<id>"
+        }
+      ]
+    }
+  }
+}

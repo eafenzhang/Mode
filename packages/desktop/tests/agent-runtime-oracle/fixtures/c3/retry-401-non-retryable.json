@@ -1,0 +1,420 @@
+{
+  "case": "retry-401-non-retryable",
+  "note": "C3 Task 0 oracle 捕获：401 auth_failed 非 retryable；无重试，turn.failed 一次。",
+  "input": {
+    "scenario": "http-401-non-retryable",
+    "scriptKind": "attempt-aware step function",
+    "failure": {
+      "status": 401,
+      "message": "invalid api key"
+    }
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages"]
+    },
+    "requests": [
+      {
+        "path": "/v1/messages",
+        "stream": true,
+        "toolCount": 21,
+        "assistantCount": 0
+      }
+    ],
+    "events": [
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "previousTitle": "",
+          "source": "first_input",
+          "title": "retry scenario"
+        },
+        "seq": 1,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.titleUpdated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "executionStartedAt": "<time>",
+          "turnNumber": 0,
+          "input": "retry scenario",
+          "messageId": "<id>",
+          "foregroundExecutionId": "runtime_command_1",
+          "queryId": "<id>"
+        },
+        "seq": 2,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.started"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "messageCount": 6,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 0
+        },
+        "seq": 3,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 4,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "message": "Provider authentication failed.",
+          "reason": "auth_failed",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "retryable": false,
+          "statusCode": 401,
+          "streamOutputCommitted": false,
+          "errorCode": "provider_not_configured",
+          "errorPhase": "stream",
+          "exceptionType": "AI_APICallError",
+          "timestamp": "<time>",
+          "type": "model_request_failed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 5,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "error": {
+            "type": "unknown_error",
+            "attribution": {
+              "source": "provider",
+              "reason": "auth_failed",
+              "errorPhase": "stream",
+              "exceptionKind": "api_call",
+              "providerId": "oracle-mock",
+              "modelId": "mock-1",
+              "providerKind": "anthropic",
+              "transport": "sse",
+              "statusCode": 401,
+              "retryable": false
+            },
+            "code": "provider_not_configured",
+            "message": "Provider authentication failed.",
+            "detail": "Turn execution failed\nprovider=oracle-mock model=mock-1 request=<id> reason=auth_failed status=401 retryable=false\ninvalid api key",
+            "underlyingErrorMessage": "invalid api key"
+          },
+          "turnPhase": "processing_input"
+        },
+        "seq": 6,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.failed"
+      }
+    ],
+    "eventSummary": {
+      "types": [
+        "session.titleUpdated",
+        "turn.started",
+        "session.updated",
+        "session.updated",
+        "session.updated",
+        "turn.failed"
+      ],
+      "terminals": [
+        {
+          "type": "turn.failed",
+          "resultType": null
+        }
+      ],
+      "turnStarts": [
+        {
+          "turnNumber": 0,
+          "executionKind": null,
+          "inputSource": null,
+          "input": "retry scenario",
+          "targetId": null
+        }
+      ]
+    },
+    "textDeltas": [],
+    "debug": {
+      "sessionId": "<id>",
+      "rounds": [],
+      "networkEntries": [
+        {
+          "traceId": "<id>",
+          "queryId": "<id>",
+          "eventKey": "<id>",
+          "statusType": "model_request_started",
+          "requestId": "<id>",
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "baseURL": "<loopback-url>",
+          "querySource": "main_turn",
+          "attempt": 1,
+          "maxAttempts": 11,
+          "timestamp": "<time>",
+          "requestHeaders": "<headers>",
+          "responseHeaders": "<headers>",
+          "requestHeaderCount": 16,
+          "responseHeaderCount": 0,
+          "recordedAt": "<time>"
+        },
+        {
+          "traceId": "<id>",
+          "queryId": "<id>",
+          "eventKey": "<id>",
+          "statusType": "model_request_failed",
+          "requestId": "<id>",
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "baseURL": "<loopback-url>",
+          "querySource": "main_turn",
+          "attempt": 1,
+          "maxAttempts": 11,
+          "retryable": false,
+          "statusCode": 401,
+          "durationMs": "<time>",
+          "reason": "auth_failed",
+          "message": "Provider authentication failed.",
+          "timestamp": "<time>",
+          "requestHeaders": "<headers>",
+          "responseHeaders": "<headers>",
+          "requestHeaderCount": 16,
+          "responseHeaderCount": 5,
+          "recordedAt": "<time>"
+        }
+      ],
+      "cache": null
+    },
+    "conversation": [
+      {
+        "role": "assistant",
+        "finish": "completed",
+        "semanticsKind": "timeline_event",
+        "text": ""
+      },
+      {
+        "role": "user",
+        "finish": null,
+        "semanticsKind": "user_prompt",
+        "text": "retry scenario"
+      },
+      {
+        "role": "assistant",
+        "finish": null,
+        "semanticsKind": "assistant_response",
+        "text": ""
+      }
+    ],
+    "db": {
+      "session_target": {
+        "rowCount": 0,
+        "rows": []
+      },
+      "session_task_link": {
+        "rowCount": 0,
+        "rows": []
+      },
+      "session_entry": {
+        "rowCount": 3,
+        "rows": []
+      },
+      "turn_usage": {
+        "rowCount": 1,
+        "rows": [
+          {
+            "session_id": "<id>",
+            "turn_id": "<id>",
+            "trace_id": "<id>",
+            "user_message_id": "<id>",
+            "status": "error",
+            "started_at": "<time>",
+            "first_model_start_at": "<time>",
+            "first_token_at": null,
+            "completed_at": "<time>",
+            "duration_ms": "<time>",
+            "time_to_first_token_ms": null,
+            "model_request_count": 1,
+            "model_retry_count": 0,
+            "tool_call_count": 0,
+            "tool_error_count": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "reasoning_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "computed_total_tokens": 0,
+            "retryable": 0,
+            "cancelled_by_user": 0,
+            "context_exceeded": 0,
+            "error_type": "unknown_error",
+            "error_code": "UNKNOWN_ERROR"
+          }
+        ]
+      },
+      "model_usage": {
+        "rowCount": 1,
+        "rows": [
+          {
+            "query_source": "main_turn",
+            "status": "error",
+            "attempt_index": 0,
+            "retry_count": 0,
+            "retryable": 0,
+            "finish_reason": null,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "computed_total_tokens": 0,
+            "error_type": "auth_failed",
+            "error_code": null
+          }
+        ]
+      },
+      "messageSummary": [
+        {
+          "sequence": 0,
+          "role": "assistant",
+          "finish": "completed",
+          "semanticsKind": "timeline_event",
+          "source": null,
+          "parentID": "<id>"
+        },
+        {
+          "sequence": 1,
+          "role": "user",
+          "finish": null,
+          "semanticsKind": "user_prompt",
+          "source": null,
+          "parentID": null
+        },
+        {
+          "sequence": 2,
+          "role": "assistant",
+          "finish": null,
+          "semanticsKind": "assistant_response",
+          "source": null,
+          "parentID": "<id>"
+        }
+      ]
+    }
+  }
+}

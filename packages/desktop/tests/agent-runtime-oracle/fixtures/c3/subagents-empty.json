@@ -1,0 +1,123 @@
+{
+  "case": "subagents-empty",
+  "note": "C3 Task 0 oracle 捕获：首 turn 前 `session/subagents` 返回 -32004（Session not found）；有 turn 后返回空列表 `{revision,childSessionIds:[],running:[],ended:{total:0,items:[]}}`；endedLimit 0/-1 是 -32602（>0）。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "prompt": "plain prompt",
+    "calls": ["before-turn", "endedLimit:20", "default", "endedLimit:0", "endedLimit:-1"]
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages"]
+    },
+    "beforeAnyTurn": {
+      "ok": false,
+      "error": {
+        "frame": {
+          "code": -32004,
+          "message": "Session not found: <session-id>"
+        }
+      }
+    },
+    "badSessionError": {
+      "frame": {
+        "code": -32004,
+        "message": "Session not found: sess_missing"
+      }
+    },
+    "emptyWithLimit": {
+      "ok": true,
+      "result": {
+        "revision": 4,
+        "childSessionIds": [],
+        "running": [],
+        "ended": {
+          "total": 0,
+          "items": []
+        }
+      }
+    },
+    "emptyDefaultLimit": {
+      "ok": true,
+      "result": {
+        "revision": 4,
+        "childSessionIds": [],
+        "running": [],
+        "ended": {
+          "total": 0,
+          "items": []
+        }
+      }
+    },
+    "zeroLimit": {
+      "ok": false,
+      "error": {
+        "frame": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"origin\": \"number\",\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"inclusive\": false,\n    \"path\": [\n      \"endedLimit\"\n    ],\n    \"message\": \"Too small: expected number to be >0\"\n  }\n]"
+          },
+          "message": "Invalid params — endedLimit: Too small: expected number to be >0"
+        }
+      }
+    },
+    "negativeLimit": {
+      "ok": false,
+      "error": {
+        "frame": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"origin\": \"number\",\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"inclusive\": false,\n    \"path\": [\n      \"endedLimit\"\n    ],\n    \"message\": \"Too small: expected number to be >0\"\n  }\n]"
+          },
+          "message": "Invalid params — endedLimit: Too small: expected number to be >0"
+        }
+      }
+    },
+    "db": {
+      "sessions": [
+        {
+          "id": "<id>",
+          "parent_id": null,
+          "task_type": "interactive",
+          "title": "plain prompt",
+          "slug": "<id>",
+          "directory": "<cwd>"
+        }
+      ],
+      "sessionTaskLink": [],
+      "messages": [
+        {
+          "sequence": 0,
+          "role": "assistant",
+          "finish": "completed",
+          "semanticsKind": "timeline_event",
+          "source": null,
+          "parentID": "<id>"
+        },
+        {
+          "sequence": 1,
+          "role": "user",
+          "finish": null,
+          "semanticsKind": "user_prompt",
+          "source": null,
+          "parentID": null
+        },
+        {
+          "sequence": 2,
+          "role": "assistant",
+          "finish": "stop",
+          "semanticsKind": "assistant_response",
+          "source": null,
+          "parentID": "<id>"
+        }
+      ]
+    }
+  }
+}

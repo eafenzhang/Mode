@@ -20,15 +20,52 @@ export const ORACLE_MOCK_PROVIDER_ID = "oracle-mock";
 export const ORACLE_MOCK_MODEL_ID = "mock-1";
 
 export type MockToolCall = { name: string; input: Record<string, unknown> };
-/** 真正写进 SSE 的一步：要么出工具调用，要么出终结文本。 */
-export type MockStepBody = { toolCalls: MockToolCall[] } | { text: string };
+/** HTTP 层失败：按 `status` 回普通 JSON 报文（401/5xx 等）。 */
+export type MockHttpFailure = {
+  kind: "http";
+  status: number;
+  message?: string;
+  headers?: Record<string, string>;
+};
+/**
+ * 流中断：`before_headers` 在写任何字节前断开；`mid_stream` 先写 SSE 前缀
+ * （message_start + 若干 delta）再断开，用来观察运行时的已提交 delta 与续传行为。
+ */
+export type MockStreamAbort = {
+  kind: "abort";
+  phase: "before_headers" | "mid_stream";
+  /** `mid_stream` 下写出的 content delta 个数（默认 0：只写 message_start 就断）。 */
+  afterDeltas?: number;
+};
+/**
+ * 真正写进 SSE 的一步：工具调用、终结文本或失败注入。
+ *
+ * C3 追加 `failure` / `delayMs` / `textChunks`：重试与流恢复必须能注入
+ * 5xx、流中断和「turn 正在执行」的窗口；不注入时形状与 C1/C2 完全一致。
+ */
+export type MockStepBody = {
+  toolCalls?: MockToolCall[];
+  text?: string;
+  /** 文本按多个 `text_delta` 分片写出（默认整段一个 delta）。 */
+  textChunks?: string[];
+  failure?: MockHttpFailure | MockStreamAbort;
+  /** 写出任何响应之前的延迟；用于让 turn 在测试窗口内保持 running。 */
+  delayMs?: number;
+  /** 每个 content delta 之后、下一个事件之前的延迟（让已写字节先被运行时消费）。 */
+  chunkDelayMs?: number;
+};
+/** 同位置剧本的调用上下文：`attempt` 从 0 起，仅重试同输入时才增长。 */
+export type MockStepContext = { index: number; attempt: number };
 /**
  * 剧本一步：静态正文，或由**请求内容**决定正文的纯函数。
  *
  * 后者的存在理由：有些工具的参数只有在运行时才产生（例如后台任务的 `task_id`），
- * 静态剧本写不出来。函数仍满足「同输入得同输出」的确定性口径（spec §4.3）。
+ * 静态剧本写不出来。函数仍满足「同输入得同输出」的确定性口径（spec §4.3）；
+ * C3 的重试剧本用第二个参数 `context.attempt` 注入「第一次失败、第二次成功」。
  */
-export type MockStep = MockStepBody | ((body: AnthropicBody) => MockStepBody);
+export type MockStep =
+  | MockStepBody
+  | ((body: AnthropicBody, context: MockStepContext) => MockStepBody);
 
 export type MockProvider = {
   /** 形如 `http://127.0.0.1:<port>`，运行时据此拼 `/v1/messages`。 */
@@ -38,7 +75,7 @@ export type MockProvider = {
   close(): Promise<void>;
 };
 
-type AnthropicBody = {
+export type AnthropicBody = {
   stream?: boolean;
   tools?: unknown[];
   messages?: { role?: string; content?: unknown }[];
@@ -59,12 +96,61 @@ function sse(res: import("node:http").ServerResponse, event: string, data: unkno
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
-function writeSseResponse(
+function delay(ms: number): Promise<void> {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
+}
+
+/** 写出失败注入（HTTP 状态或断连）；返回 true 表示已由失败路径接管。 */
+async function writeFailure(
+  res: import("node:http").ServerResponse,
+  step: MockStepBody,
+): Promise<boolean> {
+  const failure = step.failure;
+  if (failure === undefined) return false;
+  if (step.delayMs !== undefined && step.delayMs > 0) await delay(step.delayMs);
+  if (failure.kind === "http") {
+    res.writeHead(failure.status, {
+      "content-type": "application/json",
+      ...failure.headers,
+    });
+    res.end(
+      JSON.stringify({
+        type: "error",
+        error: {
+          type: "mock_error",
+          message: failure.message ?? `mock provider ${failure.status}`,
+        },
+      }),
+    );
+    return true;
+  }
+  if (failure.phase === "before_headers") {
+    res.destroy();
+    return true;
+  }
+  return false;
+}
+
+async function writeSseResponse(
   res: import("node:http").ServerResponse,
   step: MockStepBody,
   index: number,
   onContentBlockDeltaWrite?: (at: number) => void,
-): void {
+): Promise<void> {
+  if (await writeFailure(res, step)) return;
+  if (step.delayMs !== undefined && step.delayMs > 0) await delay(step.delayMs);
+  const abortAfter =
+    step.failure?.kind === "abort" && step.failure.phase === "mid_stream"
+      ? (step.failure.afterDeltas ?? 0)
+      : undefined;
+  let deltasWritten = 0;
+  /** 到点就断开（不写 message_stop），模拟流中断。 */
+  const abortIfDue = (): boolean => {
+    if (abortAfter === undefined) return false;
+    if (deltasWritten < abortAfter) return false;
+    res.destroy();
+    return true;
+  };
   res.writeHead(200, {
     "content-type": "text/event-stream",
     "cache-control": "no-cache",
@@ -83,8 +169,9 @@ function writeSseResponse(
       usage: { input_tokens: 10, output_tokens: 1 },
     },
   });
-  if ("toolCalls" in step) {
-    step.toolCalls.forEach((call, position) => {
+  if (abortIfDue()) return;
+  if (step.toolCalls !== undefined) {
+    for (const [position, call] of step.toolCalls.entries()) {
       sse(res, "content_block_start", {
         type: "content_block_start",
         index: position,
@@ -100,9 +187,14 @@ function writeSseResponse(
         index: position,
         delta: { type: "input_json_delta", partial_json: JSON.stringify(call.input) },
       });
+      deltasWritten += 1;
       onContentBlockDeltaWrite?.(Date.now());
+      if (step.chunkDelayMs !== undefined && step.chunkDelayMs > 0) {
+        await delay(step.chunkDelayMs);
+      }
+      if (abortIfDue()) return;
       sse(res, "content_block_stop", { type: "content_block_stop", index: position });
-    });
+    }
     sse(res, "message_delta", {
       type: "message_delta",
       delta: { stop_reason: "tool_use", stop_sequence: null },
@@ -114,12 +206,20 @@ function writeSseResponse(
       index: 0,
       content_block: { type: "text", text: "" },
     });
-    sse(res, "content_block_delta", {
-      type: "content_block_delta",
-      index: 0,
-      delta: { type: "text_delta", text: step.text },
-    });
-    onContentBlockDeltaWrite?.(Date.now());
+    const chunks = step.textChunks ?? [step.text ?? ""];
+    for (const chunk of chunks) {
+      sse(res, "content_block_delta", {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: chunk },
+      });
+      deltasWritten += 1;
+      onContentBlockDeltaWrite?.(Date.now());
+      if (step.chunkDelayMs !== undefined && step.chunkDelayMs > 0) {
+        await delay(step.chunkDelayMs);
+      }
+      if (abortIfDue()) return;
+    }
     sse(res, "content_block_stop", { type: "content_block_stop", index: 0 });
     sse(res, "message_delta", {
       type: "message_delta",
@@ -131,8 +231,25 @@ function writeSseResponse(
   res.end();
 }
 
-/** 非流式（标题生成等）回一个固定文本的普通报文，不消费剧本。 */
-function writeJsonResponse(res: import("node:http").ServerResponse): void {
+/** 非流式（标题生成、goal verifier 等）回一个普通报文，不消费剧本。 */
+function writeJsonResponse(
+  res: import("node:http").ServerResponse,
+  text = "oracle-mock",
+  httpError?: { status: number; message?: string },
+): void {
+  if (httpError !== undefined) {
+    res.writeHead(httpError.status, { "content-type": "application/json" });
+    res.end(
+      JSON.stringify({
+        type: "error",
+        error: {
+          type: "mock_error",
+          message: httpError.message ?? `mock provider ${httpError.status}`,
+        },
+      }),
+    );
+    return;
+  }
   res.writeHead(200, { "content-type": "application/json" });
   res.end(
     JSON.stringify({
@@ -140,13 +257,19 @@ function writeJsonResponse(res: import("node:http").ServerResponse): void {
       type: "message",
       role: "assistant",
       model: ORACLE_MOCK_MODEL_ID,
-      content: [{ type: "text", text: "oracle-mock" }],
+      content: [{ type: "text", text }],
       stop_reason: "end_turn",
       stop_sequence: null,
       usage: { input_tokens: 1, output_tokens: 1 },
     }),
   );
 }
+
+/** 非流式 / 无工具请求的应答注入点（goal verifier 需要真实 JSON 文本）。 */
+export type MockAuxiliaryResponse = {
+  text?: string;
+  httpError?: { status: number; message?: string };
+};
 
 export type MockProviderOptions = {
   /**
@@ -165,6 +288,13 @@ export type MockProviderOptions = {
    * 抛异常原样冒出。时刻由调用方传入的时钟决定（bench 用 `performance.now`）。
    */
   onContentBlockDeltaWrite?: (at: number) => void;
+  /**
+   * 非流式 / 无工具请求（标题、goal completion verifier）的应答注入。
+   *
+   * 默认回固定文本 `oracle-mock`（C1/C2 行为不变）；C3 的 goal 探针需要让
+   * verifier 返回合法 JSON，才能观察到「验证通过 → goal complete」的真实路径。
+   */
+  auxiliaryResponse?: (body: AnthropicBody) => MockAuxiliaryResponse | undefined;
 };
 
 export async function startMockProvider(
@@ -172,38 +302,59 @@ export async function startMockProvider(
   options: MockProviderOptions = {},
 ): Promise<MockProvider> {
   const requestPaths: string[] = [];
+  const attemptsByIndex = new Map<number, number>();
   const server: Server = createServer((request, response) => {
     let body = "";
     request.on("data", (chunk) => {
       body += String(chunk);
     });
     request.on("end", () => {
-      requestPaths.push(request.url ?? "");
-      let parsed: AnthropicBody = {};
-      try {
-        parsed = JSON.parse(body) as AnthropicBody;
-      } catch {
-        parsed = {};
-      }
-      options.onRequestBody?.(request.url ?? "", parsed);
-      if (parsed.stream !== true) {
-        writeJsonResponse(response);
-        return;
-      }
-      if (!usesScript(parsed)) {
-        writeJsonResponse(response);
-        return;
-      }
-      const index = scriptIndexForRequest(parsed);
-      const entry = script[Math.min(index, script.length - 1)];
-      const step = typeof entry === "function" ? entry(parsed) : entry;
-      if (!step) {
-        // 剧本为空是调用方的错（夹具必须给剧本），显式失败而不是回一个空事件流。
-        response.writeHead(500, { "content-type": "application/json" });
-        response.end(JSON.stringify({ error: "oracle mock provider: empty script" }));
-        return;
-      }
-      writeSseResponse(response, step, index, options.onContentBlockDeltaWrite);
+      void (async () => {
+        requestPaths.push(request.url ?? "");
+        let parsed: AnthropicBody = {};
+        try {
+          parsed = JSON.parse(body) as AnthropicBody;
+        } catch {
+          parsed = {};
+        }
+        try {
+          options.onRequestBody?.(request.url ?? "", parsed);
+          const auxiliary = options.auxiliaryResponse?.(parsed);
+          if (parsed.stream !== true) {
+            writeJsonResponse(response, auxiliary?.text, auxiliary?.httpError);
+            return;
+          }
+          if (!usesScript(parsed)) {
+            writeJsonResponse(response, auxiliary?.text, auxiliary?.httpError);
+            return;
+          }
+          const index = scriptIndexForRequest(parsed);
+          const attempt = attemptsByIndex.get(index) ?? 0;
+          attemptsByIndex.set(index, attempt + 1);
+          const entry = script[Math.min(index, script.length - 1)];
+          const step = typeof entry === "function" ? entry(parsed, { index, attempt }) : entry;
+          if (!step) {
+            // 剧本为空是调用方的错（夹具必须给剧本），显式失败而不是回一个空事件流。
+            response.writeHead(500, { "content-type": "application/json" });
+            response.end(JSON.stringify({ error: "oracle mock provider: empty script" }));
+            return;
+          }
+          await writeSseResponse(response, step, index, options.onContentBlockDeltaWrite);
+        } catch (error) {
+          // 观测钩子/剧本函数抛错时显式回 500（而不是让 probe 进程崩掉）。
+          if (!response.headersSent) {
+            response.writeHead(500, { "content-type": "application/json" });
+            response.end(
+              JSON.stringify({
+                type: "error",
+                error: { type: "mock_error", message: String(error) },
+              }),
+            );
+          } else {
+            response.destroy();
+          }
+        }
+      })();
     });
   });
 

@@ -1,0 +1,820 @@
+# Spec：C3 Agent Server 黑盒契约（goal / stream recovery+retry / background / subagents）
+
+状态：**C3-T0 捕获完成（2026-11-18）**。本文只记录 oracle（现网 Node `mode.cjs` 源码入口）
+的黑盒观察结果，作为 C3 Rust `agent-server` / `agent-core` 的对拍基线；不是产品设计稿。
+实现细节以 `docs/specs/agent-c3-recovery-goal.md` 为准，本文只回答「线上到底长什么样」。
+
+关联：`docs/specs/agent-c3-recovery-goal.md`、`docs/plans/2026-11-18-lt1-c3-recovery-goal.md`、
+`docs/specs/agent-server-c1-contract.md`、`docs/specs/agent-c2-contract.md`、
+`docs/specs/mode-api-retry.md`、`docs/specs/tauri-agent-runtime.md`、
+`docs/specs/clean-room-policy.md`。
+
+## 0. 来源、纪律与复现
+
+| 项            | 值                                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| oracle 入口   | `node node_modules/tsx/dist/cli.mjs apps/mode-cli/packages/cli/src/main.ts app-server --stdio`                                 |
+| 驱动          | `packages/desktop/tests/agent-runtime-oracle/driver.mts` 的 `startOracleRuntime`                                               |
+| mock provider | `127.0.0.1:0` 上的 `anthropic-messages` 端点；C3 扩展见 `mock-provider.mts`（`failure`/`delayMs`/`textChunks`/attempt 上下文） |
+| 隔离根        | `mkdtemp` 目录；同时注入 `MODE_DATA_BASE_DIR`、`MODE_HOME`、`HOME`、`USERPROFILE`                                              |
+| 会话参数      | `oracle-mock / mock-1`，`reasoningLevel:"disabled"`，`thoughtLevel:"disabled"`，`titleGenerationEnabled:false`                 |
+| 录制脚本      | `probe-c3-goal.mts` / `probe-c3-retry.mts` / `probe-c3-background.mts` / `probe-c3-subagents.mts`                              |
+| 夹具          | `packages/desktop/tests/agent-runtime-oracle/fixtures/c3/*.json`                                                               |
+
+复现命令（从仓库根目录执行）：
+
+```bash
+pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-c3-goal.mts
+pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-c3-retry.mts
+pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-c3-background.mts
+pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-c3-subagents.mts
+pnpm exec oxfmt packages/desktop/tests/agent-runtime-oracle/fixtures/c3/
+```
+
+- 所有 `expect` 由脚本从本次 oracle 运行的事件/应答/DB 行投影后写入，不含手写期望值。
+- 连续两次运行四个探针并用 oxfmt 格式化后，`fixtures/c3/` 下全部 20 个夹具逐字节相同
+  （本机 2026-11-18 验证）。
+  退避间隔、目标计时、PID、分页游标等运行相关值在 `probe-c3-support.mts` 折叠成
+  `<retry-delay>`、`<time>`、`<pid>`、`<cursor>`；原始数值只写在探针 stdout 的摘要里，不写进夹具。
+- 隔离断言（每个夹具的 `expect.isolation`，两条都必须为真）：
+
+| 断言                                          | 观察值                                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| `<隔离根>/.mode/.mode-root.json` 存在         | `true`                                                                   |
+| `<隔离根>/.mode/cli/log` 存在（CLI 布局哨兵） | `true`                                                                   |
+| stdout 解析失败行                             | `0`                                                                      |
+| mock provider 收到的路径                      | 全部为 `/v1/messages`（标题生成关闭；goal verifier 也是 `/v1/messages`） |
+
+驱动仍拒绝把数据根指向真实 `~/.mode`（含旧根 `~/.zcodium`、`~/.zcode`），并覆盖
+`MODE_PERSONAL_PROVIDER_CONFIG_FILE` / `MODE_BUILTIN_PROVIDER_CONFIG_FILE`。本文没有读取
+`apps/mode-cli/**`、`packages/services/**`、`packages/client/**` 的实现体。
+
+## 1. Goal（`session/goal`）
+
+### 1.1 参数、应答与 action 语义
+
+参数（线上 `.strict()`，协议镜像 `modeSessionGoalParamsSchema`）：
+
+```json
+{
+  "sessionId": "sess_…",
+  "inputId": "…",
+  "action": "show|set|replace|pause|resume|clear",
+  "objective": "…",
+  "expectedRevision": 5
+}
+```
+
+- `inputId` / `objective` / `expectedRevision` 可选；未知键直接 `-32602`。实测传
+  `tokenBudget:100` 得到 `Unrecognized key: "tokenBudget"`，因此**当前协议面没有预算设置入口**。
+- 应答恒为 `{response, snapshot, startedTurn}` 三键；`startedTurn` 即使为 `false` 也出现。
+  `snapshot` 是完整会话快照（与 `session/read` 同源），不是精简的 target。
+
+| action                   | 观察 `response`                                                             | `startedTurn` | 启动的 turn                                 |
+| ------------------------ | --------------------------------------------------------------------------- | ------------- | ------------------------------------------- |
+| `show`（无 goal）        | `No goal is set. Use /goal <objective> to set one.`                         | `false`       | 无                                          |
+| `show`（paused）         | `Goal paused\nObjective: …\nUsage: 0 tokens / none\nTime: 6 seconds`        | `false`       | 无                                          |
+| `show`（complete）       | `Goal complete\nObjective: …\nUsage: 22 tokens / none\nTime: 10 seconds`    | `false`       | 无                                          |
+| `set`（无 goal）         | `Goal active\nObjective: …\nUsage: 0 tokens / none\nTime: 0 seconds`        | `true`        | 先 control-only turn，再 goal-continuation  |
+| `replace`（无 goal）     | 同 `set`（等同创建）                                                        | `true`        | 同 `set`                                    |
+| `replace`（paused）      | `Goal active\nObjective: <新目标>\nUsage: 0 tokens / none\nTime: 0 seconds` | `true`        | 推断：同 `set`                              |
+| `pause`（无 goal）       | `No goal to pause.`                                                         | `false`       | 无                                          |
+| `pause`（active）        | `""`（空串）                                                                | `false`       | 无；当前运行中的 turn 之后以 cancelled 结束 |
+| `resume`（无 goal）      | `No goal to resume.`                                                        | `false`       | 无                                          |
+| `resume`（paused）       | `Goal resumed\nObjective: …\nUsage: … tokens / …\nTime: … seconds`          | `true`        | goal-continuation                           |
+| `clear`（无 goal）       | `No goal to clear.`                                                         | `false`       | 无                                          |
+| `clear`（idle）          | `Goal cleared.`                                                             | `false`       | 无                                          |
+| `set` 缺 `objective`     | `Usage: /goal <objective>`                                                  | `false`       | 无                                          |
+| `replace` 缺 `objective` | `Usage: /goal replace <objective>`                                          | `false`       | 无                                          |
+
+`replace` 的 `response` 与 `set` 逐字相同；落盘也只有一条 `session_target` 行（新目标覆盖旧目标）。
+
+**运行中限制（重要，与「show 只读」的直觉不同）**：存在运行中的 prompt 时，
+`show` / `set` / `replace` / `resume` / `clear` 都返回：
+
+```json
+{ "code": -32010, "message": "Cannot manage goals while a prompt is running" }
+```
+
+`pause` 是唯一在运行中被接受的 action：它立即把目标置为 `paused`（`status_updated`
+`source:"command"`），但**不立即中断模型请求**；当前 turn 继续到模型返回，再以
+`turn.completed(resultType:"cancelled")` 结束（`run_finished` 随后清空 active 字段）。
+
+### 1.2 `set` / `replace` 的 turn 序列
+
+`set`（或 `replace`）后线上事件顺序（夹具 `goal-show-set-complete.json`）：
+
+1. `turn.started`：`{turnNumber:0, executionKind:"controlOnly", input:"<objective>", messageId}`
+   —— 这是控制 turn，不发模型请求。
+2. `turn.completed`：`{response:"", tokenCount:0, toolCallCount:0, resultType:"success"}`。
+3. `session.updated action:"summary_updated" source:"runtime"`：`previousTarget.summaryTitle:null`，
+   `target.summaryTitle:"<objective>"`。
+4. `session.updated action:"set" source:"command"`：`previousTarget:null`（首次）或旧目标；
+   `target.summaryTitle:null`（注意与第 3 步的值不同，raw 顺序就是 summary_updated 在前）。
+5. `turn.started`：goal-continuation turn：
+   - `turnNumber` 递增（首次 `1`）；
+   - `inputSource:"goal-continuation"`、`inputVisibility:"model-only"`、`targetId`；
+   - `input` 是 `<system-reminder>` 包裹的续跑提示，含 `<untrusted_objective>`、`Budget:`
+     （`Time spent pursuing goal: N seconds`、`Tokens used: N`、`Token budget: none`、
+     `Tokens remaining: unbounded`）以及 completion-audit 规则。逐字全文在夹具
+     `eventSummary.turnStarts[1].input`。
+6. `session.updated action:"run_started" source:"runtime"`：`target.activeInputId = inputId`
+   （如 `goal_set_main`）、`activeRunStartedAtMs/activeRunLastSeenAtMs` 写入；target 全量。
+7. 正常模型 turn 事件；`session.updated action:"run_finished" source:"runtime"`：累计
+   `tokensUsed/timeUsedSeconds`，清空 active 字段。
+8. `turn.completed`（正常成功）。
+9. `session.updated`（verification `status:"started"`）→ verifier 模型请求 →
+   `session.updated`（verification `status:"completed"`）。
+10. 通过时 `session.updated action:"status_updated" source:"runtime"`：target `status:"complete"`。
+
+`replace` 的目标 id 会变化（观察为新的 `target_<随机前缀>_<uuid>`）；`session_target`
+仍是单行（`session_id` 主键），旧目标不保留。`set` 替换已有目标时同样覆盖。
+
+每个由目标驱动的模型 turn 都包在 `run_started` / `run_finished` 中；后台通知 turn
+（§3）也会包在同一对事件里并计入目标 `tokensUsed`。
+
+### 1.3 `session_target` 行形状
+
+`db.sqlite` 的 `session_target`（PRAGMA table_info 观察，按 rowid）：
+
+```text
+session_id TEXT PK | target_id TEXT NOT NULL | objective TEXT NOT NULL
+status TEXT NOT NULL CHECK(status IN ('active','paused','budget_limited','complete'))
+token_budget INTEGER | tokens_used INTEGER NOT NULL DEFAULT 0
+time_used_seconds INTEGER NOT NULL DEFAULT 0 | time_created INTEGER NOT NULL
+time_updated INTEGER NOT NULL | summary_title TEXT | active_input_id TEXT
+active_run_started_at INTEGER | active_run_last_seen_at INTEGER
+```
+
+一条完整观察行（`goal-show-set-complete.json`，规范化后）：
+
+```json
+{
+  "session_id": "<id>",
+  "target_id": "<target-id>",
+  "objective": "Ship the C3 goal contract",
+  "status": "complete",
+  "token_budget": null,
+  "tokens_used": 22,
+  "time_used_seconds": "<time>",
+  "time_created": "<time>",
+  "time_updated": "<time>",
+  "summary_title": "Ship the C3 goal contract",
+  "active_input_id": null,
+  "active_run_started_at": null,
+  "active_run_last_seen_at": null
+}
+```
+
+- 只有 `active` / `paused` / `complete` 被观察到；`budget_limited` **未观察到**。
+- `clear` 删除整行（`rowCount:0`），不保留历史目标行；`goalVerifications` /
+  `goalVerificationTimeline` 仍在 runtime/快照中保留。
+- `summary_title` 在首次 `set` 后由 `summary_updated` 写成与 objective 相同的字符串；
+  未测试超长/多语言摘要的截断规则（见 §6）。
+- `tokens_used` 只累计成功完成的 goal turn：单请求文本 turn 22；控制 turn 0；
+  pause/stop 取消的 turn 为 0；2 个模型请求的 turn 52（见 §3.3 的 74 = 52 + 22）。
+- `time_used_seconds` 是墙钟累计（包含进程/模型启动开销），**不与 turn 数线性对应**；
+  夹具折叠为 `<time>`，实现不应拿它做精确等值断言。
+
+### 1.4 `session/read` / 快照的 target 投影
+
+- `session/read` 与 `session/goal` 的 snapshot 中，`session.target` 与
+  `projection.target` **同时存在且逐字段相同**；无目标时显式为 `null`（不是缺键）。
+- 观察到 target 对象的键：`sessionId,targetId,objective,summaryTitle,status,tokenBudget,
+tokensUsed,timeUsedSeconds,activeInputId,activeRunStartedAtMs,activeRunLastSeenAtMs,
+createdAt,updatedAt`。
+- `runtime.goalVerifications` 是最近验证结果的窗口（loop 观察 `length:2`）；
+  `runtime.goalVerificationTimeline` 是完整历史（loop 观察 40 条，`goalIteration` 1..40）。
+  首条 timeline 的形状（`goal-continuation-loop.json`）：
+
+```json
+{
+  "version": 1,
+  "kind": "synthetic",
+  "type": "goal_verification",
+  "display": "separator",
+  "targetId": "<target-id>",
+  "verificationId": "<id>",
+  "status": "completed",
+  "goalIteration": 1,
+  "anchorAssistantMessageId": "<message-id>",
+  "anchorTurnId": "<turn-id>",
+  "verification": { "passed": false, "reason": "not yet", "nextAction": "continue" },
+  "startedAt": "<time>",
+  "updatedAt": "<time>"
+}
+```
+
+- `session_entry` 同时写 `type:"target_completion_verification"` 行，`data.payload` 是同一
+  verification payload（started/completed/cancelled 各一行），`sequenceNumber` 指向事件 seq。
+- `session/list` 行不带 `target`（C2 契约已观察），目标只出现在 read/snapshot。
+
+### 1.5 completion verifier
+
+每个 goal-continuation turn 结束后，运行时发起一次**非流式、无 tools** 的模型请求：
+
+- `querySource:"target_completion_verification"`，`modelCall.operation` 以
+  `goal_completion…` 开头，`transport:"http"`、`stream` 缺省（不是 SSE）。
+- 请求的 `system` 3 段；messages 末尾是固定 user 提示：
+  `Verify whether the active session goal is actually complete. … Return only a JSON object
+with this exact shape: {"passed": boolean, "reason": string, "nextAction": string} …`
+  逐字全文在 `goal-show-set-complete.json` 的 `expect.verifierRequest.messages`。
+- 观察到的结果处理：
+  - 返回合法 JSON 且 `passed:true` → verification `status:"completed"`，target
+    `status:"complete"`（fixture 用 `{"passed":true,"reason":"goal verified","nextAction":null}`）。
+  - 返回合法 JSON 且 `passed:false` → verification completed 但 target 保持 `active`，
+    下一轮 goal-continuation 继续；`goalIteration` 递增（1,2,3,…）。
+  - **返回非法 JSON**（mock 默认文本 `oracle-mock`）→ 运行时按
+    `{"passed":true,"reason":"The completion verifier did not return valid JSON."}` 处理，
+    直接 complete。该 fallback 是线上观察，不是实现建议。
+  - verifier 请求被取消（goal pause 时）→ timeline 末项 `status:"cancelled"`，
+    `verification.reason:"Completion verifier request was cancelled."`。
+- `goalVerifications` 的单项形状：`{passed, reason, nextAction}`。
+
+### 1.6 停止条件
+
+| 条件          | 观察行为                                                                                                                                       | 夹具                                                  |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `pause`       | `status_updated(command, active→paused)` 立即发出；当前 turn 在模型返回后 `turn.completed(cancelled)`；`run_finished` 清 active；不再开新 turn | `goal-pause-resume-clear.json`、`goal-user-stop.json` |
+| `clear`       | `session.updated action:"cleared" source:"command"`，`target:null`，删除 `session_target` 行；只在 idle 时接受；运行中 `-32010`                | `goal-pause-resume-clear.json`                        |
+| 目标完成      | verifier `passed:true` → `status_updated(runtime, active→complete)`；不再续跑                                                                  | `goal-show-set-complete.json`                         |
+| 用户中断      | `session/stop` + `{sessionId}` 应答 `{}`；turn `cancelled`；target `paused`；stop 在模型请求前到达时 `turn_usage.model_request_count:0`        | `goal-user-stop.json`                                 |
+| 预算          | **不可触发**：协议无 `tokenBudget` 字段（传了 `-32602`），无 budget_limited 观察                                                               | —                                                     |
+| 轮次上限      | **未观察到上限**：verifier 持续 `passed:false` 时 40 个 continuation turn 后仍在继续；无停止迹象                                               | `goal-continuation-loop.json`                         |
+| 最大迭代/超时 | 未观察到（loop 探针在 40 轮主动 pause，不是运行时自己停）                                                                                      | —                                                     |
+
+`pause` 的 response snapshot 里 target 可能仍是 `paused` 但 `sessionStatus:"running"`、
+`activeInputId` 仍在——这是「合作式暂停」的中间态；随后的 `read` 看到 active 字段已清空。
+实现应按事件终态（`run_finished` / `turn.completed(cancelled)`）收口，不能把 response
+snapshot 当作最终状态。
+
+### 1.7 `expectedRevision`
+
+冲突应答（driver 解析出的 error 帧）：
+
+```json
+{
+  "code": -32009,
+  "data": { "actualRevision": 5, "expectedRevision": 4 },
+  "message": "Session state revision mismatch"
+}
+```
+
+- `actualRevision` 等于 `session/read` 的 `runtime.stateRevision`。
+- 冲突时**零副作用**：同窗口内 `newEvents:0`、`stateRevision` 不变、`session_target`
+  rowCount/objective 不变（`goal-replace-revision-conflict.json` 的 `conflict.sideEffects`）。
+- 传正确 revision 的 `replace` 被接受（夹具中 `expectedRevision:5` 成功并完成新目标）。
+
+### 1.8 重启 / 冷恢复
+
+`session/resume` 的应答键（比 create/read 多一个 `goalStats`）：
+
+```text
+messages, projection, protocol, runtime, session, settings, slashCommands,
+goalStats, todos, todoGroups
+```
+
+`goalStats` 键：`timeUsedSeconds,tokensUsed,tokenBudget,contextUsed,contextWindow,
+toolCallCount,iterationCount`。冷恢复后 `contextUsed:0`、`iterationCount:1`（观察到）。
+
+两种冷恢复观察：
+
+| 场景                            | 观察值                                                                                                                                                                                                                             |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| paused 目标冷重启               | target 仍 `paused`；`session/read`：`eventSeq:2`、`stateRevision:0`、`turnCount:0`、target active 字段为 null；`session/subscribe(includeSnapshot:true)`：`eventSeq:2`、`events:[]`；重启后无自动 turn；`show` 返回 `Goal paused…` |
+| active 目标在 turn 运行中杀进程 | resume 后 target 自动变 `paused`（activeInput/activeRun 清空），`eventSeq:2`、`stateRevision:0`、`turnCount:0`；无自动 turn，也不重放被中断的 turn                                                                                 |
+| paused 后显式 `resume`          | `startedTurn:true`；新 goal-continuation turn；verifier 通过后 target `complete`；`read` 的 `turnCount:1`、`eventSeq:19`、`stateRevision:2`、timeline 一条 completed                                                               |
+
+- 冷恢复后的目标状态来自 DB（`session_target`），不重放已消费 turn。
+- `complete` 目标的冷重启未观察（见 §6）。
+- 冷恢复会清空 runtime 的事件/投影计数（`eventSeq` 归到 2、`stateRevision:0`、
+  `projection.turnCount:0`），但 target 的 `timeUsedSeconds/tokensUsed` 保留。
+
+### 1.9 参数校验与错误形状
+
+| 输入                        | 应答                                                                                                      |
+| --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `action:"bogus"`            | `-32602` ZodError：`Invalid option: expected one of "show"\|"set"\|"replace"\|"pause"\|"resume"\|"clear"` |
+| `tokenBudget:100`（未知键） | `-32602` ZodError：`Unrecognized key: "tokenBudget"`                                                      |
+| `set` 缺 `objective`        | 成功应答 `{response:"Usage: /goal <objective>", startedTurn:false}`，零状态变化                           |
+| `show` 在 prompt 运行中     | `-32010 Cannot manage goals while a prompt is running`                                                    |
+| `expectedRevision` 不匹配   | `-32009`（见 §1.7）                                                                                       |
+
+### 1.10 goal 未观察到
+
+- `status:"budget_limited"` / `token_budget` 非 null / 预算耗尽停止；
+- 自动续跑的轮次上限、最大 wall-clock、迭代上限（40 轮内未出现）；
+- `summary_title` 的生成/截断/多语言规则（只观察 equals objective）；
+- `show` 在 active-idle 时的独立文案（`set` 的 `Goal active…` 是同一构造，但没有单独 `show`）；
+- `resume` 在 active/运行中、`clear` 在 active-idle、`replace` 在 active-idle 的行为
+  （只观察到 paused/idle/complete 组合；运行中的管理动作统一 `-32010`，`pause` 例外）；
+- target 完成后的冷重启；
+- 多 workspace / 远程 identity 下的 goal 行为。
+
+## 2. Stream recovery 与重试
+
+### 2.1 既有 C1/C2 夹具里的 `streamRecovery.updated`
+
+`fixtures/c3/stream-recovery-c1-c2-shapes.json` 从 38 个 C1 根夹具机器提取（C2 夹具没有
+`streamRecovery.updated`），共 **10** 个去重形状。键集合完全一致：
+
+```json
+{
+  "anchorId": "<id>",
+  "attemptId": "<id>",
+  "kind": "tool_result | tool_error",
+  "assistantMessageId": "<id>",
+  "toolCallId": "<id>",
+  "toolName": "Bash | Edit | Glob | Grep | Read | Write",
+  "resultPartId": "<id>",
+  "committedToolCallIds": "<ids>",
+  "committedAt": "<time>"
+}
+```
+
+`kind` × `toolName` 的组合：`tool_result`（Bash/Edit/Read/Write）与
+`tool_error`（Bash/Edit/Glob/Grep/Read/Write）。这是工具结果提交锚点；`committedAt`
+在规范化前是 ISO 时间字符串。C1 录制把 `committedToolCallIds` 折叠成 `<ids>` 字符串；
+C3 注入流中断的四个新形状（§2.2）保留数组形态（`committedToolCallIds: []`）。
+
+### 2.2 流中断（已提交 delta）→ stream recovery
+
+注入：第一次请求写出一个 `text_delta` 后断开（`afterDeltas:1`），第二次同输入返回完整文本。
+观察（`retry-stream-abort.json`）：
+
+- 事件顺序：`turn.started` → `session.updated(model_request_started)` →
+  `model.streaming(text_delta:"partial text ")` → `streamRecovery.updated` ×4 →
+  `model.streaming(text_delta:"complete answer after recovery")` → `turn.completed(success)`。
+- 四个 `streamRecovery.updated` payload（逐字字段）：
+
+```json
+{ "attemptId": "<id>", "assistantMessageId": "<id>",
+  "failureKind": "provider_network_error",
+  "message": "Network connection failed for the provider request.",
+  "retryNumber": 1, "maxRetries": 10, "failedRequestId": "<id>",
+  "_meta": { "mode": { "apiRetry": { "kind": "api_retry", "attempt": 1,
+    "maxRetries": 10, "retryDelayMs": 0, "errorStatus": null,
+    "error": "Network connection failed for the provider request." } } } }
+{ "attemptId": "<id>", "anchorId": "<id>", "reason": "no_tool_committed",
+  "committedToolCallIds": [] }
+{ "attemptId": "<id>", "anchorId": "<id>", "assistantMessageId": "<id>",
+  "discardedReasoningBytes": 0, "discardedTextBytes": 13,
+  "discardedToolCallIds": [] }
+{ "attemptId": "<id>", "anchorId": "<id>", "retryNumber": 1, "maxRetries": 10,
+  "streamMode": "sse", "failedRequestId": "<id>",
+  "_meta": { "mode": { "apiRetry": { "kind": "api_retry", "attempt": 1,
+    "maxRetries": 10, "retryDelayMs": 0, "errorStatus": null,
+    "error": "Model stream recovery retry started" } } } }
+```
+
+- `retryDelayMs` 是 **0**（立即重试），不是 HTTP 重试的 jitter 退避。
+- 重试请求的 network `attempt` 仍是 **1**（不是 2）；`model_request_started` 重新发一次。
+- `mode-request-failed` 的 debug 记录是 `retryable:false`、`reason:"network_error"`、
+  `message:"Network connection failed for the provider request."`；流恢复与 adapter
+  重试是不同路径，不能用 `retryable` 判断是否进入 stream recovery。
+- 已提交 delta **不会进入最终消息**，但会出现在事件流：
+  `model.streaming.text_delta` 依次为 `["partial text ", "complete answer after recovery"]`；
+  `session/messages` 里有一条 `finish:"stream_recovery_discarded"`、text 为空的 assistant
+  消息，随后是正常 `finish:"stop"` 的完整回复。
+- 账务：`turn_usage.model_request_count:2`、`model_retry_count:0`；
+  `model_usage` 两行，`attempt_index` 都是 0，第一行 `status:"error"`、
+  `error_type:"network_error"`，第二行 `status:"completed"`。
+- `turn.completed.historyRoundCount:2`（普通单请求 turn 是 1）。
+
+### 2.3 HTTP 5xx：adapter 重试
+
+注入：第一次 503，第二次成功（`retry-5xx-then-success.json`）：
+
+- 事件顺序：`model_request_started(attempt:1)` → `model_request_failed` →
+  `model_retry_scheduled` → `model_request_started(attempt:2)` → `model_request_completed`。
+  **没有** `streamRecovery.updated`。
+- `maxAttempts:11`（即 `maxRetries:10`），`statusCode:503`、`reason:"server_error"`、
+  `message:"Provider returned a server error."`、`retryable:true`、
+  `errorCode:"model_request_failed"`、`errorPhase:"stream"`、
+  `exceptionType:"AI_APICallError"`、`streamOutputCommitted:false`。
+- `model_retry_scheduled` 额外字段：`nextAttempt:2`、`delayMs`（夹具折叠 `<retry-delay>`）、
+  `_meta.mode.apiRetry`：
+
+```json
+{
+  "kind": "api_retry",
+  "attempt": 1,
+  "maxRetries": 10,
+  "retryDelayMs": 1337,
+  "errorStatus": 503,
+  "error": "Provider returned a server error."
+}
+```
+
+- 成功后 `model_request_completed._meta.mode.apiRetry:null`；`model_request_started`
+  也带 `_meta.mode.apiRetry:null`（attempt 1 时）。
+- 终态恰好一次：`turn.completed(success)`。
+- 账务：`turn_usage.model_request_count:1`、`model_retry_count:1`；
+  `model_usage` **只有一行** `attempt_index:0`、`retry_count:1`、`status:"completed"`、
+  `error_type:"server_error"`、`retryable:1`、`finish_reason:"stop"`。
+- 退避是带抖动的指数退避。本次运行示例（仅说明量级，夹具不写死）：第一次
+  ≈1.3–1.5s、第二次 ≈2.0–2.6s、第三次 ≈7.5s；`maxAttempts` 为 11。
+
+`retry-backoff-sequence.json` 记录连续 3 次 503 再成功：4 次 provider 请求、
+3 次 `model_retry_scheduled`、`turn_usage.model_retry_count:3`，终态一次。夹具把每次
+`delayMs` 折叠成 `<retry-delay>`。
+
+### 2.4 401：非 retryable
+
+注入第一次 401（`retry-401-non-retryable.json`）：
+
+- 只有 1 次 `/v1/messages` 请求；没有 `model_retry_scheduled`。
+- 事件：`model_request_started` → `model_request_failed(retryable:false,
+statusCode:401, reason:"auth_failed", message:"Provider authentication failed.")` →
+  `turn.failed` 一次。
+- `turn.failed.payload`：
+
+```json
+{
+  "error": {
+    "type": "unknown_error",
+    "attribution": {
+      "source": "provider",
+      "reason": "auth_failed",
+      "errorPhase": "stream",
+      "exceptionKind": "api_call",
+      "providerId": "oracle-mock",
+      "modelId": "mock-1",
+      "providerKind": "anthropic",
+      "transport": "sse",
+      "statusCode": 401,
+      "retryable": false
+    },
+    "code": "provider_not_configured",
+    "message": "Provider authentication failed.",
+    "detail": "Turn execution failed\nprovider=oracle-mock model=mock-1 request=<id> reason=auth_failed status=401 retryable=false\ninvalid api key",
+    "underlyingErrorMessage": "invalid api key"
+  },
+  "turnPhase": "processing_input"
+}
+```
+
+- 账务：`turn_usage.status:"error"`、`error_type:"unknown_error"`、
+  `error_code:"UNKNOWN_ERROR"`、`model_request_count:1`、`model_retry_count:0`；
+  `model_usage` 一行 `status:"error"`、`error_type:"auth_failed"`、`retry_count:0`。
+- 没有 assistant 文本成功消息；会话里留下一个 `finish:null` 的 assistant 占位（DB
+  消息摘要可见），无部分文本 part。
+
+### 2.5 重试退避期间取消
+
+注入第一次 503，在 `model_retry_scheduled` 到达后调用 `session/stop`
+（`retry-cancel-during-backoff.json`）：
+
+- `session/stop` 应答 `{}`；provider 始终只收到 **1** 次请求（没有第二次尝试）。
+- 事件：`model_retry_scheduled` 后出现 `model_request_failed`：
+  `{retryable:false, reason:"cancelled", message:"Model request was cancelled."}`；
+  随后 `turn.completed(resultType:"cancelled")` 恰好一次。
+- 账务：`turn_usage.status:"cancelled"`、`cancelled_by_user:1`、
+  `model_retry_count:1`、`error_type:"turn_cancelled"`、`error_code:"TURN_CANCELLED"`；
+  `model_usage.status:"cancelled"`、`retry_count:1`、`error_type:"cancelled"`。
+
+### 2.6 重复 delta / 终态
+
+- HTTP 重试：失败尝试没有输出，成功尝试只产生一份 delta；最终消息一份文本。
+- 流中断：事件流会看到被丢弃的 partial delta，但最终消息只有恢复后的文本；
+  `stream_recovery_discarded` 消息保留为历史行（text 空）。
+- 所有注入场景 `turn.completed` / `turn.failed` 都恰好一次（夹具 `eventSummary.terminals`）。
+- `session/debug.networkEntries` 是观察 retry 的辅助读面；其
+  `statusType` 取值：`model_request_started`、`model_request_completed`、
+  `model_request_failed`、`model_retry_scheduled`、`model_stream_stalled`（后者未触发）。
+
+### 2.7 stream recovery / retry 未观察到
+
+- 重试耗尽（`maxRetries:10` 全用完）的 `turn.failed` 形状与耗时（会跨多轮长退避，本次未驱动）；
+- 403 / 400 / 429 的分类（只验证 401 与 503）；
+- `model_stream_stalled` / idle timeout 触发的恢复；
+- 工具调用（`tool_input_*` / `tool_call`）中断后的 stream recovery；
+- stream recovery 重试期间取消；
+- `web-remote-replayable` 的 gap 恢复（归 Host，不在 stdio 面）；
+- provider 返回 `retry-after` 头时的退避覆盖。
+
+## 3. 后台通知
+
+### 3.1 空闲完成
+
+`background-idle.json`：后台 Bash `sleep 3; printf 'idle-bg-done\n'` 在主 turn 结束后完成。
+
+- 会话空闲时自动开一个新 turn：`turn.started` 的 `inputSource:"background_task"`，
+  `input` 是 `<task-notification>`：
+
+```text
+<task-notification>
+<task-id>exec_<uuid></task-id>
+<tool-use-id><toolCallId></tool-use-id>
+<output-file><dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log</output-file>
+<status>completed</status>
+<summary>Background command "idle background marker" completed (exit code 0)</summary>
+</task-notification>
+```
+
+- notification turn 以 `turn.completed(resultType:"success")` 结束；事件流不关闭。
+- DB：notification turn 的 user message `semantics.kind:"background_notification"`、
+  `source:"background_task"`（`messageSummary` 观察）。
+- 后台任务本体的事件：`session.updated` 带
+  `{taskId,toolCallId,toolName:"Bash",taskKind:"bash",cancellable,command,description,
+status:"running|completed",outputPath,pid,startedAt,completedAt,...}`。
+  任务完成事件先于 notification turn。
+
+### 3.2 忙时完成：合并为一个 notification turn
+
+`background-busy-coalesced.json`：两个后台任务（`sleep 3`，描述 `busy one` / `busy two`）
+在一个 9s busy turn 中完成。
+
+- busy 期间**没有**立即开 notification turn。
+- busy turn 结束后只开 **一个** `background_task` turn，`input` 同时包含两条
+  `<task-notification>`，按完成顺序、以空行分隔。两条 summary 都保留（本夹具
+  `droppedCompletedTasks:[]`）。
+- 结论：当前 oracle 在这个时序下是「合并延后」，不是「丢弃」。C1 时代的「忙时丢弃」
+  在更紧凑的时序下可观察到（通知 turn 在两次用户 turn 之间抢先启动），但那是时序
+  竞态，不应写成产品语义。C3 T3 应按本夹具实现：忙时完成的通知进入待处理集合，
+  会话空闲后用一个 notification turn 合并投递。
+- 未观察到通知在 busy turn 结束前被消费；也未观察到同一任务重复通知。
+
+### 3.3 与 goal 续跑的交互
+
+`background-goal-interaction.json`：goal-continuation turn 内启动后台 Bash，
+任务在该 turn 的第二次模型请求期间完成。
+
+观察顺序：
+
+1. continuation turn 的 `run_started` / 模型请求 / 后台任务完成 / `run_finished` / `turn.completed`；
+2. `turn.started(inputSource:"background_task", targetId:null)`；
+3. notification turn 的 `run_started` / `run_finished`（target 仍 active）；
+4. 之后才发起 verifier（`target_completion_verification`）；
+5. verifier 通过 → `status_updated(runtime, complete)`。
+
+- notification turn 计入 goal：最终 `target.tokensUsed:74`（continuation turn 52 +
+  notification turn 22），`timeUsedSeconds` 同样包含它。
+- 因此实现顺序应是「先处理后台通知 turn，再做 completion verification」；不能把
+  notification turn 当成 goal 之外的旁路，也不能让它跳过 `run_started/run_finished`。
+
+### 3.4 通知文本
+
+| 场景            | 观察文本要点                                                                                                                                                                                                                                                                                                                                                   |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 后台 Bash 成功  | `<status>completed</status>`、`<summary>Background command "<description>" completed (exit code 0)</summary>`；`<description>` 来自工具入参。                                                                                                                                                                                                                  |
+| 后台 Agent 成功 | `<task-id>agent_<uuid></task-id>`、`<output-file><dataRoot>/.mode/cli/agents/<sessionId>/agent_<uuid>/output.txt</output-file>`、`<summary>Agent general-purpose task "<description>" completed.</summary>`、`<result><子代理最终文本></result>`、`<usage><subagent_tokens>22</subagent_tokens><tool_uses>0</tool_uses><duration_ms>…</duration_ms></usage>`。 |
+
+- 后台 Agent 的 notification turn `turn.completed` 带
+  `backgroundSubagentResultConsumed:true`（foreground Agent 没有该字段）。
+- 后台 Bash 的 notification turn 未观察到 `backgroundSubagentResultConsumed` 键。
+- 失败退出码 / killed 的 Bash 通知文本 C1 已观察（`failed with exit code 7`、
+  `was stopped`），C3 只重录成功路径；见 `tauri-agent-runtime.md §3.3`。
+
+### 3.5 后台通知未观察到
+
+- C3 时序下的失败/killed 通知（依赖 C1 观察）；
+- 未提供 `description` 时的 summary 文案；
+- 3 个以上任务同时 pending 的合并上限/顺序；
+- 通知 turn 运行中再次完成任务的交互；
+- 通知 turn 与 retry/stream recovery 的组合；
+- notification turn 被 `session/stop` 取消时的目标/账务。
+
+## 4. Subagents 只读面（`session/subagents`）
+
+### 4.1 边界与空数据
+
+- 首 turn 之前（session 刚 create/subscribe，尚未产生 turn）调用
+  `session/subagents` 返回 `-32004 Session not found: <sessionId>`——即使该会话
+  在 `session/read` 中可见。完成至少一个 turn 后同一会话返回正常空数据。
+- 不存在的 session：`-32004 Session not found: sess_missing`。
+- 有 turn 后空数据（`endedLimit` 传 20 或省略相同）：
+
+```json
+{ "revision": 4, "childSessionIds": [], "running": [], "ended": { "total": 0, "items": [] } }
+```
+
+- `endedLimit` 默认 20；`endedLimit:0` 与 `-1` 都是 `-32602`：
+  `Too small: expected number to be >0`。
+- 无更多页时 `ended.nextCursor` 键省略（不是 null）。
+
+### 4.2 running / ended 形状
+
+前台 `Agent`（`subagents-foreground.json`，`general-purpose`，延迟 3s 完成）：
+
+```json
+{
+  "revision": 3,
+  "childSessionIds": ["sess_subagent_agent_<uuid>"],
+  "running": [
+    {
+      "childSessionId": "sess_subagent_agent_<uuid>",
+      "agentId": "agent_<uuid>",
+      "toolCallId": "toolu_mock_0_0",
+      "subagentType": "general-purpose",
+      "title": "child task",
+      "startedAt": 1794965762749,
+      "status": "running"
+    }
+  ],
+  "ended": { "total": 0, "items": [] }
+}
+```
+
+完成后：
+
+```json
+{
+  "revision": 4,
+  "childSessionIds": ["sess_subagent_agent_<uuid>"],
+  "running": [],
+  "ended": {
+    "total": 1,
+    "items": [
+      {
+        "childSessionId": "sess_subagent_agent_<uuid>",
+        "agentId": "agent_<uuid>",
+        "toolCallId": "toolu_mock_0_0",
+        "subagentType": "general-purpose",
+        "title": "child task",
+        "startedAt": 1794965762749,
+        "status": "success",
+        "summary": "child result text",
+        "endedAt": 1794965766843
+      }
+    ]
+  }
+}
+```
+
+- running 项没有 `summary` / `endedAt`；ended 项有 `summary`（子代理最终文本）与
+  `endedAt`。
+- `title` 来自 `Agent` 入参的 `description`（不是子会话标题）。
+- `status` 只观察到 running / success；`waiting/blocked/failed/cancelled/lost` 未观察。
+- `revision` 随子代理状态变化递增（3→4），可视为投影版本。
+
+### 4.3 生命周期事件与工具结果
+
+`Agent` 工具调用产生：
+
+- `tool.updated scheduled`：`canRunParallel:true`、`parallelGroupIndex:0`；
+- `tool.updated started`：`readOnly:true`、`sideEffectScope:"session"`；
+- `session.updated` running：
+
+```json
+{
+  "agentId": "agent_<uuid>",
+  "agentType": "general-purpose",
+  "childSessionId": "sess_subagent_agent_<uuid>",
+  "description": "child task",
+  "prompt": "child task prompt: inspect the workspace",
+  "parentToolCallId": "toolCallId",
+  "status": "running",
+  "allowedTools": ["*"]
+}
+```
+
+- `session.updated` completed：
+
+```json
+{
+  "agentId": "agent_<uuid>",
+  "agentType": "general-purpose",
+  "childSessionId": "sess_subagent_agent_<uuid>",
+  "parentToolCallId": "toolCallId",
+  "status": "completed",
+  "totalDurationMs": 3105,
+  "totalToolUseCount": 0,
+  "totalTokens": 22
+}
+```
+
+- `tool.updated result` content 逐字模板：
+
+```text
+child result text
+agentId: agent_<uuid> (use SendMessage with to: 'agent_<uuid>' to continue this agent)
+<usage>subagent_tokens: 22
+tool_uses: 0
+duration_ms: 3105</usage>
+```
+
+结果字段：`budgetStrategy:"artifact"`、`truncated:false`、
+`originalBytes/returnedBytes` 为正文 UTF-8 字节数（230 for the observed case）。
+
+- `Explore` 子代理的 `allowedTools` 为具体列表（observed `Bash,Read,WebFetch,WebSearch,TodoWrite`），
+  `general-purpose` 为 `["*"]`。
+
+### 4.4 分页
+
+`subagents-pagination.json`（两个并行 Agent，`endedLimit:1`）：
+
+- `ended.total:2`，items 按 `endedAt` 倒序（后完成的 child two 先返回）；
+- `nextCursor` 是不透明 base64；解码后形状 `{childSessionId, endedAt}`；
+- 用 `endedCursor` 请求第二页返回剩余 child one，且没有 `nextCursor`；
+- `childSessionIds` 保持创建（tool call）顺序，与 ended 排序无关；
+- `endedLimit:1` 的响应仍带完整 `childSessionIds`（两个）。
+
+### 4.5 DB 投影
+
+- `session` 表出现父会话与子会话两行：
+  - 子会话 `task_type:"subagent_child"`、`parent_id:"<父 sessionId>"`；
+  - 子会话 `title` 是 prompt（不是 description），例如
+    `child task prompt: inspect the workspace`；
+  - `slug` 与 `id` 相同；`directory` 与父会话相同。
+- **`session_task_link` 在 subagent 路径下为空**（前台/后台/分页三种观察都是 0 行）。
+  子代理列表不是从该表投影；C3 T4 不要假设该表有 subagent 行。
+- 子会话消息与父会话消息写在同一 `message` 表（`sequence` 是会话内序号，会重复）。
+- notification turn 的消息语义：`kind:"background_notification"`、`source:"background_task"`。
+
+### 4.6 子会话读面
+
+- 子代理结束后直接 `session/read({sessionId: childSessionId})` 返回
+  `-32004 Session is not active: sess_subagent_agent_<uuid>`。
+  子会话读面要求该会话仍是活动 runtime；C3 的列表投影不依赖它。
+
+### 4.7 subagents 未观察到
+
+- `waiting` / `blocked` / `failed` / `cancelled` / `lost` 状态；
+- 子代理失败/缺失字段时的 fail-soft 形状；
+- `endedCursor` 非法/过期游标的错误；
+- `running` 多项并发时的排序稳定性（并行 Agent 的 running/completed 事件到达顺序
+  不稳定；夹具按 description 排序后记录）；
+- 子代理取消（TaskStop / session/stop）后的列表项；
+- `background_subagent_result_consumed` 在 `turn.failed` 上的取值（只观察到 success）。
+
+## 5. 未观察到 / 不可触发汇总
+
+| 项                                             | 状态                                                    |
+| ---------------------------------------------- | ------------------------------------------------------- |
+| goal `budget_limited` / 预算耗尽               | 当前协议无 `tokenBudget` 字段；传未知键 `-32602`        |
+| goal 轮次/迭代上限                             | verifier 恒 false 时 40 个 continuation turn 未出现上限 |
+| `summary_title` 生成/截断规则                  | 只观察 equals objective                                 |
+| `show`(active-idle) 独立文案                   | 未单独捕获；`set` 的 `Goal active…` 是同一构造          |
+| complete target 冷重启                         | 未观察                                                  |
+| 重试耗尽（10 次）                              | 未驱动；只观察到 `maxAttempts:11`/`maxRetries:10`       |
+| 403/400/429 分类                               | 未驱动                                                  |
+| `model_stream_stalled` / idle timeout          | 未触发（耗时不可控）                                    |
+| 工具调用中途断流的 recovery                    | 只注入文本 delta 中断                                   |
+| stream recovery 期间取消                       | 未观察（retryDelay 0，窗口太短）                        |
+| `retry-after` 覆盖退避                         | 未观察                                                  |
+| 后台 Bash 失败/killed 通知（C3 时序）          | C1 已观察，C3 未重录                                    |
+| 3+ pending 通知的合并顺序                      | 未观察                                                  |
+| notification turn 与 retry/goal 的更多组合     | 只观察 §3.3 一种                                        |
+| subagent waiting/blocked/failed/cancelled/lost | 未观察                                                  |
+| `session_task_link` 的 subagent 行             | 三种路径都是空表                                        |
+
+## 6. 夹具与复现
+
+| 夹具                                  | 记录内容                                                                                                                    |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `goal-show-set-complete.json`         | show(无 goal)/pause/resume/clear(无 goal)、set、control turn、continuation、verifier 请求、target 行/turn_usage/model_usage |
+| `goal-pause-resume-clear.json`        | 运行中 pause（合作式取消）、resume 完成、clear、target 行删除、read 投影                                                    |
+| `goal-replace-revision-conflict.json` | -32009 冲突与零副作用、正确 revision 的 replace、运行中 -32010、参数错误                                                    |
+| `goal-user-stop.json`                 | `session/stop` 取消续跑、target paused、turn_usage cancelled                                                                |
+| `goal-cold-restart-paused.json`       | paused 冷重启、resume 返回 goalStats、无自动 turn、显式 resume 后完成                                                       |
+| `goal-cold-restart-active.json`       | active 运行中杀进程、重启转 paused、active 字段清空                                                                         |
+| `goal-continuation-loop.json`         | verifier false 的 40 轮续跑、无轮次上限、pause 中断、timeline 窗口                                                          |
+| `retry-5xx-then-success.json`         | 503→retry_scheduled→成功、apiRetry、network 事件、账务                                                                      |
+| `retry-backoff-sequence.json`         | 3 次 503 的退避序列（delay 折叠）                                                                                           |
+| `retry-stream-abort.json`             | 已提交 delta 后的 4 种 streamRecovery 形状、丢弃行、最终文本                                                                |
+| `retry-401-non-retryable.json`        | 401 非 retryable、turn.failed 形状、账务                                                                                    |
+| `retry-cancel-during-backoff.json`    | retry_scheduled 后 stop、无第二次请求、cancelled 终态                                                                       |
+| `stream-recovery-c1-c2-shapes.json`   | 38 个 C1 夹具里 10 个去重 streamRecovery 形状                                                                               |
+| `background-idle.json`                | 空闲后台完成、`background_task` turn、通知文本、DB 消息语义                                                                 |
+| `background-busy-coalesced.json`      | 两个任务忙时完成合并为一个 notification turn                                                                                |
+| `background-goal-interaction.json`    | notification turn 在 verifier 前、计入 goal tokensUsed                                                                      |
+| `subagents-empty.json`                | 首 turn 前 -32004、空列表、endedLimit 边界                                                                                  |
+| `subagents-foreground.json`           | 前台 Agent 的 running/ended、生命周期事件、工具结果、子会话 DB 行                                                           |
+| `subagents-background.json`           | 后台 Agent 通知、`backgroundSubagentResultConsumed:true`                                                                    |
+| `subagents-pagination.json`           | endedLimit/endedCursor、游标解码形状、childSessionIds 顺序                                                                  |
+
+回放/对拍注意：
+
+- 夹具的 `expect` 已把目标 id、消息/part id、时间、退避、PID、游标折叠成 token；
+  比较时不要重新规范化原始事件（C3 的事件在录制时走 `normalizeC3Deep`）。
+- `goalVerificationTimeline` 在 loop 夹具里只保留 count + first/last（完整 40 条会在
+  `goal-continuation-loop.json` 的 `db.turn_usage` 等大数组里重复；实现对照以字段形状为准）。
+- 并行子代理的 lifecycle 事件在分页夹具里按 description 排序记录；其余事件保序。
+- C1/C2 夹具与探针未修改；`pnpm test:agent-runtime-oracle` 的
+  `session-stream` 目录覆盖失败是基线已有问题（该根夹具不在 `FIXTURE_CASES`），
+  C1 回放 39/39、C2 回放 11/11 仍通过。
+
+## 7. 对 C3 实现的直接约束
+
+1. **goal 管理在 prompt 运行中拒绝**（除 `pause`）：`-32010`；`show` 也不例外。
+2. **pause 是合作式**：立即 paused，当前 turn 在模型返回后 cancelled；不要立即
+   发第二个终态，也不要把 response snapshot 当最终状态。
+3. **续跑 turn 使用 `run_started/run_finished` 包裹**，target 的 tokens/time 只在
+   `run_finished` 累计；控制 turn（`executionKind:"controlOnly"`）token 为 0。
+4. **verifier 是独立非流式请求**（`target_completion_verification`，tools 0）；
+   通过才 `complete`；非法 JSON 的线上 fallback 是 passed=true（若实现不复制该
+   fallback，必须在差异表登记）。
+5. **`session_target` 是唯一事实源**；`clear` 删行；`session/read` 与快照的
+   `session.target` / `projection.target` 同源。
+6. **冷恢复不自动续跑**：active 转 paused；只有显式 `resume` 才启动新 turn；
+   target 的 tokens/time 从 DB 恢复，runtime/projection 计数归零。
+7. **HTTP 5xx 走 adapter 重试**（`model_retry_scheduled` + `apiRetry`），
+   **流中断走 streamRecovery**（4 条 `streamRecovery.updated`，retryDelay 0，
+   attempt 仍为 1）；两条路径的账务字段不同（§2.2/§2.3），不能合并成一种计数。
+8. **已完成 delta 不进入最终消息**；保留 `stream_recovery_discarded` 历史行。
+9. **后台通知忙时合并延后**：一个 notification turn 可含多条 `<task-notification>`；
+   notification turn 计入 goal，并在 verifier 之前执行。
+10. **subagents 只读面**：空表/首 turn 前 -32004；`session_task_link` 不承载 subagent
+    行；ended 按 endedAt 倒序分页；后台结果消费用
+    `turn.completed.backgroundSubagentResultConsumed:true` 标记。

@@ -128,11 +128,26 @@ function normalizeIdContainer(value: unknown): unknown {
   return value;
 }
 
-export function normalizeDeep(value: unknown, context: PathContext): unknown {
+export type NormalizeDeepOptions = {
+  /**
+   * 这些键的数值原样保留（C3 的重试退避/目标计时需要区分 0 与正数；
+   * C1/C2 不传时行为不变）。
+   */
+  preserveNumericKeys?: ReadonlySet<string>;
+};
+
+export function normalizeDeep(
+  value: unknown,
+  context: PathContext,
+  options: NormalizeDeepOptions = {},
+): unknown {
   if (typeof value === "string") return normalizeString(value, context);
-  if (Array.isArray(value)) return value.map((item) => normalizeDeep(item, context));
+  if (Array.isArray(value)) return value.map((item) => normalizeDeep(item, context, options));
   if (value === null || typeof value !== "object") return value;
   const entries = Object.entries(value as JsonObject).map(([key, inner]) => {
+    if (options.preserveNumericKeys?.has(key) && typeof inner === "number") {
+      return [key, inner];
+    }
     if (ID_LIST_KEYS.has(key)) {
       return [key, Array.isArray(inner) ? inner.map(() => "<id>") : inner];
     }
@@ -155,7 +170,7 @@ export function normalizeDeep(value: unknown, context: PathContext): unknown {
     if (ENV_KEYS[key] !== undefined) return [key, ENV_KEYS[key]];
     if (ID_KEYS.has(key)) return [key, "<id>"];
     if (TIME_KEYS.test(key) && inner !== null && inner !== undefined) return [key, "<time>"];
-    return [key, normalizeDeep(inner, context)];
+    return [key, normalizeDeep(inner, context, options)];
   });
   return Object.fromEntries(entries);
 }

@@ -21,6 +21,8 @@ import {
   startMockProvider,
   substituteCwd,
   writeOracleProviderConfig,
+  type AnthropicBody,
+  type MockAuxiliaryResponse,
   type MockStep,
 } from "./mock-provider.mjs";
 
@@ -114,6 +116,11 @@ export type OracleRuntimeOptions = {
    * 延迟需要发送侧时间戳；与 `onMockRequestBody` 同模式——只读观察，抛异常原样冒出来。
    */
   onMockContentBlockDeltaWrite?: (at: number) => void;
+  /**
+   * 非流式 / 无工具请求（标题、goal completion verifier）的应答注入。
+   * 默认不传时 mock provider 与 C1/C2 行为一致（固定 `oracle-mock` 文本）。
+   */
+  mockAuxiliaryResponse?: (body: AnthropicBody) => MockAuxiliaryResponse | undefined;
   /**
    * 追加到 `app-server --stdio` 之后的 CLI 参数，**只为诊断工具面**（Task 2 加的）。
    *
@@ -250,6 +257,7 @@ export async function startOracleRuntime(options: OracleRuntimeOptions): Promise
       | ((path: string, body: { tools?: unknown[] }) => void)
       | undefined,
     onContentBlockDeltaWrite: options.onMockContentBlockDeltaWrite,
+    auxiliaryResponse: options.mockAuxiliaryResponse,
   });
   await writeOracleProviderConfig(mockPersonalConfigPath, mock.baseUrl);
 

@@ -1,0 +1,785 @@
+{
+  "case": "retry-5xx-then-success",
+  "note": "C3 Task 0 oracle 捕获：503 → retry_scheduled（apiRetry attempt=1/maxRetries=10）→ 第二次成功。",
+  "input": {
+    "scenario": "http-503-then-success",
+    "scriptKind": "attempt-aware step function",
+    "failure": {
+      "status": 503,
+      "message": "upstream overloaded"
+    },
+    "verifier": null
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages", "/v1/messages"]
+    },
+    "requests": [
+      {
+        "path": "/v1/messages",
+        "stream": true,
+        "toolCount": 21,
+        "assistantCount": 0
+      },
+      {
+        "path": "/v1/messages",
+        "stream": true,
+        "toolCount": 21,
+        "assistantCount": 0
+      }
+    ],
+    "events": [
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "previousTitle": "",
+          "source": "first_input",
+          "title": "retry scenario"
+        },
+        "seq": 1,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.titleUpdated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "executionStartedAt": "<time>",
+          "turnNumber": 0,
+          "input": "retry scenario",
+          "messageId": "<id>",
+          "foregroundExecutionId": "runtime_command_1",
+          "queryId": "<id>"
+        },
+        "seq": 2,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.started"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "messageCount": 6,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 0
+        },
+        "seq": 3,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 4,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "message": "Provider returned a server error.",
+          "reason": "server_error",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "retryable": true,
+          "statusCode": 503,
+          "streamOutputCommitted": false,
+          "errorCode": "model_request_failed",
+          "errorPhase": "stream",
+          "exceptionType": "AI_APICallError",
+          "timestamp": "<time>",
+          "type": "model_request_failed"
+        },
+        "seq": 5,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "delayMs": "<retry-delay>",
+          "message": "Provider returned a server error.",
+          "nextAttempt": 2,
+          "reason": "server_error",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "statusCode": 503,
+          "errorCode": "model_request_failed",
+          "timestamp": "<time>",
+          "type": "model_retry_scheduled",
+          "_meta": {
+            "mode": {
+              "apiRetry": {
+                "kind": "api_retry",
+                "attempt": 1,
+                "maxRetries": 10,
+                "retryDelayMs": "<retry-delay>",
+                "errorStatus": 503,
+                "error": "Provider returned a server error."
+              }
+            }
+          }
+        },
+        "seq": 6,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 2,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started"
+        },
+        "seq": 7,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "answer after one retry",
+          "done": false,
+          "kind": "text_delta"
+        },
+        "seq": 8,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "model.streaming"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 2,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "timeToFirstTextMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 9,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "content": "answer after one retry",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 1,
+            "totalInputTokens": 10,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 0
+        },
+        "seq": 10,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "response": "answer after one retry",
+          "tokenCount": 22,
+          "usage": {
+            "source": "provider",
+            "modelRequestCount": 1,
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "webFetchRequests": 0,
+            "webSearchRequests": 0
+          },
+          "toolCallCount": 0,
+          "historyRoundCount": 1,
+          "duration": "<time>",
+          "resultType": "success",
+          "cacheStats": {
+            "totalMessages": 7,
+            "cachedMessages": 5,
+            "lastCacheHit": false
+          }
+        },
+        "seq": 11,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.completed"
+      }
+    ],
+    "eventSummary": {
+      "types": [
+        "session.titleUpdated",
+        "turn.started",
+        "session.updated",
+        "session.updated",
+        "session.updated",
+        "session.updated",
+        "session.updated",
+        "model.streaming",
+        "session.updated",
+        "session.updated",
+        "turn.completed"
+      ],
+      "terminals": [
+        {
+          "type": "turn.completed",
+          "resultType": "success"
+        }
+      ],
+      "turnStarts": [
+        {
+          "turnNumber": 0,
+          "executionKind": null,
+          "inputSource": null,
+          "input": "retry scenario",
+          "targetId": null
+        }
+      ]
+    },
+    "textDeltas": ["answer after one retry"],
+    "debug": {
+      "sessionId": "<id>",
+      "rounds": [
+        {
+          "eventKey": "<id>",
+          "requestId": "<id>",
+          "requestIndex": 1,
+          "recordedAt": "<time>",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cachedInputTokens": 0,
+            "cachedWriteInputTokens": 0
+          },
+          "hitRate": 0,
+          "generationDurationMs": "<time>",
+          "tokensPerSecond": "<rate>",
+          "prefillDurationMs": "<time>",
+          "prefillTokensPerSecond": "<rate>"
+        }
+      ],
+      "networkEntries": [
+        {
+          "traceId": "<id>",
+          "queryId": "<id>",
+          "eventKey": "<id>",
+          "statusType": "model_request_started",
+          "requestId": "<id>",
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "baseURL": "<loopback-url>",
+          "querySource": "main_turn",
+          "attempt": 1,
+          "maxAttempts": 11,
+          "timestamp": "<time>",
+          "requestHeaders": "<headers>",
+          "responseHeaders": "<headers>",
+          "requestHeaderCount": 16,
+          "responseHeaderCount": 0,
+          "recordedAt": "<time>"
+        },
+        {
+          "traceId": "<id>",
+          "queryId": "<id>",
+          "eventKey": "<id>",
+          "statusType": "model_request_failed",
+          "requestId": "<id>",
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "baseURL": "<loopback-url>",
+          "querySource": "main_turn",
+          "attempt": 1,
+          "maxAttempts": 11,
+          "retryable": true,
+          "statusCode": 503,
+          "durationMs": "<time>",
+          "reason": "server_error",
+          "message": "Provider returned a server error.",
+          "timestamp": "<time>",
+          "requestHeaders": "<headers>",
+          "responseHeaders": "<headers>",
+          "requestHeaderCount": 16,
+          "responseHeaderCount": 5,
+          "recordedAt": "<time>"
+        },
+        {
+          "traceId": "<id>",
+          "queryId": "<id>",
+          "eventKey": "<id>",
+          "statusType": "model_retry_scheduled",
+          "requestId": "<id>",
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "baseURL": "<loopback-url>",
+          "querySource": "main_turn",
+          "attempt": 1,
+          "maxAttempts": 11,
+          "nextAttempt": 2,
+          "statusCode": 503,
+          "delayMs": "<retry-delay>",
+          "reason": "server_error",
+          "message": "Provider returned a server error.",
+          "timestamp": "<time>",
+          "requestHeaders": "<headers>",
+          "responseHeaders": "<headers>",
+          "requestHeaderCount": 16,
+          "responseHeaderCount": 5,
+          "recordedAt": "<time>"
+        },
+        {
+          "traceId": "<id>",
+          "queryId": "<id>",
+          "eventKey": "<id>",
+          "statusType": "model_request_started",
+          "requestId": "<id>",
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "baseURL": "<loopback-url>",
+          "querySource": "main_turn",
+          "attempt": 2,
+          "maxAttempts": 11,
+          "timestamp": "<time>",
+          "requestHeaders": "<headers>",
+          "responseHeaders": "<headers>",
+          "requestHeaderCount": 16,
+          "responseHeaderCount": 0,
+          "recordedAt": "<time>"
+        },
+        {
+          "traceId": "<id>",
+          "queryId": "<id>",
+          "eventKey": "<id>",
+          "statusType": "model_request_completed",
+          "requestId": "<id>",
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "baseURL": "<loopback-url>",
+          "querySource": "main_turn",
+          "attempt": 2,
+          "maxAttempts": 11,
+          "durationMs": "<time>",
+          "timestamp": "<time>",
+          "requestHeaders": "<headers>",
+          "responseHeaders": "<headers>",
+          "requestHeaderCount": 16,
+          "responseHeaderCount": 5,
+          "recordedAt": "<time>"
+        }
+      ],
+      "cache": {
+        "hitRateRequestCount": 1,
+        "totalInputTokens": 10,
+        "totalCacheReadTokens": 0,
+        "hitRate": 0
+      }
+    },
+    "conversation": [
+      {
+        "role": "assistant",
+        "finish": "completed",
+        "semanticsKind": "timeline_event",
+        "text": ""
+      },
+      {
+        "role": "user",
+        "finish": null,
+        "semanticsKind": "user_prompt",
+        "text": "retry scenario"
+      },
+      {
+        "role": "assistant",
+        "finish": "stop",
+        "semanticsKind": "assistant_response",
+        "text": "answer after one retry"
+      }
+    ],
+    "db": {
+      "session_target": {
+        "rowCount": 0,
+        "rows": []
+      },
+      "session_task_link": {
+        "rowCount": 0,
+        "rows": []
+      },
+      "session_entry": {
+        "rowCount": 3,
+        "rows": []
+      },
+      "turn_usage": {
+        "rowCount": 1,
+        "rows": [
+          {
+            "session_id": "<id>",
+            "turn_id": "<id>",
+            "trace_id": "<id>",
+            "user_message_id": "<id>",
+            "status": "completed",
+            "started_at": "<time>",
+            "first_model_start_at": "<time>",
+            "first_token_at": "<time>",
+            "completed_at": "<time>",
+            "duration_ms": "<time>",
+            "time_to_first_token_ms": "<time>",
+            "model_request_count": 1,
+            "model_retry_count": 1,
+            "tool_call_count": 0,
+            "tool_error_count": 0,
+            "input_tokens": 10,
+            "output_tokens": 12,
+            "reasoning_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "computed_total_tokens": 22,
+            "retryable": 0,
+            "cancelled_by_user": 0,
+            "context_exceeded": 0,
+            "error_type": null,
+            "error_code": null
+          }
+        ]
+      },
+      "model_usage": {
+        "rowCount": 1,
+        "rows": [
+          {
+            "query_source": "main_turn",
+            "status": "completed",
+            "attempt_index": 0,
+            "retry_count": 1,
+            "retryable": 1,
+            "finish_reason": "stop",
+            "input_tokens": 10,
+            "output_tokens": 12,
+            "computed_total_tokens": 22,
+            "error_type": "server_error",
+            "error_code": null
+          }
+        ]
+      },
+      "messageSummary": [
+        {
+          "sequence": 0,
+          "role": "assistant",
+          "finish": "completed",
+          "semanticsKind": "timeline_event",
+          "source": null,
+          "parentID": "<id>"
+        },
+        {
+          "sequence": 1,
+          "role": "user",
+          "finish": null,
+          "semanticsKind": "user_prompt",
+          "source": null,
+          "parentID": null
+        },
+        {
+          "sequence": 2,
+          "role": "assistant",
+          "finish": "stop",
+          "semanticsKind": "assistant_response",
+          "source": null,
+          "parentID": "<id>"
+        }
+      ]
+    }
+  }
+}
