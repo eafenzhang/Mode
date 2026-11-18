@@ -104,6 +104,7 @@ pub(crate) fn model_retry_scheduled_payload(
     delay_ms: u64,
     error: &ProviderError,
 ) -> Value {
+    let message = error.canonical_message();
     let mut payload = json!({
         "type": "model_retry_scheduled",
         "attempt": failed_attempt,
@@ -111,20 +112,42 @@ pub(crate) fn model_retry_scheduled_payload(
         "nextAttempt": failed_attempt + 1,
         "delayMs": delay_ms,
         "reason": error.reason(),
-        "message": error.message,
+        "message": message,
         "errorCode": "model_request_failed",
         "_meta": api_retry_meta(
             failed_attempt,
             policy.max_retries,
             delay_ms,
             error.status,
-            &error.message,
+            message,
         ),
     });
     if let Some(status) = error.status {
         payload["statusCode"] = json!(status);
     }
     payload
+}
+
+/// 一次 stream recovery 的追踪 id（成功收口事件的 `streamRecovery` 字段）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StreamRecoverySummary {
+    pub attempt_id: String,
+    pub anchor_id: String,
+    pub max_retries: u32,
+    pub retry_number: u32,
+    pub failed_request_id: String,
+}
+
+impl StreamRecoverySummary {
+    pub fn to_value(&self) -> Value {
+        json!({
+            "attemptId": self.attempt_id,
+            "anchorId": self.anchor_id,
+            "maxRetries": self.max_retries,
+            "retryNumber": self.retry_number,
+            "recoveredFromRequestId": self.failed_request_id,
+        })
+    }
 }
 
 /// 重试/恢复成功后清空 apiRetry 的收口事件（`session.updated` 的载荷）。
@@ -135,8 +158,9 @@ pub(crate) fn model_request_completed_payload(
     policy: &RetryPolicy,
     attempt: u32,
     response: &crate::provider::ModelResponse,
+    recovery: Option<&StreamRecoverySummary>,
 ) -> Value {
-    json!({
+    let mut payload = json!({
         "type": "model_request_completed",
         "attempt": attempt,
         "maxAttempts": policy.max_attempts(),
@@ -150,7 +174,11 @@ pub(crate) fn model_request_completed_payload(
             "cacheWriteTokens": response.usage.cache_write_tokens,
         },
         "_meta": api_retry_cleared_meta(),
-    })
+    });
+    if let Some(recovery) = recovery {
+        payload["streamRecovery"] = recovery.to_value();
+    }
+    payload
 }
 
 /// 退避期间取消的收口事件（`session.updated` 的载荷）。
@@ -185,8 +213,10 @@ pub(crate) struct StreamRecoveryFacts<'a> {
     pub committed_tool_call_ids: Vec<String>,
 }
 
-/// 4 条 `streamRecovery.updated` 载荷，顺序即夹具顺序（§2.2）。
-pub(crate) fn stream_recovery_payloads(facts: &StreamRecoveryFacts<'_>) -> [Value; 4] {
+/// 4 条 `streamRecovery.updated` 载荷（顺序即夹具顺序，§2.2）与本次恢复的追踪 id。
+pub(crate) fn stream_recovery_payloads(
+    facts: &StreamRecoveryFacts<'_>,
+) -> ([Value; 4], StreamRecoverySummary) {
     let attempt_id = uuid::Uuid::new_v4().to_string();
     let anchor_id = uuid::Uuid::new_v4().to_string();
     let failed_request_id = uuid::Uuid::new_v4().to_string();
@@ -249,7 +279,15 @@ pub(crate) fn stream_recovery_payloads(facts: &StreamRecoveryFacts<'_>) -> [Valu
         ),
     });
 
-    [failure, anchor, discard, retry_started]
+    let summary = StreamRecoverySummary {
+        attempt_id: attempt_id.clone(),
+        anchor_id: anchor_id.clone(),
+        max_retries,
+        retry_number: facts.retry_number,
+        failed_request_id: failed_request_id.clone(),
+    };
+
+    ([failure, anchor, discard, retry_started], summary)
 }
 
 /// 流恢复的 `failureKind`：仅网络类是观察值；HTTP 状态类未观察到（登记）。
@@ -263,16 +301,8 @@ pub(crate) fn stream_recovery_failure_kind(error: &ProviderError) -> &'static st
     }
 }
 
-/// 流恢复事件里的 `message`：网络类用夹具逐字文案；其余按分类给稳定文案。
+/// 流恢复事件里的 `message`：与 `turn.failed` 共用规范文案（原始细节留在
+/// `ProviderError.message`/`underlying_message`）。
 pub(crate) fn stream_recovery_failure_message(error: &ProviderError) -> String {
-    match error.kind {
-        crate::provider::ProviderErrorKind::Transport
-        | crate::provider::ProviderErrorKind::StreamAbort => {
-            "Network connection failed for the provider request.".to_string()
-        }
-        crate::provider::ProviderErrorKind::Server => {
-            "Provider returned a server error.".to_string()
-        }
-        _ => error.message.clone(),
-    }
+    error.canonical_message().to_string()
 }

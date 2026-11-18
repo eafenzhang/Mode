@@ -824,7 +824,7 @@ async fn provider_failure_mid_turn_keeps_committed_rows_only() {
         .expect("能解码")
         .expect("类型匹配");
     assert_eq!(failed_payload.error.message, "第二次模型请求失败");
-    assert_eq!(failed_payload.turn_phase, "model");
+    assert_eq!(failed_payload.turn_phase, "processing_input");
 
     // 行：user（turn 开始已提交）+ 工具 assistant（batch 边界已提交）。
     // 失败的那一步没有可提交的消息 → 没有半成品行。

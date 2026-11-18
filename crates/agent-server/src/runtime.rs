@@ -462,6 +462,28 @@ struct Live {
     goal_cancel: Option<CancelToken>,
 }
 
+/// 一个 turn 内重试事件的追踪 id（宿主生成；夹具折叠为 `<id>`）。
+#[derive(Debug, Clone)]
+struct RetryTrace {
+    query_id: String,
+    operation_id: String,
+    logical_call_id: String,
+    span_id: String,
+    parent_span_id: String,
+}
+
+impl RetryTrace {
+    fn new() -> Self {
+        Self {
+            query_id: uuid::Uuid::new_v4().to_string(),
+            operation_id: uuid::Uuid::new_v4().to_string(),
+            logical_call_id: uuid::Uuid::new_v4().to_string(),
+            span_id: uuid::Uuid::new_v4().to_string(),
+            parent_span_id: uuid::Uuid::new_v4().to_string(),
+        }
+    }
+}
+
 /// 跨 submit/worker/snapshot 共享的状态 + 事件总线。
 ///
 /// `config` 用 `RwLock`：setter（Task 7 方法层）原位更新，worker 在每个 turn 开始前
@@ -485,6 +507,10 @@ struct Shared {
     /// 由 [`Shared::publish`] 在提交 `session.updated` / `streamRecovery.updated`
     /// 时喂入；快照投影用 `with_api_retry_runtime`（不复制归一化规则）。
     api_retry: mode_api_retry::SessionApiRetryTracker,
+    /// 每个 turn 的重试事件追踪 id（queryId/modelCall 的 operationId/logicalCallId）。
+    /// 事件载荷由 agent-core 产出，宿主只补本层持有的会话/配置事实；同一 turn 的
+    /// 多个重试事件共享这些 id（夹具把具体值折叠成 `<id>`）。
+    retry_traces: Mutex<HashMap<String, RetryTrace>>,
     /// 最近一次 prompt turn 的项目记忆 fail-soft 原因（C2 T3 复核修复）。
     ///
     /// **诊断面，不是协议面**：T0 没有观察到 oracle 的记忆失败诊断（日志/事件），
@@ -512,16 +538,152 @@ impl Shared {
 
     /// 提交一条已分配事件（EventSink 在落库之后调用）。
     fn publish(&self, event: &SessionEvent) {
-        self.track_api_retry(event);
-        self.events.commit(event);
+        if let Some(enriched) = self.enriched_retry_event(event) {
+            self.track_api_retry(&enriched);
+            self.events.commit(&enriched);
+        } else {
+            self.track_api_retry(event);
+            self.events.commit(event);
+        }
+        // 终态后释放该 turn 的重试追踪 id（不随会话生命周期累积）。
+        if matches!(
+            event.event_type,
+            SessionEventType::TurnCompleted | SessionEventType::TurnFailed
+        ) {
+            if let Some(turn_id) = &event.turn_id {
+                self.retry_traces
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .remove(turn_id);
+            }
+        }
+    }
+
+    /// 一个 turn 的重试追踪 id（首次生成后复用）。
+    fn retry_trace(&self, turn_key: &str) -> RetryTrace {
+        let mut traces = self
+            .retry_traces
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        traces
+            .entry(turn_key.to_string())
+            .or_insert_with(RetryTrace::new)
+            .clone()
+    }
+
+    /// C3 T2：用宿主事实补齐 agent-core 无法知道的重试事件字段。
+    ///
+    /// agent-core 只持有分类/计数；`providerId`/`modelId`/`sessionId`/`turnId`/
+    /// `traceId`/`querySource`/`queryId` 与 `modelCall` 的形状属于宿主投影面。
+    /// `providerKind`/`transport`/`baseURL`/header 统计仍是未接线事实，逐项登记在
+    /// 契约 §2.7；这里不伪造这些值。
+    fn enriched_retry_event(&self, event: &SessionEvent) -> Option<SessionEvent> {
+        if event.event_type != SessionEventType::SessionUpdated {
+            return None;
+        }
+        let payload = event.payload.as_ref().and_then(Value::as_object)?;
+        let kind = payload.get("type").and_then(Value::as_str);
+        if !matches!(
+            kind,
+            Some("model_retry_scheduled" | "model_request_completed" | "model_request_failed")
+        ) {
+            return None;
+        }
+        let config = self.read_config();
+        let trace = self.retry_trace(event.turn_id.as_deref().unwrap_or_default());
+        let mut enriched = payload.clone();
+        if !config.provider_id.is_empty() {
+            enriched
+                .entry("providerId".to_string())
+                .or_insert_with(|| Value::String(config.provider_id.clone()));
+        }
+        if !config.model_id.is_empty() {
+            enriched
+                .entry("modelId".to_string())
+                .or_insert_with(|| Value::String(config.model_id.clone()));
+        }
+        enriched.insert(
+            "sessionId".to_string(),
+            Value::String(event.session_id.clone()),
+        );
+        if let Some(turn_id) = &event.turn_id {
+            enriched.insert("turnId".to_string(), Value::String(turn_id.clone()));
+        }
+        if let Some(trace_id) = &self.record.trace_id {
+            enriched
+                .entry("traceId".to_string())
+                .or_insert_with(|| Value::String(trace_id.clone()));
+        }
+        enriched.insert(
+            "querySource".to_string(),
+            Value::String("main_turn".to_string()),
+        );
+        enriched.insert("queryId".to_string(), Value::String(trace.query_id.clone()));
+        enriched.insert(
+            "requestId".to_string(),
+            Value::String(uuid::Uuid::new_v4().to_string()),
+        );
+        enriched.insert("spanId".to_string(), Value::String(trace.span_id.clone()));
+        enriched.insert(
+            "parentSpanId".to_string(),
+            Value::String(trace.parent_span_id.clone()),
+        );
+        enriched.insert(
+            "modelRequestSessionType".to_string(),
+            Value::String("main".to_string()),
+        );
+        enriched.insert("timestamp".to_string(), Value::from(event.timestamp));
+        let mut model_call = serde_json::json!({
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": trace.operation_id,
+            "logicalCallId": trace.logical_call_id,
+            "stepIndex": 0,
+            "reasoning": {
+                "capability": "unknown",
+                "requestedControl": "provider_default",
+                "requestedState": "provider_default",
+                "requestedLevel": config
+                    .reasoning_level
+                    .clone()
+                    .unwrap_or_else(|| "provider_default".to_string()),
+                "effectiveControl": "unknown",
+                "effectiveState": "unknown",
+                "effectiveLevel": "unknown",
+            },
+        });
+        if let Some(recovery) = enriched.get("streamRecovery") {
+            model_call["callCause"] = Value::String("recovery".to_string());
+            let retry_number = recovery.get("retryNumber").cloned().unwrap_or(Value::Null);
+            model_call["attributes"] = serde_json::json!({
+                "streamRecoveryNumber": retry_number,
+            });
+        }
+        enriched.insert("modelCall".to_string(), model_call);
+        Some(SessionEvent {
+            payload: Some(Value::Object(enriched)),
+            ..event.clone()
+        })
     }
 
     /// 把重试相关事件喂给 `mode-api-retry` 的唯一归一化实现。
     ///
-    /// 只处理 `session.updated`（`model_retry_scheduled` / `model_request_completed` /
-    /// `model_request_failed`）与 `streamRecovery.updated`；其余事件不进入该状态机。
-    /// 事件是顺序投递的（同一 turn 的 sink 同步调用），因此无需额外排序。
+    /// - `session.updated` / `streamRecovery.updated`：apiRetry 状态/清除规则；
+    /// - `model.streaming`：恢复进展（非空 text/reasoning/tool delta）按 crate 的
+    ///   `is_mode_model_retry_recovery_progress_payload` 清除重试状态（§2.5）。
     fn track_api_retry(&self, event: &SessionEvent) {
+        let target = mode_api_retry::SessionTarget {
+            workspace_path: self.record.directory.clone(),
+            workspace_identity: self.record.workspace_id.clone(),
+            session_id: event.session_id.clone(),
+        };
+        if event.event_type == SessionEventType::ModelStreaming {
+            if let Some(payload) = event.payload.as_ref() {
+                self.api_retry
+                    .track_model_streaming_progress(&target, payload);
+            }
+            return;
+        }
         if !matches!(
             event.event_type,
             SessionEventType::SessionUpdated | SessionEventType::StreamRecoveryUpdated
@@ -532,11 +694,6 @@ impl Shared {
             return;
         };
         let wrapper = json!({ "type": "session.event", "event": inner });
-        let target = mode_api_retry::SessionTarget {
-            workspace_path: self.record.directory.clone(),
-            workspace_identity: self.record.workspace_id.clone(),
-            session_id: event.session_id.clone(),
-        };
         let _ = self
             .api_retry
             .track_api_retry_from_session_event(&target, &wrapper);
@@ -545,7 +702,11 @@ impl Shared {
     /// 顺序提交一批已分配事件（goal 方法层的同步事件）。
     fn publish_many(&self, events: Vec<SessionEvent>) {
         for event in events {
-            self.events.commit(&event);
+            if let Some(enriched) = self.enriched_retry_event(&event) {
+                self.events.commit(&enriched);
+            } else {
+                self.events.commit(&event);
+            }
         }
     }
 }
@@ -656,6 +817,7 @@ impl SessionRuntime {
             preferences: RwLock::new(None),
             last_memory_error: RwLock::new(None),
             api_retry: mode_api_retry::SessionApiRetryTracker::new(),
+            retry_traces: Mutex::new(HashMap::new()),
             record,
         });
 
@@ -1919,11 +2081,18 @@ async fn run_one_input(
                     );
                     // provider 错误走分类投影（attribution.statusCode/retryable）；
                     // 没有分类事实的 TurnError 保持旧的 runtime_error 形状。
+                    if error
+                        .provider_error
+                        .as_ref()
+                        .is_some_and(|provider_error| provider_error.is_auth())
+                    {
+                        recorder.persist_failed_placeholder();
+                    }
                     let event = match &error.provider_error {
                         Some(provider_error) => session.emit_turn_failed_for_provider(
                             recorder.turn_id().map(String::as_str),
                             provider_error,
-                            "model",
+                            "processing_input",
                         ),
                         None => session.emit_turn_failed(
                             recorder.turn_id().map(String::as_str),
@@ -3147,11 +3316,16 @@ async fn run_goal_loop(
                     Some(("unknown_error", "UNKNOWN_ERROR")),
                 );
                 let failed = match &error.provider_error {
-                    Some(provider_error) => session.emit_turn_failed_for_provider(
-                        recorder.turn_id().map(String::as_str),
-                        provider_error,
-                        "model",
-                    ),
+                    Some(provider_error) => {
+                        if provider_error.is_auth() {
+                            recorder.persist_failed_placeholder();
+                        }
+                        session.emit_turn_failed_for_provider(
+                            recorder.turn_id().map(String::as_str),
+                            provider_error,
+                            "processing_input",
+                        )
+                    }
                     None => session.emit_turn_failed(
                         recorder.turn_id().map(String::as_str),
                         "runtime_error",
@@ -4075,6 +4249,8 @@ struct TurnRecorder {
     /// C3 T2：本 turn 观察到的 adapter 重试次数（`model_retry_scheduled` 事件数）。
     /// stream recovery 不计入该字段（夹具 §2.2：`model_retry_count:0`）。
     model_retry_count: u64,
+    /// C3 T2：DB/轮次口径的请求数（内部事实通道；取消终态的事件载荷不带它）。
+    model_request_rounds: Option<u64>,
     persist_error: Option<String>,
 }
 
@@ -4116,6 +4292,7 @@ impl TurnRecorder {
             turn_total_tokens: 0,
             last_step_usage: None,
             model_retry_count: 0,
+            model_request_rounds: None,
             persist_error: None,
             shared,
             store,
@@ -4139,6 +4316,7 @@ impl TurnRecorder {
             turn_total_tokens: 0,
             last_step_usage: None,
             model_retry_count: 0,
+            model_request_rounds: None,
             persist_error: None,
             shared,
             store,
@@ -4531,6 +4709,57 @@ impl TurnRecorder {
         }
     }
 
+    /// `turn.failed` 的 assistant 占位行（夹具 §2.4：`finish:null`、无文本 part）。
+    ///
+    /// 只在认证失败（401/403）时调用：夹具观察到失败会话留下一个空 assistant 占位，
+    /// 而不是把失败的那一步写成半成品。其它失败路径保持「没有可提交消息」的既有
+    /// 形状（C1 登记）。
+    fn persist_failed_placeholder(&mut self) {
+        let Some(turn_id) = self.turn_id.clone() else {
+            return;
+        };
+        let now = now_ms();
+        let message_id = fresh_id("msg");
+        let sequence = self.take_sequence();
+        let parent_id = self
+            .last_message_id
+            .clone()
+            .or_else(|| self.user_message_id.clone())
+            .unwrap_or_default();
+        let config = self.shared.read_config();
+        let data = json!({
+            "role": "assistant",
+            "messageId": message_id,
+            "sequence": sequence,
+            "parentID": parent_id,
+            "finish": Value::Null,
+            "providerId": config.provider_id,
+            "modelId": config.model_id,
+            "mode": config.mode,
+            "time": { "created": now, "completed": now },
+            "anchor": { "turnId": turn_id },
+            "semantics": {
+                "origin": "agent_runtime",
+                "kind": "assistant_response",
+                "uiVisibility": "visible",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "visible",
+            },
+        });
+        let message = MessageRecord {
+            id: message_id.clone(),
+            session_id: self.session_id.clone(),
+            time_created: now,
+            time_updated: now,
+            data,
+            sequence: Some(sequence),
+        };
+        match self.store.append_message_with_parts(message, &[]) {
+            Ok(()) => self.last_message_id = Some(message_id),
+            Err(error) => self.record_store_failure(error),
+        }
+    }
+
     /// 一条 assistant 消息 + 它的 parts（step-start / [text] / tool ×N / step-finish）
     /// 原子落库；工具结果同时写 `tool_usage`。
     ///
@@ -4682,7 +4911,11 @@ impl TurnRecorder {
                     usage_value(&usage, "inputTokens"),
                     usage_value(&usage, "outputTokens"),
                     payload.token_count as i64,
-                    payload.history_round_count.unwrap_or(0) as i64,
+                    // 取消终态的事件载荷按夹具记 `historyRoundCount:0`；DB 行用
+                    // `model_request_rounds` 内部事实（取消示例为 1）。
+                    self.model_request_rounds
+                        .map(|rounds| rounds as i64)
+                        .unwrap_or_else(|| payload.history_round_count.unwrap_or(0) as i64),
                     payload.tool_call_count as i64,
                 )
             })
@@ -4743,6 +4976,11 @@ impl EventSink for TurnRecorder {
         let mut live = self.shared.lock();
         live.usage.observe(&request);
         live.context_used = request.total_tokens;
+    }
+
+    fn model_request_rounds(&mut self, rounds: u64) {
+        // DB/轮次口径的内部事实（C3 T2）：取消终态的事件载荷按夹具省略它。
+        self.model_request_rounds = Some(rounds);
     }
 }
 

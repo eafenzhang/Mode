@@ -20,7 +20,7 @@ pub fn http_status(status: u16, body: &str) -> ProviderError {
         .ok()
         .and_then(|value| payload_message(&value))
         .unwrap_or_else(|| truncate(body));
-    ProviderError::http_status(status, format!("HTTP {status}: {message}"))
+    ProviderError::http_status(status, format!("HTTP {status}: {message}")).with_underlying(message)
 }
 
 /// 传输失败（连接、TLS、DNS；请求未发出或响应头未到）。retryable。

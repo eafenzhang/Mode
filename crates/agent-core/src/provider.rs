@@ -184,6 +184,9 @@ pub struct ProviderError {
     pub kind: ProviderErrorKind,
     pub status: Option<u16>,
     pub retryable: bool,
+    /// 供应商正文/根因（不含适配器前缀）；`turn.failed.underlyingErrorMessage` 的来源。
+    /// 未分类/本地错误为 `None`。
+    pub underlying_message: Option<String>,
 }
 
 impl Default for ProviderError {
@@ -193,6 +196,7 @@ impl Default for ProviderError {
             kind: ProviderErrorKind::Unknown,
             status: None,
             retryable: false,
+            underlying_message: None,
         }
     }
 }
@@ -225,13 +229,16 @@ impl ProviderError {
             kind,
             status: Some(status),
             retryable,
+            underlying_message: None,
         }
     }
 
-    /// 认证/权限失败（401/403）。
+    /// 认证/权限失败（401/403）。`message` 作为 underlying 保留（原始供应商文案）。
     pub fn auth(status: u16, message: impl Into<String>) -> Self {
+        let message = message.into();
         Self {
-            message: message.into(),
+            underlying_message: Some(message.clone()),
+            message,
             kind: ProviderErrorKind::Auth,
             status: Some(status),
             retryable: false,
@@ -245,6 +252,7 @@ impl ProviderError {
             kind: ProviderErrorKind::Transport,
             status: None,
             retryable: true,
+            underlying_message: None,
         }
     }
 
@@ -256,6 +264,7 @@ impl ProviderError {
             kind: ProviderErrorKind::StreamAbort,
             status: None,
             retryable: true,
+            underlying_message: None,
         }
     }
 
@@ -266,6 +275,7 @@ impl ProviderError {
             kind: ProviderErrorKind::Malformed,
             status: None,
             retryable: false,
+            underlying_message: None,
         }
     }
 
@@ -276,6 +286,7 @@ impl ProviderError {
             kind: ProviderErrorKind::Local,
             status: None,
             retryable: false,
+            underlying_message: None,
         }
     }
 
@@ -286,12 +297,19 @@ impl ProviderError {
             kind: ProviderErrorKind::Api,
             status: None,
             retryable: false,
+            underlying_message: None,
         }
     }
 
     /// 保留既有文案，只替换分类字段（适配器按供应商错误类型细分时用）。
     pub fn with_message(mut self, message: impl Into<String>) -> Self {
         self.message = message.into();
+        self
+    }
+
+    /// 记录供应商原始正文/根因（`turn.failed.underlyingErrorMessage`）。
+    pub fn with_underlying(mut self, underlying: impl Into<String>) -> Self {
+        self.underlying_message = Some(underlying.into());
         self
     }
 
@@ -302,6 +320,20 @@ impl ProviderError {
     /// `turn.failed.attribution.reason` 的稳定取值。
     pub fn reason(&self) -> &'static str {
         self.kind.reason()
+    }
+
+    /// 线上事件/终态的规范文案（夹具 §2.3/§2.4）；原始细节留在 `message` /
+    /// `underlying_message`，事件面不直接透传 `HTTP 503: …` 这类适配器前缀。
+    pub fn canonical_message(&self) -> &str {
+        match self.kind {
+            ProviderErrorKind::Auth => "Provider authentication failed.",
+            ProviderErrorKind::Server => "Provider returned a server error.",
+            ProviderErrorKind::Transport | ProviderErrorKind::StreamAbort => {
+                "Network connection failed for the provider request."
+            }
+            ProviderErrorKind::RateLimited => "Provider rate limited the request.",
+            _ => &self.message,
+        }
     }
 }
 

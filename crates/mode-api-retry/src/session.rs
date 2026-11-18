@@ -151,6 +151,26 @@ impl SessionApiRetryTracker {
         event.clone()
     }
 
+    /// `model.streaming` 的恢复进展（text/reasoning/tool delta）到达时清空该会话的
+    /// apiRetry 状态。
+    ///
+    /// 判定复用 crate 内的 `is_mode_model_retry_recovery_progress_payload`（与
+    /// `track_api_retry_from_session_event` 的进度分支同一规则），不复制归一化逻辑。
+    /// 只在已有重试状态时清除；空 delta / 非进度事件不改变状态。
+    pub fn track_model_streaming_progress(&self, target: &SessionTarget, payload: &Value) {
+        let Some(payload) = payload.as_object() else {
+            return;
+        };
+        if !is_mode_model_retry_recovery_progress_payload(payload) {
+            return;
+        }
+        let key = session_key(target);
+        let mut by_session = self.by_session.lock().expect("api retry lock");
+        if by_session.get(&key).is_some_and(|value| value.is_some()) {
+            by_session.insert(key, None);
+        }
+    }
+
     pub fn with_api_retry_runtime(&self, snapshot: &Value) -> Value {
         let Some(snapshot_object) = snapshot.as_object() else {
             return snapshot.clone();

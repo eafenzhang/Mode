@@ -74,7 +74,7 @@ use crate::provider::{
 use crate::recovery::{
     model_request_cancelled_payload, model_request_completed_payload,
     model_retry_scheduled_payload, stream_recovery_failure_kind, stream_recovery_failure_message,
-    stream_recovery_payloads, RetryPolicy, StreamRecoveryFacts,
+    stream_recovery_payloads, RetryPolicy, StreamRecoveryFacts, StreamRecoverySummary,
 };
 use crate::rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
 use crate::stream::{EventSink, TurnError};
@@ -834,6 +834,11 @@ impl Session {
             // - 非 retryable / 耗尽 → 交回宿主发唯一的 `turn.failed`。
             let mut attempt: u32 = 1;
             let mut recovery_count: u32 = 0;
+            // 本次尝试是否由 stream recovery 发起（只有它增加 DB/轮次计数；
+            // 恢复周期里的后续 adapter 重试不增加）。
+            let mut is_recovery_attempt = false;
+            // 最近一次恢复的追踪 id（成功收口事件的 `streamRecovery` 字段）。
+            let mut last_recovery: Option<StreamRecoverySummary> = None;
             let (text, tool_calls, response) = 'attempt: loop {
                 // 取消优先于重试（契约 §2.3）：调度退避/恢复前后都先看取消位。
                 if cancel.is_cancelled() {
@@ -864,8 +869,8 @@ impl Session {
                 // （夹具 §1.6 的 pre-request 形状），不把尚未发出的请求算成一次尝试。
                 let mut attempt_counted = false;
                 // 这个尝试是否计入 DB/轮次口径：初始尝试与每个 stream recovery
-                // 尝试计入；HTTP 重试是同一轮的额外 adapter 尝试。
-                let counts_toward_rounds = attempt == 1 || recovery_count > 0;
+                // 尝试计入；HTTP 重试（含恢复周期里的后续 adapter 尝试）不增轮次。
+                let counts_toward_rounds = attempt == 1 || is_recovery_attempt;
                 let mut output_committed = false;
 
                 while provider_result.is_none() {
@@ -938,6 +943,7 @@ impl Session {
                                 &self.retry_policy,
                                 reported_attempt,
                                 &response,
+                                last_recovery.as_ref(),
                             );
                             let event = self.emit(
                                 Some(&turn_id),
@@ -976,7 +982,8 @@ impl Session {
                                     discarded_reasoning_bytes: 0,
                                     committed_tool_call_ids,
                                 };
-                                for payload in stream_recovery_payloads(&facts) {
+                                let (payloads, summary) = stream_recovery_payloads(&facts);
+                                for payload in payloads {
                                     let event = self.emit(
                                         Some(&turn_id),
                                         SessionEventType::StreamRecoveryUpdated,
@@ -984,7 +991,9 @@ impl Session {
                                     );
                                     sink.emit(event);
                                 }
+                                last_recovery = Some(summary);
                                 attempt += 1;
+                                is_recovery_attempt = true;
                                 continue 'attempt;
                             }
 
@@ -1018,6 +1027,10 @@ impl Session {
                                 break 'drive String::new();
                             }
                             attempt += 1;
+                            is_recovery_attempt = false;
+                            // 后续成功的是 adapter 重试请求，不是恢复请求：不要把它
+                            // 标成 `callCause:"recovery"`（连续中断组合未观察到）。
+                            last_recovery = None;
                             continue 'attempt;
                         }
 
@@ -1070,7 +1083,6 @@ impl Session {
         };
 
         if cancelled {
-            let total_tokens = usage.input_tokens + usage.output_tokens;
             if let Some(hook) = before_terminal.as_mut() {
                 hook(
                     self,
@@ -1084,23 +1096,15 @@ impl Session {
                     },
                 );
             }
+            // 夹具 §2.5：取消终态没有 `usage`、`historyRoundCount:0`、`tokenCount:0`；
+            // DB 的 `model_request_count` 由内部事实通道单独给出（本例为 1）。
+            sink.model_request_rounds(model_requests);
             let payload = TurnCompletedPayload {
                 response: cancelled_response,
-                token_count: total_tokens,
-                usage: Some(serde_json::json!({
-                    "source": "provider",
-                    "modelRequestCount": model_requests,
-                    "inputTokens": usage.input_tokens,
-                    "outputTokens": usage.output_tokens,
-                    "totalTokens": total_tokens,
-                    "cacheReadTokens": usage.cache_read_tokens,
-                    "cacheWriteTokens": usage.cache_write_tokens,
-                    "reasoningTokens": usage.reasoning_tokens,
-                    "webFetchRequests": 0,
-                    "webSearchRequests": 0,
-                })),
+                token_count: 0,
+                usage: None,
                 tool_call_count,
-                history_round_count: Some(model_requests),
+                history_round_count: Some(0),
                 duration: started_at.elapsed().as_millis() as f64,
                 cache_stats: None,
                 input_id: terminal_input_id.clone(),
@@ -1964,8 +1968,9 @@ impl Session {
     /// provider 失败的 `turn.failed`（C3 T2）：分类字段进入 `attribution`，让 401 /
     /// 耗尽等失败可诊断（状态码/原因/是否 retryable）。
     ///
-    /// 未观察到的字段（providerId/modelId/transport 等）由宿主在处理层补齐；
-    /// 本方法只投影 agent-core 确知的分类事实，不伪造追踪 id。
+    /// 夹具形状（`retry-401-non-retryable.json`）：顶层 `error.message` 用规范文案、
+    /// `underlyingErrorMessage` 保留供应商原文、`retryable` 只在 `attribution` 里；
+    /// `providerId`/`modelId`/`transport` 等追踪事实由宿主投影补齐（§2.7 登记）。
     pub fn emit_turn_failed_for_provider(
         &mut self,
         turn_id: Option<&str>,
@@ -1986,27 +1991,33 @@ impl Session {
             attribution.insert("statusCode".to_string(), Value::Number(status.into()));
         }
         attribution.insert("retryable".to_string(), Value::Bool(error.retryable));
+        let status = error
+            .status
+            .map(|status| status.to_string())
+            .unwrap_or_else(|| "none".to_string());
+        let mut detail = format!(
+            "Turn execution failed\nreason={} status={status} retryable={}",
+            error.reason(),
+            error.retryable
+        );
+        if let Some(underlying) = &error.underlying_message {
+            detail.push('\n');
+            detail.push_str(underlying);
+        }
         let payload = TurnFailedPayload {
             error: ProtocolErrorDetail {
                 error_type: "unknown_error".to_string(),
-                message: error.message.clone(),
+                message: error.canonical_message().to_string(),
                 stack: None,
                 code: error
                     .is_auth()
                     .then(|| "provider_not_configured".to_string()),
-                detail: Some(format!(
-                    "Turn execution failed\nreason={} status={} retryable={}",
-                    error.reason(),
-                    error
-                        .status
-                        .map(|status| status.to_string())
-                        .unwrap_or_else(|| "none".to_string()),
-                    error.retryable
-                )),
-                underlying_error_message: None,
+                detail: Some(detail),
+                underlying_error_message: error.underlying_message.clone(),
                 underlying_error_detail: None,
                 attribution: Some(Value::Object(attribution)),
-                retryable: Some(error.retryable),
+                // 夹具没有顶层 `error.retryable`（retryable 只在 attribution 内）。
+                retryable: None,
                 data: None,
                 extra: ExtraFields::new(),
             },

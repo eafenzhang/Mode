@@ -428,9 +428,11 @@ fn status_error(status: u16, body: &str) -> ProviderError {
         .and_then(|value| error_detail(&value));
     match parsed {
         Some((Some(kind), message)) => ProviderError::http_status(status, "")
-            .with_message(format!("HTTP {status}（{kind}）：{}", truncate(&message))),
+            .with_message(format!("HTTP {status}（{kind}）：{}", truncate(&message)))
+            .with_underlying(truncate(&message)),
         Some((None, message)) => ProviderError::http_status(status, "")
-            .with_message(format!("HTTP {status}：{}", truncate(&message))),
+            .with_message(format!("HTTP {status}：{}", truncate(&message)))
+            .with_underlying(truncate(&message)),
         None => error::http_status(status, body),
     }
 }

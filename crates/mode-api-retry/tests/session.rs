@@ -134,3 +134,66 @@ fn matches_ts_deferred_draft_registry() {
         }
     }
 }
+
+#[test]
+fn model_streaming_progress_clears_retry_state() {
+    let tracker = SessionApiRetryTracker::new();
+    let target = SessionTarget {
+        workspace_path: "/ws".to_string(),
+        workspace_identity: None,
+        session_id: "sess".to_string(),
+    };
+    let scheduled = serde_json::json!({
+        "type": "session.event",
+        "event": {
+            "type": "session.updated",
+            "sessionId": "sess",
+            "payload": {
+                "type": "model_retry_scheduled",
+                "attempt": 1,
+                "_meta": {
+                    "mode": {
+                        "apiRetry": {
+                            "kind": "api_retry",
+                            "attempt": 1,
+                            "maxRetries": 10,
+                            "retryDelayMs": 10,
+                            "errorStatus": 503,
+                            "error": "Provider returned a server error."
+                        }
+                    }
+                }
+            }
+        }
+    });
+    tracker.track_api_retry_from_session_event(&target, &scheduled);
+    let snapshot = serde_json::json!({
+        "session": {
+            "sessionId": "sess",
+            "workspace": { "workspacePath": "/ws" },
+            "status": "running"
+        },
+        "runtime": {}
+    });
+    let projected = tracker.with_api_retry_runtime(&snapshot);
+    assert_eq!(projected["runtime"]["apiRetry"]["attempt"], 1);
+
+    // 空 delta 不是恢复进展：状态保持。
+    tracker.track_model_streaming_progress(
+        &target,
+        &serde_json::json!({ "kind": "text_delta", "delta": "" }),
+    );
+    let projected = tracker.with_api_retry_runtime(&snapshot);
+    assert_eq!(projected["runtime"]["apiRetry"]["attempt"], 1);
+
+    // 首个恢复文本 delta → 清空（恢复进度规则与事件分支同源）。
+    tracker.track_model_streaming_progress(
+        &target,
+        &serde_json::json!({ "kind": "text_delta", "delta": "recovered" }),
+    );
+    let projected = tracker.with_api_retry_runtime(&snapshot);
+    assert!(
+        projected["runtime"]["apiRetry"].is_null(),
+        "恢复进展必须清除 apiRetry：{projected}"
+    );
+}

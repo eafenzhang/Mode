@@ -36,6 +36,13 @@ pub trait EventSink: Send {
     /// 该步骤请求的 tokens，而不是 turn 聚合值（最终评审 I2）。默认 no-op，保持既有
     /// 测试用 sink（`Vec<SessionEvent>`）无需改动。
     fn model_usage(&mut self, _usage: &ModelUsage) {}
+
+    /// turn 的 DB/轮次口径请求数（不是会话事件，不进入事件流）。
+    ///
+    /// C3 T2：取消终态的**事件**载荷按夹具省略 `usage` / 记 `historyRoundCount:0`，
+    /// 但 DB `turn_usage.model_request_count` 仍要记实际尝试/轮次数（夹具取消示例为
+    /// 1）。宿主用这个内部事实写行，避免把事件层数字当 DB 事实。默认 no-op。
+    fn model_request_rounds(&mut self, _rounds: u64) {}
 }
 
 /// 测试与简单调用方可直接把事件收进 `Vec`。
@@ -61,7 +68,10 @@ pub struct TurnError {
     pub progress: TurnProgress,
     /// provider 错误的分类事实（状态码/类型/是否 retryable）；非 provider 路径为
     /// `None`。宿主用它生成 `turn.failed` 的归属信息（C3 T2）。
-    pub provider_error: Option<ProviderError>,
+    ///
+    /// Box：`ProviderError` 带文案/底层文案，直接内联会让 `TurnError` 超过 clippy 的
+    /// 大 Err 阈值（`run_turn` 的 future 会把 Err 类型放大）。
+    pub provider_error: Option<Box<ProviderError>>,
 }
 
 impl TurnError {
@@ -90,7 +100,7 @@ impl TurnError {
             message: error.message.clone(),
             cancelled: false,
             progress,
-            provider_error: Some(error),
+            provider_error: Some(Box::new(error)),
         }
     }
 

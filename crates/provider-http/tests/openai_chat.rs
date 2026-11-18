@@ -412,6 +412,38 @@ async fn stream_ending_without_done_sentinel_still_yields_usage() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn truncated_stream_without_done_or_finish_reason_is_stream_abort() {
+    // C3 T2：连接在 [DONE]/finish_reason 前关闭 = 流中断（可重试），不能伪装成功。
+    let chunks = vec![sse(
+        r#"{"choices":[{"index":0,"delta":{"content":"被截断"},"finish_reason":null}]}"#,
+    )];
+    let (address, _captured) = spawn_server("HTTP/1.1 200 OK", "text/event-stream", chunks).await;
+    let provider =
+        OpenAiChatProvider::new(test_config(format!("http://{address}/v1"))).expect("client build");
+
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let error = run_stream(
+        &provider,
+        simple_request(vec![ModelMessage::User("hi".to_string())], Vec::new()),
+        tx,
+    )
+    .await
+    .expect_err("截断流不能伪装成成功终态");
+    assert_eq!(error.kind, ProviderErrorKind::StreamAbort);
+    assert!(
+        error.retryable,
+        "流中断必须可重试（stream recovery 的入口）"
+    );
+    assert_eq!(
+        collect_deltas(&mut rx),
+        vec![ModelDelta::Text {
+            text: "被截断".to_string()
+        }],
+        "错误前的 delta 保留"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn missing_finish_reason_defaults_by_emitted_deltas() {
     // 发过工具调用但没给 finish_reason：按已产出内容推断为 tool-calls。
     let tool_chunks = vec![

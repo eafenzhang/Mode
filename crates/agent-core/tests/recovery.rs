@@ -364,6 +364,21 @@ async fn stream_abort_emits_recovery_events_and_discards_partial() {
         recovery[3]["failedRequestId"],
         recovery[0]["failedRequestId"]
     );
+    // 恢复成功的收口事件带回同一恢复周期的摘要（宿主据此补 modelCall.callCause）。
+    let completed = session_updated(&sink, "model_request_completed");
+    assert_eq!(completed.len(), 1);
+    assert_eq!(
+        completed[0]["streamRecovery"]["attemptId"],
+        recovery[0]["attemptId"]
+    );
+    assert_eq!(
+        completed[0]["streamRecovery"]["recoveredFromRequestId"],
+        recovery[0]["failedRequestId"]
+    );
+    assert_eq!(
+        completed[0]["streamRecovery"]["retryNumber"],
+        serde_json::json!(1)
+    );
 
     let terminal = sink
         .iter()
@@ -377,6 +392,55 @@ async fn stream_abort_emits_recovery_events_and_discards_partial() {
     // 事件层只计成功请求；DB/round 口径在 agent-server 层断言（夹具 1/2 差异）。
     assert_eq!(terminal["usage"]["modelRequestCount"], serde_json::json!(1));
     assert_eq!(terminal["historyRoundCount"], serde_json::json!(2));
+}
+
+// ---------------------------------------------------------------------------
+// 2b. 恢复后的 adapter 重试不增加轮次
+// ---------------------------------------------------------------------------
+
+#[tokio::test(start_paused = true)]
+async fn adapter_retry_after_recovery_does_not_add_rounds() {
+    let provider = AttemptProvider::new(vec![
+        Attempt::AbortAfter {
+            deltas: vec![ModelDelta::Text {
+                text: "partial ".to_string(),
+            }],
+            message: "connection reset by peer",
+        },
+        // 恢复尝试没有产出 delta 就 503：按未提交失败走 adapter 退避。
+        Attempt::Http {
+            status: 503,
+            message: "Provider returned a server error.",
+        },
+        Attempt::Success {
+            deltas: vec![ModelDelta::Text {
+                text: "answer after recovery and retry".to_string(),
+            }],
+            stop_reason: "stop",
+            usage: text_usage(),
+        },
+    ]);
+    let mut session = new_session();
+    let cancel = CancelToken::new();
+    let mut sink: Vec<SessionEvent> = Vec::new();
+    session
+        .run_turn("retry scenario", &provider, &mut sink, &cancel)
+        .await
+        .expect("最终成功");
+
+    assert_eq!(provider.calls(), 3);
+    assert_eq!(session_updated(&sink, "model_retry_scheduled").len(), 1);
+    let terminal = sink
+        .iter()
+        .find(|event| event.event_type == SessionEventType::TurnCompleted)
+        .expect("turn.completed");
+    let terminal = terminal.payload.as_ref().expect("payload");
+    assert_eq!(
+        terminal["historyRoundCount"],
+        serde_json::json!(2),
+        "初始尝试 1 + 恢复尝试 2；恢复后的 adapter 重试不增轮次"
+    );
+    assert_eq!(terminal["usage"]["modelRequestCount"], serde_json::json!(1));
 }
 
 // ---------------------------------------------------------------------------
@@ -457,10 +521,12 @@ async fn cancel_during_backoff_wins_over_retry() {
         .iter()
         .find(|event| event.event_type == SessionEventType::TurnCompleted)
         .expect("turn.completed(cancelled)");
-    assert_eq!(
-        terminal.payload.as_ref().expect("payload")["resultType"],
-        serde_json::json!("cancelled")
-    );
+    let terminal = terminal.payload.as_ref().expect("payload");
+    assert_eq!(terminal["resultType"], serde_json::json!("cancelled"));
+    // 夹具 §2.5：取消终态没有 usage、historyRoundCount:0、tokenCount:0。
+    assert!(terminal.get("usage").is_none(), "{terminal}");
+    assert_eq!(terminal["historyRoundCount"], serde_json::json!(0));
+    assert_eq!(terminal["tokenCount"], serde_json::json!(0));
     assert_eq!(session_updated(&events, "model_retry_scheduled").len(), 1);
     let cancelled = session_updated(&events, "model_request_failed");
     assert_eq!(cancelled.len(), 1, "退避取消必须收口失败事件");

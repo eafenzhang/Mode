@@ -259,7 +259,14 @@ async fn stream_once(
     if !done {
         // 流没以 [DONE] 收尾（连接直接结束）：`finish` 把未以空行收尾的尾部事件补出来，
         // 否则 usage 尾帧等最后一条载荷会被静默丢掉。
-        ingest_payloads(decoder.finish(), &mut tracker, deltas)?;
+        done = ingest_payloads(decoder.finish(), &mut tracker, deltas)?;
+    }
+    // 既没有 [DONE] 也没有 finish_reason：连接在终止事件前关闭 = 流中断（可重试）。
+    // 有 finish_reason 的兼容端点（只在连接结束时补 usage 尾帧）仍是成功。
+    if !done && tracker.finish_reason.is_none() {
+        return Err(error::stream_abort(
+            "OpenAI Chat 流在 [DONE]/finish_reason 前结束（连接已关闭）".to_string(),
+        ));
     }
     tracker.close_all(deltas)?;
     Ok(tracker.into_response())
