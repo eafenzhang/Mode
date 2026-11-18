@@ -413,11 +413,12 @@ impl Session {
         self.tasks.take_notifications()
     }
 
-    /// 在**空闲时**把排队中的通知逐条跑成新 turn。
+    /// 在**空闲时**把当前排队的通知跑成**一个**新 turn（C3 T3）。
     ///
-    /// oracle 在忙时**直接丢弃**通知（spec §3.5）；因此调用方只能在空闲时调用本方法。
-    /// `&mut self` 保证它不会与 [`Self::run_turn`] 并发；是否在忙时丢弃由调用方决定，
-    /// 这里不偷偷替调用方排队。返回实际跑掉的通知条数。
+    /// 观察（`background-busy-coalesced.json`）：同一批完成的通知合并为一个
+    /// `background_task` turn，`input` 按完成顺序用空行分隔。是否在忙时丢弃由调用方
+    /// 决定（oracle 的前台工具时序；注册表已按判据过滤），这里不偷偷替调用方排队。
+    /// 返回本次合并的通知条数。
     ///
     /// `cancel` 与 [`Self::run_turn`] 同源：调用方给同一个 token，通知 turn 也遵守取消。
     pub async fn run_pending_notifications(
@@ -427,11 +428,25 @@ impl Session {
         cancel: &CancelToken,
     ) -> Result<usize, TurnError> {
         let notifications = self.tasks.take_notifications();
-        let count = notifications.len();
-        for notification in notifications {
-            self.run_turn(&notification.to_xml(), provider, sink, cancel)
-                .await?;
+        if notifications.is_empty() {
+            return Ok(0);
         }
+        let count = notifications.len();
+        let input = notifications
+            .iter()
+            .map(TaskNotification::to_xml)
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        let input_id = format!("in_{}", new_uuid());
+        self.run_background_notification_turn(
+            &input,
+            &input_id,
+            &notifications,
+            provider,
+            sink,
+            cancel,
+        )
+        .await?;
         Ok(count)
     }
 
@@ -605,6 +620,126 @@ impl Session {
             },
         };
         self.emit(Some(&turn_id), SessionEventType::TurnStarted, &payload)
+    }
+
+    /// 开一个后台通知 turn（C3 T3；`inputSource:"background_task"`）。
+    ///
+    /// 观察载荷（`background-idle.json` / `background-busy-coalesced.json`）：
+    /// `executionStartedAt` / `turnNumber`（普通 turn 序号）/ `input` /
+    /// `messageId` / `inputId` / `foregroundExecutionId` / `queryId` /
+    /// `inputSource:"background_task"` / `inputVisibility:"model-only"` /
+    /// `originMeta:{backgroundSource,title,workId}` / `backgroundSource`。
+    /// 多条通知由调用方用空行拼进 `input`；`targetId` **不出现**（goal 通知 turn
+    /// 也如此，目标归属由 `run_started`/`run_finished` 承担）。
+    pub fn begin_background_notification_turn(
+        &mut self,
+        input: &str,
+        input_id: &str,
+        notifications: &[TaskNotification],
+    ) -> SessionEvent {
+        let (turn_number, turn_id) = self.allocate_turn();
+        let title = notifications
+            .iter()
+            .map(|notification| {
+                notification
+                    .description
+                    .as_deref()
+                    .unwrap_or(&notification.command)
+            })
+            .collect::<Vec<_>>()
+            .join(" · ");
+        // 夹具把 workId 折叠成 `<id>`，无法区分多条时取哪一条；按完成顺序取首个。
+        let work_id = notifications
+            .first()
+            .map(|notification| notification.task_id.clone())
+            .unwrap_or_default();
+        let payload = TurnStartedPayload {
+            execution_started_at: Some(now_ms() as f64),
+            turn_number,
+            input: input.to_string(),
+            input_id: Some(input_id.to_string()),
+            query_id: Some(new_uuid()),
+            message_id: Some(new_uuid()),
+            foreground_execution_id: Some(format!("runtime_command_{}", turn_number + 1)),
+            extra: {
+                let mut extra = ExtraFields::new();
+                extra.insert(
+                    "inputSource".to_string(),
+                    serde_json::json!("background_task"),
+                );
+                extra.insert(
+                    "inputVisibility".to_string(),
+                    serde_json::json!("model-only"),
+                );
+                extra.insert(
+                    "originMeta".to_string(),
+                    serde_json::json!({
+                        "backgroundSource": "bash",
+                        "title": title,
+                        "workId": work_id,
+                    }),
+                );
+                extra.insert("backgroundSource".to_string(), serde_json::json!("bash"));
+                extra
+            },
+        };
+        self.emit(Some(&turn_id), SessionEventType::TurnStarted, &payload)
+    }
+
+    /// 跑一个后台通知 turn（带 goal 的 `run_started`/`run_finished` 钩子；C3 T3）。
+    ///
+    /// 与 [`Self::run_goal_continuation_turn`] 的钩子语义相同，但 `turn.started`
+    /// 用后台通知形状（`inputSource:"background_task"`、无 `targetId`）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn run_background_notification_turn_with_hooks(
+        &mut self,
+        input: &str,
+        input_id: &str,
+        notifications: &[TaskNotification],
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+        cancel: &CancelToken,
+        after_start: AfterStartHook<'_>,
+        before_terminal: BeforeTerminalHook<'_>,
+    ) -> Result<(), TurnError> {
+        let started = self.begin_background_notification_turn(input, input_id, notifications);
+        self.run_turn_with_start(
+            started,
+            input,
+            provider,
+            sink,
+            cancel,
+            Some(after_start),
+            Some(before_terminal),
+            Some(input_id.to_string()),
+        )
+        .await
+    }
+
+    /// 跑一个后台通知 turn（C3 T3）。`input` 是已拼好的 `<task-notification>` 文本
+    /// （多条之间空行分隔）；`notifications` 只用于 `turn.started` 的来源元信息。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn run_background_notification_turn(
+        &mut self,
+        input: &str,
+        input_id: &str,
+        notifications: &[TaskNotification],
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+        cancel: &CancelToken,
+    ) -> Result<(), TurnError> {
+        let started = self.begin_background_notification_turn(input, input_id, notifications);
+        self.run_turn_with_start(
+            started,
+            input,
+            provider,
+            sink,
+            cancel,
+            None,
+            None,
+            Some(input_id.to_string()),
+        )
+        .await
     }
 
     /// `begin_turn` / `begin_compact_turn` 的共用实现（turn id 分配与 `cacheStats`
@@ -1099,6 +1234,9 @@ impl Session {
             // 夹具 §2.5：取消终态没有 `usage`、`historyRoundCount:0`、`tokenCount:0`；
             // DB 的 `model_request_count` 由内部事实通道单独给出（本例为 1）。
             sink.model_request_rounds(model_requests);
+            // 已观察到模型请求的取消按夹具补一条 finish:null 占位（请求前取消不补）；
+            // 在终态发布前落库，保持「事件可见 ⇒ 行已提交」。
+            sink.cancelled_placeholder(model_requests > 0);
             let payload = TurnCompletedPayload {
                 response: cancelled_response,
                 token_count: 0,
@@ -1113,7 +1251,13 @@ impl Session {
                 extra: ExtraFields::new(),
             };
             sink.emit(self.emit(Some(&turn_id), SessionEventType::TurnCompleted, &payload));
-            return Err(TurnError::cancelled());
+            return Err(TurnError::cancelled_with_progress(
+                crate::stream::TurnProgress {
+                    usage,
+                    model_requests,
+                    tool_calls: tool_call_count,
+                },
+            ));
         }
 
         let total_tokens = usage.input_tokens + usage.output_tokens;

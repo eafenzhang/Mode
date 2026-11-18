@@ -128,6 +128,67 @@ async fn pending_notifications_run_as_a_new_turn_when_idle() {
     assert!(started.input.contains("<status>completed</status>"));
 }
 
+#[tokio::test]
+async fn pending_notifications_coalesce_into_one_turn() {
+    let mut session = Session::new("sess_notify", temp_dir("coalesce").to_string_lossy());
+    let registry = session.tasks().clone();
+    let (first, first_path) = spawn_script("coalesce-one", "printf 'one\\n'");
+    let first = registry.register(
+        first,
+        "toolu_bg_c1",
+        "printf 'one\\n'",
+        Some("Coalesced one".to_string()),
+        first_path,
+    );
+    let (second, second_path) = spawn_script("coalesce-two", "sleep 0.15; printf 'two\\n'");
+    let second = registry.register(
+        second,
+        "toolu_bg_c2",
+        "sleep 0.15; printf 'two\\n'",
+        Some("Coalesced two".to_string()),
+        second_path,
+    );
+    registry
+        .snapshot(&first.id, true, Duration::from_secs(5))
+        .expect("第一个任务应完成");
+    registry
+        .snapshot(&second.id, true, Duration::from_secs(5))
+        .expect("第二个任务应完成");
+
+    let provider = ScriptedProvider::new(vec![ScriptStep::Text("handled".to_string())]);
+    let mut sink = Vec::new();
+    let count = session
+        .run_pending_notifications(&provider, &mut sink, &CancelToken::new())
+        .await
+        .expect("通知 turn 应成功");
+    assert_eq!(count, 2);
+    let started: Vec<_> = sink
+        .iter()
+        .filter(|event| event.event_type == SessionEventType::TurnStarted)
+        .collect();
+    assert_eq!(started.len(), 1, "一批通知只开一个 turn");
+    let payload = started[0]
+        .payload_as::<TurnStartedPayload>()
+        .expect("能解码")
+        .expect("类型匹配");
+    assert_eq!(
+        payload.input.matches("<task-notification>").count(),
+        2,
+        "两条通知都进同一个 input"
+    );
+    assert!(
+        payload
+            .input
+            .contains("</task-notification>\n\n<task-notification>"),
+        "多条通知用空行分隔：{}",
+        payload.input
+    );
+    assert!(
+        payload.input.find("Coalesced one").expect("first")
+            < payload.input.find("Coalesced two").expect("second")
+    );
+}
+
 #[test]
 fn failed_task_notification_uses_the_observed_summary() {
     let session = Session::new("sess_notify", temp_dir("failed").to_string_lossy());

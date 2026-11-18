@@ -134,6 +134,26 @@ C3 在 C1/C2 的 Rust `agent-server` 上补齐三件事，并保持「终态恰�
   不留下半截消息（C1 规则沿用）。
 - 后台任务与 goal 的交互（如 goal 续跑中后台任务完成）以 T0 观察为准；未观察则登记。
 
+### 4.1 Rust T3 现状（2026-11-18）
+
+- **准入判据分相位**：后台通知在 `TaskRegistry` 完成时，由运行时看「前台工具执行
+  窗口」（`tool.updated started` → `batch`）决定丢弃或入队；窗口外（含模型流式等待）
+  的通知留在注册表既有通道。worker 在 turn 结束/空闲时一次取走全部通知，只开
+  **一个**合并后的 `background_task` turn（多条 `<task-notification>` 之间空行分隔）。
+  空闲 worker 由注册表完成信号唤醒，不新增第二队列/定时器。
+- **goal 交互**：续跑 turn 成功后、completion verifier 之前投递 pending 通知；
+  通知 turn 的 `targetId:null`，但包在目标 `run_started`/`run_finished` 中并计入
+  target 的 tokens/time（夹具 §3.3 的 52+22=74）。
+- **终态**：通知 turn 与普通 turn 共用终态收口（成功/取消/provider 失败各恰好一次）；
+  工具/provider/超时/取消不写半截 assistant 行。取消且已观察到模型请求时补
+  `finish:null`、无 part 的 assistant 占位（`retry-cancel-during-backoff` /
+  `goal-pause-in-flight`），请求前取消不补。
+- **apiRetry**：任何 `turn.completed` / `turn.failed` 提交时清空
+  `SessionApiRetryTracker`（goal 续跑失败不再把重试态泄漏到随后快照）。
+- 已知差异逐项登记在 `agent-c3-contract.md` §3.5：任务状态 `session.updated` 事件
+  未产出、前台工具窗口丢弃是 C1 语义的近似、`originMeta` 取值折叠、通知 turn 的
+  revision/取消/失败/verifier 期间完成等未观察组合。
+
 ## 5. 子代理基础面
 
 - 只读：`session/subagents` 列表（running/ended，形状按 `agent-protocol::session_read`

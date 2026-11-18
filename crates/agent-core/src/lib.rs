@@ -44,7 +44,9 @@ pub use agent_protocol::session_event::{
     ToolErrorPayload, ToolResultObject, ToolScheduledPayload, ToolStartedPayload,
     ToolUpdatedPayload,
 };
-pub use agent_tools::{FileState, ModeToolFamily, ToolContext, ToolError, ToolOutcome, ToolSpec};
+pub use agent_tools::{
+    FileState, ModeToolFamily, TaskNotification, ToolContext, ToolError, ToolOutcome, ToolSpec,
+};
 pub use cancel::CancelToken;
 pub use command_inbox::{Admission, CommandInbox, Completion};
 pub use compact::{

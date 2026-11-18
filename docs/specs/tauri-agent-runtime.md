@@ -687,10 +687,12 @@ Command running in background with ID: exec_<uuid>. Output is being written to: 
   `Missing required parameter: task_id` / code `TOOL_EXECUTION_FAILED` / detail `code=1`，
   **有 `started`**（与上面的阶段差异一致）。
 
-**Rust 侧实现状态（2026-10-18）**：`TaskRegistry` + `TaskOutput` / `TaskStop` 已落地，
-`Bash(run_in_background)` 会登记任务并按上面的文案返回；`completed` / `failed` / `killed` /
-`running` 四种结果形状均已按观察实现。完成通知的**自动调度**尚未实现：
-`Session::run_pending_notifications` 已可用，但需要调用方在空闲时触发（Task 5 的完整循环）。
+**Rust 侧实现状态（2026-10-18；C3 T3 更新）**：`TaskRegistry` + `TaskOutput` / `TaskStop`
+已落地，`Bash(run_in_background)` 会登记任务并按上面的文案返回；`completed` / `failed` /
+`killed` / `running` 四种结果形状均已按观察实现。完成通知的自动调度已由 `agent-server`
+worker 接线（C3 T3）：空闲时合并为一个 `<task-notification>` turn；模型流式等待期间完成
+的通知延后到当前 turn 后合并投递；前台工具执行窗口内完成的通知按 §3.5 的 C1 观察丢弃
+（C3 未重录该时序，登记在 `agent-c3-contract.md` §3.5/§3.6）。
 
 **仍未观察（Step 0 剩余）**：host 层 `CommandInbox` 的跨层行为；排队顺序与 key 粒度按下面的
 设计接口先行落地，跨层对拍等 host 面可观察后再补（DR-T4-7 已裁决 (c)）。
@@ -764,6 +766,10 @@ session.updated（messageCount=8）
 - 对照（§3.4）：会话**空闲**时同一场景会立刻开通知 turn。
 - 结论：oracle **不排队，直接丢弃**。M2 对拍应按此实现；若产品要求排队，属**有意差异**，
   需单独 spec 批准，不能默默改掉。
+- **C3 T3 补充**：C3 重新录到的「模型流式等待窗口」是**合并延后**（一个通知 turn 含
+  多条通知），与本节的「另一个 turn 运行期间（前台工具时序）」不是同一组合；二者尚未
+  统一，Rust 按「工具窗口丢弃、窗口外合并」实现，登记在 `agent-c3-contract.md`
+  §3.5/§3.6。
 
 **重放类型盘点（只读 `packages/shared` 声明面）**
 

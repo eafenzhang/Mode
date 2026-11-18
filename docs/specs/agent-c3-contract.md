@@ -656,6 +656,7 @@ errorCode:"model_request_cancelled", _meta.apiRetry:null})`；
 | 恢复后的重试再失败       | 恢复尝试若未产出任何 delta 又失败，Rust 按「无已提交 delta」走 adapter 退避；该 adapter 尝试不增轮次（`is_recovery_attempt=false`），成功收口事件不带 `streamRecovery`/`callCause:"recovery"`。夹具未覆盖连续中断。                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | §2.8 未观察到           |
 | `model_usage` 行         | C1 普通 turn 仍不写 `model_usage`（§1.11 既有差异），因此夹具的「stream abort 两行（error + completed）/5xx 一行」没有逐行复刻；重试账务只在 `turn_usage` 层可断言。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | §1.11 + §2.2/§2.3       |
 | `turn.failed` 归属       | 401 形状与夹具一致（`turnPhase:"processing_input"`、规范 message、underlyingErrorMessage、无顶层 retryable、finish:null 占位）；`providerId`/`modelId`/`providerKind`/`transport`/`exceptionKind` 仍未填（agent-core 不持有这些事实），`detail` 的 provider/model/request 段为自撰/省略。                                                                                                                                                                                                                                                                                                                                                                                                  | §2.4                    |
+| `turnPhase`              | 只有首次请求的 401 夹具观察到 `processing_input`。Rust 对 `run_turn` 内所有 provider 失败沿用该值（含工具批次之后的后续请求）；「首次请求 vs 后续步」的阶段化命名**未观察**，不发明新枚举，登记为泛化差异。 | §2.4 / §2.8 |
 | compact / verifier 请求  | 不在 `run_turn` 内，未接重试（未观察到这两类请求的失败重试）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | §2.8 未观察到           |
 | 取消 turn.completed 形状 | 与夹具一致：无 `usage`、`historyRoundCount:0`、`tokenCount:0`；DB `model_request_count` 改走内部轮次事实通道（夹具取消示例为 1），不再从事件 `historyRoundCount` 取。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | §2.5                    |
 
@@ -744,14 +745,61 @@ status:"running|completed",outputPath,pid,startedAt,completedAt,...}`。
 - 失败退出码 / killed 的 Bash 通知文本 C1 已观察（`failed with exit code 7`、
   `was stopped`），C3 只重录成功路径；见 `tauri-agent-runtime.md §3.3`。
 
-### 3.5 后台通知未观察到
+### 3.5 Rust C3 现状（T3，2026-11-18）
+
+T3 在 `agent-server` 的 per-session worker 上接线后台通知，行为基线是 §3.1–§3.3 的
+三个夹具；测试入口 `crates/agent-server/tests/background.rs`。
+
+已实现（与观察一致）：
+
+- **空闲完成 → 一个通知 turn**：`TaskRegistry` 在任务终态时投递通知；worker 空闲时
+  由注册表完成信号唤醒（仅唤醒，不新增队列/定时器），取走当前全部待处理通知后
+  开**一个** `background_task` turn。`turn.started` 带 `inputSource:"background_task"`、
+  `inputVisibility:"model-only"`、`inputId`、`foregroundExecutionId`（与普通输入同一
+  `runtime_command_<n>` 计数）、`originMeta:{backgroundSource:"bash",title,workId}`、
+  `backgroundSource:"bash"`；`input` 是 `<task-notification>`，多条之间用空行分隔
+  （§3.2 的合并形状）。DB user 行 `semantics.kind:"background_notification"`、
+  `source:"background_task"`。
+- **忙时（模型流式等待窗口）完成 → 合并延后**：完成通知留在 `TaskRegistry` 的
+  既有通道，当前 turn 结束后由 worker 一次取走并开一个通知 turn；不丢、不重复。
+  `turn.started` 的 `turnNumber` 用普通 turn 序号（`goal` 交互见下）。
+- **前台工具执行期间完成 → 丢弃**：worker 在工具 `started` 与 `batch` 之间标记
+  「前台工具执行窗口」，该窗口内到达的通知不入队（C1 §3.5 的丢弃观察；C3 未重录
+  该组合，见 §3.6）。
+- **goal 续跑交互**：续跑 turn 结束、verifier 之前，先投递 pending 通知为一个
+  `background_task` turn（`targetId:null`，但包在目标 `run_started`/`run_finished`
+  里，tokens/time 计入目标）；verifier 仍在其后运行。
+- **终态**：通知 turn 与普通 turn 同口径，`turn.completed` / `turn.failed` 恰好一次；
+  取消不写半截 assistant 行；`apiRetry` 在任何 `turn.completed` / `turn.failed`
+  提交时清空。
+- **取消占位**：turn 取消且**已观察到模型请求**（`TurnError::progress.model_requests>0`
+  同源的内部轮次事实）时，补一条 `finish:null`、无 part 的 assistant 占位行
+  （§2.5、§1.6 的 `retry-cancel-during-backoff` / `goal-pause-in-flight` 形状）；
+  请求前取消不写占位。占位在 `turn.completed(cancelled)` 发布前落库。
+
+差异 / 未覆盖（不伪造观察值）：
+
+| 项 | Rust 现状 | 依据 |
+| --- | --- | --- |
+| 任务状态事件 | 不产出任务 `session.updated {taskId,…,status:"running"/"completed"}`（C1 事件族缺省）；通知 turn 本身完整。 | §3.1 |
+| 前台工具执行窗口的丢弃 | 用「`tool.updated started` 到 `batch`」近似 C1 的时序；C3 只录到模型流式窗口的合并，二者是否同一判据**未验证**（§5 已登记）。 | C1 §3.5 / §3.2 |
+| `originMeta` | `backgroundSource` 恒 `"bash"`（当前只有 Bash 后台任务）；`title` 是多条描述的 `" · "` 连接；`workId` 取首批第一条 task id（夹具折叠为 `<id>`，无法区分具体取哪条）。 | §3.2 |
+| 通知 turn 计数 | 非 goal 路径按普通输入计 `turnCount`，并补两次 revision（起点 + 终态），与 `background-idle`/`background-busy-coalesced` 的 `stateRevision` 一致；goal 路径的 revision 仍按 T1 规则，未逐值对齐 §3.3。 | §3.1/§3.2/§3.3 |
+| 通知 turn 取消 | 未观察；实现与普通 turn 同口径（`session/stop` 取消 token、终态 cancelled 一次）。 | §3.6 |
+| 通知 turn provider 失败 | 未观察；实现发唯一 `turn.failed`、清 active 目标字段并停止续跑（与 goal 续跑失败同口径）。 | §3.6 |
+| verifier 期间完成 | 未观察；通知留在注册表，verifier/目标收口后由 worker 按空闲通知投递（可能产生 `targetId:null` 的通知 turn）。 | §3.6 |
+| 3+ pending 合并上限 | 未观察；实现无上限、按完成顺序一次投递。 | §3.6 |
+
+### 3.6 后台通知未观察到
 
 - C3 时序下的失败/killed 通知（依赖 C1 观察）；
 - 未提供 `description` 时的 summary 文案；
 - 3 个以上任务同时 pending 的合并上限/顺序；
 - 通知 turn 运行中再次完成任务的交互；
 - 通知 turn 与 retry/stream recovery 的组合；
-- notification turn 被 `session/stop` 取消时的目标/账务。
+- notification turn 被 `session/stop` 取消时的目标/账务；
+- 前台工具执行期间的忙时完成（C1 观察到丢弃；C3 只录了模型流式等待窗口的合并
+  延后，二者未统一；Rust 用工具窗口近似丢弃，属待补测语义）。
 
 ## 4. Subagents 只读面（`session/subagents`）
 
@@ -933,7 +981,7 @@ duration_ms: 3105</usage>
 | stream recovery 期间取消                       | 未观察（retryDelay 0，窗口太短）                               |
 | `retry-after` 覆盖退避                         | 未观察                                                         |
 | 后台 Bash 失败/killed 通知（C3 时序）          | C1 已观察，C3 未重录                                           |
-| 前台工具执行期间的忙时完成（C1 时序）          | C1 观察到丢弃；C3 只录了模型流式等待窗口的合并延后，二者未统一 |
+| 前台工具执行期间的忙时完成（C1 时序）          | C1 观察到丢弃；C3 只录了模型流式等待窗口的合并延后，二者未统一（Rust 以工具窗口近似丢弃，见 §3.5/§3.6） |
 | 3+ pending 通知的合并顺序                      | 未观察                                                         |
 | notification turn 与 retry/goal 的更多组合     | 只观察 §3.3 一种                                               |
 | subagent waiting/blocked/failed/cancelled/lost | 未观察                                                         |

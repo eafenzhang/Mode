@@ -43,6 +43,13 @@ pub trait EventSink: Send {
     /// 但 DB `turn_usage.model_request_count` 仍要记实际尝试/轮次数（夹具取消示例为
     /// 1）。宿主用这个内部事实写行，避免把事件层数字当 DB 事实。默认 no-op。
     fn model_request_rounds(&mut self, _rounds: u64) {}
+
+    /// 取消终态发布前的落库钩子（C3 T3）。
+    ///
+    /// `model_requested = true` 表示本 turn 已观察到模型请求：按夹具要补一条
+    /// `finish:null`、无 part 的 assistant 占位行。钩子在 `turn.completed(cancelled)`
+    /// 发布**之前**调用，保持「事件可见 ⇒ 行已提交」。默认 no-op。
+    fn cancelled_placeholder(&mut self, _model_requested: bool) {}
 }
 
 /// 测试与简单调用方可直接把事件收进 `Vec`。
@@ -110,6 +117,20 @@ impl TurnError {
             message: "turn cancelled".to_string(),
             cancelled: true,
             progress: TurnProgress::default(),
+            provider_error: None,
+        }
+    }
+
+    /// 取消退出，并带上取消时刻的已知累计事实（C3 T3）。
+    ///
+    /// `progress.model_requests` 让宿主区分「请求前取消」与「已发出模型请求后取消」：
+    /// 后者按夹具（`retry-cancel-during-backoff` / `goal-pause-in-flight`）要补一条
+    /// `finish:null` 的 assistant 占位行。
+    pub fn cancelled_with_progress(progress: TurnProgress) -> Self {
+        Self {
+            message: "turn cancelled".to_string(),
+            cancelled: true,
+            progress,
             provider_error: None,
         }
     }

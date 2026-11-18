@@ -43,6 +43,7 @@
 //!   解析（账号型凭据钩子）同理。
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -126,6 +127,9 @@ struct QueuedInput {
     compact: Option<CompactJob>,
     /// `Some` = goal 任务（控制 turn / 续跑循环 / 仅事件）。
     goal: Option<GoalJob>,
+    /// 非空 = 运行时生成的后台通知 turn（C3 T3）。这类 turn 不进 `CommandInbox`，
+    /// 其 `input` 是已拼好的 `<task-notification>` 文本（多条空行分隔）。
+    notifications: Vec<agent_core::TaskNotification>,
 }
 
 /// 一个已受理的 goal 任务（进入 worker 队列的事实）。
@@ -520,6 +524,11 @@ struct Shared {
     /// `memoryEnabled:false` 关闭 `None` 清空）；compact / 配置失败 turn 不写
     /// （没有记忆加载）。
     last_memory_error: RwLock<Option<String>>,
+    /// 前台工具执行窗口（`tool.updated started` → `batch`，C3 T3）。
+    ///
+    /// `TaskRegistry` 的通知判据在任务完成线程上读它：窗口内完成的通知按 C1 观察
+    /// 丢弃；窗口外（含模型流式等待）入队，等当前 turn 结束后合并投递。
+    tool_execution: AtomicBool,
 }
 
 impl Shared {
@@ -545,11 +554,19 @@ impl Shared {
             self.track_api_retry(event);
             self.events.commit(event);
         }
-        // 终态后释放该 turn 的重试追踪 id（不随会话生命周期累积）。
+        // 终态后释放该 turn 的重试追踪 id（不随会话生命周期累积），并清空 apiRetry
+        // （C3 T3）：goal 续跑失败后状态可能回到 idle，若只靠 completed/error 快照
+        // 清空，上一 turn 的 retry 态会泄漏到下一次快照。
         if matches!(
             event.event_type,
             SessionEventType::TurnCompleted | SessionEventType::TurnFailed
         ) {
+            self.api_retry
+                .clear_session(&mode_api_retry::SessionTarget {
+                    workspace_path: self.record.directory.clone(),
+                    workspace_identity: self.record.workspace_id.clone(),
+                    session_id: event.session_id.clone(),
+                });
             if let Some(turn_id) = &event.turn_id {
                 self.retry_traces
                     .lock()
@@ -817,6 +834,7 @@ impl SessionRuntime {
             preferences: RwLock::new(None),
             last_memory_error: RwLock::new(None),
             api_retry: mode_api_retry::SessionApiRetryTracker::new(),
+            tool_execution: AtomicBool::new(false),
             retry_traces: Mutex::new(HashMap::new()),
             record,
         });
@@ -839,6 +857,19 @@ impl SessionRuntime {
         if let Some(rule_db_path) = wiring.rule_db_path {
             session = session.with_sqlite_rules(rule_db_path);
         }
+        // C3 T3：后台通知的准入判据 + 空闲唤醒。队列仍在 `TaskRegistry`；
+        // 这里只提供「前台工具窗口丢弃」与「入队后叫醒 worker」两个钩子。
+        let notification_signal = Arc::new(tokio::sync::Notify::new());
+        {
+            let shared_for_filter = Arc::clone(&shared);
+            let signal = Arc::clone(&notification_signal);
+            session.tasks().set_notification_hooks(
+                Arc::new(move |_notification| {
+                    !shared_for_filter.tool_execution.load(Ordering::SeqCst)
+                }),
+                Arc::new(move || signal.notify_one()),
+            );
+        }
         let worker = tokio::spawn(worker_loop(
             receiver,
             Arc::clone(&shared),
@@ -846,6 +877,7 @@ impl SessionRuntime {
             store,
             source,
             wiring.reverse,
+            notification_signal,
         ));
         Ok(Self {
             shared,
@@ -898,6 +930,7 @@ impl SessionRuntime {
                 input_id: input_id.clone(),
                 compact: None,
                 goal: None,
+                notifications: Vec::new(),
             })
             .map_err(|_| RuntimeError::RuntimeClosed)?;
         live.seen_inputs.insert(input_id, accepted.clone());
@@ -1196,6 +1229,7 @@ impl SessionRuntime {
             input_id: job.input_id.clone(),
             compact: Some(job),
             goal: None,
+            notifications: Vec::new(),
         };
         // 先入队、后改状态：worker 取任务需要 `live` 锁，本临界区内不会被插队；
         // 入队失败（worker 已退出）时不留下半截受理状态。
@@ -1629,6 +1663,7 @@ impl SessionRuntime {
             input_id: job.input_id.clone(),
             compact: None,
             goal: Some(job),
+            notifications: Vec::new(),
         };
         self.queue.send(item).map_err(|_| GoalReject::RuntimeClosed)
     }
@@ -1711,6 +1746,46 @@ impl SessionRuntime {
     }
 }
 
+/// 取走当前排队的后台完成通知，拼成 `(input, notifications)` 批次（C3 T3）。
+///
+/// `input` 是各条 `<task-notification>` 按完成顺序用空行连接的结果；返回 `None` =
+/// 当前没有待投递通知。批次只产生**一个** turn（`background-busy-coalesced.json`）。
+fn take_notification_batch(
+    session: &Session,
+) -> Option<(String, Vec<agent_core::TaskNotification>)> {
+    let notifications = session.take_task_notifications();
+    if notifications.is_empty() {
+        return None;
+    }
+    let input = notifications
+        .iter()
+        .map(agent_core::TaskNotification::to_xml)
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    Some((input, notifications))
+}
+
+/// 取走已排队的后台完成通知，拼成一个内部 turn 输入（C3 T3）。
+///
+/// 一批通知只产生**一个** turn（`background-busy-coalesced.json`）：`input` 按完成
+/// 顺序用空行分隔。返回 `None` = 当前没有待投递通知。通知 turn 不进入
+/// `CommandInbox`（它没有用户受理步骤），但仍走同一个 worker 串行执行。
+fn drain_notification_input(session: &Session) -> Option<QueuedInput> {
+    let (input, notifications) = take_notification_batch(session)?;
+    let input_id = fresh_id("in");
+    Some(QueuedInput {
+        input: SessionInput {
+            input_id: Some(input_id.clone()),
+            content: input,
+            expected_revision: None,
+        },
+        input_id,
+        compact: None,
+        goal: None,
+        notifications,
+    })
+}
+
 /// worker 主体：串行消费队列直到发送端关闭且队列清空。
 ///
 /// 启动时（Task 8 控制器裁决 3）向宿主发一次 `session/requestRuntimePreferences`
@@ -1737,6 +1812,7 @@ async fn worker_loop(
     store: Arc<SessionStore>,
     source: Arc<dyn ProviderSource>,
     reverse: Option<Arc<crate::reverse::ReverseHub>>,
+    notification_signal: Arc<tokio::sync::Notify>,
 ) {
     // panic 也必须结算 drain 信号：否则 `session/close` 的 closing 台账永远等不到
     // 「worker 已退出」，drain 守卫会把会话卡在 closing（最终评审 Minor）。
@@ -1751,7 +1827,23 @@ async fn worker_loop(
     // user-execution 偏好只在每运行时的首个 turn 前发一次（见函数注释）。
     let mut user_execution_requested = false;
     let mut current: Option<(String, String, String, Arc<dyn ModelProvider>)> = None;
-    while let Some(item) = receiver.recv().await {
+    loop {
+        // C3 T3：先投递已完成的后台通知（当前 turn 的忙时完成在上一轮结束时就已
+        // 入队），一批合并成一个 `background_task` turn；没有通知才等下一个输入。
+        // `Notify` 只负责叫醒空闲 worker，队列仍归 `TaskRegistry`。
+        let item = if let Some(item) = drain_notification_input(&session) {
+            item
+        } else {
+            let maybe_item = tokio::select! {
+                maybe_item = receiver.recv() => maybe_item,
+                _ = notification_signal.notified() => continue,
+            };
+            match maybe_item {
+                Some(item) => item,
+                None => break,
+            }
+        };
+        let is_notification_turn = !item.notifications.is_empty();
         // 取消令牌在**取到输入时**就登记（Task 10）：`session/close` 可能落在
         // 「准入已接受、turn 尚未开始」的等待窗口里（user-execution 偏好请求、
         // provider 装配的宿主钩子）。令牌登记晚于 close 时，`cancel_turn` 落在
@@ -1775,6 +1867,12 @@ async fn worker_loop(
             } else {
                 TurnKind::Prompt
             });
+            // 通知 turn 没有 submit 的受理步骤；按普通输入的口径补一次 revision
+            // （`background-idle` 的 4 = 用户 turn 2 + 通知 turn 2）。
+            if is_notification_turn {
+                live.revision += 1;
+                live.updated_at = now_ms();
+            }
             // compact 任务：先记「已取到」（相位仍可能是 Queued——provider 装配窗口内
             // 第二个 compact 仍会被受理为排队，见 `CompactCoordinator` 注释）。
             if item.compact.is_some() {
@@ -1944,6 +2042,12 @@ async fn run_configuration_failure(
     let mut recorder = TurnRecorder::new(Arc::clone(shared), Arc::clone(store), item);
     let started = if item.compact.is_some() {
         session.begin_compact_turn(&item.input.content, &item.input_id)
+    } else if !item.notifications.is_empty() {
+        session.begin_background_notification_turn(
+            &item.input.content,
+            &item.input_id,
+            &item.notifications,
+        )
     } else {
         session.begin_turn(&item.input.content)
     };
@@ -1973,6 +2077,9 @@ async fn run_configuration_failure(
         // 与普通 turn 的配置失败同口径；失败不改变上下文，`settled=false` 让
         // 排队中的下一单照常完整执行。
         live.compact.on_settled(false);
+        live.status = RuntimeStatus::Error;
+    } else if !item.notifications.is_empty() {
+        // 后台通知 turn 不进入 CommandInbox；配置失败同样按错误收口，不做对账。
         live.status = RuntimeStatus::Error;
     } else {
         // 普通 turn：与 `run_one_input` 的失败分支同形（失败恒 Error；Stale 不动
@@ -2021,6 +2128,8 @@ async fn run_one_input(
     let recorder = TurnRecorder::new(Arc::clone(shared), Arc::clone(store), &item);
     let content = item.input.content.clone();
     let input_id = item.input_id.clone();
+    let notifications = item.notifications.clone();
+    let is_notification_turn = !notifications.is_empty();
     let session_id = shared.record.id.clone();
     let shared_for_turn = Arc::clone(shared);
     let handle = tokio::runtime::Handle::current();
@@ -2062,14 +2171,28 @@ async fn run_one_input(
                 .last_memory_error
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = memory_load.error;
-            let result = session
-                .run_turn(&content, provider.as_ref(), &mut recorder, &token)
-                .await;
+            let result = if is_notification_turn {
+                session
+                    .run_background_notification_turn(
+                        &content,
+                        &input_id,
+                        &notifications,
+                        provider.as_ref(),
+                        &mut recorder,
+                        &token,
+                    )
+                    .await
+            } else {
+                session
+                    .run_turn(&content, provider.as_ref(), &mut recorder, &token)
+                    .await
+            };
 
             // —— 终态收口（与旧内联路径逐行同序，只是在阻塞线程上）——
             let failure_message = match &result {
                 Ok(()) => None,
-                // 取消：终态已由 run_turn 发出，不再补第二个终态。
+                // 取消：终态已由 run_turn 发出，不再补第二个终态；占位行由
+                // `EventSink::cancelled_placeholder` 在终态发布前落库。
                 Err(error) if error.is_cancelled() => None,
                 Err(error) => {
                     // Task 7 控制器裁决 6：失败 turn 的 usage 行记**已知**累计值，不清零。
@@ -2108,8 +2231,16 @@ async fn run_one_input(
             let mut live = shared_for_turn.lock();
             live.current_cancel = None;
             live.current_kind = None;
+            shared_for_turn
+                .tool_execution
+                .store(false, Ordering::SeqCst);
             // running 完成对账；迟到的 complete 由 CommandInbox 自己挡（Stale 不动队列）。
-            let completion = live.inbox.complete(&session_id, &input_id);
+            // 通知 turn 从未进入 CommandInbox，不能对它调用 complete（否则 Stale）。
+            let completion = if is_notification_turn {
+                None
+            } else {
+                Some(live.inbox.complete(&session_id, &input_id))
+            };
             live.turn_count += 1;
             live.revision += 1;
             live.updated_at = now_ms();
@@ -2117,10 +2248,18 @@ async fn run_one_input(
             // Task 7 控制器裁决 6：队首被提升（还有已接受输入在等）时不能闪回 idle。
             live.status = match (&failure_message, completion) {
                 (Some(_), _) => RuntimeStatus::Error,
-                (None, Completion::Promoted(_)) => RuntimeStatus::Running,
-                (None, Completion::Idle) => RuntimeStatus::Idle,
+                (None, Some(Completion::Promoted(_))) => RuntimeStatus::Running,
+                (None, Some(Completion::Idle)) => RuntimeStatus::Idle,
                 // Stale：对账被拒（不应发生——worker 是唯一 complete 的写入方）；状态不动。
-                (None, Completion::Stale) => live.status,
+                (None, Some(Completion::Stale)) => live.status,
+                // 通知 turn：队列里还有已接受输入时保持 Running，否则回 idle。
+                (None, None) => {
+                    if live.inbox.running(&session_id).is_some() {
+                        RuntimeStatus::Running
+                    } else {
+                        RuntimeStatus::Idle
+                    }
+                }
             };
             if let Some(message) = failure_message.or(recorder.persist_error.clone()) {
                 live.last_error = Some(message);
@@ -3117,6 +3256,55 @@ async fn run_goal_job(
     session
 }
 
+/// goal 续跑/通知 turn 的 provider 失败收口（C3 T3）。
+///
+/// 终态恰好一次：`turn.failed` 由这里补发；目标 active 字段清空并同步落库，
+/// 但目标仍保持 `active`（T1 §1.11 的失败路径）。调用方随后结束续跑循环。
+fn fail_goal_turn(
+    session: &mut Session,
+    shared: &Arc<Shared>,
+    store: &Arc<SessionStore>,
+    recorder: &mut TurnRecorder,
+    error: &agent_core::TurnError,
+) {
+    recorder.record_failure_progress(&error.progress, Some(("unknown_error", "UNKNOWN_ERROR")));
+    let failed = match &error.provider_error {
+        Some(provider_error) => {
+            if provider_error.is_auth() {
+                recorder.persist_failed_placeholder();
+            }
+            session.emit_turn_failed_for_provider(
+                recorder.turn_id().map(String::as_str),
+                provider_error,
+                "processing_input",
+            )
+        }
+        None => session.emit_turn_failed(
+            recorder.turn_id().map(String::as_str),
+            "runtime_error",
+            &error.message,
+            "model",
+        ),
+    };
+    recorder.emit(failed);
+    {
+        let mut live = shared.lock();
+        live.last_error = Some(error.message.clone());
+        live.status = RuntimeStatus::Error;
+        shared.tool_execution.store(false, Ordering::SeqCst);
+        if let Some(target) = live.goal.target.clone() {
+            let mut cleared = target;
+            cleared.active_input_id = None;
+            cleared.active_run_started_at = None;
+            cleared.active_run_last_seen_at = None;
+            cleared.time_updated = now_ms();
+            let _ = store.upsert_target(&target_record(&cleared));
+            live.goal.target = Some(cleared);
+        }
+        live.updated_at = now_ms();
+    }
+}
+
 /// 续跑循环：每轮一个 goal-continuation turn + completion verifier；无轮次上限。
 async fn run_goal_loop(
     session: &mut Session,
@@ -3166,7 +3354,10 @@ async fn run_goal_loop(
         let shared_after = Arc::clone(shared);
         let store_after = Arc::clone(store);
         let run_started_for_after = Arc::clone(&run_started_at);
-        let active_input_for_after = active_input_id.clone();
+        // 同一轮里的 goal-continuation 与 notification turn 共用这对钩子；
+        // activeInputId 在通知 turn 前切换成通知自己的 inputId（夹具 §3.3）。
+        let active_input_for_after = Arc::new(Mutex::new(active_input_id.clone()));
+        let active_input_handle = Arc::clone(&active_input_for_after);
         let mut after_start = move |session: &mut Session, sink: &mut dyn EventSink| {
             let now = now_ms();
             run_started_for_after.store(now, std::sync::atomic::Ordering::SeqCst);
@@ -3176,8 +3367,12 @@ async fn run_goal_loop(
                     let Some(target) = live.goal.target.as_mut() else {
                         return;
                     };
+                    let active_input = active_input_for_after
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .clone();
                     let previous = target.clone();
-                    target.start_run(&active_input_for_after, now);
+                    target.start_run(&active_input, now);
                     let _ = store_after.upsert_target(&target_record(target));
                     let next = target.clone();
                     target_update_payload("run_started", "runtime", Some(&previous), Some(&next))
@@ -3294,6 +3489,49 @@ async fn run_goal_loop(
                     publish_pending_cancel_event(shared);
                     break;
                 }
+                // C3 T3 / 夹具 §3.3：续跑 turn 结束后、verifier 之前，把 pending
+                // 后台通知合并成一个 `background_task` turn；它包在同一个
+                // run_started/run_finished 钩子里，tokens/time 计入目标。
+                if let Some((input, notifications)) = take_notification_batch(session) {
+                    let notification_input_id = fresh_id("in");
+                    *active_input_handle
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner()) =
+                        notification_input_id.clone();
+                    let mut notification_recorder = TurnRecorder::notification_turn(
+                        Arc::clone(shared),
+                        Arc::clone(store),
+                        input.clone(),
+                    );
+                    let notification_result = session
+                        .run_background_notification_turn_with_hooks(
+                            &input,
+                            &notification_input_id,
+                            &notifications,
+                            provider.as_ref(),
+                            &mut notification_recorder,
+                            &cancel,
+                            &mut after_start,
+                            &mut before_terminal,
+                        )
+                        .await;
+                    match notification_result {
+                        Ok(()) => {}
+                        Err(error) if error.is_cancelled() => {
+                            break;
+                        }
+                        Err(error) => {
+                            fail_goal_turn(
+                                session,
+                                shared,
+                                store,
+                                &mut notification_recorder,
+                                &error,
+                            );
+                            break;
+                        }
+                    }
+                }
                 let verdict =
                     run_goal_verifier(session, shared, store, provider.clone(), config).await;
                 match verdict {
@@ -3311,44 +3549,7 @@ async fn run_goal_loop(
                 break;
             }
             Err(error) => {
-                recorder.record_failure_progress(
-                    &error.progress,
-                    Some(("unknown_error", "UNKNOWN_ERROR")),
-                );
-                let failed = match &error.provider_error {
-                    Some(provider_error) => {
-                        if provider_error.is_auth() {
-                            recorder.persist_failed_placeholder();
-                        }
-                        session.emit_turn_failed_for_provider(
-                            recorder.turn_id().map(String::as_str),
-                            provider_error,
-                            "processing_input",
-                        )
-                    }
-                    None => session.emit_turn_failed(
-                        recorder.turn_id().map(String::as_str),
-                        "runtime_error",
-                        &error.message,
-                        "model",
-                    ),
-                };
-                recorder.emit(failed);
-                {
-                    let mut live = shared.lock();
-                    live.last_error = Some(error.message);
-                    live.status = RuntimeStatus::Error;
-                    if let Some(target) = live.goal.target.clone() {
-                        let mut cleared = target;
-                        cleared.active_input_id = None;
-                        cleared.active_run_started_at = None;
-                        cleared.active_run_last_seen_at = None;
-                        cleared.time_updated = now_ms();
-                        let _ = store.upsert_target(&target_record(&cleared));
-                        live.goal.target = Some(cleared);
-                    }
-                    live.updated_at = now_ms();
-                }
+                fail_goal_turn(session, shared, store, &mut recorder, &error);
                 break;
             }
         }
@@ -4220,6 +4421,7 @@ fn compact_cache_stats(messages_len: usize, prior_tool_history: bool) -> CacheSt
 enum UserMessageSemantics {
     UserPrompt,
     GoalContinuation,
+    BackgroundNotification,
 }
 
 struct TurnRecorder {
@@ -4282,7 +4484,11 @@ impl TurnRecorder {
             session_id: shared.record.id.clone(),
             content: item.input.content.clone(),
             persist_user: item.compact.is_none(),
-            user_semantics: UserMessageSemantics::UserPrompt,
+            user_semantics: if item.notifications.is_empty() {
+                UserMessageSemantics::UserPrompt
+            } else {
+                UserMessageSemantics::BackgroundNotification
+            },
             turn_id: None,
             turn_started_at: 0,
             user_message_id: None,
@@ -4323,6 +4529,30 @@ impl TurnRecorder {
         }
     }
 
+    /// 后台通知 turn 的 recorder：user 行落库为 `background_notification` /
+    /// `source:"background_task"`（C3 §3.1 的 messageSummary）。
+    fn notification_turn(shared: Arc<Shared>, store: Arc<SessionStore>, input: String) -> Self {
+        Self {
+            session_id: shared.record.id.clone(),
+            content: input,
+            persist_user: true,
+            user_semantics: UserMessageSemantics::BackgroundNotification,
+            turn_id: None,
+            turn_started_at: 0,
+            user_message_id: None,
+            last_message_id: None,
+            current: None,
+            tool_error_count: 0,
+            turn_total_tokens: 0,
+            last_step_usage: None,
+            model_retry_count: 0,
+            model_request_rounds: None,
+            persist_error: None,
+            shared,
+            store,
+        }
+    }
+
     fn turn_id(&self) -> Option<&String> {
         self.turn_id.as_ref()
     }
@@ -4346,6 +4576,7 @@ impl TurnRecorder {
     }
 
     fn observe(&mut self, event: &SessionEvent) {
+        self.track_tool_window(event);
         match event.event_type {
             SessionEventType::TurnStarted => self.on_turn_started(event),
             SessionEventType::ModelStreaming => self.on_model_streaming(event),
@@ -4354,6 +4585,35 @@ impl TurnRecorder {
             SessionEventType::TurnFailed => self.on_turn_failed(event),
             SessionEventType::SessionUpdated => self.on_session_updated(event),
             SessionEventType::StreamRecoveryUpdated => self.on_stream_recovery_updated(event),
+            _ => {}
+        }
+    }
+
+    /// 前台工具执行窗口（C3 T3）：`started` 置位，整批 `batch` 清除。
+    ///
+    /// `TaskRegistry` 的完成通知在另一个线程上读这个原子位；窗口内完成的通知按
+    /// C1 观察丢弃，窗口外的通知入队等 worker 合并投递。turn 起止也清除，
+    /// 防止异常路径把窗口留到下一个 turn。
+    fn track_tool_window(&self, event: &SessionEvent) {
+        match event.event_type {
+            SessionEventType::TurnStarted
+            | SessionEventType::TurnCompleted
+            | SessionEventType::TurnFailed => {
+                self.shared.tool_execution.store(false, Ordering::SeqCst);
+            }
+            SessionEventType::ToolUpdated => {
+                if let Ok(Some(payload)) = event.payload_as::<ToolUpdatedPayload>() {
+                    match payload {
+                        ToolUpdatedPayload::Started(_) => {
+                            self.shared.tool_execution.store(true, Ordering::SeqCst);
+                        }
+                        ToolUpdatedPayload::Batch(_) => {
+                            self.shared.tool_execution.store(false, Ordering::SeqCst);
+                        }
+                        _ => {}
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -4660,6 +4920,14 @@ impl TurnRecorder {
                 "origin": "agent_runtime",
                 "kind": "system_reminder",
                 "source": "goal-continuation",
+                "uiVisibility": "hidden",
+                "providerVisibility": "visible",
+                "transcriptVisibility": "hidden",
+            }),
+            UserMessageSemantics::BackgroundNotification => json!({
+                "origin": "agent_runtime",
+                "kind": "background_notification",
+                "source": "background_task",
                 "uiVisibility": "hidden",
                 "providerVisibility": "visible",
                 "transcriptVisibility": "hidden",
@@ -4981,6 +5249,15 @@ impl EventSink for TurnRecorder {
     fn model_request_rounds(&mut self, rounds: u64) {
         // DB/轮次口径的内部事实（C3 T2）：取消终态的事件载荷按夹具省略它。
         self.model_request_rounds = Some(rounds);
+    }
+
+    fn cancelled_placeholder(&mut self, model_requested: bool) {
+        // 夹具（`retry-cancel-during-backoff` / `goal-pause-in-flight`）：已观察到
+        // 模型请求的取消留下 `finish:null`、无 part 的 assistant 占位；请求前取消
+        // 没有占位。钩子在终态发布前调用，保证事件可见时行已提交。
+        if model_requested {
+            self.persist_failed_placeholder();
+        }
     }
 }
 

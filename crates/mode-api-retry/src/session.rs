@@ -171,6 +171,19 @@ impl SessionApiRetryTracker {
         }
     }
 
+    /// 终态清空（C3 T3）：任何 `turn.completed` / `turn.failed` 提交后不得再把
+    /// 上一 turn 的 retry 态投影进快照（goal 失败不会经过 completed/error 快照）。
+    ///
+    /// 只清除**已有条目**：从未发生过重试的会话保持「没有 apiRetry 键」的观察形状
+    /// （C2 的 compact 快照没有该键）；发生过重试的会话投影为 `null`。
+    pub fn clear_session(&self, target: &SessionTarget) {
+        let key = session_key(target);
+        let mut by_session = self.by_session.lock().expect("api retry lock");
+        if by_session.contains_key(&key) {
+            by_session.insert(key, None);
+        }
+    }
+
     pub fn with_api_retry_runtime(&self, snapshot: &Value) -> Value {
         let Some(snapshot_object) = snapshot.as_object() else {
             return snapshot.clone();
