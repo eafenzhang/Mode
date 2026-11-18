@@ -137,6 +137,8 @@ pub struct RuntimeConfig {
     pub event_log_capacity: usize,
     /// broadcast 总线容量；消费方 lag 丢失时用 `subscribe(after_seq)` 重放补齐。
     pub broadcast_capacity: usize,
+    /// C3 T2：模型请求重试策略（次数来自夹具 `maxRetries:10`；退避可注入）。
+    pub retry: agent_core::RetryPolicy,
 }
 
 impl Default for RuntimeConfig {
@@ -152,6 +154,7 @@ impl Default for RuntimeConfig {
             data_root: None,
             event_log_capacity: 4096,
             broadcast_capacity: 256,
+            retry: agent_core::RetryPolicy::default(),
         }
     }
 }

@@ -327,7 +327,7 @@ async fn stream_once(
             Some(chunk) => chunk,
             None => break,
         };
-        let chunk = chunk.map_err(|error| error::transport(describe_transport(&error)))?;
+        let chunk = chunk.map_err(|error| error::stream_abort(describe_transport(&error)))?;
         finished = ingest_payloads(decoder.push(&chunk), &mut tracker, deltas)?;
     }
     if !finished {
@@ -336,7 +336,9 @@ async fn stream_once(
         finished = ingest_payloads(decoder.finish(), &mut tracker, deltas)?;
     }
     if !finished {
-        return Err(error::malformed(
+        // 连接在终止事件前关闭 = 流中断（不是响应契约违规）：可重试；
+        // 已提交 delta 时由会话层进入 stream recovery。
+        return Err(error::stream_abort(
             "Anthropic 流在 message_stop 前结束（连接已关闭）".to_string(),
         ));
     }
@@ -425,27 +427,23 @@ fn status_error(status: u16, body: &str) -> ProviderError {
         .ok()
         .and_then(|value| error_detail(&value));
     match parsed {
-        Some((Some(kind), message)) => ProviderError {
-            message: format!("HTTP {status}（{kind}）：{}", truncate(&message)),
-        },
-        Some((None, message)) => ProviderError {
-            message: format!("HTTP {status}：{}", truncate(&message)),
-        },
+        Some((Some(kind), message)) => ProviderError::http_status(status, "")
+            .with_message(format!("HTTP {status}（{kind}）：{}", truncate(&message))),
+        Some((None, message)) => ProviderError::http_status(status, "")
+            .with_message(format!("HTTP {status}：{}", truncate(&message))),
         None => error::http_status(status, body),
     }
 }
 
 fn in_stream_error(value: &Value) -> ProviderError {
     match error_detail(value) {
-        Some((Some(kind), message)) => ProviderError {
-            message: format!(
-                "Anthropic 流内 error 事件（{kind}）：{}",
-                truncate(&message)
-            ),
-        },
-        Some((None, message)) => ProviderError {
-            message: format!("Anthropic 流内 error 事件：{}", truncate(&message)),
-        },
+        Some((Some(kind), message)) => ProviderError::api(format!(
+            "Anthropic 流内 error 事件（{kind}）：{}",
+            truncate(&message)
+        )),
+        Some((None, message)) => {
+            ProviderError::api(format!("Anthropic 流内 error 事件：{}", truncate(&message)))
+        }
         None => error::malformed("Anthropic 流内 error 事件缺少 error.message".to_string()),
     }
 }

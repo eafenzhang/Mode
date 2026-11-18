@@ -1,9 +1,8 @@
-//! `provider-http` 的错误构造：把 HTTP 状态、传输失败、响应契约违规与本地错误统一成
-//! [`ProviderError`]。
+//! `provider-http` 的错误构造：把 HTTP 状态、传输失败、流中断、响应契约违规与本地
+//! 错误统一成 [`ProviderError`]（C3 T2 起带分类字段：`kind`/`status`/`retryable`）。
 //!
-//! 当前 `agent-core` 契约的 `ProviderError` 只有 `message` 一个字段（brief 里的
-//! `kind`/`status` 分字段是旧口径，Task 3 收敛后不再存在）；状态码与根因都拼进文案，
-//! 保证 `turn.failed`（Task 6）拿到一行可诊断的话。
+//! 分类只在这里做一次：会话层按 `retryable` 决定是否重试，按「本尝试是否已提交
+//! delta」决定走 adapter 退避还是 stream recovery（契约 §2 / §7.7）。
 
 use agent_core::ProviderError;
 use serde_json::Value;
@@ -13,40 +12,45 @@ const DETAIL_MAX_CHARS: usize = 512;
 
 /// 非 2xx HTTP 响应 → 错误。正文尽力提取错误消息（`error.message` / `error` 字符串 /
 /// `message` 字段），提取失败回退原文截断——错误必须可诊断，不静默吞正文。
+///
+/// 状态码分类（`ProviderError::http_status`）：401/403 auth、5xx server（retryable）、
+/// 408/429 rate limited（retryable）、其余 4xx/3xx 非 retryable。
 pub fn http_status(status: u16, body: &str) -> ProviderError {
     let message = serde_json::from_str::<Value>(body.trim())
         .ok()
         .and_then(|value| payload_message(&value))
         .unwrap_or_else(|| truncate(body));
-    ProviderError {
-        message: format!("HTTP {status}: {message}"),
-    }
+    ProviderError::http_status(status, format!("HTTP {status}: {message}"))
 }
 
-/// 传输失败（连接、TLS、读流中断）。reqwest 顶层文案不含根因（挂在 `source()` 链上），
-/// 调用方应先把整条链拼进 detail（见 openai_chat 的 `describe_transport`）。
+/// 传输失败（连接、TLS、DNS；请求未发出或响应头未到）。retryable。
+/// reqwest 顶层文案不含根因（挂在 `source()` 链上），调用方应先把整条链拼进 detail。
 pub fn transport(detail: String) -> ProviderError {
-    ProviderError {
-        message: format!("模型请求传输失败：{detail}"),
-    }
+    ProviderError::transport(format!("模型请求传输失败：{detail}"))
 }
 
-/// 响应不合契约（非法 JSON、缺关键字段、工具入参不可解析）。
+/// 流中断（响应已开始、delta 可能已提交，读流失败或连接在终止事件前关闭）。
+///
+/// 这是 C3 T2 新增分类：**retryable**，但会话层只有在没有已提交 delta 时才走
+/// adapter 退避；否则走 stream recovery（`streamRecovery.updated`，立即重试）。
+pub fn stream_abort(detail: String) -> ProviderError {
+    ProviderError::stream_abort(format!("模型流传输中断：{detail}"))
+}
+
+/// 响应不合契约（非法 JSON、缺关键字段、工具入参不可解析）。非 retryable。
 pub fn malformed(detail: String) -> ProviderError {
-    ProviderError {
-        message: format!("模型响应不合契约：{detail}"),
-    }
+    ProviderError::malformed(format!("模型响应不合契约：{detail}"))
 }
 
-/// 本地错误（delta sink 已关闭、请求体序列化失败）。
+/// 本地错误（delta sink 已关闭、请求体序列化失败）。非 retryable。
 pub fn local(detail: String) -> ProviderError {
-    ProviderError { message: detail }
+    ProviderError::local(detail)
 }
 
 /// 从错误载荷提取消息；不是已知形态时返回 `None`（HTTP 侧回退原文截断）。
 ///
 /// 兼容三种已见形态：`{"error": {"message": …}}`（OpenAI）、`{"error": "…"}`、
-/// `{"message": "…"}`（部分兼容网关）。`error: null` 视为没有错误。
+/// `{"message": …}`（部分兼容网关）。`error: null` 视为没有错误。
 pub(crate) fn payload_message(value: &Value) -> Option<String> {
     let message = match value.get("error") {
         Some(Value::String(text)) => Some(text.clone()),

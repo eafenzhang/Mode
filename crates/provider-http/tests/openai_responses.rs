@@ -12,7 +12,7 @@ use std::time::Duration;
 use agent_core::provider::DeltaSink;
 use agent_core::{
     ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse, ModelToolCall,
-    ModelToolDefinition, ModelUsage, ProviderError,
+    ModelToolDefinition, ModelUsage, ProviderError, ProviderErrorKind,
 };
 use provider_http::{
     build_responses_request, OpenAiResponsesConfig, OpenAiResponsesProvider, INSTRUCTIONS_SEPARATOR,
@@ -838,6 +838,11 @@ async fn truncated_stream_without_terminal_event_is_an_error() {
     .await
     .expect_err("截断流不能伪装成成功终态");
     assert!(error.message.contains("终态事件"), "{}", error.message);
+    assert_eq!(error.kind, ProviderErrorKind::StreamAbort);
+    assert!(
+        error.retryable,
+        "流中断必须可重试（stream recovery 的入口）"
+    );
     assert_eq!(
         collect_deltas(&mut rx),
         vec![ModelDelta::Text {
@@ -955,6 +960,9 @@ async fn http_error_status_maps_openai_error_message() {
         "{}",
         error.message
     );
+    assert_eq!(error.kind, ProviderErrorKind::Auth);
+    assert_eq!(error.status, Some(401));
+    assert!(!error.retryable, "401 必须是非 retryable");
 
     let (address, _captured) = spawn_server(
         "HTTP/1.1 500 Internal Server Error",
@@ -974,6 +982,9 @@ async fn http_error_status_maps_openai_error_message() {
     .expect_err("500 必须显式报错");
     assert!(error.message.contains("500"), "{}", error.message);
     assert!(error.message.contains("upstream boom"), "{}", error.message);
+    assert_eq!(error.kind, ProviderErrorKind::Server);
+    assert_eq!(error.status, Some(500));
+    assert!(error.retryable, "5xx 必须可重试");
 }
 
 // ---------- 请求头 ----------

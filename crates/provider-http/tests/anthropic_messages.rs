@@ -12,7 +12,7 @@ use std::time::Duration;
 use agent_core::provider::DeltaSink;
 use agent_core::{
     ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse, ModelToolCall,
-    ModelToolDefinition, ModelUsage, ProviderError,
+    ModelToolDefinition, ModelUsage, ProviderError, ProviderErrorKind,
 };
 use provider_http::{
     build_messages_request, AnthropicMessagesConfig, AnthropicMessagesProvider,
@@ -695,6 +695,9 @@ async fn http_error_status_maps_anthropic_error_type_and_message() {
         "{}",
         error.message
     );
+    assert_eq!(error.kind, ProviderErrorKind::Auth);
+    assert_eq!(error.status, Some(401));
+    assert!(!error.retryable, "401 必须是非 retryable");
 
     // 5xx 非 JSON 正文：回退原文截断，仍可诊断。
     let (address, _captured) = spawn_server(
@@ -715,6 +718,9 @@ async fn http_error_status_maps_anthropic_error_type_and_message() {
     .expect_err("500 必须显式报错");
     assert!(error.message.contains("500"), "{}", error.message);
     assert!(error.message.contains("upstream boom"), "{}", error.message);
+    assert_eq!(error.kind, ProviderErrorKind::Server);
+    assert_eq!(error.status, Some(500));
+    assert!(error.retryable, "5xx 必须可重试");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -832,6 +838,11 @@ async fn truncated_stream_without_message_stop_is_an_error() {
     .await
     .expect_err("截断流不能伪装成成功终态");
     assert!(error.message.contains("message_stop"), "{}", error.message);
+    assert_eq!(error.kind, ProviderErrorKind::StreamAbort);
+    assert!(
+        error.retryable,
+        "流中断必须可重试（stream recovery 的入口）"
+    );
     assert_eq!(
         collect_deltas(&mut rx),
         vec![ModelDelta::Text {

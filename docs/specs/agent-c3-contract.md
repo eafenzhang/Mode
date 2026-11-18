@@ -575,7 +575,67 @@ statusCode:401, reason:"auth_failed", message:"Provider authentication failed.")
   `statusType` 取值：`model_request_started`、`model_request_completed`、
   `model_request_failed`、`model_retry_scheduled`、`model_stream_stalled`（后者未触发）。
 
-### 2.7 stream recovery / retry 未观察到
+### 2.7 Rust C3 现状（T2，2026-11-18）
+
+T2 在 `agent-core::Session::run_turn` 内落重试/恢复循环，事件/账务按 §2 的夹具基线
+实现；`provider-http` 只负责错误分类（HTTP 状态/传输/流中断），不内嵌重试。
+测试入口：`crates/agent-core/tests/recovery.rs`（6 用例）与
+`crates/agent-server/tests/retry.rs`（5 用例）。
+
+已实现（与观察一致）：
+
+- 错误分类：`ProviderError { message, kind, status, retryable }`；
+  401/403 → auth 非 retryable；5xx → server retryable；传输/流中断 → retryable；
+  非法 JSON/本地错误 → 非 retryable。`ProviderError::new` 保持旧的 message-only 语义
+  （Unknown、非 retryable）。
+- HTTP 5xx/未提交 delta 的传输失败：指数退避（默认 base 1000ms、上限 30s、0–50%
+  抖动；夹具把毫秒折叠为 `<retry-delay>`，不逐毫秒复刻）+ 最多 10 次重试；
+  每次调度发 `session.updated(model_retry_scheduled)`，字段含 `attempt`/
+  `maxAttempts:11`/`nextAttempt`/`delayMs`/`statusCode`/`reason`/`message`/
+  `errorCode`/`_meta.mode.apiRetry`；成功后发
+  `session.updated(model_request_completed)`（`_meta.mode.apiRetry:null`）。
+- 流中断（已提交 delta）：4 条 `streamRecovery.updated` 与 §2.2 同序同键：
+  `failureKind:"provider_network_error"`、`retryDelayMs:0`、`retryNumber` 1..、
+  `maxRetries:10`、`reason:"no_tool_committed"`、`discardedTextBytes`（UTF-8 字节）、
+  `discardedReasoningBytes:0`、`streamMode:"sse"`；已提交 delta 仍进事件流但不进
+  最终消息；`turn.completed.historyRoundCount` 计 2。
+- 401：只请求一次；`turn.failed` 恰好一次，`attribution` 带
+  `source:"provider"`/`reason:"auth_failed"`/`statusCode:401`/`retryable:false`；
+  `turn_usage` 记 `error_type:"unknown_error"`/`error_code:"UNKNOWN_ERROR"`。
+- 退避期间取消：不再发起下一次尝试；发
+  `session.updated(model_request_failed {reason:"cancelled", retryable:false,
+errorCode:"model_request_cancelled", _meta.apiRetry:null})`；
+  `turn.completed(resultType:"cancelled")` 恰好一次；`model_request_count:1`、
+  `model_retry_count:1`。
+- 账务分层：事件 `turn.completed.usage.modelRequestCount` 只计成功完成的请求；
+  DB `turn_usage.model_request_count` / `turn.completed.historyRoundCount` 计轮次
+  （初始尝试 + 每个 stream recovery 尝试；HTTP 重试不增轮次）；
+  `turn_usage.model_retry_count` 只计 HTTP adapter 重试（`model_retry_scheduled`
+  事件数，stream recovery 为 0）。
+- apiRetry：agent-server 在提交 `session.updated`/`streamRecovery.updated` 时喂入
+  `mode-api-retry::SessionApiRetryTracker`，快照用 crate 的
+  `with_api_retry_runtime` 投影；成功/取消/错误路径清空为 `null`。
+- 重试耗尽：按夹具的 `maxRetries:10`（共 11 次尝试）停止，`turn.failed` 恰好一次；
+  不另发第二个终态。
+
+差异 / 未覆盖（不伪造观察值）：
+
+| 项                       | Rust 现状                                                                                                                                                                                                                                                         | 依据                    |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| 重试所在层               | HTTP 重试在 `agent-core` 的会话循环里做（brief 指定），不是 `provider-http` adapter 内部；因此 adapter 无法在每次请求前重发 `model_request_started`。                                                                                                             | task-2-brief            |
+| `model_request_*` 事件族 | 正常 turn 仍不产出（C1 登记缺省）。重试 turn 只补发 `model_retry_scheduled` / `model_request_completed` / 取消收口的 `model_request_failed`；夹具里的 `model_request_started`（含 recovery 的 `streamRecovery` 嵌套）与每次失败的 `model_request_failed` 未产出。 | C1 既有差异 + §2.2/§2.3 |
+| 退避毫秒                 | 指数 + 抖动只保证量级/单调；夹具把 `delayMs` 折叠为 `<retry-delay>`，未逐毫秒对拍。默认 base 1000ms、上限 30s。                                                                                                                                                   | §2.3                    |
+| 429/408/403/400          | 只观察过 401/503。Rust 规则：403 auth、408 transport（retryable）、429 rate limited（retryable）、其余 4xx 非 retryable；这些分支没有夹具。                                                                                                                       | §2.8 未观察到           |
+| stream recovery 取消     | 未观察；Rust 在尝试边界/退避 select 响应取消，终态 cancelled 一次。                                                                                                                                                                                               | §2.8 未观察到           |
+| 带工具调用的流恢复       | 未观察；已提交工具调用时发 `reason:"tool_committed"` + `committedToolCallIds`，丢弃事件清空当前步。夹具只覆盖 `no_tool_committed`。                                                                                                                               | §2.8 未观察到           |
+| 重试耗尽形状             | 未观察；Rust 只保证 11 次尝试后 `turn.failed` 一次。DB 记 `model_request_count:1`（HTTP 重试不增轮次）、`model_retry_count:10`。                                                                                                                                  | §2.8 未观察到           |
+| 恢复后的重试再失败       | 恢复尝试若未产出任何 delta 又失败，Rust 按「无已提交 delta」走 adapter 退避（同一恢复周期）；夹具未覆盖连续中断。                                                                                                                                                 | §2.8 未观察到           |
+| `model_usage` 行         | C1 普通 turn 仍不写 `model_usage`（§1.11 既有差异），因此夹具的「stream abort 两行（error + completed）/5xx 一行」没有逐行复刻；重试账务只在 `turn_usage` 层可断言。                                                                                              | §1.11 + §2.2/§2.3       |
+| `turn.failed` 归属       | Rust 带 `source/reason/errorPhase/statusCode/retryable`；`providerId`/`modelId`/`providerKind`/`transport`/`exceptionKind` 未填（agent-core 不持有这些事实），`detail` 为自撰摘要；`code` 只在 auth 时填 `provider_not_configured`。                              | §2.4                    |
+| compact / verifier 请求  | 不在 `run_turn` 内，未接重试（未观察到这两类请求的失败重试）。                                                                                                                                                                                                    | §2.8 未观察到           |
+| 取消 turn.completed 形状 | 沿用 C1 的 `usage`/`historyRoundCount` 载荷（oracle 的取消终态没有这两个键）；DB 计数按 `historyRoundCount` 落，与夹具的 `model_request_count` 一致。                                                                                                             | C1 既有差异             |
+
+### 2.8 stream recovery / retry 未观察到
 
 - 重试耗尽（`maxRetries:10` 全用完）的 `turn.failed` 形状与耗时（会跨多轮长退避，本次未驱动）；
 - 403 / 400 / 429 的分类（只验证 401 与 503）；
@@ -914,6 +974,8 @@ duration_ms: 3105</usage>
 7. **HTTP 5xx 走 adapter 重试**（`model_retry_scheduled` + `apiRetry`），
    **流中断走 streamRecovery**（4 条 `streamRecovery.updated`，retryDelay 0，
    attempt 仍为 1）；两条路径的账务字段不同（§2.2/§2.3），不能合并成一种计数。
+   Rust T2 把两条路径的重试循环放在 `agent-core`（brief 指定），事件/账务仍按此
+   区分；未产出的 `model_request_*` 子事件登记在 §2.7。
 8. **已完成 delta 不进入最终消息**；保留 `stream_recovery_discarded` 历史行。
 9. **后台通知在模型流式等待窗口内忙时完成会合并延后**：一个 notification turn 可含
    多条 `<task-notification>`；notification turn 计入 goal，并在 verifier 之前执行。

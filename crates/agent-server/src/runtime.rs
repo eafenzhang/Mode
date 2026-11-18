@@ -480,6 +480,11 @@ struct Shared {
     /// 会话库句柄：goal 命令（方法层）与 worker 共用同一事实源。
     store: Arc<SessionStore>,
     preferences: RwLock<Option<RuntimePreferences>>,
+    /// C3 T2：会话级 apiRetry 状态（`mode-api-retry` 是规则唯一所有者）。
+    ///
+    /// 由 [`Shared::publish`] 在提交 `session.updated` / `streamRecovery.updated`
+    /// 时喂入；快照投影用 `with_api_retry_runtime`（不复制归一化规则）。
+    api_retry: mode_api_retry::SessionApiRetryTracker,
     /// 最近一次 prompt turn 的项目记忆 fail-soft 原因（C2 T3 复核修复）。
     ///
     /// **诊断面，不是协议面**：T0 没有观察到 oracle 的记忆失败诊断（日志/事件），
@@ -507,7 +512,34 @@ impl Shared {
 
     /// 提交一条已分配事件（EventSink 在落库之后调用）。
     fn publish(&self, event: &SessionEvent) {
+        self.track_api_retry(event);
         self.events.commit(event);
+    }
+
+    /// 把重试相关事件喂给 `mode-api-retry` 的唯一归一化实现。
+    ///
+    /// 只处理 `session.updated`（`model_retry_scheduled` / `model_request_completed` /
+    /// `model_request_failed`）与 `streamRecovery.updated`；其余事件不进入该状态机。
+    /// 事件是顺序投递的（同一 turn 的 sink 同步调用），因此无需额外排序。
+    fn track_api_retry(&self, event: &SessionEvent) {
+        if !matches!(
+            event.event_type,
+            SessionEventType::SessionUpdated | SessionEventType::StreamRecoveryUpdated
+        ) {
+            return;
+        }
+        let Ok(inner) = serde_json::to_value(event) else {
+            return;
+        };
+        let wrapper = json!({ "type": "session.event", "event": inner });
+        let target = mode_api_retry::SessionTarget {
+            workspace_path: self.record.directory.clone(),
+            workspace_identity: self.record.workspace_id.clone(),
+            session_id: event.session_id.clone(),
+        };
+        let _ = self
+            .api_retry
+            .track_api_retry_from_session_event(&target, &wrapper);
     }
 
     /// 顺序提交一批已分配事件（goal 方法层的同步事件）。
@@ -623,6 +655,7 @@ impl SessionRuntime {
             store: Arc::clone(&store),
             preferences: RwLock::new(None),
             last_memory_error: RwLock::new(None),
+            api_retry: mode_api_retry::SessionApiRetryTracker::new(),
             record,
         });
 
@@ -630,6 +663,8 @@ impl SessionRuntime {
             .with_event_publisher(Arc::clone(&events))
             .with_mode(shared.read_config().mode)
             .with_model_capabilities(shared.read_config().capabilities)
+            // C3 T2：重试/退避策略由 RuntimeConfig 注入（测试可置 0 延迟）。
+            .with_retry_policy(shared.read_config().retry)
             .with_history(restored.messages)
             .with_file_state(restored.file_state)
             .with_turn_state(restored.next_turn_number, restored.used_turn_ids);
@@ -909,7 +944,14 @@ impl SessionRuntime {
             goal_verifications: live.goal.verifications.clone(),
             goal_verification_timeline: live.goal.timeline.clone(),
         };
-        build_snapshot(&self.shared.record, &config, &view)
+        let snapshot = build_snapshot(&self.shared.record, &config, &view);
+        // C3 T2：`runtime.apiRetry` 由 `mode-api-retry` 的唯一投影规则生成。
+        // 走 crate 自己的 snapshot API（序列化→投影→反序列化），不复制归一化逻辑。
+        let Ok(value) = serde_json::to_value(&snapshot) else {
+            return snapshot;
+        };
+        let projected = self.shared.api_retry.with_api_retry_runtime(&value);
+        serde_json::from_value(projected).unwrap_or(snapshot)
     }
 
     /// `session/resume` 的 `goalStats` 投影（观察键：timeUsedSeconds/tokensUsed/
@@ -1747,7 +1789,7 @@ async fn run_configuration_failure(
     recorder.emit(started);
     // 先落 usage 行再发布终态（最终评审 I3）：订阅者看到 `turn.failed` 时，
     // `turn_usage` 必须已经可读。
-    recorder.record_failure_progress(&agent_core::TurnProgress::default());
+    recorder.record_failure_progress(&agent_core::TurnProgress::default(), None);
     recorder.emit(session.emit_turn_failed(
         turn_id.as_deref(),
         "CONFIGURATION_ERROR",
@@ -1871,13 +1913,25 @@ async fn run_one_input(
                     // Task 7 控制器裁决 6：失败 turn 的 usage 行记**已知**累计值，不清零。
                     // 先落 usage 行再发布终态（最终评审 I3）：看到 `turn.failed` 的
                     // 订阅者读 `turn_usage` 时必须已经有这一行。
-                    recorder.record_failure_progress(&error.progress);
-                    let event = session.emit_turn_failed(
-                        recorder.turn_id().map(String::as_str),
-                        "runtime_error",
-                        &error.message,
-                        "model",
+                    recorder.record_failure_progress(
+                        &error.progress,
+                        Some(("unknown_error", "UNKNOWN_ERROR")),
                     );
+                    // provider 错误走分类投影（attribution.statusCode/retryable）；
+                    // 没有分类事实的 TurnError 保持旧的 runtime_error 形状。
+                    let event = match &error.provider_error {
+                        Some(provider_error) => session.emit_turn_failed_for_provider(
+                            recorder.turn_id().map(String::as_str),
+                            provider_error,
+                            "model",
+                        ),
+                        None => session.emit_turn_failed(
+                            recorder.turn_id().map(String::as_str),
+                            "runtime_error",
+                            &error.message,
+                            "model",
+                        ),
+                    };
                     recorder.emit(event);
                     Some(error.message.clone())
                 }
@@ -2086,7 +2140,7 @@ async fn run_compact_blocking(
         Ok(response) => response,
         // 网络层 provider 失败未观察到（契约 §6）：按 MODEL_ERROR + provider 文案、
         // retryable=true 落失败面（登记在契约「Rust C2 现状」）。
-        Err(ProviderError { message }) => {
+        Err(error) => {
             return compact_failure(
                 session,
                 shared,
@@ -2094,7 +2148,7 @@ async fn run_compact_blocking(
                 facts,
                 &job,
                 CompactFailure {
-                    message: &message,
+                    message: &error.message,
                     retryable: true,
                     model_response: None,
                     model_started_at,
@@ -3088,13 +3142,23 @@ async fn run_goal_loop(
                 break;
             }
             Err(error) => {
-                recorder.record_failure_progress(&error.progress);
-                let failed = session.emit_turn_failed(
-                    recorder.turn_id().map(String::as_str),
-                    "runtime_error",
-                    &error.message,
-                    "model",
+                recorder.record_failure_progress(
+                    &error.progress,
+                    Some(("unknown_error", "UNKNOWN_ERROR")),
                 );
+                let failed = match &error.provider_error {
+                    Some(provider_error) => session.emit_turn_failed_for_provider(
+                        recorder.turn_id().map(String::as_str),
+                        provider_error,
+                        "model",
+                    ),
+                    None => session.emit_turn_failed(
+                        recorder.turn_id().map(String::as_str),
+                        "runtime_error",
+                        &error.message,
+                        "model",
+                    ),
+                };
                 recorder.emit(failed);
                 {
                     let mut live = shared.lock();
@@ -4008,6 +4072,9 @@ struct TurnRecorder {
     /// 最近一次**已完成**模型请求的 usage；下一次步骤落库时消费（最终评审 I2：
     /// 每个 assistant 行的 tokens 是该步骤请求的用量，不是 turn 聚合值）。
     last_step_usage: Option<agent_core::provider::ModelUsage>,
+    /// C3 T2：本 turn 观察到的 adapter 重试次数（`model_retry_scheduled` 事件数）。
+    /// stream recovery 不计入该字段（夹具 §2.2：`model_retry_count:0`）。
+    model_retry_count: u64,
     persist_error: Option<String>,
 }
 
@@ -4048,6 +4115,7 @@ impl TurnRecorder {
             tool_error_count: 0,
             turn_total_tokens: 0,
             last_step_usage: None,
+            model_retry_count: 0,
             persist_error: None,
             shared,
             store,
@@ -4070,6 +4138,7 @@ impl TurnRecorder {
             tool_error_count: 0,
             turn_total_tokens: 0,
             last_step_usage: None,
+            model_retry_count: 0,
             persist_error: None,
             shared,
             store,
@@ -4105,8 +4174,51 @@ impl TurnRecorder {
             SessionEventType::ToolUpdated => self.on_tool_updated(event),
             SessionEventType::TurnCompleted => self.on_turn_completed(event),
             SessionEventType::TurnFailed => self.on_turn_failed(event),
+            SessionEventType::SessionUpdated => self.on_session_updated(event),
+            SessionEventType::StreamRecoveryUpdated => self.on_stream_recovery_updated(event),
             _ => {}
         }
+    }
+
+    /// 重试态落库事实：`model_retry_scheduled` 次数 = `turn_usage.model_retry_count`。
+    /// stream recovery 事件不是 adapter 重试（夹具 §2.2 的 retry_count 为 0）。
+    fn on_session_updated(&mut self, event: &SessionEvent) {
+        if event
+            .payload
+            .as_ref()
+            .is_some_and(|payload| payload["type"] == json!("model_retry_scheduled"))
+        {
+            self.model_retry_count += 1;
+        }
+    }
+
+    /// 流恢复的丢弃边界：把当前未完成的 assistant 步持久化为
+    /// `finish:"stream_recovery_discarded"`（text 空），恢复后的 delta 另起一条。
+    ///
+    /// 触发键是夹具的 discard 载荷（`discardedTextBytes` + `assistantMessageId`）；
+    /// C1 的工具结果锚点（`kind:"tool_result"`）没有该键，不受影响。
+    fn on_stream_recovery_updated(&mut self, event: &SessionEvent) {
+        let Some(payload) = event.payload.as_ref() else {
+            return;
+        };
+        if payload.get("discardedTextBytes").is_none() {
+            return;
+        }
+        let Some(step) = self.current.take() else {
+            return;
+        };
+        let expected = payload.get("assistantMessageId").and_then(Value::as_str);
+        if expected.is_some_and(|expected| expected != step.event_message_id) {
+            // 事件与当前步不一致时不能把错误的消息标记为丢弃：放回并留给
+            // 下一条 model.streaming 的边界收口。
+            self.current = Some(step);
+            return;
+        }
+        // 被丢弃的 partial 文本/工具调用不进入历史（夹具：text 空、无部分文本 part）。
+        let mut discarded = step;
+        discarded.text.clear();
+        discarded.tools.clear();
+        self.persist_assistant_step(discarded, "stream_recovery_discarded");
     }
 
     fn on_turn_started(&mut self, event: &SessionEvent) {
@@ -4274,11 +4386,22 @@ impl TurnRecorder {
     ///
     /// 由 worker 在补发 `turn.failed` 后**显式**调用：错误自带的 `TurnProgress` 是
     /// 失败时刻的已知累计，按它写行（配置失败为全零——没有模型请求可累计）。
+    /// `failure` 是线上观察到的错误面分类（C3 §2.4：provider 失败记
+    /// `unknown_error` / `UNKNOWN_ERROR`）；配置失败传 `None`。
     /// 事件观察侧（`observe`）不再写 failed 行，避免同一 turn 落两行。
-    fn record_failure_progress(&mut self, progress: &agent_core::TurnProgress) {
+    fn record_failure_progress(
+        &mut self,
+        progress: &agent_core::TurnProgress,
+        failure: Option<(&str, &str)>,
+    ) {
         if self.turn_id.is_none() {
             return;
         }
+        let (error_type, error_code) = failure
+            .map(|(error_type, error_code)| {
+                (Some(error_type.to_string()), Some(error_code.to_string()))
+            })
+            .unwrap_or((None, None));
         let record = TurnUsageRecord {
             session_id: self.session_id.clone(),
             turn_id: self.turn_id.clone().unwrap_or_default(),
@@ -4292,9 +4415,12 @@ impl TurnRecorder {
             computed_total_tokens: (progress.usage.input_tokens + progress.usage.output_tokens)
                 as i64,
             model_request_count: progress.model_requests as i64,
+            model_retry_count: self.model_retry_count as i64,
             tool_call_count: progress.tool_calls as i64,
             tool_error_count: self.tool_error_count as i64,
             user_message_id: self.user_message_id.clone(),
+            error_type,
+            error_code,
             ..TurnUsageRecord::default()
         };
         if let Err(error) = self.store.record_turn_usage(record) {
@@ -4573,6 +4699,8 @@ impl TurnRecorder {
             output_tokens,
             computed_total_tokens: computed_total,
             model_request_count: model_requests,
+            // C3 T2：adapter 重试次数（stream recovery 不计入；夹具 §2.2/§2.3）。
+            model_retry_count: self.model_retry_count as i64,
             tool_call_count: tool_calls,
             tool_error_count: self.tool_error_count as i64,
             user_message_id: self.user_message_id.clone(),

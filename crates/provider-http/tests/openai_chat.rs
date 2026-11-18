@@ -12,7 +12,7 @@ use std::time::Duration;
 use agent_core::provider::DeltaSink;
 use agent_core::{
     ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse, ModelToolCall,
-    ModelToolDefinition, ModelUsage, ProviderError,
+    ModelToolDefinition, ModelUsage, ProviderError, ProviderErrorKind,
 };
 use provider_http::{build_chat_request, OpenAiChatConfig, OpenAiChatProvider};
 use serde_json::{json, Value};
@@ -479,6 +479,9 @@ async fn http_error_status_maps_to_diagnosable_provider_error() {
         "{}",
         error.message
     );
+    assert_eq!(error.kind, ProviderErrorKind::Auth);
+    assert_eq!(error.status, Some(401));
+    assert!(!error.retryable, "401 必须是非 retryable");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

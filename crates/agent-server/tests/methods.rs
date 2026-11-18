@@ -323,9 +323,7 @@ impl ModelProvider for GatedProvider {
                 .send(ModelDelta::Text {
                     text: "gated answer".to_string(),
                 })
-                .map_err(|_| ProviderError {
-                    message: "delta sink closed".to_string(),
-                })?;
+                .map_err(|_| ProviderError::local("delta sink closed"))?;
             Ok(ModelResponse {
                 usage: ModelUsage {
                     input_tokens: 10,

@@ -70,6 +70,7 @@ dependencies = [
  "agent-process",
  "agent-protocol",
  "indexmap 2.14.2",
+ "mode-api-retry",
  "model-selection",
  "project-memory",
  "provider-config",

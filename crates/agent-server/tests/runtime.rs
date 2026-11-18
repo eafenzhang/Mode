@@ -258,6 +258,7 @@ fn runtime_config() -> RuntimeConfig {
         data_root: None,
         event_log_capacity: 4096,
         broadcast_capacity: 256,
+        retry: agent_core::RetryPolicy::default(),
     }
 }
 
@@ -420,9 +421,7 @@ impl ModelProvider for ToolThenErrorProvider {
                 .filter(|message| matches!(message, agent_core::ModelMessage::Assistant { .. }))
                 .count();
             if assistants > 0 {
-                return Err(ProviderError {
-                    message: "第二次模型请求失败".to_string(),
-                });
+                return Err(ProviderError::new("第二次模型请求失败"));
             }
             let tool_call_id = "toolu_error_0_0".to_string();
             for delta in [
@@ -1359,17 +1358,13 @@ impl ModelProvider for RecordingProvider {
         let call_index = self.next_call.fetch_add(1, Ordering::SeqCst);
         Box::pin(async move {
             let Some(step) = step else {
-                return Err(ProviderError {
-                    message: "recording provider 剧本已空".to_string(),
-                });
+                return Err(ProviderError::new("recording provider 剧本已空"));
             };
             match step {
                 ScriptStep::Text(text) => {
                     deltas
                         .send(ModelDelta::Text { text })
-                        .map_err(|_| ProviderError {
-                            message: "delta sink closed".to_string(),
-                        })?;
+                        .map_err(|_| ProviderError::local("delta sink closed"))?;
                     Ok(ModelResponse {
                         usage: ModelUsage {
                             input_tokens: 10,
@@ -1387,33 +1382,25 @@ impl ModelProvider for RecordingProvider {
                                 tool_call_id: tool_call_id.clone(),
                                 tool_name: call.name.clone(),
                             })
-                            .map_err(|_| ProviderError {
-                                message: "delta sink closed".to_string(),
-                            })?;
+                            .map_err(|_| ProviderError::local("delta sink closed"))?;
                         deltas
                             .send(ModelDelta::ToolInputDelta {
                                 tool_call_id: tool_call_id.clone(),
                                 delta: serde_json::to_string(&call.input).expect("入参可序列化"),
                             })
-                            .map_err(|_| ProviderError {
-                                message: "delta sink closed".to_string(),
-                            })?;
+                            .map_err(|_| ProviderError::local("delta sink closed"))?;
                         deltas
                             .send(ModelDelta::ToolInputEnd {
                                 tool_call_id: tool_call_id.clone(),
                             })
-                            .map_err(|_| ProviderError {
-                                message: "delta sink closed".to_string(),
-                            })?;
+                            .map_err(|_| ProviderError::local("delta sink closed"))?;
                         deltas
                             .send(ModelDelta::ToolCall {
                                 tool_call_id,
                                 tool_name: call.name.clone(),
                                 input: call.input.clone(),
                             })
-                            .map_err(|_| ProviderError {
-                                message: "delta sink closed".to_string(),
-                            })?;
+                            .map_err(|_| ProviderError::local("delta sink closed"))?;
                     }
                     Ok(ModelResponse {
                         usage: ModelUsage {
@@ -1777,9 +1764,7 @@ impl ModelProvider for GatedFailProvider {
         let release = Arc::clone(&self.release);
         Box::pin(async move {
             release.notified().await;
-            Err(ProviderError {
-                message: "provider 失败".to_string(),
-            })
+            Err(ProviderError::new("provider 失败"))
         })
     }
 }

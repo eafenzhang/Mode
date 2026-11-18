@@ -458,16 +458,15 @@ impl ModelProvider for GoalProvider {
                 // 请求真正发出前的窗口：pause 命中时 provider 不应记到这次请求。
                 if let Some(pre_gate) = pre_gate {
                     pre_entered.notify_one();
-                    let _permit = pre_gate.acquire().await.map_err(|_| ProviderError {
-                        message: "goal pre-gate closed".to_string(),
-                    })?;
+                    let _permit = pre_gate
+                        .acquire()
+                        .await
+                        .map_err(|_| ProviderError::local("goal pre-gate closed"))?;
                 }
                 requests.lock().expect("requests").push(record);
                 if fail.load(std::sync::atomic::Ordering::SeqCst) {
                     fail.store(false, std::sync::atomic::Ordering::SeqCst);
-                    return Err(ProviderError {
-                        message: "mock provider failure".to_string(),
-                    });
+                    return Err(ProviderError::new("mock provider failure"));
                 }
                 if streaming_deltas > 0 {
                     // 第一个 delta 已交给会话；停在 gate 上，让测试在 pause 受理后
@@ -477,9 +476,10 @@ impl ModelProvider for GoalProvider {
                     });
                     entered.notify_one();
                     if let Some(gate) = gate.clone() {
-                        let _permit = gate.acquire().await.map_err(|_| ProviderError {
-                            message: "stream gate closed".to_string(),
-                        })?;
+                        let _permit = gate
+                            .acquire()
+                            .await
+                            .map_err(|_| ProviderError::local("stream gate closed"))?;
                     }
                     for index in 1..streaming_deltas {
                         let _ = deltas.send(ModelDelta::Text {
@@ -502,9 +502,10 @@ impl ModelProvider for GoalProvider {
                         text: "partial ".to_string(),
                     });
                     entered.notify_one();
-                    let _permit = gate.acquire().await.map_err(|_| ProviderError {
-                        message: "goal gate closed".to_string(),
-                    })?;
+                    let _permit = gate
+                        .acquire()
+                        .await
+                        .map_err(|_| ProviderError::local("goal gate closed"))?;
                 }
                 let _ = deltas.send(ModelDelta::Text { text });
                 Ok(ModelResponse {
@@ -531,9 +532,10 @@ impl ModelProvider for GoalProvider {
             requests.lock().expect("requests").push(record);
             if let Some(gate) = verifier_gate {
                 verifier_entered.notify_one();
-                let _permit = gate.acquire().await.map_err(|_| ProviderError {
-                    message: "verifier gate closed".to_string(),
-                })?;
+                let _permit = gate
+                    .acquire()
+                    .await
+                    .map_err(|_| ProviderError::local("verifier gate closed"))?;
             }
             let _ = deltas.send(ModelDelta::Text {
                 text: response.clone(),

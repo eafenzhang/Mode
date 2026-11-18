@@ -71,6 +71,11 @@ use crate::provider::{
     ModelCapabilities, ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse,
     ModelUsage, ProviderError,
 };
+use crate::recovery::{
+    model_request_cancelled_payload, model_request_completed_payload,
+    model_retry_scheduled_payload, stream_recovery_failure_kind, stream_recovery_failure_message,
+    stream_recovery_payloads, RetryPolicy, StreamRecoveryFacts,
+};
 use crate::rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
 use crate::stream::{EventSink, TurnError};
 use crate::tool::{error_object, result_object};
@@ -165,6 +170,8 @@ pub struct Session {
     /// 由运行时每 turn 注入（[`Session::set_memory`]）；`None` = 不注入（与 C1 逐字
     /// 一致）。读取与 fail-soft 全在 `agent-server` 侧，本结构只持有装配事实。
     memory: Option<crate::context::MemorySection>,
+    /// C3 T2：重试次数/退避策略（默认值来自夹具观察；宿主可注入）。
+    retry_policy: RetryPolicy,
 }
 
 impl Session {
@@ -197,7 +204,20 @@ impl Session {
             used_turn_ids: BTreeSet::new(),
             denied_tool_results: HashMap::new(),
             memory: None,
+            retry_policy: RetryPolicy::default(),
         }
+    }
+
+    /// 接线重试策略（C3 T2）：默认 `maxRetries:10` 与带抖动的指数退避；测试/宿主
+    /// 可注入 `base_delay_ms:0` 等确定值。
+    pub fn with_retry_policy(mut self, retry_policy: RetryPolicy) -> Self {
+        self.retry_policy = retry_policy;
+        self
+    }
+
+    /// 当前重试策略（诊断/宿主投影用）。
+    pub fn retry_policy(&self) -> RetryPolicy {
+        self.retry_policy
     }
 
     /// 冷物化恢复模型历史（resume / create-on-existing / 重启）。
@@ -778,7 +798,12 @@ impl Session {
         // 每次迭代都从当前历史重新装配。
 
         let mut usage = ModelUsage::default();
+        // DB/轮次口径（`turn_usage.model_request_count` / `historyRoundCount`）：
+        // 每个模型步的初始尝试 + 每次 stream recovery 尝试各计一轮；HTTP 重试
+        // 仍是同一轮（契约 §2.2/§2.3）。
         let mut model_requests = 0_u64;
+        // 事件口径（`turn.completed.usage.modelRequestCount`）：只计成功完成的请求。
+        let mut completed_requests = 0_u64;
         let mut request_index = 0_u64;
         let mut tool_call_count = 0_u64;
         let mut cancelled = false;
@@ -793,15 +818,6 @@ impl Session {
                 break 'drive String::new();
             }
             request_index += 1;
-            // 请求计数在**观察到该请求真的开始**时才 +1（第一个 delta 或 provider
-            // 应答）：pause 落在 provider 请求发出之前时 `model_request_count` 是 0
-            // （夹具 §1.6 的 pre-request 形状），不把尚未发出的请求算成一次尝试。
-            let mut request_counted = false;
-            // 本请求的 assistant 消息 id：`model.streaming` 与 `tool.updated(scheduled)`、
-            // `checkpoint.created` 的回指共用同一个（夹具里被 §3 折叠成 `<id>`，但同一条
-            // assistant 消息内取值一致是事件序的事实）。
-            self.current_assistant_message_id =
-                Some(format!("msg_{}_{request_index}", self.session_id));
             let context_input = crate::context::ContextInput {
                 cwd: &self.cwd,
                 mode: &self.mode,
@@ -812,86 +828,212 @@ impl Session {
             };
             let request = crate::context::build_model_request(&context_input);
 
-            // 一次模型请求一条 delta 通道：provider 产出一条就 send，会话侧随到随发。
-            let (delta_sink, mut deltas) = tokio::sync::mpsc::unbounded_channel();
-            let mut provider_future = provider.stream(request, delta_sink);
-            let mut provider_result: Option<Result<ModelResponse, ProviderError>> = None;
-            let mut delta_channel_open = true;
-            let mut text = String::new();
-            let mut tool_calls: Vec<ToolCallRequest> = Vec::new();
-
-            while provider_result.is_none() {
-                tokio::select! {
-                    // `biased` + delta 优先：已到达的 delta 先发，future 就绪后队列里的尾巴
-                    // 仍按顺序走完，不会被「future 先完成」抢掉；取消也只在 delta 边界
-                    // （没有立即可消费的 delta 时）生效，不会打断半条 delta。
-                    biased;
-                    maybe_delta = deltas.recv(), if delta_channel_open => {
-                        match maybe_delta {
-                            Some(delta) => {
-                                if !request_counted {
-                                    request_counted = true;
-                                    model_requests += 1;
-                                }
-                                self.absorb_model_delta(
-                                    &turn_id,
-                                    request_index,
-                                    delta,
-                                    &mut text,
-                                    &mut tool_calls,
-                                    sink,
-                                );
-                            }
-                            // provider 提前关掉发送端但 future 还没结束：继续等 future。
-                            None => delta_channel_open = false,
-                        }
+            // 一个模型步内的尝试循环（C3 T2）：
+            // - 未提交 delta 的 retryable 失败 → adapter 式退避重试；
+            // - 已提交 delta 的 retryable 失败 → stream recovery（立即重试）；
+            // - 非 retryable / 耗尽 → 交回宿主发唯一的 `turn.failed`。
+            let mut attempt: u32 = 1;
+            let mut recovery_count: u32 = 0;
+            let (text, tool_calls, response) = 'attempt: loop {
+                // 取消优先于重试（契约 §2.3）：调度退避/恢复前后都先看取消位。
+                if cancel.is_cancelled() {
+                    cancelled = true;
+                    // 已经进入过重试/恢复的 turn 要清空 apiRetry（crate 的规则：
+                    // retryable=false 的 model_request_failed → null）。
+                    if attempt > 1 || recovery_count > 0 {
+                        self.emit_retry_cancelled(&turn_id, attempt.saturating_sub(1).max(1), sink);
                     }
-                    // 取消优先于 provider 应答（C3：cancel 先于重试/终态）。
-                    _ = cancel.cancelled() => {
-                        cancelled = true;
-                        break;
-                    }
-                    result = &mut provider_future => provider_result = Some(result),
+                    break 'drive String::new();
                 }
-            }
-            if cancelled {
-                cancelled_response = text;
-                break 'drive String::new();
-            }
+                // 本请求的 assistant 消息 id：`model.streaming` 与
+                // `tool.updated(scheduled)`、`checkpoint.created` 的回指共用同一个。
+                // stream recovery 的重试尝试用新 id，避免被丢弃的 partial delta
+                // 与恢复后的文本在落库侧合并成同一条 assistant 消息。
+                self.current_assistant_message_id =
+                    Some(attempt_message_id(&self.session_id, request_index, attempt));
 
-            // future 结束前已经进入队列、但还没被 select 取走的 delta（tail）。
-            while let Ok(delta) = deltas.try_recv() {
-                if !request_counted {
-                    request_counted = true;
+                // 一次模型请求一条 delta 通道：provider 产出一条就 send，会话侧随到随发。
+                let (delta_sink, mut deltas) = tokio::sync::mpsc::unbounded_channel();
+                let mut provider_future = provider.stream(request.clone(), delta_sink);
+                let mut provider_result: Option<Result<ModelResponse, ProviderError>> = None;
+                let mut delta_channel_open = true;
+                let mut text = String::new();
+                let mut tool_calls: Vec<ToolCallRequest> = Vec::new();
+                // 请求计数在**观察到该请求真的开始**时才 +1（第一个 delta 或 provider
+                // 应答）：pause 落在 provider 请求发出之前时 `model_request_count` 是 0
+                // （夹具 §1.6 的 pre-request 形状），不把尚未发出的请求算成一次尝试。
+                let mut attempt_counted = false;
+                // 这个尝试是否计入 DB/轮次口径：初始尝试与每个 stream recovery
+                // 尝试计入；HTTP 重试是同一轮的额外 adapter 尝试。
+                let counts_toward_rounds = attempt == 1 || recovery_count > 0;
+                let mut output_committed = false;
+
+                while provider_result.is_none() {
+                    tokio::select! {
+                        // `biased` + delta 优先：已到达的 delta 先发，future 就绪后队列里的尾巴
+                        // 仍按顺序走完，不会被「future 先完成」抢掉；取消也只在 delta 边界
+                        // （没有立即可消费的 delta 时）生效，不会打断半条 delta。
+                        biased;
+                        maybe_delta = deltas.recv(), if delta_channel_open => {
+                            match maybe_delta {
+                                Some(delta) => {
+                                    if counts_toward_rounds && !attempt_counted {
+                                        attempt_counted = true;
+                                        model_requests += 1;
+                                    }
+                                    output_committed = true;
+                                    self.absorb_model_delta(
+                                        &turn_id,
+                                        delta,
+                                        &mut text,
+                                        &mut tool_calls,
+                                        sink,
+                                    );
+                                }
+                                // provider 提前关掉发送端但 future 还没结束：继续等 future。
+                                None => delta_channel_open = false,
+                            }
+                        }
+                        // 取消优先于 provider 应答（C3：cancel 先于重试/终态）。
+                        _ = cancel.cancelled() => {
+                            cancelled = true;
+                            // 重试/恢复的 in-flight 取消也要清空 apiRetry。
+                            if attempt > 1 || recovery_count > 0 {
+                                self.emit_retry_cancelled(&turn_id, attempt, sink);
+                            }
+                            break;
+                        }
+                        result = &mut provider_future => provider_result = Some(result),
+                    }
+                }
+                if cancelled {
+                    cancelled_response = text;
+                    break 'drive String::new();
+                }
+
+                // future 结束前已经进入队列、但还没被 select 取走的 delta（tail）。
+                while let Ok(delta) = deltas.try_recv() {
+                    if counts_toward_rounds && !attempt_counted {
+                        attempt_counted = true;
+                        model_requests += 1;
+                    }
+                    output_committed = true;
+                    self.absorb_model_delta(&turn_id, delta, &mut text, &mut tool_calls, sink);
+                }
+                if counts_toward_rounds && !attempt_counted {
                     model_requests += 1;
                 }
-                self.absorb_model_delta(
-                    &turn_id,
-                    request_index,
-                    delta,
-                    &mut text,
-                    &mut tool_calls,
-                    sink,
-                );
-            }
 
-            if !request_counted {
-                model_requests += 1;
-            }
-            let response = provider_result
-                .expect("循环只在 provider future 结束后退出")
-                .map_err(|error| {
-                    // 失败时刻的已知累计（Task 7 裁决 6）：本请求之前的成功请求用量、
-                    // 请求次数与工具调用数随错误带回，供 `turn_usage` 记录已知值。
-                    TurnError::with_progress(
-                        error.message,
-                        crate::stream::TurnProgress {
-                            usage: usage.clone(),
-                            model_requests,
-                            tool_calls: tool_call_count,
-                        },
-                    )
-                })?;
+                let outcome = provider_result.expect("循环只在 provider future 结束后退出");
+                match outcome {
+                    Ok(response) => {
+                        completed_requests += 1;
+                        // 只有真正重试/恢复过的 turn 才补收口事件：正常 turn 仍保持
+                        // C1 的事件族缺省（`session.updated` 无 `model_request_*`）。
+                        if recovery_count > 0 || attempt > 1 {
+                            // 夹具的恢复请求 network attempt 仍是 1（不随 retryNumber
+                            // 递增）；HTTP 重试则如实记最终尝试号。
+                            let reported_attempt = if recovery_count > 0 { 1 } else { attempt };
+                            let payload = model_request_completed_payload(
+                                &self.retry_policy,
+                                reported_attempt,
+                                &response,
+                            );
+                            let event = self.emit(
+                                Some(&turn_id),
+                                SessionEventType::SessionUpdated,
+                                &payload,
+                            );
+                            sink.emit(event);
+                        }
+                        break 'attempt (text, tool_calls, response);
+                    }
+                    Err(error) => {
+                        let can_retry = if output_committed {
+                            // stream recovery 的次数上限同样来自夹具的 maxRetries。
+                            recovery_count < self.retry_policy.max_retries
+                        } else {
+                            attempt <= self.retry_policy.max_retries
+                        };
+                        if error.retryable && can_retry {
+                            if output_committed {
+                                // —— 流中断：4 条 streamRecovery.updated，立即重试 ——
+                                recovery_count += 1;
+                                let committed_tool_call_ids: Vec<String> = tool_calls
+                                    .iter()
+                                    .map(|call| call.tool_call_id.clone())
+                                    .collect();
+                                let facts = StreamRecoveryFacts {
+                                    policy: &self.retry_policy,
+                                    retry_number: recovery_count,
+                                    failure_kind: stream_recovery_failure_kind(&error),
+                                    failure_message: stream_recovery_failure_message(&error),
+                                    assistant_message_id: self
+                                        .current_assistant_message_id
+                                        .clone()
+                                        .unwrap_or_default(),
+                                    discarded_text_bytes: text.len() as u64,
+                                    discarded_reasoning_bytes: 0,
+                                    committed_tool_call_ids,
+                                };
+                                for payload in stream_recovery_payloads(&facts) {
+                                    let event = self.emit(
+                                        Some(&turn_id),
+                                        SessionEventType::StreamRecoveryUpdated,
+                                        &payload,
+                                    );
+                                    sink.emit(event);
+                                }
+                                attempt += 1;
+                                continue 'attempt;
+                            }
+
+                            // —— 未提交 delta：adapter 式退避重试 ——
+                            let delay_ms = self.retry_policy.backoff_delay_ms(attempt);
+                            let payload = model_retry_scheduled_payload(
+                                &self.retry_policy,
+                                attempt,
+                                delay_ms,
+                                &error,
+                            );
+                            let event = self.emit(
+                                Some(&turn_id),
+                                SessionEventType::SessionUpdated,
+                                &payload,
+                            );
+                            sink.emit(event);
+                            // 退避与取消竞争：取消置位后不再发起下一次尝试。
+                            let cancelled_in_backoff = if delay_ms == 0 {
+                                cancel.is_cancelled()
+                            } else {
+                                tokio::select! {
+                                    biased;
+                                    _ = cancel.cancelled() => true,
+                                    _ = tokio::time::sleep(std::time::Duration::from_millis(delay_ms)) => false,
+                                }
+                            };
+                            if cancelled_in_backoff || cancel.is_cancelled() {
+                                cancelled = true;
+                                self.emit_retry_cancelled(&turn_id, attempt, sink);
+                                break 'drive String::new();
+                            }
+                            attempt += 1;
+                            continue 'attempt;
+                        }
+
+                        // 非 retryable 或耗尽：把分类事实带回归属层（turn.failed 由
+                        // 宿主恰好发一次）。
+                        return Err(TurnError::from_provider(
+                            error,
+                            crate::stream::TurnProgress {
+                                usage: usage.clone(),
+                                model_requests,
+                                tool_calls: tool_call_count,
+                            },
+                        ));
+                    }
+                }
+            };
             usage.input_tokens += response.usage.input_tokens;
             usage.output_tokens += response.usage.output_tokens;
             usage.cache_read_tokens += response.usage.cache_read_tokens;
@@ -989,7 +1131,8 @@ impl Session {
             token_count: total_tokens,
             usage: Some(serde_json::json!({
                 "source": "provider",
-                "modelRequestCount": model_requests,
+                // 事件层只计成功完成的模型请求（夹具：stream abort 事件 1 / DB 2）。
+                "modelRequestCount": completed_requests,
                 "inputTokens": usage.input_tokens,
                 "outputTokens": usage.output_tokens,
                 "totalTokens": total_tokens,
@@ -1039,7 +1182,6 @@ impl Session {
     fn absorb_model_delta(
         &mut self,
         turn_id: &str,
-        request_index: u64,
         delta: ModelDelta,
         text: &mut String,
         tool_calls: &mut Vec<ToolCallRequest>,
@@ -1058,18 +1200,27 @@ impl Session {
             }),
             _ => {}
         }
-        let event = self.model_streaming_event(turn_id, request_index, &delta);
+        let event = self.model_streaming_event(turn_id, &delta);
+        sink.emit(event);
+    }
+
+    /// 重试/恢复期间取消的收口事件：让 `mode-api-retry` 把状态清回 `null`
+    /// （`model_request_failed` + `retryable:false` 是 crate 的清除规则）。
+    fn emit_retry_cancelled(
+        &mut self,
+        turn_id: &str,
+        failed_attempt: u32,
+        sink: &mut dyn EventSink,
+    ) {
+        let payload = model_request_cancelled_payload(&self.retry_policy, failed_attempt);
+        let event = self.emit(Some(turn_id), SessionEventType::SessionUpdated, &payload);
         sink.emit(event);
     }
 
     /// 把模型 delta 投影成 `model.streaming` 事件（顺序即 delta 顺序）。
-    fn model_streaming_event(
-        &mut self,
-        turn_id: &str,
-        request_index: u64,
-        delta: &ModelDelta,
-    ) -> SessionEvent {
-        let assistant_message_id = Some(format!("msg_{}_{request_index}", self.session_id));
+    fn model_streaming_event(&mut self, turn_id: &str, delta: &ModelDelta) -> SessionEvent {
+        // 当前尝试的 assistant 消息 id（重试尝试用新 id；见尝试循环）。
+        let assistant_message_id = self.current_assistant_message_id.clone();
         let payload = match delta {
             ModelDelta::Text { text } => ModelStreamingPayload {
                 assistant_message_id,
@@ -1808,6 +1959,75 @@ impl Session {
             extra: ExtraFields::new(),
         };
         self.emit(turn_id, SessionEventType::TurnFailed, &payload)
+    }
+
+    /// provider 失败的 `turn.failed`（C3 T2）：分类字段进入 `attribution`，让 401 /
+    /// 耗尽等失败可诊断（状态码/原因/是否 retryable）。
+    ///
+    /// 未观察到的字段（providerId/modelId/transport 等）由宿主在处理层补齐；
+    /// 本方法只投影 agent-core 确知的分类事实，不伪造追踪 id。
+    pub fn emit_turn_failed_for_provider(
+        &mut self,
+        turn_id: Option<&str>,
+        error: &ProviderError,
+        turn_phase: &str,
+    ) -> SessionEvent {
+        let mut attribution = serde_json::Map::new();
+        attribution.insert("source".to_string(), Value::String("provider".to_string()));
+        attribution.insert(
+            "reason".to_string(),
+            Value::String(error.reason().to_string()),
+        );
+        attribution.insert(
+            "errorPhase".to_string(),
+            Value::String("stream".to_string()),
+        );
+        if let Some(status) = error.status {
+            attribution.insert("statusCode".to_string(), Value::Number(status.into()));
+        }
+        attribution.insert("retryable".to_string(), Value::Bool(error.retryable));
+        let payload = TurnFailedPayload {
+            error: ProtocolErrorDetail {
+                error_type: "unknown_error".to_string(),
+                message: error.message.clone(),
+                stack: None,
+                code: error
+                    .is_auth()
+                    .then(|| "provider_not_configured".to_string()),
+                detail: Some(format!(
+                    "Turn execution failed\nreason={} status={} retryable={}",
+                    error.reason(),
+                    error
+                        .status
+                        .map(|status| status.to_string())
+                        .unwrap_or_else(|| "none".to_string()),
+                    error.retryable
+                )),
+                underlying_error_message: None,
+                underlying_error_detail: None,
+                attribution: Some(Value::Object(attribution)),
+                retryable: Some(error.retryable),
+                data: None,
+                extra: ExtraFields::new(),
+            },
+            turn_phase: turn_phase.to_string(),
+            input_id: None,
+            background_subagent_result_consumed: None,
+            extra: ExtraFields::new(),
+        };
+        self.emit(turn_id, SessionEventType::TurnFailed, &payload)
+    }
+}
+
+/// 一个模型尝试的 assistant 消息 id。
+///
+/// 初始尝试沿用 C1 的 `msg_<session>_<request_index>`；重试尝试追加 `_r<n>`，
+/// 让流恢复丢弃的 partial 消息与恢复后的最终消息在落库侧分组不同。
+fn attempt_message_id(session_id: &str, request_index: u64, attempt: u32) -> String {
+    if attempt <= 1 {
+        format!("msg_{session_id}_{request_index}")
+    } else {
+        format!("msg_{session_id}_{request_index}_r{attempt}")
     }
 }
 

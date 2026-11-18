@@ -6,7 +6,7 @@
 
 use agent_protocol::session_event::SessionEvent;
 
-use crate::provider::ModelUsage;
+use crate::provider::{ModelUsage, ProviderError};
 
 /// 失败时刻**已知**的 turn 内累计事实（LT-1 C1 Task 7 控制器裁决 6）。
 ///
@@ -59,6 +59,9 @@ pub struct TurnError {
     pub cancelled: bool,
     /// 失败时刻已知的累计事实（Task 7 裁决 6：失败 turn 的 `turn_usage` 记已知值）。
     pub progress: TurnProgress,
+    /// provider 错误的分类事实（状态码/类型/是否 retryable）；非 provider 路径为
+    /// `None`。宿主用它生成 `turn.failed` 的归属信息（C3 T2）。
+    pub provider_error: Option<ProviderError>,
 }
 
 impl TurnError {
@@ -67,6 +70,7 @@ impl TurnError {
             message: message.into(),
             cancelled: false,
             progress: TurnProgress::default(),
+            provider_error: None,
         }
     }
 
@@ -76,6 +80,17 @@ impl TurnError {
             message: message.into(),
             cancelled: false,
             progress,
+            provider_error: None,
+        }
+    }
+
+    /// provider 错误 + 已知累计 + 分类（重试耗尽/非 retryable 的出口）。
+    pub fn from_provider(error: ProviderError, progress: TurnProgress) -> Self {
+        Self {
+            message: error.message.clone(),
+            cancelled: false,
+            progress,
+            provider_error: Some(error),
         }
     }
 
@@ -85,6 +100,7 @@ impl TurnError {
             message: "turn cancelled".to_string(),
             cancelled: true,
             progress: TurnProgress::default(),
+            provider_error: None,
         }
     }
 

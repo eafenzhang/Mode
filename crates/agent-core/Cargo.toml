@@ -18,9 +18,10 @@ serde_json.workspace = true
 # `turn.started` / `checkpoint.created` 载荷里的 id 字段（值在 spec §3 白名单里折叠成
 # `<id>`，但按观察形状生成 uuid，而不是编造别的格式）。
 uuid.workspace = true
-# 流式 provider 的 delta 通道（UnboundedSender）与 turn 循环的 select!。
-tokio = { workspace = true, features = ["macros", "sync"] }
+# 流式 provider 的 delta 通道（UnboundedSender）、turn 循环的 select! 与重试退避。
+tokio = { workspace = true, features = ["macros", "sync", "time"] }
 
 [dev-dependencies]
 # `#[tokio::test]`（当前线程运行时）、测试里的 Notify 门控与失败上限的 timeout。
-tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
+# `test-util` 只用于 `start_paused`：退避自动推进，不用真实 sleep 证明正确性。
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time", "test-util"] }

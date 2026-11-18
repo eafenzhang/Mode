@@ -49,6 +49,27 @@ C3 在 C1/C2 的 Rust `agent-server` 上补齐三件事，并保持「终态恰�
 - 同一 `inputId`/`queryId` 的重试幂等；stale run 拒绝。
 - 取消优先于重试：取消后不再发起新尝试，终态为 cancelled。
 
+### 2.4 Rust T2 现状（2026-11-18）
+
+- `ProviderError` 带 `kind`/`status`/`retryable`；`provider-http` 负责 HTTP 状态
+  （401/403 auth、5xx server、408/429 rate limited）、传输失败与流中断分类；
+  适配器不内嵌重试。
+- 重试循环在 `agent-core::Session::run_turn`：未提交 delta 的 retryable 失败走
+  指数退避 + `session.updated(model_retry_scheduled)`；已提交 delta 的流中断走
+  4 条 `streamRecovery.updated`（`retryDelayMs:0`）并立即重试。次数用夹具的
+  `maxRetries:10` / `maxAttempts:11`；耗尽形状未观察，只保证 `turn.failed` 一次。
+- 取消优先：退避与取消竞争，取消后不再发起尝试；退避取消补
+  `model_request_failed {reason:"cancelled", retryable:false}`，终态
+  `turn.completed(cancelled)` 一次。
+- 账务分层：事件 `modelRequestCount` 只计成功请求；DB
+  `turn_usage.model_request_count` / `historyRoundCount` 计轮次（stream recovery
+  每次尝试 +1，HTTP 重试不增）；`turn_usage.model_retry_count` 只计 adapter 重试。
+- apiRetry 由 `mode-api-retry::SessionApiRetryTracker` 投影（agent-server 喂事件、
+  快照用 `with_api_retry_runtime`），成功/取消/错误清空。
+- 已知差异逐项登记在 `agent-c3-contract.md` §2.7（`model_request_*` 事件族仍缺、
+  退避毫秒不逐一对拍、工具流恢复/连续中断/耗尽形状未观察、普通 turn 不写
+  `model_usage`、compact/verifier 未接重试等）。
+
 ## 3. 目标续跑（Goal / Target）
 
 ### 3.1 方法契约

@@ -253,7 +253,7 @@ async fn stream_once(
             Some(chunk) => chunk,
             None => break,
         };
-        let chunk = chunk.map_err(|error| error::transport(describe_transport(&error)))?;
+        let chunk = chunk.map_err(|error| error::stream_abort(describe_transport(&error)))?;
         done = ingest_payloads(decoder.push(&chunk), &mut tracker, deltas)?;
     }
     if !done {

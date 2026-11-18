@@ -33,6 +33,7 @@ pub mod goal;
 pub mod permission;
 pub mod plugin_tools;
 pub mod provider;
+pub mod recovery;
 pub mod rule_store;
 pub mod session;
 pub mod stream;
@@ -68,9 +69,10 @@ pub use permission::{
 pub use plugin_tools::{PluginToolDeclaration, PluginToolError, PluginToolSource};
 pub use provider::{
     ModelCapabilities, ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse,
-    ModelToolCall, ModelToolDefinition, ModelUsage, ProviderError, ScriptStep, ScriptToolCall,
-    ScriptedProvider,
+    ModelToolCall, ModelToolDefinition, ModelUsage, ProviderError, ProviderErrorKind, ScriptStep,
+    ScriptToolCall, ScriptedProvider,
 };
+pub use recovery::RetryPolicy;
 pub use rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
 pub use session::TurnTerminalFacts;
 pub use stream::{EventSink, TurnError, TurnProgress};
