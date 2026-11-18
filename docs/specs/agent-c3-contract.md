@@ -345,7 +345,7 @@ toolCallCount,iterationCount`。冷恢复后 `contextUsed:0`、`iterationCount:1
 
 本节登记 Rust `agent-server` / `agent-core` 在 C3 T1 的实现取舍与**已知差异**；实现以
 §1 的黑盒观察为基线，夹具与实际行为冲突时以夹具为准。测试入口
-`crates/agent-server/tests/goal.rs`（24 个用例）与 `crates/session-store/tests/target.rs`。
+`crates/agent-server/tests/goal.rs`（25 个用例）与 `crates/session-store/tests/target.rs`。
 
 已实现（与观察一致）：
 

@@ -578,6 +578,11 @@ struct TestConn {
     next_id: u64,
     /// 已被 `result`/`error`/其他帧读取顺带消费的 session/event，供后续断言使用。
     pending_events: VecDeque<Value>,
+    /// 是否自动应答 `session/requestRuntimePreferences`（关闭用于把 worker 挡在
+    /// 输入队列之前，构造「普通 prompt 先入队、goal 命令后入队」的窗口）。
+    auto_answer_preferences: bool,
+    /// 关闭自动应答时收到的反向请求帧，恢复后统一应答（不能丢请求）。
+    pending_reverse_requests: Vec<Frame>,
 }
 
 async fn connect(server: Arc<AgentServer>) -> TestConn {
@@ -594,6 +599,8 @@ async fn connect(server: Arc<AgentServer>) -> TestConn {
         writer: client_write,
         next_id: 0,
         pending_events: VecDeque::new(),
+        auto_answer_preferences: true,
+        pending_reverse_requests: Vec::new(),
     }
 }
 
@@ -625,11 +632,32 @@ impl TestConn {
                 }
             }
         }
+        if !self.auto_answer_preferences {
+            if matches!(frame, Frame::Request(_)) {
+                self.pending_reverse_requests.push(frame.clone());
+            }
+            return frame;
+        }
         self.auto_answer_reverse(&frame).await;
         frame
     }
 
+    fn set_auto_answer_preferences(&mut self, enabled: bool) {
+        self.auto_answer_preferences = enabled;
+    }
+
+    async fn enable_auto_answer_preferences(&mut self) {
+        self.auto_answer_preferences = true;
+        let pending = std::mem::take(&mut self.pending_reverse_requests);
+        for frame in pending {
+            self.auto_answer_reverse(&frame).await;
+        }
+    }
+
     async fn auto_answer_reverse(&mut self, frame: &Frame) {
+        if !self.auto_answer_preferences {
+            return;
+        }
         if let Frame::Request(request) = frame {
             if request.method == "session/requestRuntimePreferences" {
                 let reply = agent_protocol::Frame::Response(agent_protocol::ResponseFrame {
@@ -2225,6 +2253,82 @@ async fn pause_during_ordinary_prompt_does_not_stall_event_stream() {
     let _ = wait_idle(&mut conn, &session_id).await;
 }
 
+#[tokio::test]
+async fn pause_with_queued_goal_during_ordinary_prompt_publishes_immediately() {
+    let (provider, _requests) = GoalProvider::new("ordinary answer");
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let provider = provider.with_gate(Arc::clone(&gate));
+    let fixture = fixture("queued-goal-pause", provider);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+    close_session(&mut conn, &session_id).await;
+
+    // 关闭偏好自动应答，把 worker 停在输入队列之前；把普通 prompt 和 goal 命令
+    // 都先入队（prompt 在前、goal 在后），从而在 prompt 运行时保持 job_active=true。
+    conn.set_auto_answer_preferences(false);
+    let resume_id = conn
+        .send("session/resume", json!({ "sessionId": session_id }))
+        .await;
+    let resumed = conn.result(resume_id).await;
+    assert_eq!(resumed["session"]["sessionId"], json!(session_id));
+    conn.subscribe_default(&session_id).await;
+
+    let prompt_id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "queued ordinary prompt" }),
+        )
+        .await;
+    let _ = conn.result(prompt_id).await;
+    let set = goal_action(
+        &mut conn,
+        &session_id,
+        "set",
+        json!({ "objective": "Queued behind prompt", "inputId": "goal_qp_set" }),
+    )
+    .await;
+    assert_eq!(set["startedTurn"], json!(true));
+    conn.enable_auto_answer_preferences().await;
+
+    // 启动 worker：prompt turn 先执行，goal job 排在后面（job_active 保持 true）。
+    let pre_pause = conn
+        .drain_until(|event| event["type"] == json!("model.streaming"))
+        .await;
+    let pause = goal_action(&mut conn, &session_id, "pause", json!({})).await;
+    assert_eq!(pause["response"], json!(""));
+    assert_eq!(
+        pause["snapshot"]["session"]["status"],
+        json!("running"),
+        "普通 prompt 仍在运行"
+    );
+    // provider gate 尚未放行：旧谓词会把 status_updated 留在 pending 并冻结此流。
+    let paused_event = conn
+        .drain_until(|event| {
+            event["payload"]["action"] == json!("status_updated")
+                && event["payload"]["target"]["status"] == json!("paused")
+        })
+        .await;
+    assert!(!paused_event.is_empty());
+
+    gate.add_permits(1);
+    let events = conn.drain_until_terminal().await;
+    let mut combined = pre_pause;
+    combined.extend(paused_event);
+    combined.extend(events);
+    assert_unique_monotonic(&combined);
+    assert_eq!(
+        combined.last().expect("terminal")["payload"]["resultType"],
+        json!("success")
+    );
+    let _ = wait_idle(&mut conn, &session_id).await;
+    let row = target_row(&fixture.db_path, &session_id).expect("target row");
+    assert_eq!(row["status"], json!("paused"));
+    assert_eq!(
+        messages_with_source(&fixture.db_path, "goal_state_change").len(),
+        1
+    );
+}
+
 // ---------------------------------------------------------------------------
 // 5. revision 冲突零副作用
 // ---------------------------------------------------------------------------
@@ -2516,6 +2620,16 @@ async fn repeated_stop_during_goal_turn_is_idempotent_and_monotonic() {
         1,
         "重复 stop 只产生一条状态迁移"
     );
+    let terminals = events
+        .iter()
+        .filter(|event| {
+            matches!(
+                event["type"].as_str(),
+                Some("turn.completed") | Some("turn.failed")
+            )
+        })
+        .count();
+    assert_eq!(terminals, 1, "整场只允许一个 turn 终态");
     let _ = wait_idle(&mut conn, &session_id).await;
     let row = target_row(&fixture.db_path, &session_id).expect("target row");
     assert_eq!(row["status"], json!("paused"));
