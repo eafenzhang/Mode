@@ -15,6 +15,8 @@ path = "src/main.rs"
 
 [dependencies]
 agent-core = { path = "../agent-core" }
+# C3 T4：`session/subagents` 的不透明分页游标（base64(JSON)）。
+base64.workspace = true
 agent-protocol = { path = "../agent-protocol" }
 indexmap = "2"
 # C3 T2：apiRetry 状态的唯一归一化/投影规则（不复制规则）。

@@ -6,8 +6,8 @@
 //! [`projection`]（DB 富形状 ≠ wire 投影，见 `docs/specs/agent-server-c1-contract.md`
 //! §3.7）。
 //!
-//! 方法清单（控制器裁决 3 + C2 T2 + C3 T1）：`session/create|send|subscribe|read|messages|
-//! list|close|resume|stop|setModel|setThoughtLevel|setMode|compact|goal`。
+//! 方法清单（控制器裁决 3 + C2 T2 + C3 T1/T4）：`session/create|send|subscribe|read|messages|
+//! list|close|resume|stop|setModel|setThoughtLevel|setMode|compact|goal|subagents`。
 
 pub mod close;
 pub mod compact;
@@ -20,6 +20,7 @@ pub mod read;
 pub mod resume;
 pub mod send;
 pub mod setters;
+pub mod subagents;
 pub mod subscribe;
 
 use agent_core::ModelCapabilities;
@@ -40,7 +41,8 @@ use crate::server::ServerError;
 use crate::state::{RuntimeConfig, RuntimeError};
 
 pub use agent_protocol::session_read::{
-    SESSION_LIST_METHOD, SESSION_MESSAGES_METHOD, SESSION_READ_METHOD, SESSION_SUBSCRIBE_METHOD,
+    SESSION_LIST_METHOD, SESSION_MESSAGES_METHOD, SESSION_READ_METHOD, SESSION_SUBAGENTS_METHOD,
+    SESSION_SUBSCRIBE_METHOD,
 };
 pub use agent_protocol::session_send::SESSION_SEND_METHOD;
 pub use agent_protocol::session_write::{

@@ -165,6 +165,27 @@ C3 在 C1/C2 的 Rust `agent-server` 上补齐三件事，并保持「终态恰�
 - **不实现**子代理运行时（spawn/child runtime/coordinator）——归 C4；不发明子代理工具。
 - 失败/缺失数据 fail-soft（列表为空/字段缺省），不影响主 turn。
 
+### 5.1 Rust T4 现状（2026-11-18）
+
+- `session/subagents` 已接入 `agent-server` 方法表（`methods/subagents.rs`）：纯读投影，
+  只从 `session-store` 读（`session_task_link` 按观察不读——subagent 路径恒空表）；
+  无 spawn/child runtime 路径，实际执行归 C4。
+- 边界：会话缺失或尚无任何 turn（父会话无 role=user 消息行）→ `-32004
+  Session not found: <sessionId>`；`endedLimit` 缺省 20 是协议 schema 值，`0`/负数
+  `-32602`（逐字夹具文案）。
+- 投影：`childSessionIds` 来自 `parent_id` + `task_type='subagent_child'` 的子会话行
+  （创建序别名 `child-<n>`）；running/ended 项来自父会话的 Agent tool part
+  （`callID`/`state.input.description`/`subagentType`/`state.status`/`state.time`），
+  ended 的 summary/agentId 从 tool output 与匹配 `<task-id>` 的 `background_notification`
+  消息 `<result>` 投影；ended 按 `endedAt` 倒序、`endedLimit` 截页 + 不透明
+  base64 游标（解码形状 `{childSessionId, endedAt}`）。
+- revision 用回合推进推导（`2 + startedTurns + completedTurns`），复现全部六个夹具
+  观察值；基数来源未观察，已登记（`agent-c3-contract.md` §4.8）。
+- fail-soft：子会话行/tool part 缺失或损坏 → 空列表、键省略或中性空串，不 panic；
+  库级读失败显式 `-32603`。`waiting`/`blocked`/`cancelled`/`lost` 不产出（未观察）；
+  通知 turn 终态的 `backgroundSubagentResultConsumed:true` 仍属 T3 缺口（T4 不改
+  turn 面，见契约 §4.8）。
+
 ## 6. 所有权与失败语义
 
 | 场景               | 行为                                                           |

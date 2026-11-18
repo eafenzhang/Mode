@@ -69,6 +69,7 @@ dependencies = [
  "agent-core",
  "agent-process",
  "agent-protocol",
+ "base64 0.22.1",
  "indexmap 2.14.2",
  "mode-api-retry",
  "model-selection",

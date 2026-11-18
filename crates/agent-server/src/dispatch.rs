@@ -398,6 +398,7 @@ impl AgentServer {
             crate::methods::SESSION_COMPACT_METHOD => methods::compact::handle(self, params),
             crate::methods::SESSION_GOAL_METHOD => methods::goal::handle(self, params),
             crate::methods::SESSION_STOP_METHOD => methods::goal::handle_stop(self, params),
+            crate::methods::SESSION_SUBAGENTS_METHOD => methods::subagents::handle(self, params),
             _ => Err(ServerError::method_not_found(method)),
         }
     }

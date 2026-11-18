@@ -314,14 +314,24 @@ pub struct EndedSubagent {
     pub status: EndedSubagentStatus,
 }
 
-/// `session/subagents` 的 params；`endedLimit` 恒发（服务层缺省 20）。
+/// `session/subagents` 的 params。
+///
+/// `endedLimit` 的缺省 20 来自 TS 协议 schema `modeSessionSubagentsParamsSchema`
+/// 的 `.default(20)`（schema 值，非行为观察，见 `agent-c3-contract.md` §4.1）：
+/// 反序列化接受键省略；序列化仍恒写该键（u64 非 Option）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SessionSubagentsParams {
     pub session_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ended_cursor: Option<String>,
+    #[serde(default = "default_ended_limit")]
     pub ended_limit: u64,
+}
+
+/// 协议 schema `.default(20)` 的镜像；`>0` 的下界校验归服务层（-32602 文案按夹具）。
+fn default_ended_limit() -> u64 {
+    20
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -342,8 +352,6 @@ pub struct SessionSubagentsResult {
     pub running: Vec<RunningSubagent>,
     pub ended: SessionSubagentsEnded,
 }
-
-
 
 /// `session/messages` 的 params（`modeSessionMessagesParamsSchema`）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

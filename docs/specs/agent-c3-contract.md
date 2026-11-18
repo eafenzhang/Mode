@@ -974,6 +974,66 @@ duration_ms: 3105</usage>
 - 子代理取消（TaskStop / session/stop）后的列表项；
 - `background_subagent_result_consumed` 在 `turn.failed` 上的取值（只观察到 success）。
 
+### 4.8 Rust C3 现状（T4，2026-11-18）
+
+T4 在 `agent-server` 落地 `session/subagents` 只读投影（纯读，不 spawn/不实现 child
+runtime——实际子代理执行归 C4）；行为基线是 §4.1–§4.6 的四个夹具；测试入口
+`crates/agent-server/tests/subagents.rs`。
+
+已实现（与观察一致）：
+
+- **边界**：会话行缺失 → `-32004 Session not found: <sessionId>`；会话行存在但还没有
+  任何 turn（父会话无 role=user 的 message 行——`user_prompt` / `background_notification`
+  / `system_reminder` 都是 turn 输入）→ 同一 `-32004`（§4.1 的「首 turn 前即使
+  session/read 可见也报 not found」）。
+- **参数**：严格 `{sessionId, endedCursor?, endedLimit?}`，未知键 `-32602`；
+  `endedLimit` 缺省 **20**（协议 schema `modeSessionSubagentsParamsSchema` 的
+  `.default(20)` 镜像，schema 值而非行为观察，见 §4.1）；`endedLimit:0` / 负数 →
+  `-32602`，`message:"Invalid params — endedLimit: Too small: expected number to be >0"`
+  且 `data` 携带夹具的 ZodError 文本（逐字复现）。
+- **投影源**：会话库（`session-store`）。`session_task_link` 按 §4.5 观察**不读**（
+  subagent 路径恒空表）；两条事实线：
+  - `childSessionIds`：`session` 行 `parent_id = <sessionId>` 且
+    `task_type = 'subagent_child'`，按 `(time_created, id)` 创建顺序别名
+    `child-<n>`（n 从 1 起）——与夹具 `child-1`/`child-2` 的创建序方案一致；
+  - running/ended 项：父会话 message 的 tool part（`type:"tool"`、`tool:"Agent"`），
+    按消息/part 顺序即创建顺序。`toolCallId = callID`、`title = state.input.description`
+    （不是子会话标题，§4.2）、`subagentType = state.input.subagent_type`、
+    `startedAt = state.time.start`（缺失回退 part 行时间）；`state.status`
+    pending/running → `running[]`（status `running`）、completed → ended
+    `success`、error → ended `failed`。
+- **ended 项的 summary / agentId**：从 tool part `state.output` 与父会话通知消息投
+  影——`agentId` 取 output 中 `agentId: <token>` 行的首个空白前 token（§4.3 的逐字
+  模板）；summary 优先取 `<task-id>` 匹配该 agentId 的 `background_notification`
+  消息文本里的 `<result>`（后台夹具的 `"background child result"`），没有匹配通知时取
+  output 中 `agentId:` 行**之前**的前缀（前台夹具的 `"child result text"`）；两者皆缺
+  → 键省略。`endedAt = state.time.end`（缺失回退 part 行时间）。
+- **分页**：ended 全集按 `endedAt` 倒序（同刻按创建序倒序），`total` 是全集条数；
+  `endedLimit` 截页，还有剩余时给 `nextCursor`，没有则**键省略**（§4.1）；cursor 是
+  不透明 base64(JSON `{childSessionId, endedAt}`)（§4.4 解码形状）；`endedCursor` 定位
+  `endedAt` 严格小于游标值的剩余项。
+- **revision**：夹具只给出六个观察值（空 4、running 3、ended 4、后台 mid 3 / after 4、
+  分页 6），DB 列不直接携带。Rust 用回合推进推导：`2 + startedTurns + completedTurns`
+  （started = 父会话 role=user 消息数；completed = `assistant_response` 且 `finish`
+  非空且 ≠ `tool-calls` 的消息数），六个观察值全部复现；基数 2（create/title 两类
+  状态推进）来源未观察，按常数标定。
+- **fail-soft**：子会话行存在但没有对应 Agent tool part → 只有 `childSessionIds`，
+  running/ended 为空；tool part 缺 `state`/`state.status` → 该 part 跳过；
+  `state.input.description`/`subagentType` 缺失 → 必填 title/subagentType 用中性空串
+  （与 `methods/projection.rs` 的取值纪律一致），不 panic；库级读失败显式 `-32603`，
+  不静默空列表。
+
+差异 / 未覆盖（不伪造观察值）：
+
+| 项 | Rust 现状 | 依据 |
+| --- | --- | --- |
+| 子代理 ↔ 子会话行的关联 | 夹具的库行没有可观察外键（`session_task_link` 空）；别名与条目都按「创建顺序」各自推导（子会话行按 time_created，tool part 按消息序），两源一致时与夹具逐字段一致，不一致时 fail-soft 各自表达 | §4.5 |
+| `waiting` / `blocked` / `cancelled` / `lost` | 不产出（tool part 状态只有 pending/running/completed/error 可观察）；`error` 映射 ended `failed` 是唯一可观察的失败路径 | §4.7 |
+| 活跃 runtime | 读面不区分冷/热会话：两条路径都从会话库投影（live 子代理状态归 C4 的 runtime 面，本任务不存在该写入方） | §4.6 |
+| `endedCursor` 非法/过期 | 未观察；实现显式 `-32602`（opaque 游标 base64/JSON 解不开、或定位的 childSessionId 不在当前 ended 全集），不静默回第一页 | §4.7 |
+| `endedLimit` > 20 截断 | 未观察 >20 的行为；实现按 schema 语义截页 | §5 |
+| `backgroundSubagentResultConsumed` | 只属于 `turn.completed`/`turn.failed` 载荷（§4 夹具不在 subagents 结果里）；通知 turn 终态置 `true` 仍是 T3 未覆盖项（见 §3.5 表外的观察缺口），T4 不改 turn 面 | §4.3 |
+
 ## 5. 未观察到 / 不可触发汇总
 
 | 项                                             | 状态                                                           |

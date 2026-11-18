@@ -239,6 +239,31 @@ impl SessionStore {
         Ok(records)
     }
 
+    /// 列出某会话的子代理子会话（`parent_id = ?` 且 `task_type = 'subagent_child'`），
+    /// 按 `(time_created, id)` 创建顺序返回。
+    ///
+    /// C3 T4（`session/subagents`）的投影源：夹具观察（`agent-c3-contract.md` §4.5）
+    /// 是子会话行带 `task_type:"subagent_child"` + `parent_id`，而
+    /// `session_task_link` 在 subagent 路径下恒空——所以这里只按 session 行读，
+    /// 不碰 task link 表。`childSessionIds` 的 `child-<n>` 别名按这个创建顺序
+    /// 推导（契约 §4.8）。
+    pub fn subagent_child_sessions(
+        &self,
+        parent_id: &str,
+    ) -> Result<Vec<SessionRecord>, StoreError> {
+        let connection = self.connection();
+        let sql = format!(
+            "SELECT {SESSION_COLUMNS} FROM session \
+             WHERE parent_id = ?1 AND task_type = 'subagent_child' \
+             ORDER BY time_created ASC, id ASC"
+        );
+        let mut statement = connection.prepare(&sql)?;
+        let records = statement
+            .query_map(params![parent_id], session_from_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(records)
+    }
+
     /// 读取一个会话的全部 `session_entry`（`rowid` 序；C1 只用小体积的运行时条目）。
     pub fn entries(&self, session_id: &str) -> Result<Vec<SessionEntryRecord>, StoreError> {
         let connection = self.connection();
