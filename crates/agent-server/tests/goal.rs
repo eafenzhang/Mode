@@ -267,8 +267,8 @@ fn assert_unique_monotonic(events: &[Value]) {
         .map(|event| event["seq"].as_u64().expect("seq"))
         .collect();
     assert!(
-        seqs.windows(2).all(|pair| pair[0] < pair[1]),
-        "seq 必须严格递增：{seqs:?}"
+        seqs.windows(2).all(|pair| pair[1] == pair[0] + 1),
+        "seq 必须严格连续（无缺口/重复）：{seqs:?}"
     );
     let ids: std::collections::BTreeSet<&str> = events
         .iter()
@@ -470,13 +470,21 @@ impl ModelProvider for GoalProvider {
                     });
                 }
                 if streaming_deltas > 0 {
-                    for index in 0..streaming_deltas {
+                    // 第一个 delta 已交给会话；停在 gate 上，让测试在 pause 受理后
+                    // 再放行剩余 delta（不依赖调度运气）。
+                    let _ = deltas.send(ModelDelta::Text {
+                        text: "tick0 ".to_string(),
+                    });
+                    entered.notify_one();
+                    if let Some(gate) = gate.clone() {
+                        let _permit = gate.acquire().await.map_err(|_| ProviderError {
+                            message: "stream gate closed".to_string(),
+                        })?;
+                    }
+                    for index in 1..streaming_deltas {
                         let _ = deltas.send(ModelDelta::Text {
                             text: format!("tick{index} "),
                         });
-                        if index == 0 {
-                            entered.notify_one();
-                        }
                         tokio::task::yield_now().await;
                     }
                     return Ok(ModelResponse {
@@ -670,9 +678,6 @@ impl TestConn {
                     "请求 {id} 失败: {} ({})",
                     response.error.message, response.error.code
                 ),
-                Frame::Notification(notification) if notification.method == "session/event" => {
-                    events.push(notification.params.expect("事件 params"));
-                }
                 _ => {}
             }
         }
@@ -1491,6 +1496,28 @@ async fn running_goal_management_rejected_but_pause_cancels_in_flight() {
         clear_events.last().expect("cleared")["seq"]
     );
     assert_eq!(count_rows(&fixture.db_path, "session_target"), 0);
+    assert_eq!(
+        messages_with_source(&fixture.db_path, "goal_state_change").len(),
+        3,
+        "pause + resume + clear 各一条 goal_state_change 行"
+    );
+
+    // clear 之后普通 prompt 正常执行（事件流未被目标清理影响）。
+    gate.add_permits(1);
+    let prompt_id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "after goal" }),
+        )
+        .await;
+    let _ = conn.result(prompt_id).await;
+    let prompt_events = conn.drain_until_terminal().await;
+    let mut combined = clear_events;
+    combined.extend(prompt_events);
+    assert_unique_monotonic(&combined);
+    let prompt_terminal = combined.last().expect("prompt terminal");
+    assert_eq!(prompt_terminal["type"], json!("turn.completed"));
+    assert_eq!(prompt_terminal["payload"]["resultType"], json!("success"));
 }
 
 #[tokio::test]
@@ -1609,7 +1636,10 @@ async fn verifier_cancellation_keeps_seq_unique_and_monotonic() {
 #[tokio::test]
 async fn pause_during_streaming_race_keeps_seq_unique_and_no_stream_after_terminal() {
     let provider = GoalProvider::new("unused").0;
-    let provider = provider.with_streaming_deltas(200);
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let provider = provider
+        .with_streaming_deltas(200)
+        .with_gate(Arc::clone(&gate));
     let fixture = fixture("stream-race", provider);
     let mut conn = connect(Arc::clone(&fixture.server)).await;
     let session_id = create_session(&mut conn, &fixture.ws).await;
@@ -1631,6 +1661,8 @@ async fn pause_during_streaming_race_keeps_seq_unique_and_no_stream_after_termin
         pause["snapshot"]["session"]["target"]["status"],
         json!("paused")
     );
+    // pause 已受理：放行剩余 delta，取消必须在其后仍产生唯一终态。
+    gate.add_permits(1);
 
     let events = conn.drain_until_terminal().await;
     assert_unique_monotonic(&events);
@@ -1695,6 +1727,7 @@ async fn pause_before_provider_request_records_zero_model_requests() {
     pre_gate.add_permits(1);
 
     let events = conn.drain_until_terminal().await;
+    assert_unique_monotonic(&events);
     assert_eq!(
         events.last().expect("terminal")["payload"]["resultType"],
         json!("cancelled")
@@ -2125,6 +2158,73 @@ async fn configuration_failure_drains_pending_pause_event() {
     assert_unique_monotonic(&combined);
 }
 
+#[tokio::test]
+async fn pause_during_ordinary_prompt_does_not_stall_event_stream() {
+    let (provider, _requests) = GoalProvider::new("ordinary answer");
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let provider = provider.with_gate(Arc::clone(&gate));
+    provider.fail_next_continuation();
+    let fixture = fixture("pause-ordinary", provider);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let set = goal_action(
+        &mut conn,
+        &session_id,
+        "set",
+        json!({ "objective": "Ordinary pause goal", "inputId": "goal_op_set" }),
+    )
+    .await;
+    assert_eq!(set["startedTurn"], json!(true));
+    let _ = conn
+        .drain_until(|event| event["type"] == json!("turn.failed"))
+        .await;
+    let _ = wait_idle(&mut conn, &session_id).await;
+
+    let prompt_id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "ordinary prompt" }),
+        )
+        .await;
+    let _ = conn.result(prompt_id).await;
+    let pre_pause = conn
+        .drain_until(|event| event["type"] == json!("model.streaming"))
+        .await;
+    let pause = goal_action(&mut conn, &session_id, "pause", json!({})).await;
+    assert_eq!(pause["response"], json!(""));
+    assert_eq!(
+        pause["snapshot"]["session"]["target"]["status"],
+        json!("paused")
+    );
+    assert_eq!(
+        pause["snapshot"]["session"]["status"],
+        json!("running"),
+        "普通 prompt 仍在运行"
+    );
+
+    // 放行 provider；pause 只作用于 goal，prompt 必须继续并成功结束。
+    gate.add_permits(1);
+    let events = conn.drain_until_terminal().await;
+    let mut combined = pre_pause;
+    combined.extend(events);
+    assert_unique_monotonic(&combined);
+    assert_eq!(
+        combined.last().expect("terminal")["payload"]["resultType"],
+        json!("success")
+    );
+    assert!(combined.iter().any(|event| {
+        event["payload"]["action"] == json!("status_updated")
+            && event["payload"]["target"]["status"] == json!("paused")
+    }));
+    let usage = turn_usage_rows(&fixture.db_path, &session_id);
+    assert_eq!(
+        usage.last().expect("prompt usage")["status"],
+        json!("completed")
+    );
+    let _ = wait_idle(&mut conn, &session_id).await;
+}
+
 // ---------------------------------------------------------------------------
 // 5. revision 冲突零副作用
 // ---------------------------------------------------------------------------
@@ -2235,18 +2335,49 @@ async fn continuation_loop_runs_until_verifier_passes() {
     let events = conn.drain_until_goal_status("complete").await;
     let starts = turn_starts(&events);
     assert_eq!(starts.len(), 4, "1 个控制 turn + 3 个 continuation turn");
+    assert_eq!(starts[0]["turnNumber"], json!(0));
+    let continuations: Vec<&Value> = starts
+        .iter()
+        .filter(|payload| payload["inputSource"] == json!("goal-continuation"))
+        .collect();
+    assert_eq!(continuations.len(), 3);
+    assert!(continuations
+        .iter()
+        .all(|payload| payload["turnNumber"] == json!(1)));
+    let foregrounds: Vec<&str> = continuations
+        .iter()
+        .filter_map(|payload| payload["foregroundExecutionId"].as_str())
+        .collect();
     assert_eq!(
-        starts
-            .iter()
-            .filter(|payload| payload["inputSource"] == json!("goal-continuation"))
-            .count(),
-        3
+        foregrounds,
+        vec![
+            "runtime_command_1",
+            "runtime_command_2",
+            "runtime_command_3"
+        ]
     );
-    let verification_started = events
+    let verifications: Vec<&Value> = events
         .iter()
         .filter(|event| event["payload"]["status"] == json!("started"))
-        .count();
-    assert_eq!(verification_started, 3);
+        .collect();
+    assert_eq!(verifications.len(), 3);
+    let iterations: Vec<u64> = verifications
+        .iter()
+        .filter_map(|event| event["payload"]["goalIteration"].as_u64())
+        .collect();
+    assert_eq!(iterations, vec![1, 2, 3]);
+    let verification_foregrounds: Vec<&str> = verifications
+        .iter()
+        .filter_map(|event| event["payload"]["foregroundExecutionId"].as_str())
+        .collect();
+    assert_eq!(
+        verification_foregrounds,
+        vec![
+            "runtime_command_1",
+            "runtime_command_2",
+            "runtime_command_3"
+        ]
+    );
 
     let usage = turn_usage_rows(&fixture.db_path, &session_id);
     assert_eq!(usage.len(), 3);
@@ -2327,6 +2458,67 @@ async fn user_stop_cancels_continuation_and_pauses_target() {
         "stop 在续跑用户消息之后写 goal_state_change 行"
     );
     gate.add_permits(1);
+}
+
+#[tokio::test]
+async fn repeated_stop_during_goal_turn_is_idempotent_and_monotonic() {
+    let (provider, _requests) = GoalProvider::new("slow repeated stop");
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let provider = provider.with_gate(Arc::clone(&gate));
+    let fixture = fixture("repeated-stop", provider);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let set = goal_action(
+        &mut conn,
+        &session_id,
+        "set",
+        json!({ "objective": "Repeated stop goal", "inputId": "goal_rs_set" }),
+    )
+    .await;
+    assert_eq!(set["startedTurn"], json!(true));
+    let _ = conn
+        .drain_until(|event| event["type"] == json!("model.streaming"))
+        .await;
+
+    let mut events = Vec::new();
+    let first_id = conn
+        .send("session/stop", json!({ "sessionId": session_id }))
+        .await;
+    assert_eq!(
+        conn.result_collecting(first_id, &mut events).await,
+        json!({})
+    );
+    let second_id = conn
+        .send("session/stop", json!({ "sessionId": session_id }))
+        .await;
+    assert_eq!(
+        conn.result_collecting(second_id, &mut events).await,
+        json!({})
+    );
+    gate.add_permits(1);
+    let cancelled = |event: &Value| {
+        event["type"] == json!("turn.completed")
+            && event["payload"]["resultType"] == json!("cancelled")
+    };
+    if !events.iter().any(cancelled) {
+        events.extend(conn.drain_until(cancelled).await);
+    }
+    assert_unique_monotonic(&events);
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| {
+                event["payload"]["action"] == json!("status_updated")
+                    && event["payload"]["target"]["status"] == json!("paused")
+            })
+            .count(),
+        1,
+        "重复 stop 只产生一条状态迁移"
+    );
+    let _ = wait_idle(&mut conn, &session_id).await;
+    let row = target_row(&fixture.db_path, &session_id).expect("target row");
+    assert_eq!(row["status"], json!("paused"));
 }
 
 // ---------------------------------------------------------------------------

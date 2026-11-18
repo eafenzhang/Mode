@@ -338,14 +338,14 @@ impl Session {
         }
     }
 
-    /// 指定事件信封的投递链路（默认 `desktop-continuous`）。
     /// 共享宿主的事件发布器（同一个会话的 `Session` 与 `SessionRuntime` 必须用
-    /// 同一个 Arc；否则 seq 又会出现两个分配器）。
+    /// 同一个 Arc；seq/日志/广播的唯一所有者）。
     pub fn with_event_publisher(mut self, events: Arc<crate::events::EventPublisher>) -> Self {
         self.events = events;
         self
     }
 
+    /// 指定事件信封的投递链路（默认 `desktop-continuous`）。
     pub fn with_delivery_kind(mut self, delivery_kind: DeliveryKind) -> Self {
         self.delivery_kind = delivery_kind;
         self
@@ -1754,8 +1754,8 @@ impl Session {
     /// 被对拍的行为，单调 id 反而让用例可以断言。`traceId` 留空（追踪 id 由模型/会话层给）。
     /// `turn_id` 为 `None` 时信封省略 `turnId`（turn 尚未开始就失败的场景）。
     ///
-    /// 公开给宿主（`agent-server`）：compact turn 的终态事件由宿主在落库之后构造并
-    /// 发布（C2 T2），seq/信封仍归 [`Session`] 单调分配，不出现第二套编号。
+    /// 公开给宿主（`agent-server`）：事件由共享 [`crate::events::EventPublisher`] 分配 seq/`eventId`，
+    /// 宿主的 EventSink 在落库之后调用 `publish/commit`；信封不出现第二套编号。
     pub fn emit<T: Serialize>(
         &mut self,
         turn_id: Option<&str>,
@@ -1772,8 +1772,9 @@ impl Session {
 
     /// 发一条 `turn.failed` 终态（LT-1 C1 控制器裁决 3：终态恰好一次）。
     ///
-    /// 用于 provider 错误等 `run_turn` 自身没有发终态的失败路径：seq 归 [`Session`]
-    /// 统一分配，信封的 `turnId` 在 turn 尚未开始（如 turn 前持久化失败）时省略。
+    /// 用于 provider 错误等 `run_turn` 自身没有发终态的失败路径：seq 归共享
+    /// [`crate::events::EventPublisher`] 统一分配，信封的 `turnId` 在 turn 尚未开始（如 turn 前
+    /// 持久化失败）时省略。
     ///
     /// `error_type` 由调用方给：provider/模型请求失败用 `"runtime_error"`；缺模型等
     /// 配置失败用 `"CONFIGURATION_ERROR"`（oracle 观察：缺 `model` → `turn.failed`

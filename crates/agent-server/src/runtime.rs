@@ -1158,6 +1158,10 @@ impl SessionRuntime {
         ));
 
         let old_goal = live.goal.clone();
+        debug_assert!(
+            old_goal.pending_cancel_events.is_empty(),
+            "set 覆盖 GoalState 前仍有未发布的 pending 事件（会永久缺号）"
+        );
         live.goal = GoalState {
             target: Some(target.clone()),
             timeline: Vec::new(),
@@ -1238,6 +1242,10 @@ impl SessionRuntime {
             target_update_payload("status_updated", "runtime", Some(&previous), Some(&resumed)),
         );
         live.goal.job_active = true;
+        debug_assert!(
+            live.goal.pending_cancel_events.is_empty(),
+            "resume 清理 pending 队列前仍有未发布事件（会永久缺号）"
+        );
         live.goal.pending_cancel_events.clear();
         live.revision += 1;
         let message_sequence = live.next_message_sequence;
@@ -1322,7 +1330,10 @@ impl SessionRuntime {
             SessionEventType::SessionUpdated,
             target_update_payload("status_updated", "command", Some(&previous), Some(&paused)),
         );
-        let running = live.goal.job_active || live.goal_cancel.is_some();
+        // 只有 goal-continuation 有 before_terminal 钩子；普通 prompt/compact 中
+        // pause 只能直接提交（否则 pending 事件会卡住后续 prompt 的日志/广播）。
+        let running =
+            live.goal.job_active && matches!(live.current_kind, Some(TurnKind::GoalContinuation));
         let mut publish_now = None;
         if running {
             // 事件 seq 已包含在应答快照里；实际发布由 worker 在终态/verifier 取消前
@@ -2673,7 +2684,8 @@ fn load_verification_state(
 
 /// 配置失败的 goal 任务：不启动模型请求、不发 prompt turn；目标暂停并收口。
 ///
-/// 线上未观察该组合（`agent-c3-contract.md` §1.10），登记在 §1.11；测试不覆盖。
+/// 线上未观察该组合（`agent-c3-contract.md` §1.10），登记在 §1.11；由
+/// `configuration_failure_drains_pending_pause_event` 覆盖 pending drain。
 async fn run_goal_configuration_failure(
     shared: &Arc<Shared>,
     store: &Arc<SessionStore>,
@@ -3252,7 +3264,7 @@ async fn run_goal_verifier(
     let event = session.emit(None, SessionEventType::SessionUpdated, &started_payload);
     let sequence = event.seq;
     let event_id = event.event_id.clone();
-    shared.publish(&event);
+    // 先落 session_entry，再发布（事件可见 ⇒ 行已提交）。
     persist_verification_entry(
         store,
         &shared.record.id,
@@ -3260,6 +3272,7 @@ async fn run_goal_verifier(
         sequence,
         &event_id,
     );
+    shared.publish(&event);
     {
         let mut live = shared.lock();
         live.goal.timeline.push(GoalVerificationTimeline {
@@ -3338,8 +3351,8 @@ async fn run_goal_verifier(
         let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
         let sequence = event.seq;
         let event_id = event.event_id.clone();
-        shared.publish(&event);
         persist_verification_entry(store, &shared.record.id, &payload, sequence, &event_id);
+        shared.publish(&event);
         {
             let mut live = shared.lock();
             settle_verification_timeline(
@@ -3388,8 +3401,8 @@ async fn run_goal_verifier(
             let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
             let sequence = event.seq;
             let event_id = event.event_id.clone();
-            shared.publish(&event);
             persist_verification_entry(store, &shared.record.id, &payload, sequence, &event_id);
+            shared.publish(&event);
             {
                 let mut live = shared.lock();
                 settle_verification_timeline(
@@ -3435,8 +3448,8 @@ async fn run_goal_verifier(
     let event = session.emit(None, SessionEventType::SessionUpdated, &payload);
     let sequence = event.seq;
     let event_id = event.event_id.clone();
-    shared.publish(&event);
     persist_verification_entry(store, &shared.record.id, &payload, sequence, &event_id);
+    shared.publish(&event);
     {
         let mut live = shared.lock();
         settle_verification_timeline(
