@@ -114,7 +114,8 @@ pub struct Session {
     session_id: String,
     cwd: String,
     turn_number: u64,
-    sequence: u64,
+    /// 事件 seq 分配 + 发布的唯一所有者（与 `agent-server` 共享同一个 Arc）。
+    events: Arc<crate::events::EventPublisher>,
     current_turn_id: Option<String>,
     /// 会话内的文件记忆：`Read` 的重复读去重（跨 turn 命中）+ `Write` 的「先读再写」前置条件。
     /// 见 `agent_tools::FileState`。
@@ -168,11 +169,13 @@ pub struct Session {
 
 impl Session {
     pub fn new(session_id: impl Into<String>, cwd: impl Into<String>) -> Self {
+        let session_id = session_id.into();
+        let events = crate::events::EventPublisher::new(session_id.clone(), 256, 4096);
         Self {
-            session_id: session_id.into(),
+            session_id,
             cwd: cwd.into(),
             turn_number: 0,
-            sequence: 0,
+            events,
             current_turn_id: None,
             file_state: FileState::new(),
             data_root: None,
@@ -336,6 +339,13 @@ impl Session {
     }
 
     /// 指定事件信封的投递链路（默认 `desktop-continuous`）。
+    /// 共享宿主的事件发布器（同一个会话的 `Session` 与 `SessionRuntime` 必须用
+    /// 同一个 Arc；否则 seq 又会出现两个分配器）。
+    pub fn with_event_publisher(mut self, events: Arc<crate::events::EventPublisher>) -> Self {
+        self.events = events;
+        self
+    }
+
     pub fn with_delivery_kind(mut self, delivery_kind: DeliveryKind) -> Self {
         self.delivery_kind = delivery_kind;
         self
@@ -1738,15 +1748,6 @@ impl Session {
         self.emit(Some(turn_id), SessionEventType::ToolUpdated, &payload)
     }
 
-    /// 把事件序号推进到运行时方法层已经发布的 `seq`。
-    ///
-    /// goal 的控制/状态事件由 `SessionRuntime` 在方法层用共享 `Live.event_seq`
-    /// 预分配并发布；worker 的 `Session` 有自己的计数器，在发布预分配事件之后必须
-    /// 对齐，否则后续 `session.emit` 会重用同一个 `seq`/`eventId`。
-    pub fn sync_event_seq(&mut self, seq: u64) {
-        self.sequence = self.sequence.max(seq);
-    }
-
     /// 包一个会话事件信封。
     ///
     /// `eventId` 用单调 id 而不是 uuid：spec §3 把 `eventId` 归一成 `<id>`，它的真实形态不是
@@ -1761,20 +1762,12 @@ impl Session {
         event_type: SessionEventType,
         payload: &T,
     ) -> SessionEvent {
-        self.sequence += 1;
-        SessionEvent {
-            event_id: format!("evt_{}", self.sequence),
-            session_id: self.session_id.clone(),
-            turn_id: turn_id.map(str::to_string),
-            seq: self.sequence,
-            trace_id: None,
-            timestamp: now_ms(),
-            // 默认 `desktop-continuous`（协议夹具的信封）；另一条链路只透传标记，
-            // 快照/队列归 Host/relay（DR-T5-1）。
-            delivery_kind: Some(self.delivery_kind),
+        self.events.allocate(
+            turn_id.map(str::to_string),
             event_type,
-            payload: Some(serde_json::to_value(payload).expect("镜像类型可序列化")),
-        }
+            serde_json::to_value(payload).expect("镜像类型可序列化"),
+            self.delivery_kind,
+        )
     }
 
     /// 发一条 `turn.failed` 终态（LT-1 C1 控制器裁决 3：终态恰好一次）。

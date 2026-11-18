@@ -42,7 +42,7 @@
 //!   会阻塞当前线程，不能占 tokio worker（否则与 stdio 单写者互等死锁）；provider
 //!   解析（账号型凭据钩子）同理。
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -133,8 +133,6 @@ struct QueuedInput {
 struct GoalJob {
     /// 生效 inputId（权限/幂等/run_started.activeInputId）。
     input_id: String,
-    /// 方法层已发布到的事件序号；worker 的 Session 必须从这里续号。
-    event_seq: u64,
 }
 
 /// 目标续跑的热状态。唯一事实源是 `session_target` 行；这里的字段是同一把
@@ -443,12 +441,9 @@ struct Live {
     /// 本 runtime 生命周期内最近一次已开始的 turn（`turn.started` 写入，终态不清；
     /// 观察的 read 视图在 turn 后仍带 `currentTurnId`）。
     current_turn_id: Option<String>,
-    event_seq: u64,
     /// 下一条持久化 message 行的 `sequence`（冷启动时按库内已有行的最大序号 +1 初始化，
     /// Task 7 控制器裁决 6：恢复历史时不得与旧行撞序号）。
     next_message_sequence: i64,
-    /// 有界内存事件日志（订阅回放源；最旧先丢）。
-    log: VecDeque<SessionEvent>,
     /// 已接受的 inputId → 回执（幂等依据；进程内有效）。
     seen_inputs: HashMap<String, Accepted>,
     /// running / FIFO 队列的准入账本（`agent-core::CommandInbox`，key = 会话 id）。
@@ -478,7 +473,8 @@ struct Live {
 struct Shared {
     live: Mutex<Live>,
     config: RwLock<RuntimeConfig>,
-    bus: tokio::sync::broadcast::Sender<SessionEvent>,
+    /// 事件 seq 分配 + 日志/broadcast 的唯一所有者；与 `Session` 共享同一个 Arc。
+    events: Arc<agent_core::EventPublisher>,
     drained: tokio::sync::watch::Sender<bool>,
     record: SessionRecord,
     /// 会话库句柄：goal 命令（方法层）与 worker 共用同一事实源。
@@ -509,50 +505,32 @@ impl Shared {
             .clone()
     }
 
-    /// 发布一条事件：先进内存日志（同一临界区），再上 broadcast。
-    ///
-    /// 订阅方在**同一把锁内**「读日志 + 建 receiver」，因此：日志里已有的事件不会
-    /// 再出现在 receiver 缓冲里（无重复），锁释放后发布的事件必进 receiver（无缺口）。
+    /// 提交一条已分配事件（EventSink 在落库之后调用）。
     fn publish(&self, event: &SessionEvent) {
-        self.publish_many(vec![event.clone()]);
+        self.events.commit(event);
     }
 
-    /// 顺序发布一批已分配 seq 的事件（goal 方法层的同步事件）。
+    /// 顺序提交一批已分配事件（goal 方法层的同步事件）。
     fn publish_many(&self, events: Vec<SessionEvent>) {
-        let mut live = self.lock();
-        let capacity = self.read_config().event_log_capacity.max(1);
         for event in events {
-            live.event_seq = live.event_seq.max(event.seq);
-            live.log.push_back(event.clone());
-            while live.log.len() > capacity {
-                live.log.pop_front();
-            }
-            // 没有订阅方时 send 返回 Err：事件仍在内存日志里，回放可补——不是错误。
-            let _ = self.bus.send(event);
+            self.events.commit(&event);
         }
     }
 }
 
-/// 在 `Live` 锁内分配一条事件（goal 方法层与控制 turn 用）。
+/// 方法层在共享发布器上分配一条事件（不提交；由 `publish_many` 或 worker 提交）。
 fn make_event(
-    live: &mut Live,
-    session_id: &str,
+    events: &agent_core::EventPublisher,
     turn_id: Option<String>,
     event_type: SessionEventType,
     payload: Value,
 ) -> SessionEvent {
-    live.event_seq += 1;
-    SessionEvent {
-        event_id: format!("evt_{}", live.event_seq),
-        session_id: session_id.to_string(),
+    events.allocate(
         turn_id,
-        seq: live.event_seq,
-        trace_id: None,
-        timestamp: now_ms(),
-        delivery_kind: Some(DeliveryKind::DesktopContinuous),
         event_type,
-        payload: Some(payload),
-    }
+        payload,
+        DeliveryKind::DesktopContinuous,
+    )
 }
 
 /// 一个会话的运行时：准入（`submit`）→ 串行 worker → 事件（`subscribe`/`snapshot`）。
@@ -609,8 +587,11 @@ impl SessionRuntime {
         let goal = load_goal_state(&store, &record.id)
             .map_err(|error| RuntimeError::Store(error.to_string()))?;
 
-        let (bus, _bus_receiver) =
-            tokio::sync::broadcast::channel(config.broadcast_capacity.max(1));
+        let events = agent_core::EventPublisher::new(
+            record.id.clone(),
+            config.broadcast_capacity,
+            config.event_log_capacity,
+        );
         let (drained, _drained_receiver) = tokio::sync::watch::channel(false);
         let (queue, receiver) = tokio::sync::mpsc::unbounded_channel();
         let data_root = config.data_root.clone();
@@ -626,9 +607,7 @@ impl SessionRuntime {
                 // projection 归 0），contextUsage 由 `usage` 单独恢复。
                 context_used: 0,
                 current_turn_id: None,
-                event_seq: 0,
                 next_message_sequence,
-                log: VecDeque::new(),
                 seen_inputs: HashMap::new(),
                 inbox: CommandInbox::new(),
                 current_cancel: None,
@@ -639,7 +618,7 @@ impl SessionRuntime {
                 goal_cancel: None,
             }),
             config: RwLock::new(config),
-            bus,
+            events: Arc::clone(&events),
             drained,
             store: Arc::clone(&store),
             preferences: RwLock::new(None),
@@ -648,6 +627,7 @@ impl SessionRuntime {
         });
 
         let mut session = Session::new(shared.record.id.clone(), shared.record.directory.clone())
+            .with_event_publisher(Arc::clone(&events))
             .with_mode(shared.read_config().mode)
             .with_model_capabilities(shared.read_config().capabilities)
             .with_history(restored.messages)
@@ -755,22 +735,7 @@ impl SessionRuntime {
         tokio::sync::broadcast::Receiver<SessionEvent>,
         Option<u64>,
     ) {
-        let live = self.shared.lock();
-        let effective = match after_seq {
-            Some(after) if after <= live.event_seq => Some(after),
-            _ => None,
-        };
-        let replay: Vec<SessionEvent> = live
-            .log
-            .iter()
-            .filter(|event| match effective {
-                None => true,
-                Some(after) => event.seq > after,
-            })
-            .cloned()
-            .collect();
-        let receiver = self.shared.bus.subscribe();
-        (replay, receiver, effective)
+        self.shared.events.subscribe(after_seq)
     }
 
     /// 取消当前运行中的 turn（裁决 4）。空闲时是幂等 no-op；排队中的输入不受影响。
@@ -802,8 +767,7 @@ impl SessionRuntime {
                 live.revision += 1;
                 let session_id = self.shared.record.id.clone();
                 let event = make_event(
-                    &mut live,
-                    &session_id,
+                    &self.shared.events,
                     None,
                     SessionEventType::SessionUpdated,
                     target_update_payload(
@@ -813,7 +777,12 @@ impl SessionRuntime {
                         Some(&target),
                     ),
                 );
-                if live.goal.job_active || live.current_kind.is_some() {
+                // goal-continuation 有 before_terminal 钩子，事件要排队保证
+                // status_updated → run_finished → turn.completed；普通 prompt/compact
+                // 没有钩子，直接提交（否则 worker 已过 drain 点时会永久缺号）。
+                let goal_turn = live.goal.job_active
+                    && matches!(live.current_kind, Some(TurnKind::GoalContinuation));
+                if goal_turn {
                     live.goal.pending_cancel_events.push_back(event);
                 } else {
                     publish_now = Some(event);
@@ -848,7 +817,7 @@ impl SessionRuntime {
 
     /// 当前事件 seq 高水位（`session/subscribe` 结果的 `eventSeq`）。
     pub fn event_seq(&self) -> u64 {
-        self.shared.lock().event_seq
+        self.shared.events.current_seq()
     }
 
     /// worker 退出（drain 完成）信号的订阅端（`session/close` 的 closing 台账用；
@@ -928,7 +897,7 @@ impl SessionRuntime {
             turn_count: live.turn_count,
             total_token_count: live.total_token_count,
             context_used: live.context_used,
-            event_seq: live.event_seq,
+            event_seq: self.shared.events.current_seq(),
             current_turn_id: live.current_turn_id.clone(),
             context_usage: live.usage.context_usage(config.capabilities.context_window),
             active_turn: live
@@ -1127,8 +1096,7 @@ impl SessionRuntime {
         let emit_title = !live.goal.title_emitted && self.shared.record.title.is_empty();
         if emit_title {
             events.push(make_event(
-                &mut live,
-                &session_id,
+                &self.shared.events,
                 None,
                 SessionEventType::SessionTitleUpdated,
                 json!({
@@ -1145,8 +1113,7 @@ impl SessionRuntime {
         let control_turn_id = fresh_id("turn_control");
         let control_started_at = now_ms();
         events.push(make_event(
-            &mut live,
-            &session_id,
+            &self.shared.events,
             Some(control_turn_id.clone()),
             SessionEventType::TurnStarted,
             json!({
@@ -1157,8 +1124,7 @@ impl SessionRuntime {
             }),
         ));
         events.push(make_event(
-            &mut live,
-            &session_id,
+            &self.shared.events,
             Some(control_turn_id.clone()),
             SessionEventType::TurnCompleted,
             json!({
@@ -1174,8 +1140,7 @@ impl SessionRuntime {
         let mut event_target = target.clone();
         event_target.summary_title = None;
         events.push(make_event(
-            &mut live,
-            &session_id,
+            &self.shared.events,
             None,
             SessionEventType::SessionUpdated,
             target_update_payload(
@@ -1186,8 +1151,7 @@ impl SessionRuntime {
             ),
         ));
         events.push(make_event(
-            &mut live,
-            &session_id,
+            &self.shared.events,
             None,
             SessionEventType::SessionUpdated,
             target_update_payload("set", "command", previous.as_ref(), Some(&event_target)),
@@ -1216,11 +1180,8 @@ impl SessionRuntime {
         let cancel = CancelToken::new();
         live.goal_cancel = Some(cancel);
         live.inbox.admit(&session_id, input_id.clone());
-        let event_seq = live.event_seq;
         let snapshot = self.snapshot_locked(&live);
-        drop(live);
-
-        self.shared.publish_many(events);
+        // 「事件可见 ⇒ 行已提交」：先写 objective/标题行，再发布控制/set 事件。
         self.persist_goal_user_prompt_with_sequence(&session_id, objective, objective_sequence);
         if emit_title {
             let _ = self
@@ -1228,10 +1189,9 @@ impl SessionRuntime {
                 .store
                 .set_session_title(&session_id, objective, "first_input", now);
         }
-        let job = GoalJob {
-            input_id,
-            event_seq,
-        };
+        drop(live);
+        self.shared.publish_many(events);
+        let job = GoalJob { input_id };
         if let Err(error) = self.enqueue_goal_item(job) {
             let mut live = self.shared.lock();
             live.goal.job_active = false;
@@ -1272,8 +1232,7 @@ impl SessionRuntime {
         self.persist_goal_target(&resumed)?;
         live.goal.target = Some(resumed.clone());
         let status_event = make_event(
-            &mut live,
-            &session_id,
+            &self.shared.events,
             None,
             SessionEventType::SessionUpdated,
             target_update_payload("status_updated", "runtime", Some(&previous), Some(&resumed)),
@@ -1286,7 +1245,6 @@ impl SessionRuntime {
         let input_id = goal_input_id(params.input_id.as_deref());
         live.goal_cancel = Some(CancelToken::new());
         live.inbox.admit(&session_id, input_id.clone());
-        let event_seq = live.event_seq;
         let snapshot = self.snapshot_locked(&live);
         self.persist_goal_state_message_with_sequence(
             &session_id,
@@ -1297,10 +1255,7 @@ impl SessionRuntime {
         drop(live);
 
         self.shared.publish_many(vec![status_event]);
-        let job = GoalJob {
-            input_id,
-            event_seq,
-        };
+        let job = GoalJob { input_id };
         if let Err(error) = self.enqueue_goal_item(job) {
             let mut live = self.shared.lock();
             live.goal.job_active = false;
@@ -1325,8 +1280,7 @@ impl SessionRuntime {
             let mut events = Vec::new();
             if emit_title {
                 events.push(make_event(
-                    &mut live,
-                    &session_id,
+                    &self.shared.events,
                     None,
                     SessionEventType::SessionTitleUpdated,
                     json!({
@@ -1363,8 +1317,7 @@ impl SessionRuntime {
             live.goal.target = Some(paused.clone());
         }
         let cancel_event = make_event(
-            &mut live,
-            &session_id,
+            &self.shared.events,
             None,
             SessionEventType::SessionUpdated,
             target_update_payload("status_updated", "command", Some(&previous), Some(&paused)),
@@ -1385,17 +1338,18 @@ impl SessionRuntime {
         live.next_message_sequence += 1;
         live.revision += 1;
         let snapshot = self.snapshot_locked(&live);
-        drop(live);
-
-        if let Some(event) = publish_now {
-            self.shared.publish_many(vec![event]);
-        }
+        // 先落 message 行，再发布（idle pause 的 publish_now）。
         self.persist_goal_state_message_with_sequence(
             &session_id,
             "Goal paused",
             "goal_state_change",
             message_sequence,
         );
+        drop(live);
+
+        if let Some(event) = publish_now {
+            self.shared.publish_many(vec![event]);
+        }
         Ok(GoalOutcome {
             response: String::new(),
             snapshot,
@@ -1421,8 +1375,7 @@ impl SessionRuntime {
         }
         // 观察：clear 保留 runtime 的 goalVerifications / timeline。
         events.push(make_event(
-            &mut live,
-            &session_id,
+            &self.shared.events,
             None,
             SessionEventType::SessionUpdated,
             target_update_payload("cleared", "command", previous.as_ref(), None),
@@ -1584,12 +1537,6 @@ async fn worker_loop(
     let mut user_execution_requested = false;
     let mut current: Option<(String, String, String, Arc<dyn ModelProvider>)> = None;
     while let Some(item) = receiver.recv().await {
-        // 方法层 goal 事件直接用共享 `Live.event_seq` 预分配并发布；worker 的
-        // Session 计数器可能落后。每个输入开始前对齐一次，保证后续 session.emit
-        // （普通 prompt/compact/续跑/失败终态）不会与已发布事件重号。
-        let published_seq = shared.lock().event_seq;
-        session.sync_event_seq(published_seq);
-
         // 取消令牌在**取到输入时**就登记（Task 10）：`session/close` 可能落在
         // 「准入已接受、turn 尚未开始」的等待窗口里（user-execution 偏好请求、
         // provider 装配的宿主钩子）。令牌登记晚于 close 时，`cancel_turn` 落在
@@ -1744,6 +1691,10 @@ async fn worker_loop(
                 }
             }
         }
+        // 普通 prompt/compact/配置失败路径没有 goal 的 before_terminal 钩子；stop 在
+        // 这些 turn 中也可能预分配了 status 事件。这里统一 drain，避免 pending 事件
+        // 形成 seq 缺号并卡住后续日志/广播。
+        publish_pending_cancel_event(&shared);
     }
     // 队列清空且发送端关闭：广播 drain 完成信号（closing 台账据此移除条目）。
     let _ = shared.drained.send(true);
@@ -2735,6 +2686,7 @@ async fn run_goal_configuration_failure(
     live.current_kind = None;
     live.goal.job_active = false;
     live.goal_cancel = None;
+    let pending: Vec<SessionEvent> = live.goal.pending_cancel_events.drain(..).collect();
     if let Some(mut target) = live.goal.target.clone() {
         if target.status == GoalStatus::Active {
             target.set_status(GoalStatus::Paused, now_ms());
@@ -2752,6 +2704,11 @@ async fn run_goal_configuration_failure(
     live.status = RuntimeStatus::Error;
     live.last_error = Some(message.to_string());
     live.updated_at = now_ms();
+    drop(live);
+    // pause/stop 在 provider 解析窗口预分配的事件也必须发布，不能留下 seq 缺号。
+    if !pending.is_empty() {
+        shared.publish_many(pending);
+    }
 }
 
 /// goal 任务的统一收口：清 worker 相位、结算 CommandInbox 并恢复状态。
@@ -2920,7 +2877,6 @@ async fn run_goal_job(
     let job = item.goal.clone().expect("run_goal_job 只处理 goal 队列项");
     let session_id = shared.record.id.clone();
     let config = shared.read_config();
-    session.sync_event_seq(job.event_seq);
     run_goal_loop(&mut session, shared, store, provider, &job, &config).await;
     finish_goal_job(shared, &session_id, &job.input_id, true, false);
     session
@@ -3040,9 +2996,7 @@ async fn run_goal_loop(
                 };
                 // 取消的 status_updated 用方法层预分配的事件（seq 已进应答快照），
                 // 必须在 run_finished 与 turn.completed 之前发布。
-                if let Some(seq) = publish_pending_cancel_event(&shared_before) {
-                    session.sync_event_seq(seq);
-                }
+                publish_pending_cancel_event(&shared_before);
                 let turn_id = session.current_turn_id().map(str::to_owned);
                 let event = session.emit(
                     turn_id.as_deref(),
@@ -3365,9 +3319,7 @@ async fn run_goal_verifier(
     }
     let finished_at = now_ms();
     if cancelled {
-        if let Some(seq) = publish_pending_cancel_event(shared) {
-            session.sync_event_seq(seq);
-        }
+        publish_pending_cancel_event(shared);
         let verification = GoalVerification {
             passed: false,
             reason: CANCELLED_VERIFIER_REASON.to_string(),
@@ -3417,9 +3369,7 @@ async fn run_goal_verifier(
     let usage = match &response {
         Ok(response) => response.usage.clone(),
         Err(error) => {
-            if let Some(seq) = publish_pending_cancel_event(shared) {
-                session.sync_event_seq(seq);
-            }
+            publish_pending_cancel_event(shared);
             let verification = GoalVerification {
                 passed: false,
                 reason: format!("Completion verifier failed: {}", error.message),

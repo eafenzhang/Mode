@@ -18,7 +18,7 @@
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use agent_core::provider::{
@@ -336,6 +336,8 @@ struct GoalProvider {
     fail_next_continuation: Arc<std::sync::atomic::AtomicBool>,
     verifier_entered: Arc<tokio::sync::Notify>,
     verifier_gate: Option<Arc<tokio::sync::Semaphore>>,
+    /// 连续流式 delta 的数量（0 = 关闭；用于 pause 与流式事件竞争 seq）。
+    streaming_deltas: usize,
 }
 
 impl GoalProvider {
@@ -353,6 +355,7 @@ impl GoalProvider {
                 fail_next_continuation: Arc::new(std::sync::atomic::AtomicBool::new(false)),
                 verifier_entered: Arc::new(tokio::sync::Notify::new()),
                 verifier_gate: None,
+                streaming_deltas: 0,
             },
             requests,
         )
@@ -381,6 +384,11 @@ impl GoalProvider {
 
     fn verifier_entered(&self) -> &tokio::sync::Notify {
         &self.verifier_entered
+    }
+
+    fn with_streaming_deltas(mut self, count: usize) -> Self {
+        self.streaming_deltas = count;
+        self
     }
 
     fn queue_verifier(&self, response: &str) {
@@ -443,6 +451,7 @@ impl ModelProvider for GoalProvider {
         let entered = Arc::clone(&self.entered);
         let gate = self.gate.clone();
         let fail = Arc::clone(&self.fail_next_continuation);
+        let streaming_deltas = self.streaming_deltas;
         if kind == RequestKind::Continuation {
             let text = self.continuation_text.clone();
             return Box::pin(async move {
@@ -454,6 +463,31 @@ impl ModelProvider for GoalProvider {
                     })?;
                 }
                 requests.lock().expect("requests").push(record);
+                if fail.load(std::sync::atomic::Ordering::SeqCst) {
+                    fail.store(false, std::sync::atomic::Ordering::SeqCst);
+                    return Err(ProviderError {
+                        message: "mock provider failure".to_string(),
+                    });
+                }
+                if streaming_deltas > 0 {
+                    for index in 0..streaming_deltas {
+                        let _ = deltas.send(ModelDelta::Text {
+                            text: format!("tick{index} "),
+                        });
+                        if index == 0 {
+                            entered.notify_one();
+                        }
+                        tokio::task::yield_now().await;
+                    }
+                    return Ok(ModelResponse {
+                        usage: ModelUsage {
+                            input_tokens: 10,
+                            output_tokens: 12,
+                            ..ModelUsage::default()
+                        },
+                        stop_reason: "stop",
+                    });
+                }
                 if let Some(gate) = gate {
                     // in-flight 窗口：请求已发出并产出了首个 delta，然后停住等 pause。
                     let _ = deltas.send(ModelDelta::Text {
@@ -463,12 +497,6 @@ impl ModelProvider for GoalProvider {
                     let _permit = gate.acquire().await.map_err(|_| ProviderError {
                         message: "goal gate closed".to_string(),
                     })?;
-                }
-                if fail.load(std::sync::atomic::Ordering::SeqCst) {
-                    fail.store(false, std::sync::atomic::Ordering::SeqCst);
-                    return Err(ProviderError {
-                        message: "mock provider failure".to_string(),
-                    });
                 }
                 let _ = deltas.send(ModelDelta::Text { text });
                 Ok(ModelResponse {
@@ -540,6 +568,8 @@ struct TestConn {
     reader: BufReader<ReadHalf<DuplexStream>>,
     writer: WriteHalf<DuplexStream>,
     next_id: u64,
+    /// 已被 `result`/`error`/其他帧读取顺带消费的 session/event，供后续断言使用。
+    pending_events: VecDeque<Value>,
 }
 
 async fn connect(server: Arc<AgentServer>) -> TestConn {
@@ -555,6 +585,7 @@ async fn connect(server: Arc<AgentServer>) -> TestConn {
         reader: BufReader::new(client_read),
         writer: client_write,
         next_id: 0,
+        pending_events: VecDeque::new(),
     }
 }
 
@@ -579,6 +610,13 @@ impl TestConn {
             .await
             .expect("读取失败：连接意外关闭或超时");
         let frame: Frame = serde_json::from_str(line.trim_end()).expect("出站帧是合法 JSON");
+        if let Frame::Notification(notification) = &frame {
+            if notification.method == "session/event" {
+                if let Some(params) = &notification.params {
+                    self.pending_events.push_back(params.clone());
+                }
+            }
+        }
         self.auto_answer_reverse(&frame).await;
         frame
     }
@@ -624,7 +662,9 @@ impl TestConn {
     async fn result_collecting(&mut self, id: u64, events: &mut Vec<Value>) -> Value {
         let expected = RequestId::Number(id as i64);
         loop {
-            match self.next_frame().await {
+            let frame = self.next_frame().await;
+            events.extend(self.pending_events.drain(..));
+            match frame {
                 Frame::Response(response) if response.id == expected => return response.result,
                 Frame::ErrorResponse(response) if response.id == expected => panic!(
                     "请求 {id} 失败: {} ({})",
@@ -673,9 +713,15 @@ impl TestConn {
     }
 
     async fn next_event(&mut self) -> Value {
+        if let Some(event) = self.pending_events.pop_front() {
+            return event;
+        }
         loop {
             if let Frame::Notification(notification) = self.next_frame().await {
                 assert_eq!(notification.method, "session/event");
+                if let Some(event) = self.pending_events.pop_front() {
+                    return event;
+                }
                 return notification.params.expect("事件通知必须带 params");
             }
         }
@@ -737,6 +783,41 @@ fn create_params(ws: &Path) -> Value {
     })
 }
 
+/// provider 解析闸门 + 固定 Err：制造「goal job 已受理、pause 先到、随后配置失败」。
+struct GatedErrorSource {
+    state: Arc<(Mutex<(bool, bool)>, Condvar)>,
+}
+
+impl GatedErrorSource {
+    #[allow(clippy::type_complexity)]
+    fn new() -> (Self, Arc<(Mutex<(bool, bool)>, Condvar)>) {
+        let state = Arc::new((Mutex::new((false, false)), Condvar::new()));
+        (
+            Self {
+                state: Arc::clone(&state),
+            },
+            state,
+        )
+    }
+}
+
+impl ProviderSource for GatedErrorSource {
+    fn resolve(
+        &self,
+        _provider_id: &str,
+        _model_id: &str,
+        _context: Option<&agent_server::ProviderRequestContext>,
+    ) -> Result<Arc<dyn ModelProvider>, String> {
+        let mut state = self.state.0.lock().expect("gate");
+        state.0 = true;
+        self.state.1.notify_all();
+        while !state.1 {
+            state = self.state.1.wait(state).expect("gate wait");
+        }
+        Err("mock configuration failure".to_string())
+    }
+}
+
 struct Fixture {
     server: Arc<AgentServer>,
     db_path: PathBuf,
@@ -746,6 +827,22 @@ struct Fixture {
 }
 
 fn fixture(label: &str, provider: GoalProvider) -> Fixture {
+    let provider = Arc::new(provider);
+    let source: Arc<dyn ProviderSource> = Arc::new(StaticSource {
+        provider: provider.clone(),
+    });
+    fixture_build(label, source, provider)
+}
+
+fn fixture_with_source(label: &str, source: Arc<dyn ProviderSource>) -> Fixture {
+    fixture_build(label, source, Arc::new(GoalProvider::new("unused").0))
+}
+
+fn fixture_build(
+    label: &str,
+    source: Arc<dyn ProviderSource>,
+    provider: Arc<GoalProvider>,
+) -> Fixture {
     let root = TempRoot::new(label);
     let mode_root = root.path().join(".mode");
     let db_dir = mode_root.join("cli").join("db");
@@ -760,10 +857,6 @@ fn fixture(label: &str, provider: GoalProvider) -> Fixture {
         write_builtin_file(root.path()),
         write_personal_file(root.path()),
     );
-    let provider = Arc::new(provider);
-    let source: Arc<dyn ProviderSource> = Arc::new(StaticSource {
-        provider: provider.clone(),
-    });
     let config = ServerConfig::from_data_base_dir(root.path());
     let server = Arc::new(AgentServer::with_parts(config, hub, source));
     Fixture {
@@ -1240,6 +1333,9 @@ async fn running_goal_management_rejected_but_pause_cancels_in_flight() {
     .await;
     assert_eq!(set["startedTurn"], json!(true));
 
+    let _ = conn
+        .drain_until(|event| event["type"] == json!("model.streaming"))
+        .await;
     fixture.provider.entered().notified().await;
     for (action, extra) in [
         ("show", json!({})),
@@ -1414,6 +1510,9 @@ async fn repeated_pause_keeps_pending_events_unique_and_monotonic() {
     )
     .await;
     assert_eq!(set["startedTurn"], json!(true));
+    let _ = conn
+        .drain_until(|event| event["type"] == json!("model.streaming"))
+        .await;
     fixture.provider.entered().notified().await;
 
     let first_id = conn
@@ -1472,6 +1571,9 @@ async fn verifier_cancellation_keeps_seq_unique_and_monotonic() {
     )
     .await;
     assert_eq!(set["startedTurn"], json!(true));
+    let _ = conn
+        .drain_until(|event| event["payload"]["status"] == json!("started"))
+        .await;
     fixture.provider.verifier_entered().notified().await;
 
     let pause = goal_action(&mut conn, &session_id, "pause", json!({})).await;
@@ -1504,6 +1606,59 @@ async fn verifier_cancellation_keeps_seq_unique_and_monotonic() {
     gate.add_permits(1);
 }
 
+#[tokio::test]
+async fn pause_during_streaming_race_keeps_seq_unique_and_no_stream_after_terminal() {
+    let provider = GoalProvider::new("unused").0;
+    let provider = provider.with_streaming_deltas(200);
+    let fixture = fixture("stream-race", provider);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let set = goal_action(
+        &mut conn,
+        &session_id,
+        "set",
+        json!({ "objective": "Stream race goal", "inputId": "goal_sr_set" }),
+    )
+    .await;
+    assert_eq!(set["startedTurn"], json!(true));
+    let _ = conn
+        .drain_until(|event| event["type"] == json!("model.streaming"))
+        .await;
+    fixture.provider.entered().notified().await;
+    let pause = goal_action(&mut conn, &session_id, "pause", json!({})).await;
+    assert_eq!(
+        pause["snapshot"]["session"]["target"]["status"],
+        json!("paused")
+    );
+
+    let events = conn.drain_until_terminal().await;
+    assert_unique_monotonic(&events);
+    let terminal_position = events
+        .iter()
+        .position(|event| event["type"] == json!("turn.completed"))
+        .expect("terminal");
+    assert!(
+        events[terminal_position..]
+            .iter()
+            .all(|event| event["type"] != json!("model.streaming")),
+        "终态之后不得再发布 model.streaming"
+    );
+    // 终态之后短窗口内也不允许再出现流式事件（pause 竞争窗口）。
+    if let Ok(event) = tokio::time::timeout(Duration::from_millis(200), conn.next_event()).await {
+        assert_ne!(
+            event["type"],
+            json!("model.streaming"),
+            "终态后仍收到 model.streaming"
+        );
+    }
+    assert!(events.iter().any(|event| {
+        event["payload"]["action"] == json!("status_updated")
+            && event["payload"]["target"]["status"] == json!("paused")
+    }));
+    let _ = wait_idle(&mut conn, &session_id).await;
+}
+
 // ---------------------------------------------------------------------------
 // 3. pause 在 provider 请求前（model_request_count 0）
 // ---------------------------------------------------------------------------
@@ -1527,6 +1682,9 @@ async fn pause_before_provider_request_records_zero_model_requests() {
     assert_eq!(set["startedTurn"], json!(true));
 
     // provider.stream 已进入但请求还没发出 → pause 命中「请求前」窗口。
+    let _ = conn
+        .drain_until(|event| event["payload"]["action"] == json!("run_started"))
+        .await;
     fixture.provider.pre_entered().notified().await;
     let pause = goal_action(&mut conn, &session_id, "pause", json!({})).await;
     assert_eq!(pause["response"], json!(""));
@@ -1578,6 +1736,9 @@ async fn user_stop_before_provider_request_records_zero_requests() {
     )
     .await;
     assert_eq!(set["startedTurn"], json!(true));
+    let _ = conn
+        .drain_until(|event| event["payload"]["action"] == json!("run_started"))
+        .await;
     fixture.provider.pre_entered().notified().await;
 
     let stop_id = conn
@@ -1652,6 +1813,9 @@ async fn set_over_existing_and_replace_change_target_id_single_row() {
     assert_eq!(first_control["payload"]["turnNumber"], json!(0));
 
     // 夹具在第二个 set 前先 pause 第一个目标；pause + cancelled 各 +1 revision。
+    let _ = conn
+        .drain_until(|event| event["type"] == json!("model.streaming"))
+        .await;
     fixture.provider.entered().notified().await;
     let pause = goal_action(&mut conn, &session_id, "pause", json!({})).await;
     assert_eq!(pause["snapshot"]["runtime"]["stateRevision"], json!(4));
@@ -1802,6 +1966,163 @@ async fn provider_error_clears_active_fields_in_db_and_snapshot() {
         snapshot["session"]["target"]["activeInputId"],
         row["activeInputId"]
     );
+}
+
+#[tokio::test]
+async fn stop_during_ordinary_prompt_with_active_target_drains_pending_event() {
+    let (provider, _requests) = GoalProvider::new("ordinary answer");
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let provider = provider.with_gate(Arc::clone(&gate));
+    provider.fail_next_continuation();
+    let fixture = fixture("stop-ordinary", provider);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let set = goal_action(
+        &mut conn,
+        &session_id,
+        "set",
+        json!({ "objective": "Ordinary stop goal", "inputId": "goal_ord_set" }),
+    )
+    .await;
+    assert_eq!(set["startedTurn"], json!(true));
+    let _ = conn
+        .drain_until(|event| event["type"] == json!("turn.failed"))
+        .await;
+    let _ = wait_idle(&mut conn, &session_id).await;
+    let row = target_row(&fixture.db_path, &session_id).expect("target row");
+    assert_eq!(row["status"], json!("active"));
+
+    let prompt_id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "ordinary prompt" }),
+        )
+        .await;
+    let _ = conn.result(prompt_id).await;
+    let _ = conn
+        .drain_until(|event| event["type"] == json!("model.streaming"))
+        .await;
+    fixture.provider.entered().notified().await;
+    let stop_id = conn
+        .send("session/stop", json!({ "sessionId": session_id }))
+        .await;
+    let mut events = Vec::new();
+    assert_eq!(
+        conn.result_collecting(stop_id, &mut events).await,
+        json!({})
+    );
+    let cancelled = |event: &Value| {
+        event["type"] == json!("turn.completed")
+            && event["payload"]["resultType"] == json!("cancelled")
+    };
+    let paused = |event: &Value| {
+        event["payload"]["action"] == json!("status_updated")
+            && event["payload"]["target"]["status"] == json!("paused")
+    };
+    let mut saw_terminal = events.iter().any(cancelled);
+    let mut saw_paused = events.iter().any(paused);
+    while !(saw_terminal && saw_paused) {
+        let event = conn.next_event().await;
+        saw_terminal |= cancelled(&event);
+        saw_paused |= paused(&event);
+        events.push(event);
+    }
+    assert_unique_monotonic(&events);
+    assert!(saw_paused);
+    let _ = wait_idle(&mut conn, &session_id).await;
+    // 事件序号没有缺号：后续普通 prompt 仍能继续发布更大的 seq。
+    gate.add_permits(1);
+    let next_id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "next prompt" }),
+        )
+        .await;
+    let _ = conn.result(next_id).await;
+    let next_events = conn.drain_until_terminal().await;
+    let mut combined = events;
+    combined.extend(next_events);
+    assert_unique_monotonic(&combined);
+}
+
+#[tokio::test]
+async fn configuration_failure_drains_pending_pause_event() {
+    let (source, gate) = GatedErrorSource::new();
+    let fixture = fixture_with_source("config-drain", Arc::new(source));
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let session_id = create_session(&mut conn, &fixture.ws).await;
+
+    let set = goal_action(
+        &mut conn,
+        &session_id,
+        "set",
+        json!({ "objective": "Config failure goal", "inputId": "goal_cf_set" }),
+    )
+    .await;
+    assert_eq!(set["startedTurn"], json!(true));
+    // 读一次快照：stdio 循环顺带应答 worker 启动时的偏好反向请求，worker 才会
+    // 进入 goal 任务并调用 provider resolve。
+    let _ = conn.read_snapshot(&session_id).await;
+
+    // provider 解析被闸门挡住 → pause 先入 pending 队列（异步轮询，不阻塞 runtime）。
+    for _ in 0..400 {
+        if gate.0.lock().expect("gate").0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    assert!(gate.0.lock().expect("gate").0, "provider 解析未进入闸门");
+    let mut events = Vec::new();
+    let pause_id = conn
+        .send(
+            "session/goal",
+            json!({ "sessionId": session_id, "action": "pause" }),
+        )
+        .await;
+    let pause = conn.result_collecting(pause_id, &mut events).await;
+    assert_eq!(
+        pause["snapshot"]["session"]["target"]["status"],
+        json!("paused")
+    );
+
+    // 放行解析 → 配置失败；finish 必须 drain pending 事件而不是留缺口。
+    {
+        let mut state = gate.0.lock().expect("gate");
+        state.1 = true;
+        gate.1.notify_all();
+    }
+    let paused = |event: &Value| {
+        event["payload"]["action"] == json!("status_updated")
+            && event["payload"]["target"]["status"] == json!("paused")
+    };
+    if !events.iter().any(paused) {
+        events.extend(conn.drain_until(paused).await);
+    }
+    assert_unique_monotonic(&events);
+    let snapshot = conn.read_snapshot(&session_id).await;
+    assert_ne!(
+        snapshot["session"]["status"],
+        json!("running"),
+        "配置失败后不会停在 running"
+    );
+    let row = target_row(&fixture.db_path, &session_id).expect("target row");
+    assert_eq!(row["status"], json!("paused"));
+
+    // 后续输入仍能发布更大的 seq（没有 pending 缺号）。
+    let next_id = conn
+        .send(
+            "session/send",
+            json!({ "sessionId": session_id, "content": "after config failure" }),
+        )
+        .await;
+    let _ = conn.result(next_id).await;
+    let next_events = conn
+        .drain_until(|event| event["type"] == json!("turn.failed"))
+        .await;
+    let mut combined = events;
+    combined.extend(next_events);
+    assert_unique_monotonic(&combined);
 }
 
 // ---------------------------------------------------------------------------
@@ -1970,6 +2291,9 @@ async fn user_stop_cancels_continuation_and_pauses_target() {
     )
     .await;
     assert_eq!(set["startedTurn"], json!(true));
+    let _ = conn
+        .drain_until(|event| event["type"] == json!("model.streaming"))
+        .await;
     fixture.provider.entered().notified().await;
 
     let stop_id = conn
@@ -2189,7 +2513,6 @@ async fn cold_restart_active_target_becomes_paused_without_idle_turn() {
     let fixture = fixture("cold-active", provider);
     let mut conn = connect(Arc::clone(&fixture.server)).await;
     let session_id = create_session(&mut conn, &fixture.ws).await;
-
     let set = goal_action(
         &mut conn,
         &session_id,
@@ -2198,6 +2521,9 @@ async fn cold_restart_active_target_becomes_paused_without_idle_turn() {
     )
     .await;
     assert_eq!(set["startedTurn"], json!(true));
+    let _ = conn
+        .drain_until(|event| event["type"] == json!("model.streaming"))
+        .await;
     fixture.provider.entered().notified().await;
     close_session(&mut conn, &session_id).await;
     gate.add_permits(1);
@@ -2266,6 +2592,9 @@ async fn cold_restart_paused_resumes_explicitly_and_completes() {
     )
     .await;
     assert_eq!(set["startedTurn"], json!(true));
+    let _ = conn
+        .drain_until(|event| event["payload"]["action"] == json!("run_started"))
+        .await;
     fixture.provider.pre_entered().notified().await;
     let pause = goal_action(&mut conn, &session_id, "pause", json!({})).await;
     assert_eq!(

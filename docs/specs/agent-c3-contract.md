@@ -345,7 +345,7 @@ toolCallCount,iterationCount`。冷恢复后 `contextUsed:0`、`iterationCount:1
 
 本节登记 Rust `agent-server` / `agent-core` 在 C3 T1 的实现取舍与**已知差异**；实现以
 §1 的黑盒观察为基线，夹具与实际行为冲突时以夹具为准。测试入口
-`crates/agent-server/tests/goal.rs`（19 个用例）与 `crates/session-store/tests/target.rs`。
+`crates/agent-server/tests/goal.rs`（22 个用例）与 `crates/session-store/tests/target.rs`。
 
 已实现（与观察一致）：
 
@@ -366,7 +366,11 @@ toolCallCount,iterationCount`。冷恢复后 `contextUsed:0`、`iterationCount:1
   **不自动续跑**；`session/resume` 带 `goalStats`；
 - 方法层的 mutating action 同步产出控制 turn/状态事件后才构造应答快照：`set` 快照
   `turnCount:1`/`currentTurnId`/`eventSeq` 是控制 turn 之后，pause/resume/clear 同理；
-  revision 增量为 set `+3`、pause `+1`、resume `+1`、clear `+1`（取消续跑终态再 `+1`）；
+  revision 增量为首次 set/replace `+3`、替换已有目标 `+1`、pause `+1`、resume
+  `+1`、clear `+1`（取消续跑终态再 `+1`）；
+- 事件 seq 由 `agent_core::EventPublisher` 单点分配：`Session::emit` 分配、
+  EventSink 落库后提交，方法层 goal 事件在同一发布器上分配/提交；提交按 seq 连续
+  推进（缺号等待），日志/广播严格单调；
 - 续跑 turn 编号用控制 turn 基数（同一目标 resume 后仍是 1），
   `foregroundExecutionId` 用会话级 continuation ordinal（每次尝试 +1），
   verifier 的 `goalIteration` 只对到达 verifier 的尝试 +1。
