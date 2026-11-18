@@ -2754,7 +2754,7 @@ fn finish_goal_job(
     live.current_kind = None;
     live.goal.job_active = false;
     live.goal_cancel = None;
-    live.goal.pending_cancel_event = None;
+    let pending = live.goal.pending_cancel_event.take();
     if admitted {
         live.inbox.complete(session_id, input_id);
     }
@@ -2766,6 +2766,10 @@ fn finish_goal_job(
     } else {
         RuntimeStatus::Idle
     };
+    drop(live);
+    if let Some(event) = pending {
+        shared.publish(&event);
+    }
 }
 
 /// 一条 goal 相关的消息行（`user_prompt` 或 `system_reminder`）。
