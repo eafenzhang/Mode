@@ -52,6 +52,7 @@ pub(crate) fn handle(
         params.mode.map(mode_to_string),
         params.model.as_ref(),
         params.thought_level.clone(),
+        params.mcp_servers.clone(),
     )?;
     serde_json::to_value(runtime.snapshot())
         .map_err(|error| ServerError::internal(error.to_string()))
@@ -130,6 +131,7 @@ pub(super) fn spawn_runtime(
     mode: &str,
     model: Option<&MessageModel>,
     thought_level: Option<String>,
+    mcp_servers: Option<Vec<agent_protocol::session_create::McpServer>>,
 ) -> Result<Arc<SessionRuntime>, ServerError> {
     let store = server.store()?;
     let capabilities = fallback_capabilities(server, model);
@@ -150,6 +152,10 @@ pub(super) fn spawn_runtime(
         model_catalog,
     );
     let reverse = server.reverse_hub();
+    // C4 T1：MCP 工具源只持有 server 清单；连接在首 turn 的阻塞线程上建立。
+    let mcp = mcp_servers
+        .filter(|servers| !servers.is_empty())
+        .map(|servers| server.mcp_hub().session(servers));
     let wiring = crate::reverse::RuntimeWiring {
         permission_handler: reverse.as_ref().map(|hub| {
             Box::new(crate::reverse::ProtocolPermissionHandler::new(Arc::clone(
@@ -158,6 +164,7 @@ pub(super) fn spawn_runtime(
         }),
         rule_db_path: Some(store.db_path().to_path_buf()),
         reverse,
+        mcp,
     };
     let runtime = Arc::new(
         SessionRuntime::new(record, store, server.provider_source(), config, wiring)

@@ -112,6 +112,7 @@ fn tool_lines_are_generated_from_tool_spec_metadata() {
             risk_level: "medium".to_string(),
             side_effect_scope: "network".to_string(),
             budget_strategy: "truncate".to_string(),
+            display_json: None,
         }),
     }];
     let capabilities = capabilities();

@@ -14,7 +14,9 @@ pub mod compact;
 pub mod create;
 pub mod goal;
 pub mod list;
+pub mod mcp;
 pub mod messages;
+pub mod process;
 pub mod projection;
 pub mod read;
 pub mod resume;
@@ -40,6 +42,7 @@ use session_store::SessionRecord;
 use crate::server::ServerError;
 use crate::state::{RuntimeConfig, RuntimeError};
 
+pub use agent_protocol::mcp::MCP_LIST_METHOD;
 pub use agent_protocol::session_read::{
     SESSION_LIST_METHOD, SESSION_MESSAGES_METHOD, SESSION_READ_METHOD, SESSION_SUBAGENTS_METHOD,
     SESSION_SUBSCRIBE_METHOD,
@@ -50,6 +53,7 @@ pub use agent_protocol::session_write::{
     SESSION_RESUME_METHOD, SESSION_SET_MODEL_METHOD, SESSION_SET_MODE_METHOD,
     SESSION_SET_THOUGHT_LEVEL_METHOD, SESSION_STOP_METHOD,
 };
+pub use agent_protocol::workspace::PROCESS_CHILD_PROCESSES_METHOD;
 
 /// 严格解析 params：未知键 / 类型不符一律 `-32602`，不静默吞掉。
 pub(crate) fn parse_params<T: DeserializeOwned>(

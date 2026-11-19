@@ -48,6 +48,7 @@ pub(crate) fn handle(
         None,
         None,
         params.thought_level.clone(),
+        params.mcp_servers.clone(),
     )?;
 
     let messages = store
@@ -70,6 +71,7 @@ pub(super) fn materialize(
     fallback_mode: Option<String>,
     fallback_model: Option<&MessageModel>,
     fallback_thought: Option<String>,
+    mcp_servers: Option<Vec<agent_protocol::session_create::McpServer>>,
 ) -> Result<Arc<SessionRuntime>, ServerError> {
     if let Some(resident) = server.find_runtime(&record.id) {
         return Ok(resident);
@@ -112,7 +114,14 @@ pub(super) fn materialize(
             .and_then(|model| model.options.as_ref())
             .and_then(|options| options.reasoning_level.clone())
     });
-    let runtime = create::spawn_runtime(server, record.clone(), &mode, model.as_ref(), thought)?;
+    let runtime = create::spawn_runtime(
+        server,
+        record.clone(),
+        &mode,
+        model.as_ref(),
+        thought,
+        mcp_servers,
+    )?;
 
     // 物化后把生效事实写回 entry（幂等 upsert）：重启后 resume 可再次恢复。
     let now = create::now_ms();

@@ -1692,6 +1692,7 @@ async fn denied_tool_call_has_matching_tool_result_in_next_model_request() {
         permission_handler: Some(Box::new(DenyAll)),
         rule_db_path: None,
         reverse: None,
+        mcp: None,
     };
     let runtime = spawn_runtime_with_wiring(&fixture, provider.clone(), wiring);
     let (_, mut receiver) = runtime.subscribe(None);

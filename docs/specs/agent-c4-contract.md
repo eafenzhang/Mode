@@ -173,6 +173,43 @@ MCP 子进程：`process/childProcesses` 返回 `{processes:[{pid,serverName,mcp
   与 `tool.updated result` 无 `toolName` 的形状一致；MCP `isError` 不进 `error` 事件。
 - 子进程登记进 `process/childProcesses`，内置 server 带 `pluginName`。
 
+### 1.6 Rust C4 T1 现状（2026-11-19）
+
+T1 在 `crates/agent-server/src/mcp.rs` 落 `McpHub` / `McpConnection` / `McpSession`，
+`mcp/list` 与 `process/childProcesses` 进方法表，`session/create|resume` 的
+`mcpServers` 经 `RuntimeWiring` 传到 per-session worker；首 turn 在 `spawn_blocking`
+线程上建连并把工具注入 `Session::set_dynamic_tools`（create 阶段不建连）。
+测试入口 `crates/agent-server/tests/mcp.rs`（8 用例）。
+
+已实现（与观察一致）：
+
+- stdio：`initialize`（`protocolVersion:"2024-11-05"`）→ `notifications/initialized` →
+  `tools/list`；工具名 `mcp__<server>__<tool>`；`tools/call` 的 text part 以换行连接；
+  `isError:true` 走 `MCP tool returned an error:\n…` 的成功信封。
+- 失败三分类与文案：`process_start_failed`/`Connection closed`、
+  `connection_timeout`/`MCP server <name> connection timed out after <ms>ms`、
+  `network_unreachable`/`Error POSTing to endpoint: <正文>`；失败 server 不阻断其他
+  server 与会话 turn。
+- `mcp/list`：`status` 不建连（`disconnected`）；`connect` 幂等（`connected` +
+  `toolCount` + `protocolEra:"legacy"`）；不传 `mcpServers` 时 statuses 为空。
+- 工具事件：`scheduled.canRunParallel:true` 带 `display`；`started.readOnly:true` /
+  `sideEffectScope:"session"`；`result` 带 `display` 与 `budgetStrategy:"truncate"`。
+- `process/childProcesses` 只列 `mcpSource:"custom"` 的 stdio 连接；http 无子进程。
+
+差异 / 未覆盖（不伪造观察值）：
+
+| 项                      | Rust 现状                                                                                                                | 依据                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------- |
+| 子进程行数              | 每个连接一行（直接托管 server 进程）；oracle 对同一 server 同时列出启动器与 server 两行。                                | §1.1 `childProcesses` |
+| `toolCount`             | 失败/未连接为 0；成功为当前 `tools/list` 条数。夹具把该值折叠为 `<count>`，无法逐值对拍。                                | §1.1/§1.2             |
+| http 传输               | 只做 JSON POST（initialize/tools/list/tools/call）；不实现 SSE 事件流与会话头（`Mcp-Session-Id`）。                      | §1.3 只观察 404       |
+| OAuth                   | 参数被协议接受但连接不使用（无令牌交换/刷新）；与 T0「不做真实 OAuth」一致。                                             | §1.3                  |
+| `protocolEra`           | 仅 `2024-11-05` → legacy，其它版本一律 modern（未观察 modern 协商细节）。                                                | §1.1                  |
+| 断线后的状态            | 已连接 server 在调用期间关闭 → 该次调用 `SdkError/Connection closed`；`mcp/list` 状态不自动翻为 failed（未观察该组合）。 | §1.4 未观察到         |
+| 连接键                  | 按 server `name` 复用；同名不同配置不重建（oracle 的键规则未观察）。                                                     | §1.4 未观察到         |
+| `mcp/list connect` 重试 | 每次 connect 都重试失败 server（无退避/熔断）；oracle 未观察重复 connect 的失败节流。                                    | §1.4 未观察到         |
+| `mcp/list` 阻塞         | dispatch 同步执行连接，最长按 `timeoutMs`/30s 阻塞 stdio 循环；oracle 的异步时序未观察。                                 | §1.1                  |
+
 ## 2. Skills（`skills-catalog-injection` / `skills-trigger` / `skills-reference-resolution`）
 
 ### 2.1 发现位置与目录形状

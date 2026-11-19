@@ -19,6 +19,7 @@ use agent_protocol::provider_runtime_headers::ProviderRuntimeHeadersRequestParam
 use agent_protocol::session::WorkspaceRef;
 use agent_protocol::NotificationFrame;
 
+use crate::mcp::McpHub;
 use crate::provider_config::{
     ApiFormat, ProviderConfigError, ProviderConfigHub, ResolvedProvider,
     PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
@@ -283,6 +284,8 @@ pub struct AgentServer {
     /// Arc 包装让 drain 清理任务无需持有整个 server。
     closing: Arc<Mutex<HashMap<String, tokio::sync::watch::Receiver<bool>>>>,
     pending_forwards: Mutex<Vec<PendingLiveForward>>,
+    /// C4 T1：MCP 连接的唯一所有者（`mcp/list` 与会话工具目录共用同一张表）。
+    mcp: Arc<McpHub>,
 }
 
 impl std::fmt::Debug for AgentServer {
@@ -331,6 +334,7 @@ impl AgentServer {
             sessions: Mutex::new(HashMap::new()),
             closing: Arc::new(Mutex::new(HashMap::new())),
             pending_forwards: Mutex::new(Vec::new()),
+            mcp: Arc::new(McpHub::new()),
         }
     }
 
@@ -360,6 +364,7 @@ impl AgentServer {
             sessions: Mutex::new(HashMap::new()),
             closing: Arc::new(Mutex::new(HashMap::new())),
             pending_forwards: Mutex::new(Vec::new()),
+            mcp: Arc::new(McpHub::new()),
         }
     }
 
@@ -399,6 +404,10 @@ impl AgentServer {
             crate::methods::SESSION_GOAL_METHOD => methods::goal::handle(self, params),
             crate::methods::SESSION_STOP_METHOD => methods::goal::handle_stop(self, params),
             crate::methods::SESSION_SUBAGENTS_METHOD => methods::subagents::handle(self, params),
+            crate::methods::MCP_LIST_METHOD => methods::mcp::handle(self, params),
+            crate::methods::PROCESS_CHILD_PROCESSES_METHOD => {
+                methods::process::handle(self, params)
+            }
             _ => Err(ServerError::method_not_found(method)),
         }
     }
@@ -406,6 +415,11 @@ impl AgentServer {
     /// provider 配置 hub（模型端点解析入口；测试断言用）。
     pub fn provider_config(&self) -> &ProviderConfigHub {
         &self.provider_config
+    }
+
+    /// C4 T1：MCP 连接 hub（`mcp/list`、会话工具目录与 `process/childProcesses` 共用）。
+    pub fn mcp_hub(&self) -> &Arc<McpHub> {
+        &self.mcp
     }
 
     /// 替换 provider 装配源（测试注入；生产恒为 hub 适配）。

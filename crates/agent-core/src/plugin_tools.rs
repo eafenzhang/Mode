@@ -27,6 +27,11 @@ pub struct PluginToolDeclaration {
     pub risk_level: Option<String>,
     pub side_effect_scope: Option<String>,
     pub budget_strategy: Option<String>,
+    /// 只读档（C4 T1：自定义 MCP 的 `canRunParallel:true` / `started.readOnly:true`）；
+    /// 缺省 `false`（插件 MCP 的观察值）。
+    pub read_only: Option<bool>,
+    /// 调度事件的 `display` 对象 JSON（C4 T1：MCP 的 `mcp_tool`）；`None` = 不写。
+    pub display_json: Option<String>,
 }
 
 impl PluginToolDeclaration {
@@ -36,11 +41,12 @@ impl PluginToolDeclaration {
             name: self.name,
             family: ModeToolFamily::TaskControl,
             schema: self.input_schema,
-            read_only: false,
+            read_only: self.read_only.unwrap_or(false),
             plugin: Some(PluginToolMetadata {
                 risk_level: self.risk_level.unwrap_or(defaults.risk_level),
                 side_effect_scope: self.side_effect_scope.unwrap_or(defaults.side_effect_scope),
                 budget_strategy: self.budget_strategy.unwrap_or(defaults.budget_strategy),
+                display_json: self.display_json,
             }),
         }
     }

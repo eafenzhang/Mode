@@ -174,6 +174,14 @@ pub struct Session {
     retry_policy: RetryPolicy,
 }
 
+/// 插件工具结果里的 `display` 对象（C4 T1：MCP 的 `{kind:"mcp_tool",serverName,toolName,description}`）。
+/// 没有 `display` 的旧插件源保持原样（不编造字段）。
+fn attach_display(outcome: &mut ToolOutcome, value: &Value) {
+    if let Some(display) = value.get("display") {
+        outcome.display_json = Some(display.to_string());
+    }
+}
+
 impl Session {
     pub fn new(session_id: impl Into<String>, cwd: impl Into<String>) -> Self {
         let session_id = session_id.into();
@@ -289,6 +297,16 @@ impl Session {
         Ok(self)
     }
 
+    /// 宿主在 turn 开始前注入动态工具（C4 T1：MCP）与执行源。
+    ///
+    /// 与 [`Self::with_plugin_tools`] 的差异：这里**不调用** `list_tools`，因此不会在
+    /// 注入点触发进程/网络；连接由宿主在自己的阻塞线程上按需建立（契约
+    /// `agent-c4-contract.md` §1.1：create 后立刻查子进程为空，首 turn 才物化工具目录）。
+    pub fn set_dynamic_tools(&mut self, tools: Vec<ToolSpec>, source: Arc<dyn PluginToolSource>) {
+        self.extra_tools = tools;
+        self.plugin_tools = Some(source);
+    }
+
     /// 当前会话可见的工具（静态注册表 + 插件工具）。
     pub fn tools(&self) -> Vec<ToolSpec> {
         let mut tools = agent_tools::registry();
@@ -333,9 +351,13 @@ impl Session {
                     .map(|meta| meta.budget_strategy.as_str())
                     .unwrap_or("truncate");
                 if budget == "artifact" {
-                    Ok(ToolOutcome::artifact(content))
+                    let mut outcome = ToolOutcome::artifact(content);
+                    attach_display(&mut outcome, &value);
+                    Ok(outcome)
                 } else {
-                    Ok(ToolOutcome::text(content))
+                    let mut outcome = ToolOutcome::text(content);
+                    attach_display(&mut outcome, &value);
+                    Ok(outcome)
                 }
             }
             Err(error) => {
@@ -1872,7 +1894,7 @@ impl Session {
         call: &ToolCallRequest,
         group: &[String],
     ) -> SessionEvent {
-        let payload = ToolScheduledPayload {
+        let mut payload = ToolScheduledPayload {
             call: ToolCallIdentity {
                 tool_call_id: call.tool_call_id.clone(),
                 parent_tool_call_id: None,
@@ -1916,6 +1938,17 @@ impl Session {
             }),
             extra: ExtraFields::new(),
         };
+        // C4 T1：MCP 工具的调度事件带 `display`（观察 `mcp_tool` 的
+        // serverName/toolName/description）；插件源没有该键时保持原状。
+        if let Some(display_json) = self
+            .lookup_tool(&call.name)
+            .and_then(|spec| spec.plugin)
+            .and_then(|meta| meta.display_json)
+        {
+            if let Ok(display) = serde_json::from_str::<Value>(&display_json) {
+                payload.extra.insert("display".to_string(), display);
+            }
+        }
         self.emit_tool(turn_id, ToolUpdatedPayload::Scheduled(payload))
     }
 

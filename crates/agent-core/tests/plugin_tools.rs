@@ -30,6 +30,8 @@ impl PluginToolSource for FakeSource {
                 risk_level: None,
                 side_effect_scope: None,
                 budget_strategy: None,
+                read_only: None,
+                display_json: None,
             },
             PluginToolDeclaration {
                 name: "plugin_fail".to_string(),
@@ -38,6 +40,8 @@ impl PluginToolSource for FakeSource {
                 risk_level: None,
                 side_effect_scope: None,
                 budget_strategy: None,
+                read_only: None,
+                display_json: None,
             },
             PluginToolDeclaration {
                 name: "plugin_high".to_string(),
@@ -46,6 +50,8 @@ impl PluginToolSource for FakeSource {
                 risk_level: Some("high".to_string()),
                 side_effect_scope: Some("system".to_string()),
                 budget_strategy: Some("artifact".to_string()),
+                read_only: None,
+                display_json: None,
             },
             PluginToolDeclaration {
                 name: "plugin_crash".to_string(),
@@ -54,6 +60,8 @@ impl PluginToolSource for FakeSource {
                 risk_level: Some("high".to_string()),
                 side_effect_scope: Some("system".to_string()),
                 budget_strategy: Some("artifact".to_string()),
+                read_only: None,
+                display_json: None,
             },
         ])
     }

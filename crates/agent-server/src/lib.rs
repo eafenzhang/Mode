@@ -24,6 +24,7 @@
 mod dispatch;
 mod history;
 mod lifecycle;
+mod mcp;
 mod memory;
 mod methods;
 mod provider_config;
@@ -35,6 +36,7 @@ mod state;
 
 pub use dispatch::{AgentServer, HubProviderSource, ServerConfig};
 pub use lifecycle::{parse_startup_args, run_main, StartupArgs, APP_SERVER_MODE, STDIO_FLAG};
+pub use mcp::{McpConnection, McpHub, McpSession, McpToolDescriptor};
 pub use memory::{load_memory_section, MemoryContext, MemoryLoad};
 pub use provider_config::{
     AccountRuntimeHeadersTarget, ApiFormat, ProviderConfigError, ProviderConfigHub, Resolution,

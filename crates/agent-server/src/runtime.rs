@@ -54,6 +54,7 @@ use agent_core::goal::{
     continuation_prompt, continuation_stop_reason, parse_verifier_response, verifier_prompt,
     GoalStatus, GoalTarget, CANCELLED_VERIFIER_REASON,
 };
+use agent_core::plugin_tools::PluginToolSource;
 use agent_core::provider::{ModelDelta, ModelMessage, ProviderError};
 use agent_core::session::Session;
 use agent_core::session::TurnTerminalFacts;
@@ -534,6 +535,8 @@ struct Shared {
     /// **诊断/测试面，不是协议面**：[`SessionRuntime::pending_task_notifications`]
     /// 用它观察「任务完成通知是否已入队」，避免测试靠 sleep 判断完成时序。
     tasks: std::sync::OnceLock<Arc<agent_core::TaskRegistry>>,
+    /// C4 T1：MCP 工具源（首 turn 在阻塞线程上建连并注入工具目录）。
+    mcp: Option<Arc<crate::mcp::McpSession>>,
 }
 
 impl Shared {
@@ -842,6 +845,7 @@ impl SessionRuntime {
             tool_execution: AtomicBool::new(false),
             tasks: std::sync::OnceLock::new(),
             retry_traces: Mutex::new(HashMap::new()),
+            mcp: wiring.mcp,
             record,
         });
 
@@ -2206,6 +2210,19 @@ async fn run_one_input(
                 .last_memory_error
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = memory_load.error;
+            // C4 T1：首 turn 在阻塞线程上建连并注入 MCP 工具目录；失败 server 跳过，
+            // 不阻断 turn（观察：失败后会话照常可用）。
+            if let Some(mcp) = shared_for_turn.mcp.as_ref() {
+                if let Ok(declarations) = mcp.list_tools() {
+                    let source: Arc<dyn agent_core::PluginToolSource> =
+                        Arc::clone(mcp) as Arc<dyn agent_core::PluginToolSource>;
+                    let tools = declarations
+                        .into_iter()
+                        .map(agent_core::PluginToolDeclaration::into_spec)
+                        .collect();
+                    session.set_dynamic_tools(tools, source);
+                }
+            }
             let result = if is_notification_turn {
                 session
                     .run_background_notification_turn(

@@ -100,6 +100,9 @@ pub struct PluginToolMetadata {
     pub risk_level: String,
     pub side_effect_scope: String,
     pub budget_strategy: String,
+    /// 调度事件的 `display` 对象（C4 T1：MCP 的
+    /// `{kind:"mcp_tool",serverName,toolName,description}`）；`None` = 不写该键。
+    pub display_json: Option<String>,
 }
 
 impl Default for PluginToolMetadata {
@@ -108,6 +111,7 @@ impl Default for PluginToolMetadata {
             risk_level: "medium".to_string(),
             side_effect_scope: "network".to_string(),
             budget_strategy: "truncate".to_string(),
+            display_json: None,
         }
     }
 }

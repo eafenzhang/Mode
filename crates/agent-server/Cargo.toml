@@ -18,6 +18,11 @@ agent-core = { path = "../agent-core" }
 # C3 T4：`session/subagents` 的不透明分页游标（base64(JSON)）。
 base64.workspace = true
 agent-protocol = { path = "../agent-protocol" }
+# C4 T1：MCP 状态的 `updatedAt` 与 data-root 同一套 ISO8601 投影；http transport 用 reqwest。
+data-root = { path = "../data-root" }
+reqwest.workspace = true
+# reqwest 以 rustls-no-provider 编译；MCP http transport 在使用前装 ring provider。
+rustls.workspace = true
 indexmap = "2"
 # C3 T2：apiRetry 状态的唯一归一化/投影规则（不复制规则）。
 mode-api-retry = { path = "../mode-api-retry" }

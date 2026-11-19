@@ -452,4 +452,6 @@ pub struct RuntimeWiring {
     pub permission_handler: Option<Box<dyn PermissionHandler>>,
     pub rule_db_path: Option<PathBuf>,
     pub reverse: Option<Arc<ReverseHub>>,
+    /// C4 T1：会话的 MCP 工具源（首 turn 才建连；失败 server 不阻断 turn）。
+    pub mcp: Option<Arc<crate::mcp::McpSession>>,
 }
