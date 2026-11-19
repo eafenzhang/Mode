@@ -6380,29 +6380,33 @@ const enUS: Record<string, string> = {
     "Mode will verify the Computer Use tools against the exact session when your first session starts.",
   "settings.computerUse.title": "Computer Use",
   "settings.lanAccess.description":
-    "When enabled, other Mode instances on your network can pair with this machine and use its workspaces. Off by default.",
+    "Only controls whether this machine publishes LAN addresses and accepts direct connections: when off, LAN discovery and the external listener stay off, and remote control falls back to encrypted Relay transport with no loss of functionality.",
   "settings.lanAccess.enable": "Allow LAN direct",
-  "settings.lanAccess.statusEnabled": "On: {address}",
-  "settings.lanAccess.statusDisabled": "Off: same-account devices connect over Relay only",
+  "settings.lanAccess.statusEnabled":
+    "On: {address}. Same-account devices try a direct path first to cut relay latency.",
+  "settings.lanAccess.statusDisabled":
+    "Off: same-account devices go through encrypted Relay. Remote control and remote workspaces still work.",
   "settings.lanAccess.pairCode": "Pairing code",
   "settings.lanAccess.pairCodeFailed": "Failed to generate the pairing code",
   "settings.lanAccess.toggleFailed": "Failed to change LAN access",
   "settings.lanAccess.firewallHint":
     "Your system may ask for firewall permission the first time; allow private-network access.",
-  // Remote-desktop authorization per paired device (same field as "remember this device").
-  // Remote Desktop (docs/specs/lan-remote-desktop.md): controlled-side settings section,
-  // controlling-side device page / session surface, and the controlled-side overlay copy.
+  // Remote control settings: only two switches remain — LAN direct controls exposure,
+  // Allow remote control is the controlled-side master switch
+  // (docs/specs/remote-control-unified-pairing.md R5).
   // The consent/indicator keys mirror the wording of desktop's windowsContent.ts dictionary.
   "settings.remoteDesktop.title": "Remote control",
+  "settings.remoteDesktop.sectionDescription":
+    "Remote control only works between devices on the same account: the device directory comes from the account service, traffic is Noise end-to-end encrypted, and no pairing code or shared LAN is required.",
   "settings.remoteDesktop.enable": "Allow remote control",
   "settings.remoteDesktop.statusEnabled":
-    "On. Same-account devices can start a remote desktop directly.",
+    "On. Same-account devices can start a remote desktop; remote workspaces use the same channel.",
   "settings.remoteDesktop.statusDisabled":
-    "Off. Connection requests are rejected outright (default).",
+    "Off. Remote desktop requests from same-account devices are rejected outright (default).",
   "settings.remoteDesktop.toggleFailed": "Couldn't change Remote Desktop",
   "settings.remoteDesktop.loadFailed": "Couldn't read Remote Desktop status",
   "settings.remoteDesktop.securityHint":
-    "Remote desktop uses Noise end-to-end encryption; trust comes from the shared account. An active session always shows an overlay and you can end it locally at any time.",
+    "Remote desktop uses Noise end-to-end encryption, so the account service only forwards ciphertext; trust comes from the shared account. An active session always shows an overlay and you can end it locally at any time.",
   "settings.remoteDesktop.encoderUnavailable":
     "No usable H.264 encoder (neither hardware nor the system software encoder): remote desktop sessions will show no picture.",
   "settings.remoteDesktop.encoderSoftwareFallback":
@@ -6411,20 +6415,18 @@ const enUS: Record<string, string> = {
   "remoteDesktop.title": "Remote control",
   "remoteDesktop.breadcrumbLabel": "Remote control path",
   "remoteDesktop.description":
-    "Manage the remote hosts on your account: end-to-end encrypted, no pairing code.",
+    "Manage the remote hosts on your account: the directory comes from the account service, traffic is Noise end-to-end encrypted, and the transport picks direct or Relay automatically.",
   "remoteDesktop.devices.refresh": "Refresh",
-  "remoteDesktop.devices.loading": "Loading account devices…",
-  "remoteDesktop.devices.loadFailed": "Couldn't load the account device directory.",
+  "remoteDesktop.devices.loading": "Loading same-account devices…",
+  "remoteDesktop.devices.loadFailed": "Couldn't load the same-account device directory.",
   "remoteDesktop.devices.signedOut": "Not signed in",
   "remoteDesktop.devices.signedOutHint":
-    "Sign in to the same account to see the hosts you can control. Remote desktop is end-to-end encrypted and needs no pairing code.",
+    "Sign in to the same account to see the hosts you can control. Connections need no pairing code and do not require both devices to share a LAN.",
   "remoteDesktop.devices.login": "Sign in",
-  "remoteDesktop.devices.emptyNoHost": "No other host on this account yet",
+  "remoteDesktop.devices.emptyNoHost": "No online host on this account yet",
   "remoteDesktop.devices.emptyNoHostHint":
-    "Sign in with the same account on another computer and turn on \"Allow remote control\" under Settings → Remote control.",
+    'Sign in with the same account on another device and turn on "Allow remote control" under Settings → Remote control. The controlled side does not need "Allow LAN direct".',
   "remoteDesktop.devices.retry": "Retry",
-  "remoteDesktop.devices.empty":
-    "No paired device yet. Use Detect devices above to find Windows computers on the same LAN, then pair with the code shown under Settings · Remote Control on the other side.",
   "remoteDesktop.devices.openLanAccess": "Open remote control settings",
   // Quality presets (P1-3): chosen before connecting, sent with the session request.
   "remoteDesktop.quality.label": "Quality",
@@ -6508,7 +6510,7 @@ const enUS: Record<string, string> = {
   "remoteDesktop.cloud.noDevices": "No other devices in this account yet.",
   "remoteDesktop.devices.view.list": "List view",
   "remoteDesktop.devices.view.grid": "Grid view",
-  "remoteDesktop.devices.kind.v3": "E2EE",
+  "remoteDesktop.devices.kind.v3": "Same-account device",
   "remoteDesktop.devices.kind.modeAgent": "Mode Go",
   "remoteDesktop.v3.online": "Online",
   "remoteDesktop.v3.offline": "Offline",
@@ -6543,7 +6545,8 @@ const enUS: Record<string, string> = {
   "remoteDesktop.error.busy": "The peer is being controlled by another device.",
   "remoteDesktop.error.unsupported":
     "The peer doesn't support Remote Desktop (make sure Remote Control is enabled there and it runs the same version after a restart).",
-  "remoteDesktop.error.unauthorized": "The pairing credential is no longer valid; pair again.",
+  "remoteDesktop.error.unauthorized":
+    "Device authorization expired; sign in to the account again and retry.",
   "remoteDesktop.error.stale_ticket": "The session ticket expired; try again.",
   "remoteDesktop.error.locally_controlled":
     "This device is being remotely controlled; disconnect it first.",

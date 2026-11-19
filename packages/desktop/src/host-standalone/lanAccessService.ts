@@ -44,11 +44,13 @@ import { hideInternalServiceMembers } from "./internalServiceMembers.js";
  *
  * 状态所有者全部沿用既有实现：`LanAccessServerHandle` 持有监听/配对码/client 记录，
  * setting 服务持有 `lanAccessEnabled`，credential 服务持有对端令牌与元数据。
- * 本适配器只做三件事：
+ * 本适配器只做四件事：
  *
  * 1. **单 owner 启动**：`ensureStarted` 是一条共享 Promise，并发 enable 不会起两个监听；
- * 2. **local-only 快照**：`getState` 在监听关闭时仍从凭据读出配对记录；
- * 3. **事件只发幂等快照**：`onDidChange` 在每次成功动作后发最新 `LanAccessState`。
+ * 2. **模式切换串行**：开关只在 `0.0.0.0`（LAN 暴露）与 `127.0.0.1`（本机服务常驻）
+ *    之间切换，切换走「停旧 → 起新」并排队执行，避免交叠出双监听；
+ * 3. **local-only 快照**：`getState` 在本机服务未启动时仍从凭据读出配对记录；
+ * 4. **事件只发幂等快照**：`onDidChange` 在每次成功动作后发最新 `LanAccessState`。
  *
  * 它不该被 `createHttpServer` 看到：`startLanAccessServer` 拿到的是普通服务集合
  * （不含本频道），否则 LAN 对端就能调用管理面（docs/specs/tauri-renderer-host.md §21.2）。
@@ -58,9 +60,15 @@ export interface LanAccessHostService extends ILanAccessService {
   dispose(): Promise<void>;
   /**
    * 远程桌面 server 的 client 记录写者：运行期唯一的内存所有者。
-   * 监听未开启时返回 null（此时 RD 设置面按凭据读改写）。
+   * 本机服务未启动时返回 null（此时 RD 设置面按凭据读改写）。
    */
   getActiveServer(): LanAccessServerHandle | null;
+  /**
+   * 确保本机 HTTP/WS 可用（v3 工作区/远程桌面的 E2EE 隧道入口）。
+   * LAN 模式直接复用；loopback 模式或尚未启动时以 loopback 起一份。
+   * 不改变「允许局域网直连」开关值。
+   */
+  ensureLocalApi(): Promise<LanAccessServerHandle>;
 }
 
 export interface CreateLanAccessHostServiceOptions {
@@ -86,8 +94,9 @@ export interface CreateLanAccessHostServiceOptions {
   /** Web/手机远控静态资源目录；缺省不挂载静态资源。 */
   webRoot?: string;
   /**
-   * 启动时按设置恢复监听。Host 入口保持默认 true；适配器单测传 false，
-   * 避免在测试机绑定 45880/45879。
+   * 启动时按设置恢复监听模式：`lanAccessEnabled=true` → `0.0.0.0`（LAN 暴露），
+   * 否则 → `127.0.0.1`（本机服务常驻，见 remote-control-unified-pairing.md R5）。
+   * Host 入口保持默认 true；适配器单测传 false，避免在测试机绑定 45880/45879。
    */
   restoreOnStart?: boolean;
 }
@@ -133,8 +142,13 @@ export async function createLanAccessHostService(
     return credentials;
   };
 
-  const requireHandle = (): LanAccessServerHandle => {
-    if (!handle) {
+  /**
+   * 配对类动作只在 LAN 暴露模式下可用。loopback 模式下 handle 也存在
+   * （本机服务常驻，见 docs/specs/remote-control-unified-pairing.md R5），
+   * 但局域网没开，必须按「未开启」失败而不是假装成功。
+   */
+  const requireLanHandle = (): LanAccessServerHandle => {
+    if (!handle || !handle.getState().enabled) {
       throw new Error("局域网访问未开启");
     }
     return handle;
@@ -154,14 +168,42 @@ export async function createLanAccessHostService(
     return state;
   };
 
-  const ensureStarted = async (): Promise<LanAccessServerHandle> => {
+  /**
+   * 生命周期串行化：模式切换是「停旧监听 → 起新监听」，与并发 enable / dispose
+   * 交叠会出现双监听或把刚起来的模式又被停掉。所有会改变监听面的操作都排队执行。
+   */
+  let lifecycle: Promise<unknown> = Promise.resolve();
+  const runExclusive = <T>(task: () => Promise<T>): Promise<T> => {
+    const next = lifecycle.then(task, task);
+    lifecycle = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  };
+
+  /**
+   * 确保监听处于目标模式并已启动。
+   * `localOnly=true` → `127.0.0.1`（本机服务，开关关闭态）；`false` → `0.0.0.0`（LAN 暴露）。
+   * 模式不同先停旧再起新；模式相同直接复用，不会重复监听。
+   */
+  const ensureStarted = async (localOnly: boolean): Promise<LanAccessServerHandle> => {
     if (disposed) {
       throw new Error("局域网访问服务已释放");
     }
-    if (handle) {
+    const wantLan = !localOnly;
+    if (handle && handle.getState().enabled === wantLan) {
       return handle;
     }
+    if (handle) {
+      const current = handle;
+      handle = null;
+      await current.dispose().catch((error: unknown) => {
+        log(`lan_access_dispose_failed ${describeError(error)}`);
+      });
+    }
     if (!startPromise) {
+      const mode = localOnly ? "local" : "lan";
       startPromise = (async () => {
         const remoteDesktop = options.getRemoteDesktop?.() ?? null;
         const started = await startServer({
@@ -170,6 +212,7 @@ export async function createLanAccessHostService(
           getWorkspaces: () => collectLanAccessWorkspaces(services),
           appVersion,
           machineName,
+          localOnly,
           isRemoteDesktopServerEnabled: () => remoteDesktop?.isServerEnabled() ?? false,
           // 在线 web 会话数变化：把新快照推给订阅者（远控弹窗据此切换“等待/已连接”）。
           onWebSessionChange: () => {
@@ -185,7 +228,7 @@ export async function createLanAccessHostService(
           remoteAssetDirs: resolveRemoteAssetDirs(),
         });
         handle = started;
-        log(`lan_access_started port=${started.getState().port ?? "?"}`);
+        log(`lan_access_started mode=${mode} port=${started.getLocalApiPort()}`);
         return started;
       })().finally(() => {
         startPromise = null;
@@ -220,31 +263,33 @@ export async function createLanAccessHostService(
         throw new Error("设置服务不可用，无法持久化局域网开关");
       }
       await settingService.update({ lanAccessEnabled: enabled });
-      if (enabled) {
-        try {
-          await ensureStarted();
-        } catch (error) {
-          // 开关是持久化事实：启动失败必须回写 false，否则下次启动会反复尝试且 UI 状态撒谎。
-          await settingService.update({ lanAccessEnabled: false }).catch(() => undefined);
-          log(`lan_access_start_failed ${describeError(error)}`);
-          throw new Error(`局域网访问启动失败：${describeError(error)}`);
+      try {
+        // 关闭不是停服：切到 loopback 模式，本机 HTTP/WS 继续服务 v3 工作区/远程桌面。
+        await runExclusive(() => ensureStarted(!enabled));
+      } catch (error) {
+        // 开关是持久化事实：LAN 启动失败必须回写 false，否则下次启动会反复尝试且 UI 状态撒谎。
+        await settingService.update({ lanAccessEnabled: false }).catch(() => undefined);
+        log(`lan_access_start_failed ${describeError(error)}`);
+        if (enabled) {
+          // LAN 起不来（端口占用/防火墙）时尽量回落 loopback：远程控制不能因为
+          // 局域网不可用而整体不可用；回落失败则保持无 handle，由 getState 报 disabled。
+          await runExclusive(() => ensureStarted(true)).catch(() => undefined);
         }
-      } else {
-        await stop();
+        throw new Error(`局域网访问启动失败：${describeError(error)}`);
       }
       return publish();
     },
 
     async createPairCode(): Promise<LanAccessState> {
-      return publishWith(requireHandle().createPairCode());
+      return publishWith(requireLanHandle().createPairCode());
     },
 
     async removeClient(params: LanAccessRemoveClientParams): Promise<LanAccessState> {
-      return publishWith(await requireHandle().removeClient(params.clientId ?? ""));
+      return publishWith(await requireLanHandle().removeClient(params.clientId ?? ""));
     },
 
     async resetTokens(): Promise<LanAccessState> {
-      return publishWith(await requireHandle().resetTokens());
+      return publishWith(await requireLanHandle().resetTokens());
     },
 
     discoverPeers: () => discover(),
@@ -279,13 +324,22 @@ export async function createLanAccessHostService(
 
     getActiveServer: () => handle,
 
+    ensureLocalApi: () =>
+      runExclusive(async () => {
+        // LAN 模式已有 handle：直接复用，绝不能为「确保本机可用」把 LAN 停掉。
+        if (handle) {
+          return handle;
+        }
+        return await ensureStarted(true);
+      }),
+
     async dispose(): Promise<void> {
       if (disposed) {
         return;
       }
       disposed = true;
       onDidChangeEmitter.dispose();
-      await stop();
+      await runExclusive(() => stop());
     },
   };
 
@@ -296,20 +350,28 @@ export async function createLanAccessHostService(
   }
 
   if (options.restoreOnStart !== false) {
-    const settings = await services
-      .getOptional(ISettingService)
-      ?.get()
-      .catch(() => null);
-    if (settings?.lanAccessEnabled) {
-      await ensureStarted().catch((error: unknown) => {
-        // 恢复失败不阻断 Host 启动：状态回 disabled，UI 会看到开关未生效。
-        log(`lan_access_restore_failed ${describeError(error)}`);
-      });
+    const settingService = services.getOptional(ISettingService);
+    const settings = await settingService?.get().catch(() => null);
+    // 本机服务常驻（R5）：开关关着也起 loopback，v3 工作区/远程桌面才能经 E2EE 隧道
+    // 调用本机 API；开关开着才以 0.0.0.0 暴露局域网。
+    const lanEnabled = settings?.lanAccessEnabled === true;
+    try {
+      await runExclusive(() => ensureStarted(!lanEnabled));
+    } catch (error: unknown) {
+      // 恢复失败不阻断 Host 启动；LAN 起不来时回写开关并回落 loopback，
+      // 让远程控制保持可用而不是整体不可用。
+      log(`lan_access_restore_failed ${describeError(error)}`);
+      if (lanEnabled) {
+        await settingService?.update({ lanAccessEnabled: false }).catch(() => undefined);
+        await runExclusive(() => ensureStarted(true)).catch((fallbackError: unknown) => {
+          log(`lan_access_local_restore_failed ${describeError(fallbackError)}`);
+        });
+      }
     }
   }
   // 首个订阅者拿到的是**当前**快照（不论监听是否开启）；读凭据失败不阻断 Host 启动。
   lastState = await readState().catch(() => null);
 
   // 内部生命周期方法不能被 ProxyChannel 暴露成 RPC command。
-  return hideInternalServiceMembers(service, ["dispose", "getActiveServer"]);
+  return hideInternalServiceMembers(service, ["dispose", "getActiveServer", "ensureLocalApi"]);
 }

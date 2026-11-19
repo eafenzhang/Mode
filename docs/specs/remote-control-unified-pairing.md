@@ -4,6 +4,8 @@
 [remote-control-device-model.md](./remote-control-device-model.md) 统一设备/端点/通道模型；
 **2026-11-13 修订**：产品统一个人账号体系后，配对码与配对入口从桌面端产品 UI 全部移除，
 远程控制页只消费同账号 v3 设备目录。原「统一配对码」规则仅保留后端与 CLI 语义（见 R1）。
+**2026-11-19 修订**：本机 HTTP/WS 服务与「允许局域网直连」解耦（R5）——开关只控制
+LAN 暴露/地址上报，关闭后 v3 工作区与远程桌面仍经 Relay + loopback 可用。
 关联：[legacy-windows-remote-agent.md](./legacy-windows-remote-agent.md)、
 [in-app-remote-desktop.md](./in-app-remote-desktop.md)、
 [lan-paired-devices.md](./lan-paired-devices.md)、
@@ -97,12 +99,34 @@
   → 其他 IPv4 → `169.254` → 非 IPv4。
 - 配对串端口是桌面 LAN 监听端口（默认 45880），不是 Mode Agent 的 47821。
 
+### R5 本机服务常驻（局域网直连开关只控制「暴露」，不控制「可用」）
+
+**2026-11-19 修订**：v3 远程工作区与远程桌面都经 E2EE 调用 Host 本机 HTTP/WS
+（`/api/server-info`、`/api/rpc-host-capability`、`/ws/host`、`/api/remote-desktop/*`）。
+这些调用原先与「允许局域网直连」共用同一个监听生命周期，导致关闭开关时远程控制整体
+不可用，而设置页文案却写成「同账号设备只经 Relay 连接」。
+
+- **唯一所有者**：Host 进程内的 `LanAccessServerHandle` 始终持有本机 HTTP/WS 服务；
+  `lanAccessEnabled` 只决定该服务的监听面：
+  - `false`（默认）：绑定 `127.0.0.1`，只服务本机 v3 隧道；不启动 UDP 发现、
+    不起内置 Relay 隧道、不向设备目录上报 `addresses`、`/ws/v1/direct` 不对局域网开放。
+  - `true`：绑定 `0.0.0.0`，在 loopback 能力之上额外开放 LAN 发现、配对兼容接口、
+    内置 Relay 隧道与 v3 LAN 直连地址上报。
+- 模式切换由 `lanAccessService` 串行执行：先停旧监听，再按新模式重启同一份服务；
+  切换期间 `getLocalApi()` 等待启动完成，不能返回 `HOST_LOCAL_API_UNAVAILABLE`。
+- v3 工作区/远程桌面在开关关闭时必须仍可用：数据面按 `p2p -> relay` 选路，
+  本机 API 仍走 loopback；不得把「关闭局域网直连」解释为「关闭远程控制」。
+- 设置文案必须表达：开关只影响同网段/Tailscale 直连与地址上报；关闭后同账号设备
+  仍可经 Relay 加密连接。禁止再出现「只经 Relay」但不说明工作区/桌面仍可用的旧文案。
+
 ## 状态所有者
 
 | 状态 | 唯一所有者 |
 | --- | --- |
 | 一次性配对码 | `lanAccessServer.pairCode`（仅后端/CLI，无产品 UI） |
 | LAN 配对记录 / 令牌 | 凭据服务（既有，兼容历史记录） |
+| LAN 暴露模式（loopback / 0.0.0.0） | `lanAccessService` 的监听生命周期；开关值由 setting 服务持久化 |
+| 本机 HTTP/WS 服务（v3 工作区/桌面共用） | `LanAccessServerHandle`（常驻） |
 | Mode Go 设备（原名 Mode Agent） | MCP 配置 `mode-agent-*`（既有，内部标识不变） |
 | 同账号 v3 Host 目录 | `remoteV3Service.listHosts()`（账号服务） |
 | 远程控制页列表状态（未登录/加载/ok/error） | `RemoteDesktopHome`（纯投影，不持久化） |
@@ -132,6 +156,9 @@
 刷新/轮询：listHosts（15s，页面可见且不在会话中）
 进入桌面：sessionTarget → RemoteDesktopSession（建连时由会话面权威判定可连性）
 退出会话：回列表并重读 rdGetControlledState
+本机启动：setting.lanAccessEnabled ? 以 0.0.0.0 起本地服务 : 以 127.0.0.1 起本地服务
+切换开关：持久化 → 停旧监听 → 按新模式重启 → 发布幂等快照
+v3 工作区/桌面：HTTP/WS 请求经本机 loopback 服务（开关关闭时同样可用）
 （历史/CLI）生成码 → createLanAccessPairCode；对端 POST 同一码 → consumePairCode → 发令牌
 ```
 
@@ -142,7 +169,12 @@
 2. 远程控制页只有一个列表，行只有「进入桌面」；离线或本机被控中置灰并给原因。
 3. 未登录、已登录无 Host、加载失败三种空/错误态都能明确区分，加载失败有重试。
 4. 设置页只剩「允许局域网直连」「允许被远程控制」两个开关与编码能力/安全提示。
-5. `pnpm typecheck`、`pnpm lint` 与相关 UI/desktop 测试通过。
+5. 关闭「允许局域网直连」后：设备目录不再上报 `addresses`、UDP 发现不响应、
+   内置 Relay 隧道关闭；但同账号 v3 远程工作区与远程桌面仍能经 Relay 建立，
+   且 `/api/rpc-host-capability` 与 `/ws/host` 仍通过 loopback 服务可用。
+6. 切换「允许局域网直连」后监听模式正确切换，旧连接被关闭，状态快照 `enabled`
+   与实际监听面一致；并发切换不会起两个监听。
+7. `pnpm typecheck`、`pnpm lint` 与相关 UI/desktop 测试通过。
 
 ## 不做
 

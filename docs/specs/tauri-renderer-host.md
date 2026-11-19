@@ -1984,7 +1984,8 @@ Host 的 `StartupStateMachine` 序号从来没有出现在渲染层能看到的�
 | 状态                                     | 唯一所有者                                     | 读取方                       |
 | ---------------------------------------- | ---------------------------------------------- | ---------------------------- |
 | LAN 被控监听、配对码、客户端记录         | `LanAccessServerHandle`（Host 进程内）         | `lan-access` RPC → renderer  |
-| LAN 开关 `lanAccessEnabled`              | Host 的 setting 服务                           | 同上；启动时据此恢复监听     |
+| 本机 loopback HTTP/WS（v3 工作区/桌面）  | `LanAccessServerHandle`（常驻）                | v3 HTTP/WS 隧道；`lan-access` |
+| LAN 暴露开关 `lanAccessEnabled`          | Host 的 setting 服务                           | 同上；启动/切换时决定绑定面  |
 | 「我配对的对端」令牌与元数据             | Host 的 credential 服务                        | 同上                         |
 | 远程桌面被控状态、逐设备授权             | `RemoteDesktopHostServer` + credentials        | `remote-desktop` RPC（LR-2） |
 | 远程工作区 logical session 与 attachment | `windowRemoteConnectionRegistry`（每窗口一个） | `remote.*` RPC（LR-4）       |
@@ -2050,16 +2051,20 @@ interface ILanAccessService {
 Host bootstrap
   createLocalServices
     → 创建 lanAccess adapter（注入 setting/credential/startServer）
-    → 读 lanAccessEnabled；true 则 ensureStarted()
+    → 读 lanAccessEnabled；true 以 0.0.0.0 起服务，false 以 127.0.0.1 起服务
     → 注册到 local-only ServiceCollection
   services.exposeOnChannelServer（普通集合）
   localOnly.exposeOnChannelServer（管理面）
   server.ready()                      ← 第一帧：管理频道已可调用
 ```
 
+- **本机服务常驻**：`lanAccessEnabled` 只决定监听面（`0.0.0.0` 或 `127.0.0.1`）。
+  关闭开关时 loopback 服务仍在，v3 工作区/远程桌面通过 E2EE 隧道调用本机 API；
+  切换开关按「停旧 → 起新」串行执行，不并发起两个监听；
 - `ensureStarted` 是**单一启动 Promise**：并发 `setEnabled(true)` 共用同一次启动，
   不存在 check-then-act 双监听；
-- 启动失败只告警并把状态留在 disabled，Host 不因此启动失败；
+- 启动失败只告警并把状态留在 disabled，Host 不因此启动失败；LAN 模式启动失败时
+  回落到 loopback 模式并回写 `lanAccessEnabled=false`；
   **监听错误（如 `EADDRINUSE`）必须以 rejection 形式从 `startLanAccessServer` 返回**，
   不得作为 HTTP server 的未捕获 `error` 事件杀死 Host。端口被占用是「本次 LAN 不可用」，
   不是「应用无法启动」；
