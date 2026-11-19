@@ -38,6 +38,10 @@ provider-config-repository = { path = "../provider-config-repository" }
 provider-config-source = { path = "../provider-config-source" }
 provider-http = { path = "../provider-http" }
 provider-resolver = { path = "../provider-resolver" }
+# C4-T3 裁决：saved workflow 脚本用嵌入 JS 引擎执行。
+boa_engine.workspace = true
+# C4 T4：`dwf_run.script_hash` 与附件上传 checksum 都是 sha256。
+sha2.workspace = true
 # C4 T3：`workflows/runs` 只读 `dwf_run`（与 session-store 同库；短连接只读）。
 rusqlite.workspace = true
 serde.workspace = true

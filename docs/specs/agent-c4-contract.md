@@ -619,8 +619,8 @@ T3 在 `crates/agent-server/src/workflows.rs` 落文件读写与 `dwf_run` 只�
   重新渲染；project `<workspace>/.mode/workflows`、global `<dataRoot>/workflows`；
   只认 `.dwf.ts`，其它扩展名忽略。
 - list 的 `workflows/invalid`：缺块（含 YAML `---`）→
-  `missing_frontmatter: file does not start with the \`/* mode-workflow\` metadata block`；
-  get 对同文件返回 `parse_error` + 同一 detail。
+  `missing_frontmatter: file does not start with the \`/\* mode-workflow\` metadata block`；
+get 对同文件返回 `parse_error` + 同一 detail。
 - get/updateMeta/delete/move 的 `ok/reason/path` 形状与 `invalid_name` detail 文案；
   move 支持 global ↔ project 并检查 `target_exists`。
 - `workflows/runs` 只读 `dwf_run`（`cwd` 精确匹配、`name` 过滤、limit 1..=50、
@@ -628,15 +628,19 @@ T3 在 `crates/agent-server/src/workflows.rs` 落文件读写与 `dwf_run` 只�
 
 差异 / 未覆盖（不伪造观察值）：
 
-| 项                  | Rust 现状                                                                                                                       | 依据        |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| 脚本执行            | **未实现**：Rust 无 JS 引擎，`v4/command startSavedWorkflow` 仍 `-32601`；ACK/not_found 与 `dwf_run` 落行需要执行器决策。         | §4.4 / §4.6 |
-| run 事件/actor/node | `v4/conversation/workflow*` 查询族归 T4；T3 只读 `dwf_run` 行。                                                                  | §4.4        |
-| run artifacts       | `SavedWorkflowRun.artifacts` 恒省略（真源在 `dwf_event`/`dwf_node`，未接）。                                                      | §4.4        |
-| 缺 description      | 块存在但无 description 归 `parse_error: metadata block is missing \`description\``；oracle 未录该组合。                           | §4.3        |
-| args 语法           | 解析/写入只覆盖 `type/description/required/default` 的缩进子集；oracle 的 YAML 全量语法未观察。                                   | §4.2        |
-| SaveWorkflow 工具   | Rust 未实现 `Skill(dynamic-workflows)`/`CreateWorkflow`/`SaveWorkflow`；文件由外部工具或用户写入后 T3 才可读。                    | §4.1–§4.2   |
-| list 顺序           | 按名字 locale 排序；oracle 的目录扫描顺序未观察。                                                                                 | §4.2        |
+| 项                  | Rust 现状                                                                                                                                                                                                                                        | 依据        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| 脚本执行            | **已实现（C4-T3 裁决 2026-11-20：嵌入 JS 引擎）**：`execute_script` 用 boa 包函数体执行，结果 JSON 序列化；抛错 → run `failed`（DB CHECK 词表）+ `failure_json:{message}`；`v4/command startSavedWorkflow` 落 ACK/`dwf_run`/`dwf_event` 三事件。 | §4.4 / §4.6 |
+| DB status 词表      | `dwf_run.status` CHECK 是 `pending/running/completed/failed/cancelled`；协议的 `errored` 在库里落 `failed`，`workflows/runs` 投影映射回 `Errored`（T0 夹具只录了 completed）。                                                                   | §4.4        |
+| scriptPath          | `run-launched` 写实际保存路径；oracle 用 `workflow-drafts` 副本（未复刻）。                                                                                                                                                                      | §4.4        |
+| 同步执行            | 脚本在 dispatch 线程内联执行（短任务）；长任务/异步 facade 与 `ResumeWorkflowRun` 归后续切片。                                                                                                                                                   | §4.5        |
+| run 事件/actor/node | `v4/conversation/workflow*` 查询族归 T4 后续切片；T3 只读 `dwf_run` 行。                                                                                                                                                                         | §4.4        |
+| run artifacts       | `SavedWorkflowRun.artifacts` 恒省略（真源在 `dwf_event`/`dwf_node`，未接）。                                                                                                                                                                     | §4.4        |
+| 缺 description      | 块存在但无 description 归 `parse_error: metadata block is missing \`description\``；oracle 未录该组合。                                                                                                                                          | §4.3        |
+| args 语法           | 解析/写入只覆盖 `type/description/required/default` 的缩进子集；oracle 的 YAML 全量语法未观察。                                                                                                                                                  | §4.2        |
+| SaveWorkflow 工具   | Rust 未实现 `Skill(dynamic-workflows)`/`CreateWorkflow`/`SaveWorkflow`；文件由外部工具或用户写入后 T3 才可读。                                                                                                                                   | §4.1–§4.2   |
+| list 顺序           | 按名字 locale 排序；oracle 的目录扫描顺序未观察。                                                                                                                                                                                                | §4.2        |
+| unsupported 命令    | 其余 33 个 v4 命令类型返回 ACK `status:"failed"` + `fault.command.unsupported`（不是方法级 -32601）；按切片逐步接入。                                                                                                                            | §4.6        |
 
 ## 5. 附件与 v4 帧（`attachments-v4-frames`）
 

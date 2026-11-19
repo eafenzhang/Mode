@@ -37,6 +37,7 @@ mod schema;
 mod session;
 mod target;
 mod usage;
+mod workflow_runs;
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -55,6 +56,7 @@ pub use schema::{REQUIRED_TABLES, SCHEMA_MIGRATION_TABLE};
 pub use session::{SessionEntryRecord, SessionRecord};
 pub use target::TargetRecord;
 pub use usage::{ModelUsageRecord, ToolUsageRecord, TurnUsageRecord};
+pub use workflow_runs::{WorkflowEventInsert, WorkflowRunInsert};
 
 /// 与 Host 写同一文件时的短锁等待，口径与 `agent-core::rule_store` 一致。
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);

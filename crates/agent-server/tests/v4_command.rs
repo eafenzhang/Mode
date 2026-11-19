@@ -1,0 +1,350 @@
+//! C4 T4a：`v4/command startSavedWorkflow`（嵌入 JS 引擎）与命令对账读面。
+
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
+use agent_core::ModelProvider;
+use agent_protocol::workflow::{SavedWorkflowScope, WorkflowRunStatus, WorkflowsGetResult};
+use agent_server::workflows::{self, WorkflowDirs};
+use agent_server::{
+    AgentServer, ProviderConfigHub, ProviderRequestContext, ProviderSource, ServerConfig,
+};
+use rusqlite::OpenFlags;
+use serde_json::{json, Value};
+use session_store::SessionStore;
+use tokio::runtime::Runtime;
+
+struct TempRoot(PathBuf);
+
+impl TempRoot {
+    fn new(label: &str) -> Self {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let path = std::env::temp_dir().join(format!(
+            "mode-agent-server-v4-{label}-{}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).expect("create temp root");
+        Self(path)
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TempRoot {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// 本切片不发起模型请求：装配源显式失败即可。
+struct UnusedSource;
+
+impl ProviderSource for UnusedSource {
+    fn resolve(
+        &self,
+        provider_id: &str,
+        _model_id: &str,
+        _context: Option<&ProviderRequestContext>,
+    ) -> Result<Arc<dyn ModelProvider>, String> {
+        Err(format!("Provider 不存在: {provider_id}"))
+    }
+
+    fn cache_key(&self) -> String {
+        "unused".to_string()
+    }
+}
+
+fn open_server(root: &TempRoot) -> Arc<AgentServer> {
+    let config = ServerConfig::from_data_base_dir(root.path());
+    let server = Arc::new(AgentServer::with_parts(
+        config,
+        ProviderConfigHub::from_env(),
+        Arc::new(UnusedSource),
+    ));
+    let runtime = Runtime::new().expect("tokio runtime");
+    let mut sink: Vec<u8> = Vec::new();
+    runtime
+        .block_on(async { agent_server::run_stdio(&b""[..], &mut sink, Arc::clone(&server)).await })
+        .expect("存储门必须完成");
+    server
+}
+
+const SAVED: &str = "/* mode-workflow\ndescription: probe run\n*/\nreturn { ok: true, n: 2 };";
+
+fn seed_workflow(root: &TempRoot, name: &str) -> PathBuf {
+    let dirs = WorkflowDirs::new(
+        root.path().join("ws").to_str().expect("ws"),
+        &root.path().join("data"),
+    );
+    std::fs::create_dir_all(&dirs.project).expect("workflows dir");
+    let path = dirs.project.join(format!("{name}.dwf.ts"));
+    std::fs::write(&path, SAVED).expect("write workflow");
+    path
+}
+
+// ── execute_script ──────────────────────────────────────────────────────────
+
+#[test]
+fn execute_script_returns_json_and_reports_errors() {
+    match workflows::execute_script("return { ok: true, n: 2 };") {
+        workflows::ScriptOutcome::Completed(json) => {
+            let value: Value = serde_json::from_str(&json).expect("json");
+            assert_eq!(value, json!({ "ok": true, "n": 2 }));
+        }
+        other => panic!("expected completed, got {other:?}"),
+    }
+    match workflows::execute_script("throw new Error('boom');") {
+        workflows::ScriptOutcome::Errored(message) => {
+            assert!(message.contains("boom"), "message: {message}");
+        }
+        other => panic!("expected errored, got {other:?}"),
+    }
+}
+
+// ── start_saved_workflow：函数级（store + dirs）──────────────────────────────
+
+#[test]
+fn start_saved_workflow_persists_run_rows_and_events() {
+    let root = TempRoot::new("start-fn");
+    seed_workflow(&root, "probe-run");
+    let data_root = root.path().join("data");
+    let db_path = data_root.join("cli").join("db").join("db.sqlite");
+    let store = SessionStore::open(&db_path).expect("open store");
+    let dirs = WorkflowDirs::new(root.path().join("ws").to_str().expect("ws"), &data_root);
+
+    let started = workflows::start_saved_workflow(
+        &store,
+        &dirs,
+        &root.path().join("ws").to_string_lossy(),
+        "sess_parent",
+        "probe-run",
+        Some(SavedWorkflowScope::Project),
+    )
+    .expect("start");
+    assert!(started.run_id.starts_with("dwfrun-"));
+    assert!(!started.tool_call_id.is_empty());
+
+    // run 行已结算。
+    let connection =
+        rusqlite::Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .expect("read db");
+    let runs = workflows::runs(
+        &data_root,
+        &root.path().join("ws").to_string_lossy(),
+        None,
+        10,
+    );
+    assert_eq!(runs.runs.len(), 1);
+    assert_eq!(runs.runs[0].status, WorkflowRunStatus::Completed);
+    let result_json: String = connection
+        .query_row(
+            "select result_json from dwf_run where id = ?1",
+            [started.run_id.clone()],
+            |row| row.get(0),
+        )
+        .expect("result_json");
+    let result: Value = serde_json::from_str(&result_json).expect("json");
+    assert_eq!(result, json!({ "ok": true, "n": 2 }));
+
+    // 事件序列 run-started → run-launched → run-settled。
+    let mut statement = connection
+        .prepare("select sequence, type, payload_json from dwf_event where run_id = ?1 order by sequence")
+        .expect("prepare events");
+    let events: Vec<(i64, String, String)> = statement
+        .query_map([started.run_id.clone()], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
+        .expect("query events")
+        .collect::<Result<_, _>>()
+        .expect("rows");
+    let sequence: Vec<i64> = events.iter().map(|(sequence, _, _)| *sequence).collect();
+    assert_eq!(sequence, vec![0, 1, 2]);
+    assert_eq!(events[0].1, "run-started");
+    assert_eq!(events[1].1, "run-launched");
+    assert_eq!(events[2].1, "run-settled");
+    let settled: Value = serde_json::from_str(&events[2].2).expect("payload");
+    assert_eq!(
+        settled,
+        json!({ "type": "run-settled", "status": "completed" })
+    );
+}
+
+#[test]
+fn start_saved_workflow_reports_script_failure() {
+    let root = TempRoot::new("start-error");
+    let data_root = root.path().join("data");
+    let dirs = WorkflowDirs::new(root.path().join("ws").to_str().expect("ws"), &data_root);
+    std::fs::create_dir_all(&dirs.project).expect("workflows dir");
+    std::fs::write(
+        dirs.project.join("boom.dwf.ts"),
+        "/* mode-workflow\ndescription: boom\n*/\nthrow new Error('workflow boom');",
+    )
+    .expect("write workflow");
+    let db_path = data_root.join("cli").join("db").join("db.sqlite");
+    let store = SessionStore::open(&db_path).expect("open store");
+
+    let started = workflows::start_saved_workflow(
+        &store,
+        &dirs,
+        &root.path().join("ws").to_string_lossy(),
+        "sess_parent",
+        "boom",
+        None,
+    )
+    .expect("start");
+    let runs = workflows::runs(
+        &data_root,
+        &root.path().join("ws").to_string_lossy(),
+        None,
+        10,
+    );
+    assert_eq!(runs.runs.len(), 1);
+    assert_eq!(runs.runs[0].status, WorkflowRunStatus::Errored);
+    let _ = started;
+}
+
+// ── v4/command：ACK 与对账 ──────────────────────────────────────────────────
+
+fn envelope(command_id: &str, session_id: &str, command_type: &str, payload: Value) -> Value {
+    json!({
+        "commandId": command_id,
+        "clientId": "probe-c4",
+        "sessionId": session_id,
+        "type": command_type,
+        "payload": payload,
+        "issuedAt": 1_700_000_000_000i64,
+    })
+}
+
+#[test]
+fn start_saved_workflow_rejects_missing_with_failed_ack() {
+    let root = TempRoot::new("dispatch-missing");
+    let server = open_server(&root);
+    let ack = server
+        .dispatch(
+            "v4/command",
+            envelope(
+                "cmd-c4-wf-missing",
+                "sess_v4",
+                "startSavedWorkflow",
+                json!({ "name": "missing-wf", "scope": "project" }),
+            ),
+        )
+        .expect("ack");
+    assert_eq!(ack["commandId"], json!("cmd-c4-wf-missing"));
+    assert_eq!(ack["status"], json!("failed"));
+    assert_eq!(
+        ack["reasonCode"],
+        json!("fault.command.savedWorkflowStartRejected.not_found")
+    );
+    assert_eq!(
+        ack["message"],
+        json!("No project workflow named 'missing-wf'.")
+    );
+    assert_eq!(ack["memoryEnabled"], json!(false));
+    assert!(ack["revisionAtDecision"].is_number());
+    assert_eq!(ack["result"], Value::Null);
+
+    // 对账读面：同 key 返回 ACK；未知 key 返回 "unknown"。
+    let query = server
+        .dispatch(
+            "v4/commands/query",
+            json!({
+                "commands": [
+                    { "sessionId": "sess_v4", "commandId": "cmd-c4-wf-missing" },
+                    { "sessionId": "sess_v4", "commandId": "cmd-unknown" }
+                ]
+            }),
+        )
+        .expect("query");
+    let results = query["results"].as_array().expect("results");
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0]["result"]["status"], json!("failed"));
+    assert_eq!(results[1]["result"], json!("unknown"));
+}
+
+#[test]
+fn start_saved_workflow_accepts_and_executes_via_dispatch() {
+    let root = TempRoot::new("dispatch-ok");
+    seed_workflow(&root, "probe-run");
+    let server = open_server(&root);
+    // 无 runtime 时 workspace 回退 dataRoot（`<root>/.mode`）；按该口径种 workflow。
+    let fallback_workspace = root.path().join(".mode");
+    let dirs = WorkflowDirs::new(
+        fallback_workspace.to_str().expect("ws"),
+        &root.path().join(".mode"),
+    );
+    std::fs::create_dir_all(&dirs.project).expect("workflows dir");
+    std::fs::write(dirs.project.join("probe-run.dwf.ts"), SAVED).expect("write workflow");
+
+    let ack = server
+        .dispatch(
+            "v4/command",
+            envelope(
+                "cmd-c4-wf-ok",
+                "sess_v4",
+                "startSavedWorkflow",
+                json!({ "name": "probe-run", "scope": "project" }),
+            ),
+        )
+        .expect("ack");
+    assert_eq!(ack["status"], json!("accepted"));
+    assert_eq!(ack["result"]["type"], json!("startSavedWorkflow"));
+    let run_id = ack["result"]["runId"].as_str().expect("runId").to_string();
+    assert!(run_id.starts_with("dwfrun-"));
+
+    // run 行落在 dataRoot 库里，且已结算 completed。
+    let db_path = root.path().join(".mode/cli/db/db.sqlite");
+    let store = SessionStore::open(&db_path).expect("open store");
+    drop(store);
+    let runs = workflows::runs(
+        &root.path().join(".mode"),
+        &fallback_workspace.to_string_lossy(),
+        None,
+        10,
+    );
+    assert_eq!(runs.runs.len(), 1);
+    assert_eq!(runs.runs[0].run_id, run_id);
+    assert_eq!(runs.runs[0].status, WorkflowRunStatus::Completed);
+    assert_eq!(runs.runs[0].name.as_deref(), Some("probe-run"));
+}
+
+#[test]
+fn unsupported_command_type_fails_per_command() {
+    let root = TempRoot::new("dispatch-unsupported");
+    let server = open_server(&root);
+    let ack = server
+        .dispatch(
+            "v4/command",
+            envelope(
+                "cmd-c4-unsupported",
+                "sess_v4",
+                "renameSession",
+                json!({ "title": "x" }),
+            ),
+        )
+        .expect("ack");
+    assert_eq!(ack["status"], json!("failed"));
+    assert_eq!(ack["reasonCode"], json!("fault.command.unsupported"));
+}
+
+// `get` 的 scope 语义回归：project 缺失时按 global 找。
+#[test]
+fn workflow_get_falls_back_to_global() {
+    let root = TempRoot::new("get-global");
+    let dirs = WorkflowDirs::new(
+        root.path().join("ws").to_str().expect("ws"),
+        &root.path().join("data"),
+    );
+    std::fs::create_dir_all(&dirs.global).expect("global dir");
+    std::fs::write(dirs.global.join("probe-run.dwf.ts"), SAVED).expect("write workflow");
+    match workflows::get(&dirs, "probe-run", None) {
+        WorkflowsGetResult::Ok(ok) => assert_eq!(ok.scope, SavedWorkflowScope::Global),
+        other => panic!("expected global hit, got {other:?}"),
+    }
+}

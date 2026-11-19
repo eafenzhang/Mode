@@ -642,6 +642,7 @@ impl WorkflowRunRow {
             "running" => WorkflowRunStatus::Running,
             "errored" => WorkflowRunStatus::Errored,
             "stopped" => WorkflowRunStatus::Stopped,
+            "failed" => WorkflowRunStatus::Errored,
             _ => WorkflowRunStatus::Completed,
         };
         SavedWorkflowRun {
@@ -662,4 +663,220 @@ impl WorkflowRunRow {
             artifacts: None,
         }
     }
+}
+
+// ── 脚本执行（C4-T3 裁决：嵌入 JS 引擎）────────────────────────────────────
+
+/// 脚本在嵌入引擎里的执行结果。
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScriptOutcome {
+    /// 脚本正常返回；值已序列化为 JSON 文本。
+    Completed(String),
+    /// 脚本抛错/引擎失败；`failure_json` 是 `{ "message": … }`。
+    Errored(String),
+}
+
+/// 执行一段 workflow 脚本：包成函数体（脚本可顶层 `return`），结果 JSON 序列化。
+///
+/// 同步执行——workflow 脚本应当是短任务；长任务/异步 facade 属后续切片。
+pub fn execute_script(script: &str) -> ScriptOutcome {
+    use boa_engine::{Context, Source};
+    let wrapped = format!("(function(){{\n{script}\n}})()");
+    let mut context = Context::default();
+    match context.eval(Source::from_bytes(wrapped.as_bytes())) {
+        Ok(value) => match value.to_json(&mut context) {
+            Ok(json) => ScriptOutcome::Completed(json.to_string()),
+            Err(error) => ScriptOutcome::Errored(error.to_string()),
+        },
+        Err(error) => ScriptOutcome::Errored(error.to_string()),
+    }
+}
+
+fn script_hash(script: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(script.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+/// `startSavedWorkflow` 的拒绝形状（ACK `status:"failed"`）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StartRejection {
+    pub reason_code: String,
+    pub message: String,
+}
+
+impl StartRejection {
+    pub fn not_found(scope: SavedWorkflowScope, name: &str) -> Self {
+        let scope_word = match scope {
+            SavedWorkflowScope::Project => "project",
+            SavedWorkflowScope::Global => "global",
+        };
+        Self {
+            reason_code: "fault.command.savedWorkflowStartRejected.not_found".to_string(),
+            message: format!("No {scope_word} workflow named '{name}'."),
+        }
+    }
+
+    pub fn invalid_name(name: &str) -> Self {
+        Self {
+            reason_code: "fault.command.savedWorkflowStartRejected.invalid_name".to_string(),
+            message: format!("Invalid workflow name: {name}"),
+        }
+    }
+}
+
+/// 一次成功的启动：ACK `result` 与 `dwf_*` 行都以这些 id 互指。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StartedWorkflow {
+    pub run_id: String,
+    pub tool_call_id: String,
+    pub input_id: String,
+}
+
+/// 启动并同步执行一个 saved workflow：落 `dwf_run` 行 → run-started/launched 事件 →
+/// 执行脚本 → run-settled + 结算行。`scope` 缺省按 project → global 定位。
+#[allow(clippy::too_many_arguments)]
+pub fn start_saved_workflow(
+    store: &session_store::SessionStore,
+    dirs: &WorkflowDirs,
+    workspace_path: &str,
+    parent_session_id: &str,
+    name: &str,
+    scope: Option<SavedWorkflowScope>,
+) -> Result<StartedWorkflow, StartRejection> {
+    if !is_valid_workflow_name(name) {
+        return Err(StartRejection::invalid_name(name));
+    }
+    let resolved_scope = scope.unwrap_or(SavedWorkflowScope::Project);
+    let (path, script) = match get(dirs, name, Some(resolved_scope)) {
+        WorkflowsGetResult::Ok(ok) => (ok.path, ok.script),
+        WorkflowsGetResult::Failure(_) => {
+            // project 缺失时按 global 再找一次，拒绝文案跟随最终查找的 scope。
+            let fallback_scope = if resolved_scope == SavedWorkflowScope::Project {
+                SavedWorkflowScope::Global
+            } else {
+                SavedWorkflowScope::Project
+            };
+            match get(dirs, name, Some(fallback_scope)) {
+                WorkflowsGetResult::Ok(ok) => (ok.path, ok.script),
+                WorkflowsGetResult::Failure(_) => {
+                    return Err(StartRejection::not_found(resolved_scope, name))
+                }
+            }
+        }
+    };
+    let _ = path;
+    let run_id = format!("dwfrun-{}", uuid::Uuid::new_v4());
+    let tool_call_id = uuid::Uuid::new_v4().to_string();
+    let input_id = uuid::Uuid::new_v4().to_string();
+    let launch_tool_call_id = format!("launch-{}", uuid::Uuid::new_v4());
+    let now = now_ms();
+
+    store
+        .insert_workflow_run(&session_store::WorkflowRunInsert {
+            id: run_id.clone(),
+            parent_session_id: Some(parent_session_id.to_string()),
+            cwd: Some(workspace_path.to_string()),
+            name: Some(name.to_string()),
+            script_text: Some(script.clone()),
+            script_hash: Some(script_hash(&script)),
+            args_json: None,
+            tool_call_id: Some(tool_call_id.clone()),
+            resumed_from: None,
+            caps_max_concurrency: Some(10),
+            spent_tokens: Some(0),
+            status: Some("running".to_string()),
+            result_json: None,
+            failure_json: None,
+            time_created: Some(now),
+            time_updated: Some(now),
+        })
+        .map_err(|error| StartRejection {
+            reason_code: "fault.command.savedWorkflowStartRejected.store_failed".to_string(),
+            message: error.to_string(),
+        })?;
+
+    let started_payload = serde_json::json!({
+        "type": "run-started",
+        "runId": run_id,
+        "caps": { "maxConcurrency": 10 },
+    });
+    let launched_payload = serde_json::json!({
+        "type": "run-launched",
+        "inputId": input_id,
+        "toolCallId": launch_tool_call_id,
+        "parentSessionId": parent_session_id,
+        "scriptPath": path,
+    });
+    for (sequence, (kind, payload)) in [
+        ("run-started", started_payload),
+        ("run-launched", launched_payload),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        store
+            .insert_workflow_event(&session_store::WorkflowEventInsert {
+                run_id: run_id.clone(),
+                sequence: sequence as i64,
+                kind: kind.to_string(),
+                payload_json: payload.to_string(),
+                time_created: now,
+            })
+            .map_err(|error| StartRejection {
+                reason_code: "fault.command.savedWorkflowStartRejected.store_failed".to_string(),
+                message: error.to_string(),
+            })?;
+    }
+
+    // DB 的 CHECK 只认 pending/running/completed/failed/cancelled；协议的
+    // errored 在库里落 `failed`（runs 投影映射回 Errored）。
+    let (status, result_json, failure_json) = match execute_script(&script) {
+        ScriptOutcome::Completed(json) => ("completed", Some(json), None),
+        ScriptOutcome::Errored(message) => (
+            "failed",
+            None,
+            Some(serde_json::json!({ "message": message }).to_string()),
+        ),
+    };
+    store
+        .settle_workflow_run(
+            &run_id,
+            status,
+            result_json.as_deref(),
+            failure_json.as_deref(),
+            0,
+            now,
+        )
+        .map_err(|error| StartRejection {
+            reason_code: "fault.command.savedWorkflowStartRejected.store_failed".to_string(),
+            message: error.to_string(),
+        })?;
+    let settled_payload = serde_json::json!({ "type": "run-settled", "status": status });
+    store
+        .insert_workflow_event(&session_store::WorkflowEventInsert {
+            run_id: run_id.clone(),
+            sequence: 2,
+            kind: "run-settled".to_string(),
+            payload_json: settled_payload.to_string(),
+            time_created: now,
+        })
+        .map_err(|error| StartRejection {
+            reason_code: "fault.command.savedWorkflowStartRejected.store_failed".to_string(),
+            message: error.to_string(),
+        })?;
+
+    Ok(StartedWorkflow {
+        run_id,
+        tool_call_id,
+        input_id,
+    })
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0)
 }

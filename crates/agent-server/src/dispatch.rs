@@ -27,6 +27,7 @@ use crate::provider_config::{
 use crate::reverse::ReverseHub;
 use crate::runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
 use crate::server::ServerError;
+use agent_protocol::v4::CommandAck;
 use provider_http::{
     AnthropicMessagesProvider, OpenAiChatConfig, OpenAiChatProvider, OpenAiResponsesProvider,
 };
@@ -286,6 +287,31 @@ pub struct AgentServer {
     pending_forwards: Mutex<Vec<PendingLiveForward>>,
     /// C4 T1：MCP 连接的唯一所有者（`mcp/list` 与会话工具目录共用同一张表）。
     mcp: Arc<McpHub>,
+    /// C4 T4：已受理 v4 命令的 ACK 台账（`v4/commands/query` 的唯一事实源）。
+    v4: V4State,
+}
+
+/// `(sessionId, commandId)` → ACK。sessionId `None` 是全局幂等桶（createSession）。
+#[derive(Default)]
+pub struct V4State {
+    commands: Mutex<HashMap<(Option<String>, String), CommandAck>>,
+}
+
+impl V4State {
+    pub fn record_command(&self, session_id: Option<String>, command_id: String, ack: CommandAck) {
+        self.commands
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert((session_id, command_id), ack);
+    }
+
+    pub fn lookup(&self, session_id: Option<&str>, command_id: &str) -> Option<CommandAck> {
+        self.commands
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .get(&(session_id.map(str::to_string), command_id.to_string()))
+            .cloned()
+    }
 }
 
 impl std::fmt::Debug for AgentServer {
@@ -335,6 +361,7 @@ impl AgentServer {
             closing: Arc::new(Mutex::new(HashMap::new())),
             pending_forwards: Mutex::new(Vec::new()),
             mcp: Arc::new(McpHub::new()),
+            v4: V4State::default(),
         }
     }
 
@@ -365,6 +392,7 @@ impl AgentServer {
             closing: Arc::new(Mutex::new(HashMap::new())),
             pending_forwards: Mutex::new(Vec::new()),
             mcp: Arc::new(McpHub::new()),
+            v4: V4State::default(),
         }
     }
 
@@ -459,6 +487,10 @@ impl AgentServer {
             }
             crate::methods::WORKFLOWS_MOVE_METHOD => methods::workflows::handle_move(self, params),
             crate::methods::WORKFLOWS_RUNS_METHOD => methods::workflows::handle_runs(self, params),
+            crate::methods::V4_COMMAND_METHOD => methods::v4::handle_command(self, params),
+            crate::methods::V4_COMMANDS_QUERY_METHOD => {
+                methods::v4::handle_commands_query(self, params)
+            }
             _ => Err(ServerError::method_not_found(method)),
         }
     }
@@ -471,6 +503,11 @@ impl AgentServer {
     /// C4 T1：MCP 连接 hub（`mcp/list`、会话工具目录与 `process/childProcesses` 共用）。
     pub fn mcp_hub(&self) -> &Arc<McpHub> {
         &self.mcp
+    }
+
+    /// C4 T4：v4 命令 ACK 台账（`v4/commands/query` 读面）。
+    pub fn v4_state(&self) -> &V4State {
+        &self.v4
     }
 
     /// 替换 provider 装配源（测试注入；生产恒为 hub 适配）。
