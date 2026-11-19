@@ -388,9 +388,63 @@ toolName:"echo",description}`、`canRunParallel:false`（插件 MCP 与自定义
 commandRootCount/components/declaredMcpServerNames/mcpServerNames`；
   `components` 顺序 `command → skill → mcp`。
 - 未知市场的 `describe` 是成功 + diagnostics，不是错误帧。
-- 插件 MCP 工具命名 `mcp__plugin_<marketplace>_<plugin>__<tool>`，serverName 用
-  `plugin:<marketplace>:<plugin>`；`canRunParallel:false`。
+- 插件 MCP 工具命名 `mcp__plugin_<pluginName>_<serverName>__<toolName>`，serverName 用
+  `plugin:<pluginName>:<serverName>`（观察值 `plugin:fixture:fixture` /
+  `mcp__plugin_fixture_fixture__echo`）；`canRunParallel:false`。
 - `operationProgress` 不强制产生；enable 响应字段的不对称按夹具记录，不作为事实源。
+
+### 3.5 Rust C4 T2 现状（2026-11-20）
+
+T2 在 `crates/agent-server/src/skills.rs` 落 `SkillCatalog` / `SkillToolSource` /
+`CompositeToolSource`，在 `plugins.rs` 落 `PluginService`（读面、启停、市场、安装）与
+`methods/skills.rs` / `methods/plugins.rs` 的方法表；插件自带 MCP 由
+`PluginService::session_mcp_servers` 每 turn 并入会话工具目录。测试入口
+`crates/agent-server/tests/skills.rs`（4 用例）与 `tests/plugins.rs`（5 用例）。
+
+黑盒补充观察（`known_marketplaces.json` / `installed_plugins.json` / `config.json`）
+来自隔离根运行 oracle CLI 后的文件读取，不是实现体阅读：
+
+- marketplace add 把源目录复制到 `<dataRoot>/cli/plugins/marketplaces/<name>/`，并在
+  `known_marketplaces.json` 记录 `{id,source:{source:"directory",path},name,addedAt,
+lastUpdated,pluginCount,cacheTransactionId}`；
+- install 把插件目录复制到 `cache/<marketplace>/<plugin>/<version>/`，写
+  `installed_plugins.json`（`id/name/marketplace/version/installPath/installedAt/updatedAt/
+scope/source`）与 `config.json` 的 `plugins.enabledPlugins[id]=true`。
+
+已实现（与观察一致）：
+
+- `skills/referenceCatalog`：workspace/session authority、未知 session `-32004`、
+  只投影 enabled；`.mode/skills` 被发现、`.claude/skills` 不发现（由 skills-service 口径保证）。
+- `Skill` 工具：`<skill_content name="…">` + `# Skill: …` + 正文 + base directory 两行；
+  结果带 `skillMetadata:{source:"mode"}`；`started.readOnly:true` /
+  `sideEffectScope:"session"`（动态声明走 `read_only:true`）。
+- 插件读面：list/describe/overview 的字段与 `components` 顺序；未知 marketplace 的
+  describe 是成功 + diagnostics。
+- 写面：setEnabled、marketplace add/remove/update、install/uninstall/update、
+  cancelOperation（同步实现，恒 `cancelled:false`）。
+- `plugins/referenceCatalog`（含 WithCategory 别名）与 `resolveSuggestedReference`：
+  裸名/非官方来源 untrusted；官方缓存命中 ready；未命中 `marketplace_refresh_failed`。
+- 插件 MCP：`.mcp.json` 的 stdio/http server 进会话工具目录，server 名
+  `plugin:<plugin>:<server>`、工具名 `mcp__plugin_<plugin>_<server>__<tool>`、
+  `canRunParallel:false`（非只读）、`process/childProcesses` 报
+  `mcpSource:"plugin"` + `pluginName`。
+
+差异 / 未覆盖（不伪造观察值）：
+
+| 项                     | Rust 现状                                                                                                                     | 依据            |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------- | -------- | -------------------------------------------------------- | ---- |
+| 官方 availablePlugins  | overview 只列本地 marketplace 的插件；官方远端/打包目录快照未内置（夹具 read-face 的 `cloudbase-skills`/`mimosa` 不会出现）。 | §3.1            |
+| list 顺序              | 官方缓存按名字升序、其后 installed、再 config dirs；oracle 的打包顺序未复刻。                                                 | §3.1            |
+| enable 响应            | setEnabled 返回完整目录字段（skillCount 等为真实值）；oracle enable 响应的 0 值不对称未复刻。                                 | §3.2            |
+| 操作进度               | 不产生 `plugins/operationProgress`（夹具各窗口也是 0 条）。                                                                   | §3.2            |
+| 配置类方法             | `plugins/configure                                                                                                            | resetConfig     | validate | restoreBuiltin` 未实现（`-32601`）；属设置面，本波登记。 | §3.3 |
+| marketplace source     | 只支持本地 directory；URL/git/archive source 未实现。                                                                         | §3.2 只观察本地 |
+| install 依赖闭包       | 只安装目标插件（`dependencyClosure:[id]`）；无依赖解析/事务锁。                                                               | §3.2            |
+| uninstall 缓存         | 默认删除 installPath（`removeCache:false` 保留）；oracle 的缓存删除语义未观察。                                               | §3.3            |
+| 插件 MCP 子进程行      | 每个连接一行；oracle 可能列启动器+server 两行（同 §1.6）。                                                                    | §1.1/§3.2       |
+| skills 注入            | 只做目录与 Skill 工具，不注入 system/user 提醒（T0 首请求未观察注入；`build_prompt_context` 未接）。                          | §2.2            |
+| session authority 快照 | 每次请求按当前发现结果投影，不是首个 context 的冻结快照（oracle 未观察冻结规则）。                                            | §2.1            |
+| 插件启用默认值         | 官方插件用 `is_default_enabled_official_plugin_id` + config 覆盖 + suppressedBuiltins；installed/config dirs 默认 true。      | §3.1/§3.2       |
 
 ## 4. Workflows（`workflows-saved-lifecycle` / `workflows-invalid-files` / `workflows-run`）
 

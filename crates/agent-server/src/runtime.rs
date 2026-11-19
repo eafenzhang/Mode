@@ -54,7 +54,6 @@ use agent_core::goal::{
     continuation_prompt, continuation_stop_reason, parse_verifier_response, verifier_prompt,
     GoalStatus, GoalTarget, CANCELLED_VERIFIER_REASON,
 };
-use agent_core::plugin_tools::PluginToolSource;
 use agent_core::provider::{ModelDelta, ModelMessage, ProviderError};
 use agent_core::session::Session;
 use agent_core::session::TurnTerminalFacts;
@@ -537,6 +536,8 @@ struct Shared {
     tasks: std::sync::OnceLock<Arc<agent_core::TaskRegistry>>,
     /// C4 T1：MCP 工具源（首 turn 在阻塞线程上建连并注入工具目录）。
     mcp: Option<Arc<crate::mcp::McpSession>>,
+    /// C4 T2：MCP 连接 hub（插件 MCP 的会话工具源按 turn 读取）。
+    mcp_hub: Arc<crate::mcp::McpHub>,
 }
 
 impl Shared {
@@ -846,6 +847,7 @@ impl SessionRuntime {
             tasks: std::sync::OnceLock::new(),
             retry_traces: Mutex::new(HashMap::new()),
             mcp: wiring.mcp,
+            mcp_hub: wiring.mcp_hub,
             record,
         });
 
@@ -2210,17 +2212,35 @@ async fn run_one_input(
                 .last_memory_error
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = memory_load.error;
-            // C4 T1：首 turn 在阻塞线程上建连并注入 MCP 工具目录；失败 server 跳过，
-            // 不阻断 turn（观察：失败后会话照常可用）。
-            if let Some(mcp) = shared_for_turn.mcp.as_ref() {
-                if let Ok(declarations) = mcp.list_tools() {
-                    let source: Arc<dyn agent_core::PluginToolSource> =
-                        Arc::clone(mcp) as Arc<dyn agent_core::PluginToolSource>;
+            // C4 T1/T2：首 turn 在阻塞线程上建连并注入动态工具目录（Skill + MCP）；
+            // 失败 server 跳过，不阻断 turn（观察：失败后会话照常可用）。
+            {
+                let mut sources: Vec<Arc<dyn agent_core::PluginToolSource>> = vec![Arc::new(
+                    crate::skills::SkillToolSource::new(shared_for_turn.record.directory.clone()),
+                )];
+                if let Some(mcp) = shared_for_turn.mcp.as_ref() {
+                    sources.push(Arc::clone(mcp) as Arc<dyn agent_core::PluginToolSource>);
+                }
+                // C4 T2：已启用插件自带的 MCP server（`.mcp.json`）也进工具目录。
+                if let Some(data_root) = shared_for_turn.read_config().data_root.clone() {
+                    let plugin_service = crate::plugins::PluginService::from_data_root(&data_root);
+                    for plugin in plugin_service.session_mcp_servers() {
+                        sources.push(shared_for_turn.mcp_hub.session_with_origin(
+                            vec![plugin.server],
+                            agent_protocol::workspace::McpSource::Plugin,
+                            plugin.plugin_name,
+                        )
+                            as Arc<dyn agent_core::PluginToolSource>);
+                    }
+                }
+                if let Ok((declarations, composite)) =
+                    crate::skills::CompositeToolSource::combine(sources)
+                {
                     let tools = declarations
                         .into_iter()
                         .map(agent_core::PluginToolDeclaration::into_spec)
                         .collect();
-                    session.set_dynamic_tools(tools, source);
+                    session.set_dynamic_tools(tools, composite);
                 }
             }
             let result = if is_notification_turn {

@@ -182,6 +182,14 @@ fn attach_display(outcome: &mut ToolOutcome, value: &Value) {
     }
 }
 
+/// C4 T2：`Skill` 工具的结果带 `skillMetadata`（观察 `{source:"mode"}`）；
+/// 其它插件源没有该键时保持原状。
+fn attach_skill_metadata(outcome: &mut ToolOutcome, value: &Value) {
+    if let Some(skill_metadata) = value.get("skillMetadata") {
+        outcome.skill_metadata_json = Some(skill_metadata.to_string());
+    }
+}
+
 impl Session {
     pub fn new(session_id: impl Into<String>, cwd: impl Into<String>) -> Self {
         let session_id = session_id.into();
@@ -353,10 +361,12 @@ impl Session {
                 if budget == "artifact" {
                     let mut outcome = ToolOutcome::artifact(content);
                     attach_display(&mut outcome, &value);
+                    attach_skill_metadata(&mut outcome, &value);
                     Ok(outcome)
                 } else {
                     let mut outcome = ToolOutcome::text(content);
                     attach_display(&mut outcome, &value);
+                    attach_skill_metadata(&mut outcome, &value);
                     Ok(outcome)
                 }
             }

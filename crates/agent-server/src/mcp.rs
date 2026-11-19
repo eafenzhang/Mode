@@ -72,8 +72,17 @@ impl McpToolDescriptor {
             .get("inputSchema")
             .cloned()
             .unwrap_or_else(|| json!({ "type": "object" }));
+        // 自定义 MCP：`mcp__<server>__<tool>`；插件 MCP（server 名 `plugin:<plugin>:<server>`）：
+        // `mcp__plugin_<plugin>_<server>__<tool>`（观察 `mcp__plugin_fixture_fixture__echo`）。
+        let qualified_name = match server_name.strip_prefix("plugin:") {
+            Some(rest) => {
+                let (plugin, server) = rest.split_once(':').unwrap_or((rest, ""));
+                format!("mcp__plugin_{plugin}_{server}__{tool_name}")
+            }
+            None => format!("mcp__{server_name}__{tool_name}"),
+        };
         Some(Self {
-            qualified_name: format!("mcp__{server_name}__{tool_name}"),
+            qualified_name,
             server_name: server_name.to_string(),
             tool_name,
             description,
@@ -153,6 +162,9 @@ pub struct McpConnection {
     status: RwLock<McpServerStatusSnapshot>,
     tools: RwLock<Vec<McpToolDescriptor>>,
     next_id: AtomicU64,
+    /// `process/childProcesses` 的来源：自定义 server / 插件（带 pluginName）。
+    source: McpSource,
+    plugin_name: Option<String>,
 }
 
 impl std::fmt::Debug for McpConnection {
@@ -167,7 +179,7 @@ impl std::fmt::Debug for McpConnection {
 }
 
 impl McpConnection {
-    fn new(server: McpServer) -> Self {
+    fn new(server: McpServer, source: McpSource, plugin_name: Option<String>) -> Self {
         let transport = transport_of(&server);
         let now = iso8601_now();
         Self {
@@ -192,6 +204,8 @@ impl McpConnection {
             connect_lock: Mutex::new(()),
             tools: RwLock::new(Vec::new()),
             next_id: AtomicU64::new(1),
+            source,
+            plugin_name,
         }
     }
 
@@ -756,21 +770,43 @@ impl McpHub {
 
     /// 取得（必要时创建）连接条目；不建连。
     pub fn connection(&self, server: &McpServer) -> Arc<McpConnection> {
+        self.connection_with_origin(server, McpSource::Custom, None)
+    }
+
+    /// 带来源的连接条目（插件 MCP 用 `plugin:<plugin>:<server>` 名 + `mcpSource:"plugin"`）。
+    pub fn connection_with_origin(
+        &self,
+        server: &McpServer,
+        source: McpSource,
+        plugin_name: Option<String>,
+    ) -> Arc<McpConnection> {
         let name = server_name(server);
         let mut connections = self
             .connections
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         Arc::clone(
-            connections
-                .entry(name)
-                .or_insert_with(|| Arc::new(McpConnection::new(server.clone()))),
+            connections.entry(name).or_insert_with(|| {
+                Arc::new(McpConnection::new(server.clone(), source, plugin_name))
+            }),
         )
     }
 
     /// 取条目并建连（幂等）；失败不 panic，状态留在条目里。
     pub fn connect(&self, server: &McpServer) -> Arc<McpConnection> {
         let connection = self.connection(server);
+        connection.connect();
+        connection
+    }
+
+    /// 带来源的建连（插件 MCP）。
+    pub fn connect_with_origin(
+        &self,
+        server: &McpServer,
+        source: McpSource,
+        plugin_name: Option<String>,
+    ) -> Arc<McpConnection> {
+        let connection = self.connection_with_origin(server, source, plugin_name);
         connection.connect();
         connection
     }
@@ -804,8 +840,8 @@ impl McpHub {
                 processes.push(ChildProcess {
                     pid: transport.child.id() as u64,
                     server_name: connection.name(),
-                    mcp_source: McpSource::Custom,
-                    plugin_name: None,
+                    mcp_source: connection.source,
+                    plugin_name: connection.plugin_name.clone(),
                 });
             }
         }
@@ -820,6 +856,22 @@ impl McpHub {
         Arc::new(McpSession {
             hub: Arc::clone(self),
             servers,
+            origin: None,
+        })
+    }
+
+    /// 插件 MCP 的工具源：连接登记为 `mcpSource:"plugin"`，工具名走
+    /// `mcp__plugin_<plugin>_<server>__<tool>`。
+    pub fn session_with_origin(
+        self: &Arc<Self>,
+        servers: Vec<McpServer>,
+        source: McpSource,
+        plugin_name: String,
+    ) -> Arc<McpSession> {
+        Arc::new(McpSession {
+            hub: Arc::clone(self),
+            servers,
+            origin: Some((source, plugin_name)),
         })
     }
 }
@@ -828,6 +880,8 @@ impl McpHub {
 pub struct McpSession {
     hub: Arc<McpHub>,
     servers: Vec<McpServer>,
+    /// 插件 MCP 的来源（自定义 server 为 `None`）。
+    origin: Option<(McpSource, String)>,
 }
 
 impl std::fmt::Debug for McpSession {
@@ -842,18 +896,30 @@ impl std::fmt::Debug for McpSession {
 impl PluginToolSource for McpSession {
     fn list_tools(&self) -> Result<Vec<PluginToolDeclaration>, String> {
         let mut declarations = Vec::new();
+        let is_plugin = self.origin.is_some();
         for server in &self.servers {
-            let connection = self.hub.connect(server);
+            let connection = match &self.origin {
+                Some((source, plugin_name)) => {
+                    self.hub
+                        .connect_with_origin(server, *source, Some(plugin_name.clone()))
+                }
+                None => self.hub.connect(server),
+            };
             for tool in connection.tools() {
                 declarations.push(PluginToolDeclaration {
                     name: tool.qualified_name.clone(),
                     description: tool.description.clone(),
                     input_schema: tool.input_schema.clone(),
-                    // 自定义 MCP 的观察档：只读、session 副作用、truncate、medium。
+                    // 自定义 MCP：只读、session 副作用；插件 MCP：非只读、network
+                    // （观察：自定义 `canRunParallel:true`，插件 `false`）。
                     risk_level: Some("medium".to_string()),
-                    side_effect_scope: Some("session".to_string()),
+                    side_effect_scope: Some(if is_plugin {
+                        "network".to_string()
+                    } else {
+                        "session".to_string()
+                    }),
                     budget_strategy: Some("truncate".to_string()),
-                    read_only: Some(true),
+                    read_only: Some(!is_plugin),
                     display_json: Some(tool.display().to_string()),
                 });
             }
@@ -863,7 +929,13 @@ impl PluginToolSource for McpSession {
 
     fn call_tool(&self, tool_name: &str, input: &Value) -> Result<Value, PluginToolError> {
         for server in &self.servers {
-            let connection = self.hub.connection(server);
+            let connection = match &self.origin {
+                Some((source, plugin_name)) => {
+                    self.hub
+                        .connection_with_origin(server, *source, Some(plugin_name.clone()))
+                }
+                None => self.hub.connection(server),
+            };
             if let Some(tool) = connection.tool_by_qualified(tool_name) {
                 return connection.call_tool(&tool, input);
             }

@@ -1693,6 +1693,7 @@ async fn denied_tool_call_has_matching_tool_result_in_next_model_request() {
         rule_db_path: None,
         reverse: None,
         mcp: None,
+        mcp_hub: Default::default(),
     };
     let runtime = spawn_runtime_with_wiring(&fixture, provider.clone(), wiring);
     let (_, mut receiver) = runtime.subscribe(None);

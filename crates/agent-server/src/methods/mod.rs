@@ -16,12 +16,14 @@ pub mod goal;
 pub mod list;
 pub mod mcp;
 pub mod messages;
+pub mod plugins;
 pub mod process;
 pub mod projection;
 pub mod read;
 pub mod resume;
 pub mod send;
 pub mod setters;
+pub mod skills;
 pub mod subagents;
 pub mod subscribe;
 
@@ -43,6 +45,13 @@ use crate::server::ServerError;
 use crate::state::{RuntimeConfig, RuntimeError};
 
 pub use agent_protocol::mcp::MCP_LIST_METHOD;
+pub use agent_protocol::plugin::{
+    PLUGINS_CANCEL_OPERATION_METHOD, PLUGINS_DESCRIBE_METHOD, PLUGINS_INSTALL_METHOD,
+    PLUGINS_LIST_METHOD, PLUGINS_MARKETPLACE_ADD_METHOD, PLUGINS_MARKETPLACE_REMOVE_METHOD,
+    PLUGINS_MARKETPLACE_UPDATE_METHOD, PLUGINS_OVERVIEW_METHOD, PLUGINS_REFERENCE_CATALOG_METHOD,
+    PLUGINS_REFERENCE_CATALOG_WITH_CATEGORY_METHOD, PLUGINS_RESOLVE_SUGGESTED_REFERENCE_METHOD,
+    PLUGINS_SET_ENABLED_METHOD, PLUGINS_UNINSTALL_METHOD, PLUGINS_UPDATE_METHOD,
+};
 pub use agent_protocol::session_read::{
     SESSION_LIST_METHOD, SESSION_MESSAGES_METHOD, SESSION_READ_METHOD, SESSION_SUBAGENTS_METHOD,
     SESSION_SUBSCRIBE_METHOD,
@@ -53,6 +62,7 @@ pub use agent_protocol::session_write::{
     SESSION_RESUME_METHOD, SESSION_SET_MODEL_METHOD, SESSION_SET_MODE_METHOD,
     SESSION_SET_THOUGHT_LEVEL_METHOD, SESSION_STOP_METHOD,
 };
+pub use agent_protocol::skills::SKILLS_REFERENCE_CATALOG_METHOD;
 pub use agent_protocol::workspace::PROCESS_CHILD_PROCESSES_METHOD;
 
 /// 严格解析 params：未知键 / 类型不符一律 `-32602`，不静默吞掉。

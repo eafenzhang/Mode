@@ -454,4 +454,6 @@ pub struct RuntimeWiring {
     pub reverse: Option<Arc<ReverseHub>>,
     /// C4 T1：会话的 MCP 工具源（首 turn 才建连；失败 server 不阻断 turn）。
     pub mcp: Option<Arc<crate::mcp::McpSession>>,
+    /// C4 T2：MCP 连接 hub（插件 MCP 与 `mcp/list` 共用同一张表）。
+    pub mcp_hub: Arc<crate::mcp::McpHub>,
 }

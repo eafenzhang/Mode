@@ -405,6 +405,47 @@ impl AgentServer {
             crate::methods::SESSION_STOP_METHOD => methods::goal::handle_stop(self, params),
             crate::methods::SESSION_SUBAGENTS_METHOD => methods::subagents::handle(self, params),
             crate::methods::MCP_LIST_METHOD => methods::mcp::handle(self, params),
+            crate::methods::SKILLS_REFERENCE_CATALOG_METHOD => {
+                methods::skills::handle(self, params)
+            }
+            crate::methods::PLUGINS_LIST_METHOD => methods::plugins::handle_list(self, params),
+            crate::methods::PLUGINS_DESCRIBE_METHOD => {
+                methods::plugins::handle_describe(self, params)
+            }
+            crate::methods::PLUGINS_OVERVIEW_METHOD => {
+                methods::plugins::handle_overview(self, params)
+            }
+            crate::methods::PLUGINS_SET_ENABLED_METHOD => {
+                methods::plugins::handle_set_enabled(self, params)
+            }
+            crate::methods::PLUGINS_REFERENCE_CATALOG_METHOD => {
+                methods::plugins::handle_reference_catalog(self, params)
+            }
+            crate::methods::PLUGINS_REFERENCE_CATALOG_WITH_CATEGORY_METHOD => {
+                methods::plugins::handle_reference_catalog_with_category(self, params)
+            }
+            crate::methods::PLUGINS_RESOLVE_SUGGESTED_REFERENCE_METHOD => {
+                methods::plugins::handle_resolve_suggested_reference(self, params)
+            }
+            crate::methods::PLUGINS_MARKETPLACE_ADD_METHOD => {
+                methods::plugins::handle_marketplace_add(self, params)
+            }
+            crate::methods::PLUGINS_MARKETPLACE_REMOVE_METHOD => {
+                methods::plugins::handle_marketplace_remove(self, params)
+            }
+            crate::methods::PLUGINS_MARKETPLACE_UPDATE_METHOD => {
+                methods::plugins::handle_marketplace_update(self, params)
+            }
+            crate::methods::PLUGINS_INSTALL_METHOD => {
+                methods::plugins::handle_install(self, params)
+            }
+            crate::methods::PLUGINS_UNINSTALL_METHOD => {
+                methods::plugins::handle_uninstall(self, params)
+            }
+            crate::methods::PLUGINS_UPDATE_METHOD => methods::plugins::handle_update(self, params),
+            crate::methods::PLUGINS_CANCEL_OPERATION_METHOD => {
+                methods::plugins::handle_cancel_operation(self, params)
+            }
             crate::methods::PROCESS_CHILD_PROCESSES_METHOD => {
                 methods::process::handle(self, params)
             }

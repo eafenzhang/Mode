@@ -214,6 +214,9 @@ pub struct ToolOutcome {
     /// Edit 是 `{kind:"patch", filesystem:{…}, patch:{…}}`（全部来自行为夹具的录制）。
     /// `Read` 没有 detail（观察如此），保持 `None`。
     pub detail_json: Option<String>,
+    /// `result.skillMetadata` 的 JSON 文本（C4 T2：Skill 工具观察到的 `{source:"mode"}`）；
+    /// `None` = 不写该键。
+    pub skill_metadata_json: Option<String>,
 }
 
 impl ToolOutcome {
@@ -231,6 +234,7 @@ impl ToolOutcome {
             artifact_path: None,
             display_json: None,
             detail_json: None,
+            skill_metadata_json: None,
         }
     }
 
@@ -248,6 +252,7 @@ impl ToolOutcome {
             artifact_path: None,
             display_json: None,
             detail_json: None,
+            skill_metadata_json: None,
         }
     }
 

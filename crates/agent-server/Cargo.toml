@@ -29,6 +29,10 @@ mode-api-retry = { path = "../mode-api-retry" }
 model-selection = { path = "../model-selection" }
 # C2 T3：项目记忆只读召回（记忆目录扫描 + MEMORY.md 索引读取的安全规则都在该 crate）。
 project-memory = { path = "../project-memory" }
+# C4 T2：技能目录发现与 SKILL.md 解析（`.mode/skills` + 插件 skill）。
+skills-service = { path = "../skills-service" }
+# C4 T2：插件 manifest/缓存/安装记录的发现规则（与 skills-service 共用一份）。
+plugin-discovery = { path = "../plugin-discovery" }
 provider-config = { path = "../provider-config" }
 provider-config-repository = { path = "../provider-config-repository" }
 provider-config-source = { path = "../provider-config-source" }

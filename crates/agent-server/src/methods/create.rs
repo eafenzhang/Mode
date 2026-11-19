@@ -165,6 +165,7 @@ pub(super) fn spawn_runtime(
         rule_db_path: Some(store.db_path().to_path_buf()),
         reverse,
         mcp,
+        mcp_hub: Arc::clone(server.mcp_hub()),
     };
     let runtime = Arc::new(
         SessionRuntime::new(record, store, server.provider_source(), config, wiring)

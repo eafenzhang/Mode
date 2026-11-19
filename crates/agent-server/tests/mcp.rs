@@ -550,3 +550,55 @@ fn session_tool_batch_uses_mcp_catalog_and_emits_observed_events() {
         Some(&json!("truncate"))
     );
 }
+
+#[test]
+fn plugin_mcp_uses_plugin_tool_name_and_origin() {
+    if !node_available() {
+        eprintln!("skip: node 不可用");
+        return;
+    }
+    let root = TempRoot::new("plugin-origin");
+    let script = write_node_server(root.path(), "happy");
+    let hub = Arc::new(McpHub::new());
+    let server = stdio_server("plugin:fixture:fixture", &script, Some(10_000));
+    let source = hub.session_with_origin(
+        vec![server],
+        agent_protocol::workspace::McpSource::Plugin,
+        "fixture".to_string(),
+    );
+    let declarations = source.list_tools().expect("list tools");
+    let names: Vec<_> = declarations
+        .iter()
+        .map(|declaration| declaration.name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        vec![
+            "mcp__plugin_fixture_fixture__echo",
+            "mcp__plugin_fixture_fixture__fail",
+            "mcp__plugin_fixture_fixture__slow",
+        ]
+    );
+    // 插件 MCP 是 canRunParallel:false / started 非只读（自定义 MCP 相反）。
+    assert_eq!(declarations[0].read_only, Some(false));
+    assert_eq!(
+        declarations[0].side_effect_scope.as_deref(),
+        Some("network")
+    );
+    let display: Value = serde_json::from_str(
+        declarations[0]
+            .display_json
+            .as_deref()
+            .expect("display json"),
+    )
+    .expect("valid display");
+    assert_eq!(display["serverName"], json!("plugin:fixture:fixture"));
+
+    let processes = hub.child_processes();
+    assert_eq!(processes.len(), 1);
+    assert_eq!(
+        processes[0].mcp_source,
+        agent_protocol::workspace::McpSource::Plugin
+    );
+    assert_eq!(processes[0].plugin_name.as_deref(), Some("fixture"));
+}
