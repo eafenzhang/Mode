@@ -35,6 +35,7 @@ mod scripted;
 mod server;
 mod skills;
 mod state;
+pub mod workflows;
 
 pub use dispatch::{AgentServer, HubProviderSource, ServerConfig};
 pub use lifecycle::{parse_startup_args, run_main, StartupArgs, APP_SERVER_MODE, STDIO_FLAG};
@@ -53,6 +54,7 @@ pub use runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
 pub use scripted::{ScriptedFixtureSource, SCRIPTED_PROVIDER_ENV};
 pub use skills::{CompositeToolSource, SkillCatalog, SkillToolSource};
 pub use state::{Accepted, RuntimeConfig, RuntimeError, SessionInput};
+pub use workflows::{parse_workflow, render_workflow, WorkflowDirs};
 // 线上帧类型的唯一所有者是 `agent-protocol`；这里只做转出，避免第二套帧定义。
 pub use agent_protocol::{
     ErrorObject, ErrorResponseFrame, Frame, NotificationFrame, RequestFrame, RequestId,

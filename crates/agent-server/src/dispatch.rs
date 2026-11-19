@@ -449,6 +449,16 @@ impl AgentServer {
             crate::methods::PROCESS_CHILD_PROCESSES_METHOD => {
                 methods::process::handle(self, params)
             }
+            crate::methods::WORKFLOWS_LIST_METHOD => methods::workflows::handle_list(self, params),
+            crate::methods::WORKFLOWS_GET_METHOD => methods::workflows::handle_get(self, params),
+            crate::methods::WORKFLOWS_UPDATE_META_METHOD => {
+                methods::workflows::handle_update_meta(self, params)
+            }
+            crate::methods::WORKFLOWS_DELETE_METHOD => {
+                methods::workflows::handle_delete(self, params)
+            }
+            crate::methods::WORKFLOWS_MOVE_METHOD => methods::workflows::handle_move(self, params),
+            crate::methods::WORKFLOWS_RUNS_METHOD => methods::workflows::handle_runs(self, params),
             _ => Err(ServerError::method_not_found(method)),
         }
     }

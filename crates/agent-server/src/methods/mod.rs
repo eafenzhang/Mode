@@ -26,6 +26,7 @@ pub mod setters;
 pub mod skills;
 pub mod subagents;
 pub mod subscribe;
+pub mod workflows;
 
 use agent_core::ModelCapabilities;
 use agent_protocol::message::MessageModel;
@@ -63,6 +64,10 @@ pub use agent_protocol::session_write::{
     SESSION_SET_THOUGHT_LEVEL_METHOD, SESSION_STOP_METHOD,
 };
 pub use agent_protocol::skills::SKILLS_REFERENCE_CATALOG_METHOD;
+pub use agent_protocol::workflow::{
+    WORKFLOWS_DELETE_METHOD, WORKFLOWS_GET_METHOD, WORKFLOWS_LIST_METHOD, WORKFLOWS_MOVE_METHOD,
+    WORKFLOWS_RUNS_METHOD, WORKFLOWS_UPDATE_META_METHOD,
+};
 pub use agent_protocol::workspace::PROCESS_CHILD_PROCESSES_METHOD;
 
 /// 严格解析 params：未知键 / 类型不符一律 `-32602`，不静默吞掉。

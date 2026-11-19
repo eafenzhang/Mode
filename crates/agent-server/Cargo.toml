@@ -38,6 +38,8 @@ provider-config-repository = { path = "../provider-config-repository" }
 provider-config-source = { path = "../provider-config-source" }
 provider-http = { path = "../provider-http" }
 provider-resolver = { path = "../provider-resolver" }
+# C4 T3：`workflows/runs` 只读 `dwf_run`（与 session-store 同库；短连接只读）。
+rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 session-store = { path = "../session-store" }
