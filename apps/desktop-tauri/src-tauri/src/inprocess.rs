@@ -10,7 +10,9 @@
 //! - 服务面按 **Host 代**重建：换代时 `dispose` 旧服务器，避免本地与对端 id 空间错位。
 //! - `ChannelServer` 用 `defer_init = true` 且永不 `ready()`：`Initialize` 只能由 Node Host 发。
 //!
-//! 开关：`MODE_HOST_INPROCESS_CHANNELS=<逗号分隔频道>`；为空时整条链路完全不介入。
+//! 开关：`MODE_HOST_INPROCESS_CHANNELS`。未设置/`none` = 纯转发；`default` = 全部白名单
+//! 业务频道（不含 `mode-agent`，S2 另有门禁）。语义与默认翻转前置见
+//! `docs/specs/w2-transport-cutover.md` §3/§5。
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -18,26 +20,26 @@ use std::time::Duration;
 
 use agent_process::AgentControlClient;
 use host_channels::{
-    AgentHealthChannel, HooksChannel, McpSyncChannel, ModeAgentChannel, HOOKS_CHANNEL,
-    MCP_SYNC_CHANNEL, MODE_AGENT_CHANNEL,
+    AGENT_HEALTH_CHANNEL, ATTACHMENT_TRANSFER_CHANNEL, AttachmentTransferChannel,
+    BROADCAST_CHANNEL, BroadcastChannel, CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL,
+    COMMANDS_CHANNEL, CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL, ClientConfigChannel,
+    ClientScenesChannel, CommandsChannel, ConversationMirrorChannel, CredentialChannel,
+    FILE_CHANNEL, FILE_WATCHER_CHANNEL, FileChannel, FileWatcherChannel, GIT_CHANNEL,
+    GIT_CHECKPOINT_CHANNEL, GitChannel, GitCheckpointChannel, MEDIA_PREVIEW_CHANNEL,
+    MEMORY_CHANNEL, MediaPreviewChannel, MemoryChannel, PLUGIN_SYNC_CHANNEL, PluginSyncChannel,
+    SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL, SKILL_SYNC_CHANNEL, SKILLS_CHANNEL, SUBAGENTS_CHANNEL,
+    SYSTEM_CHANNEL, SettingChannel, SettingsSyncChannel, SkillSyncChannel, SkillsChannel,
+    SubagentsChannel, SystemChannel, TERMINAL_CHANNEL, TerminalChannel,
 };
 use host_channels::{
-    AttachmentTransferChannel, BroadcastChannel, ClientConfigChannel, ClientScenesChannel,
-    CommandsChannel, ConversationMirrorChannel, CredentialChannel, FileChannel, FileWatcherChannel,
-    GitChannel, GitCheckpointChannel, MediaPreviewChannel, MemoryChannel, PluginSyncChannel,
-    SettingChannel, SettingsSyncChannel, SkillSyncChannel, SkillsChannel, SubagentsChannel,
-    SystemChannel, TerminalChannel, AGENT_HEALTH_CHANNEL, ATTACHMENT_TRANSFER_CHANNEL,
-    BROADCAST_CHANNEL, CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL,
-    CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL, FILE_CHANNEL, FILE_WATCHER_CHANNEL,
-    GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
-    PLUGIN_SYNC_CHANNEL, SETTINGS_SYNC_CHANNEL, SETTING_CHANNEL, SKILLS_CHANNEL,
-    SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL,
+    AgentHealthChannel, HOOKS_CHANNEL, HooksChannel, MCP_SYNC_CHANNEL, MODE_AGENT_CHANNEL,
+    McpSyncChannel, ModeAgentChannel,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
 use std::sync::Arc as StdArc;
 
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 use crate::host::HostSupervisor;
 
@@ -62,8 +64,9 @@ pub struct InprocessState {
     enabled: bool,
     /// S2 翻面/回滚与退出清理共用同一个 client；健康面只读，不会因持有它而 spawn。
     agent_control: Arc<AgentControlClient>,
-    /// 页面桥声明挂接/回收的 remote scope。服务面目前只接管 base scope；这张表先如实
-    /// 记录，供下一步按 scope 复用 `ChannelServer` 与回帧加前缀时使用。
+    /// 页面桥声明挂接/回收的 remote scope。scope 生命周期归 Node Host：登记表是
+    /// decide 的**门禁**——只有已挂接 scope 上的请求才由壳内服务面应答，未挂接/
+    /// 已 detach（含登记表不可读时 fail-closed）一律回落 Node（见 decide_route）。
     scopes: std::sync::Mutex<LocalScopeRegistry>,
 }
 
@@ -100,6 +103,102 @@ fn is_owned_channel(name: &str) -> bool {
     )
 }
 
+/// `default` 特值展开的频道集：全部白名单业务频道，**不含 `mode-agent`**——
+/// 它的频道所有权翻面挂 W4 S2 的 20 任务验收（spec docs/specs/host-ownership-switch.md），
+/// 不随 W2 默认集翻面。`host` 永不在内（看门狗不能测壳自己）。
+/// 规范：docs/specs/w2-transport-cutover.md §3。
+fn default_owned_channels() -> Vec<String> {
+    [
+        MEMORY_CHANNEL,
+        ATTACHMENT_TRANSFER_CHANNEL,
+        CLIENT_CONFIG_CHANNEL,
+        CLIENT_SCENES_CHANNEL,
+        MEDIA_PREVIEW_CHANNEL,
+        CONVERSATION_MIRROR_CHANNEL,
+        SETTING_CHANNEL,
+        CREDENTIAL_CHANNEL,
+        SYSTEM_CHANNEL,
+        FILE_CHANNEL,
+        FILE_WATCHER_CHANNEL,
+        COMMANDS_CHANNEL,
+        SKILLS_CHANNEL,
+        SUBAGENTS_CHANNEL,
+        SETTINGS_SYNC_CHANNEL,
+        BROADCAST_CHANNEL,
+        SKILL_SYNC_CHANNEL,
+        GIT_CHANNEL,
+        GIT_CHECKPOINT_CHANNEL,
+        PLUGIN_SYNC_CHANNEL,
+        MCP_SYNC_CHANNEL,
+        AGENT_HEALTH_CHANNEL,
+        HOOKS_CHANNEL,
+        TERMINAL_CHANNEL,
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect()
+}
+
+/// 开关值的解析（纯函数，便于对拍）：
+/// - `None`（未设置）→ 空集 = 纯转发（默认翻转挂真机验收，见 spec w2-transport-cutover.md §5）；
+/// - `none` → 空集（显式回滚，优先级最高，出现即忽略其余项）；
+/// - 含 `default` → 默认集 ∪ 显式列出的频道名（去重保序）；
+/// - 其余 → 原样列表（白名单过滤与 ignored 留痕仍由 `from_env` 负责）。
+fn resolve_channel_requests(raw: Option<&str>) -> Vec<String> {
+    let requested: Vec<String> = raw
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+        .collect();
+    if requested.iter().any(|name| name == "none") {
+        return Vec::new();
+    }
+    let mut out: Vec<String> = Vec::new();
+    for name in requested {
+        if name == "default" {
+            for channel in default_owned_channels() {
+                if !out.iter().any(|existing| existing == &channel) {
+                    out.push(channel);
+                }
+            }
+            continue;
+        }
+        if !out.iter().any(|existing| existing == &name) {
+            out.push(name);
+        }
+    }
+    out
+}
+
+/// 路由裁决的纯函数核（`decide` 的可测部分；Control 的登记副作用由调用方处理）。
+///
+/// owned 频道的 scoped 帧只有在 scope **已挂接**时才走本地；未挂接 / 已 detach /
+/// 登记表不可读（fail-closed）一律回落 Node——scope 生命周期归 Node Host，
+/// 幽灵 scope 不能被本地幽灵服务应答（修复：此前登记表只写不读，detach 后的
+/// scoped 请求仍会被本地应答）。
+fn decide_route(route: FrameRoute, attached: Option<&LocalScopeRegistry>) -> RouteDecision {
+    match route {
+        FrameRoute::Local {
+            payload, scope_id, ..
+        } => {
+            if let Some(scope) = scope_id {
+                let is_attached = match attached {
+                    Some(registry) => registry.is_attached(scope),
+                    None => false,
+                };
+                if !is_attached {
+                    return RouteDecision::Forward;
+                }
+            }
+            RouteDecision::Local { scope_id, payload }
+        }
+        FrameRoute::Rejected => RouteDecision::Dropped,
+        FrameRoute::Legacy | FrameRoute::Control(_) => RouteDecision::Forward,
+    }
+}
+
 impl InprocessState {
     /// 读开关并起消费/回帧两条任务。开关为空时不注册任何频道，链路退化为纯转发。
     pub fn from_env(
@@ -107,16 +206,8 @@ impl InprocessState {
         data_root: PathBuf,
         agent_control: Arc<AgentControlClient>,
     ) -> Arc<Self> {
-        let requested: Vec<String> = std::env::var(ENV_CHANNELS)
-            .unwrap_or_default()
-            .split(',')
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .map(str::to_string)
-            .collect();
-
         let mut owned = Vec::new();
-        for name in requested {
+        for name in resolve_channel_requests(std::env::var(ENV_CHANNELS).ok().as_deref()) {
             if is_owned_channel(&name) {
                 owned.push(name);
             } else {
@@ -183,28 +274,28 @@ impl InprocessState {
         if !self.enabled {
             return RouteDecision::Forward;
         }
-        match self.router.route(frame) {
-            FrameRoute::Local {
-                payload, scope_id, ..
-            } => RouteDecision::Local { scope_id, payload },
-            FrameRoute::Rejected => RouteDecision::Dropped,
-            FrameRoute::Control(control) => {
-                // 控制帧仍要转发给 Node（未移植频道的 scope 生命周期归它），
-                // 这里先把挂接状态同步到壳内登记表。
-                if let Ok(mut scopes) = self.scopes.lock() {
-                    match control {
-                        rpc_wire::AttachmentControl::ScopeReady(scope_id) => {
-                            scopes.attach(scope_id);
-                        }
-                        rpc_wire::AttachmentControl::ScopeDetach(scope_id) => {
-                            scopes.detach(scope_id);
-                        }
+        let route = self.router.route(frame);
+        if let FrameRoute::Control(control) = &route {
+            // 控制帧仍要转发给 Node（scope 生命周期归它），这里同步壳内登记表。
+            if let Ok(mut scopes) = self.scopes.lock() {
+                match control {
+                    rpc_wire::AttachmentControl::ScopeReady(scope_id) => {
+                        scopes.attach(*scope_id);
+                    }
+                    rpc_wire::AttachmentControl::ScopeDetach(scope_id) => {
+                        scopes.detach(*scope_id);
                     }
                 }
-                RouteDecision::Forward
             }
-            FrameRoute::Legacy => RouteDecision::Forward,
+            return RouteDecision::Forward;
         }
+        let guard = self.scopes.lock().ok();
+        decide_route(
+            route,
+            guard
+                .as_deref()
+                .map(|registry| registry as &LocalScopeRegistry),
+        )
     }
 
     pub fn dispatch(&self, scope_id: Option<u32>, payload: Vec<u8>) {
@@ -536,5 +627,122 @@ mod tests {
         assert!(!is_owned_channel("host"));
         assert!(!is_owned_channel("mode-task"));
         assert!(!is_owned_channel("window-controller"));
+    }
+
+    #[test]
+    fn unset_switch_stays_forward_only() {
+        // W2 默认翻转的前置是真机验收（spec w2-transport-cutover.md §5）；
+        // 在那之前「未设置」必须保持纯转发，回归面为零。
+        assert!(resolve_channel_requests(None).is_empty());
+    }
+
+    #[test]
+    fn none_wins_and_disables_everything() {
+        // 显式回滚语义最强：与其它项混用时以 none 为准。
+        assert!(resolve_channel_requests(Some("none")).is_empty());
+        assert!(resolve_channel_requests(Some("memory, none ,git")).is_empty());
+    }
+
+    #[test]
+    fn default_expands_without_mode_agent_or_host() {
+        let resolved = resolve_channel_requests(Some("default"));
+        assert!(!resolved.is_empty());
+        assert!(!resolved.iter().any(|name| name == MODE_AGENT_CHANNEL));
+        assert!(!resolved.iter().any(|name| name == "host"));
+        for channel in [
+            MEMORY_CHANNEL,
+            TERMINAL_CHANNEL,
+            MCP_SYNC_CHANNEL,
+            HOOKS_CHANNEL,
+            AGENT_HEALTH_CHANNEL,
+        ] {
+            assert!(
+                resolved.iter().any(|name| name == channel),
+                "{channel} 缺席"
+            );
+        }
+    }
+
+    #[test]
+    fn default_merges_with_explicit_names_and_dedupes() {
+        let resolved = resolve_channel_requests(Some("default, memory, host, mode-task"));
+        // default 已含 memory；host/mode-task 不在白名单，由 from_env 的过滤留痕，
+        // 但解析层如实保留显式名字（职责分离：解析不认识白名单）。
+        assert!(resolved.iter().any(|name| name == MEMORY_CHANNEL));
+        assert_eq!(
+            resolved
+                .iter()
+                .filter(|name| name.as_str() == MEMORY_CHANNEL)
+                .count(),
+            1,
+            "memory 不应重复"
+        );
+        assert!(resolved.iter().any(|name| name == "host"));
+        assert!(resolved.iter().any(|name| name == "mode-task"));
+    }
+
+    fn memory_list_frame(id: i32) -> Vec<u8> {
+        use rpc_wire::{RequestHeader, RpcMessage, Value, encode_rpc_message};
+        encode_rpc_message(&RpcMessage {
+            header: RequestHeader::Promise {
+                id,
+                channel: MEMORY_CHANNEL.into(),
+                method: "listProjectMemories".into(),
+            },
+            body: Value::Array(Vec::new()),
+        })
+    }
+
+    #[test]
+    fn scoped_requests_forward_until_the_scope_is_attached() {
+        // scope 生命周期归 Node（spec w2-transport-cutover.md §4）：scope-ready 之前/
+        // detach 之后，scoped 请求回落 Node；挂接期间由本地应答。
+        let router = FrameRouter::new([MEMORY_CHANNEL]);
+        let mut registry = LocalScopeRegistry::new();
+        let scoped =
+            rpc_wire::encode_scoped_frame(9, &memory_list_frame(1)).expect("编码 scoped 帧");
+
+        assert!(matches!(
+            decide_route(router.route(&scoped), Some(&registry)),
+            RouteDecision::Forward
+        ));
+        registry.attach(9);
+        assert!(matches!(
+            decide_route(router.route(&scoped), Some(&registry)),
+            RouteDecision::Local {
+                scope_id: Some(9),
+                ..
+            }
+        ));
+        registry.detach(9);
+        assert!(matches!(
+            decide_route(router.route(&scoped), Some(&registry)),
+            RouteDecision::Forward
+        ));
+    }
+
+    #[test]
+    fn base_requests_stay_local_and_garbage_drops() {
+        let router = FrameRouter::new([MEMORY_CHANNEL]);
+        assert!(matches!(
+            decide_route(router.route(&memory_list_frame(2)), None),
+            RouteDecision::Local { scope_id: None, .. }
+        ));
+        assert!(matches!(
+            decide_route(router.route(&[1, 2, 3]), None),
+            RouteDecision::Dropped
+        ));
+    }
+
+    #[test]
+    fn unreadable_registry_fails_closed_to_node() {
+        // 登记表锁损坏时宁可回落 Node 也不能本地应答幽灵 scope。
+        let router = FrameRouter::new([MEMORY_CHANNEL]);
+        let scoped =
+            rpc_wire::encode_scoped_frame(7, &memory_list_frame(3)).expect("编码 scoped 帧");
+        assert!(matches!(
+            decide_route(router.route(&scoped), None),
+            RouteDecision::Forward
+        ));
     }
 }

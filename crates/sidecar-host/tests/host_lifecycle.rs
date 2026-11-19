@@ -249,6 +249,60 @@ fn local_frames_join_the_same_inbound_queue() {
 }
 
 #[test]
+fn inbound_queue_saturates_then_drains_without_losing_frames() {
+    // W2 流控对拍（spec docs/specs/w2-transport-cutover.md §2）：帧层背压 = 256 帧
+    // 有界队列，满则 push 阻塞等待（不是丢帧也不是报错）；消费后等待者完成且 FIFO 保序。
+    // 这取代「saturated/drained 逐项对拍」的实际内容：PersistentProtocol 的 ACK 水位
+    // 是休眠抽象（全仓零订阅者），帧层不引入。
+    let mut config = silent_config("queue-saturation", "setInterval(function () {}, 1000);");
+    config.ready_timeout = Duration::from_secs(60); // 别让看门狗提前收摊
+
+    let handle = HostHandle::spawn(config).expect("拉起沉默 Host");
+    const CAPACITY: usize = 256;
+    for index in 0..CAPACITY {
+        handle
+            .push_local_frame(format!("frame-{index}").into_bytes())
+            .expect("容量内入队不应阻塞");
+    }
+
+    // 第 257 帧：满队列上阻塞。单独线程里 push，短窗口内不得完成（也不得报错）。
+    let pusher_handle = handle.clone();
+    let (pushed_tx, pushed_rx) = std::sync::mpsc::channel::<bool>();
+    let pusher = std::thread::spawn(move || {
+        let result = pusher_handle.push_local_frame(b"frame-overflow".to_vec());
+        let _ = pushed_tx.send(result.is_ok());
+        result.expect("消费腾出空间后应能入队");
+    });
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    assert!(
+        pushed_rx
+            .recv_timeout(std::time::Duration::from_millis(0))
+            .is_err(),
+        "满队列上的 push 应阻塞等待，而不是丢帧或立即返回"
+    );
+
+    // 逐帧消费：前 256 帧 FIFO 保序，overflow 帧在 pusher 解锁后到达队尾。
+    for index in 0..CAPACITY {
+        assert_eq!(
+            handle
+                .next_frame(std::time::Duration::from_millis(500))
+                .expect("读到帧"),
+            Some(format!("frame-{index}").into_bytes()),
+            "FIFO 第 {index} 帧"
+        );
+    }
+    pusher.join().expect("push 线程不应 panic");
+    assert_eq!(
+        handle
+            .next_frame(std::time::Duration::from_millis(500))
+            .expect("读到帧"),
+        Some(b"frame-overflow".to_vec())
+    );
+
+    handle.shutdown().expect("shutdown 成功");
+}
+
+#[test]
 fn shutdown_kills_a_silent_host_and_leaves_no_process() {
     let mut config = silent_config("silent", "setInterval(function () {}, 1000);");
     config.ready_timeout = Duration::from_secs(60); // 别让看门狗抢在用例的 shutdown 之前
@@ -496,11 +550,13 @@ fn a_verbatim_windows_entry_path_still_reaches_ready() {
 #[test]
 #[cfg(not(windows))]
 fn verbatim_entry_is_a_windows_only_path_form() {
-    assert!(!sidecar_entry()
-        .canonicalize()
-        .expect("入口必须存在")
-        .to_string_lossy()
-        .starts_with(r"\\?\"));
+    assert!(
+        !sidecar_entry()
+            .canonicalize()
+            .expect("入口必须存在")
+            .to_string_lossy()
+            .starts_with(r"\\?\")
+    );
 }
 
 /// 启动时不能弹出黑色控制台窗口：随包 node.exe 是控制台子系统程序，壳是 GUI 进程，

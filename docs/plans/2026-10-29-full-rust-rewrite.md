@@ -302,6 +302,18 @@ remote scope、流控（`saturated`/`drained`）逐项对拍。完成后 `stdioF
 base 与所有 scope 一并 `dispose`。**未做**：默认全量切到壳内、`stdioFrames` /
 `stdoutGuard` 退场、流控（`saturated` / `drained`）与 scoped attachment 的真机对拍。
 
+**收口裁决与修复（2026-11-20，spec `docs/specs/w2-transport-cutover.md`）**：
+帧层流控裁决为「256 帧有界队列背压 + V4 连接级 `saturated`/`drained`」，不引入 ACK 水位
+（`PersistentProtocol` 全仓零订阅者，保持休眠）；队列饱和→恢复已有 Rust 对拍
+（`sidecar-host` host_lifecycle）。`stdioFrames`/`stdoutGuard` 退场挂 W3/W6 前置
+（`host-standalone` 退出产品路径），W2 不删。开关新增 `default`/`none` 特值
+（默认集 = 24 业务频道、不含 `mode-agent`；未设置仍是纯转发，默认翻转挂 §5 真机验收）。
+**修复**：`LocalScopeRegistry` 此前只写不读——detach/未挂接 scope 上的请求仍会被本地
+幽灵服务应答；现在 `decide_route` 以登记表为门禁，未挂接/已 detach/登记表不可读
+（fail-closed）一律回落 Node（inprocess.rs 单测 + pipeline.rs 端到端）。
+**剩余**：terminal/mcp-sync/hooks/agent-health 四频道真机验收 + 远程 scope 真机用例
+（spec §6 清单）→ 全绿后把「未设置」语义翻成默认集（一行）。
+
 出口：`desktop-continuous` 与 `web-remote-replayable` 两条链路语义不变；帧序无乱序；
 断链/半开管道/换代行为与今天一致（复用 P1-3/P2-3/P2-4 的验收脚本）。
 
