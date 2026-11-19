@@ -27,6 +27,7 @@ pub mod skills;
 pub mod subagents;
 pub mod subscribe;
 pub mod v4;
+pub mod v4_attachments;
 pub mod workflows;
 
 use agent_core::ModelCapabilities;
@@ -66,6 +67,11 @@ pub use agent_protocol::session_write::{
 };
 pub use agent_protocol::skills::SKILLS_REFERENCE_CATALOG_METHOD;
 pub use agent_protocol::v4::{V4_COMMANDS_QUERY_METHOD, V4_COMMAND_METHOD};
+pub use agent_protocol::v4_queries::{
+    V4_ATTACHMENT_ABORT_METHOD, V4_ATTACHMENT_BEGIN_METHOD, V4_ATTACHMENT_CHUNK_METHOD,
+    V4_ATTACHMENT_COMMIT_METHOD, V4_ATTACHMENT_PREVIEW_SOURCE_METHOD, V4_ATTACHMENT_READ_METHOD,
+    V4_CONVERSATION_ATTACHMENT_READ_METHOD, V4_CONVERSATION_ATTACHMENT_STAT_METHOD,
+};
 pub use agent_protocol::workflow::{
     WORKFLOWS_DELETE_METHOD, WORKFLOWS_GET_METHOD, WORKFLOWS_LIST_METHOD, WORKFLOWS_MOVE_METHOD,
     WORKFLOWS_RUNS_METHOD, WORKFLOWS_UPDATE_META_METHOD,

@@ -1,9 +1,13 @@
-//! `v4/command` 与 `v4/commands/query`（C4 T4）。
+//! `v4/command`、`v4/commands/query` 与 v4 附件事务（C4 T4）。
 //!
-//! 本切片实现 `StartSavedWorkflow`（T3 裁决：嵌入 JS 引擎执行）与命令对账读面；
-//! `SendText` / 附件命令在附件切片接入。未实现的命令类型返回
-//! `status:"failed"` + `fault.command.unsupported`（不 `-32601`，让客户端拿到
-//! 按命令的失败而非方法级错误）。
+//! 已接命令：`StartSavedWorkflow`（T3 裁决：嵌入 JS 引擎执行）、`SendText`
+//! （C4-T4 裁决：按正确行为实现——ref 授权校验 + 文本 turn；附件→模型内容的
+//! part 注入属后续切片）。未实现的命令类型返回 `status:"failed"` +
+//! `fault.command.unsupported`（不 `-32601`，让客户端拿到按命令的失败）。
+//!
+//! 附件面：`v4/attachment/begin|chunk|commit|abort|read|previewSource` 与
+//! `v4/conversation/attachmentRead|attachmentStat`；授权按「正确行为」：
+//! 同 session 授权，跨 session 走 share 错误，未知 ref 走 preview 错误。
 
 use agent_protocol::v4::{
     CommandAck, CommandAckStatus, CommandKey, CommandQueryItem, CommandQueryOutcome,
@@ -18,6 +22,7 @@ use crate::server::ServerError;
 use crate::workflows;
 
 use super::parse_params;
+use super::v4_attachments::handle_send_text;
 
 /// startSavedWorkflow 的 payload（协议未在此镜像建模，按观察键严格读）。
 struct StartSavedWorkflowPayload {
@@ -74,12 +79,11 @@ fn revision_at_decision(server: &AgentServer, session_id: Option<&String>) -> u6
 /// `v4/command`：信封严格解析 → 按命令类型分派 → ACK（含失败）。
 pub(crate) fn handle_command(server: &AgentServer, params: Value) -> Result<Value, ServerError> {
     let envelope: ConversationCommandEnvelope = parse_params(V4_COMMAND_METHOD, params)?;
-    envelope
-        .validate()
-        .map_err(ServerError::invalid_params)?;
+    envelope.validate().map_err(ServerError::invalid_params)?;
     let revision = revision_at_decision(server, envelope.session_id.0.as_ref());
     let ack = match envelope.command_type {
         CommandType::StartSavedWorkflow => handle_start_saved_workflow(server, &envelope, revision),
+        CommandType::SendText => handle_send_text(server, &envelope, revision),
         _ => Ok(failed_ack(
             &envelope.command_id,
             revision,
@@ -177,9 +181,7 @@ pub(crate) fn handle_commands_query(
     params: Value,
 ) -> Result<Value, ServerError> {
     let params: CommandsQueryParams = parse_params(V4_COMMANDS_QUERY_METHOD, params)?;
-    params
-        .validate()
-        .map_err(ServerError::invalid_params)?;
+    params.validate().map_err(ServerError::invalid_params)?;
     let results = params
         .commands
         .iter()

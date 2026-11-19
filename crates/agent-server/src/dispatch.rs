@@ -295,6 +295,8 @@ pub struct AgentServer {
 #[derive(Default)]
 pub struct V4State {
     commands: Mutex<HashMap<(Option<String>, String), CommandAck>>,
+    /// C4 T4：附件上行事务与 ref 授权（唯一事实源）。
+    pub attachments: crate::attachments::AttachmentStore,
 }
 
 impl V4State {
@@ -490,6 +492,30 @@ impl AgentServer {
             crate::methods::V4_COMMAND_METHOD => methods::v4::handle_command(self, params),
             crate::methods::V4_COMMANDS_QUERY_METHOD => {
                 methods::v4::handle_commands_query(self, params)
+            }
+            crate::methods::V4_ATTACHMENT_BEGIN_METHOD => {
+                methods::v4_attachments::handle_attachment_begin(self, params)
+            }
+            crate::methods::V4_ATTACHMENT_CHUNK_METHOD => {
+                methods::v4_attachments::handle_attachment_chunk(self, params)
+            }
+            crate::methods::V4_ATTACHMENT_COMMIT_METHOD => {
+                methods::v4_attachments::handle_attachment_commit(self, params)
+            }
+            crate::methods::V4_ATTACHMENT_ABORT_METHOD => {
+                methods::v4_attachments::handle_attachment_abort(self, params)
+            }
+            crate::methods::V4_ATTACHMENT_READ_METHOD => {
+                methods::v4_attachments::handle_attachment_read(self, params)
+            }
+            crate::methods::V4_ATTACHMENT_PREVIEW_SOURCE_METHOD => {
+                methods::v4_attachments::handle_attachment_preview_source(self, params)
+            }
+            crate::methods::V4_CONVERSATION_ATTACHMENT_READ_METHOD => {
+                methods::v4_attachments::handle_conversation_attachment_read(self, params)
+            }
+            crate::methods::V4_CONVERSATION_ATTACHMENT_STAT_METHOD => {
+                methods::v4_attachments::handle_conversation_attachment_stat(self, params)
             }
             _ => Err(ServerError::method_not_found(method)),
         }

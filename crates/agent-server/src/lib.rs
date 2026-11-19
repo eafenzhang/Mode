@@ -21,6 +21,7 @@
 //! 「存储启动门」「Account Provider Config 交付」「反向请求」、
 //! `docs/specs/tauri-agent-runtime.md` §1.3、`docs/specs/agent-server-c1-contract.md`。
 
+mod attachments;
 mod dispatch;
 mod history;
 mod lifecycle;
@@ -37,6 +38,9 @@ mod skills;
 mod state;
 pub mod workflows;
 
+pub use attachments::{
+    AttachmentError, AttachmentStore, BeginOutcome, RefAuthorization, StoredAttachment,
+};
 pub use dispatch::{AgentServer, HubProviderSource, ServerConfig};
 pub use lifecycle::{parse_startup_args, run_main, StartupArgs, APP_SERVER_MODE, STDIO_FLAG};
 pub use mcp::{McpConnection, McpHub, McpSession, McpToolDescriptor};
