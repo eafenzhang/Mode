@@ -79,6 +79,8 @@ test("用法错误：未知子命令 / 缺路径", async () => {
   assert.ok(stderr[0]?.includes("unknown subcommand"));
   assert.equal(await runEvalCommand(ctx, {}, ["run"]), 1);
   assert.ok(stderr[1]?.includes("missing <path>"));
+  assert.equal(await runEvalCommand(ctx, {}, ["diff"]), 1);
+  assert.ok(stderr[2]?.includes("missing <runDirA> <runDirB>"));
 });
 
 test("--eval-timeout 非数字被拒绝", async () => {

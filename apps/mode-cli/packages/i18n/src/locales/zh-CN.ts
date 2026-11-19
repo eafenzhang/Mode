@@ -18,7 +18,7 @@ export const zhCN: ModeCopy = {
   app-server 运行 Mode Protocol stdio app server
   commands   列出自定义 slash commands（\`commands list\`）
   doctor     检查运行时和打包假设
-  eval       运行确定性评测套件（\`eval run <suite>\`；\`eval replay <trajectory>\`）
+  eval       运行确定性评测套件（\`eval run|replay|diff\`）
   login [zai|bigmodel]  通过浏览器授权登录
   logout     删除共享的 Z.AI 登录凭据
   plugins    管理插件与市场（\`plugins list|install|uninstall|enable|disable|update|validate|marketplace ...\`；别名 plugin）

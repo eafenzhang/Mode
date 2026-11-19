@@ -1,0 +1,90 @@
+# LT-4 opt-in 评测门禁：手工触发；不进默认发版流水线（spec docs/specs/cli-eval-trajectory.md §3/§9）。
+# 内容：构建 Rust agent-server（脚本 provider）→ 同一 suite 连跑两次 → `mode eval diff`
+# 作确定性门禁 → 上传轨迹/报告产物。默认无网络、无真实模型。
+name: Eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "suite 路径（单文件或目录；默认 smoke）"
+        required: false
+        default: "apps/mode-cli/packages/eval/suites/smoke.json"
+      timeout_ms:
+        description: "单 case 超时（ms）"
+        required: false
+        default: "120000"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eval
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # 隔离数据根：CLI 与 agent-server 的数据树都落在仓库内临时目录，不触碰真实 ~/.mode。
+      EVAL_ISO: ${{ github.workspace }}/.eval-iso
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build agent-server (scripted provider)
+        run: cargo build -p agent-server
+
+      - name: Build CLI (mode.cjs + workspace dist)
+        run: pnpm --filter "@mode/cli..." build
+
+      - name: Eval unit tests
+        run: pnpm --filter @mode/eval test
+
+      - name: Run suite (run 1)
+        run: |
+          node apps/mode-cli/packages/cli/dist/mode.cjs eval run "${{ inputs.suite || 'apps/mode-cli/packages/eval/suites/smoke.json' }}" \
+            --eval-out .mode-eval/run1 \
+            --eval-timeout "${{ inputs.timeout_ms || '120000' }}" \
+            --eval-agent-server "$GITHUB_WORKSPACE/target/debug/agent-server"
+        env:
+          MODE_DATA_BASE_DIR: ${{ env.EVAL_ISO }}
+          MODE_HOME: ${{ env.EVAL_ISO }}
+          HOME: ${{ env.EVAL_ISO }}
+          USERPROFILE: ${{ env.EVAL_ISO }}
+
+      - name: Run suite (run 2)
+        run: |
+          node apps/mode-cli/packages/cli/dist/mode.cjs eval run "${{ inputs.suite || 'apps/mode-cli/packages/eval/suites/smoke.json' }}" \
+            --eval-out .mode-eval/run2 \
+            --eval-timeout "${{ inputs.timeout_ms || '120000' }}" \
+            --eval-agent-server "$GITHUB_WORKSPACE/target/debug/agent-server"
+        env:
+          MODE_DATA_BASE_DIR: ${{ env.EVAL_ISO }}
+          MODE_HOME: ${{ env.EVAL_ISO }}
+          HOME: ${{ env.EVAL_ISO }}
+          USERPROFILE: ${{ env.EVAL_ISO }}
+
+      - name: Determinism gate (mode eval diff)
+        run: |
+          node apps/mode-cli/packages/cli/dist/mode.cjs eval diff .mode-eval/run1 .mode-eval/run2
+
+      - name: Upload trajectories and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-artifacts
+          path: |
+            .mode-eval
+            .eval-iso

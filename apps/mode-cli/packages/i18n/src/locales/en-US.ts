@@ -18,7 +18,7 @@ Commands:
   app-server Run the Mode Protocol stdio app server
   commands   List custom slash commands (\`commands list\`)
   doctor     Inspect runtime and packaging assumptions
-  eval       Run deterministic evaluation suites (\`eval run <suite>\`; \`eval replay <trajectory>\`)
+  eval       Run deterministic evaluation suites (\`eval run|replay|diff\`)
   login [zai|bigmodel]  Sign in through browser authorization
   logout     Remove the shared Z.AI login credentials
   plugins    Manage plugins and marketplaces (\`plugins list|install|uninstall|enable|disable|update|validate|marketplace ...\`; alias: plugin)

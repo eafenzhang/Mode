@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "name": "smoke",
+  "cases": [
+    {
+      "case": "read-hello",
+      "prompt": "用 Read 工具读一下 hello.txt，然后回一句话说明它写了什么。",
+      "seed": { "hello.txt": "hello\n" },
+      "script": [
+        { "toolCalls": [{ "name": "Read", "input": { "file_path": "${cwd}/hello.txt" } }] },
+        { "text": "hello.txt 里写的是 hello。" }
+      ]
+    },
+    {
+      "case": "write-note",
+      "prompt": "用 Write 工具写一个 note.txt，内容是 note body，然后回一句话确认。",
+      "script": [
+        {
+          "toolCalls": [
+            {
+              "name": "Write",
+              "input": { "file_path": "${cwd}/note.txt", "content": "note body\n" }
+            }
+          ]
+        },
+        { "text": "note.txt 已写入。" }
+      ]
+    }
+  ]
+}

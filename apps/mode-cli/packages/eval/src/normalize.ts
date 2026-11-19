@@ -3,7 +3,17 @@
 // 规则来源是 oracle 的规范化规范（`docs/specs/tauri-agent-runtime.md` §3 的白名单：
 // 无序组、id、时间、路径、错误栈、命令指纹、传输头、环境计数）。本实现按 spec §6
 // 落成 v1 子集，并由一致性测试钉住占位符词表；比较器不重复另一套规则。
-import type { EvalEvent, ToolCall } from "./types.js";
+import type { ToolCall } from "./types.js";
+
+/** 运行期事件（`turn` 由 runner 按终态事件切分归因；投影与无序组折叠时保留）。 */
+export type StreamEvent = {
+  type: string;
+  payload: unknown;
+  turn?: number;
+};
+
+export type ProjectedEvent = { type: string; payload: unknown; turn?: number };
+export type ProjectedToolCall = ToolCall & { turn?: number };
 
 export type NormalizeContext = {
   /** case 的 workspace（写种子文件、agent-server 的工作目录）。 */
@@ -13,8 +23,6 @@ export type NormalizeContext = {
   /** 系统临时目录；隔离根与 workspace 都在它下面，替换顺序必须从长到短。 */
   tmpDir: string;
 };
-
-export type ProjectedEvent = { type: string; payload: unknown };
 
 /** 每次运行必然不同的 id 键（与 oracle §3 同表，避免把 providerId/modelId 这类事实键一起抹掉）。 */
 const VOLATILE_ID_KEYS: ReadonlySet<string> = new Set([
@@ -77,8 +85,13 @@ const DROPPED_STACK_KEY = "stack";
 /** 命令内容指纹（同一对象同时带 category/status/hash）不是行为：删除 `hash`。 */
 const TRANSPORT_HEADER_KEYS: ReadonlySet<string> = new Set(["requestHeaders", "responseHeaders"]);
 
-/** 随环境变化的计数（装了哪些 MCP/插件/技能不是被测量行为）。 */
-const ENVIRONMENT_COUNT_KEYS: ReadonlySet<string> = new Set(["toolCount", "chars"]);
+/** 随环境变化的计数（装了哪些 MCP/插件/技能不是被测量行为；`inputByteLength`
+ * 含绝对路径字节数，随机器路径长度漂移）。 */
+const ENVIRONMENT_COUNT_KEYS: ReadonlySet<string> = new Set([
+  "toolCount",
+  "chars",
+  "inputByteLength",
+]);
 
 const UUID_PATTERN = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g;
 const LOOPBACK_URL_PATTERN = /\b(?:https?|wss?):\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/g;
@@ -184,12 +197,13 @@ export function normalizeValue(value: unknown, context: NormalizeContext): unkno
   return value;
 }
 
-/** 第一层投影：按 `toolCallId` 折叠事件，保持首次出现顺序。 */
+/** 第一层投影：按 `toolCallId` 折叠事件，保持首次出现顺序；`turn` 取 scheduled 事件归因。 */
 export function projectToolCalls(
-  events: readonly EvalEvent[],
+  events: readonly StreamEvent[],
   context: NormalizeContext,
-): ToolCall[] {
+): ProjectedToolCall[] {
   const streamedInputs = new Map<string, unknown>();
+  const scheduledTurns = new Map<string, number | undefined>();
   for (const event of events) {
     if (event.type !== "model.streaming") continue;
     const payload = asRecord(event.payload);
@@ -197,8 +211,8 @@ export function projectToolCalls(
     streamedInputs.set(String(payload.toolCallId ?? ""), payload.input ?? null);
   }
 
-  const calls: ToolCall[] = [];
-  const byId = new Map<string, ToolCall>();
+  const calls: ProjectedToolCall[] = [];
+  const byId = new Map<string, ProjectedToolCall>();
   for (const event of events) {
     if (event.type !== "tool.updated") continue;
     const payload = asRecord(event.payload);
@@ -207,11 +221,12 @@ export function projectToolCalls(
     if (kind === "batch" || kind === "raw" || kind === "progress") continue;
     const toolCallId = String(payload.toolCallId ?? "");
     if (kind === "scheduled") {
-      const call: ToolCall = {
+      const call: ProjectedToolCall = {
         name: String(payload.toolName ?? "<unknown>"),
         input: normalizeValue(payload.input ?? streamedInputs.get(toolCallId) ?? null, context),
         ok: false,
         output: "",
+        turn: event.turn,
       };
       byId.set(toolCallId, call);
       calls.push(call);
@@ -235,9 +250,9 @@ export function projectToolCalls(
   return calls;
 }
 
-/** 第三层投影：折叠无序组 + 逐事件规范化。 */
+/** 第三层投影：折叠无序组 + 逐事件规范化；`turn` 原样保留。 */
 export function projectEventStream(
-  events: readonly EvalEvent[],
+  events: readonly StreamEvent[],
   context: NormalizeContext,
 ): ProjectedEvent[] {
   const folded = foldUnorderedRuns(events, (payload) =>
@@ -246,6 +261,7 @@ export function projectEventStream(
   return folded.map((event) => ({
     type: event.type,
     payload: normalizeValue(event.payload ?? null, context),
+    ...(event.turn === undefined ? {} : { turn: event.turn }),
   }));
 }
 
@@ -253,7 +269,7 @@ export function projectEventStream(
  * 连续同类型段判定为无序组：状态推送；或「整段都是完成类事件且涉及 ≥2 个不同工具调用」的
  * 并行批次完成段（谁先跑完是竞态）。
  */
-function isUnorderedRun(run: readonly EvalEvent[]): boolean {
+function isUnorderedRun(run: readonly StreamEvent[]): boolean {
   const first = run[0];
   if (!first) return false;
   if (UNORDERED_EVENT_TYPES.has(first.type)) return true;
@@ -276,10 +292,10 @@ function isUnorderedRun(run: readonly EvalEvent[]): boolean {
 }
 
 function foldUnorderedRuns(
-  events: readonly EvalEvent[],
+  events: readonly StreamEvent[],
   sortKey: (payload: unknown) => string,
-): EvalEvent[] {
-  const folded: EvalEvent[] = [];
+): StreamEvent[] {
+  const folded: StreamEvent[] = [];
   let index = 0;
   while (index < events.length) {
     const current = events[index];

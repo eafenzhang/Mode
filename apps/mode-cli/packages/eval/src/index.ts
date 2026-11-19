@@ -15,12 +15,21 @@ export {
   type EvalCommandOptions,
 } from "./cli.js";
 export {
+  diffRuns,
+  diffTrajectories,
+  formatRunDiffText,
+  type CaseDiff,
+  type RunDiff,
+} from "./diff.js";
+export {
   normalizeValue,
   projectEventStream,
   projectToolCalls,
   stableStringify,
   type NormalizeContext,
   type ProjectedEvent,
+  type ProjectedToolCall,
+  type StreamEvent,
 } from "./normalize.js";
 export { createRedactor, type Redactor, type RedactorOptions } from "./redact.js";
 export {

@@ -4,6 +4,7 @@ import { writeFile, mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import { createAgentServerSessionFactory, type AgentServerLaunch } from "./agent-server.js";
+import { diffRuns, formatRunDiffText } from "./diff.js";
 import { createRedactor } from "./redact.js";
 import { formatReportText, stripTiming } from "./report.js";
 import { replayTrajectory, runSuite } from "./runner.js";
@@ -35,7 +36,8 @@ export class EvalConfigError extends Error {
 
 const USAGE = `Usage:
   mode eval run <suite.json|dir> [--eval-out <dir>] [--eval-timeout <ms>] [--eval-agent-server <path>]
-  mode eval replay <trajectory.jsonl> [--eval-out <dir>] [--eval-agent-server <path>]`;
+  mode eval replay <trajectory.jsonl> [--eval-out <dir>] [--eval-agent-server <path>]
+  mode eval diff <runDirA> <runDirB>`;
 
 export async function runEvalCommand(
   ctx: EvalCommandContext,
@@ -43,9 +45,25 @@ export async function runEvalCommand(
   args: readonly string[],
 ): Promise<number> {
   const subcommand = args[0];
-  if (subcommand !== "run" && subcommand !== "replay") {
+  if (subcommand !== "run" && subcommand !== "replay" && subcommand !== "diff") {
     ctx.stderr.write(`mode eval: unknown subcommand ${subcommand ?? "(missing)"}\n\n${USAGE}\n`);
     return 1;
+  }
+  if (subcommand === "diff") {
+    const dirA = args[1];
+    const dirB = args[2];
+    if (!dirA || !dirB) {
+      ctx.stderr.write(`mode eval diff: missing <runDirA> <runDirB>\n\n${USAGE}\n`);
+      return 1;
+    }
+    const cwd = options.cwd ?? process.cwd();
+    const diff = await diffRuns(resolve(cwd, dirA), resolve(cwd, dirB));
+    if (options.json === true) {
+      ctx.stdout.write(`${JSON.stringify(diff, null, 2)}\n`);
+    } else {
+      ctx.stdout.write(formatRunDiffText(diff));
+    }
+    return diff.identical ? 0 : 1;
   }
   const target = args[1];
   if (!target) {

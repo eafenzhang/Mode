@@ -6,7 +6,13 @@ import { dirname, join } from "node:path";
 import { performance } from "node:perf_hooks";
 
 import type { SessionFactory } from "./agent-server.js";
-import { normalizeValue, projectEventStream, projectToolCalls, stableStringify, type NormalizeContext } from "./normalize.js";
+import {
+  projectEventStream,
+  projectToolCalls,
+  stableStringify,
+  type NormalizeContext,
+  type StreamEvent,
+} from "./normalize.js";
 import type { Redactor } from "./redact.js";
 import { buildReport } from "./report.js";
 import { takeFileSnapshot } from "./snapshot.js";
@@ -84,10 +90,11 @@ export async function runSingleCase(
       await session.stop();
     }
 
-    const observed = await observeSession(session.events, context, options.redactor);
-    const turns = session.events.filter((event) => isTerminal(event.type)).length;
+    const streamEvents = attributeTurns(session.events);
+    const observed = await observeSession(streamEvents, context, options.redactor);
+    const turns = streamEvents.filter((event) => isTerminal(event.type)).length;
     const mismatches = evalCase.expect
-      ? compareObserved(evalCase.expect, observed, MAX_MISMATCHES)
+      ? compareObserved(evalCase.expect, stripTurns(observed), MAX_MISMATCHES)
       : [];
     const status: CaseResult["status"] = !evalCase.expect
       ? "recorded"
@@ -164,18 +171,30 @@ export async function runSingleCase(
   }
 }
 
-/** 投影 + 脱敏：先按 §6 规范化（去易变字段），再按 §7 脱敏。 */
+/** turn 归因：第 n 个 turn = 第 n 次终态事件之前的事件；终态事件本身归属当前 turn。 */
+function attributeTurns(events: readonly { type: string; payload: unknown }[]): StreamEvent[] {
+  const out: StreamEvent[] = [];
+  let turn = 0;
+  for (const event of events) {
+    out.push({ type: event.type, payload: event.payload, turn });
+    if (isTerminal(event.type)) turn += 1;
+  }
+  return out;
+}
+
+/** 投影 + 脱敏：先按 §6 规范化（去易变字段），再按 §7 脱敏；`turn` 随事件/工具保留。 */
 async function observeSession(
-  events: readonly { type: string; payload: unknown }[],
+  events: readonly StreamEvent[],
   context: NormalizeContext,
   redactor: Redactor,
 ): Promise<{ toolCalls: Trajectory["toolCalls"]; files: Record<string, string>; events: Trajectory["events"] }> {
-  const rawEvents = events.map((event) => ({ type: event.type, payload: event.payload }));
-  const projectedEvents = projectEventStream(rawEvents, context).map((event) => ({
+  const projectedEvents = projectEventStream(events, context).map((event) => ({
+    ...(event.turn === undefined ? {} : { turn: event.turn }),
     type: event.type,
     payload: redactor.redactValue(event.payload),
   }));
-  const projectedCalls = projectToolCalls(rawEvents, context).map((call) => ({
+  const projectedCalls = projectToolCalls(events, context).map((call) => ({
+    ...(call.turn === undefined ? {} : { turn: call.turn }),
     name: call.name,
     input: redactor.redactValue(call.input),
     ok: call.ok,
@@ -183,6 +202,19 @@ async function observeSession(
   }));
   const files = await takeFileSnapshot(context.cwd);
   return { toolCalls: projectedCalls, files, events: projectedEvents };
+}
+
+/** 比较用投影：剥掉 `turn`（它是轨迹定位元数据，不是被比较行为）。 */
+function stripTurns(observed: {
+  toolCalls: Trajectory["toolCalls"];
+  files: Record<string, string>;
+  events: Trajectory["events"];
+}): { toolCalls: Array<{ name: string; input: unknown; ok: boolean; output: string }>; files: Record<string, string>; events: Array<{ type: string; payload: unknown }> } {
+  return {
+    toolCalls: observed.toolCalls.map(({ turn: _turn, ...rest }) => rest),
+    files: observed.files,
+    events: observed.events.map(({ turn: _turn, ...rest }) => rest),
+  };
 }
 
 /** 轨迹回放（spec §8.7）：按轨迹里的输入重跑一次，与已录的观察比较。 */
@@ -201,9 +233,9 @@ export async function replayTrajectory(
     script: meta.script,
     followUpTurns: meta.followUpTurns,
     expect: {
-      toolCalls: trajectory.toolCalls,
+      toolCalls: trajectory.toolCalls.map(({ turn: _turn, ...rest }) => rest),
       files: trajectory.files,
-      events: trajectory.events,
+      events: trajectory.events.map(({ turn: _turn, ...rest }) => rest),
     },
   };
   const tmpRoot = await mkdtemp(join(tmpdir(), "mode-eval-replay-"));

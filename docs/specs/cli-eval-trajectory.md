@@ -51,6 +51,7 @@ eval runner（投影/规范化/比较，只读）
 ```text
 mode eval run <suite.json|dir> [--eval-out <dir>] [--eval-timeout <ms>] [--eval-agent-server <path>]
 mode eval replay <trajectory.jsonl> [--eval-out <dir>] [--eval-agent-server <path>]
+mode eval diff <runDirA> <runDirB>
 ```
 
 - `<suite.json>`：`{ "schemaVersion": 1, "name"?: string, "cases": Case[] }`。
@@ -65,6 +66,11 @@ mode eval replay <trajectory.jsonl> [--eval-out <dir>] [--eval-agent-server <pat
   5. 找不到 → 退出码 1，错误码 `MODE_EVAL_AGENT_SERVER_UNAVAILABLE`，不静默跳过用例。
 
 `--json`（全局）把报告以 JSON 打到 stdout；否则打印文本摘要。
+
+`mode eval diff` 对比两次 run 的产物目录（`trajectories/*.jsonl`），逐 case 给出
+`toolCalls`/`files`/`events` 三层差异，事件差异标注 `turn=<n>`、工具差异标注
+`tool=<name>#<i>`；`--json` 输出机器可读结构。完全一致退出码 0，有差异或某侧
+缺失 case 退出码 1。用途：同一 suite 两次运行的确定性检查（CI opt-in job 的门禁）。
 
 退出码：全部通过/已录制 = 0；任一 failed = 1；配置/加载错误 = 1。
 
@@ -99,8 +105,9 @@ mode eval replay <trajectory.jsonl> [--eval-out <dir>] [--eval-agent-server <pat
 每个 case 写 `<out>/trajectories/<case>.jsonl`，每行一个 JSON 对象：
 
 1. `{"kind":"meta","schemaVersion":1,"case":...,"prompt":...,"seed":...,"script":...,"followUpTurns":...}`
-2. `{"kind":"event","type":...,"payload":...}`（规范化后的会话事件，按实际顺序）
-3. `{"kind":"toolCall","name":...,"input":...,"ok":...,"output":...}`
+2. `{"kind":"event","turn":<n>,"type":...,"payload":...}`（规范化后的会话事件，按实际顺序；
+   `turn` 是事件所属 turn 的序号，从 0 起，按终态事件切分；缺省视作 0）
+3. `{"kind":"toolCall","turn":<n>,"name":...,"input":...,"ok":...,"output":...}`
 4. `{"kind":"files","files":{路径:sha256}}`
 5. `{"kind":"result","status":"passed|failed|recorded","mismatches":[...]}`
 
@@ -119,7 +126,8 @@ mode eval replay <trajectory.jsonl> [--eval-out <dir>] [--eval-agent-server <pat
 | 回环 URL | `http(s)://127.0.0.1|localhost|\[::1\]:<port>` → `<loopback-url>` |
 | UUID | 文本里的 UUID 形状 → `<id>` |
 | shell 前缀 | `bash: line N:` / `C:\…\bash.exe: line N:` → `<shell>: line <n>:` |
-| 无序组 | 连续 `session.updated` 段按稳定串排序后比较；其他事件保持顺序 |
+| 无序组 | 连续 `session.updated` 段与并行批次完成段（≥2 个不同工具调用的 result/error/batch）按稳定串排序后比较；其他事件保持顺序 |
+| 环境计数 | `toolCount`/`chars`/`inputByteLength`（随机器路径长度漂移）→ `<count>` |
 | JSON 文本对象 | 字符串整体是 JSON 对象时按对象键排序后重新序列化 |
 
 工具调用投影（第一层）：`tool.updated` 的 `scheduled` 建条目，`result`/`error` 补
@@ -160,9 +168,11 @@ mode eval replay <trajectory.jsonl> [--eval-out <dir>] [--eval-agent-server <pat
    agent-server 行为后失败并给出差异。
 8. **无网络**：脚本 provider 用例在断网环境可跑通；默认门禁不执行任何真实模型调用。
 
-## 9. 后续扩展（不在首片）
+## 9. 后续扩展
 
-- 真实 provider 小样本与成本统计（需要显式 `--eval-real-provider` 与凭据）；
+- ~~CI opt-in job~~（已落：`.github/workflows/eval.yml`，`workflow_dispatch` 手工触发；
+  构建 agent-server 后同一 suite 连跑两次，`mode eval diff` 作确定性门禁，产物上传 artifact）
+- ~~任务级 diff~~（已落：`mode eval diff <runDirA> <runDirB>`）
+- 真实 provider 小样本与成本统计（需要显式开关与凭据）；
 - pass@k、多次采样、置信区间；
-- suite 分片与并行执行（当前串行，保证隔离与确定性）；
-- CI opt-in job 与预算上限（首片只落本地命令与文档）。
+- suite 分片与并行执行（当前串行，保证隔离与确定性）。

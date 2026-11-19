@@ -132,3 +132,18 @@
 - `pnpm lint`（根 oxlint）：91 warnings / 0 errors；mode-cli 各包的 `oxlint src` 在 main 上同样报 no files（根配置 ignore `apps/mode-cli`），非本次引入。
 - `knip:gate` 红：stash 验证与本分支无关（worktree 依赖态导致的既有 28 个 unused files；main 检出为 1 个，同样红）。
 - 未执行：CI opt-in job、真实 provider 评测、嵌套 `apps/mode-cli/pnpm-lock.yaml` 更新（main 上已陈旧，落后 cli 依赖清单）。
+
+## 续片执行记录（2026-11-20）
+
+- `mode eval diff <runDirA> <runDirB>`：两次 run 产物对比，事件差异标注 `turn=<n>`、
+  工具差异标注 `tool=<name>#<i>`；spec §3/§5/§6 同步（轨迹行加 `turn`，
+  `inputByteLength` 入环境计数——它随机器路径长度漂移）。
+- 轨迹行携带 `turn` 归因（按终态事件切分）；`toOracleFixture`/比较层剥掉 turn，
+  expect 形状与 oracle 夹具保持一致。
+- `.github/workflows/eval.yml`（opt-in，`workflow_dispatch`）：构建 agent-server →
+  `pnpm --filter "@mode/cli..." build` → 同一 suite 连跑两次 → `mode eval diff` 确定性门禁 →
+  上传产物；隔离数据根在仓库内 `.eval-iso`，无网络、无真实模型。
+- `apps/mode-cli/packages/eval/suites/smoke.json`：read-hello + write-note 两个录制用例。
+- 验证：34/34 单测、eval typecheck、turbo cli 链 11 任务全绿、根 lint 91 warnings/0 errors；
+  端到端（真实 debug 二进制）：smoke 两 case 连跑两次 exit 0，`eval diff` identical。
+- 未执行：真实 provider（等凭据）、pass@k、suite 并行。

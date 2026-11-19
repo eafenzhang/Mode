@@ -25,8 +25,15 @@ export type TrajectoryMeta = {
 
 export type TrajectoryLine =
   | TrajectoryMeta
-  | { kind: "event"; type: string; payload: unknown }
-  | { kind: "toolCall"; name: string; input: unknown; ok: boolean; output: string }
+  | { kind: "event"; turn?: number; type: string; payload: unknown }
+  | {
+      kind: "toolCall";
+      turn?: number;
+      name: string;
+      input: unknown;
+      ok: boolean;
+      output: string;
+    }
   | { kind: "files"; files: Record<string, string> }
   | {
       kind: "result";
@@ -37,8 +44,8 @@ export type TrajectoryLine =
 
 export type Trajectory = {
   meta: TrajectoryMeta;
-  events: Array<{ type: string; payload: unknown }>;
-  toolCalls: Array<{ name: string; input: unknown; ok: boolean; output: string }>;
+  events: Array<{ type: string; payload: unknown; turn?: number }>;
+  toolCalls: Array<{ name: string; input: unknown; ok: boolean; output: string; turn?: number }>;
   files: Record<string, string>;
   result?: TrajectoryLine & { kind: "result" };
 };
@@ -47,10 +54,26 @@ export async function writeTrajectory(path: string, trajectory: Trajectory): Pro
   const lines: string[] = [];
   lines.push(JSON.stringify(trajectory.meta));
   for (const event of trajectory.events) {
-    lines.push(JSON.stringify({ kind: "event", type: event.type, payload: event.payload } satisfies TrajectoryLine));
+    lines.push(
+      JSON.stringify({
+        kind: "event",
+        ...(event.turn === undefined ? {} : { turn: event.turn }),
+        type: event.type,
+        payload: event.payload,
+      } satisfies TrajectoryLine),
+    );
   }
   for (const call of trajectory.toolCalls) {
-    lines.push(JSON.stringify({ kind: "toolCall", ...call } satisfies TrajectoryLine));
+    lines.push(
+      JSON.stringify({
+        kind: "toolCall",
+        ...(call.turn === undefined ? {} : { turn: call.turn }),
+        name: call.name,
+        input: call.input,
+        ok: call.ok,
+        output: call.output,
+      } satisfies TrajectoryLine),
+    );
   }
   lines.push(JSON.stringify({ kind: "files", files: trajectory.files } satisfies TrajectoryLine));
   if (trajectory.result) {
@@ -75,9 +98,20 @@ export async function readTrajectory(path: string): Promise<Trajectory> {
       meta = parsed;
       continue;
     }
-    if (parsed.kind === "event") events.push({ type: parsed.type, payload: parsed.payload });
+    if (parsed.kind === "event")
+      events.push({
+        ...(parsed.turn === undefined ? {} : { turn: parsed.turn }),
+        type: parsed.type,
+        payload: parsed.payload,
+      });
     else if (parsed.kind === "toolCall")
-      toolCalls.push({ name: parsed.name, input: parsed.input, ok: parsed.ok, output: parsed.output });
+      toolCalls.push({
+        ...(parsed.turn === undefined ? {} : { turn: parsed.turn }),
+        name: parsed.name,
+        input: parsed.input,
+        ok: parsed.ok,
+        output: parsed.output,
+      });
     else if (parsed.kind === "files") files = parsed.files;
     else if (parsed.kind === "result") result = parsed;
   }
@@ -94,7 +128,7 @@ export function toOracleFixture(trajectory: Trajectory): EvalCase & { expect: Ob
     seed: meta.seed ?? {},
     script: meta.script,
     expect: {
-      toolCalls: trajectory.toolCalls,
+      toolCalls: trajectory.toolCalls.map(({ turn: _turn, ...rest }) => rest),
       files: trajectory.files,
       events: trajectory.events.map((event) => ({ type: event.type, payload: event.payload })),
     },
