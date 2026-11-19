@@ -13,10 +13,7 @@ import type { AddressInfo } from "node:net";
 import test from "node:test";
 import { WebSocket } from "ws";
 
-import {
-  LAN_ACCESS_CLIENTS_CREDENTIAL_KEY,
-  buildLanAccessClientTokenKey,
-} from "@mode/shared";
+import { LAN_ACCESS_CLIENTS_CREDENTIAL_KEY, buildLanAccessClientTokenKey } from "@mode/shared";
 import { ServiceCollection, type ICredentialService } from "@mode/services";
 
 import { startLanAccessServer } from "../src/host/lanAccessServer.js";
@@ -230,6 +227,50 @@ test("未配置中继 token：不启动隧道，状态保持 LAN-only", async ()
   try {
     assert.equal(starts, 0);
     assert.equal(handle.getState().publicRelayUrl, null);
+  } finally {
+    await handle.dispose();
+  }
+});
+
+test("localOnly：只服务本机、对外关闭态、不启中继，本机 API 仍可用（R5）", async () => {
+  let tunnelStarts = 0;
+  const handle = await startLanAccessServer({
+    ...startParams(0),
+    localOnly: true,
+    relay: { baseUrl: "https://relay.example.com", token: "relay-token" },
+    startTunnel: () => {
+      tunnelStarts += 1;
+      return { close: () => undefined };
+    },
+  });
+  try {
+    const state = handle.getState();
+    assert.equal(state.enabled, false, "loopback 模式必须报开关关闭");
+    assert.equal(state.port, null, "关闭态不下发监听端口");
+    assert.deepEqual(state.addresses, [], "不向设备目录上报地址");
+    assert.equal(state.publicRelayUrl ?? null, null, "不下发公网中继");
+    assert.equal(tunnelStarts, 0, "loopback 模式不得启动内置中继隧道");
+
+    const port = handle.getLocalApiPort();
+    assert.ok(port > 0, "本机 API 端口必须有值（getState().port 此时是 null）");
+    // base URL 必须指向 loopback 且跟随监听协议（配置 MODE_LAN_TLS_* 时是 https）。
+    assert.equal(handle.getLocalApiBaseUrl(), `http://127.0.0.1:${port}`);
+
+    // v3 工作区/远程桌面的隧道入口：带本机令牌可用，无令牌拒绝。
+    // 本机令牌只经 query/cookie 呈现（与 HTTP 桥的注入方式一致），不走 Authorization。
+    const token = await handle.ensureCloudPeerToken();
+    const allowed = await fetch(
+      `http://127.0.0.1:${port}/api/rpc-host-capability?token=${encodeURIComponent(token)}`,
+      { method: "POST" },
+    );
+    assert.equal(allowed.status, 200);
+    const body = (await allowed.json()) as { capability?: unknown };
+    assert.equal(typeof body.capability, "string", "capability 票据是 /ws/host 的入场券");
+
+    const denied = await fetch(`http://127.0.0.1:${port}/api/rpc-host-capability`, {
+      method: "POST",
+    });
+    assert.equal(denied.status, 401, "loopback 服务仍走令牌鉴权");
   } finally {
     await handle.dispose();
   }

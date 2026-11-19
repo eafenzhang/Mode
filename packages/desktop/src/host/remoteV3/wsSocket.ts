@@ -2,11 +2,25 @@ import { decodeControlFrame, type DirectAssignment, type RemoteSocket } from "@m
 import { WebSocket } from "ws";
 
 const DIRECT_READY_TIMEOUT_MS = 3_000;
+/** Control WS 建链超时：账号服务不可达时 TCP 握手可能长期挂起，上层会表现为无限「正在连接」。 */
+const CONTROL_CONNECT_TIMEOUT_MS = 10_000;
 
 /** Node Host 的 ws 适配器；Control/Relay 帧必须保持 text，binary 一律忽略。 */
 export function connectWebSocket(url: string): Promise<RemoteSocket> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try {
+        ws.terminate();
+      } catch {
+        // 未进入连接态时 terminate 可能抛；忽略，超时结果已定。
+      }
+      reject(new Error(`远程控制服务连接超时（${CONTROL_CONNECT_TIMEOUT_MS / 1_000}s）`));
+    }, CONTROL_CONNECT_TIMEOUT_MS);
+    timer.unref?.();
     const socket: RemoteSocket = {
       // 媒体面背压观测（spec: remote-desktop-latency §2.3）：ws.send 先入内存队列，
       // bufferedAmount 是唯一能反映「真正积压」的读数。
@@ -19,11 +33,20 @@ export function connectWebSocket(url: string): Promise<RemoteSocket> {
         ws.on("message", (data, isBinary) => {
           if (!isBinary) callback(data.toString());
         }),
-      onClose: (callback) =>
-        ws.on("close", (code, reason) => callback(code, reason.toString())),
+      onClose: (callback) => ws.on("close", (code, reason) => callback(code, reason.toString())),
     };
-    ws.once("open", () => resolve(socket));
-    ws.once("error", reject);
+    ws.once("open", () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(socket);
+    });
+    ws.once("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
   });
 }
 

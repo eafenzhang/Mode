@@ -24,7 +24,8 @@ export function RemoteControlV3Row({
 }) {
   const { intl } = useModeIntl();
   const canConnect = host.online && !locallyControlled;
-  // 账号目录带 LAN 地址时优先展示，便于用户确认是否同网段；直连能力本身尚未启用。
+  // 目录里带地址 = 被控端开了「允许局域网直连」；仅展示是否同网段，
+  // 实际走直连还是 Relay 由会话面建连时选路，行内不作能力断言。
   const address = host.addresses[0] ?? host.deviceId.slice(0, 8);
   return (
     <RowShell testId="remote-control-v3-host" presentation={presentation}>

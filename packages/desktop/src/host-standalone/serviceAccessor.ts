@@ -268,7 +268,11 @@ export async function createHostServiceSurface(
             mediaUrl: string;
             transport?: import("@mode/shared/remote-desktop").RemoteDesktopTransport;
           }
-        | { ok: false; errorCode?: import("@mode/shared/remote-desktop").RemoteDesktopErrorCode; error: string }
+        | {
+            ok: false;
+            errorCode?: import("@mode/shared/remote-desktop").RemoteDesktopErrorCode;
+            error: string;
+          }
         | null
       >)
     | null = null;
@@ -398,12 +402,13 @@ export async function createHostServiceSurface(
         return state.addresses.map((address) => `${scheme}${address}`);
       },
       getLocalApi: async () => {
-        const server = lanAccess?.getActiveServer();
-        if (!server) return null;
-        const state = server.getState();
-        if (!state.enabled) return null;
+        // 本机服务常驻（R5）：与「允许局域网直连」解耦。开关关闭时 handle 处于 loopback
+        // 模式，地址必须取 getLocalApiBaseUrl()（getState().port 在关闭态是 null）。
+        // 未启动时现起一份 loopback，避免 v3 隧道在启动竞态里拿到 local api unavailable。
+        if (!lanAccess) return null;
+        const server = await lanAccess.ensureLocalApi();
         return {
-          baseUrl: `http://127.0.0.1:${state.port}`,
+          baseUrl: server.getLocalApiBaseUrl(),
           token: await server.ensureCloudPeerToken(),
         };
       },

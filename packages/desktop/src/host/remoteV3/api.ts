@@ -1,6 +1,14 @@
 import { parseDeviceDescriptor, type DeviceDescriptor } from "@mode/remote-core";
 import type { RemoteV3DeviceSummary } from "@mode/shared";
 
+import {
+  MUTATION_TIMEOUT_MS,
+  PEER_GET_TIMEOUT_MS,
+  POLL_TIMEOUT_MS,
+  readError,
+  readJson,
+  requestFetch,
+} from "./apiFetch.js";
 import type { RemoteV3Tokens } from "./identity.js";
 
 export interface RemoteV3Registration extends RemoteV3Tokens {
@@ -46,17 +54,22 @@ export async function registerRemoteV3Host(input: {
   fetchImpl?: typeof fetch;
 }): Promise<RemoteV3Registration> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${input.serverUrl}/api/v1/devices`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${input.webSessionToken}`,
+  const response = await requestFetch(
+    fetchImpl,
+    `${input.serverUrl}/api/v1/devices`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${input.webSessionToken}`,
+      },
+      body: JSON.stringify({
+        device: input.descriptor,
+        ...(input.addresses?.length ? { addresses: input.addresses } : {}),
+      }),
     },
-    body: JSON.stringify({
-      device: input.descriptor,
-      ...(input.addresses?.length ? { addresses: input.addresses } : {}),
-    }),
-  });
+    { timeoutMs: MUTATION_TIMEOUT_MS },
+  );
   const body = await readJson(response);
   if (!response.ok) {
     throw new RemoteV3ApiError(response.status, readError(body, "设备注册失败"));
@@ -85,14 +98,19 @@ export async function registerRemoteV3OwnedRole(input: {
   fetchImpl?: typeof fetch;
 }): Promise<RemoteV3Registration> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${input.serverUrl}/api/v1/devices/register-owned-role`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${input.accessToken}`,
+  const response = await requestFetch(
+    fetchImpl,
+    `${input.serverUrl}/api/v1/devices/register-owned-role`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${input.accessToken}`,
+      },
+      body: JSON.stringify({ device: input.descriptor }),
     },
-    body: JSON.stringify({ device: input.descriptor }),
-  });
+    { timeoutMs: MUTATION_TIMEOUT_MS },
+  );
   const body = await readJson(response);
   if (!response.ok)
     throw new RemoteV3ApiError(response.status, readError(body, "注册相反角色失败"));
@@ -120,11 +138,17 @@ export async function refreshRemoteV3Tokens(input: {
   fetchImpl?: typeof fetch;
 }): Promise<RemoteV3Tokens> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${input.serverUrl}/api/v1/devices/refresh`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ deviceId: input.deviceId, refreshToken: input.refreshToken }),
-  });
+  // refresh token 单次消费：这里绝不能重试，超时按失败返回，由上层重读凭据。
+  const response = await requestFetch(
+    fetchImpl,
+    `${input.serverUrl}/api/v1/devices/refresh`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deviceId: input.deviceId, refreshToken: input.refreshToken }),
+    },
+    { timeoutMs: MUTATION_TIMEOUT_MS },
+  );
   const body = await readJson(response);
   if (!response.ok) {
     throw new RemoteV3ApiError(response.status, readError(body, "设备 token 刷新失败"));
@@ -147,9 +171,12 @@ export async function fetchRemoteV3Peer(input: {
   fetchImpl?: typeof fetch;
 }): Promise<DeviceDescriptor> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const response = await fetchImpl(
+  // 幂等 GET：重试一次，避免单次网络抖动让 Host 的 ensurePeer 直接拒绝整条连接。
+  const response = await requestFetch(
+    fetchImpl,
     `${input.serverUrl}/api/v1/devices/${encodeURIComponent(input.deviceId)}`,
     { headers: { authorization: `Bearer ${input.accessToken}` } },
+    { timeoutMs: PEER_GET_TIMEOUT_MS, retries: 1 },
   );
   const body = await readJson(response);
   if (!response.ok)
@@ -163,9 +190,12 @@ export async function fetchRemoteV3Account(input: {
   fetchImpl?: typeof fetch;
 }): Promise<{ id: string; displayName: string | null }> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/me`, {
-    headers: { authorization: `Bearer ${input.webSessionToken}` },
-  });
+  const response = await requestFetch(
+    fetchImpl,
+    `${input.serverUrl}/api/v1/auth/me`,
+    { headers: { authorization: `Bearer ${input.webSessionToken}` } },
+    { retries: 1 },
+  );
   const body = await readJson(response);
   if (!response.ok) {
     throw new RemoteV3ApiError(response.status, readError(body, "读取账号信息失败"));
@@ -189,9 +219,12 @@ export async function listRemoteV3Devices(input: {
   fetchImpl?: typeof fetch;
 }): Promise<RemoteV3DeviceSummary[]> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${input.serverUrl}/api/v1/devices`, {
-    headers: { authorization: `Bearer ${input.accessToken}` },
-  });
+  const response = await requestFetch(
+    fetchImpl,
+    `${input.serverUrl}/api/v1/devices`,
+    { headers: { authorization: `Bearer ${input.accessToken}` } },
+    { retries: 1 },
+  );
   const body = await readJson(response);
   if (!response.ok)
     throw new RemoteV3ApiError(response.status, readError(body, "读取设备目录失败"));
@@ -243,11 +276,16 @@ export async function startGithubDeviceFlow(input: {
   fetchImpl?: typeof fetch;
 }): Promise<GithubDeviceFlowStart> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/github/device/start`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: "{}",
-  });
+  const response = await requestFetch(
+    fetchImpl,
+    `${input.serverUrl}/api/v1/auth/github/device/start`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    },
+    { timeoutMs: POLL_TIMEOUT_MS },
+  );
   const body = await readJson(response);
   if (!response.ok || typeof body.deviceCode !== "string") {
     throw new Error(readError(body, "GitHub Device Flow 启动失败"));
@@ -270,11 +308,16 @@ export async function pollGithubDeviceFlow(input: {
   fetchImpl?: typeof fetch;
 }): Promise<GithubDeviceFlowPoll> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/github/device/poll`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ deviceCode: input.deviceCode }),
-  });
+  const response = await requestFetch(
+    fetchImpl,
+    `${input.serverUrl}/api/v1/auth/github/device/poll`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deviceCode: input.deviceCode }),
+    },
+    { timeoutMs: POLL_TIMEOUT_MS },
+  );
   const body = await readJson(response);
   const status = body.status;
   if (status === "ok" && typeof body.sessionToken === "string") {
@@ -319,11 +362,16 @@ export async function startGithubOAuthFlow(input: {
   fetchImpl?: typeof fetch;
 }): Promise<GithubOAuthFlowStart> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/github/oauth/start`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: "{}",
-  });
+  const response = await requestFetch(
+    fetchImpl,
+    `${input.serverUrl}/api/v1/auth/github/oauth/start`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    },
+    { timeoutMs: POLL_TIMEOUT_MS },
+  );
   if (response.status === 503) throw new GithubOAuthUnavailableError();
   const body = await readJson(response);
   if (!response.ok || typeof body.authorizationUrl !== "string") {
@@ -348,11 +396,16 @@ export async function pollGithubOAuthFlow(input: {
   fetchImpl?: typeof fetch;
 }): Promise<GithubOAuthFlowPoll> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${input.serverUrl}/api/v1/auth/github/oauth/poll`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ state: input.state, pollToken: input.pollToken }),
-  });
+  const response = await requestFetch(
+    fetchImpl,
+    `${input.serverUrl}/api/v1/auth/github/oauth/poll`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ state: input.state, pollToken: input.pollToken }),
+    },
+    { timeoutMs: POLL_TIMEOUT_MS },
+  );
   const body = await readJson(response);
   const status = body.status;
   if (status === "ok" && typeof body.sessionToken === "string") {
@@ -368,22 +421,4 @@ export async function pollGithubOAuthFlow(input: {
     };
   }
   throw new Error(readError(body, "GitHub OAuth 轮询失败"));
-}
-
-export async function readJson(response: Response): Promise<Record<string, unknown>> {
-  try {
-    const parsed = (await response.json()) as unknown;
-    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
-  } catch {
-    return {};
-  }
-}
-
-export function readError(body: Record<string, unknown>, fallback: string): string {
-  const error = body.error;
-  if (typeof error === "object" && error !== null) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string" && message) return message;
-  }
-  return fallback;
 }

@@ -17,10 +17,12 @@ const EMPTY_STATE: LanAccessState = {
 };
 
 /**
- * 设置页「远程控制」分区（docs/specs/remote-control-unified-pairing.md R1/R2）：
+ * 设置页「远程控制」分区（docs/specs/remote-control-unified-pairing.md R1/R2/R5）：
  * 产品统一到个人账号后，这里只保留两个开关——
- * - 允许局域网直连（`lanAccessEnabled`）：Host 才会向同账号设备上报局域网直连地址；
- * - 允许被远程控制（`rdEnabled`）：关掉会立即终止进行中的被控会话。
+ * - 允许局域网直连（`lanAccessEnabled`）：只控制本机是否向局域网/Tailscale 暴露地址
+ *   与直连入口；关闭后本机 HTTP/WS 仍以 loopback 常驻，远程工作区/远程桌面改走 Relay。
+ * - 允许被远程控制（`rdEnabled`）：被控总开关，关掉会立即终止进行中的被控会话。
+ *
  * 配对码、已配对客户端清单、「我配对的对端」都随配对入口一起移除；授权来源是同账号目录，
  * 后端配对接口仅保留给 CLI / 旧客户端。
  */
@@ -115,6 +117,10 @@ export function RemoteControlSettingsSection() {
 
   return (
     <div className="space-y-4">
+      {/* 分区导语：先把「同账号 + E2EE + 不要求同网段」讲清楚，两个开关再各自收口。 */}
+      <p className="px-1 text-ui-base leading-6 text-foreground-subtle">
+        {intl.formatMessage({ id: "settings.remoteDesktop.sectionDescription" })}
+      </p>
       <SettingsGroupCard>
         <SettingsRow
           label={intl.formatMessage({ id: "settings.lanAccess.enable" })}

@@ -1464,8 +1464,8 @@ export function SettingsPage({
                         ) : activeSection === "remoteDesktop" || activeSection === "lanAccess" ? (
                           // 远程控制（合并原「远程桌面」与「局域网访问」为单卡片被控面，
                           // 2026-10-13；见 settingsPageConfig 与 RemoteControlSettingsSection）：
-                          // 两个总开关 + 配对码 + 已配对设备单列表（含远程桌面授权开关）
-                          // +「我配对的对端」。lanAccess 作为历史意图别名保留，落到同一分区内容。
+                          // 分区导语 + 两个总开关（局域网直连只管暴露，被远程控制是被控总开关）
+                          // + 编码/安全提示。lanAccess 作为历史意图别名保留，落到同一分区内容。
                           <RemoteControlSettingsSection />
                         ) : activeSection === "memory" ? (
                           <ServiceProvider services={localHostServices}>

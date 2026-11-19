@@ -183,6 +183,9 @@ WebRTC DataChannel (Noise)  ->  LAN direct (WS/WSS + Noise)  ->  Relay (WSS + No
 - LAN 服务默认明文 WS；提供受信任 key/cert 时升级 `https/wss`（地址带 `wss://` 前缀，
   自签名不支持）。直连内容仍由 Noise 加密。
 - Host 在设备目录上报 LAN 地址（`addresses`，最多 8 个 `host:port`），直连选路使用。
+  是否上报只由「允许局域网直连」设置决定；关闭时 Host 仍以 `127.0.0.1` 常驻本机
+  HTTP/WS 服务，供 v3 工作区/远程桌面的 E2EE 隧道调用，因此关闭该开关不影响远程控制
+  的功能可用性，只是不再尝试 LAN 直连与不启动 LAN 发现/内置 Relay 隧道。
 - Relay 分配独立 data WebSocket；双方用服务端签名 ticket `relay.attach` 后转发密文。
 - `transport.selected` 在 Noise 握手前由 Client 发送并经 Control 转发；Host 必须按
   消息顺序应用，不能在握手后切换已绑定数据面。
@@ -206,6 +209,19 @@ WebRTC DataChannel (Noise)  ->  LAN direct (WS/WSS + Noise)  ->  Relay (WSS + No
 - 已建立连接：DataChannel/Relay 断开 → 关闭该逻辑连接，清理 Noise、RPC、流与审批；
   Client 重新执行授权、选路和 Noise 握手。v3 首期不做跨 Control 中断的 lease 恢复。
 - 断线重连使用 full jitter：`[0, cap]`，`cap` 默认 30s；显式撤销/替换/身份变化不重试。
+
+### 5.4 账号 REST 超时与重试（客户端传输韧性）
+
+- 所有账号服务 REST 调用必须有单次超时：幂等 GET 使用较短预算（设备目录/账号信息
+  8s，对端 descriptor 5s），注册/刷新等 POST 使用 15s；Control WS 建链另有 10s 超时。
+- **只对幂等 GET 自动重试一次**（250ms 退避）：设备目录、对端 descriptor、`auth/me`。
+  Host 在 `ensurePeer` 交叉校验对端 descriptor 时同样受益，避免一次网络抖动直接拒绝
+  整条连接。
+- 注册、refresh、配对/登录轮询等 POST **不得自动重试**：refresh token 单次使用，
+  超时后重发同一 token 会被服务端判定为重放并撤销整个 token family。超时结果按失败
+  返回，由上层重新读取凭据或等待用户重试。
+- 重试只覆盖网络/超时错误，不覆盖 HTTP 4xx/5xx；401/403 仍走既有凭证恢复流程。
+- 不改变服务端协议、限流或错误 envelope。
 
 ## 6. 线协议
 
@@ -486,10 +502,11 @@ P3 已接线的部分：
 - 账号登录 UI 已重做：`ModeAccountDialog` 改为 `RemoteV3AccountSection`（服务地址输入、
   GitHub OAuth 授权链接（Device Flow 回退显示验证码）、在线状态、设备指纹、活动连接、只读设备目录、
   退出远程控制）；v2 的 `RemoteControlCloudSection` 已删除。
-- 通用 E2EE WebSocket 隧道：Host 侧把 `remote.ws` stream 桥接到本机 LAN 的 `/ws*`
+- 通用 E2EE WebSocket 隧道：Host 侧把 `remote.ws` stream 桥接到本机 loopback 的 `/ws*`
   （token 只进本机 Cookie，帧首字节区分 text/binary，可选握手头）；Client 侧通过
-  `openTunnel`/`sendTunnel`/`closeTunnel` 与 `onTunnelEvent` 复用。隧道要求本机 LAN
-  服务已启用，否则返回 `local api unavailable`。
+  `openTunnel`/`sendTunnel`/`closeTunnel` 与 `onTunnelEvent` 复用。2026-11-19 起
+  loopback 服务常驻，「允许局域网直连」关闭时隧道仍可用；只有本机服务未初始化时才
+  返回 `local api unavailable`。
 - 隧道事件在无订阅者时先缓存（上限 256），首个 `onTunnelEvent` 订阅者会收到补齐的
   `open`/首帧；避免渲染进程「先 openTunnel、再订阅」之间丢掉 `Initialize`。
 - Host 注册时上报本机 LAN 地址（最多 8 个 `host:port`，不含令牌），设备目录按设备返回；
@@ -536,6 +553,15 @@ P3 已接线的部分：
 - 刷新单飞：refresh token 单次使用，Host/Client 的刷新请求共享同一个在途 Promise，
   并用 generation 丢弃账号切换后才完成的旧刷新结果，避免并发刷新被判定为重放而
   撤销整个 token family。可恢复断链对外状态为 `reconnecting`，凭证失效才进入 `error`。
+- 2026-11-19 传输韧性：账号 REST 调用统一加单次超时；幂等 GET（设备目录、对端
+  descriptor、`auth/me`）网络失败自动重试一次，注册/refresh 等 POST 不重试以保护
+  refresh token 单次消费语义；Control WS 建链加 10s 超时，避免控制面不可达时
+  工作区向导无限挂起。
+- 2026-11-19 本机服务常驻：`LanAccessServerHandle` 默认以 `127.0.0.1` 启动；
+  「允许局域网直连」只切换为 `0.0.0.0` 并启用发现/内置 Relay/地址上报。关闭开关时
+  v3 工作区与远程桌面仍经 Relay + loopback 工作；切换由 `lanAccessService` 串行
+  停旧起新，`getLocalApi()` 会等待启动完成，不再因开关关闭返回
+  `HOST_LOCAL_API_UNAVAILABLE`。
 
 仍在进行：
 
@@ -562,5 +588,6 @@ P3 已接线的部分：
   连接数、Relay 帧/字节与 API 请求计数（需 `MODE_REMOTE_METRICS_TOKEN`），`/ready`
   提供 DB 探针；SQLite schema 使用 `PRAGMA user_version` 做幂等迁移。全局限流目前仍只有
   固定窗口，未接 tracing。
-- v3 远程桌面要求被控 Host 的本机 LAN 服务已启用；未启用时 HTTP 桥返回
-  `HOST_LOCAL_API_UNAVAILABLE`。
+- v3 远程桌面与远程工作区依赖被控 Host 的**本机 loopback HTTP/WS 服务**；该服务
+  默认常驻，与「允许局域网直连」解耦（2026-11-19）。只有服务尚未完成初始化时 HTTP 桥
+  才返回 `HOST_LOCAL_API_UNAVAILABLE`。

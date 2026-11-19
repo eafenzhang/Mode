@@ -70,6 +70,17 @@ export function computeRemoteDesktopCapability(params: {
 export interface LanAccessServerHandle {
   getState(): LanAccessState;
   /**
+   * 本机 HTTP/WS 实际监听端口（loopback 与 LAN 模式都有值）。
+   * `getState().port` 只在 LAN 暴露时返回值；v3 隧道的 `getLocalApi()` 必须用本方法，
+   * 否则关闭「允许局域网直连」后会拿不到本机服务端口。
+   */
+  getLocalApiPort(): number;
+  /**
+   * 本机 API 的 base URL（loopback + 实际监听协议）。
+   * 配置了 `MODE_LAN_TLS_*` 时监听是 https，写死 `http://` 会让 v3 隧道连不上本机。
+   */
+  getLocalApiBaseUrl(): string;
+  /**
    * 用云端登录下发的 relay token 启动隧道（幂等）。LAN 监听启动时没有令牌也能先生成
    * tunnelId；登录成功后再调用本方法。
    */
@@ -103,7 +114,13 @@ export interface StartLanAccessServerParams {
   startTunnel?: (options: RelayTunnelStartOptions) => { close(): void };
   /** 测试/隔离用监听端口覆写；生产缺省 `LAN_ACCESS_DEFAULT_PORT`。 */
   port?: number;
-  /** Web/手机远控静态资源目录；缺省 API-only。 */
+  /**
+   * loopback-only 模式（2026-11-19）：只绑定 `127.0.0.1`，供 v3 远程工作区/远程桌面
+   * 通过 E2EE 隧道调用本机 HTTP/WS。该模式不启动 LAN 发现与内置 Relay 隧道、不向
+   * 设备目录上报地址，`getState().enabled` 为 false；由「允许局域网直连」设置决定。
+   */
+  localOnly?: boolean;
+  /** Web/手机远控静态资源目录；缺省 API-only。localOnly 模式不挂载。 */
   webRoot?: string;
   /**
    * SSH/WSL/Docker 远程工作区的 remote assets 源（与桌面 renderer 同一解析结果）。
@@ -339,15 +356,22 @@ export async function startLanAccessServer(
 
   const lanTls = resolveLanTls();
   const lanScheme: "http" | "https" = lanTls ? "https" : "http";
+  const localOnly = params.localOnly === true;
+  // 本机服务常驻（2026-11-19）：关闭「允许局域网直连」时只把监听面收回 loopback，
+  // v3 工作区/远程桌面仍经 E2EE 隧道调用这里的 /api 与 /ws；不再让功能可用性依赖开关。
+  const listenHost = localOnly ? "127.0.0.1" : "0.0.0.0";
   const requestedPort = params.port ?? LAN_ACCESS_DEFAULT_PORT;
   // 打包形态的 webRoot 来自统一构建（web.html）；开发态回退到独立 web 构建（index.html）。
+  // loopback 模式不对外提供 Web 远控页，跳过静态资源挂载。
   const webIndexFile =
-    params.webRoot && existsSync(join(params.webRoot, "web.html")) ? "web.html" : undefined;
+    !localOnly && params.webRoot && existsSync(join(params.webRoot, "web.html"))
+      ? "web.html"
+      : undefined;
   const server = createHttpServer(params.services, requestedPort, {
-    host: "0.0.0.0",
+    host: listenHost,
     ...(lanTls ? { tls: lanTls } : {}),
     authRequired: true,
-    ...(params.webRoot
+    ...(!localOnly && params.webRoot
       ? {
           staticRoot: params.webRoot,
           spaFallback: true,
@@ -431,20 +455,23 @@ export async function startLanAccessServer(
     warn("lan access server error:", error.message);
   });
 
-  const discovery = await startLanDiscoveryResponder({
-    serverId,
-    name: params.machineName,
-    version: params.appVersion,
-    port,
-    scheme: lanScheme,
-    isDisposed: () => disposed,
-    warn,
-  });
+  // loopback 模式不对外暴露：跳过 UDP 发现应答，避免局域网探测误报本机可连。
+  const discovery = localOnly
+    ? null
+    : await startLanDiscoveryResponder({
+        serverId,
+        name: params.machineName,
+        version: params.appVersion,
+        port,
+        scheme: lanScheme,
+        isDisposed: () => disposed,
+        warn,
+      });
 
   // 监听已建立后再启动出站隧道：本地 127.0.0.1:<port> 必须可达。
   // 隧道连接失败不阻断 LAN：startRelayTunnelClient 自己退避重连，LAN 照常可用。
   const startRelayTunnel = (token: string): void => {
-    if (!relayIdentity || tunnel) {
+    if (localOnly || !relayIdentity || tunnel) {
       return;
     }
     const started = startLanRelayTunnel({
@@ -459,9 +486,7 @@ export async function startLanAccessServer(
       publicRelay = relayIdentity;
     }
   };
-  const initialRelayToken = (
-    params.relay?.token ?? process.env.MODE_RELAY_TOKEN ?? ""
-  ).trim();
+  const initialRelayToken = (params.relay?.token ?? process.env.MODE_RELAY_TOKEN ?? "").trim();
   if (initialRelayToken) {
     startRelayTunnel(initialRelayToken);
   }
@@ -469,6 +494,19 @@ export async function startLanAccessServer(
   const getState = (): LanAccessState => {
     if (pairCode && pairCode.expiresAt <= Date.now()) {
       pairCode = null;
+    }
+    // loopback 模式：本机服务在跑但不对局域网暴露，`enabled=false` 表示「开关关闭」，
+    // 地址/配对码/公网中继一律不下发；clients 仍可读（配对记录是持久化事实）。
+    if (localOnly) {
+      return {
+        enabled: false,
+        port: null,
+        addresses: [],
+        pairCode: null,
+        clients: clients.map((client) => ({ ...client })),
+        activeWebSessions,
+        publicRelayUrl: null,
+      };
     }
     return {
       enabled: true,
@@ -484,6 +522,9 @@ export async function startLanAccessServer(
 
   return {
     getState,
+    // v3 隧道按实际监听端口/协议连本机，与是否对外暴露无关。
+    getLocalApiPort: () => port,
+    getLocalApiBaseUrl: () => `${lanScheme}://127.0.0.1:${port}`,
     startRelayTunnel,
     ensureCloudPeerToken,
     createPairCode(): LanAccessState {
@@ -532,7 +573,7 @@ export async function startLanAccessServer(
       pairCode = null;
       tunnel?.close();
       tunnel = null;
-      discovery.close();
+      discovery?.close();
       // 先释放控制器持有的对端 WS/远程桌面会话，再关 HTTP 服务。
       await Promise.allSettled([lanPeers.disposeAll(), remoteDesktopPeers.disposeAll()]);
       await new Promise<void>((resolve) => {

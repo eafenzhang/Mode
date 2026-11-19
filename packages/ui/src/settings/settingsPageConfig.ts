@@ -74,8 +74,8 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.modelProviderTitle",
     groupId: "basics",
   },
-  // 远程控制（合并原「远程桌面」与「局域网访问」）：被控端同意/指示/授权管理 +
-  // 本机共享（配对码/客户端/已配对对端）；仅 win32 桌面端为真实能力（两端都要 Windows）。
+  // 远程控制（合并原「远程桌面」与「局域网访问」）：本机被控总开关 + 局域网暴露开关
+  // + 编码/安全提示；仅 win32 桌面端为真实能力（两端都要 Windows）。
   // 夹在「模型设置」与「电脑控制」之间：远控入口紧跟模型配置、先于本机控制开关。
   {
     id: "remoteDesktop",

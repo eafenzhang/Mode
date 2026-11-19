@@ -76,11 +76,16 @@ function createFakeServerHandle(initial?: Partial<LanAccessState>): {
   handle: LanAccessServerHandle;
   disposed: () => number;
   state: () => LanAccessState;
+  /** 按目标模式重设快照：loopback 模式必须报 enabled=false（开关关闭态）。 */
+  setMode: (localOnly: boolean) => void;
 } {
   let state: LanAccessState = { ...EMPTY_STATE, enabled: true, port: 45880, ...initial };
   let disposeCount = 0;
   const handle: LanAccessServerHandle = {
     getState: () => state,
+    // 端口只服务本机 API，loopback 模式也有值（getState().port 此时是 null）。
+    getLocalApiPort: () => state.port ?? 45880,
+    getLocalApiBaseUrl: () => `http://127.0.0.1:${state.port ?? 45880}`,
     startRelayTunnel: () => undefined,
     ensureCloudPeerToken: async () => "cloud-peer-token",
     createPairCode: () => {
@@ -100,7 +105,34 @@ function createFakeServerHandle(initial?: Partial<LanAccessState>): {
       disposeCount += 1;
     },
   };
-  return { handle, disposed: () => disposeCount, state: () => state };
+  return {
+    handle,
+    disposed: () => disposeCount,
+    state: () => state,
+    setMode: (localOnly: boolean) => {
+      state = localOnly
+        ? {
+            ...state,
+            enabled: false,
+            port: null,
+            scheme: undefined,
+            addresses: [],
+            pairCode: null,
+            publicRelayUrl: null,
+          }
+        : { ...state, enabled: true, port: 45880, addresses: [] };
+    },
+  };
+}
+
+/** 把 fake 接到 startServer 注入点，并按 params.localOnly 切换其模式快照。 */
+function fakeStartServer(
+  fake: ReturnType<typeof createFakeServerHandle>,
+): (params: StartLanAccessServerParams) => Promise<LanAccessServerHandle> {
+  return async (params) => {
+    fake.setMode(params.localOnly === true);
+    return fake.handle;
+  };
 }
 
 function createServices(options: {
@@ -272,7 +304,7 @@ test("监听未开启时配对码/移除/重置明确失败", async () => {
   }
 });
 
-test("disable 会停监听并持久化开关", async () => {
+test("关闭开关切到 loopback 模式并持久化开关", async () => {
   const { credentials } = createFakeCredentials();
   const settingService = createFakeSettingService();
   const services = createServices({ credentials, settingService });
@@ -281,14 +313,58 @@ test("disable 会停监听并持久化开关", async () => {
     services,
     log: () => undefined,
     restoreOnStart: false,
-    startServer: async () => fake.handle,
+    startServer: fakeStartServer(fake),
   });
   try {
     await adapter.setEnabled({ enabled: true });
     const state = await adapter.setEnabled({ enabled: false });
-    assert.equal(state.enabled, false);
+    // 关闭不是停服：换一份 loopback handle，旧 LAN 监听被释放一次。
+    assert.equal(state.enabled, false, "loopback 模式必须报开关关闭");
     assert.equal(fake.disposed(), 1);
+    assert.ok(adapter.getActiveServer(), "本机服务必须仍在，v3 工作区/桌面还要用");
+    assert.equal(adapter.getActiveServer()?.getLocalApiPort(), 45880);
     assert.equal(settingService.current().lanAccessEnabled, false);
+    // LAN 关着，配对动作必须明确失败，不能因为 handle 还在就假装可用。
+    await assert.rejects(adapter.createPairCode(), /未开启/u);
+  } finally {
+    await adapter.dispose();
+  }
+});
+
+test("ensureLocalApi：LAN 模式直接复用，未启动时以 loopback 起一份", async () => {
+  const { credentials } = createFakeCredentials();
+  const settingService = createFakeSettingService();
+  const services = createServices({ credentials, settingService });
+  const fake = createFakeServerHandle();
+  let starts = 0;
+  let lastLocalOnly: boolean | undefined;
+  const adapter = await createLanAccessHostService({
+    services,
+    log: () => undefined,
+    restoreOnStart: false,
+    startServer: async (params) => {
+      starts += 1;
+      lastLocalOnly = params.localOnly === true;
+      fake.setMode(params.localOnly === true);
+      return fake.handle;
+    },
+  });
+  try {
+    // 尚未启动：现起一份 loopback，且不改开关值。
+    const local = await adapter.ensureLocalApi();
+    assert.equal(starts, 1);
+    assert.equal(lastLocalOnly, true, "未启动时必须以 loopback 模式启动");
+    assert.equal(local.getState().enabled, false);
+    assert.equal(settingService.current().lanAccessEnabled, undefined, "不能顺手改开关");
+    assert.equal(adapter.getActiveServer()?.getLocalApiPort(), 45880);
+
+    // 已是 LAN 模式：复用，绝不停 LAN。
+    await adapter.setEnabled({ enabled: true });
+    assert.equal(starts, 2);
+    const lan = await adapter.ensureLocalApi();
+    assert.equal(starts, 2, "LAN 模式下 ensureLocalApi 不得重启");
+    assert.equal(lan.getState().enabled, true);
+    assert.equal(fake.disposed(), 1, "只有 setEnabled(true) 那次切换停过旧 handle");
   } finally {
     await adapter.dispose();
   }
@@ -396,42 +472,87 @@ test("getPeerWorkspaces 在缺元数据/缺令牌时给出可读错误（不发�
   }
 });
 
-test("restoreOnStart 按设置恢复监听；关闭时不启动", async () => {
+test("restoreOnStart 按设置选模式：开=LAN 暴露，关=loopback 本机服务（R5 常驻）", async () => {
   const { credentials } = createFakeCredentials();
   const settingService = createFakeSettingService({ lanAccessEnabled: true });
   const services = createServices({ credentials, settingService });
   let starts = 0;
+  let lanMode = false;
+  const fake = createFakeServerHandle();
   const adapter = await createLanAccessHostService({
     services,
     log: () => undefined,
-    startServer: async () => {
+    startServer: async (params) => {
       starts += 1;
-      return createFakeServerHandle().handle;
+      lanMode = params.localOnly !== true;
+      fake.setMode(params.localOnly === true);
+      return fake.handle;
     },
   });
   try {
     assert.equal(starts, 1);
+    assert.equal(lanMode, true, "开关开着 → 0.0.0.0 LAN 暴露");
     assert.equal((await adapter.getState()).enabled, true);
   } finally {
     await adapter.dispose();
   }
 
+  // 开关关闭时不再「完全不起服」：本机服务常驻 loopback，v3 工作区/桌面才有入口。
   const secondSetting = createFakeSettingService({ lanAccessEnabled: false });
   const secondServices = createServices({
     credentials: createFakeCredentials().credentials,
     settingService: secondSetting,
   });
   let secondStarts = 0;
+  let secondLocalOnly: boolean | undefined;
+  const secondFake = createFakeServerHandle();
   const second = await createLanAccessHostService({
     services: secondServices,
     log: () => undefined,
-    startServer: async () => {
+    startServer: async (params) => {
       secondStarts += 1;
-      return createFakeServerHandle().handle;
+      secondLocalOnly = params.localOnly === true;
+      secondFake.setMode(params.localOnly === true);
+      return secondFake.handle;
     },
   });
-  await second.dispose();
-  assert.equal(secondStarts, 0);
+  try {
+    assert.equal(secondStarts, 1, "开关关闭也要起 loopback 本机服务");
+    assert.equal(secondLocalOnly, true);
+    assert.equal((await second.getState()).enabled, false, "对外仍是关闭态");
+    assert.ok(second.getActiveServer(), "本机服务必须常驻");
+    // LAN 关着，配对动作仍要明确失败。
+    await assert.rejects(second.createPairCode(), /未开启/u);
+  } finally {
+    await second.dispose();
+  }
+});
+
+test("restoreOnStart：LAN 起不来时回写开关并回落 loopback，不拖垮远程控制", async () => {
+  const { credentials } = createFakeCredentials();
+  const settingService = createFakeSettingService({ lanAccessEnabled: true });
+  const services = createServices({ credentials, settingService });
+  const fake = createFakeServerHandle();
+  const modes: boolean[] = [];
+  const adapter = await createLanAccessHostService({
+    services,
+    log: () => undefined,
+    startServer: async (params) => {
+      const localOnly = params.localOnly === true;
+      modes.push(localOnly);
+      if (!localOnly) throw new Error("EADDRINUSE");
+      fake.setMode(true);
+      return fake.handle;
+    },
+  });
+  try {
+    assert.deepEqual(modes, [false, true], "先试 LAN，失败后回落 loopback");
+    assert.equal(settingService.current().lanAccessEnabled, false, "LAN 失败必须回写开关");
+    assert.ok(adapter.getActiveServer(), "loopback 回落后本机服务仍在");
+    assert.equal((await adapter.getState()).enabled, false);
+  } finally {
+    await adapter.dispose();
+  }
 });
 
 test("discoverPeers 委托给注入的发现实现", async () => {

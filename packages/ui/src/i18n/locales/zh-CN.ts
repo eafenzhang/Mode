@@ -6084,25 +6084,30 @@ const zhCN: Record<string, string> = {
     "首个会话启动时，Mode 会针对该会话精确验证电脑控制工具。",
   "settings.computerUse.title": "电脑控制",
   "settings.lanAccess.description":
-    "开启后同一网段内的其它 Mode 可以用配对码连接本机并使用这里的工作区；默认关闭。",
+    "只控制是否向同一局域网/Tailscale 暴露本机地址并允许直连：关闭后不启动局域网发现、不对外监听，远程控制改走 Relay 加密中转，功能不受影响。",
   "settings.lanAccess.enable": "允许局域网直连",
-  "settings.lanAccess.statusEnabled": "已开启：{address}",
-  "settings.lanAccess.statusDisabled": "未开启：同账号设备只经 Relay 连接",
+  "settings.lanAccess.statusEnabled": "已开启：{address}。同账号设备会优先尝试直连，降低中转延迟。",
+  "settings.lanAccess.statusDisabled":
+    "未开启：同账号设备经 Relay 加密中转；远程控制与远程工作区仍可用。",
   "settings.lanAccess.pairCode": "配对码",
   "settings.lanAccess.pairCodeFailed": "生成配对码失败",
   "settings.lanAccess.toggleFailed": "切换局域网访问失败",
   "settings.lanAccess.firewallHint": "首次开启时系统可能询问防火墙权限，请允许专用网络访问。",
-  // 已配对设备单列表行内的远程桌面授权（与同意窗「记住此设备」同一字段）。
-  // 远程桌面（docs/specs/lan-remote-desktop.md）：被控设置分区 + 主控设备页/会话面 + 被控浮层。
+  // 远程控制设置分区只剩两个开关：局域网直连只管「是否暴露局域网」，
+  // 被远程控制才是被控总开关（docs/specs/remote-control-unified-pairing.md R5）。
   // 被控同意窗/指示浮层的 key 与文案与 desktop 侧 windowsContent.ts 字典保持一致（两端同文案）。
   "settings.remoteDesktop.title": "远程控制",
+  "settings.remoteDesktop.sectionDescription":
+    "远程控制只对同一账号的设备开放：设备目录来自账号服务，连接经 Noise 端到端加密，不需要配对码，也不要求两台设备在同一局域网。",
   "settings.remoteDesktop.enable": "允许被远程控制",
-  "settings.remoteDesktop.statusEnabled": "已开启；同账号设备可直接发起远程桌面。",
-  "settings.remoteDesktop.statusDisabled": "未开启；连接请求会被直接拒绝（默认关闭）。",
+  "settings.remoteDesktop.statusEnabled":
+    "已开启；同账号设备可发起远程桌面，远程工作区也走这条通道。",
+  "settings.remoteDesktop.statusDisabled":
+    "未开启；同账号设备发起的远程桌面请求会被直接拒绝（默认关闭）。",
   "settings.remoteDesktop.toggleFailed": "切换远程桌面失败",
   "settings.remoteDesktop.loadFailed": "读取远程桌面状态失败",
   "settings.remoteDesktop.securityHint":
-    "远程桌面走 Noise 端到端加密；授权来源是同一账号，进行中的会话会持续显示浮层且本机可随时结束。",
+    "远程桌面走 Noise 端到端加密，账号服务只转发密文；授权来源是同一账号，进行中的会话会持续显示浮层且本机可随时结束。",
   "settings.remoteDesktop.encoderUnavailable":
     "未检测到可用的 H.264 编码器（硬件与系统软件编码均不可用）：远程桌面会话将无法出画面。",
   "settings.remoteDesktop.encoderSoftwareFallback":
@@ -6111,20 +6116,18 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.title": "远程控制",
   "remoteDesktop.breadcrumbLabel": "远程控制路径",
   "remoteDesktop.description":
-    "管理同一账号下的远程 Host：端到端加密直连，不需要配对码。",
+    "管理同一账号下的远程 Host：设备目录来自账号服务，连接经 Noise 端到端加密，会自动选择直连或 Relay。",
   "remoteDesktop.devices.refresh": "刷新",
-  "remoteDesktop.devices.loading": "正在读取账号设备…",
-  "remoteDesktop.devices.loadFailed": "读取账号设备目录失败。",
+  "remoteDesktop.devices.loading": "正在读取同账号设备…",
+  "remoteDesktop.devices.loadFailed": "读取同账号设备目录失败。",
   "remoteDesktop.devices.signedOut": "尚未登录账号",
   "remoteDesktop.devices.signedOutHint":
-    "登录同一账号后，这里会列出可远程控制的 Host；远程桌面经 Noise 端到端加密，不需要配对码。",
+    "登录同一账号后，这里会列出可远程控制的 Host；连接不需要配对码，也不要求两台设备在同一局域网。",
   "remoteDesktop.devices.login": "登录账号",
-  "remoteDesktop.devices.emptyNoHost": "同账号下还没有其他 Host",
+  "remoteDesktop.devices.emptyNoHost": "同账号下还没有在线的 Host",
   "remoteDesktop.devices.emptyNoHostHint":
-    "请在另一台电脑登录同一账号，并在「设置 → 远程控制」中开启「允许被远程控制」。",
+    "请在另一台设备登录同一账号，并在「设置 → 远程控制」开启「允许被远程控制」；被控端无需开启「允许局域网直连」。",
   "remoteDesktop.devices.retry": "重试",
-  "remoteDesktop.devices.empty":
-    "还没有已配对设备。点上方「检测设备」发现同一局域网内的 Windows 电脑，用对端「设置 · 远程控制」里的配对码完成配对。",
   "remoteDesktop.devices.openLanAccess": "打开远程控制设置",
   // 画质档位（P1-3）：连接前选择，随会话请求下发给被控。
   "remoteDesktop.quality.label": "画质",
@@ -6207,7 +6210,7 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.cloud.noDevices": "账号下还没有其他设备。",
   "remoteDesktop.devices.view.list": "列表视图",
   "remoteDesktop.devices.view.grid": "宫格视图",
-  "remoteDesktop.devices.kind.v3": "端到端加密",
+  "remoteDesktop.devices.kind.v3": "同账号设备",
   "remoteDesktop.devices.kind.modeAgent": "Mode Go",
   "remoteDesktop.v3.online": "在线",
   "remoteDesktop.v3.offline": "离线",
@@ -6240,7 +6243,7 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.error.busy": "对端正在被其它设备控制。",
   "remoteDesktop.error.unsupported":
     "对端不支持远程桌面（请确认对端已开启「允许被远程控制」，并运行同一版本后重启）。",
-  "remoteDesktop.error.unauthorized": "配对凭据已失效，请重新配对。",
+  "remoteDesktop.error.unauthorized": "设备授权已失效，请重新登录账号后重试。",
   "remoteDesktop.error.stale_ticket": "会话票据已过期，请重试。",
   "remoteDesktop.error.locally_controlled": "本机正在被远程控制，请先断开。",
   "remoteDesktop.error.decoder_unsupported":
