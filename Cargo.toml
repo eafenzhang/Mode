@@ -36,6 +36,7 @@ members = [
   "crates/commands-service",
   "crates/dingtalk-stream",
   "crates/weixin-ilink",
+  "crates/feishu-ws",
   "crates/mode-protocol-client",
   "crates/agent-process",
   "crates/protocol",

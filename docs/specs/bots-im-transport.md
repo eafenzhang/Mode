@@ -126,6 +126,70 @@ CRLF）、`typing.rs`（票缓存与重试流程）、`aes.rs`（ECB+PKCS7 解�
 手写 ECB/PKCS7，不引 ecb 依赖）、`http.rs`（`WeixinHttp` trait 注入 + reqwest 生产实现）。
 测试：纯函数单测 + 本地最小 HTTP 假服务端集成（头/体/业务码/401 分类/typing 重试）。
 
+## 4c. 第三波交付：`crates/feishu-ws`（飞书 WS 长连客户端）
+
+**wire 事实源**：`@larksuiteoapi/node-sdk`（MIT，Lark Technologies Pte. Ltd.）——按
+§2 裁决以接口面口径提取。引用均为 `lib/index.js`（本地安装版 **1.61.1**；仓库 pin
+1.64.0，wire 面如有变更需重提）+ 行号。**实现只依据本节编写**。
+
+### 5.1 连接注册（HTTP）
+
+1. `POST {domain}/callback/ws/endpoint`；domain 映射：Feishu → `https://open.feishu.cn`、
+   Lark → `https://open.larksuite.com`（:216-222, :140-142, :85191-85193）。
+2. 请求体 `{AppID, AppSecret}`，请求头 `locale: zh`（网关消费），单请求超时 15s
+   （:85329-85341）。
+3. 响应 `{code, data: {URL, ClientConfig}, msg}`；ErrorCode：ok=0、system_busy=1、
+   forbidden=403、auth_failed=514、internal_error=1000040343、exceed_conn_limit=
+   1000040350（:85260-85267）。`code !== 0` → 注册失败进重试。
+4. `URL` 为 WS 连接串（含 ticket 等），其 query 带 `device_id` 与 `service_id`
+   （qs.parse，:85348）；`service_id` 用于 ping 帧的 `service` 字段。
+5. `ClientConfig`（秒）：`PingInterval / ReconnectCount / ReconnectInterval /
+   ReconnectNonce`（:85353-85356）；无配置时缺省 ping 120s、reconnectCount **-1（无限）**、
+   reconnectInterval 120s、reconnectNonce 30s（WSConfig 构造，:85165-85175）。
+
+### 5.2 WS 帧：protobuf `pbbp2.Frame`（二进制）
+
+1. 字段（encode :84826-84844）：1 `SeqID` uint64、2 `LogID` uint64、3 `service` int32、
+   4 `method` int32、5 repeated `Header{1 key string, 2 value string}`、6
+   `payloadEncoding` string、7 `payloadType` string、8 `payload` bytes、9 `LogIDNew`
+   string（均可选，编解码按 hasOwnProperty 宽容处理；decode required = SeqID/LogID/
+   service/method，:84921-84928；未知字段跳过）。
+2. `method`：control=0、data=1（:85268-85272）。
+3. `HeaderKey`：type / message_id / sum / seq / trace_id / biz_rt / handshake-status /
+   handshake-msg / handshake-autherrcode（:85273-85284）。
+4. `MessageType`（HeaderKey.type 的值）：event / card / ping / pong（:85285-85291）。
+5. 发送：整帧编码为二进制经 WS 发出（sendMessage，:85648-85659）。
+
+### 5.3 会话行为
+
+1. WS open 后立即起 ping 循环：每 `pingInterval` 发 control 帧
+   `headers=[{key:"type",value:"ping"}]`、`service=Number(serviceId)`、`SeqID=0`、
+   `LogID=0`（:85483-85501）。
+2. 收帧按 `method` 分派（:85502-85513）：
+   - control：`type=ping` 忽略；`type=pong` 且有 payload → JSON
+     `{PingInterval,ReconnectCount,ReconnectInterval,ReconnectNonce}` 更新会话参数
+     （:85527-85539）。
+   - data：headers 归并为 map 取 `message_id/sum/seq/type/trace_id`；`type !== "event"`
+     忽略（MessageType.card 有定义但此路径不处理）；payload 经 DataCache 分片重组
+     （见下）后派发。
+3. **分片重组 DataCache**（:85202-85259）：`message_id → Array(sum)` 预填 undefined，
+   按 `seq` 放 payload；全部非空才合并（按 seq 顺序字节拼接 → UTF-8 → `JSON.parse`）
+   并派发，派发即删缓存；**每 10s 清理 10s 前的未完成分片**。
+4. 派发后回 **ACK 帧**：复制原帧（SeqID/LogID/service/method 不变），headers 追加
+   `{key:"biz_rt", value:处理耗时 ms}`，payload = `JSON {"code":200|"500"}`——
+   dispatcher 成功 code=200（有结果时 `data=base64(JSON(result))`），异常 code=500
+   （handleEventData :85550-85585；HttpStatusCode :85292-85298）。
+5. WS error 只记日志；**WS close → 重连**（:85514-85520）。
+
+### 5.4 重连
+
+1. `generation` 计数防陈旧重连循环（:85393-85481）。
+2. 每轮 = 注册（pullConnectConfig）→ 成功才建连 → 成功才挂消息处理；注册/建连失败
+   → 重试整轮；**启动失败立即递归重试**。
+3. 断线重连：先等 `reconnectNonce × random()` 抖动，再按 `reconnectInterval` 间隔
+   重试至多 `reconnectCount` 次（默认 -1 = 无限）（:85439-85479）。
+4. 手动 `close()`：generation++ 清计时器（:85663-85690 区间）。
+
 ## 5. 验收
 
 1. 离线：`cargo test -p dingtalk-stream` 全绿（纯函数 + 假 WS 集成）。

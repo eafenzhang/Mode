@@ -1,0 +1,24 @@
+[package]
+name = "feishu-ws"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "飞书 WS 长连客户端（W5 第三波，wire 事实见 docs/specs/bots-im-transport.md §4c）"
+
+[lib]
+name = "feishu_ws"
+path = "src/lib.rs"
+
+[dependencies]
+base64.workspace = true
+futures-util.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

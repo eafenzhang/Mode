@@ -1449,6 +1449,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "feishu-ws"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "futures-util",
+ "reqwest",
+ "rustls",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "field-offset"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
