@@ -190,6 +190,102 @@ CRLF）、`typing.rs`（票缓存与重试流程）、`aes.rs`（ECB+PKCS7 解�
    重试至多 `reconnectCount` 次（默认 -1 = 无限）（:85439-85479）。
 4. 手动 `close()`：generation++ 清计时器（:85663-85690 区间）。
 
+## 4d. 第四波交付：`crates/wecom-ws`（企微 WS 客户端）
+
+**wire 事实源**：`@wecom/aibot-node-sdk`（MIT，WecomTeam）——按 §2 裁决以接口面口径
+提取。引用为 `dist/index.cjs.js`（**1.0.7**，与仓库 pin 一致）。**实现只依据本节编写**。
+
+### 6.1 连接与认证
+
+1. WS 默认地址 `wss://openws.work.weixin.qq.com`（:201）。
+2. 帧信封（JSON 文本）：上行 `{cmd, headers:{req_id}, body}`（:547-555）；下行回执
+   `{headers:{req_id}, errcode, errmsg}`（:368-369）；`req_id` =
+   `{prefix}_{timestamp}_{8位hex}`（:194-198）。
+3. 连接建立后立即发认证帧：`cmd="aibot_subscribe"`，body `{bot_id, secret, scene?,
+   plug_version?}`（:345-357, :928-931）。
+4. 认证应答 = 无 `cmd`、`headers.req_id` 以 `aibot_subscribe` 开头（:409-427）：
+   `errcode=0` → 成功：**重置两个重连计数器**并启动心跳（:421-426）；非 0 → 认证失败：
+   记错误、**计入 authFailureAttempts**、主动 terminate 触发重连（:410-419）。
+5. `WSAuthFailureError(WS_AUTH_FAILURE_EXHAUSTED)` / `WSReconnectExhaustedError
+   (WS_RECONNECT_EXHAUSTED)` 是两种耗尽错误（:20-39）。
+
+### 6.2 心跳
+
+1. 认证成功后每 `heartbeatInterval`（默认 30s）发 `cmd="ping"`，`headers.req_id` 以
+   `ping` 开头（:449-494）。
+2. 每次发送前：若连续未获 pong 数 ≥ `maxMissedPong`（2）→ 判定死连接，
+   terminate 触发 close→重连（:475-483）。
+3. 收到 req_id 以 `ping` 开头的回执：`errcode=0` → 清零 missedPong；非 0 只 warn
+   （不计入 missedPong）（:430-437）。
+
+### 6.3 入站帧
+
+1. `cmd="aibot_msg_callback"`：`{headers.req_id, body:{msgid, msgtype}}`，msgtype ∈
+   `text|image|mixed|voice|file|video`（:45-60, :782-809）。派发给上层（按 msgtype 分事件）。
+2. `cmd="aibot_event_callback"`：`body.event.eventtype` ∈ `enter_chat|template_card_event|
+   feedback_event|disconnected_event`（:111-122, :814-827）。
+3. **`disconnected_event`**：服务端因新连接建立主动断开旧连接——先派发事件，再停心跳、
+   清待回执、**禁止重连**（置 manual-close 语义）并 terminate（:383-401）。
+4. 无 `cmd` 的帧：按 req_id 前缀识别认证/心跳回执；其余若是**回复回执**（req_id 在
+   pendingAcks 中）交给回复队列；未知帧只 warn 不派发（:406-445）。
+
+### 6.4 回复通道（`aibot_respond_msg` 串行队列）
+
+1. 回复帧 `{cmd:"aibot_respond_msg", headers:{req_id=<入站 req_id>}, body}`；
+   **同一 req_id 一条串行队列**：发送一条 → 等回执（同 req_id 的无 cmd 帧）或
+   **5s 超时** → 才发下一条（:556-679）；队列上限 500，超出直接拒绝（:588-592）。
+2. 回执 `errcode=0` → resolve（完整回执帧）；非 0 → reject（回执帧）；超时 → reject
+   `Reply ack timeout`。超时与 ack 用自增 seq 防竞态（:625-647）。
+3. 连接关闭时清空全部队列与待回执（reject 为 cancelled，:687-707）。
+4. 便捷 body 形状：
+   - 流式文本 `{msgtype:"stream", stream:{id, finish, content, msg_item?(仅 finish),
+     feedback?(仅首次)}}`（:1020-1038）；
+   - 非阻塞流式：上一条同 req_id 仍有待回执时**跳过非终帧**（返回 skipped），
+     `finish=true` 终帧必发（:1381-1387）；
+   - 媒体 `{msgtype:<file|image|voice|video>, <type>:{media_id, title?, description?}}`
+     （title/description 仅 video）（:1281-1294）；
+   - 欢迎语 `cmd="aibot_respond_welcome_msg"`；卡片更新
+     `cmd="aibot_respond_update_msg"` + `{response_type:"update_template_card",
+     template_card, userids?}`（:1049-1128）。
+5. 主动发送 `aibot_send_msg`：`{headers.req_id, body:{chatid, ...body}}`，走同一队列
+   （:1153-1160）。
+
+### 6.5 临时素材上传（WS 三步分片）
+
+1. `aibot_upload_media_init`：body `{type, filename, total_size, total_chunks, md5(hex)}`
+   → 回执 `body.upload_id`（:1183-1190）。
+2. `aibot_upload_media_chunk` × N：body `{upload_id, chunk_index, base64_data}`；
+   分片 **512 KiB（base64 前）**，最多 100 片（≈50MB）；单片失败重试 2 次
+   （500ms×n），并发数 1-4 片全并发、5-10 片 3、>10 片 2（:1174-1254）。
+3. `aibot_upload_media_finish`：body `{upload_id}` → 回执 `body.media_id/type/created_at`
+   （:1257-1269）。
+
+### 6.6 文件下载与解密
+
+1. HTTP GET 下载地址（axios，10s），文件名从 `Content-Disposition` 解析
+   （优先 `filename*=UTF-8''`）（:141-171）。
+2. 解密（:841-878）：**AES-256-CBC**，key = Base64 解码的 aesKey（32 字节），
+   IV = key 前 16 字节；**关闭自动 padding**，手动去 PKCS#7（块大小 **32**）；
+   无 aesKey 时返回原始字节（:1339-1342）。
+3. `WecomCrypto`（SHA1 签名 + 32 字节 PKCS#7 加解密）是 **HTTP 回调模式**的加解密核心
+   （:1402-1540），不在 WS 传输路径上，本波不实现（登记）。
+
+### 6.7 重连策略
+
+1. 指数退避 `reconnectBaseDelay(1000) × 2^(attempts-1)`，上限 30s（:513, :531）。
+2. **两套独立计数器**：连接断开用 `reconnectAttempts / maxReconnectAttempts`
+   （默认 10，-1 无限）；认证失败用 `authFailureAttempts / maxAuthFailureAttempts`
+   （默认 5）（:504-541）。生产提供方传 `maxReconnectAttempts=-1`（无限重连）。
+3. 只有**认证成功**才重置计数器（TCP open 不重置，:304-307）。
+4. 手动 disconnect：取消挂起重连、清队列（:708-722）。
+
+crate 结构：`frame.rs`（信封/req_id/入站分类）、`reply.rs`（串行队列 + 回执等待）、
+`connection.rs`（认证/心跳/重连/入站分派）、`api.rs`（replyStream/非阻塞/媒体/
+sendMessage/uploadMedia）、`download.rs`（HTTP 下载 + AES-256-CBC 手写解密）、`lib.rs`。
+测试：frame/req_id/上传计划（md5、分片数、并发档位）/CBC 解密单测 + 假 WS 集成
+（认证握手、心跳、入站派发、串行回复与 ack、非阻塞跳过、上传三步、断开重连、
+disconnected_event 不重连）。
+
 ## 5. 验收
 
 1. 离线：`cargo test -p dingtalk-stream` 全绿（纯函数 + 假 WS 集成）。

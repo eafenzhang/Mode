@@ -532,8 +532,12 @@ rust=102 / not-needed=11 / blocked=2。已接入 `verify:pre-push` 与 release v
   sendmessage、typing 票重试、CDN AES-128-ECB+PKCS7 手写解密、markdown 降级幂等），
   16 单测全绿；`crates/feishu-ws` 落地飞书 WS 长连（protobuf pbbp2.Frame 手写编解码、
   注册 URL/ClientConfig 解析、ping/pong、分片重组 DataCache、ACK 回帧、
-  重连 nonce 抖动），14 单测 + 假网关/假 WS 集成全绿；接入形态（napi vs 壳内频道）
-  留后续裁决。
+  重连 nonce 抖动），14 单测 + 假网关/假 WS 集成全绿；`crates/wecom-ws` 落地企微
+  智能机器人 WS（aibot_subscribe 认证/30s 心跳 + 2 次丢 pong 判死/两套重连计数器/
+  `aibot_respond_msg` 串行 ack 队列 + 5s 超时/非阻塞流式/三步分片上传（512KiB×100、
+  md5、动态并发）/HTTP 下载 + AES-256-CBC 手写解密/disconnected_event 不重连），
+  13 单测 + 5 假 WS 集成全绿——**四通道传输层全部落地**；接入形态（napi vs 壳内频道）
+  与真机验收留后续。
 - **TUI 改 ratatui**（9,837 行 TS → `crates/tui`）：33 个场景清单逐项过。
 - **Web/远程服务端改 axum**（17,766 行 → `crates/server`）：契约对拍 + 手机远控验收。
 - **插件市场**：目录/安装/卸载逻辑进壳，素材仍按 `crate/plugin-host` 的资产层。
