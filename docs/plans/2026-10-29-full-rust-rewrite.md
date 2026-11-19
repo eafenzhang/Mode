@@ -522,11 +522,15 @@ rust=102 / not-needed=11 / blocked=2。已接入 `verify:pre-push` 与 release v
 - **IM 四通道 Rust 自实现**（飞书/企微/钉钉/微信，HTTP + WS）：不再复用 SDK，
   删掉 `@larksuiteoapi/node-sdk`、`@wecom/aibot-node-sdk` 及其 protobufjs 依赖。
   **第一波已开工（2026-11-20，spec `docs/specs/bots-im-transport.md`）**：wire 事实源矩阵
-  定案（钉钉/微信=官方文档+自家手写 TS；飞书/企微=SDK 封装、wire 未公开，挂真机抓包）；
+  定案（钉钉/微信=官方文档+自家手写 TS；飞书/企微=**SDK 接口面提取**，2026-11-20 用户
+  裁决：读 SDK 只限提取 wire 事实入 spec、禁贴实现，真机抓包留作验收，纪律入
+  clean-room-policy.md）；
   `crates/dingtalk-stream` 落地钉钉 Stream 长连客户端——帧处理核/去重（200 条 24h）/退避
   （1s→60s、健康 30s 重置）/注册（connections/open + ticket）逐条对齐 TS 真源，
   离线对拍 17 单测 + 3 假 WS 集成（ping/EVENT/CALLBACK/去重/disconnect/读超时/注册重试）
-  全绿；接入形态（napi vs 壳内频道）留后续裁决。
+  全绿；`crates/weixin-ilink` 落地微信 iLink 请求面（getupdates 游标五键/六键、
+  sendmessage、typing 票重试、CDN AES-128-ECB+PKCS7 手写解密、markdown 降级幂等），
+  16 单测全绿；接入形态（napi vs 壳内频道）留后续裁决。
 - **TUI 改 ratatui**（9,837 行 TS → `crates/tui`）：33 个场景清单逐项过。
 - **Web/远程服务端改 axum**（17,766 行 → `crates/server`）：契约对拍 + 手机远控验收。
 - **插件市场**：目录/安装/卸载逻辑进壳，素材仍按 `crate/plugin-host` 的资产层。

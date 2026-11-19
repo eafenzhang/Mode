@@ -26,14 +26,18 @@
 
 | 通道 | wire 事实源 | 状态 |
 | --- | --- | --- |
-| 钉钉 Stream | **官方协议文档**（open-dingtalk.github.io `docs/learn/stream/protocol`）+ 自家 TS 实现 | ✅ 齐，可离线对拍 |
-| 微信 iLink | 自家 TS 实现（手写 HTTP）+ 官方接口文档 | ✅ 齐，可离线对拍 |
-| 飞书 WS | SDK 内部协议，**官方文档不公开 wire** | ⬜ 待真机抓包（需真实应用凭据）或用户对「参考第三方 SDK 源码是否违反 clean-room 精神」另行裁决 |
-| 企微 WS | 同上（`@wecom/aibot-node-sdk` 的 WS 协议未公开） | ⬜ 同上 |
+| 钉钉 Stream | **官方协议文档**（open-dingtalk.github.io `docs/learn/stream/protocol`）+ 自家 TS 实现 | ✅ 齐，可离线对拍（已交付 `crates/dingtalk-stream`） |
+| 微信 iLink | 自家 TS 实现（手写 HTTP）+ 官方接口文档 | ✅ 齐，可离线对拍（已交付 `crates/weixin-ilink`） |
+| 飞书 WS | **SDK 接口面提取**（`@larksuiteoapi/node-sdk@1.61.1`，MIT）+ 真机抓包验收 | ✅ 2026-11-20 裁决落地（见下），可开工 |
+| 企微 WS | **SDK 接口面提取**（`@wecom/aibot-node-sdk@1.0.7`，MIT）+ 真机抓包验收 | ✅ 同上，可开工 |
 
-因此第一波 = **钉钉 Stream**（事实源最完整），第二波 = 微信 iLink 平移，
-飞书/企微排在 wire 事实源落定之后。**不读第三方 SDK 源码**（与 clean-room 精神一致），
-飞书/企微的 wire 以真机抓包为准。
+**wire 事实源裁决（2026-11-20，用户确认）**：飞书/企微的 WS wire 由厂商 SDK 封装且官方
+文档不公开；经定性（第三方厂商 SDK 不属 clean-room 政策的上游衍生实现、均 MIT、不在
+0% 重合度基线内、wire 帧结构属政策自身的「接口面」定义），裁决为**允许按接口面口径
+提取**——读 SDK 源码只限提取 wire 协议事实（帧字段/形状/顺序/常量/错误语义），必须
+带 SDK file:line 引用写入对应 spec；实现只依据 spec 编写，禁止粘贴 SDK 代码结构；
+真机抓包保留为验收层。纪律条款已写入 `docs/specs/clean-room-policy.md`「接口面优先级」
+与 PR checklist。
 
 ## 3. 钉钉 Stream 协议事实（官方文档 + 自家 TS，`dingtalkChannelRuntime.ts`）
 
