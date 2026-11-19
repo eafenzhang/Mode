@@ -87,6 +87,12 @@ export type OracleRuntimeOptions = {
    */
   titleGenerationEnabled?: boolean;
   /**
+   * 仅 C4 生态面录制用：合并进 `session/create` 的额外参数（mcpServers /
+   * dynamicWorkflowEnabled / toolAllowlist…）。C1–C3 的对拍与夹具不传它，路径不变。
+   * `workspace`/`model`/`thoughtLevel`/`titleGenerationEnabled` 由驱动固定下发，这里只补生态面字段。
+   */
+  sessionCreateParams?: Record<string, unknown>;
+  /**
    * 仅录制/诊断用：覆盖 host 对 `session/requestRuntimePreferences` 的应答内容。
    *
    * 默认发完整应答（四个字段都带）。传入精简版（省略协议里带 `.default(...)` 的字段）可以录到
@@ -441,6 +447,8 @@ export async function startOracleRuntime(options: OracleRuntimeOptions): Promise
       // 标题生成是一次额外的模型调用，它的到达时刻不确定，会让事件流尾部顺序不稳定；
       // 它与被测行为（会话循环 / 工具执行）无关，对拍一律关掉（默认）；录协议夹具时可开。
       titleGenerationEnabled: options.titleGenerationEnabled ?? false,
+      // C4 生态面字段（mcpServers / dynamicWorkflowEnabled…）在这里合并；不传即与旧路径逐字相同。
+      ...options.sessionCreateParams,
     })) as { sessionId?: string; session?: { sessionId?: string } } | undefined;
     // 实测形状：sessionId 嵌在 `session.sessionId`（顶层没有）。
     const sessionId = created?.sessionId ?? created?.session?.sessionId;

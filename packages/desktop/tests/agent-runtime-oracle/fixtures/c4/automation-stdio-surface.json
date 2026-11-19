@@ -1,0 +1,103 @@
+{
+  "case": "automation-stdio-surface",
+  "note": "C4 Task 0 oracle 捕获：automation 协议镜像的 5 个方法在 stdio agent 面的应答/错误形状，以及调用后普通 turn 仍可完成；不改写决策 4 的 not-needed 裁决。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "calls": [
+      "automation/create {title,cronExpr,prompt,targetTaskId}",
+      "automation/update {automationId:missing,prompt}",
+      "automation/checkTaskBinding {targetTaskId:session}",
+      "automation/list {}",
+      "automation/delete {automationId:missing}"
+    ],
+    "after": "plain prompt"
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages"]
+    },
+    "sessionId": "<session-id>",
+    "calls": {
+      "create": {
+        "ok": false,
+        "error": {
+          "frame": {
+            "code": -32601,
+            "message": "Method not found: automation/create"
+          }
+        }
+      },
+      "update": {
+        "ok": false,
+        "error": {
+          "frame": {
+            "code": -32601,
+            "message": "Method not found: automation/update"
+          }
+        }
+      },
+      "checkTaskBinding": {
+        "ok": false,
+        "error": {
+          "frame": {
+            "code": -32601,
+            "message": "Method not found: automation/checkTaskBinding"
+          }
+        }
+      },
+      "list": {
+        "ok": false,
+        "error": {
+          "frame": {
+            "code": -32601,
+            "message": "Method not found: automation/list"
+          }
+        }
+      },
+      "delete": {
+        "ok": false,
+        "error": {
+          "frame": {
+            "code": -32601,
+            "message": "Method not found: automation/delete"
+          }
+        }
+      }
+    },
+    "sessionUsable": {
+      "eventSummary": {
+        "types": [
+          "session.titleUpdated",
+          "turn.started",
+          "session.updated",
+          "session.updated",
+          "model.streaming",
+          "session.updated",
+          "session.updated",
+          "turn.completed"
+        ],
+        "terminals": [
+          {
+            "type": "turn.completed",
+            "resultType": "success"
+          }
+        ],
+        "turnStarts": [
+          {
+            "turnNumber": 0,
+            "executionKind": null,
+            "inputSource": null,
+            "input": "plain prompt after automation calls",
+            "targetId": null
+          }
+        ]
+      },
+      "turnCompleted": true
+    }
+  }
+}

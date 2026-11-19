@@ -1,0 +1,679 @@
+{
+  "case": "plugins-read-face",
+  "note": "C4 Task 0 oracle 捕获：无安装隔离根上的 plugins/list（bundled 官方插件条目形状）、plugins/overview（marketplaces 空表 + availablePlugins 目录）、describe 的 bundled 命中与未知插件错误、plugins/referenceCatalog（workspace/session authority）。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "noMarketplace": true
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": []
+    },
+    "plugins": [
+      {
+        "id": "<id>",
+        "name": "node-repl-host",
+        "version": "0.6.0",
+        "enabled": true,
+        "source": "official",
+        "marketplace": "mode-plugins-official",
+        "skillCount": 0,
+        "skillRootCount": 0,
+        "commandRootCount": 0,
+        "components": [],
+        "declaredMcpServerNames": [],
+        "mcpServerNames": [],
+        "rootSource": null,
+        "enabledSource": null
+      },
+      {
+        "id": "<id>",
+        "name": "browser-use",
+        "version": "0.5.1",
+        "enabled": true,
+        "source": "official",
+        "marketplace": "mode-plugins-official",
+        "skillCount": 2,
+        "skillRootCount": 1,
+        "commandRootCount": 0,
+        "components": [
+          {
+            "kind": "skill",
+            "items": [
+              {
+                "name": "control-browser",
+                "description": "Use when opening, navigating, inspecting, testing, clicking, typing, filling, screenshotting, or verifying web pages and local HTTP targets (localhost, 127.0.0.1, ::1) inside Mode, including browser/web-UI automation, rendered-page scraping, frontend checks, and visible page-state reading. Prefer this over Computer Use for anything that stays inside a web page, unless the user explicitly asks for Computer Use. Main agent only."
+              },
+              {
+                "name": "web-gui-tester",
+                "description": "Use the browser automation tooling available in the session to test web frontends interactively in a purely GUI-based, black-box manner: simulate real user clicks, text input, scrolling, and other actions; use screenshots for visual verification and read-only DOM inspection for cross-validation; and produce a final test report. Suitable for verifying whether web functionality works correctly, reproducing frontend bugs, checking interaction feedback and layout styling, or conducting exploratory testing of a page. Use this skill when the user asks to test a webpage/frontend feature, verify UI behavior, reproduce a page bug, or provides only a URL and asks you to “test it.”"
+              }
+            ]
+          }
+        ],
+        "declaredMcpServerNames": [],
+        "mcpServerNames": [],
+        "rootSource": null,
+        "enabledSource": null
+      },
+      {
+        "id": "<id>",
+        "name": "computer-use",
+        "version": "0.6.3",
+        "enabled": false,
+        "source": "official",
+        "marketplace": "mode-plugins-official",
+        "skillCount": 0,
+        "skillRootCount": 0,
+        "commandRootCount": 0,
+        "components": [
+          {
+            "kind": "skill",
+            "items": [
+              {
+                "name": "computer-use",
+                "description": "Use when the user asks to operate this computer's desktop apps with the mouse and keyboard — clicking, typing, scrolling, reading window/app state, driving a GUI end-to-end, screenshot-based UI verification, or any task phrased as 让 Mode 操作/控制这台电脑、桌面自动化、打开某软件并代为完成操作. Provides the 14 computer-control methods (get_app_state, left_click, type, …) via the node_repl CUA bridge."
+              }
+            ]
+          }
+        ],
+        "declaredMcpServerNames": [],
+        "mcpServerNames": [],
+        "rootSource": null,
+        "enabledSource": null
+      }
+    ],
+    "diagnostics": [],
+    "overview": {
+      "ok": true,
+      "result": {
+        "marketplaces": [],
+        "availablePlugins": [
+          {
+            "id": "<id>",
+            "name": "cloudbase-skills",
+            "marketplace": "mode-plugins-official",
+            "description": "CloudBase development skills and MCP integration for building, deploying, and troubleshooting Web, WeChat Mini Program, database, cloud function, CloudRun, storage, and AI projects.",
+            "version": "0.1.0",
+            "installed": false,
+            "listing": {
+              "descriptionI18n": {
+                "en": "CloudBase development skills and MCP integration for building, deploying, and troubleshooting Web, WeChat Mini Program, database, cloud function, CloudRun, storage, and AI projects.",
+                "zh-CN": "腾讯云 CloudBase 开发技能与 MCP 集成，覆盖 Web、微信小程序、数据库、云函数、云托管、云存储和 AI 项目的开发、部署与排障。"
+              },
+              "category": "developer-tools",
+              "author": "TencentCloudBase"
+            },
+            "sourceUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "mimosa",
+            "marketplace": "mode-plugins-official",
+            "description": "Local-first security guardrails for Mode with pre-write hooks, end-of-turn review, Git gates, commands, a security-scan skill, and an optional MCP server for sealed deep scans.",
+            "version": "1.0.3",
+            "installed": false,
+            "listing": {
+              "displayName": "Code Security Protection",
+              "displayNameI18n": {
+                "en": "Code Security Protection",
+                "zh-CN": "代码安全防护"
+              },
+              "descriptionI18n": {
+                "en": "Local-first security guardrails for Mode with pre-write hooks, end-of-turn review, Git gates, commands, a security-scan skill, and an optional MCP server for sealed deep scans.",
+                "zh-CN": "面向 Mode 的本地优先代码安全防线，提供写入前 Hook、任务收尾复查、Git 门禁、命令、安全扫描 Skill，以及用于密封深扫的可选 MCP 服务。"
+              },
+              "category": "developer-tools",
+              "author": "Mimosa"
+            },
+            "sourceUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "github",
+            "marketplace": "mode-plugins-official",
+            "description": "GitHub CLI workflows for commits, pull requests, issues, releases, Actions, repositories, Codespaces, and other GitHub resources.",
+            "version": "0.1.2",
+            "installed": false,
+            "listing": {
+              "descriptionI18n": {
+                "en": "GitHub CLI workflows for commits, pull requests, issues, releases, Actions, repositories, Codespaces, and other GitHub resources.",
+                "zh-CN": "基于 GitHub CLI 的 GitHub 工作流，覆盖提交、Pull Request、Issue、Release、Actions、仓库、Codespaces 等资源。"
+              },
+              "category": "developer-tools",
+              "author": "Z.ai",
+              "authorUrl": "https://z.ai"
+            },
+            "sourceUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "video2code",
+            "marketplace": "mode-plugins-official",
+            "description": "基于 Mode 内置 Browser Use WebView 录制 WebM 并用 ffmpeg 转成 MP4/URL 复刻；无需 Playwright 或外部 Chromium",
+            "version": "0.6.0",
+            "installed": false,
+            "listing": {
+              "descriptionI18n": {
+                "en": "Records WebM through Mode's built-in Browser Use WebView and converts it to MP4 with ffmpeg for video/URL replication; no Playwright or external Chromium required.",
+                "zh-CN": "基于 Mode 内置 Browser Use WebView 录制 WebM 并用 ffmpeg 转成 MP4/URL 复刻；无需 Playwright 或外部 Chromium"
+              },
+              "category": "productivity",
+              "author": "Z.ai",
+              "authorUrl": "https://z.ai"
+            },
+            "sourceUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "accounting-and-reporting",
+            "marketplace": "mode-plugins-official",
+            "description": "Accounting close and statutory reporting off the company's own ledger: month-end close checks, ledger reconciliation to transaction-level root cause, account mapping for consolidation, and statutory statements delivered as review-ready drafts",
+            "version": "0.1.1",
+            "installed": false,
+            "listing": {
+              "displayName": "核算与报告",
+              "displayNameI18n": {
+                "en": "Accounting & Reporting",
+                "zh-CN": "核算与报告"
+              },
+              "descriptionI18n": {
+                "en": "Accounting close and statutory reporting off the company's own ledger: month-end close checks, ledger reconciliation to transaction-level root cause, account mapping for consolidation, and statutory statements delivered as review-ready drafts",
+                "zh-CN": "【企业财务】核算与报告:月结关账检查与阻断项、总账与明细账勾稽及交易级差异归因、科目映射与重分类、内部管理报表编制、三表勾稽复核"
+              },
+              "category": "finance",
+              "author": "Z.ai",
+              "authorUrl": "https://z.ai"
+            },
+            "sourceUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "gitlab",
+            "marketplace": "mode-plugins-official",
+            "description": "GitLab CLI workflows based on GitLab's official Agent Skills for merge requests, issues, CI/CD, repositories, releases, and API operations.",
+            "version": "0.1.3",
+            "installed": false,
+            "listing": {
+              "descriptionI18n": {
+                "en": "GitLab CLI workflows based on GitLab's official Agent Skills for merge requests, issues, CI/CD, repositories, releases, and API operations.",
+                "zh-CN": "基于官方 GitLab CLI 的 Merge Request、Issue、CI/CD、仓库、Release 与 API 工作流。"
+              },
+              "category": "developer-tools",
+              "author": "Z.ai",
+              "authorUrl": "https://z.ai"
+            },
+            "sourceUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "alibaba-cloud-cli",
+            "marketplace": "mode-plugins-official",
+            "description": "Alibaba Cloud CLI workflows for credential setup, profile checks, and safe cloud resource operations.",
+            "version": "0.1.2",
+            "installed": false,
+            "listing": {
+              "displayName": "Alibaba Cloud CLI",
+              "displayNameI18n": {
+                "en": "Alibaba Cloud CLI",
+                "zh-CN": "阿里云 CLI"
+              },
+              "descriptionI18n": {
+                "en": "Alibaba Cloud CLI workflows for credential setup, profile checks, and safe cloud resource operations.",
+                "zh-CN": "阿里云 CLI 工作流：配置凭证与 profile，并安全执行云资源查询和操作。"
+              },
+              "category": "developer-tools",
+              "author": "Z.ai",
+              "authorUrl": "https://z.ai"
+            },
+            "sourceUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "lark-cli",
+            "marketplace": "mode-plugins-official",
+            "description": "Lark CLI workflows for docs, sheets, Base, calendar, messaging, and other SaaS resources with guided setup and OAuth login.",
+            "version": "0.1.2",
+            "installed": false,
+            "listing": {
+              "displayName": "Lark CLI",
+              "displayNameI18n": {
+                "en": "Lark CLI",
+                "zh-CN": "飞书 CLI"
+              },
+              "descriptionI18n": {
+                "en": "Lark CLI workflows for docs, sheets, Base, calendar, messaging, and other SaaS resources with guided setup and OAuth login.",
+                "zh-CN": "Lark CLI 工作流：覆盖文档、表格、多维表格、日历、消息等 SaaS 资源，并引导应用配置与 OAuth 登录。"
+              },
+              "category": "productivity",
+              "author": "Z.ai",
+              "authorUrl": "https://z.ai"
+            },
+            "sourceUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "tencent-meeting-cli",
+            "marketplace": "mode-plugins-official",
+            "description": "Tencent Meeting CLI workflows with OAuth2 setup, meeting management, recordings, and attendee reports.",
+            "version": "0.1.3",
+            "installed": false,
+            "listing": {
+              "displayName": "Tencent Meeting CLI",
+              "displayNameI18n": {
+                "en": "Tencent Meeting CLI",
+                "zh-CN": "腾讯会议 CLI"
+              },
+              "descriptionI18n": {
+                "en": "Tencent Meeting CLI workflows with OAuth2 setup, meeting management, recordings, and attendee reports.",
+                "zh-CN": "腾讯会议 CLI 工作流：OAuth2 授权、会议管理、录制管理和参会报告查询。"
+              },
+              "category": "productivity",
+              "author": "Z.ai",
+              "authorUrl": "https://z.ai"
+            },
+            "sourceUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "dingtalk-cli",
+            "marketplace": "mode-plugins-official",
+            "description": "DingTalk Workspace CLI workflows with OAuth/device authorization, profile checks, and optional upstream Skills.",
+            "version": "0.1.1",
+            "installed": false,
+            "listing": {
+              "displayName": "DingTalk CLI",
+              "displayNameI18n": {
+                "en": "DingTalk CLI",
+                "zh-CN": "钉钉 CLI"
+              },
+              "descriptionI18n": {
+                "en": "DingTalk Workspace CLI workflows with OAuth/device authorization, profile checks, and optional upstream Skills.",
+                "zh-CN": "钉钉 Workspace CLI 工作流：OAuth/设备授权、验证组织账号，并按需安装上游 Skills。"
+              },
+              "category": "productivity",
+              "homepage": "https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli",
+              "author": "Z.ai",
+              "authorUrl": "https://z.ai"
+            },
+            "sourceUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "wecom-cli",
+            "marketplace": "mode-plugins-official",
+            "description": "WeCom CLI workflows for messages, docs, sheets, mail, calendar, meetings, contacts, and todos with QR authentication.",
+            "version": "0.1.1",
+            "installed": false,
+            "listing": {
+              "displayName": "WeCom CLI",
+              "displayNameI18n": {
+                "en": "WeCom CLI",
+                "zh-CN": "企业微信 CLI"
+              },
+              "descriptionI18n": {
+                "en": "WeCom CLI workflows for messages, docs, sheets, mail, calendar, meetings, contacts, and todos with QR authentication.",
+                "zh-CN": "企业微信 CLI 工作流：覆盖消息、文档、表格、邮件、日历、会议、通讯录和待办，并支持扫码授权与状态检查。"
+              },
+              "category": "productivity",
+              "homepage": "https://github.com/WecomTeam/wecom-cli",
+              "author": "Z.ai",
+              "authorUrl": "https://z.ai"
+            },
+            "sourceUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "obsidian",
+            "marketplace": "mode-plugins-official",
+            "description": "Obsidian authoring skills from kepano/obsidian-skills: Obsidian Flavored Markdown notes, Bases database views, JSON Canvas boards, vault automation via Obsidian CLI, clean web extraction with Defuddle, and Knap template rendering — plus visualization skills from axtonliu/axton-obsidian-visual-skills: Mermaid and Excalidraw diagram generation and text-to-canvas layout. A setup skill verifies and installs the Obsidian CLI, defuddle, and knap.",
+            "version": "0.1.2",
+            "installed": false,
+            "listing": {
+              "displayName": "Obsidian",
+              "displayNameI18n": {
+                "en": "Obsidian",
+                "zh-CN": "Obsidian"
+              },
+              "descriptionI18n": {
+                "en": "Obsidian authoring skills from kepano/obsidian-skills: Obsidian Flavored Markdown notes, Bases database views, JSON Canvas boards, vault automation via Obsidian CLI, clean web extraction with Defuddle, and Knap template rendering — plus visualization skills from axtonliu/axton-obsidian-visual-skills: Mermaid and Excalidraw diagram generation and text-to-canvas layout. A setup skill verifies and installs the Obsidian CLI, defuddle, and knap.",
+                "zh-CN": "来自 kepano/obsidian-skills 的 Obsidian 创作技能：Obsidian 风格 Markdown 笔记、Bases 数据库视图、JSON Canvas 白板、Obsidian CLI 库操作、Defuddle 网页正文提取、Knap 模板批量生成笔记；并集成 axtonliu/axton-obsidian-visual-skills 的可视化技能：Mermaid/Excalidraw 图表生成与文本转画布布局。附 setup 技能，检测并安装 Obsidian CLI、defuddle 与 knap。"
+              },
+              "category": "productivity",
+              "author": "Z.ai",
+              "authorUrl": "https://z.ai"
+            },
+            "sourceUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "node-repl-host",
+            "marketplace": "mode-plugins-official",
+            "description": "Shared node_repl runtime host for Mode official capabilities. Not user-facing: it carries no skill and appears in no marketplace listing; Browser Use and Computer Use enable it and contribute their own skills, docs and runtime assets.",
+            "version": "0.6.0",
+            "installed": false
+          },
+          {
+            "id": "<id>",
+            "name": "android-emulator",
+            "marketplace": "mode-plugins-official",
+            "description": "Provides Android development workflows and emulator automation for Mode.",
+            "version": "0.1.0",
+            "installed": false,
+            "listing": {
+              "displayName": "Android Emulator",
+              "displayNameI18n": {
+                "zh-CN": "Android 模拟器"
+              },
+              "descriptionI18n": {
+                "zh-CN": "提供 Android 开发工作流与模拟器自动化能力。"
+              },
+              "category": "developer-tools",
+              "author": "Mode"
+            },
+            "bundledUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "browser-use",
+            "marketplace": "mode-plugins-official",
+            "description": "Built-in browser automation runtime and guidance for Desktop IAB and explicitly enabled CLI-managed headless CDP: open, navigate, inspect, click, type, screenshot, record workspace WebM videos, and verify web pages and local dev targets.",
+            "version": "0.5.1",
+            "installed": false,
+            "listing": {
+              "displayName": "Browser Use",
+              "displayNameI18n": {
+                "zh-CN": "浏览器操作"
+              },
+              "descriptionI18n": {
+                "zh-CN": "操作 Mode 内置浏览器，检查网页并验证交互。"
+              },
+              "category": "productivity",
+              "author": "Mode"
+            }
+          },
+          {
+            "id": "<id>",
+            "name": "documents",
+            "marketplace": "mode-plugins-official",
+            "description": "DOCX document production skills, published as an official Mode plugin.",
+            "version": "0.1.7",
+            "installed": false,
+            "listing": {
+              "displayName": "Documents",
+              "displayNameI18n": {
+                "zh-CN": "Word文档"
+              },
+              "descriptionI18n": {
+                "zh-CN": "创建、编辑与审阅Word文档（DOCX）。"
+              },
+              "category": "productivity",
+              "author": "Mode"
+            },
+            "bundledUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "pdf",
+            "marketplace": "mode-plugins-official",
+            "description": "PDF document production skills, published as an official Mode plugin.",
+            "version": "0.1.7",
+            "installed": false,
+            "listing": {
+              "displayName": "PDF",
+              "displayNameI18n": {
+                "zh-CN": "PDF"
+              },
+              "descriptionI18n": {
+                "zh-CN": "创建、编辑与审阅PDF（PDF）。"
+              },
+              "category": "productivity",
+              "author": "Mode"
+            },
+            "bundledUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "presentations",
+            "marketplace": "mode-plugins-official",
+            "description": "PPTX presentation production skills, published as an official Mode plugin.",
+            "version": "0.1.7",
+            "installed": false,
+            "listing": {
+              "displayName": "Presentations",
+              "displayNameI18n": {
+                "zh-CN": "演示文档"
+              },
+              "descriptionI18n": {
+                "zh-CN": "创建、编辑与审阅演示文档（PPTX）。"
+              },
+              "category": "productivity",
+              "author": "Mode"
+            },
+            "bundledUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "spreadsheets",
+            "marketplace": "mode-plugins-official",
+            "description": "XLSX spreadsheet production skills, published as an official Mode plugin.",
+            "version": "0.1.7",
+            "installed": false,
+            "listing": {
+              "displayName": "Spreadsheets",
+              "displayNameI18n": {
+                "zh-CN": "电子表格"
+              },
+              "descriptionI18n": {
+                "zh-CN": "创建、编辑与审阅电子表格（XLSX）。"
+              },
+              "category": "productivity",
+              "author": "Mode"
+            },
+            "bundledUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "image-search",
+            "marketplace": "mode-plugins-official",
+            "description": "Official Mode image search MCP server for finding illustrations and reference images.",
+            "version": "0.1.1",
+            "installed": false,
+            "listing": {
+              "displayName": "Image Search",
+              "displayNameI18n": {
+                "zh-CN": "搜图"
+              },
+              "descriptionI18n": {
+                "zh-CN": "查找插图与参考配图。"
+              },
+              "category": "productivity",
+              "author": "Mode"
+            },
+            "bundledUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "ios-simulator",
+            "marketplace": "mode-plugins-official",
+            "description": "Provides iOS development workflows and simulator automation for Mode.",
+            "version": "0.1.0",
+            "installed": false,
+            "listing": {
+              "displayName": "iOS Simulator",
+              "displayNameI18n": {
+                "zh-CN": "iOS 模拟器"
+              },
+              "descriptionI18n": {
+                "zh-CN": "提供 iOS 开发工作流与模拟器自动化能力。"
+              },
+              "category": "developer-tools",
+              "author": "Mode"
+            },
+            "bundledUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "restore-legacy-sessions",
+            "marketplace": "mode-plugins-official",
+            "description": "Select and restore legacy ACP-era Mode sessions into the new Mode task and session store.",
+            "version": "0.1.0",
+            "installed": false,
+            "listing": {
+              "displayName": "Restore Legacy Sessions",
+              "displayNameI18n": {
+                "zh-CN": "恢复旧版会话"
+              },
+              "descriptionI18n": {
+                "zh-CN": "将旧版会话恢复为 Mode 任务与会话记录。"
+              },
+              "category": "utilities",
+              "author": "Mode"
+            },
+            "bundledUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "plugin-creator",
+            "marketplace": "mode-plugins-official",
+            "description": "Develop and validate Mode plugins through a local dev marketplace, installation, trials and updates.",
+            "version": "0.1.1",
+            "installed": false,
+            "listing": {
+              "displayName": "Plugin Creator",
+              "displayNameI18n": {
+                "zh-CN": "插件创建器"
+              },
+              "descriptionI18n": {
+                "zh-CN": "开发、校验 Mode 插件，完成本地 dev 市场安装、试用与更新。"
+              },
+              "category": "utilities",
+              "author": "Mode"
+            },
+            "bundledUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "skill-creator",
+            "marketplace": "mode-plugins-official",
+            "description": "Create, edit, and iterate local Mode skills.",
+            "version": "0.1.0",
+            "installed": false,
+            "listing": {
+              "displayName": "Skill Creator",
+              "displayNameI18n": {
+                "zh-CN": "技能创建器"
+              },
+              "descriptionI18n": {
+                "zh-CN": "创建、编辑和验证可复用的 Mode 技能。"
+              },
+              "category": "utilities",
+              "author": "Mode"
+            },
+            "bundledUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "mode-guide",
+            "marketplace": "mode-plugins-official",
+            "description": "Mode usage and self-diagnosis guide: teaches agents and users how to configure MCP servers, commands, skills, hooks, and plugins, and how to locate and fix configuration problems for each.",
+            "version": "0.3.0",
+            "installed": false,
+            "listing": {
+              "displayName": "Mode Guide",
+              "displayNameI18n": {
+                "zh-CN": "Mode 使用指南"
+              },
+              "descriptionI18n": {
+                "zh-CN": "提供 Mode 配置指南与插件、技能、MCP、命令和钩子诊断。"
+              },
+              "category": "utilities",
+              "author": "Mode",
+              "examplePrompts": [
+                "How do I configure MCP servers in Mode?",
+                "Diagnose my current Mode setup"
+              ],
+              "examplePromptsI18n": {
+                "zh-CN": ["Mode 里怎么配置 MCP 服务器？", "帮我诊断当前的 Mode 配置"]
+              }
+            },
+            "bundledUnavailable": true
+          },
+          {
+            "id": "<id>",
+            "name": "computer-use",
+            "marketplace": "mode-plugins-official",
+            "description": "Computer Use: automate desktop apps with mouse, keyboard, and UI element control.",
+            "version": "0.6.3",
+            "installed": false,
+            "listing": {
+              "displayName": "Computer Use",
+              "displayNameI18n": {
+                "zh-CN": "电脑控制"
+              },
+              "descriptionI18n": {
+                "zh-CN": "自动化桌面应用：智能体驱动鼠标、键盘与界面元素，代你完成实际任务。"
+              },
+              "category": "productivity",
+              "author": "Mode"
+            }
+          }
+        ],
+        "installedPlugins": [],
+        "restorableBuiltins": [],
+        "diagnostics": [],
+        "capability": {
+          "supported": true
+        }
+      }
+    },
+    "describeMissing": {
+      "ok": true,
+      "result": {
+        "components": [],
+        "diagnostics": [
+          {
+            "code": "plugin_marketplace_invalid",
+            "message": "Marketplace not found: nonexistent-marketplace",
+            "severity": "error"
+          }
+        ]
+      }
+    },
+    "describeBundled": {
+      "ok": true,
+      "result": {
+        "components": [
+          {
+            "kind": "skill",
+            "items": [
+              {
+                "name": "control-browser",
+                "description": "Use when opening, navigating, inspecting, testing, clicking, typing, filling, screenshotting, or verifying web pages and local HTTP targets (localhost, 127.0.0.1, ::1) inside Mode, including browser/web-UI automation, rendered-page scraping, frontend checks, and visible page-state reading. Prefer this over Computer Use for anything that stays inside a web page, unless the user explicitly asks for Computer Use. Main agent only."
+              },
+              {
+                "name": "web-gui-tester",
+                "description": "Use the browser automation tooling available in the session to test web frontends interactively in a purely GUI-based, black-box manner: simulate real user clicks, text input, scrolling, and other actions; use screenshots for visual verification and read-only DOM inspection for cross-validation; and produce a final test report. Suitable for verifying whether web functionality works correctly, reproducing frontend bugs, checking interaction feedback and layout styling, or conducting exploratory testing of a page. Use this skill when the user asks to test a webpage/frontend feature, verify UI behavior, reproduce a page bug, or provides only a URL and asks you to “test it.”"
+              }
+            ]
+          }
+        ],
+        "metadata": {
+          "author": "Mode",
+          "version": "0.5.1"
+        }
+      }
+    },
+    "referenceCatalogEntryNames": [
+      "node-repl-host@mode-plugins-official",
+      "browser-use@mode-plugins-official",
+      "computer-use@mode-plugins-official"
+    ],
+    "referenceCatalogWithSession": "session"
+  }
+}

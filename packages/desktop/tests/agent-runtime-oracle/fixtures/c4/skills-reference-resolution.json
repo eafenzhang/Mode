@@ -1,0 +1,84 @@
+{
+  "case": "skills-reference-resolution",
+  "note": "C4 Task 0 oracle 捕获：plugins/resolveSuggestedReference 的 ready/unavailable 形状——官方 bundled 插件名与未知 stableId 的对照、缺参数的 -32602。",
+  "input": {
+    "stableIds": ["browser-use", "nonexistent"]
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": []
+    },
+    "bareName": {
+      "ok": true,
+      "result": {
+        "stableId": "browser-use",
+        "status": "unavailable",
+        "diagnostics": [
+          {
+            "code": "plugin_suggested_reference_untrusted_source",
+            "message": "推荐插件不是受信任的官方 mode-plugins-official 来源",
+            "severity": "error",
+            "pluginId": "browser-use"
+          }
+        ]
+      }
+    },
+    "qualified": {
+      "ok": true,
+      "result": {
+        "stableId": "browser-use@mode-plugins-official",
+        "status": "ready",
+        "marketplace": "mode-plugins-official",
+        "pluginName": "browser-use",
+        "sourceTrust": "official",
+        "diagnostics": []
+      }
+    },
+    "available": {
+      "ok": true,
+      "result": {
+        "stableId": "mimosa@mode-plugins-official",
+        "status": "unavailable",
+        "diagnostics": [
+          {
+            "code": "marketplace_refresh_failed",
+            "message": "Marketplace not found: mode-plugins-official",
+            "severity": "error",
+            "pluginId": "mimosa@mode-plugins-official"
+          }
+        ]
+      }
+    },
+    "unknown": {
+      "ok": true,
+      "result": {
+        "stableId": "nonexistent",
+        "status": "unavailable",
+        "diagnostics": [
+          {
+            "code": "plugin_suggested_reference_untrusted_source",
+            "message": "推荐插件不是受信任的官方 mode-plugins-official 来源",
+            "severity": "error",
+            "pluginId": "nonexistent"
+          }
+        ]
+      }
+    },
+    "missingParams": {
+      "ok": false,
+      "error": {
+        "frame": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"stableId\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  },\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"operationId\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  },\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"desktop-continuous\",\n      \"web-remote-replayable\"\n    ],\n    \"path\": [\n      \"clientMode\"\n    ],\n    \"message\": \"Invalid option: expected one of \\\"desktop-continuous\\\"|\\\"web-remote-replayable\\\"\"\n  },\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"desktop-continuous\",\n      \"web-remote-replayable\"\n    ],\n    \"path\": [\n      \"deliveryKind\"\n    ],\n    \"message\": \"Invalid option: expected one of \\\"desktop-continuous\\\"|\\\"web-remote-replayable\\\"\"\n  }\n]"
+          },
+          "message": "Invalid params — stableId: Invalid input: expected string, received undefined; operationId: Invalid input: expected string, received undefined; clientMode: Invalid option: expected one of \"desktop-continuous\"|\"web-remote-replayable\"; deliveryKind: Invalid option: expected one of \"desktop-continuous\"|\"web-remote-replayable\""
+        }
+      }
+    }
+  }
+}
