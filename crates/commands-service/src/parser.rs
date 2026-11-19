@@ -26,17 +26,24 @@ fn get_cross_platform_basename(file_path: &str) -> &str {
         .unwrap_or(file_path)
 }
 
+/// JS `String.prototype.trim` 把 U+FEFF（BOM）也算作空白；Rust `str::trim` 按 Unicode
+/// White_Space 属性裁剪，不含 U+FEFF。Windows 编辑器保存的命令文件常带 BOM，两者在
+/// frontmatter 围栏、正文首尾和字段值上会产生不同结果，这里补齐 FEFF 以对齐 TS 真源。
+fn js_trim(value: &str) -> &str {
+    value.trim_matches(|ch: char| ch.is_whitespace() || ch == '\u{FEFF}')
+}
+
 /// 返回 (frontmatter 行, 正文行)；两者都借用原串，避免逐行分配。
 fn split_markdown_command_content(content: &str) -> (Vec<&str>, Vec<&str>) {
     let lines: Vec<&str> = content.split('\n').collect();
-    let Some(start) = lines.iter().position(|line| line.trim() == "---") else {
+    let Some(start) = lines.iter().position(|line| js_trim(line) == "---") else {
         return (Vec::new(), lines);
     };
     let end = lines
         .iter()
         .enumerate()
         .skip(start + 1)
-        .find(|(_, line)| line.trim() == "---")
+        .find(|(_, line)| js_trim(line) == "---")
         .map(|(index, _)| index);
     let Some(end) = end else {
         return (Vec::new(), lines);
@@ -49,7 +56,7 @@ fn read_frontmatter_key(line: &str) -> Option<String> {
     if line.starts_with(' ') || line.starts_with('\t') {
         return None;
     }
-    let trimmed = line.trim();
+    let trimmed = js_trim(line);
     let bytes = trimmed.as_bytes();
     let mut index = 0;
     while index < bytes.len() {
@@ -83,12 +90,7 @@ fn read_frontmatter_multiline_value(lines: &[&str], target_key: &str) -> Option<
             if key == target_key {
                 collecting = true;
                 // `line.split(":").slice(1).join(":")`：只按冒号切，保留值里的冒号。
-                let value = line
-                    .split(':')
-                    .skip(1)
-                    .collect::<Vec<_>>()
-                    .join(":")
-                    .trim()
+                let value = js_trim(&line.split(':').skip(1).collect::<Vec<_>>().join(":"))
                     .to_string();
                 if !value.is_empty() {
                     collected.push(value);
@@ -98,11 +100,11 @@ fn read_frontmatter_multiline_value(lines: &[&str], target_key: &str) -> Option<
         }
 
         if collecting && (line.starts_with(' ') || line.starts_with('\t')) {
-            collected.push(line.trim().to_string());
+            collected.push(js_trim(line).to_string());
         }
     }
 
-    let value = collected.join(" ").trim().to_string();
+    let value = js_trim(&collected.join(" ")).to_string();
     if value.is_empty() {
         None
     } else {
@@ -136,7 +138,7 @@ pub fn parse_command_file(content: &str, file_path: &str) -> ParsedCommandFile {
     let file_name = get_cross_platform_basename(file_path);
     let name = format!("/{}", strip_md_suffix(file_name));
     let content_text = content_lines.join("\n");
-    let prompt = content_text.trim().to_string();
+    let prompt = js_trim(&content_text).to_string();
 
     ParsedCommandFile {
         name,
@@ -169,13 +171,13 @@ pub fn generate_command_file_content(
         preserve_frontmatter_lines(existing_content, &REPLACED_FRONTMATTER_KEYS);
 
     if let Some(description) = config.description.as_deref() {
-        let trimmed = description.trim();
+        let trimmed = js_trim(description);
         if !trimmed.is_empty() {
             frontmatter_lines.push(format!("description: {trimmed}"));
         }
     }
     if let Some(argument_hint) = config.argument_hint.as_deref() {
-        let trimmed = argument_hint.trim();
+        let trimmed = js_trim(argument_hint);
         if !trimmed.is_empty() {
             frontmatter_lines.push(format!("argument-hint: {trimmed}"));
         }
@@ -210,6 +212,30 @@ pub fn writable_command_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trims_bom_like_js_trim() {
+        // Windows 编辑器保存的命令文件可能带 UTF-8 BOM。TS 的 String.trim() 把 U+FEFF
+        // 视为空白，Rust str::trim() 不裁剪它；对拍用例覆盖围栏行、正文首尾与字段值。
+        let parsed = parse_command_file(
+            "\u{FEFF}---\ndescription: \u{FEFF}d\u{FEFF}\n---\n\u{FEFF}body\u{FEFF}",
+            "/x/a.md",
+        );
+        assert_eq!(parsed.description.as_deref(), Some("d"));
+        assert_eq!(parsed.prompt, "body");
+
+        let config = CommandConfig {
+            name: "/a".into(),
+            prompt: "p".into(),
+            description: Some("\u{FEFF}d\u{FEFF}".into()),
+            argument_hint: Some("\u{FEFF}h".into()),
+            file_path: None,
+        };
+        assert_eq!(
+            generate_command_file_content(&config, None),
+            "---\ndescription: d\nargument-hint: h\n---\n\np"
+        );
+    }
 
     #[test]
     fn parses_description_and_multiline_argument_hint() {

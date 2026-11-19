@@ -91,6 +91,9 @@ Rust 侧不拥有任何新状态：读的是用户已有目录与 `~/.mode/cli/c
 3. 保留行数为 0 → 直接返回 `config.prompt`（**无 frontmatter、无换行加工**）。
 4. 否则返回 `"---\n" + lines.join("\n") + "\n---\n\n" + prompt`。
 
+以上 `trim()` 均为 ECMAScript `String.prototype.trim` 语义：除 Unicode 空白外还裁剪
+U+FEFF（BOM）。Rust 侧用 `parser::js_trim` 对齐，不能直接使用 `str::trim`。
+
 文件名（`getCommandFileName`）：`config.name` 去掉**一个**前导 `/`，加 `.md`
 （`modeAgent` 的命名分隔符是 `/`，不做 `:` 替换）。
 
