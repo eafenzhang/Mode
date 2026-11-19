@@ -456,4 +456,6 @@ pub struct RuntimeWiring {
     pub mcp: Option<Arc<crate::mcp::McpSession>>,
     /// C4 T2：MCP 连接 hub（插件 MCP 与 `mcp/list` 共用同一张表）。
     pub mcp_hub: Arc<crate::mcp::McpHub>,
+    /// C4 T5：子代理执行端口（`Agent` 工具）。
+    pub subagent_runner: Option<Arc<dyn agent_core::SubagentRunner>>,
 }

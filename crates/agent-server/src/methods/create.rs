@@ -156,6 +156,18 @@ pub(super) fn spawn_runtime(
     let mcp = mcp_servers
         .filter(|servers| !servers.is_empty())
         .map(|servers| server.mcp_hub().session(servers));
+    let subagent_runner: Option<Arc<dyn agent_core::SubagentRunner>> = model.map(|model| {
+        Arc::new(crate::subagents_exec::SubagentRunnerImpl::new(
+            Arc::clone(&store),
+            server.provider_source(),
+            model.provider_id.clone(),
+            model.model_id.clone(),
+            record.directory.clone(),
+            server.data_root(),
+            record.id.clone(),
+            tokio::runtime::Handle::current(),
+        )) as Arc<dyn agent_core::SubagentRunner>
+    });
     let wiring = crate::reverse::RuntimeWiring {
         permission_handler: reverse.as_ref().map(|hub| {
             Box::new(crate::reverse::ProtocolPermissionHandler::new(Arc::clone(
@@ -166,6 +178,7 @@ pub(super) fn spawn_runtime(
         reverse,
         mcp,
         mcp_hub: Arc::clone(server.mcp_hub()),
+        subagent_runner,
     };
     let runtime = Arc::new(
         SessionRuntime::new(record, store, server.provider_source(), config, wiring)

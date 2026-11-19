@@ -979,6 +979,41 @@ duration_ms: <time></usage>
 - lifecycle `session.updated` 的 `allowedTools`：`general-purpose` 为 `["*"]`，
   `Explore` 为具体列表。
 
+### 7.6 Rust T5 现状（2026-11-20）
+
+实现：`agent-core::SubagentRunner` 端口 + `Session` 对 `Agent` 的特判（生命周期事件）；
+`agent-server::subagents_exec`（`AgentToolSource` + `SubagentRunnerImpl`）由
+`RuntimeWiring` 注入，子 turn 在独立 OS 线程上驱动，child 行直接写 `session-store`。
+
+对齐项：
+
+- `Agent` 声明（name/description/input schema）逐字来自 §7.1；`allowedTools`
+  `general-purpose` 为 `["*"]`、`Explore` 为
+  `["Bash","Read","WebFetch","WebSearch","TodoWrite"]`（夹具顺序）。
+- lifecycle `session.updated` running/completed 的字段与 §7.3 一致；工具结果正文模板
+  逐字（`agentId:` + `<usage>` 三行），`budgetStrategy:"artifact"`。
+- child 会话行：`parent_id`、`task_type:"subagent_child"`、`title`=prompt、`slug`=id、
+  `directory`/`project_id`/`workspace_id`/`permission` 继承父会话；消息
+  `timeline → user_prompt → assistant_response` 共 3 行、5 个 part。
+- `session/subagents` 读面（C3）直接消费上述行；测试断言父会话 Agent tool part 的
+  `state.status/state.output` 与 child 行齐全。
+- child 用**新** `Session`（fresh 上下文），system 覆盖为 agent 专用提示，不注入
+  `Agent` 声明（不递归）。
+
+差异与未实现：
+
+| 项                | oracle（§7.2/§7.3/§7.4）                                     | Rust 现状                                                                 | 依据/去向                                       |
+| ----------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------- | ----------------------------------------------- |
+| child system      | 4 段（主提示 + agent + notes + env）                         | 单块自撰提示（含 agent/notes/env 文案）                                   | clean-room；不逐字抄 oracle                     |
+| child user 消息   | currentDate + skills reminder + child prompt 三个 text part   | 仅 child prompt                                                           | currentDate/skills 注入未接到 child             |
+| child 工具面      | 14 个（Skill/AskUserQuestion/Todo\*/WebFetch/RespondToCoordinator/全局 MCP） | 静态注册表 6 个（Read/Write/Edit/Bash/TaskOutput/TaskStop），无 Skill/MCP | 工具实现面未覆盖；Agent 不注入 child            |
+| child turn_usage  | 未观察                                                       | 写一行 `completed`（tokens=`turn tokenCount`、`tool_call_count`）          | 本仓库事实；供 usage 读面                       |
+| child 失败/取消   | 未观察                                                       | failed lifecycle + `tool_execution_failed`；180s 超时                     | 正确行为裁决（oracle 未录）                     |
+| `run_in_background:true` | 立即返回、后台执行、notification turn（`backgroundSubagentResultConsumed:true`） | 仍同步执行，完成才返回，不发 notification                                 | runtime 后台调度未接；C3 background 仅 Bash     |
+| 并发              | 多 Agent 并行窗口未录全                                      | 同批工具串行执行                                                          | 观察缺失 + 单写者纪律                           |
+| child 独立读面    | 结束后 `-32004 Session is not active`                        | 未接（child 不进 active runtime 表）                                      | C3 已观察；T5 不新增                            |
+| 事件细节          | 含 `streamRecovery.updated` 结果锚点                         | 走现有 C1 管线（started→running→completed→result→batch）                  | 未逐事件对拍                                    |
+
 ## 8. 20 任务清单核对（`host-ownership-switch.md` §7）
 
 | #   | 任务                      | 本波可实现性 / 依赖                                                                                  |

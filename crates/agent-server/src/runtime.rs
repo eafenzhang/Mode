@@ -538,6 +538,8 @@ struct Shared {
     mcp: Option<Arc<crate::mcp::McpSession>>,
     /// C4 T2：MCP 连接 hub（插件 MCP 的会话工具源按 turn 读取）。
     mcp_hub: Arc<crate::mcp::McpHub>,
+    /// C4 T5：宿主是否提供子代理执行端口（`Agent` 声明只在可用时进入工具目录）。
+    subagents_enabled: bool,
 }
 
 impl Shared {
@@ -814,6 +816,7 @@ impl SessionRuntime {
         let (drained, _drained_receiver) = tokio::sync::watch::channel(false);
         let (queue, receiver) = tokio::sync::mpsc::unbounded_channel();
         let data_root = config.data_root.clone();
+        let subagents_enabled = wiring.subagent_runner.is_some();
         let shared = Arc::new(Shared {
             live: Mutex::new(Live {
                 status: RuntimeStatus::Idle,
@@ -848,6 +851,7 @@ impl SessionRuntime {
             retry_traces: Mutex::new(HashMap::new()),
             mcp: wiring.mcp,
             mcp_hub: wiring.mcp_hub,
+            subagents_enabled,
             record,
         });
 
@@ -868,6 +872,9 @@ impl SessionRuntime {
         }
         if let Some(rule_db_path) = wiring.rule_db_path {
             session = session.with_sqlite_rules(rule_db_path);
+        }
+        if let Some(runner) = wiring.subagent_runner {
+            session = session.with_subagent_runner(runner);
         }
         let _ = shared.tasks.set(session.tasks().clone());
         // C3 T3：后台通知的准入判据 + 空闲唤醒。队列仍在 `TaskRegistry`；
@@ -2218,6 +2225,9 @@ async fn run_one_input(
                 let mut sources: Vec<Arc<dyn agent_core::PluginToolSource>> = vec![Arc::new(
                     crate::skills::SkillToolSource::new(shared_for_turn.record.directory.clone()),
                 )];
+                if shared_for_turn.subagents_enabled {
+                    sources.push(Arc::new(crate::subagents_exec::AgentToolSource));
+                }
                 if let Some(mcp) = shared_for_turn.mcp.as_ref() {
                     sources.push(Arc::clone(mcp) as Arc<dyn agent_core::PluginToolSource>);
                 }

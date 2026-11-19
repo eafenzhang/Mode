@@ -1349,6 +1349,7 @@ async fn permission_reply_timeout_denies_with_batch_error() {
         reverse: Some(Arc::clone(&reverse)),
         mcp: None,
         mcp_hub: Default::default(),
+        subagent_runner: None,
     };
     let fixture = runtime_fixture(
         "perm-timeout",

@@ -37,6 +37,7 @@ pub mod recovery;
 pub mod rule_store;
 pub mod session;
 pub mod stream;
+pub mod subagent;
 pub mod tool;
 
 pub use agent_protocol::session_event::{
@@ -79,3 +80,4 @@ pub use recovery::RetryPolicy;
 pub use rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
 pub use session::TurnTerminalFacts;
 pub use stream::{EventSink, TurnError, TurnProgress};
+pub use subagent::{SubagentRunOutcome, SubagentRunRequest, SubagentRunner};

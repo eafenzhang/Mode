@@ -45,7 +45,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use agent_protocol::permission::{
     PermissionDecision, PermissionOption, PermissionOptionKind, PermissionRequest,
@@ -172,6 +172,10 @@ pub struct Session {
     memory: Option<crate::context::MemorySection>,
     /// C3 T2：重试次数/退避策略（默认值来自夹具观察；宿主可注入）。
     retry_policy: RetryPolicy,
+    /// C4 T5：子代理执行端口（`Agent` 工具）；`None` = 不支持子代理。
+    subagent_runner: Option<Arc<dyn crate::subagent::SubagentRunner>>,
+    /// C4 T5：系统提示覆盖（子会话用 agent 专用提示，替代统一装配）。
+    system_override: Option<String>,
 }
 
 /// 插件工具结果里的 `display` 对象（C4 T1：MCP 的 `{kind:"mcp_tool",serverName,toolName,description}`）。
@@ -221,6 +225,8 @@ impl Session {
             denied_tool_results: HashMap::new(),
             memory: None,
             retry_policy: RetryPolicy::default(),
+            subagent_runner: None,
+            system_override: None,
         }
     }
 
@@ -315,11 +321,163 @@ impl Session {
         self.plugin_tools = Some(source);
     }
 
+    /// C4 T5：接子代理执行端口（`Agent` 工具由会话特判执行，共享同一事件 publisher）。
+    pub fn with_subagent_runner(
+        mut self,
+        runner: Arc<dyn crate::subagent::SubagentRunner>,
+    ) -> Self {
+        self.subagent_runner = Some(runner);
+        self
+    }
+
+    /// C4 T5：覆盖系统提示（子代理会话用 agent 专用提示）。
+    pub fn with_system_override(mut self, prompt: impl Into<String>) -> Self {
+        self.system_override = Some(prompt.into());
+        self
+    }
+
+    /// 系统提示覆盖：替换请求里的首个 System 消息（工具声明仍由请求的 tools 面表达）。
+    fn apply_system_override(&self, request: &mut ModelRequest) {
+        if let Some(override_prompt) = &self.system_override {
+            if let Some(first) = request.messages.first_mut() {
+                *first = ModelMessage::System(override_prompt.clone());
+            }
+        }
+    }
+
     /// 当前会话可见的工具（静态注册表 + 插件工具）。
     pub fn tools(&self) -> Vec<ToolSpec> {
         let mut tools = agent_tools::registry();
         tools.extend(self.extra_tools.clone());
         tools
+    }
+
+    /// C4 T5：`Agent` 工具执行——running/completed 生命周期事件由会话发布，
+    /// 子 turn 执行/持久化交给宿主 [`crate::subagent::SubagentRunner`]。
+    fn run_agent_tool(
+        &mut self,
+        turn_id: &str,
+        call: &ToolCallRequest,
+    ) -> (
+        Result<ToolOutcome, agent_tools::ToolError>,
+        Vec<SessionEvent>,
+    ) {
+        let description = call
+            .input
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let prompt = call
+            .input
+            .get("prompt")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let subagent_type = call
+            .input
+            .get("subagent_type")
+            .and_then(Value::as_str)
+            .unwrap_or("general-purpose")
+            .to_string();
+        let run_in_background = call
+            .input
+            .get("run_in_background")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let agent_id = format!("agent_{}", new_uuid());
+        let child_session_id = format!("sess_subagent_agent_{}", new_uuid());
+        let allowed_tools: Value = if subagent_type == "Explore" {
+            json!(["Bash", "Read", "WebFetch", "WebSearch", "TodoWrite"])
+        } else {
+            json!(["*"])
+        };
+        let running = self.emit(
+            Some(turn_id),
+            SessionEventType::SessionUpdated,
+            &json!({
+                "agentId": agent_id,
+                "agentType": subagent_type,
+                "childSessionId": child_session_id,
+                "description": description,
+                "prompt": prompt,
+                "parentToolCallId": call.tool_call_id,
+                "status": "running",
+                "allowedTools": allowed_tools,
+            }),
+        );
+        let mut events = vec![running];
+        let Some(runner) = self.subagent_runner.clone() else {
+            return (
+                Err(agent_tools::ToolError {
+                    error_type: "tool_execution_failed",
+                    message: "Agent runtime is not available in this session".to_string(),
+                    code: Some("TOOL_EXECUTION_FAILED"),
+                    detail: None,
+                }),
+                events,
+            );
+        };
+        let request = crate::subagent::SubagentRunRequest {
+            agent_id: agent_id.clone(),
+            child_session_id: child_session_id.clone(),
+            turn_id: turn_id.to_string(),
+            description: description.clone(),
+            prompt,
+            subagent_type: subagent_type.clone(),
+            run_in_background,
+        };
+        match runner.run(&request) {
+            Ok(outcome) => {
+                events.push(self.emit(
+                    Some(turn_id),
+                    SessionEventType::SessionUpdated,
+                    &json!({
+                        "agentId": outcome.agent_id,
+                        "agentType": subagent_type,
+                        "childSessionId": outcome.child_session_id,
+                        "parentToolCallId": call.tool_call_id,
+                        "status": "completed",
+                        "totalDurationMs": outcome.duration_ms,
+                        "totalToolUseCount": outcome.tool_uses,
+                        "totalTokens": outcome.tokens,
+                    }),
+                ));
+                let content = format!(
+                    "{}\nagentId: {} (use SendMessage with to: '{}' to continue this agent)\n<usage>subagent_tokens: {}\ntool_uses: {}\nduration_ms: {}</usage>",
+                    outcome.text,
+                    outcome.agent_id,
+                    outcome.agent_id,
+                    outcome.tokens,
+                    outcome.tool_uses,
+                    outcome.duration_ms
+                );
+                (Ok(ToolOutcome::artifact(content)), events)
+            }
+            Err(message) => {
+                events.push(self.emit(
+                    Some(turn_id),
+                    SessionEventType::SessionUpdated,
+                    &json!({
+                        "agentId": agent_id,
+                        "agentType": subagent_type,
+                        "childSessionId": child_session_id,
+                        "parentToolCallId": call.tool_call_id,
+                        "status": "failed",
+                        "error": message,
+                    }),
+                ));
+                (
+                    Err(agent_tools::ToolError {
+                        error_type: "tool_execution_failed",
+                        message: "Subagent execution failed".to_string(),
+                        code: Some("TOOL_EXECUTION_FAILED"),
+                        detail: None,
+                    }),
+                    events,
+                )
+            }
+        }
     }
 
     fn lookup_tool(&self, name: &str) -> Option<ToolSpec> {
@@ -841,14 +999,16 @@ impl Session {
     /// **不带**项目记忆段（T0 没有观察到带记忆的 compact 请求；`memory: None` 与
     /// C2 T2 的行为逐字一致，偏差登记在 `agent-c2-contract.md` §3.5）。
     pub fn build_request(&self, messages: &[ModelMessage]) -> ModelRequest {
-        crate::context::build_model_request(&crate::context::ContextInput {
+        let mut request = crate::context::build_model_request(&crate::context::ContextInput {
             cwd: &self.cwd,
             mode: &self.mode,
             tools: &self.tools(),
             messages,
             model: &self.model_capabilities,
             memory: None,
-        })
+        });
+        self.apply_system_override(&mut request);
+        request
     }
 
     /// 装配 completion verifier 的非流式请求（C3 T1；契约 §1.5）。
@@ -859,14 +1019,16 @@ impl Session {
     pub fn build_verification_request(&self, verifier_user_prompt: &str) -> ModelRequest {
         let mut messages = self.messages.clone();
         messages.push(ModelMessage::User(verifier_user_prompt.to_string()));
-        crate::context::build_model_request(&crate::context::ContextInput {
+        let mut request = crate::context::build_model_request(&crate::context::ContextInput {
             cwd: &self.cwd,
             mode: &self.mode,
             tools: &[],
             messages: &messages,
             model: &self.model_capabilities,
             memory: None,
-        })
+        });
+        self.apply_system_override(&mut request);
+        request
     }
 
     /// 当前（最近一次已开始）turn id；控制 turn 完成后也保留。
@@ -1015,7 +1177,8 @@ impl Session {
                 model: &self.model_capabilities,
                 memory: self.memory.as_ref(),
             };
-            let request = crate::context::build_model_request(&context_input);
+            let mut request = crate::context::build_model_request(&context_input);
+            self.apply_system_override(&mut request);
 
             // 一个模型步内的尝试循环（C3 T2）：
             // - 未提交 delta 的 retryable 失败 → adapter 式退避重试；
@@ -1725,41 +1888,51 @@ impl Session {
             // 命中就不调用工具，直接发一条与 oracle 同形的成功结果；
             // 只有**成功**的读才记进历史（实测：读不存在的文件两次都是错误，错误不去重）。
             let started = std::time::Instant::now();
-            let stubbed = if call.name == "Read" {
-                self.file_state.stub_for(&call.input, &context)
+            let (outcome, agent_events) = if call.name == "Agent" && self.subagent_runner.is_some()
+            {
+                self.run_agent_tool(&turn_id, call)
             } else {
-                None
-            };
-            let outcome = match stubbed {
-                Some(stub) => Ok(stub),
-                None => {
-                    let result = if self.is_plugin_tool(&call.name) {
-                        self.invoke_plugin_tool(&call.name, &call.input)
-                    } else {
-                        agent_tools::invoke_by_name(
-                            &call.name,
-                            &call.input,
-                            &context,
-                            &self.file_state,
-                        )
-                    };
-                    match (&call.name[..], &result) {
-                        // 读成功 → 记进去重表，同时进入「本会话碰过它」集合。
-                        ("Read", Ok(_)) => self.file_state.record(&call.input, &context),
-                        // 写/编辑成功 → 该文件也进入「已读」状态（观察：成功文案自述
-                        // 「file state is current in your context — no need to Read it back」）。
-                        ("Write" | "Edit", Ok(_)) => {
-                            if let Some(file_path) =
-                                call.input.get("file_path").and_then(Value::as_str)
-                            {
-                                self.file_state.record_written(file_path, &context);
+                let stubbed = if call.name == "Read" {
+                    self.file_state.stub_for(&call.input, &context)
+                } else {
+                    None
+                };
+                let outcome = match stubbed {
+                    Some(stub) => Ok(stub),
+                    None => {
+                        let result = if self.is_plugin_tool(&call.name) {
+                            self.invoke_plugin_tool(&call.name, &call.input)
+                        } else {
+                            agent_tools::invoke_by_name(
+                                &call.name,
+                                &call.input,
+                                &context,
+                                &self.file_state,
+                            )
+                        };
+                        match (&call.name[..], &result) {
+                            // 读成功 → 记进去重表，同时进入「本会话碰过它」集合。
+                            ("Read", Ok(_)) => self.file_state.record(&call.input, &context),
+                            // 写/编辑成功 → 该文件也进入「已读」状态（观察：成功文案自述
+                            // 「file state is current in your context — no need to Read it back」）。
+                            ("Write" | "Edit", Ok(_)) => {
+                                if let Some(file_path) =
+                                    call.input.get("file_path").and_then(Value::as_str)
+                                {
+                                    self.file_state.record_written(file_path, &context);
+                                }
                             }
+                            _ => {}
                         }
-                        _ => {}
+                        result
                     }
-                    result
-                }
+                };
+                (outcome, Vec::new())
             };
+            for event in &agent_events {
+                sink.emit(event.clone());
+            }
+            events.extend(agent_events);
             let elapsed_ms = started.elapsed().as_millis() as u64;
             match outcome {
                 Ok(result) => {

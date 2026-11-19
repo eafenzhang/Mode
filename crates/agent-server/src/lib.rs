@@ -36,6 +36,7 @@ mod scripted;
 mod server;
 mod skills;
 mod state;
+mod subagents_exec;
 mod v4_projection;
 pub mod workflows;
 
@@ -59,6 +60,7 @@ pub use runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
 pub use scripted::{ScriptedFixtureSource, SCRIPTED_PROVIDER_ENV};
 pub use skills::{CompositeToolSource, SkillCatalog, SkillToolSource};
 pub use state::{Accepted, RuntimeConfig, RuntimeError, SessionInput};
+pub use subagents_exec::{subagent_system_prompt, AgentToolSource, SubagentRunnerImpl};
 pub use v4_projection::{
     build_snapshot, event_to_deltas, project_rows, LiveDeltaState, SnapshotStateFacts,
 };
