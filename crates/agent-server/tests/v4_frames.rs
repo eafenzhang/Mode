@@ -73,10 +73,28 @@ fn drive(root: &TempRoot, input: String) -> (std::collections::BTreeMap<u64, Val
     drive_batches(root, vec![input])
 }
 
+/// 落库探针：批次写完后反复发同一个只读请求，直到响应里的 `rows` 达到期望
+/// 条数，再写入后续批次。`sendText` 的 ACK 只表示命令被接纳，与 turn 落库之间
+/// 没有协议级屏障，固定 sleep 在慢机器上会读到部分状态。
+struct RowsReady {
+    probe: String,
+    probe_id: u64,
+    expected_rows: usize,
+    followup: String,
+}
+
 /// 分批写输入（批次之间留时间让 worker 落库），再等 live 帧刷完。
 fn drive_batches(
     root: &TempRoot,
     batches: Vec<String>,
+) -> (std::collections::BTreeMap<u64, Value>, Vec<Value>) {
+    drive_batches_with(root, batches, None)
+}
+
+fn drive_batches_with(
+    root: &TempRoot,
+    batches: Vec<String>,
+    ready: Option<RowsReady>,
 ) -> (std::collections::BTreeMap<u64, Value>, Vec<Value>) {
     let config = ServerConfig::from_data_base_dir(root.path());
     let server = Arc::new(AgentServer::with_parts(
@@ -92,7 +110,12 @@ fn drive_batches(
         runtime.spawn(async move { run_stdio(read_half, write_half, Arc::clone(&server)).await });
     let write = std::sync::Arc::new(tokio::sync::Mutex::new(client_write));
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    let ready_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let probe_expect = ready
+        .as_ref()
+        .map(|ready| (ready.probe_id, ready.expected_rows));
     let writer_write = Arc::clone(&write);
+    let writer_flag = Arc::clone(&ready_flag);
     let writer = runtime.spawn(async move {
         use tokio::io::AsyncWriteExt;
         for batch in &batches {
@@ -101,10 +124,28 @@ fn drive_batches(
             drop(guard);
             tokio::time::sleep(std::time::Duration::from_millis(400)).await;
         }
-        tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+        if let Some(ready) = ready {
+            // 最多探 5s；探针超时也继续写 followup，让断言暴露真实状态。
+            for _ in 0..50 {
+                let mut guard = writer_write.lock().await;
+                guard.write_all(ready.probe.as_bytes()).await.ok();
+                drop(guard);
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                if writer_flag.load(Ordering::SeqCst) {
+                    break;
+                }
+            }
+            let mut guard = writer_write.lock().await;
+            guard.write_all(ready.followup.as_bytes()).await.ok();
+            drop(guard);
+            tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+        } else {
+            tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+        }
         let _ = shutdown_tx.send(());
     });
     let reader_write = Arc::clone(&write);
+    let reader_flag = Arc::clone(&ready_flag);
     let (responses, notifications) = runtime.block_on(async move {
         let mut responses = std::collections::BTreeMap::new();
         let mut notifications = Vec::new();
@@ -154,6 +195,17 @@ fn drive_batches(
                 continue;
             }
             let id = raw.get("id").and_then(Value::as_i64).unwrap_or_default();
+            if let Some((probe_id, expected_rows)) = probe_expect {
+                if id as u64 == probe_id
+                    && raw
+                        .get("result")
+                        .and_then(|result| result.get("rows"))
+                        .and_then(Value::as_array)
+                        .is_some_and(|rows| rows.len() >= expected_rows)
+                {
+                    reader_flag.store(true, Ordering::SeqCst);
+                }
+            }
             if raw.get("error").is_some() {
                 responses.insert(id as u64, json!({ "error": raw["error"].clone() }));
             } else {
@@ -309,9 +361,9 @@ fn rows_range_pages_the_projection() {
             "workspace": { "workspacePath": WORKSPACE, "workspaceKey": WORKSPACE },
         }),
     );
-    let mut sends = String::new();
+    let mut sends = Vec::new();
     for (index, text) in ["turn one", "turn two", "turn three"].iter().enumerate() {
-        sends.push_str(&request_line(
+        sends.push(request_line(
             10 + index as u64,
             "v4/command",
             serde_json::json!({
@@ -342,7 +394,20 @@ fn rows_range_pages_the_projection() {
             "beforeRowId": 4,
         }),
     ));
-    let (responses, _notifications) = drive_batches(&root, vec![create, sends, queries]);
+    // 三个无模型 turn 落库完成（探针看到 6 行）后再发分页查询。
+    let ready = RowsReady {
+        probe: request_line(
+            30,
+            "v4/conversation/rowsRange",
+            serde_json::json!({ "sessionId": "sess_rows", "limit": 100 }),
+        ),
+        probe_id: 30,
+        expected_rows: 6,
+        followup: queries,
+    };
+    let mut batches = vec![create];
+    batches.extend(sends);
+    let (responses, _notifications) = drive_batches_with(&root, batches, Some(ready));
     let page_one = &responses[&20];
     assert_eq!(page_one["rows"].as_array().expect("rows").len(), 3);
     // 每轮 turnHeader+userInput（无模型 → 没有 assistantText 行）；尾部窗口从第 2 轮开始。
