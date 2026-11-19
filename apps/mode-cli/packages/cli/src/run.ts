@@ -16,6 +16,7 @@ import { detectCliLocale } from "./locale.js";
 import { loadBootstrapModule } from "./bootstrap-loader.js";
 import { runEmbeddedSearchCli } from "./internal-search/embedded-search-cli.js";
 import { runCommandsCommand } from "./commands-command.js";
+import { runEvalCommand } from "@mode/eval";
 import { resolveCliCwd } from "./cwd.js";
 import { runLoginCommand, runLogoutCommand } from "./login-command.js";
 import { CLI_COMMAND_NAME, CLI_PROCESS_NAME } from "./process-name.js";
@@ -557,6 +558,19 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
       return await runLogoutCommand(ctx, options, commandDeps);
     case "commands":
       return await runCommandsCommand(ctx, options, commandDeps, parsed.positionals.slice(1));
+    case "eval":
+      return await runEvalCommand(
+        ctx,
+        {
+          json: options.json === true,
+          evalOut: parsed.values["eval-out"],
+          evalTimeout: parsed.values["eval-timeout"],
+          evalAgentServer: parsed.values["eval-agent-server"],
+          env: process.env,
+          cwd: workingDirectory,
+        },
+        parsed.positionals.slice(1),
+      );
     case "plugin":
     case "plugins":
       return await runPluginsCommand(

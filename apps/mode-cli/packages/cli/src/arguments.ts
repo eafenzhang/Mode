@@ -78,6 +78,10 @@ export const parseGlobalArgs = (argv: string[]) =>
         type: "boolean",
       },
       "prepare-storage": { type: "boolean" },
+      // mode eval 子命令专用旗标（@mode/eval）；命名空间前缀避免与全局语义冲突。
+      "eval-out": { type: "string" },
+      "eval-timeout": { type: "string" },
+      "eval-agent-server": { type: "string" },
       stdio: {
         type: "boolean",
       },

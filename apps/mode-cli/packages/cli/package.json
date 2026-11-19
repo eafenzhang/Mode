@@ -29,6 +29,7 @@
     "@mode/contracts": "workspace:*",
     "@mode/core": "workspace:*",
     "@mode/dynamic-workflow-runtime": "workspace:*",
+    "@mode/eval": "workspace:*",
     "@mode/i18n": "workspace:*",
     "@mode/provider-node": "workspace:*",
     "@mode/services": "workspace:*",

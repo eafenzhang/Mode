@@ -338,6 +338,9 @@ importers:
       '@mode/dynamic-workflow-runtime':
         specifier: workspace:*
         version: link:../dynamic-workflow-runtime
+      '@mode/eval':
+        specifier: workspace:*
+        version: link:../eval
       '@mode/i18n':
         specifier: workspace:*
         version: link:../i18n
@@ -441,6 +444,16 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.12.2
+
+  apps/mode-cli/packages/eval:
+    dependencies:
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.6.0
 
   apps/mode-cli/packages/i18n:
     dependencies:
