@@ -1270,6 +1270,57 @@ spec 再改实现。
   断裂 import 块、幻影 `PathContext`/`C3Diff` 类型导入）。为该目录建独立 tsc project
   属后续 harness 卫生项，不在 C3 范围内。
 
+## C4 生态面实现与差异登记（T1–T5，2026-11-20）
+
+状态：**T1–T5 已实现并验证（2026-11-20）**；T6 的 20 个真实模型任务与默认翻转
+**未执行**（需要用户桌面环境/模型凭据，且 `host-ownership-switch.md` §7 是翻转门禁）；
+T7 的 C4 回放 driver 与真实端点 smoke 仍待补。默认解析顺序**仍是 Node 优先**，
+`resolve_agent_command` 未改——在 20 任务全部通过前不翻转。
+
+### C4.1 实现面
+
+| 面         | 代码                                                                                                            | 测试                                                                    | 契约                       |
+| ---------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------- |
+| MCP        | `agent-server/src/mcp.rs`、`methods/mcp.rs`、`methods/process.rs`                                                | `tests/mcp.rs`（8）                                                     | `agent-c4-contract.md` §1  |
+| Skills     | `agent-server/src/skills.rs`（Catalog / ToolSource / Composite）                                                 | `tests/skills.rs`（4）                                                  | §2                         |
+| Plugins    | `agent-server/src/plugins.rs`、`methods/plugins.rs`                                                              | `tests/plugins.rs`（5）                                                 | §3                         |
+| Workflows  | `agent-server/src/workflows.rs`、`session-store/src/workflow_runs.rs`                                            | `tests/workflows.rs`（4）、`tests/v4_command.rs`（7）                    | §4                         |
+| 附件 / v4  | `attachments.rs`、`v4_projection.rs`、`methods/v4*.rs`、`server.rs`（v4 forward）                                | `tests/v4_attachment.rs`（4）、`tests/v4_frames.rs`（5）                 | §5                         |
+| 子代理执行 | `agent-core/src/subagent.rs`、`Session::run_agent_tool`、`agent-server/src/subagents_exec.rs`                     | `tests/runtime.rs::agent_tool_runs_child_turn_and_persists_child_rows`  | §7.6                       |
+
+### C4.2 差异汇总（明细以各契约小节为准）
+
+- **MCP**（§1.6）：子进程由 `McpHub` 托管，stdin/stdout JSON-RPC 与 http JSON POST；
+  未实现 sse、resources/prompts、工具清单变更通知、真实 OAuth 流程；OAuth 参数只透传。
+- **Skills**（§2）：只发现 `.mode/skills`；目录/引用/Skill 工具已接；首请求不注入
+  skills reminder（oracle 观察如此），context 注入未实现。
+- **Plugins**（§3.5）：list/describe/overview/setEnabled/marketplace/install/uninstall/
+  update/referenceCatalog/resolveSuggestedReference 已接；configure/validate/
+  cancelPluginOperation 与官方 availablePlugins 未实现。
+- **Workflows**（§4.7）：文件格式与六方法、`dwf_run`/`dwf_event` 落库、boa 内嵌执行
+  `startSavedWorkflow`；node/actor 产物与非空 events 的 oracle 形状未观察到，按现有
+  事件子集实现。
+- **附件/v4**（§5.9）：八方法 + sendText（正确行为：ref 授权、无 FK 崩溃）、21 键
+  snapshot、增量帧与 query 族；`createdAtSeq` 为近似值、行种类为子集、cold usage
+  未接、sessions-index live 未接、附件尚未转成模型内容。
+- **子代理**（§7.6）：前台 child turn 闭环（lifecycle/DB/结果模板）；child system
+  单块自撰、child 工具面仅现有注册表、`run_in_background` 仍同步、并发串行。
+
+### C4.3 验证记录（2026-11-20）
+
+- `cargo test -p agent-server`：26 个测试组全绿；`cargo test -p agent-core -p agent-tools` 全绿。
+- `cargo clippy -p agent-server -p agent-core --all-targets -- -D warnings` 通过。
+- `pnpm typecheck` 通过；`pnpm architecture:check --changed` 0 违规。
+- oracle 套件：157 passed / 3 failed（全部为既有 `session-stream` 基线，与本轮无关）。
+- C4 夹具已由 T0 录制且两次重跑逐字节一致；**尚未**接入 Rust replay driver（T7）。
+
+### C4.4 后续门禁
+
+1. 在真机执行 `host-ownership-switch.md` §7 的 20 个任务并记录到
+   `.plan/accept-<版本>-c4/`；
+2. 全部通过后再翻转 `resolve_agent_command` 默认并跑回滚/无 Node 并启测试；
+3. 补 C4 replay driver、真实端点 smoke，并与本节的差异表逐条对账。
+
 ## 验收场景（Task 0）
 
 1. `pnpm test:agent-runtime-oracle`（唯一入口；等价于
