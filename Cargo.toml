@@ -35,6 +35,7 @@ members = [
   "crates/provider-http",
   "crates/commands-service",
   "crates/dingtalk-stream",
+  "crates/weixin-ilink",
   "crates/mode-protocol-client",
   "crates/agent-process",
   "crates/protocol",
@@ -159,6 +160,7 @@ windows-sys = { version = "0.61", features = [
 ] }
 # 图标编码成位图 data URL（PNG + base64）。
 png = "0.18"
+aes = "0.8"
 base64 = "0.22"
 # 自签证书（**测试用**）：`source_url` 的 TLS 路径要有真握手才叫验过。档位与 rustls 一致
 # （`ring` provider，避开 aws-lc-rs 的原生构建）。

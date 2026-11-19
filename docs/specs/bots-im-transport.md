@@ -78,6 +78,50 @@
 **接入方式未决**（后续波次裁决）：Rust 传输层以何种形态服务 `botsService`——
 napi 供 TS 调用 vs 壳内接管 bots 域；两者都不影响本 crate 的协议面与对拍。
 
+## 4b. 第二波交付：`crates/weixin-ilink`（微信 iLink 请求面）
+
+**边界（重要）**：第二波只平移「请求面」——getupdates 长轮询与游标、sendmessage 构造、
+typing 票、getconfig 探测、CDN 附件 AES 解密。**入站消息的语义解析**（附件 kind 推断、
+用户/群字段投影）留在 TS callback 管线——Rust 版 `getupdates` 返回**原始消息数组**与
+`next_buf`，不做 `buildInboundMessage` 投影。iLink 无官方公开文档，**事实源 = 自家 TS**
+（`weixinProvider.ts` / `weixinChannelRuntime.ts`，file:line 见下）+ 真机验收。
+
+协议事实（TS file:line 为证）：
+
+1. 基址 `https://ilinkai.weixin.qq.com` + 前缀 `/ilink/bot`，全部 POST（`weixinProvider.ts:16-17,176-181`）。
+2. 请求头：`content-type: application/json`、`AuthorizationType: ilink_bot_token`、
+   `Authorization: Bearer <token>`、`X-WECHAT-UIN`（随机 u32 的十进制字符串 base64，
+   TS :110-121）。
+3. 所有请求体首键注入 `base_info: { channel_version: "2.0.0" }`（TS :123-131）。
+4. 业务码判定：`ret !== 0 || errcode !== 0` 即失败，errmsg/message 优先取（TS :200-219）。
+5. 失败分类（TS :138-159）：HTTP 401/403 → `session_expired`；HTTP 429/≥500 →
+   `retryable`；errmsg `"prepare failed"` → `context_expired`；token 缺失 →
+   `session_expired`；网络/超时 → `retryable`（TS :186-194）。
+6. `/getupdates`：请求 `{get_updates_buf: buf ?? ""}`，**超时 90s**（长轮询挂起，
+   TS :22,709-718）；响应容器取 `data`，消息数组键 `msgs/messages/updates/items/list`
+   （TS :548-558），游标键 `get_updates_buf/buf/next_buf/nextBuf/getUpdatesBuf/syncKey`
+   （TS :565-575）。**游标必须等本批消息全部进入业务处理后持久化**（TS :161-165 Bugfix，
+   顺序约束：先处理 → 再写 buf）。跨进程单消费者：轮询锁（TS :72-99，多窗口互斥）。
+7. `/sendmessage`：`msg{from_user_id(=providerSelfId ?? providerUserId，spec
+   weixin-provider-self-id), to_user_id, client_id("mode-weixin-<uuid>"),
+   message_type:2, message_state:2, context_token?, item_list:[{type:1,
+   text_item:{text}}]}`（TS :815-836）。
+8. 文本降级：iLink 只发纯文本——markdown 降级（剥代码围栏行/行内代码/粗体/标题标记，
+   链接转 `text (url)`；单个星号/下划线不碰；幂等，`botText.ts:154-172`）+
+   LF→CRLF 归一（TS :597-605）。
+9. typing：`/getconfig {ilink_user_id, context_token?}` 拿 `typing_ticket`（按
+   `bot:用户` 缓存）→ `/sendtyping {ilink_user_id, typing_ticket, status:1|2}`；
+   sendtyping 失败按票过期处理——强刷一次再试，仍失败上抛（TS :731-795）。
+10. `/getconfig`（无参）是连通性探测与会话续期入口（TS :808,845-854）。
+11. 附件下载：CDN `downloadUrl` 原始字节 → **AES-128-ECB + PKCS7** 解密（key = base64
+    16 字节，TS :21,85-99）。
+
+crate 结构：`headers.rs`（头/UIN/构造）、`classify.rs`（失败分类纯函数）、
+`updates.rs`（容器/游标解析纯函数）、`send.rs`（sendmessage 构造 + markdown 降级 +
+CRLF）、`typing.rs`（票缓存与重试流程）、`aes.rs`（ECB+PKCS7 解密，仅 `aes` crate
+手写 ECB/PKCS7，不引 ecb 依赖）、`http.rs`（`WeixinHttp` trait 注入 + reqwest 生产实现）。
+测试：纯函数单测 + 本地最小 HTTP 假服务端集成（头/体/业务码/401 分类/typing 重试）。
+
 ## 5. 验收
 
 1. 离线：`cargo test -p dingtalk-stream` 全绿（纯函数 + 假 WS 集成）。
