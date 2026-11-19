@@ -1,0 +1,22 @@
+[package]
+name = "dingtalk-stream"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "钉钉 Stream 模式长连客户端（W5 第一波，spec docs/specs/bots-im-transport.md §3/§4）"
+
+[lib]
+name = "dingtalk_stream"
+path = "src/lib.rs"
+
+[dependencies]
+futures-util = { workspace = true, features = ["sink"] }
+reqwest.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite.workspace = true
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

@@ -34,6 +34,7 @@ members = [
   "crates/provider-source-chain",
   "crates/provider-http",
   "crates/commands-service",
+  "crates/dingtalk-stream",
   "crates/mode-protocol-client",
   "crates/agent-process",
   "crates/protocol",
@@ -121,6 +122,9 @@ sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 schemars = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+# 钉钉 Stream 长连（W5 第一波，spec bots-im-transport.md）：TLS 走 rustls + webpki roots，
+# 与 workspace 的 rustls 0.23/ring 口径一致，不引入 native-tls。
+tokio-tungstenite = { version = "0.26", features = ["connect", "handshake", "rustls-tls-webpki-roots"] }
 tauri = "2"
 tauri-build = "2"
 tauri-plugin-dialog = "2"
