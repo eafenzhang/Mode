@@ -36,6 +36,7 @@ mod scripted;
 mod server;
 mod skills;
 mod state;
+mod v4_projection;
 pub mod workflows;
 
 pub use attachments::{
@@ -58,6 +59,9 @@ pub use runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
 pub use scripted::{ScriptedFixtureSource, SCRIPTED_PROVIDER_ENV};
 pub use skills::{CompositeToolSource, SkillCatalog, SkillToolSource};
 pub use state::{Accepted, RuntimeConfig, RuntimeError, SessionInput};
+pub use v4_projection::{
+    build_snapshot, event_to_deltas, project_rows, LiveDeltaState, SnapshotStateFacts,
+};
 pub use workflows::{parse_workflow, render_workflow, WorkflowDirs};
 // 线上帧类型的唯一所有者是 `agent-protocol`；这里只做转出，避免第二套帧定义。
 pub use agent_protocol::{

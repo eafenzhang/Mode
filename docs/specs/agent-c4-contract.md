@@ -787,6 +787,54 @@ dailyModelUsage,models,tools`；日期随运行日滚动（夹具折叠 `<range-
 - 帧计数不得作为断言；`desktop-continuous` 与 `web-remote-replayable` 的语义分开验证。
 - `sendText` 带附件的 FK 失败是 oracle 缺陷：Rust 实现前需用户裁决，不要默认复刻。
 
+### 5.9 Rust C4 T4 现状（2026-11-20，裁决③「本波全量实现」）
+
+T4 分三个切片落地：
+
+- **T4a**（`methods/v4.rs` + `session-store::workflow_runs`）：`v4/command`
+  `startSavedWorkflow`（嵌入 JS 引擎执行 + `dwf_run`/`dwf_event` 三事件）与
+  `v4/commands/query` 对账；
+- **T4b**（`attachments.rs` + `methods/v4_attachments.rs`）：附件 begin/chunk/commit/
+  abort/read/previewSource、conversation attachmentRead/Stat、`sendText`（正确行为）；
+- **T4c**（`v4_projection.rs` + `methods/v4_frames.rs` + server live 转发）：
+  conversation subscribe（快照 + 增量）、resync/unsubscribe、sessions-index 快照、
+  rowsRange/plans/usage/fileChanges/backgroundBashOutput/usageStats、workflow run 查询。
+
+已实现（与观察一致）：
+
+- 附件 ref `mode-artifact://<session>/tool-result-<uuid>`；落盘
+  `<dataRoot>/cli/artifacts/<session>/prompt-attachment-upload-<uploadId>-tool-result-<uuid><ext>`，
+  PNG 另进 `image-cache/<session>/image-<sha256>.png`。
+- 授权按「正确行为」：同 session 授权；跨 session share 面
+  `shareReadNotAuthorized`/`shareStatNotAuthorized`；preview 面未知/跨 session
+  `previewRefNotAuthorized`；abort 后 commit `uploadNotFound`；零字节上传必须零块（-32602）。
+- `sendText`：ref 校验 + `runtime.submit` 起 turn；未知/跨 session ref 走 per-command
+  failed ACK；非活动 session `fault.command.sessionNotActive`；不复刻 FK 缺陷。
+- 订阅：ACK `{subscriptionId,mode:"snapshot",logEpoch,openTiming{runtimeState,snapshotRowCount}}`；
+  初始快照帧 21 键全量（`protocolVersion:1`；`modelTransition`/`workspaceHookAdmission`
+  显式 null）；增量帧 `row.appended/upserted/delta` + `state.updated`（turn 生命周期、
+  标题、goal 未接）；`wireVersion:3`、`logicalFrameId/Ordinal`、`deliveryKind initial/online`。
+- rowsRange：DB 行投影 + `beforeRowId` 分页、`atSeq/atRevision/atLogEpoch/hasMore`；
+  plans（ExitPlanMode 行）；usage（turn*usage/model_usage 聚合）；workflow run
+  runs/events 读 `dwf*\*`；fileChanges 先做 staleLogEpoch 守卫；usageStats 从
+  model_usage/turn_usage/tool_usage 聚合；sessions-index 订阅返回快照帧。
+
+差异 / 未覆盖（不伪造观察值）：
+
+| 项                   | Rust 现状                                                                                                                                | 依据      |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `createdAtSeq`       | 用 message/part 的 DB `sequence` 近似事件 seq（oracle 是事件序号）。                                                                     | §5.5      |
+| 行种类               | 只产 turnHeader/userInput/assistantText/toolCall；reasoning/artifact/hook/timelineMarker 未接。                                          | §5.5      |
+| 增量 upsert 行       | `row.upserted` 的工具/turnHeader/assistantText 行只带 rowId+status 等少数键（base 字段补 0），不是完整行替换；消费方需按 rowId 合并。    | §5.4      |
+| cold 快照事实        | 无 runtime 时 `usage.contextWindow=null`、cumulative 全 0、control.activeWorks=[]、lastError=null；oracle 暖会话有 contextWindow。       | §5.4      |
+| availability/routing | fork 恒 `forkTargetNotStable`；compact 恒 `idleCannotCompact`；running 时 inputRouting=`enqueue`/sendQueuedNow 允许（oracle 未逐一录）。 | §5.4      |
+| sessions-index live  | 只发初始快照帧；`session.upserted/removed` 增量未接。                                                                                    | §5.4      |
+| fileChanges          | 只做 `proto.staleLogEpoch` 守卫；通过后恒空 items（无 git/diff 事实）。                                                                  | §5.5      |
+| backgroundBashOutput | 恒 `unavailable`（TaskRegistry 输出读取未接）。                                                                                          | §5.5      |
+| workflow artifacts   | artifacts 恒空清单；workspace nodes 恒空；nodeResult 恒 `fault.workflowRun.nodeNotFound`（本波执行器不产 artifact/node 行）。            | §4.4      |
+| 附件→模型内容        | `sendText` 的 attachments 只做 ref 授权与保存；agent-core 的 user message 尚无附件 part 面，未注入模型请求（后续切片）。                 | §5.2/§5.7 |
+| 附件成功读差异       | oracle 对同 session 的 read/preview 也报未授权（缺陷）；Rust 按正确行为返回字节/本地路径（裁决②）。                                      | §5.3      |
+
 ## 6. automation / provider / account（`automation-stdio-surface` / `provider-account-stdio-surface`）
 
 automation 协议镜像的 5 个方法（`create/update/checkTaskBinding/list/delete`）在 stdio

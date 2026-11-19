@@ -289,6 +289,26 @@ pub struct AgentServer {
     mcp: Arc<McpHub>,
     /// C4 T4：已受理 v4 命令的 ACK 台账（`v4/commands/query` 的唯一事实源）。
     v4: V4State,
+    /// C4 T4c：待 spawn 的 v4 live 转发（response 写完后由 stdio 循环拉走）。
+    pending_v4_forwards: Mutex<Vec<crate::dispatch::PendingV4Forward>>,
+}
+
+/// v4 live 转发的变体：conversation（快照 + 增量）与 sessions-index（仅快照）。
+pub enum PendingV4Forward {
+    Conversation {
+        session_id: String,
+        topic: String,
+        subscription_id: String,
+        client_mode: agent_protocol::v4_transport::V4ClientMode,
+        log_epoch: String,
+        last_seq: u64,
+    },
+    SessionsIndex {
+        topic: String,
+        subscription_id: String,
+        log_epoch: String,
+        snapshot: agent_protocol::v4_sessions_index::SessionsIndexSnapshot,
+    },
 }
 
 /// `(sessionId, commandId)` → ACK。sessionId `None` 是全局幂等桶（createSession）。
@@ -297,6 +317,72 @@ pub struct V4State {
     commands: Mutex<HashMap<(Option<String>, String), CommandAck>>,
     /// C4 T4：附件上行事务与 ref 授权（唯一事实源）。
     pub attachments: crate::attachments::AttachmentStore,
+    /// C4 T4c：logEpoch / 订阅台账（key = sessionId 或 topic）。
+    log_epochs: Mutex<HashMap<String, String>>,
+    subscriptions: Mutex<HashMap<String, SubscriptionInfo>>,
+    epoch_counter: std::sync::atomic::AtomicU64,
+}
+
+/// 一条订阅的台账事实（rows/client_mode 供诊断；当前读面未消费，登记）。
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct SubscriptionInfo {
+    pub session_id: Option<String>,
+    pub topic: String,
+    pub client_mode: agent_protocol::v4_transport::V4ClientMode,
+    pub rows_total: u64,
+}
+
+impl V4State {
+    pub fn next_epoch_counter(&self) -> u128 {
+        self.epoch_counter
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst) as u128
+    }
+
+    /// `logEpoch` 按 key（sessionId/topic）稳定；不存在时用 `generate` 生成并登记。
+    pub fn log_epoch_for(&self, key: &str, generate: impl FnOnce() -> String) -> String {
+        let mut epochs = self
+            .log_epochs
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        epochs
+            .entry(key.to_string())
+            .or_insert_with(generate)
+            .clone()
+    }
+
+    pub fn register_subscription(
+        &self,
+        subscription_id: &str,
+        session_id: &str,
+        topic: &str,
+        client_mode: agent_protocol::v4_transport::V4ClientMode,
+        rows_total: u64,
+    ) {
+        self.subscriptions
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(
+                subscription_id.to_string(),
+                SubscriptionInfo {
+                    session_id: Some(session_id.to_string()),
+                    topic: topic.to_string(),
+                    client_mode,
+                    rows_total,
+                },
+            );
+    }
+
+    pub fn touch_subscription(&self, subscription_id: &str) {
+        let _ = subscription_id;
+    }
+
+    pub fn drop_subscription_by_topic(&self, topic: &str) {
+        self.subscriptions
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .retain(|_, info| info.topic != topic);
+    }
 }
 
 impl V4State {
@@ -364,6 +450,7 @@ impl AgentServer {
             pending_forwards: Mutex::new(Vec::new()),
             mcp: Arc::new(McpHub::new()),
             v4: V4State::default(),
+            pending_v4_forwards: Mutex::new(Vec::new()),
         }
     }
 
@@ -395,6 +482,7 @@ impl AgentServer {
             pending_forwards: Mutex::new(Vec::new()),
             mcp: Arc::new(McpHub::new()),
             v4: V4State::default(),
+            pending_v4_forwards: Mutex::new(Vec::new()),
         }
     }
 
@@ -517,6 +605,48 @@ impl AgentServer {
             crate::methods::V4_CONVERSATION_ATTACHMENT_STAT_METHOD => {
                 methods::v4_attachments::handle_conversation_attachment_stat(self, params)
             }
+            crate::methods::V4_CONVERSATION_SUBSCRIBE_METHOD => {
+                methods::v4_frames::handle_conversation_subscribe(self, params)
+            }
+            crate::methods::V4_CONVERSATION_RESYNC_METHOD => {
+                methods::v4_frames::handle_conversation_resync(self, params)
+            }
+            crate::methods::V4_CONVERSATION_UNSUBSCRIBE_METHOD => {
+                methods::v4_frames::handle_conversation_unsubscribe(self, params)
+            }
+            crate::methods::V4_CONVERSATION_ROWS_RANGE_METHOD => {
+                methods::v4_frames::handle_rows_range(self, params)
+            }
+            crate::methods::V4_CONVERSATION_PLANS_METHOD => {
+                methods::v4_frames::handle_plans(self, params)
+            }
+            crate::methods::V4_CONVERSATION_USAGE_METHOD => {
+                methods::v4_frames::handle_usage(self, params)
+            }
+            crate::methods::V4_CONVERSATION_FILE_CHANGES_METHOD => {
+                methods::v4_frames::handle_file_changes(self, params)
+            }
+            crate::methods::V4_BACKGROUND_BASH_OUTPUT_METHOD => {
+                methods::v4_frames::handle_background_bash_output(self, params)
+            }
+            crate::methods::V4_USAGE_STATS_METHOD => {
+                methods::v4_frames::handle_usage_stats(self, params)
+            }
+            crate::methods::V4_CONVERSATION_WORKFLOW_RUNS_METHOD => {
+                methods::v4_frames::handle_workflow_runs(self, params)
+            }
+            crate::methods::V4_CONVERSATION_WORKFLOW_RUN_EVENTS_METHOD => {
+                methods::v4_frames::handle_workflow_events(self, params)
+            }
+            crate::methods::V4_CONVERSATION_WORKFLOW_RUN_ARTIFACTS_METHOD => {
+                methods::v4_frames::handle_workflow_artifacts(self, params)
+            }
+            crate::methods::V4_CONVERSATION_WORKFLOW_RUN_WORKSPACE_METHOD => {
+                methods::v4_frames::handle_workflow_workspace(self, params)
+            }
+            crate::methods::V4_CONVERSATION_WORKFLOW_RUN_NODE_RESULT_METHOD => {
+                methods::v4_frames::handle_workflow_node_result(self, params)
+            }
             _ => Err(ServerError::method_not_found(method)),
         }
     }
@@ -534,6 +664,23 @@ impl AgentServer {
     /// C4 T4：v4 命令 ACK 台账（`v4/commands/query` 读面）。
     pub fn v4_state(&self) -> &V4State {
         &self.v4
+    }
+
+    /// C4 T4c：登记待 spawn 的 v4 live 转发。
+    pub fn queue_v4_forward(&self, forward: crate::dispatch::PendingV4Forward) {
+        self.pending_v4_forwards
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .push(forward);
+    }
+
+    pub(crate) fn take_pending_v4_forwards(&self) -> Vec<crate::dispatch::PendingV4Forward> {
+        std::mem::take(
+            &mut *self
+                .pending_v4_forwards
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        )
     }
 
     /// 替换 provider 装配源（测试注入；生产恒为 hub 适配）。
