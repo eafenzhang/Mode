@@ -6,6 +6,7 @@ pub enum SessionPhase {
     Running,
     Waiting,
     Done,
+    Interrupted,
     Failed,
 }
 
@@ -16,6 +17,7 @@ impl SessionPhase {
             Self::Running => "●",
             Self::Waiting => "◐",
             Self::Done => "✓",
+            Self::Interrupted => "■",
             Self::Failed => "✗",
         }
     }
@@ -26,6 +28,7 @@ impl SessionPhase {
             Self::Running => "running",
             Self::Waiting => "waiting",
             Self::Done => "done",
+            Self::Interrupted => "interrupted",
             Self::Failed => "failed",
         }
     }
@@ -37,6 +40,8 @@ pub struct TuiSession {
     pub title: String,
     pub phase: SessionPhase,
     pub last_activity: String,
+    /// 原始活动时间（毫秒）；排序用，展示仍走 `last_activity`。
+    pub last_activity_ms: u64,
 }
 
 impl TuiSession {
@@ -51,7 +56,13 @@ impl TuiSession {
             title: title.into(),
             phase,
             last_activity: last_activity.into(),
+            last_activity_ms: 0,
         }
+    }
+
+    pub fn with_last_activity_ms(mut self, value: u64) -> Self {
+        self.last_activity_ms = value;
+        self
     }
 }
 
@@ -147,7 +158,10 @@ mod tests {
     #[test]
     fn selection_wraps_in_both_directions() {
         let mut model = TuiModel::with_sessions("ws", sessions());
-        assert_eq!(model.selected_session().map(|item| item.id.as_str()), Some("a"));
+        assert_eq!(
+            model.selected_session().map(|item| item.id.as_str()),
+            Some("a")
+        );
         model.select_previous();
         assert_eq!(model.selected, 2);
         model.select_next();

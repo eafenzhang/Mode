@@ -5,8 +5,10 @@ edition.workspace = true
 license = "MIT"
 
 [dependencies]
+agent-protocol = { path = "../agent-protocol" }
 crossterm.workspace = true
 ratatui.workspace = true
+serde_json.workspace = true
 
 [[bin]]
 name = "mode-tui"

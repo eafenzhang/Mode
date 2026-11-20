@@ -8,5 +8,5 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or(3031);
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
     println!("mode-server skeleton listening on http://127.0.0.1:{port}");
-    axum::serve(listener, mode_server::router()).await
+    axum::serve(listener, mode_server::router_from_env()).await
 }

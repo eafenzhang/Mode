@@ -1,25 +1,43 @@
-//! Mode Web/远程服务端（LT-9）第一段纵切：axum 路由骨架 + 健康/版本面。
+//! Mode Web/远程服务端（LT-9）第一段纵切：axum 路由骨架 + 健康/版本/server-info。
 //!
 //! 现有 `packages/server` 的 HTTP/stdio/RPC 面还没迁；本 crate 先固定 axum 入口与
 //! 基础契约，后续按路由组逐块移植并对拍（spec `docs/specs/server-axum.md`）。
 
+use std::sync::Arc;
+
+use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
 use serde_json::{json, Value};
 
-/// 当前纵切只有健康检查与版本；业务路由在后续任务按组接入。
-pub fn router() -> Router {
+pub mod server_info;
+
+use server_info::{ServerInfoConfig, ServerRemoteInfo};
+
+/// 当前纵切：健康、版本、server-info；业务路由在后续任务按组接入。
+pub fn router(config: ServerInfoConfig) -> Router {
+    let state = Arc::new(config);
     Router::new()
         .route("/healthz", get(healthz))
         .route("/api/version", get(version))
+        .route("/api/server-info", get(server_info))
+        .with_state(state)
+}
+
+pub fn router_from_env() -> Router {
+    router(ServerInfoConfig::from_env())
 }
 
 async fn healthz() -> Json<Value> {
     Json(json!({ "status": "ok" }))
 }
 
-async fn version() -> Json<Value> {
-    Json(json!({ "version": env!("CARGO_PKG_VERSION") }))
+async fn version(State(config): State<Arc<ServerInfoConfig>>) -> Json<Value> {
+    Json(json!({ "version": config.version }))
+}
+
+async fn server_info(State(config): State<Arc<ServerInfoConfig>>) -> Json<ServerRemoteInfo> {
+    Json(config.projection())
 }
 
 #[cfg(test)]
@@ -28,10 +46,30 @@ mod tests {
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use http_body_util::BodyExt;
+    use server_info::{ServerInfoConfig, ServerRemoteWorkspaceInfo};
     use tower::ServiceExt;
 
+    fn config() -> ServerInfoConfig {
+        ServerInfoConfig {
+            server_id: "srv-1".to_string(),
+            name: Some("开发机".to_string()),
+            version: "9.9.9".to_string(),
+            auth_required: true,
+            workspaces: vec![ServerRemoteWorkspaceInfo {
+                path: "/workspace/mode".to_string(),
+                label: Some("mode".to_string()),
+                workspace_identity: None,
+            }],
+            public_relay: None,
+            computer_use: None,
+            remote_desktop: Some(true),
+            remote_desktop_native: None,
+            lan_peer_controller: Some(true),
+        }
+    }
+
     async fn get_json(uri: &str) -> (StatusCode, Value) {
-        let response = router()
+        let response = router(config())
             .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
             .await
             .unwrap();
@@ -48,15 +86,34 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn version_returns_package_version() {
+    async fn version_returns_configured_version() {
         let (status, body) = get_json("/api/version").await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(body, json!({ "version": "9.9.9" }));
+    }
+
+    #[tokio::test]
+    async fn server_info_matches_shared_schema() {
+        let (status, body) = get_json("/api/server-info").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["serverId"], "srv-1");
+        assert_eq!(body["name"], "开发机");
+        assert_eq!(body["version"], "9.9.9");
+        assert_eq!(body["protocolVersion"], 1);
+        assert_eq!(body["authRequired"], true);
+        assert_eq!(body["workspaces"][0]["path"], "/workspace/mode");
+        assert_eq!(body["workspaces"][0]["label"], "mode");
+        assert_eq!(body["capabilities"]["desktopContinuous"], true);
+        assert_eq!(body["capabilities"]["websocketRpc"], true);
+        assert_eq!(body["capabilities"]["remoteDesktop"], true);
+        assert_eq!(body["capabilities"]["lanPeerController"], true);
+        assert!(body["capabilities"].get("computerUse").is_none());
+        assert!(body.get("publicRelay").is_none());
     }
 
     #[tokio::test]
     async fn unknown_route_is_404() {
-        let response = router()
+        let response = router(config())
             .oneshot(
                 Request::builder()
                     .uri("/api/nope")

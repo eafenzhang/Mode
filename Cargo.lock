@@ -3741,8 +3741,10 @@ dependencies = [
 name = "mode-tui"
 version = "0.1.0"
 dependencies = [
+ "agent-protocol",
  "crossterm",
  "ratatui",
+ "serde_json",
 ]
 
 [[package]]

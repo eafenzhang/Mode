@@ -19,21 +19,23 @@
 
 `crates/server`：
 
-- `router()`：`GET /healthz`（`{status:"ok"}`）与 `GET /api/version`（包版本）。
+- `router(config)`：`GET /healthz`、`GET /api/version`、`GET /api/server-info`；
+  `router_from_env()` 按 `MODE_SERVER_*` 组装。
+- `server_info`：`ServerRemoteInfo` 投影（camelCase、可选能力缺键、auth/workspace
+  环境口径与 TS `createServerInfo` 对齐）。
 - 可运行二进制：`MODE_SERVER_PORT=3031 cargo run -p mode-server`。
-- 测试 3 条：健康、版本、未知路由 404（`tower::ServiceExt::oneshot`）。
+- 测试 7 条：健康、版本、server-info 形状、未知路由 404 + 3 条 env/投影纯逻辑。
 
 这一版**不接 Host 服务**，只固定 axum 入口、错误面与测试方式；不能替代
 `packages/server`，也不改变现有 Web/远控链路。
 
 ## 3. 后续切片
 
-1. `GET /api/server-info`：注入 Host 元信息，与 TS 响应逐字段对拍。
-2. LAN 只读面（`/api/lan/state`、`peers`）：复用 `crates/lan-*`，写操作仍走现有 Host。
-3. `/ws/host`：先接 RPC 帧转发，保持 `desktop-continuous` 与
+1. LAN 只读面（`/api/lan/state`、`peers`）：复用 `crates/lan-*`，写操作仍走现有 Host。
+2. `/ws/host`：先接 RPC 帧转发，保持 `desktop-continuous` 与
    `web-remote-replayable` 两种语义（见 W2 spec）。
-4. 更新/远程桌面/附件组逐组迁移；每组先补契约对拍，再切换所有权。
-5. 全部路由对拍通过后，`packages/server` 才进入退役。
+3. 更新/远程桌面/附件组逐组迁移；每组先补契约对拍，再切换所有权。
+4. 全部路由对拍通过后，`packages/server` 才进入退役。
 
 ## 4. 边界
 

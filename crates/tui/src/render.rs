@@ -11,10 +11,7 @@ use crate::model::TuiModel;
 /// 与 TUI 宽度无关的文本视图：header / 会话行 / 输入行 / 状态行。
 pub fn view_lines(model: &TuiModel, width: usize) -> Vec<String> {
     let mut lines = Vec::with_capacity(model.sessions.len() + 3);
-    lines.push(truncate(
-        &format!("Mode · {}", model.workspace),
-        width,
-    ));
+    lines.push(truncate(&format!("Mode · {}", model.workspace), width));
     if model.sessions.is_empty() {
         lines.push(truncate("还没有任务", width));
     } else {
@@ -108,6 +105,7 @@ fn phase_color(phase: crate::model::SessionPhase) -> Color {
         SessionPhase::Running => Color::Cyan,
         SessionPhase::Waiting => Color::Yellow,
         SessionPhase::Done => Color::Green,
+        SessionPhase::Interrupted => Color::Magenta,
         SessionPhase::Failed => Color::Red,
     }
 }
@@ -156,7 +154,12 @@ mod tests {
         assert_eq!(lines[1], "还没有任务");
         let long = TuiModel::with_sessions(
             "ws",
-            vec![TuiSession::new("a", "这是一个很长的中文标题", SessionPhase::Done, "")],
+            vec![TuiSession::new(
+                "a",
+                "这是一个很长的中文标题",
+                SessionPhase::Done,
+                "",
+            )],
         );
         let lines = view_lines(&long, 8);
         assert_eq!(lines[1].chars().count(), 8);
