@@ -50,6 +50,18 @@
 | **LT-6** | 插件生态兼容层                  | Claude marketplace/triplet、hooks 兼容、managed settings、MCP 合并 | P2     | M    | LT-2、LT-3       | `packages/services/src/plugins`、`plugin-sync`、`workspace-hooks-service`       |
 | **LT-0** | 决策与门禁（跨任务）            | Android/PWA、自建配置/分享通道、M2/M4/M5 收口门禁                  | P1     | S    | 无               | ADR + 门禁清单                                                                  |
 
+### 进度快照（2026-11-21）
+
+| 长任务 | 状态 |
+| --- | --- |
+| **LT-1** | **C1–C4 已完成并合并 main**：C1 Rust Agent Server 最小闭环、C2 上下文/记忆/压缩、C3 流恢复/目标续跑/故障收口、C4 生态面接入与默认翻转（merge `ddbd18238`）；随包 Rust agent 成为默认运行时（Node 保留显式回退），真机验收 19 PASS / 1 PARTIAL；残余 `d3eec12b7` 补齐 v4 命令面、安全加固与首任务性能。 |
+| **LT-2** | 本轮无新增交付。 |
+| **LT-3** | 本轮无新增交付（`packages/ui/src/plugin-runtime` 尚未建立）。 |
+| **LT-4** | **完成**：首片 `b6f254186` + 续片 `c96690818`；`mode eval run\|replay\|diff`、34 条测试、CI opt-in `eval.yml`。 |
+| **LT-5** | 本轮无新增交付（既有工作台能力不计入本轨道）。 |
+| **LT-6** | 本轮无新增交付。 |
+| **LT-0** | 本轮无新增决策/门禁交付。 |
+
 ## 依赖与波次
 
 ```mermaid

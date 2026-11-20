@@ -1,6 +1,10 @@
 # IM SDK 集成与运行时在线升级
 
-状态：v1（2026-11-20）。上位：`docs/plans/2026-10-29-full-rust-rewrite.md` §W5；
+状态：v1（2026-11-20）。**实现进度（2026-11-21）：客户端侧已实现**
+（`packages/services/src/bots/imSdk{Runtime,RuntimeUpgrade,Manifest,Tar}.ts`，9 条用例；
+`wecomSdk.ts` / `feishuProvider.ts` 已接入，Host 启动可按环境配置后台刷新）；
+发布流水线（bundle + 清单 + 签名）、设置页与壳资源注入待做。
+上位：`docs/plans/2026-10-29-full-rust-rewrite.md` §W5；
 本文对该计划的「IM 四通道 Rust 自实现」作出方向修正。
 关联：`docs/specs/bots-im-transport.md`（wire 事实，转参考资料）、
 `docs/specs/bots-domain-migration.md`（B 方案，已作废）、

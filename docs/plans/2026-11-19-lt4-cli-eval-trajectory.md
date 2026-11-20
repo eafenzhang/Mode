@@ -1,5 +1,8 @@
 # LT-4 CLI 评测与轨迹记录 Implementation Plan
 
+> 状态：**完成（2026-11-20）**。首片 `b6f254186` + 续片 `c96690818`；
+> `mode eval run|replay|diff`、34 条测试、CI opt-in `eval.yml`。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 给 `mode` CLI 增加 `eval run|replay`：用脚本 provider 批量跑 Agent 会话、产出确定性的报告与脱敏轨迹。

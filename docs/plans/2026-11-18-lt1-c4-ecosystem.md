@@ -1,5 +1,8 @@
 # LT-1 C4：生态面接入与默认翻转 Implementation Plan
 
+> 状态：**完成并合并 main（2026-11-20，merge `ddbd18238`；残余 `d3eec12b7`）**。
+> 随包 Rust agent 成为默认运行时（Node 保留显式回退），真机验收 19 PASS / 1 PARTIAL。
+
 > **For agentic workers:** 本文件是 C4 检查点的长任务计划。每个 Task 开工前按
 > `writing-plans` 补齐该 Task 的逐步骤细节；步骤用 `- [ ]` 跟踪。
 >
