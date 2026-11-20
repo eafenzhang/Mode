@@ -139,6 +139,9 @@ pub struct WsHostDeps {
     pub host_capabilities: Arc<HostCapabilityStore>,
     /// 频道装配的数据根（memory / conversation-mirror / usage-stats 等）。
     pub data_root: PathBuf,
+    /// LAN 配对面（可选）：`None` 时该连接不参与「最近打开目录」录制
+    /// （TS resolveLanClientByToken 未提供时行为不变，同口径）。
+    pub lan_pairing: Option<crate::lan::SharedLanHttp>,
 }
 
 /// `/api/rpc-host-capability`（TS 同名端点）：签发一次性 host capability。
@@ -169,17 +172,109 @@ async fn require_host_capability(
 }
 
 /// `/ws/host` 升级 handler（capability 已由中间件消费）。
+///
+/// 该连接对应哪台已配对客户端：cookie/query 令牌 → clientId（与鉴权同一校验
+/// 路径），解析成功才挂「最近打开目录」录制；普通或无 LAN 配置的连接行为不变。
 async fn upgrade_trusted_host(
     State(deps): State<WsHostDeps>,
+    headers: HeaderMap,
+    axum::extract::RawQuery(raw_query): axum::extract::RawQuery,
     upgrade: WebSocketUpgrade,
 ) -> Response {
-    upgrade.on_upgrade(move |socket| bridge_host_socket(socket, deps))
+    let client_id = resolve_lan_client_id(&deps, headers, raw_query.as_deref()).await;
+    upgrade.on_upgrade(move |socket| bridge_host_socket(socket, deps, client_id))
+}
+
+/// TS `readPresentedLiteToken` + `resolveLanClientByToken` 的合并：
+/// query `token` 优先，cookie 两种 lite token 名兜底（`lan_http::presented_token`）。
+async fn resolve_lan_client_id(
+    deps: &WsHostDeps,
+    headers: HeaderMap,
+    raw_query: Option<&str>,
+) -> Option<String> {
+    let pairing = deps.lan_pairing.as_ref()?;
+    let query_token = raw_query.and_then(|query| {
+        form_urlencoded_parse(query)
+            .into_iter()
+            .find(|(key, _)| key == "token")
+            .map(|(_, value)| value)
+    });
+    let cookie = headers
+        .get(axum::http::header::COOKIE)
+        .and_then(|value| value.to_str().ok());
+    let presented = lan_http::presented_token(None, cookie, query_token.as_deref())?;
+    pairing.resolve_client_by_token(&presented).await
+}
+
+fn form_urlencoded_parse(query: &str) -> Vec<(String, String)> {
+    query
+        .split('&')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let (key, value) = part.split_once('=').unwrap_or((part, ""));
+            (
+                urldecode(key),
+                urldecode(value),
+            )
+        })
+        .collect()
+}
+
+fn urldecode(value: &str) -> String {
+    let mut out = Vec::with_capacity(value.len());
+    let bytes = value.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'%' if index + 2 < bytes.len() + 1 && index + 2 < bytes.len() + 1 => {
+                let hex = bytes.get(index + 1..index + 3);
+                if let Some(hex) = hex {
+                    if let Ok(byte) = u8::from_str_radix(&String::from_utf8_lossy(hex), 16) {
+                        out.push(byte);
+                        index += 3;
+                        continue;
+                    }
+                }
+                out.push(b'%');
+                index += 1;
+            }
+            b'+' => {
+                out.push(b' ');
+                index += 1;
+            }
+            byte => {
+                out.push(byte);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).to_string()
+}
+
+/// TS `extractWorkspacePathArg`：只有第一参数对象顶层的 workspacePath 才算
+/// 「打开工作区」信号；readdir/resolvePath 用 path 字段，不录。
+pub fn extract_workspace_path_from_frame(frame: &[u8]) -> Option<String> {
+    let request = rpc_wire::decode_rpc_message(frame).ok()?;
+    match request.header {
+        rpc_wire::RequestHeader::Promise { .. }
+        | rpc_wire::RequestHeader::EventListen { .. } => {}
+        _ => return None,
+    }
+    let rpc_wire::Value::Array(items) = request.body else {
+        return None;
+    };
+    let rpc_wire::Value::Json(text) = items.first()? else {
+        return None;
+    };
+    let json: serde_json::Value = serde_json::from_str(text).ok()?;
+    let path = json.get("workspacePath")?.as_str()?;
+    (!path.trim().is_empty()).then(|| path.to_string())
 }
 
 /// 每连接一个 `ChannelServer`（TS `new ChannelServer(protocol, "server")` 同款：
 /// deferInit 缺省 = 构造即向对端发 Initialize）；入站 WS 帧 → `handle_frame`，
-/// 出站帧 → WS binary。
-async fn bridge_host_socket(socket: WebSocket, deps: WsHostDeps) {
+/// 出站帧 → WS binary；`client_id` 解析成功的连接同步录制最近打开目录。
+async fn bridge_host_socket(socket: WebSocket, deps: WsHostDeps, client_id: Option<String>) {
     let (mut sender, mut receiver) = socket.split();
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     let mut server =
@@ -202,7 +297,18 @@ async fn bridge_host_socket(socket: WebSocket, deps: WsHostDeps) {
     use futures_util::{SinkExt, StreamExt};
     while let Some(Ok(message)) = receiver.next().await {
         match message {
-            Message::Binary(data) => server.handle_frame(&data),
+            Message::Binary(data) => {
+                if let Some(workspace_path) = extract_workspace_path_from_frame(&data) {
+                    if let Some(client_id) = &client_id {
+                        if let Some(pairing) = &deps.lan_pairing {
+                            pairing
+                                .record_client_workspace_for_client(client_id, &workspace_path)
+                                .await;
+                        }
+                    }
+                }
+                server.handle_frame(&data);
+            }
             Message::Text(text) => server.handle_frame(text.as_bytes()),
             Message::Close(_) => break,
             _ => {}
@@ -214,6 +320,7 @@ async fn bridge_host_socket(socket: WebSocket, deps: WsHostDeps) {
 
 /// `/ws/host` 路由组：capability 签发 + trusted-host 升级。
 pub fn ws_host_router(deps: WsHostDeps) -> Router {
+    // （路由组本身不注入 LAN 依赖；`WsHostDeps.lan_pairing` 由装配方决定。）
     Router::new()
         .route("/api/rpc-host-capability", post(issue_capability))
         .route(

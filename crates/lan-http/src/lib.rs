@@ -128,6 +128,42 @@ impl<C: LanCredentialPort + Send + 'static> LanPairHttp<C> {
         self.pairing.lock().await.verify_token(&token).is_some()
     }
 
+    /// 生成配对码（编程接口；跳过 HTTP 面的「监听未开启」门禁——配对码
+    /// 只在配对窗内有效，仅供测试/内嵌装配直接驱动配对流程）。
+    pub async fn mint_pair_code(&self) -> lan_pairing::LanAccessPairCode {
+        self.pairing.lock().await.create_pair_code()
+    }
+
+    /// 兑换配对码（编程接口；HTTP 面的 pair 端点自带限速与 Cookie 语义）。
+    pub async fn pair_redeem(
+        &self,
+        code: &str,
+        label: Option<&str>,
+    ) -> Result<Option<lan_pairing::LanAccessPairResult>, String> {
+        self.pairing.lock().await.redeem(code, label)
+    }
+
+    /// 客户端记录快照（编程接口）。
+    pub async fn clients(&self) -> Vec<lan_pairing::LanAccessClientRecord> {
+        self.pairing.lock().await.clients().to_vec()
+    }
+
+    /// TS `resolveLanClientByToken`：把 presented token 解析成客户端记录 id
+    /// （`/ws/host` 升级时调用一次；副作用 = touch lastUsedAt）。
+    pub async fn resolve_client_by_token(&self, token: &str) -> Option<String> {
+        self.pairing.lock().await.verify_token(token)
+    }
+
+    /// TS `onLanClientWorkspace`：该连接上出现携带 workspacePath 的 RPC 时
+    /// 更新客户端记录的最近打开目录（同路径重复上报忽略；不存在时静默）。
+    pub async fn record_client_workspace_for_client(&self, client_id: &str, workspace_path: &str) {
+        let _ = self
+            .pairing
+            .lock()
+            .await
+            .record_client_workspace(client_id, workspace_path);
+    }
+
     /// `POST /api/lan/enable`：监听开关由传输层持有（持久化属宿主凭据面）。
     /// 关闭时清 pairCode；返回更新后的 state。
     pub async fn set_enabled(&self, enabled: bool) -> Value {

@@ -14,6 +14,8 @@ pub mod lan;
 pub mod server_info;
 pub mod ws_host;
 
+pub use ws_host::extract_workspace_path_from_frame;
+
 use server_info::{ServerInfoConfig, ServerRemoteInfo};
 
 /// 当前纵切：健康、版本、server-info；业务路由在后续任务按组接入。
@@ -38,11 +40,17 @@ pub fn router_with_lan(config: ServerInfoConfig, pairing: lan::SharedLanHttp) ->
 /// base + LAN + `/ws/host`（trusted-host WS RPC 帧桥）。
 ///
 /// capability store 进程内单例；频道装配用 [`host_channels::register_service_channels`]
-/// （server-mode 无 Agent 控制面，agent 频道不可构造留痕跳过）。
-pub fn router_with_ws_host(config: ServerInfoConfig, data_root: std::path::PathBuf) -> Router {
+/// （server-mode 无 Agent 控制面，agent 频道不可构造留痕跳过）；
+/// `lan_pairing` 提供时挂「最近打开目录」录制。
+pub fn router_with_ws_host(
+    config: ServerInfoConfig,
+    data_root: std::path::PathBuf,
+    lan_pairing: Option<lan::SharedLanHttp>,
+) -> Router {
     let deps = ws_host::WsHostDeps {
         host_capabilities: Arc::new(ws_host::HostCapabilityStore::new()),
         data_root,
+        lan_pairing,
     };
     router(config).merge(ws_host::ws_host_router(deps))
 }

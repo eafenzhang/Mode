@@ -4,6 +4,8 @@
 //! LAN 通道默认不开（`LanPairing::load` 读不到凭据即 disabled 视图）；
 //! `/api/lan/enable` 持久化开关后监听面由宿主进程管理（本入口只挂管理路由）。
 
+use std::sync::Arc as StdArc;
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let port = std::env::var("MODE_SERVER_PORT")
@@ -25,14 +27,15 @@ async fn main() -> std::io::Result<()> {
     );
     let config = mode_server::server_info::ServerInfoConfig::from_env();
     let router = match mode_server::lan::lan_pairing_from_store(&data_root, None) {
-        Ok(pairing) => mode_server::router_with_lan(config, pairing)
+        Ok(pairing) => mode_server::router_with_lan(config, StdArc::clone(&pairing))
             .merge(mode_server::router_with_ws_host(
                 mode_server::server_info::ServerInfoConfig::from_env(),
                 data_root,
+                Some(pairing),
             )),
         Err(error) => {
             eprintln!("lan pairing store unavailable: {error}; lan routes omitted");
-            mode_server::router_with_ws_host(config, data_root)
+            mode_server::router_with_ws_host(config, data_root, None)
         }
     };
     axum::serve(listener, router).await

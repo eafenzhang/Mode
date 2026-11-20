@@ -51,6 +51,13 @@
    `web-remote-replayable` 的 mode-agent 连接语义随 agent 频道接线补验。
    capability 格式差异：TS `randomBytes(32).toString("base64url")`（256bit），
    Rust uuid v4×2 拼接（244bit，无 rand/getrandom 依赖）；header 名与消费语义一致。
+   LAN「最近打开目录」录制已接（LT-15 P2 切四，2026-11-21）：升级时
+   query `token` → cookie `mode_lite_token`/legacy 兜底 →
+   `resolve_client_by_token`（touch lastUsedAt）解析 clientId；连接上每个
+   Promise/EventListen 请求帧的第一参数对象顶层 `workspacePath`（path 字段
+   不录，PromiseCancel 不解析）→ `record_client_workspace_for_client`
+   （同路径去重 + credential-store 落盘）；无 lan_pairing 装配时行为不变
+   （TS resolveLanClientByToken 未提供同口径）。
 3. 更新/远程桌面/附件组逐组迁移；每组先补契约对拍，再切换所有权。
 4. 全部路由对拍通过后，`packages/server` 才进入退役。
 

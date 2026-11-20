@@ -19,7 +19,10 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tower::util::ServiceExt;
 
 use mode_server::server_info::ServerInfoConfig;
-use mode_server::ws_host::{HostCapabilityStore, WsHostDeps, MODE_RPC_HOST_CAPABILITY_HEADER};
+use mode_server::ws_host::{
+    extract_workspace_path_from_frame, HostCapabilityStore, WsHostDeps,
+    MODE_RPC_HOST_CAPABILITY_HEADER,
+};
 use mode_server::{router, ws_host};
 
 fn test_config() -> ServerInfoConfig {
@@ -36,6 +39,7 @@ fn ws_app(now: Arc<dyn Fn() -> Instant + Send + Sync>) -> (axum::Router, Arc<Hos
             Arc::new(|| format!("cap-{}", uuid::Uuid::new_v4().simple())),
         )),
         data_root: std::env::temp_dir(),
+        lan_pairing: None,
     };
     let store = Arc::clone(&deps.host_capabilities);
     (router(test_config()).merge(ws_host::ws_host_router(deps)), store)
@@ -226,4 +230,161 @@ async fn ws_host_bridges_rpc_frames_over_real_websocket() {
         "期望 PromiseSuccess(id=1)，实际 {:?}",
         decoded.header
     );
+}
+
+/// 录制链路 e2e：lan pairing（临时 credential-store）→ WS 连接带 cookie token →
+/// 发携带 workspacePath 的 memory 请求 → 客户端记录的最近打开目录更新。
+#[tokio::test]
+async fn ws_host_records_workspace_path_for_paired_client() {
+    use mode_server::lan::lan_pairing_from_store;
+
+    let dir = std::env::temp_dir().join(format!(
+        "ws-host-record-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos() as u64)
+            .unwrap_or(0)
+    ));
+    std::fs::create_dir_all(&dir).expect("dir");
+    let pairing = lan_pairing_from_store(&dir, None).expect("pairing from store");
+    let pairing_for_clients = std::sync::Arc::clone(&pairing);
+    // 造配对码并兑换出 token（真实随机源）。
+    let code = pairing.mint_pair_code().await;
+    let paired = pairing
+        .pair_redeem(&code.code, Some("e2e-client"))
+        .await
+        .expect("redeem")
+        .expect("paired");
+    let token = paired.token;
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let deps = WsHostDeps {
+        host_capabilities: Arc::new(HostCapabilityStore::new()),
+        data_root: dir.join("data"),
+        lan_pairing: Some(pairing),
+    };
+    let store = Arc::clone(&deps.host_capabilities);
+    let app = router(test_config()).merge(ws_host::ws_host_router(deps));
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let capability = store.issue().await.capability;
+
+    let mut request = tokio_tungstenite::tungstenite::client::IntoClientRequest::into_client_request(
+        format!("ws://{addr}/ws/host"),
+    )
+    .expect("request build");
+    let header_name: axum::http::HeaderName = MODE_RPC_HOST_CAPABILITY_HEADER
+        .parse()
+        .expect("header name");
+    let header_value: axum::http::HeaderValue = capability.parse().expect("header value");
+    request.headers_mut().insert(header_name, header_value);
+    // cookie 带 lite token（升级时解析 clientId）。
+    request.headers_mut().insert(
+        axum::http::header::COOKIE,
+        axum::http::HeaderValue::from_str(&format!("mode_lite_token={token}")).expect("cookie"),
+    );
+    let (mut ws, _response) = tokio_tungstenite::connect_async(request)
+        .await
+        .expect("paired upgrade");
+
+    // Initialize。
+    let initialize = tokio::time::timeout(Duration::from_secs(5), ws.next())
+        .await
+        .expect("initialize in time")
+        .expect("socket ok")
+        .expect("frame ok");
+    let frame = match initialize {
+        WsMessage::Binary(data) => data,
+        other => panic!("期望 binary 帧，实际 {other:?}"),
+    };
+    let _ = rpc_wire::decode_rpc_response(&frame).expect("decode");
+
+    // 发携带 workspacePath 的 memory 请求 → 录制更新。
+    // wire body = 位置参数数组，第一参数（对象）顶层带 workspacePath。
+    let body = serde_json::json!({ "workspacePath": "D:/work/demo", "limit": 10 });
+    let request = rpc_wire::encode_rpc_message(&rpc_wire::RpcMessage {
+        header: rpc_wire::RequestHeader::Promise {
+            id: 1,
+            channel: "memory".into(),
+            method: "listProjectMemories".into(),
+        },
+        body: rpc_wire::Value::Array(vec![rpc_wire::Value::Json(
+            body.to_string(),
+        )]),
+    });
+    ws.send(WsMessage::Binary(request.into())).await.unwrap();
+    // 应答帧（PromiseSuccess/Error 都行——录制发生在入口，成败不影响记录）。
+    let _response = tokio::time::timeout(Duration::from_secs(5), ws.next())
+        .await
+        .expect("response in time");
+
+    // 客户端记录的 last_workspace_path 已更新（从 store 重新 load 验证持久化）。
+    let clients = pairing_for_clients.clients().await;
+    assert!(
+        clients
+            .iter()
+            .any(|client| client.last_workspace_path.as_deref() == Some("D:/work/demo")),
+        "录制应落盘: {clients:?}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 帧解析单测：只有第一参数对象顶层 workspacePath 才录制。
+#[test]
+fn workspace_path_extraction_scope() {
+    let promise_with = rpc_wire::encode_rpc_message(&rpc_wire::RpcMessage {
+        header: rpc_wire::RequestHeader::Promise {
+            id: 1,
+            channel: "memory".into(),
+            method: "listProjectMemories".into(),
+        },
+        body: rpc_wire::Value::Array(vec![rpc_wire::Value::Json(
+            r#"{"workspacePath":"D:/work/demo"}"#.to_string(),
+        )]),
+    });
+    assert_eq!(
+        extract_workspace_path_from_frame(&promise_with).as_deref(),
+        Some("D:/work/demo")
+    );
+
+    // path 字段（readdir/resolvePath）不录。
+    let promise_with_path = rpc_wire::encode_rpc_message(&rpc_wire::RpcMessage {
+        header: rpc_wire::RequestHeader::Promise {
+            id: 2,
+            channel: "file".into(),
+            method: "readFile".into(),
+        },
+        body: rpc_wire::Value::Array(vec![rpc_wire::Value::Json(
+            r#"{"path":"D:/work/demo/a.txt"}"#.to_string(),
+        )]),
+    });
+    assert_eq!(extract_workspace_path_from_frame(&promise_with_path), None);
+
+    // EventListen 也录。
+    let listen = rpc_wire::encode_rpc_message(&rpc_wire::RpcMessage {
+        header: rpc_wire::RequestHeader::EventListen {
+            id: 3,
+            channel: "file-watcher".into(),
+            event: "watch".into(),
+        },
+        body: rpc_wire::Value::Array(vec![rpc_wire::Value::Json(
+            r#"{"workspacePath":"D:/work/watch"}"#.to_string(),
+        )]),
+    });
+    assert_eq!(
+        extract_workspace_path_from_frame(&listen).as_deref(),
+        Some("D:/work/watch")
+    );
+
+    // 请求尾帧（PromiseCancel）不解析。
+    let cancel = rpc_wire::encode_rpc_message(&rpc_wire::RpcMessage {
+        header: rpc_wire::RequestHeader::PromiseCancel { id: 4 },
+        body: rpc_wire::Value::Array(vec![rpc_wire::Value::Json(
+            r#"{"workspacePath":"D:/work/cancel"}"#.to_string(),
+        )]),
+    });
+    assert_eq!(extract_workspace_path_from_frame(&cancel), None);
 }
