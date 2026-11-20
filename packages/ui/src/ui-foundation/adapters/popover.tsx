@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- 浮层定位/虚拟锚点/焦点与外部点击语义集中在一个 adapter，拆开会让锚点注册协议分散。 */
 // M4 adapter：Popover（旧 API：Popover/PopoverTrigger/PopoverContent/PopoverAnchor/Header/Title/Description）。
 // 定位按锚点 rect 计算 fixed 坐标；保留 Radix 暴露的 trigger-width / available-height CSS 变量。
 
@@ -62,7 +63,12 @@ export function Popover({
   const [uncontrolled, setUncontrolled] = useState(defaultOpen ?? false);
   const current = open ?? uncontrolled;
   const anchorRef = useRef<PopoverAnchorTarget | null>(null);
+  const virtualAnchorRef = useRef(false);
+  const [anchorVersion, setAnchorVersion] = useState(0);
   const contentId = useId();
+  const invalidateAnchor = useCallback(() => {
+    setAnchorVersion((version) => version + 1);
+  }, []);
   const setOpen = useCallback(
     (next: boolean) => {
       if (open === undefined) {
@@ -73,8 +79,16 @@ export function Popover({
     [open, onOpenChange],
   );
   const context = useMemo(
-    () => ({ open: current, setOpen, anchorRef, contentId }),
-    [current, setOpen, contentId],
+    () => ({
+      open: current,
+      setOpen,
+      anchorRef,
+      virtualAnchorRef,
+      anchorVersion,
+      invalidateAnchor,
+      contentId,
+    }),
+    [current, setOpen, contentId, anchorVersion, invalidateAnchor],
   );
   return (
     <PopoverAdapterContext.Provider value={context}>{children}</PopoverAdapterContext.Provider>
@@ -90,6 +104,17 @@ export const PopoverTrigger = forwardRef<HTMLElement, PopoverTriggerProps>(funct
   ref,
 ) {
   const state = usePopoverAdapterState();
+  // 触发器每次渲染都会重挂 ref（mergeRefs 每次新建函数）；虚拟锚点注册后必须让位，
+  // 否则「+」菜单会在打开瞬间把锚点从输入框容器改回 28px 按钮。
+  const registerTriggerAnchor = useCallback(
+    (node: HTMLElement | null) => {
+      if (!state || state.virtualAnchorRef.current) {
+        return;
+      }
+      state.anchorRef.current = node;
+    },
+    [state],
+  );
   const handleClick = (event: ReactMouseEvent<HTMLElement>): void => {
     onClick?.(event);
     if (!event.defaultPrevented) {
@@ -113,14 +138,14 @@ export const PopoverTrigger = forwardRef<HTMLElement, PopoverTriggerProps>(funct
         );
         handleClick(event);
       },
-      ref: mergeRefs(ref, state?.anchorRef, childRefOf<HTMLElement>(child)),
+      ref: mergeRefs(ref, registerTriggerAnchor, childRefOf<HTMLElement>(child)),
     });
   }
   return (
     <button
       {...rest}
       {...triggerProps}
-      ref={mergeRefs(ref, state?.anchorRef)}
+      ref={mergeRefs(ref, registerTriggerAnchor)}
       type="button"
       onClick={handleClick}
     >
@@ -139,9 +164,25 @@ export const PopoverAnchor = forwardRef<HTMLElement, PopoverAnchorProps>(functio
   ref,
 ) {
   const state = usePopoverAdapterState();
-  useEffect(() => {
-    if (state && virtualRef) {
-      state.anchorRef.current = virtualRef.current;
+  // virtualRef 锚点必须在内容测量前生效，并让触发器停止写回自身。
+  // 用 layout effect：PopoverAnchor 在树里先于 PopoverContent，首帧即可参与测量；
+  // 同时 invalidateAnchor 兜底锚点晚到时再测一次。
+  //
+  // 不注册卸载清理：effect 依赖里的 state 会随 anchorVersion 变化而更新，若在清理里
+  // 清空锚点并再次 invalidateAnchor，会形成 setState 循环（实测 Maximum update depth）。
+  // 虚拟锚点随 Popover 一起卸载，ref 本身不会泄漏。
+  useIsomorphicLayoutEffect(() => {
+    if (!state || !virtualRef) {
+      return;
+    }
+    const target = virtualRef.current;
+    if (!target) {
+      return;
+    }
+    state.virtualAnchorRef.current = true;
+    if (state.anchorRef.current !== target) {
+      state.anchorRef.current = target;
+      state.invalidateAnchor();
     }
   }, [state, virtualRef]);
   if (virtualRef) {
@@ -247,7 +288,17 @@ export const PopoverContent = forwardRef<HTMLDivElement, PopoverContentProps>(
         window.removeEventListener("resize", measure);
         window.removeEventListener("scroll", measure, true);
       };
-    }, [open, state, align, side, sideOffset, alignOffset, avoidCollisions, collisionPadding]);
+    }, [
+      open,
+      state,
+      state?.anchorVersion,
+      align,
+      side,
+      sideOffset,
+      alignOffset,
+      avoidCollisions,
+      collisionPadding,
+    ]);
 
     useEffect(() => {
       if (!open || typeof document === "undefined") {

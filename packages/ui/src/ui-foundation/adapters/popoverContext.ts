@@ -13,6 +13,14 @@ export interface PopoverAdapterState {
   open: boolean;
   setOpen: (open: boolean) => void;
   anchorRef: MutableRefObject<PopoverAnchorTarget | null>;
+  /**
+   * 已注册 virtualRef 锚点后为 true：触发器每次渲染都会重挂 ref，不能再把锚点
+   * 写回自身（否则「+」这类虚拟锚点菜单会按按钮宽度塌成一条）。
+   */
+  virtualAnchorRef: MutableRefObject<boolean>;
+  /** 锚点对象变化时递增，驱动 PopoverContent 重新测量。 */
+  anchorVersion: number;
+  invalidateAnchor: () => void;
   contentId: string;
 }
 
