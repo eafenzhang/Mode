@@ -513,6 +513,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "bots-adapters"
+version = "0.1.0"
+dependencies = [
+ "bots-core",
+ "serde_json",
+]
+
+[[package]]
 name = "bots-core"
 version = "0.1.0"
 dependencies = [

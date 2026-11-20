@@ -113,6 +113,7 @@ mod tests {
                         chat_id: None,
                         provider_user_id: "u".into(),
                         display_name: None,
+                        is_mention: true,
                         context_token: None,
                         attachments: Vec::new(),
                         raw: payload.clone(),

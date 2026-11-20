@@ -1,0 +1,17 @@
+[package]
+name = "bots-adapters"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "IM bots 域入站解析适配层（W5 B2，见 docs/specs/bots-domain-migration.md §2）"
+
+[lib]
+name = "bots_adapters"
+path = "src/lib.rs"
+
+[dependencies]
+bots-core = { path = "../bots-core" }
+serde_json.workspace = true
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

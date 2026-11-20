@@ -39,6 +39,7 @@ members = [
   "crates/feishu-ws",
   "crates/wecom-ws",
   "crates/bots-core",
+  "crates/bots-adapters",
   "crates/mode-protocol-client",
   "crates/agent-process",
   "crates/protocol",

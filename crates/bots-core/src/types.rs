@@ -76,6 +76,9 @@ pub struct InboundMessage {
     pub provider_user_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
+    /// 是否 @ 机器人（TS `actor.isMention`）：单聊恒 true；群聊按平台字段。
+    #[serde(default)]
+    pub is_mention: bool,
     /// 会话上下文令牌（微信 `context_token`；其它通道可为空）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_token: Option<String>,
@@ -206,6 +209,7 @@ mod tests {
             chat_id: Some("chat-1".into()),
             provider_user_id: "u-1".into(),
             display_name: None,
+            is_mention: false,
             context_token: None,
             attachments: Vec::new(),
             raw: serde_json::json!({"msgId":"m-1"}),
