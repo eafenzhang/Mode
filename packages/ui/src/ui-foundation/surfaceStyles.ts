@@ -104,7 +104,13 @@ export function popoverClassName(parentRadius: RadiusLevel = "none", className?:
 
 /** Dialog shell 固定 rounded-2xl；内部内容重新从 xl 起；位于 Tooltip 之上。 */
 export function dialogClassName(className?: string): string {
-  return cn(["z-50 bg-popover border border-popover-border rounded-2xl shadow-md", className]);
+  // M4 adapter 迁移时丢了旧 DialogContent shell 的默认间距（旧实现是 `grid gap-4 p-4`），
+  // 未自带 p-* 的调用方（如插件市场两个对话框）会内容贴边。默认值放在 shell 上；
+  // 需要全出血的调用方继续用 p-0/gap-0 覆盖（cn 使用 tailwind-merge）。
+  return cn([
+    "z-50 grid gap-4 p-4 bg-popover border border-popover-border rounded-2xl shadow-md",
+    className,
+  ]);
 }
 
 export function dialogHeaderClassName(className?: string): string {
