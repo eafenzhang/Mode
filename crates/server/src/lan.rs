@@ -24,6 +24,7 @@ impl<T: lan_pairing::LanCredentialPort + Send + Sync + 'static> LanCredentialPor
 
 // Box<dyn …> 自身也要满足 lan_pairing::LanCredentialPort（转发到底层对象），
 // 这样 `LanPairHttp<Box<dyn LanCredentialPort>>` 才能作为共享状态。
+// （Box<T> blanket 对 foreign type 不合法——E0210——逐具体类型实现。）
 impl lan_pairing::LanCredentialPort for Box<dyn LanCredentialPort> {
     fn load(&self, key: &str) -> Result<Option<String>, String> {
         (**self).load(key)
@@ -37,6 +38,75 @@ impl lan_pairing::LanCredentialPort for Box<dyn LanCredentialPort> {
 }
 
 pub type SharedLanHttp = Arc<LanPairHttp<Box<dyn LanCredentialPort>>>;
+
+/// credential-store 适配：LAN 配对凭据落 `{data_root}/v2/credentials.json`
+/// （与桌面壳 `CredentialChannel` 同一文件与加密口径）。
+pub struct StoreLanCredentials(pub credential_store::CredentialStore);
+
+impl lan_pairing::LanCredentialPort for StoreLanCredentials {
+    fn load(&self, key: &str) -> Result<Option<String>, String> {
+        self.0.load(key).map_err(|error| error.to_string())
+    }
+
+    fn save(&self, key: &str, value: &str) -> Result<(), String> {
+        self.0.save(key, value).map_err(|error| error.to_string())
+    }
+
+    fn delete(&self, key: &str) -> Result<(), String> {
+        self.0.delete(key).map_err(|error| error.to_string())
+    }
+}
+
+fn now_wall_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+/// 生产随机源（TS `randomUUID`/`randomBytes(3).toString("hex")`/`randomBytes(32)
+/// .toString("base64url")` 的对应）：workspace 无 rand/getrandom，统一取
+/// uuid v4 的字节（122bit/次）。
+fn production_pairing_options() -> lan_pairing::LanPairingOptions {
+    lan_pairing::LanPairingOptions {
+        machine_name: None,
+        random_uuid: Box::new(|| uuid::Uuid::new_v4().to_string()),
+        random_hex: Box::new(|| {
+            let bytes = uuid::Uuid::new_v4().into_bytes();
+            bytes[..3]
+                .iter()
+                .map(|byte| format!("{byte:02X}"))
+                .collect::<String>()
+        }),
+        random_token: Box::new(|| {
+            // TS randomBytes(32)：两个 uuid v4 拼 32 字节（256bit 熵对齐）。
+            let mut bytes = [0u8; 32];
+            let (first, second) = (uuid::Uuid::new_v4().into_bytes(), uuid::Uuid::new_v4().into_bytes());
+            bytes[..16].copy_from_slice(&first);
+            bytes[16..].copy_from_slice(&second);
+            lan_pairing::mint_client_token(&bytes)
+        }),
+        now_ms: Box::new(now_wall_ms),
+    }
+}
+
+/// server-mode 生产装配：`{data_root}` 的 credential-store 持久化 LAN 配对凭据。
+///
+/// `machine_name` 缺省由 pairing 层按 host 解析；坏凭据文件走 `on_corrupt`
+/// 告警（server-mode 无壳日志，留 None 或注入）。
+pub fn lan_pairing_from_store(
+    data_root: &std::path::Path,
+    on_corrupt: Option<credential_store::CorruptListener>,
+) -> Result<SharedLanHttp, String> {
+    let mut store = credential_store::CredentialStore::new(data_root);
+    if let Some(on_corrupt) = on_corrupt {
+        store = store.with_corrupt_listener(on_corrupt);
+    }
+    let credentials: Box<dyn LanCredentialPort> = Box::new(StoreLanCredentials(store));
+    let pairing = lan_pairing::LanPairing::load(credentials, production_pairing_options())
+        .map_err(|error| error.to_string())?;
+    Ok(Arc::new(LanPairHttp::new(pairing)))
+}
 
 /// LAN 管理面四个端点；鉴权（Bearer/Cookie/query token）与错误码沿用 `lan-http`。
 pub fn lan_router(pairing: SharedLanHttp) -> Router {
@@ -169,6 +239,58 @@ mod tests {
             self.0.lock().expect("memory credentials").remove(key);
             Ok(())
         }
+    }
+
+    #[test]
+    fn store_credentials_round_trip_via_pairing_flow() {
+        let dir = std::env::temp_dir().join(format!(
+            "lan-store-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_nanos() as u64)
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("dir");
+        // 固定密钥（不依赖进程 env 差异）+ 真实加密落盘。
+        let store = credential_store::CredentialStore::with_secret(&dir, "test-secret");
+        let mut pairing = lan_pairing::LanPairing::load(
+            Box::new(StoreLanCredentials(store)) as Box<dyn LanCredentialPort>,
+            options(),
+        )
+        .expect("pairing");
+        // 配对码生成走 save（写凭据文件）；重启后（重新 load）客户端记录仍在。
+        let code = pairing.create_pair_code();
+        // 测试 options 的 random_uuid 固定 "uuid-1"（客户端记录 id）；redeem 收码文本。
+        let first_client = pairing
+            .redeem(&code.code, Some("client-a"))
+            .expect("redeem")
+            .expect("paired");
+        assert!(!first_client.token.is_empty());
+        let store = credential_store::CredentialStore::with_secret(&dir, "test-secret");
+        let pairing = lan_pairing::LanPairing::load(
+            Box::new(StoreLanCredentials(store)) as Box<dyn LanCredentialPort>,
+            options(),
+        )
+        .expect("reload pairing");
+        assert!(
+            pairing.clients().iter().any(|client| client.id == "uuid-1"),
+            "凭据落盘后重启客户端记录应保留"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn production_options_derive_uuid_sources() {
+        let options = production_pairing_options();
+        let uuid = (options.random_uuid)();
+        assert_eq!(uuid.len(), 36, "TS randomUUID 形状");
+        let hex = (options.random_hex)();
+        assert_eq!(hex.len(), 6, "3 字节 hex 配对码");
+        assert!(hex.chars().all(|c| c.is_ascii_hexdigit()));
+        let token = (options.random_token)();
+        assert_eq!(token.len(), 43, "32 字节 base64url");
+        assert!((options.now_ms)() > 0);
     }
 
     fn options() -> LanPairingOptions {

@@ -10,6 +10,8 @@ axum = { workspace = true, features = ["ws"] }
 lan-http = { path = "../lan-http" }
 lan-pairing = { path = "../lan-pairing" }
 host-channels = { path = "../host-channels" }
+credential-store = { path = "../credential-store" }
+data-root = { path = "../data-root" }
 rpc-host = { path = "../rpc-host" }
 rpc-wire = { path = "../rpc-wire" }
 serde.workspace = true

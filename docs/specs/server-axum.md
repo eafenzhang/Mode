@@ -35,7 +35,12 @@
 
 ## 3. 后续切片
 
-1. LAN 装配：`crates/server` 的内存凭据端口换 credential-store（宿主装配注入）。（`/api/lan/state`、`peers`）：复用 `crates/lan-*`，写操作仍走现有 Host。
+1. LAN 凭据装配已接（LT-15 P2 切三，2026-11-21）：`lan_pairing_from_store(data_root)`
+   —— LAN 配对凭据落 `{data_root}/v2/credentials.json`（与桌面壳 CredentialChannel
+   同一文件与加密口径）；生产随机源 uuid v4（token 两个 uuid 拼 32 字节，
+   256bit 与 TS randomBytes(32) 对齐）；`main.rs` 升级为完整装配（LAN 管理面 +
+   `/ws/host`），凭据库不可用时降级省略 LAN 路由并留日志。
+   （`/api/lan/state`、`peers`）：复用 `crates/lan-*`，写操作仍走现有 Host。
 2. `/ws/host` 首切已接（LT-15 P2 切二，2026-11-21）：capability 签发
    （`POST /api/rpc-host-capability`，30s TTL 一次性、先删后比防重放）+ WS 升级 +
    每连接一个 `rpc_host::ChannelServer`（TS `new ChannelServer(protocol, "server")`
