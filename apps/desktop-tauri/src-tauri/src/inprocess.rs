@@ -138,6 +138,11 @@ fn default_owned_channels() -> Vec<String> {
 /// - `none` → 空集（显式回滚，优先级最高，出现即忽略其余项）；
 /// - 含 `default` → 默认集 ∪ 显式列出的频道名（去重保序）；
 /// - 其余 → 原样列表（白名单过滤与 ignored 留痕仍由 `from_env` 负责）。
+// 翻转点（W6 收口，spec w2-transport-cutover.md §5）：真机验收清单
+// `.plan/accept-w6/w2-flip-checklist.md` 七项全绿后，把「未设置」分支改为
+// 返回 `default_owned_channels()`（一行改动；回滚 = `none`）。
+// S2 翻转（mode-agent）在同函数的 default 集加入 MODE_AGENT_CHANNEL
+// （验收清单 `.plan/accept-w6/s2-mode-agent-checklist.md` 20 任务全过后）。
 fn resolve_channel_requests(raw: Option<&str>) -> Vec<String> {
     let requested: Vec<String> = raw
         .unwrap_or_default()

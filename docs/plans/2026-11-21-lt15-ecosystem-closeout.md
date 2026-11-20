@@ -114,7 +114,7 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
   待 ProviderSettingsView 移植；服务面端点接线（server/agent-server 的 usage 面
   组装 resolver + fetcher）与 `crates/lan-*` WebSocket/中继待做。
 
-## P6 门禁（2026-11-21 评估）
+## P6 门禁（2026-11-21 评估 → 验收工程化交付）
 
 `node scripts/w6-readiness.mjs`：**NOT READY**。四组 blocker 的性质判定（按引用位点
 逐条核对后确认）：
@@ -126,10 +126,22 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 | host-sidecar | product=119（22 文件） | Node Host 发运集（打包/启动/watchdog），整体退役面 |
 | node-agent-fallback | product=95（34 文件） | Node agent 运行时回退随包，随 Node Host 退役 |
 
-**结论**：四组 blocker 同源——**Node Host 还活着**。删除动作（P6 的正文）的硬前提是
-mode-agent/agent 面全部进 Rust（W4 S2 门禁 + mode-agent 频道接线 + agent-server TS
-面退役），这不是 LT-15 内可完成的。按计划「P1–P5 完成前不动删除」，本轮只落档、
-不执行删除。W6 收口 = Node Host 退役专项，排在 LT-15 全收口之后独立排期。
+**结论**：四组 blocker 同源——**Node Host 还活着**；且 agent 进程已默认 Rust
+native binary（C4 翻转上线，`resolve_agent_command`：env → native binary → dev
+回退链），mode.cjs 是回退/开发链而非主路径。
+
+**本轮交付（2026-11-21）**：W6 从「被卡住的收口」转成「可推进的验收工程」——
+`.plan/accept-w6/` 验收包（README 门禁链全景 + W2 七项真机清单 + S2 二十任务
+清单 + 翻转改动/回滚路径）；翻转点已在 `inprocess.rs::resolve_channel_requests`
+标注（两处各一行）。剩余动作全部依赖真机验收（W2 六项 + S2 二十任务），验收
+全绿后按 README §4 执行翻转，最后开删除窗口。本环境无法伪造真机验收——
+物理删除按门禁保留待验收。
+
+**W6 三步走**：
+1. W2 翻面（`w2-flip-checklist.md` 七项全绿 → 一行翻转）
+2. S2 翻面（`s2-mode-agent-checklist.md` 二十任务全过 → default 集加 mode-agent）
+3. Node Host 退役（删 stdioFrames/stdoutGuard/host-standalone/sidecar 发运集/
+   mode.cjs 回退 → `w6:readiness --fail-on-blockers` READY）
 
 ## 残项另册（2026-11-21 评估）
 
