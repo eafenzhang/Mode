@@ -28,6 +28,7 @@ mod lifecycle;
 mod mcp;
 mod memory;
 mod methods;
+mod path_safety;
 mod plugins;
 mod provider_config;
 mod reverse;

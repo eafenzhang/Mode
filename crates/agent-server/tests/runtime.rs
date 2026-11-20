@@ -490,7 +490,9 @@ async fn two_submits_run_serially_and_second_starts_after_first_terminal() {
         "第一个输入立即 running"
     );
 
-    // 等 turn 1 真正开始（turn.started 进总线）再提交第二个：否则两个都可能 Started。
+    // 等 turn 1 真正开始（首条输入先 titleUpdated，再 turn.started 进总线）再提交第二个。
+    let title_1 = within(receiver.recv()).await.expect("titleUpdated 1");
+    assert_eq!(title_1.event_type, SessionEventType::SessionTitleUpdated);
     let started_1 = within(receiver.recv()).await.expect("turn.started 1");
     assert_eq!(started_1.event_type, SessionEventType::TurnStarted);
 
@@ -596,7 +598,12 @@ async fn duplicate_input_id_is_idempotent_and_conflict_rejects_without_turn() {
     let events = drain_until_terminal(&mut receiver).await;
     assert_eq!(
         event_kinds(&events),
-        vec!["turn.started", "model.streaming", "turn.completed"]
+        vec![
+            "session.titleUpdated",
+            "turn.started",
+            "model.streaming",
+            "turn.completed"
+        ]
     );
     // 幂等重放：同一 id 再提交仍返回同一回执（终态后依旧）。
     let after = runtime
@@ -642,8 +649,13 @@ async fn text_and_tool_turns_persist_messages_parts_and_usage() {
     let first_turn = drain_until_terminal(&mut receiver).await;
     assert_eq!(
         event_kinds(&first_turn),
-        vec!["turn.started", "model.streaming", "turn.completed"],
-        "文本 turn 的事件顺序"
+        vec![
+            "session.titleUpdated",
+            "turn.started",
+            "model.streaming",
+            "turn.completed"
+        ],
+        "文本 turn 的事件顺序（首条输入先 titleUpdated）"
     );
 
     runtime
@@ -806,6 +818,7 @@ async fn provider_failure_mid_turn_keeps_committed_rows_only() {
     assert_eq!(
         event_kinds(&events),
         vec![
+            "session.titleUpdated",
             "turn.started",
             "model.streaming",
             "model.streaming",
@@ -885,6 +898,12 @@ async fn cancel_mid_turn_emits_one_terminal_and_next_queued_input_proceeds() {
             expected_revision: None,
         })
         .expect("提交 1");
+    let title_1 = within(receiver.recv()).await.expect("titleUpdated 1");
+    assert_eq!(
+        title_1.event_type,
+        SessionEventType::SessionTitleUpdated,
+        "首条输入先发 titleUpdated"
+    );
     let started_1 = within(receiver.recv()).await.expect("turn.started 1");
     assert_eq!(started_1.event_type, SessionEventType::TurnStarted);
 
@@ -971,6 +990,8 @@ async fn subscribe_replay_then_live_without_gap_or_duplicate() {
     runtime
         .submit(SessionInput::text("probe subscribe"))
         .expect("提交");
+    let title = within(early.recv()).await.expect("titleUpdated");
+    assert_eq!(title.event_type, SessionEventType::SessionTitleUpdated);
     let started = within(early.recv()).await.expect("turn.started");
     assert_eq!(started.event_type, SessionEventType::TurnStarted);
 
@@ -1004,7 +1025,12 @@ async fn subscribe_replay_then_live_without_gap_or_duplicate() {
     let late_kinds = event_kinds(&late_replay);
     assert_eq!(
         late_kinds,
-        vec!["turn.started", "model.streaming", "turn.completed"]
+        vec![
+            "session.titleUpdated",
+            "turn.started",
+            "model.streaming",
+            "turn.completed"
+        ]
     );
     // replay 之后 live 不应再有同一条事件（turn 已结束）。
     assert!(
@@ -1104,8 +1130,8 @@ async fn snapshot_reflects_live_state_and_serializes() {
         "10 input + 12 output"
     );
     assert_eq!(
-        after.runtime.event_seq, 3,
-        "turn.started + model.streaming + turn.completed"
+        after.runtime.event_seq, 4,
+        "session.titleUpdated + turn.started + model.streaming + turn.completed"
     );
     assert!(after.runtime.state_revision > 0);
 
@@ -1980,6 +2006,7 @@ async fn agent_tool_runs_child_turn_and_persists_child_rows() {
             None,
             fixture.record.id.clone(),
             tokio::runtime::Handle::current(),
+            None,
         ))),
     };
     let runtime = spawn_runtime_with_wiring(&fixture, provider.clone(), wiring);
@@ -2246,5 +2273,111 @@ async fn todo_tools_persist_and_project_the_session_list() {
             data.contains("first task") && data.contains("second task") && data.contains("todos")
         }),
         "TodoRead 结果必须回显当前列表：{outputs:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 6. 队列命令：投影 / 编辑 / 删除 / 重排 / sendNow（v4 队列命令的事实源）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn queue_items_project_and_commands_mutate_them() {
+    let fixture = fixture("queue-cmds");
+    let gate = Arc::new(Notify::new());
+    let runtime = spawn_runtime(
+        &fixture,
+        Arc::new(GatedProvider {
+            release: Arc::clone(&gate),
+        }),
+    );
+    let (_replay, mut receiver) = runtime.subscribe(None);
+
+    runtime
+        .submit(SessionInput {
+            input_id: Some("in-1".to_string()),
+            content: "first".to_string(),
+            expected_revision: None,
+        })
+        .expect("提交 1");
+    // 首条输入先 titleUpdated 再 turn.started。
+    let title = within(receiver.recv()).await.expect("titleUpdated");
+    assert_eq!(title.event_type, SessionEventType::SessionTitleUpdated);
+    let started_1 = within(receiver.recv()).await.expect("turn.started 1");
+    assert_eq!(started_1.event_type, SessionEventType::TurnStarted);
+
+    // turn 1 运行中再排两个输入。
+    runtime
+        .submit(SessionInput {
+            input_id: Some("in-2".to_string()),
+            content: "second".to_string(),
+            expected_revision: None,
+        })
+        .expect("提交 2");
+    runtime
+        .submit(SessionInput {
+            input_id: Some("in-3".to_string()),
+            content: "third".to_string(),
+            expected_revision: None,
+        })
+        .expect("提交 3");
+
+    let (items, auto_drain, followup_mode) = runtime.queue_projection();
+    assert_eq!(items.len(), 2, "运行中的 in-1 不在队列里");
+    assert_eq!(items[0].queue_item_id, "in-2");
+    assert_eq!(items[0].text, "second");
+    assert_eq!(items[0].order.queue_position, Some(1));
+    assert_eq!(items[1].queue_item_id, "in-3");
+    assert_eq!(items[0].client_id, "legacy");
+    assert!(auto_drain);
+    assert_eq!(
+        followup_mode,
+        agent_protocol::v4_snapshot::FollowupMode::Queue
+    );
+
+    // 编辑 in-3 正文。
+    runtime
+        .edit_queue_item("in-3", "third-edited")
+        .expect("编辑队列项");
+    let (items, _, _) = runtime.queue_projection();
+    assert_eq!(items[1].text, "third-edited");
+
+    // 重排：in-3 提到 in-2 之前。
+    runtime
+        .reorder_queue_item("in-3", Some("in-2"))
+        .expect("重排队列项");
+    let (items, _, _) = runtime.queue_projection();
+    assert_eq!(items[0].queue_item_id, "in-3");
+
+    // sendNow：in-2 提到队首。
+    runtime.send_queued_now("in-2").expect("sendNow");
+    let (items, _, _) = runtime.queue_projection();
+    assert_eq!(items[0].queue_item_id, "in-2");
+
+    // 删除 in-3。
+    runtime.delete_queue_item("in-3").expect("删除队列项");
+    let (items, _, _) = runtime.queue_projection();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].queue_item_id, "in-2");
+
+    // 放行 turn 1 → 终态；队列首的 in-2 随即执行。
+    gate.notify_one();
+    let first_events = drain_until_terminal(&mut receiver).await;
+    assert_eq!(
+        terminals(&first_events),
+        vec![SessionEventType::TurnCompleted],
+        "第一个 turn 恰好一条终态"
+    );
+    let started_2 = within(receiver.recv()).await.expect("turn.started 2");
+    assert_eq!(started_2.event_type, SessionEventType::TurnStarted);
+    let payload = started_2
+        .payload_as::<agent_protocol::session_event::TurnStartedPayload>()
+        .expect("能解码")
+        .expect("payload");
+    assert_eq!(payload.input, "second", "队首执行的是 sendNow 后的 in-2");
+    gate.notify_one();
+    let second_events = drain_until_terminal(&mut receiver).await;
+    assert_eq!(
+        terminals(&second_events),
+        vec![SessionEventType::TurnCompleted]
     );
 }

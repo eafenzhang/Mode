@@ -50,6 +50,7 @@ mod messages;
 mod path_policy;
 pub mod read;
 pub mod task;
+pub mod win_job;
 /// 测试支撑（投影助手）。放在库里是为了让 `agent-core` 的对拍用例复用**同一份**投影，
 /// 而不是各写一份（两份投影必然漂，正是 Ruling 4 要避免的）。见模块注释。
 #[doc(hidden)]

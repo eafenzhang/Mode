@@ -203,6 +203,7 @@ where
     // 连接结束（EOF/错误/非法帧）：失败所有 pending 反向请求（审批 deny 等），
     // 并把 hub 从 server 摘除——同一 server 复用给新连接时不残留旧通道。
     reverse.close();
+    server.v4_state().cancel_all_subscriptions();
     server.clear_reverse_hub();
     result
 }
@@ -307,10 +308,14 @@ where
 }
 
 /// 从 DB + 当前 runtime 构造 conversation 快照（初始帧与 recovery 帧共用）。
+///
+/// `base_seq`：调用方给定的稳定水位（已提交 seq）。`None` 时取 `event_seq()`
+/// （recovery 的一次性补帧）。
 fn conversation_snapshot(
     server: &AgentServer,
     session_id: &str,
     log_epoch: &str,
+    base_seq: Option<u64>,
 ) -> Option<(agent_protocol::v4_snapshot::ConversationSnapshot, u64)> {
     let store = server.store().ok()?;
     let messages = store.messages(session_id, None, None).ok()?;
@@ -351,20 +356,67 @@ fn conversation_snapshot(
         )
         .collect();
     let rows = crate::v4_projection::project_rows(&projected);
-    let (seq, revision, running) = match server.find_runtime(session_id) {
-        Some(runtime) => (runtime.event_seq(), runtime.state_revision(), true),
-        None => (0, 0, false),
-    };
+    let record = store.get_session(session_id).ok().flatten();
+    let title = record
+        .as_ref()
+        .map(|record| record.title.clone())
+        .unwrap_or_default();
+    let title_source = record
+        .as_ref()
+        .map(|record| record.title_source.clone())
+        .unwrap_or_else(|| "default".to_string());
+    let mode = record
+        .as_ref()
+        .and_then(|record| record.permission.as_deref())
+        .and_then(|permission| serde_json::from_str::<Value>(permission).ok())
+        .and_then(|permission| {
+            permission
+                .get("mode")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "build".to_string());
+    // 只有正在执行的 runtime 才是 running；空闲会话不能报 canStop=true。
+    let (seq, revision, running, provider, model, queue_items, auto_drain, followup_mode) =
+        match server.find_runtime(session_id) {
+            Some(runtime) => {
+                let config = runtime.config();
+                let (queue_items, auto_drain, followup_mode) = runtime.queue_projection();
+                (
+                    base_seq.unwrap_or_else(|| runtime.event_seq()),
+                    runtime.state_revision(),
+                    runtime.is_busy(),
+                    config.provider_id,
+                    config.model_id,
+                    queue_items,
+                    auto_drain,
+                    followup_mode,
+                )
+            }
+            None => (
+                base_seq.unwrap_or(0),
+                0,
+                false,
+                String::new(),
+                String::new(),
+                Vec::new(),
+                true,
+                agent_protocol::v4_snapshot::FollowupMode::Queue,
+            ),
+        };
     let snapshot = crate::v4_projection::build_snapshot(crate::v4_projection::SnapshotStateFacts {
         session_id,
         log_epoch,
         seq,
         revision,
-        title: "",
-        title_source: "default",
-        mode: "build",
-        provider: "",
-        model: "",
+        title: &title,
+        title_source: &title_source,
+        mode: &mode,
+        provider: &provider,
+        model: &model,
+        queue_items,
+        auto_drain,
+        followup_mode,
         running,
         goal: None,
         subagents: agent_protocol::v4_snapshot::SubagentProjectionState {
@@ -395,6 +447,52 @@ async fn run_v4_forward(
             trace: None,
         })
     }
+
+    #[allow(clippy::too_many_arguments)]
+    fn send_snapshot(
+        server: &AgentServer,
+        outbound: &mpsc::UnboundedSender<Frame>,
+        subscription_id: &str,
+        topic: &str,
+        from_seq: u64,
+        delivery_kind: agent_protocol::v4_transport::WireDeliveryKind,
+        snapshot: agent_protocol::v4_snapshot::ConversationSnapshot,
+        seq: u64,
+    ) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_millis() as u64)
+            .unwrap_or(0);
+        let ordinal = server.v4_state().next_frame_ordinal(subscription_id);
+        let frame = agent_protocol::v4_transport::CompleteWireFrame {
+            wire_version: V4_WIRE_PROTOCOL_VERSION,
+            kind: agent_protocol::v4_transport::WireFrameKindComplete::Complete,
+            delivery_kind,
+            logical_frame_id: format!("{subscription_id}-lf-{ordinal}"),
+            logical_frame_ordinal: ordinal,
+            topic: topic.to_string(),
+            subscription_id: subscription_id.to_string(),
+            frame: ConversationTopicFrame {
+                topic: topic.to_string(),
+                subscription_id: subscription_id.to_string(),
+                from_seq: Number::from(from_seq),
+                to_seq: Number::from(seq),
+                sent_at: Number::from(now),
+                payload: ConversationFramePayload::Snapshot(Box::new(SnapshotFramePayload {
+                    kind: agent_protocol::v4_transport::FramePayloadKindSnapshot::Snapshot,
+                    snapshot,
+                })),
+                ttft: None,
+                ttft_related: None,
+            },
+        };
+        if let Ok(params) = serde_json::to_value(&frame) {
+            let _ = outbound.send(v4_notification(
+                agent_protocol::v4_transport::V4_CONVERSATION_FRAME_NOTIFICATION,
+                params,
+            ));
+        }
+    }
     match forward {
         PendingV4Forward::ConversationRecovery {
             session_id,
@@ -405,34 +503,61 @@ async fn run_v4_forward(
         } => {
             // resync 的恢复帧：同一 subscription 上补一帧 deliveryKind:"recovery" 的全量
             // 快照；现有 live 转发循环继续服务后续 online 帧。
-            let Some((snapshot, seq)) = conversation_snapshot(&server, &session_id, &log_epoch)
+            let Some((snapshot, seq)) =
+                conversation_snapshot(&server, &session_id, &log_epoch, None)
             else {
                 return;
             };
+            send_snapshot(
+                &server,
+                &outbound,
+                &subscription_id,
+                &topic,
+                from_seq,
+                agent_protocol::v4_transport::WireDeliveryKind::Recovery,
+                snapshot,
+                seq,
+            );
+        }
+        PendingV4Forward::WorkspaceConfig {
+            topic,
+            subscription_id,
+            log_epoch: _,
+            snapshot,
+            recovery,
+        } => {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|elapsed| elapsed.as_millis() as u64)
                 .unwrap_or(0);
-            let frame = agent_protocol::v4_transport::CompleteWireFrame {
+            let ordinal = server.v4_state().next_frame_ordinal(&subscription_id);
+            let frame = agent_protocol::v4_workspace_config::WorkspaceConfigCompleteWireFrame {
                 wire_version: V4_WIRE_PROTOCOL_VERSION,
                 kind: agent_protocol::v4_transport::WireFrameKindComplete::Complete,
-                delivery_kind: agent_protocol::v4_transport::WireDeliveryKind::Recovery,
-                logical_frame_id: format!("{subscription_id}-rf-1"),
-                logical_frame_ordinal: 1,
+                delivery_kind: if recovery {
+                    agent_protocol::v4_transport::WireDeliveryKind::Recovery
+                } else {
+                    agent_protocol::v4_transport::WireDeliveryKind::Initial
+                },
+                logical_frame_id: format!("{subscription_id}-lf-{ordinal}"),
+                logical_frame_ordinal: ordinal,
                 topic: topic.clone(),
                 subscription_id: subscription_id.clone(),
-                frame: ConversationTopicFrame {
-                    topic: topic.clone(),
-                    subscription_id: subscription_id.clone(),
-                    from_seq: Number::from(from_seq),
-                    to_seq: Number::from(seq),
+                frame: agent_protocol::v4_workspace_config::WorkspaceConfigTopicFrame {
+                    topic,
+                    subscription_id,
+                    from_seq: Number::from(0u64),
+                    to_seq: Number::from(0u64),
                     sent_at: Number::from(now),
-                    payload: ConversationFramePayload::Snapshot(Box::new(SnapshotFramePayload {
-                        kind: agent_protocol::v4_transport::FramePayloadKindSnapshot::Snapshot,
-                        snapshot,
-                    })),
-                    ttft: None,
-                    ttft_related: None,
+                    payload:
+                        agent_protocol::v4_workspace_config::WorkspaceConfigFramePayload::Snapshot(
+                            Box::new(
+                                agent_protocol::v4_workspace_config::WorkspaceConfigSnapshotPayload {
+                                    kind: agent_protocol::v4_transport::FramePayloadKindSnapshot::Snapshot,
+                                    snapshot,
+                                },
+                            ),
+                        ),
                 },
             };
             if let Ok(params) = serde_json::to_value(&frame) {
@@ -491,59 +616,74 @@ async fn run_v4_forward(
             client_mode: _,
             log_epoch,
             last_seq,
+            mut cancel,
         } => {
-            // 初始快照帧：从 store/runtime 现状投影（会话行缺省标题等事实随 delta 修）。
-            let Some((snapshot, seq)) = conversation_snapshot(&server, &session_id, &log_epoch)
+            // **先订阅、再读快照**：否则「读快照 → 建立广播订阅」之间的 turn 事件
+            // 永远丢失，UI 只能等 recovery 补帧（表现为内容晚几十秒出现）。
+            // 水位取 `committed_seq`（persist → commit），≤ 它的状态一定在 DB 里。
+            let runtime = server.find_runtime(&session_id);
+            let receiver = match &runtime {
+                Some(runtime) => {
+                    let (replay, receiver) = runtime.subscribe(None);
+                    // replay 的事件都已落库，随快照一起投影；只消费新提交的事件。
+                    drop(replay);
+                    Some(receiver)
+                }
+                None => None,
+            };
+            let base_seq = runtime
+                .as_ref()
+                .map(|runtime| runtime.committed_event_seq())
+                .unwrap_or(0);
+            let Some((snapshot, seq)) =
+                conversation_snapshot(&server, &session_id, &log_epoch, Some(base_seq))
             else {
                 return;
             };
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|elapsed| elapsed.as_millis() as u64)
-                .unwrap_or(0);
-            let initial = agent_protocol::v4_transport::CompleteWireFrame {
-                wire_version: V4_WIRE_PROTOCOL_VERSION,
-                kind: agent_protocol::v4_transport::WireFrameKindComplete::Complete,
-                delivery_kind: agent_protocol::v4_transport::WireDeliveryKind::Initial,
-                logical_frame_id: format!("{subscription_id}-lf-1"),
-                logical_frame_ordinal: 1,
-                topic: topic.clone(),
-                subscription_id: subscription_id.clone(),
-                frame: ConversationTopicFrame {
-                    topic: topic.clone(),
-                    subscription_id: subscription_id.clone(),
-                    from_seq: Number::from(last_seq),
-                    to_seq: Number::from(seq),
-                    sent_at: Number::from(now),
-                    payload: ConversationFramePayload::Snapshot(Box::new(SnapshotFramePayload {
-                        kind: agent_protocol::v4_transport::FramePayloadKindSnapshot::Snapshot,
-                        snapshot,
-                    })),
-                    ttft: None,
-                    ttft_related: None,
-                },
+            // live 行必须从快照的 rowId 之后续接；同时登记快照里仍在流式的行，
+            // 避免首个 delta 再建一条重复的 assistant/tool 行。
+            let mut live = crate::v4_projection::LiveDeltaState::from_snapshot_rows(
+                snapshot.rows.total_count.as_u64().unwrap_or(0),
+                &snapshot.rows.window,
+            );
+            send_snapshot(
+                &server,
+                &outbound,
+                &subscription_id,
+                &topic,
+                last_seq,
+                agent_protocol::v4_transport::WireDeliveryKind::Initial,
+                snapshot,
+                seq,
+            );
+            let Some(mut receiver) = receiver else {
+                return;
             };
-            if let Ok(params) = serde_json::to_value(&initial) {
-                let _ = outbound.send(v4_notification(
-                    agent_protocol::v4_transport::V4_CONVERSATION_FRAME_NOTIFICATION,
-                    params,
-                ));
-            }
-            // 增量：broadcast 事件 → deltas 帧（Lagged 跳过、Closed 退出）。
-            let (_, mut receiver) = match server.find_runtime(&session_id) {
-                Some(runtime) => runtime.subscribe(None),
-                None => return,
-            };
-            let mut live = crate::v4_projection::LiveDeltaState::default();
-            let mut ordinal: u64 = 1;
+            // 快照 seq 是跳过水位：≤ 它的 event 已包含在快照里。
+            let mut watermark = seq;
             loop {
-                match receiver.recv().await {
+                // unsubscribe / 连接结束 → cancel；runtime 广播关闭 → Closed。
+                let received = tokio::select! {
+                    changed = cancel.changed() => {
+                        if changed.is_err() || *cancel.borrow() {
+                            return;
+                        }
+                        continue;
+                    }
+                    received = receiver.recv() => received,
+                };
+                match received {
                     Ok(event) => {
+                        // 快照已覆盖（replay/水位之前）的事件不重复下发。
+                        if event.seq <= watermark {
+                            continue;
+                        }
                         let deltas = crate::v4_projection::event_to_deltas(&event, &mut live);
                         if deltas.is_empty() {
                             continue;
                         }
-                        ordinal += 1;
+                        watermark = event.seq;
+                        let ordinal = server.v4_state().next_frame_ordinal(&subscription_id);
                         let now = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .map(|elapsed| elapsed.as_millis() as u64)
@@ -579,7 +719,34 @@ async fn run_v4_forward(
                             ));
                         }
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    // 广播溢出：不能静默跳过（会留下 seq 缺口）。补一帧 recovery
+                    // 全量快照并把 live 状态重置到该快照。
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        let Some(runtime) = server.find_runtime(&session_id) else {
+                            return;
+                        };
+                        let base = runtime.committed_event_seq();
+                        let Some((snapshot, seq)) =
+                            conversation_snapshot(&server, &session_id, &log_epoch, Some(base))
+                        else {
+                            return;
+                        };
+                        live = crate::v4_projection::LiveDeltaState::from_snapshot_rows(
+                            snapshot.rows.total_count.as_u64().unwrap_or(0),
+                            &snapshot.rows.window,
+                        );
+                        watermark = seq;
+                        send_snapshot(
+                            &server,
+                            &outbound,
+                            &subscription_id,
+                            &topic,
+                            seq,
+                            agent_protocol::v4_transport::WireDeliveryKind::Recovery,
+                            snapshot,
+                            seq,
+                        );
+                    }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
                 }
             }

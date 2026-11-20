@@ -4,6 +4,9 @@
 //! `packages/provider/src/config/rule-data-schema.ts`、
 //! `packages/provider/src/config/schema.ts`。
 
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+
 use indexmap::IndexMap;
 
 use crate::json::{array, object, string, JsonValue};
@@ -798,14 +801,27 @@ fn is_exact_model_rule(rule: &ModelRule) -> bool {
 
 /// TS `matchesRule`：`new RegExp("^(?:" + pattern + ")$")` 全匹配。
 /// JS-only 语法（lookahead/backref）在 Rust regex 不合法 → 判不命中（spec 已知差异）。
+/// 规则正则缓存：pattern+大小写 → 编译结果（非法 pattern 缓存 None）。
+type RuleRegexCache = Mutex<HashMap<(String, bool), Option<regex::Regex>>>;
+
 fn matches_rule(pattern: &str, value: &str, ignore_case: bool) -> bool {
-    match regex::RegexBuilder::new(&format!("^(?:{pattern})$"))
-        .case_insensitive(ignore_case)
-        .build()
-    {
-        Ok(regex) => regex.is_match(value),
-        Err(_) => false,
-    }
+    // TS 对每条规则 `new RegExp(...)`；Rust 若照抄会为每个 provider×model×rule
+    // 重新编译（实测 14s/次 resolve）。规则集合是只读的，按 pattern+大小写缓存编译结果。
+    static CACHE: OnceLock<RuleRegexCache> = OnceLock::new();
+    let anchored = format!("^(?:{pattern})$");
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut guard = cache
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let compiled = guard
+        .entry((anchored.clone(), ignore_case))
+        .or_insert_with(|| {
+            regex::RegexBuilder::new(&anchored)
+                .case_insensitive(ignore_case)
+                .build()
+                .ok()
+        });
+    compiled.as_ref().is_some_and(|regex| regex.is_match(value))
 }
 
 /// TS `normalizeBaseURLForRuleMatch`：host 大小写/默认端口/尾斜杠不影响命中，

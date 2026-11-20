@@ -634,3 +634,35 @@ fn workflow_get_falls_back_to_global_scope() {
         other => panic!("expected global hit, got {other:?}"),
     }
 }
+
+#[test]
+fn workspace_config_subscribe_emits_snapshot_frame() {
+    let root = TempRoot::new("workspace-config");
+    let subscribe = request_line(
+        1,
+        "v4/conversation/subscribe",
+        serde_json::json!({
+            "topic": "workspace-config/C:/mode-v4f-ws",
+            "connectionId": "conn-wcfg",
+            "clientMode": "desktop-continuous",
+        }),
+    );
+    let (responses, notifications) = drive_batches(&root, vec![subscribe]);
+    let ack = &responses[&1]["ack"];
+    assert_eq!(ack["mode"], json!("snapshot"));
+    assert!(ack["subscriptionId"]
+        .as_str()
+        .expect("subscription id")
+        .starts_with("wcfg-"));
+
+    let frame = &v4_frames(&notifications)[0]["params"];
+    assert_eq!(frame["kind"], json!("complete"));
+    assert_eq!(frame["deliveryKind"], json!("initial"));
+    assert_eq!(frame["topic"], json!("workspace-config/C:/mode-v4f-ws"));
+    let payload = &frame["frame"]["payload"];
+    assert_eq!(payload["kind"], json!("snapshot"));
+    assert_eq!(payload["snapshot"]["protocolVersion"], json!(1));
+    assert_eq!(payload["snapshot"]["workspaceId"], json!("C:/mode-v4f-ws"));
+    assert_eq!(payload["snapshot"]["config"]["configOptions"], json!([]));
+    assert_eq!(payload["snapshot"]["config"]["slashCommands"], json!([]));
+}

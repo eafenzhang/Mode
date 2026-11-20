@@ -286,7 +286,9 @@ fn is_safe_command(command: &str) -> bool {
         return false;
     }
 
-    for segment in normalized.split(['|', ';']) {
+    // 换行也是命令分隔符：`"ls\nrm -rf x"` 不能因为首段是安全命令就整体放行。
+    // `||` 由 `|` 拆分覆盖（空段被跳过），`&&` 单独拆以保持既有的安全链行为。
+    for segment in normalized.split(['|', ';', '\n', '\r']) {
         for part in segment.split("&&") {
             let tokens: Vec<&str> = part.split_whitespace().collect();
             let Some(name) = tokens.first() else {

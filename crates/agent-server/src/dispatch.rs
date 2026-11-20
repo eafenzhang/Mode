@@ -302,6 +302,7 @@ pub enum PendingV4Forward {
         client_mode: agent_protocol::v4_transport::V4ClientMode,
         log_epoch: String,
         last_seq: u64,
+        cancel: tokio::sync::watch::Receiver<bool>,
     },
     ConversationRecovery {
         session_id: String,
@@ -316,6 +317,14 @@ pub enum PendingV4Forward {
         log_epoch: String,
         snapshot: agent_protocol::v4_sessions_index::SessionsIndexSnapshot,
     },
+    /// workspace-config topic：订阅/重同步的一次性快照帧（Host 复用同一个 subscribe RPC）。
+    WorkspaceConfig {
+        topic: String,
+        subscription_id: String,
+        log_epoch: String,
+        snapshot: agent_protocol::v4_workspace_config::WorkspaceConfigSnapshot,
+        recovery: bool,
+    },
 }
 
 /// `(sessionId, commandId)` → ACK。sessionId `None` 是全局幂等桶（createSession）。
@@ -324,10 +333,18 @@ pub struct V4State {
     commands: Mutex<HashMap<(Option<String>, String), CommandAck>>,
     /// C4 T4：附件上行事务与 ref 授权（唯一事实源）。
     pub attachments: crate::attachments::AttachmentStore,
-    /// C4 T4c：logEpoch / 订阅台账（key = sessionId 或 topic）。
+    /// C4 T4c：logEpoch / 订阅台账（key = subscriptionId）。
     log_epochs: Mutex<HashMap<String, String>>,
-    subscriptions: Mutex<HashMap<String, SubscriptionInfo>>,
+    subscriptions: Mutex<HashMap<String, SubscriptionEntry>>,
+    /// v4 帧的下一 ordinal（按 subscriptionId）；初始/在线/恢复帧共用同一序列。
+    frame_ordinals: Mutex<HashMap<String, u64>>,
     epoch_counter: std::sync::atomic::AtomicU64,
+}
+
+/// 一条订阅的台账事实 + live 转发任务的取消信号。
+struct SubscriptionEntry {
+    info: SubscriptionInfo,
+    cancel: tokio::sync::watch::Sender<bool>,
 }
 
 /// 一条订阅的台账事实（rows/client_mode 供诊断；当前读面未消费，登记）。
@@ -358,6 +375,7 @@ impl V4State {
             .clone()
     }
 
+    /// 登记订阅并返回 live 转发任务的取消信号。
     pub fn register_subscription(
         &self,
         subscription_id: &str,
@@ -365,30 +383,105 @@ impl V4State {
         topic: &str,
         client_mode: agent_protocol::v4_transport::V4ClientMode,
         rows_total: u64,
-    ) {
+    ) -> tokio::sync::watch::Receiver<bool> {
+        let (cancel, receiver) = tokio::sync::watch::channel(false);
         self.subscriptions
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .insert(
                 subscription_id.to_string(),
-                SubscriptionInfo {
-                    session_id: Some(session_id.to_string()),
-                    topic: topic.to_string(),
-                    client_mode,
-                    rows_total,
+                SubscriptionEntry {
+                    info: SubscriptionInfo {
+                        session_id: Some(session_id.to_string()),
+                        topic: topic.to_string(),
+                        client_mode,
+                        rows_total,
+                    },
+                    cancel,
                 },
             );
+        self.frame_ordinals
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(subscription_id.to_string(), 1);
+        receiver
+    }
+
+    /// 取该订阅的下一帧 ordinal（从 1 起，初始/在线/恢复帧连续）。
+    pub fn next_frame_ordinal(&self, subscription_id: &str) -> u64 {
+        let mut ordinals = self
+            .frame_ordinals
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let next = ordinals.entry(subscription_id.to_string()).or_insert(1);
+        let ordinal = *next;
+        *next = next.saturating_add(1);
+        ordinal
     }
 
     pub fn touch_subscription(&self, subscription_id: &str) {
         let _ = subscription_id;
     }
 
-    pub fn drop_subscription_by_topic(&self, topic: &str) {
-        self.subscriptions
+    /// 取消并移除一条订阅；返回是否命中。
+    pub fn cancel_subscription(&self, subscription_id: &str) -> bool {
+        let entry = self
+            .subscriptions
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .retain(|_, info| info.topic != topic);
+            .remove(subscription_id);
+        match entry {
+            Some(entry) => {
+                let _ = entry.cancel.send(true);
+                self.frame_ordinals
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .remove(subscription_id);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// 取消主题下所有订阅（unsubscribe 未带 subscriptionId 时的兜底）。
+    pub fn drop_subscription_by_topic(&self, topic: &str) {
+        let mut subscriptions = self
+            .subscriptions
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let ids: Vec<String> = subscriptions
+            .iter()
+            .filter(|(_, entry)| entry.info.topic == topic)
+            .map(|(id, _)| id.clone())
+            .collect();
+        let mut ordinals = self
+            .frame_ordinals
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        for id in ids {
+            if let Some(entry) = subscriptions.remove(&id) {
+                let _ = entry.cancel.send(true);
+                ordinals.remove(&id);
+            }
+        }
+    }
+
+    /// 连接结束时取消所有订阅（转发任务不能只等 runtime 广播关闭）。
+    pub fn cancel_all_subscriptions(&self) {
+        let drained: Vec<SubscriptionEntry> = self
+            .subscriptions
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .drain()
+            .map(|(_, entry)| entry)
+            .collect();
+        for entry in drained {
+            let _ = entry.cancel.send(true);
+        }
+        self.frame_ordinals
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clear();
     }
 }
 
@@ -1050,4 +1143,46 @@ fn migration_facts_json(
         value["lastAppliedMigrationId"] = serde_json::json!(facts.last_applied_migration_id);
     }
     value
+}
+
+#[cfg(test)]
+mod v4_subscription_tests {
+    use super::V4State;
+    use agent_protocol::v4_transport::V4ClientMode;
+
+    fn register(state: &V4State, subscription_id: &str) -> tokio::sync::watch::Receiver<bool> {
+        state.register_subscription(
+            subscription_id,
+            "sess_v4",
+            "conversation/sess_v4",
+            V4ClientMode::DesktopContinuous,
+            0,
+        )
+    }
+
+    #[tokio::test]
+    async fn unsubscribe_cancels_only_the_target_subscription() {
+        let state = V4State::default();
+        let mut first = register(&state, "sub-1");
+        let second = register(&state, "sub-2");
+        assert!(state.cancel_subscription("sub-1"));
+        assert!(*first.borrow());
+        assert!(first.changed().await.is_ok());
+        // 其他订阅不受影响，仍在等待。
+        assert!(!*second.borrow());
+        assert_eq!(second.has_changed().map_err(|_| ()), Ok(false));
+        assert!(!state.cancel_subscription("sub-1"));
+    }
+
+    #[tokio::test]
+    async fn connection_close_cancels_all_subscriptions() {
+        let state = V4State::default();
+        let mut first = register(&state, "sub-a");
+        let mut second = register(&state, "sub-b");
+        state.cancel_all_subscriptions();
+        assert!(first.changed().await.is_ok());
+        assert!(second.changed().await.is_ok());
+        assert!(*first.borrow());
+        assert!(*second.borrow());
+    }
 }

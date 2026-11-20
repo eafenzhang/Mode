@@ -379,8 +379,8 @@ fn unsupported_command_type_fails_per_command() {
             envelope(
                 "cmd-c4-unsupported",
                 "sess_v4",
-                "renameSession",
-                json!({ "title": "x" }),
+                "resolveInteraction",
+                json!({ "interactionId": "interaction-x", "answer": {} }),
             ),
         )
         .expect("ack");
@@ -402,4 +402,280 @@ fn workflow_get_falls_back_to_global() {
         WorkflowsGetResult::Ok(ok) => assert_eq!(ok.scope, SavedWorkflowScope::Global),
         other => panic!("expected global hit, got {other:?}"),
     }
+}
+
+#[test]
+fn create_session_command_returns_schema_compatible_ack() {
+    let root = TempRoot::new("create-session");
+    let server = open_server(&root);
+    let workspace = root.path().join("ws");
+    std::fs::create_dir_all(&workspace).expect("workspace");
+    let workspace_id = workspace.to_str().expect("workspace path");
+    let runtime = Runtime::new().expect("tokio runtime");
+    let ack = runtime
+        .block_on(async {
+            server.dispatch(
+            "v4/command",
+            json!({
+                "commandId": "cmd-create-1",
+                "clientId": "probe-c4",
+                "sessionId": null,
+                "type": "createSession",
+                "payload": {
+                    "workspaceId": workspace_id,
+                    "config": { "mode": "build", "provider": "fixture", "model": "fixture-model" },
+                    "firstInput": {
+                        "text": "first prompt",
+                        "mode": "yolo",
+                        "modelSelection": {
+                            "providerId": "fixture",
+                            "modelId": "fixture-model",
+                            "options": { "reasoningLevel": "enabled" }
+                        }
+                    }
+                },
+                "issuedAt": 1_700_000_000_000i64,
+            }),
+        )
+        })
+        .expect("create ack");
+    assert_eq!(ack["status"], json!("accepted"), "{ack}");
+    assert_eq!(ack["result"]["type"], json!("createSession"));
+    let session_id = ack["result"]["sessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+
+    // 会话行真的落库（read 面可见）；同一 commandId 的 ACK 可对账。
+    let read = runtime
+        .block_on(async { server.dispatch("session/read", json!({ "sessionId": session_id })) })
+        .expect("read");
+    assert_eq!(read["session"]["sessionId"], json!(session_id));
+    // firstInput 的选择必须落到 runtime（否则首发 turn 在模型请求前就失败）。
+    assert_eq!(
+        read["settings"]["model"]["current"],
+        json!({
+            "providerId": "fixture",
+            "modelId": "fixture-model",
+            "options": { "reasoningLevel": "enabled" }
+        })
+    );
+    assert_eq!(read["settings"]["mode"]["current"], json!("yolo"));
+    let query = runtime
+        .block_on(async {
+            server.dispatch(
+                "v4/commands/query",
+                json!({ "commands": [{ "sessionId": null, "commandId": "cmd-create-1" }] }),
+            )
+        })
+        .expect("query");
+    assert_eq!(query["results"][0]["result"]["status"], json!("accepted"));
+}
+
+#[test]
+fn rename_and_delete_session_commands_round_trip() {
+    let root = TempRoot::new("rename-delete");
+    let server = open_server(&root);
+    let workspace = root.path().join("ws");
+    std::fs::create_dir_all(&workspace).expect("workspace");
+    let workspace_id = workspace.to_str().expect("workspace path");
+    let runtime = Runtime::new().expect("tokio runtime");
+    let ack = runtime
+        .block_on(async {
+            server.dispatch(
+                "v4/command",
+                json!({
+                    "commandId": "cmd-create-rn",
+                    "clientId": "probe-c4",
+                    "sessionId": null,
+                    "type": "createSession",
+                    "payload": { "workspaceId": workspace_id },
+                    "issuedAt": 1_700_000_000_000i64,
+                }),
+            )
+        })
+        .expect("create");
+    let session_id = ack["result"]["sessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+
+    let rename = runtime
+        .block_on(async {
+            server.dispatch(
+                "v4/command",
+                json!({
+                    "commandId": "cmd-rename-1",
+                    "clientId": "probe-c4",
+                    "sessionId": session_id,
+                    "type": "renameSession",
+                    "payload": { "title": "renamed by test" },
+                    "issuedAt": 1_700_000_000_001i64,
+                }),
+            )
+        })
+        .expect("rename");
+    assert_eq!(rename["status"], json!("accepted"), "{rename}");
+    let read = runtime
+        .block_on(async { server.dispatch("session/read", json!({ "sessionId": session_id })) })
+        .expect("read");
+    assert_eq!(read["session"]["title"], json!("renamed by test"));
+    assert_eq!(read["session"]["titleSource"], json!("custom"));
+
+    let delete = runtime
+        .block_on(async {
+            server.dispatch(
+                "v4/command",
+                json!({
+                    "commandId": "cmd-delete-1",
+                    "clientId": "probe-c4",
+                    "sessionId": session_id,
+                    "type": "deleteSession",
+                    "payload": {},
+                    "issuedAt": 1_700_000_000_002i64,
+                }),
+            )
+        })
+        .expect("delete");
+    assert_eq!(delete["status"], json!("accepted"), "{delete}");
+    let list = runtime
+        .block_on(async {
+            server.dispatch(
+                "session/list",
+                json!({ "includeArchived": false, "sessionIds": [session_id] }),
+            )
+        })
+        .expect("list");
+    assert_eq!(list["sessions"], json!([]));
+}
+
+#[test]
+fn queue_commands_validate_cas_and_targets() {
+    let root = TempRoot::new("queue-cmds");
+    let server = open_server(&root);
+    let workspace = root.path().join("ws");
+    std::fs::create_dir_all(&workspace).expect("workspace");
+    let workspace_id = workspace.to_str().expect("workspace path");
+    let runtime = Runtime::new().expect("tokio runtime");
+    let ack = runtime
+        .block_on(async {
+            server.dispatch(
+                "v4/command",
+                json!({
+                    "commandId": "cmd-queue-create",
+                    "clientId": "probe-c4",
+                    "sessionId": null,
+                    "type": "createSession",
+                    "payload": { "workspaceId": workspace_id },
+                    "issuedAt": 1_700_000_000_000i64,
+                }),
+            )
+        })
+        .expect("create");
+    let session_id = ack["result"]["sessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+
+    // 缺 queueItemId → invalidPayload。
+    let missing = runtime
+        .block_on(async {
+            server.dispatch(
+                "v4/command",
+                json!({
+                    "commandId": "cmd-queue-missing",
+                    "clientId": "probe-c4",
+                    "sessionId": session_id,
+                    "type": "deleteQueueItem",
+                    "baseRevision": 0,
+                    "payload": {},
+                    "issuedAt": 1_700_000_000_001i64,
+                }),
+            )
+        })
+        .expect("ack");
+    assert_eq!(missing["status"], json!("failed"));
+    assert_eq!(missing["reasonCode"], json!("fault.command.invalidPayload"));
+
+    // baseRevision 过期 → stale（UI 用 revisionAtDecision 重试）。
+    let stale = runtime
+        .block_on(async {
+            server.dispatch(
+                "v4/command",
+                json!({
+                    "commandId": "cmd-queue-stale",
+                    "clientId": "probe-c4",
+                    "sessionId": session_id,
+                    "type": "editQueueItem",
+                    "baseRevision": 999,
+                    "payload": { "queueItemId": "in-x", "newText": "x" },
+                    "issuedAt": 1_700_000_000_002i64,
+                }),
+            )
+        })
+        .expect("ack");
+    assert_eq!(stale["status"], json!("stale"), "{stale}");
+    assert!(stale["revisionAtDecision"].as_u64().is_some());
+
+    // CAS 命中但目标不存在 → failed（文案带「队列项不存在」）。
+    let missing_item = runtime
+        .block_on(async {
+            server.dispatch(
+                "v4/command",
+                json!({
+                    "commandId": "cmd-queue-notfound",
+                    "clientId": "probe-c4",
+                    "sessionId": session_id,
+                    "type": "deleteQueueItem",
+                    "baseRevision": 0,
+                    "payload": { "queueItemId": "in-x" },
+                    "issuedAt": 1_700_000_000_003i64,
+                }),
+            )
+        })
+        .expect("ack");
+    assert_eq!(missing_item["status"], json!("failed"), "{missing_item}");
+    assert!(
+        missing_item["message"]
+            .as_str()
+            .unwrap_or("")
+            .contains("队列项不存在"),
+        "{missing_item}"
+    );
+
+    // setFollowupMode / setAutoDrain：CAS 命中 → accepted。
+    let followup = runtime
+        .block_on(async {
+            server.dispatch(
+                "v4/command",
+                json!({
+                    "commandId": "cmd-followup",
+                    "clientId": "probe-c4",
+                    "sessionId": session_id,
+                    "type": "setFollowupMode",
+                    "baseRevision": 0,
+                    "payload": { "mode": "guide" },
+                    "issuedAt": 1_700_000_000_004i64,
+                }),
+            )
+        })
+        .expect("ack");
+    assert_eq!(followup["status"], json!("accepted"), "{followup}");
+    let auto_drain = runtime
+        .block_on(async {
+            server.dispatch(
+                "v4/command",
+                json!({
+                    "commandId": "cmd-autodrain",
+                    "clientId": "probe-c4",
+                    "sessionId": session_id,
+                    "type": "setAutoDrain",
+                    "baseRevision": 1,
+                    "payload": { "autoDrain": false },
+                    "issuedAt": 1_700_000_000_005i64,
+                }),
+            )
+        })
+        .expect("ack");
+    assert_eq!(auto_drain["status"], json!("accepted"), "{auto_drain}");
 }

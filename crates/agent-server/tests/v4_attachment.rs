@@ -492,7 +492,12 @@ fn send_text_with_attachments_follows_the_ruling() {
         )
         .expect("ack");
     assert_eq!(ack["status"], json!("accepted"));
-    assert_eq!(ack["result"]["type"], json!("sendText"));
+    // ACK 结果必须是 `commandResultSchema` 里的 `inputAccepted`（否则 renderer 解码失败）。
+    assert_eq!(ack["result"]["type"], json!("inputAccepted"));
+    assert_eq!(ack["result"]["delivery"], json!("startNow"));
+    assert!(ack["result"]["inputId"]
+        .as_str()
+        .is_some_and(|value| !value.is_empty()));
 
     // 未知 ref → failed ACK（正确行为，不 FK 崩溃）。
     let ack = server
@@ -578,4 +583,50 @@ fn send_text_with_attachments_follows_the_ruling() {
     assert_eq!(results[1]["result"]["status"], json!("failed"));
     assert_eq!(results[2]["result"]["status"], json!("accepted"));
     assert_eq!(results[3]["result"]["status"], json!("failed"));
+}
+
+#[test]
+fn attachment_upload_ids_reject_path_traversal_and_reads_clamp_offsets() {
+    let root = TempRoot::new("paths");
+    let server = open_server(&root);
+    for (session_id, upload_id) in [
+        ("../../escape", "upload-paths-1"),
+        ("sess_att_paths", "../../escape"),
+        ("sess_att_paths", ".."),
+        ("C:", "upload-paths-1"),
+    ] {
+        let error = server
+            .dispatch(
+                "v4/attachment/begin",
+                json!({
+                    "connectionId": "conn-c4",
+                    "uploadId": upload_id,
+                    "sessionId": session_id,
+                    "fileName": "x.txt",
+                    "mime": "text/plain",
+                    "totalBytes": 1,
+                    "totalChunks": 1,
+                    "checksum": "stub",
+                }),
+            )
+            .expect_err("unsafe attachment id must fail");
+        assert_eq!(error.code(), -32602, "{session_id}/{upload_id}");
+    }
+
+    // 合法上传后，超大 offset/limit 只返回空切片，不 panic、不越界。
+    let session_id = "sess_att_paths";
+    let attachment_ref = commit_text_attachment(&server, session_id);
+    let read = server
+        .dispatch(
+            "v4/attachment/read",
+            json!({
+                "sessionId": session_id,
+                "ref": attachment_ref,
+                "offset": u64::MAX,
+                "limit": u64::MAX,
+            }),
+        )
+        .expect("clamped read");
+    assert_eq!(read["dataBase64"], json!(""));
+    assert_eq!(read["nextOffset"], Value::Null);
 }

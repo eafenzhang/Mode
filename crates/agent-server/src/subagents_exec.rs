@@ -114,6 +114,8 @@ pub struct SubagentRunnerImpl {
     data_root: Option<std::path::PathBuf>,
     parent_session_id: String,
     handle: tokio::runtime::Handle,
+    /// 连接级反向 hub：子 turn 的工具审批与父会话走同一通道（不能隐式 AutoAllow）。
+    reverse: Option<Arc<crate::reverse::ReverseHub>>,
 }
 
 impl SubagentRunnerImpl {
@@ -127,6 +129,7 @@ impl SubagentRunnerImpl {
         data_root: Option<std::path::PathBuf>,
         parent_session_id: String,
         handle: tokio::runtime::Handle,
+        reverse: Option<Arc<crate::reverse::ReverseHub>>,
     ) -> Self {
         Self {
             store,
@@ -137,6 +140,7 @@ impl SubagentRunnerImpl {
             data_root,
             parent_session_id,
             handle,
+            reverse,
         }
     }
 }
@@ -153,6 +157,9 @@ impl SubagentRunner for SubagentRunnerImpl {
         let cwd = self.cwd.clone();
         let system = subagent_system_prompt(&request.subagent_type, &cwd);
         let data_root = self.data_root.clone();
+        let rule_db_path = self.store.db_path().to_path_buf();
+        let reverse = self.reverse.clone();
+        let explore = request.subagent_type == "Explore";
         let (tx, rx) = std::sync::mpsc::channel();
         // 子 turn 在独立 OS 线程上驱动：`run` 是同步端口，若直接 `Handle::spawn`，
         // 单线程 runtime（测试常见）会在父 turn 阻塞等待时无法调度子 future。
@@ -161,8 +168,26 @@ impl SubagentRunner for SubagentRunnerImpl {
         std::thread::spawn(move || {
             handle.block_on(async move {
                 let mut child = Session::new(child_id, cwd)
-                    .with_mode("build")
-                    .with_system_override(system);
+                    .with_mode(if explore { "plan" } else { "build" })
+                    .with_system_override(system)
+                    // 与父会话同一套 allow 规则；审批走同一 reverse hub，避免子代理
+                    // 在 `AutoAllow` 下绕过用户确认执行写/Bash。
+                    .with_sqlite_rules(rule_db_path);
+                if explore {
+                    // 与 Agent 工具声明的 allowedTools 一致：Explore 只读。
+                    child = child.with_tool_allowlist([
+                        "Bash",
+                        "Read",
+                        "WebFetch",
+                        "WebSearch",
+                        "TodoWrite",
+                    ]);
+                }
+                if let Some(hub) = reverse {
+                    child = child.with_permission_handler(Box::new(
+                        crate::reverse::ProtocolPermissionHandler::new(hub),
+                    ));
+                }
                 if let Some(data_root) = data_root {
                     child = child.with_data_root(data_root);
                 }

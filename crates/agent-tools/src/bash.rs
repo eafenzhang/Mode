@@ -27,6 +27,7 @@
 //! - **artifact 的真实落点**：oracle 落在 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`。
 //!   注册表路径按 [`ToolContext::artifact`] 派生；未接线数据根的会话仍落系统临时目录
 //!   （夹具不覆盖 >30KB，避免路径不可复现）。
+use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -189,26 +190,42 @@ pub fn invoke_with_control(
     let mut child = command
         .spawn()
         .map_err(|error| unimplemented_surface("bash_spawn_failed", error.to_string()))?;
+    // 必须在等待子进程期间持续读管道：只 `try_wait` 不读会让写满 64KB 管道缓冲的
+    // 命令永远退不出去（表现为「健康命令必超时」）。两条管道各一条读线程，
+    // stdout/stderr 由 `exec 2>&1` 合流，读线程退出后再按到达顺序拼接。
+    let stdout_reader = spawn_pipe_reader(child.stdout.take());
+    let stderr_reader = spawn_pipe_reader(child.stderr.take());
+    // 前台命令同样挂进 kill-on-close 作业对象：函数内任一提前返回（取消/超时）
+    // 都会先 kill 子进程再析构句柄，句柄在 agent 进程被强杀时由 OS 关闭。
+    #[cfg(windows)]
+    let _child_job = crate::win_job::JobHandle::assign(&child);
 
     let started = Instant::now();
     let timeout = Duration::from_millis(timeout_ms);
-    loop {
+    let status = loop {
         if control.cancel.is_cancelled() {
             let _ = child.kill();
             let _ = child.wait();
+            let _ = join_reader(stdout_reader);
+            let _ = join_reader(stderr_reader);
             return Err(cancelled_error());
         }
         match child.try_wait() {
-            Ok(Some(_)) => break,
+            Ok(Some(status)) => break status,
             Ok(None) => {}
             Err(error) => {
                 let _ = child.kill();
+                let _ = child.wait();
+                let _ = join_reader(stdout_reader);
+                let _ = join_reader(stderr_reader);
                 return Err(unimplemented_surface("bash_wait_failed", error.to_string()));
             }
         }
         if started.elapsed() >= timeout {
             let _ = child.kill();
             let _ = child.wait();
+            let _ = join_reader(stdout_reader);
+            let _ = join_reader(stderr_reader);
             // 观察：超时同样是 `budgetStrategy:"artifact"`（Bash 的通用预算策略）。
             // `perf.detail`（夹具 `bash-timeout`）：`exitCode` 是 143（SIGTERM 的线上取值）、
             // `timedOut:true`、`status:"timed_out"`；管道没读，`outputBytes` 按观察值 0。
@@ -226,24 +243,22 @@ pub fn invoke_with_control(
             );
         }
         thread::sleep(Duration::from_millis(20));
-    }
+    };
 
-    let output = child
-        .wait_with_output()
-        .map_err(|error| unimplemented_surface("bash_wait_failed", error.to_string()))?;
+    let stdout = join_reader(stdout_reader);
+    let stderr = join_reader(stderr_reader);
     let run_ms = started.elapsed().as_millis() as u64;
-    let (content, original_bytes) =
-        normalize_output(&output.stdout, &output.stderr, output.status.code());
+    let (content, original_bytes) = normalize_output(&stdout, &stderr, status.code());
     // `perf.detail.command.outputBytes`：**原始**合并输出的字节数（trim 前；夹具
     // `bash-stdout`：原始 12 = "hello\nworld\n"，正文 trim 后是 11）。
-    let output_bytes = (output.stdout.len() + output.stderr.len()) as u64;
+    let output_bytes = (stdout.len() + stderr.len()) as u64;
     if content.len() > LARGE_OUTPUT_BYTES {
         let detail = command_detail(
             &input.command,
             CommandDetail {
                 run_ms,
                 no_output_ms: run_ms,
-                exit_code: output.status.code(),
+                exit_code: status.code(),
                 timed_out: false,
                 output_bytes,
             },
@@ -266,7 +281,7 @@ pub fn invoke_with_control(
         CommandDetail {
             run_ms,
             no_output_ms: run_ms,
-            exit_code: output.status.code(),
+            exit_code: status.code(),
             timed_out: false,
             output_bytes,
         },
@@ -392,6 +407,28 @@ fn start_background(
         content,
         registration.output_path.display().to_string(),
     ))
+}
+
+/// 在独立线程里读完一条管道，避免子进程因管道缓冲写满而卡死。
+fn spawn_pipe_reader<R>(pipe: Option<R>) -> Option<thread::JoinHandle<std::io::Result<Vec<u8>>>>
+where
+    R: Read + Send + 'static,
+{
+    pipe.map(|mut pipe| {
+        thread::spawn(move || {
+            let mut bytes = Vec::new();
+            pipe.read_to_end(&mut bytes)?;
+            Ok(bytes)
+        })
+    })
+}
+
+/// 等读线程收尾；读/线程失败时按空输出处理（进程退出码仍可反映失败）。
+fn join_reader(handle: Option<thread::JoinHandle<std::io::Result<Vec<u8>>>>) -> Vec<u8> {
+    handle
+        .and_then(|handle| handle.join().ok())
+        .and_then(Result::ok)
+        .unwrap_or_default()
 }
 
 fn shell_command(command: &str, ctx: &ToolContext) -> Command {
@@ -576,6 +613,24 @@ mod tests {
     #[test]
     fn empty_output_has_a_stable_message() {
         assert_eq!(run("true").content, EMPTY_OUTPUT);
+    }
+
+    /// 200KB 远超管道缓冲：若等待期间不读管道，子进程会卡在 write 上直到超时。
+    #[test]
+    fn large_output_is_drained_while_waiting() {
+        let outcome = invoke(
+            &json!({
+                "command": "for i in $(seq 1 20000); do printf '0123456789\n'; done",
+                "timeout": 15000
+            }),
+            &context(),
+        )
+        .expect("large output");
+        assert!(
+            outcome.content.contains("Output too large"),
+            "{}",
+            outcome.content.chars().take(160).collect::<String>()
+        );
     }
 
     #[test]

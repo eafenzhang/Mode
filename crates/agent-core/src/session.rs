@@ -176,6 +176,8 @@ pub struct Session {
     subagent_runner: Option<Arc<dyn crate::subagent::SubagentRunner>>,
     /// C4 T5：系统提示覆盖（子会话用 agent 专用提示，替代统一装配）。
     system_override: Option<String>,
+    /// C4 T5：子代理工具白名单（`None` = 全部）；Explore 子会话必须只读。
+    tool_allowlist: Option<BTreeSet<String>>,
 }
 
 /// 插件工具结果里的 `display` 对象（C4 T1：MCP 的 `{kind:"mcp_tool",serverName,toolName,description}`）。
@@ -227,6 +229,7 @@ impl Session {
             retry_policy: RetryPolicy::default(),
             subagent_runner: None,
             system_override: None,
+            tool_allowlist: None,
         }
     }
 
@@ -336,6 +339,15 @@ impl Session {
         self
     }
 
+    /// C4 T5：限制可用工具（Explore 子会话只读）；未列出的工具按未注册处理。
+    pub fn with_tool_allowlist(
+        mut self,
+        tools: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.tool_allowlist = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// 系统提示覆盖：替换请求里的首个 System 消息（工具声明仍由请求的 tools 面表达）。
     fn apply_system_override(&self, request: &mut ModelRequest) {
         if let Some(override_prompt) = &self.system_override {
@@ -358,6 +370,7 @@ impl Session {
         &mut self,
         turn_id: &str,
         call: &ToolCallRequest,
+        sink: &mut dyn EventSink,
     ) -> (
         Result<ToolOutcome, agent_tools::ToolError>,
         Vec<SessionEvent>,
@@ -406,7 +419,10 @@ impl Session {
                 "allowedTools": allowed_tools,
             }),
         );
-        let mut events = vec![running];
+        // 子代理可能跑几十秒：running 生命周期必须立刻投递，不能等 runner 返回。
+        // 因此这里直接写 sink，终态事件仍随返回值由调用方投递（避免重复）。
+        sink.emit(running);
+        let mut events = Vec::new();
         let Some(runner) = self.subagent_runner.clone() else {
             return (
                 Err(agent_tools::ToolError {
@@ -481,6 +497,11 @@ impl Session {
     }
 
     fn lookup_tool(&self, name: &str) -> Option<ToolSpec> {
+        if let Some(allowlist) = &self.tool_allowlist {
+            if !allowlist.contains(name) {
+                return None;
+            }
+        }
         agent_tools::lookup(name).or_else(|| {
             self.extra_tools
                 .iter()
@@ -918,6 +939,7 @@ impl Session {
             Some(after_start),
             Some(before_terminal),
             Some(input_id.to_string()),
+            true,
         )
         .await
     }
@@ -950,6 +972,7 @@ impl Session {
             None,
             None,
             Some(input_id.to_string()),
+            true,
         )
         .await
     }
@@ -963,6 +986,38 @@ impl Session {
         compact: bool,
     ) -> SessionEvent {
         let (turn_number, turn_id) = self.allocate_turn();
+        self.turn_started_event(turn_number, &turn_id, prompt, input_id, compact)
+    }
+
+    /// 首条输入：同一 turn id 上先分配 `session.titleUpdated`，再分配 `turn.started`
+    /// （seq 顺序即线上顺序）。
+    pub fn begin_turn_with_title(
+        &mut self,
+        prompt: &str,
+        title: &str,
+    ) -> (SessionEvent, SessionEvent) {
+        let (turn_number, turn_id) = self.allocate_turn();
+        let title_event = self.emit(
+            Some(&turn_id),
+            SessionEventType::SessionTitleUpdated,
+            &json!({
+                "previousTitle": "",
+                "source": "first_input",
+                "title": title,
+            }),
+        );
+        let started = self.turn_started_event(turn_number, &turn_id, prompt, None, false);
+        (started, title_event)
+    }
+
+    fn turn_started_event(
+        &mut self,
+        turn_number: u64,
+        turn_id: &str,
+        prompt: &str,
+        input_id: Option<&str>,
+        compact: bool,
+    ) -> SessionEvent {
         let payload = TurnStartedPayload {
             // 观察值：`executionStartedAt` 是小数毫秒（compact 的 turn.started 没有该键）。
             execution_started_at: (!compact).then(|| now_ms() as f64),
@@ -984,7 +1039,7 @@ impl Session {
                 ExtraFields::new()
             },
         };
-        self.emit(Some(&turn_id), SessionEventType::TurnStarted, &payload)
+        self.emit(Some(turn_id), SessionEventType::TurnStarted, &payload)
     }
 
     /// 替换模型视角的历史（compact 成功后只保留摘要续接消息；DB 行不动）。
@@ -1071,8 +1126,73 @@ impl Session {
         cancel: &CancelToken,
     ) -> Result<(), TurnError> {
         let started = self.begin_turn(prompt);
-        self.run_turn_with_start(started, prompt, provider, sink, cancel, None, None, None)
-            .await
+        self.run_turn_with_start(
+            started, prompt, provider, sink, cancel, None, None, None, true,
+        )
+        .await
+    }
+
+    /// 首条用户输入：`session.titleUpdated`（`source:"first_input"`）先于
+    /// `turn.started` 投递，标题落库由宿主负责（契约 §3 的观察顺序）。
+    pub async fn run_turn_with_first_title(
+        &mut self,
+        prompt: &str,
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+        cancel: &CancelToken,
+        title: &str,
+    ) -> Result<(), TurnError> {
+        // seq 顺序按契约：titleUpdated(seq 1) → turn.started(seq 2)。因此先分配 turn id，
+        // 先 emit title，再 emit started；run_turn_with_start 不再重复投递 started。
+        let (started, title_event) = self.begin_turn_with_title(prompt, title);
+        sink.emit(title_event);
+        sink.emit(started.clone());
+        self.run_turn_with_start(
+            started, prompt, provider, sink, cancel, None, None, None, false,
+        )
+        .await
+    }
+
+    /// 宿主已自行投递 `turn.started`（用于工具目录/MCP 建连前先让 started 可见，
+    /// 避免 Host 的 prompt ACK 等待建连）。`started` 必须由同一 session 的
+    /// `begin_turn`/`begin_turn_with_title` 构造。
+    pub async fn run_turn_after_started(
+        &mut self,
+        started: SessionEvent,
+        prompt: &str,
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+        cancel: &CancelToken,
+    ) -> Result<(), TurnError> {
+        self.run_turn_with_start(
+            started, prompt, provider, sink, cancel, None, None, None, false,
+        )
+        .await
+    }
+
+    /// 后台通知 turn 的同一形态（started 已由宿主投递）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn run_background_notification_turn_after_started(
+        &mut self,
+        started: SessionEvent,
+        input: &str,
+        input_id: &str,
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+        cancel: &CancelToken,
+    ) -> Result<(), TurnError> {
+        self.run_turn_with_start(
+            started,
+            input,
+            provider,
+            sink,
+            cancel,
+            None,
+            None,
+            Some(input_id.to_string()),
+            false,
+        )
+        .await
     }
 
     /// 跑一个 goal-continuation turn（C3 T1）。
@@ -1111,6 +1231,7 @@ impl Session {
             Some(after_start),
             Some(before_terminal),
             Some(input_id.to_string()),
+            true,
         )
         .await
     }
@@ -1132,9 +1253,12 @@ impl Session {
         mut after_start: Option<AfterStartHook<'_>>,
         mut before_terminal: Option<BeforeTerminalHook<'_>>,
         terminal_input_id: Option<String>,
+        emit_started: bool,
     ) -> Result<(), TurnError> {
         let started_at = std::time::Instant::now();
-        sink.emit(started);
+        if emit_started {
+            sink.emit(started);
+        }
         if let Some(hook) = after_start.as_mut() {
             hook(self, sink);
         }
@@ -1890,7 +2014,7 @@ impl Session {
             let started = std::time::Instant::now();
             let (outcome, agent_events) = if call.name == "Agent" && self.subagent_runner.is_some()
             {
-                self.run_agent_tool(&turn_id, call)
+                self.run_agent_tool(&turn_id, call, sink)
             } else {
                 let stubbed = if call.name == "Read" {
                     self.file_state.stub_for(&call.input, &context)

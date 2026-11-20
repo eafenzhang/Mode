@@ -729,7 +729,7 @@ async fn send_streams_events_idempotent_input_and_revision_conflict() {
         "接受即推进版本"
     );
 
-    // 事件流：turn.started → model.streaming → turn.completed。
+    // 事件流：首条输入的 titleUpdated → turn.started → model.streaming → turn.completed。
     let events = conn.drain_until_terminal().await;
     let kinds: Vec<&str> = events
         .iter()
@@ -737,13 +737,18 @@ async fn send_streams_events_idempotent_input_and_revision_conflict() {
         .collect();
     assert_eq!(
         kinds,
-        vec!["turn.started", "model.streaming", "turn.completed"]
+        vec![
+            "session.titleUpdated",
+            "turn.started",
+            "model.streaming",
+            "turn.completed"
+        ]
     );
     let seqs: Vec<u64> = events
         .iter()
         .map(|event| event["seq"].as_u64().expect("seq"))
         .collect();
-    assert_eq!(seqs, vec![1, 2, 3], "seq 从 1 连续");
+    assert_eq!(seqs, vec![1, 2, 3, 4], "seq 从 1 连续");
 
     // 重复 inputId：幂等（同一回执），不再拉起 turn。
     let id = conn
@@ -836,7 +841,7 @@ async fn subscribe_replays_and_streams_live_without_gap() {
         .iter()
         .map(|event| event["seq"].as_u64().expect("seq"))
         .collect();
-    assert_eq!(live_seqs, vec![1, 2, 3], "live 段无缺口");
+    assert_eq!(live_seqs, vec![1, 2, 3, 4], "live 段无缺口");
 
     // afterSeq=1 的第二次订阅：replay 拿 seq>1 的两条，无重复。
     let id = conn
@@ -857,8 +862,8 @@ async fn subscribe_replays_and_streams_live_without_gap() {
         .iter()
         .map(|event| event["seq"].as_u64().expect("seq"))
         .collect();
-    assert_eq!(replay_seqs, vec![2, 3]);
-    assert_eq!(replayed["eventSeq"], json!(3));
+    assert_eq!(replay_seqs, vec![2, 3, 4]);
+    assert_eq!(replayed["eventSeq"], json!(4));
     assert!(
         replayed.get("snapshot").is_none(),
         "includeSnapshot:false 无快照键"

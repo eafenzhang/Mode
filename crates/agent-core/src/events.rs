@@ -135,6 +135,12 @@ impl EventPublisher {
         self.lock().next_seq
     }
 
+    /// 已提交的最高 seq：≤ 它的状态一定已由 EventSink 落库（persist → commit）。
+    /// v4 快照用它当水位，才能安全地跳过 live 里已包含的事件。
+    pub fn committed_seq(&self) -> u64 {
+        self.lock().committed_upto
+    }
+
     /// 订阅：日志 replay + broadcast receiver（同一临界区，无重复/缺口）。
     ///
     /// `after_seq` 大于已分配 seq 视为旧 runtime 游标（reset）。

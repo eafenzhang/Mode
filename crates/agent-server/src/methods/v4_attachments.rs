@@ -25,6 +25,7 @@ use agent_protocol::v4_queries::{
 use serde_json::Value;
 
 use crate::dispatch::AgentServer;
+use crate::path_safety::is_safe_segment;
 use crate::server::ServerError;
 
 use super::parse_params;
@@ -35,6 +36,9 @@ use super::parse_params;
 struct SendTextPayload {
     text: String,
     attachment_refs: Vec<String>,
+    mode: Option<String>,
+    plan_enabled: Option<bool>,
+    model_selection: Option<agent_protocol::message::MessageModel>,
 }
 
 fn parse_send_text_payload(payload: &Value) -> Result<SendTextPayload, String> {
@@ -59,6 +63,31 @@ fn parse_send_text_payload(payload: &Value) -> Result<SendTextPayload, String> {
     Ok(SendTextPayload {
         text: text.to_string(),
         attachment_refs,
+        mode: object
+            .get("mode")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string),
+        plan_enabled: object.get("planEnabled").and_then(Value::as_bool),
+        model_selection: object
+            .get("modelSelection")
+            .and_then(Value::as_object)
+            .and_then(|selection| {
+                let provider_id = selection.get("providerId").and_then(Value::as_str)?;
+                let model_id = selection.get("modelId").and_then(Value::as_str)?;
+                let options = selection
+                    .get("options")
+                    .and_then(Value::as_object)
+                    .and_then(|options| options.get("reasoningLevel").and_then(Value::as_str))
+                    .map(|level| agent_protocol::message::ModelOptions {
+                        reasoning_level: Some(level.to_string()),
+                    });
+                Some(agent_protocol::message::MessageModel {
+                    provider_id: provider_id.to_string(),
+                    model_id: model_id.to_string(),
+                    options,
+                })
+            }),
     })
 }
 
@@ -122,18 +151,99 @@ pub(crate) fn handle_send_text(
             &format!("Session is not active: {session_id}"),
         ));
     };
+    // 首发 sendText 可能落在**无 config 的预热 draft** 上：本条的 modelSelection/mode
+    // 才是用户实际选择，必须在提交前写进 runtime（否则 turn 在模型请求前失败）。
+    // 已有模型的会话不重复 setModel：选择由 switchModelConfig/create 负责。
+    let runtime_config = runtime.config();
+    if runtime_config.provider_id.is_empty() || runtime_config.model_id.is_empty() {
+        if let Some(selection) = envelope
+            .payload
+            .get("modelSelection")
+            .and_then(Value::as_object)
+        {
+            let provider = selection
+                .get("providerId")
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty());
+            let model_id = selection
+                .get("modelId")
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty());
+            if let (Some(provider), Some(model_id)) = (provider, model_id) {
+                let mut model = serde_json::json!({
+                    "providerId": provider,
+                    "modelId": model_id,
+                });
+                if let Some(level) = selection
+                    .get("options")
+                    .and_then(|options| options.get("reasoningLevel"))
+                    .and_then(Value::as_str)
+                    .filter(|value| !value.is_empty())
+                {
+                    model["options"] = serde_json::json!({ "reasoningLevel": level });
+                }
+                if let Err(error) = super::setters::handle_set_model(
+                    server,
+                    serde_json::json!({ "sessionId": session_id, "model": model }),
+                ) {
+                    return Ok(failed_ack(
+                        &envelope.command_id,
+                        revision,
+                        "fault.command.configRejected",
+                        &error.message(),
+                    ));
+                }
+            }
+        }
+    }
+    if let Some(mode) = envelope
+        .payload
+        .get("mode")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+    {
+        if let Err(error) = super::setters::handle_set_mode(
+            server,
+            serde_json::json!({ "sessionId": session_id, "mode": mode }),
+        ) {
+            return Ok(failed_ack(
+                &envelope.command_id,
+                revision,
+                "fault.command.configRejected",
+                &error.message(),
+            ));
+        }
+    }
     let input = crate::state::SessionInput::text(payload.text.clone());
-    match runtime.submit(input) {
-        Ok(_) => Ok(CommandAck {
-            memory_enabled: Some(false),
-            ttft_excluded: None,
-            command_id: envelope.command_id.clone(),
-            status: CommandAckStatus::Accepted,
-            reason_code: None,
-            message: None,
-            revision_at_decision: revision.into(),
-            result: Some(serde_json::json!({ "type": "sendText" })),
-        }),
+    let meta = crate::runtime::QueueMetaInput {
+        client_id: envelope.client_id.clone(),
+        mode: payload.mode.clone(),
+        plan_enabled: payload.plan_enabled,
+        model_selection: payload.model_selection.clone(),
+    };
+    match runtime.submit_with_meta(input, meta) {
+        // ACK 结果形状按 `commandResultSchema`：sendText 的 accepted 结果是
+        // `inputAccepted`（renderer 按 discriminated union 解码，`sendText` 会被判无效）。
+        Ok(accepted) => {
+            let delivery = match accepted.admission {
+                agent_core::Admission::Started => "startNow",
+                agent_core::Admission::Queued { .. } => "queue",
+            };
+            Ok(CommandAck {
+                memory_enabled: Some(false),
+                ttft_excluded: None,
+                command_id: envelope.command_id.clone(),
+                status: CommandAckStatus::Accepted,
+                reason_code: None,
+                message: None,
+                revision_at_decision: accepted.state_revision.into(),
+                result: Some(serde_json::json!({
+                    "type": "inputAccepted",
+                    "delivery": delivery,
+                    "inputId": accepted.input_id,
+                })),
+            })
+        }
         Err(error) => Ok(failed_ack(
             &envelope.command_id,
             revision,
@@ -171,12 +281,29 @@ fn attachment_fault(error: crate::attachments::AttachmentError) -> ServerError {
     ServerError::rpc(-32603, error.fault(), Some(data))
 }
 
+/// 上行事务的路径段校验：附件落盘路径由 session/upload id 直接拼接。
+fn validate_upload_ids(session_id: &str, upload_id: &str) -> Result<(), ServerError> {
+    if !is_safe_segment(session_id) || !is_safe_segment(upload_id) {
+        return Err(ServerError::invalid_params(
+            "attachment sessionId/uploadId must be safe path segments",
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn handle_attachment_begin(
     server: &AgentServer,
     params: Value,
 ) -> Result<Value, ServerError> {
     let params: AttachmentBeginParams = parse_params(V4_ATTACHMENT_BEGIN_METHOD, params)?;
     params.validate().map_err(ServerError::invalid_params)?;
+    validate_upload_ids(&params.session_id, &params.upload_id)?;
+    // 上限防止 totalChunks=u64::MAX 的 commit 枚举/分块内存耗尽。
+    if params.total_chunks > 10_000 || params.total_bytes > 256 * 1024 * 1024 {
+        return Err(ServerError::invalid_params(
+            "attachment upload exceeds supported size limits",
+        ));
+    }
     match server
         .v4_state()
         .attachments
@@ -190,11 +317,11 @@ pub(crate) fn handle_attachment_begin(
         )
         .map_err(attachment_fault)?
     {
-        crate::attachments::BeginOutcome::Staging => {
+        crate::attachments::BeginOutcome::Staging(next_chunk_index) => {
             serde_json::to_value(AttachmentBeginResult::Staging(AttachmentBeginStaging {
                 upload_id: params.upload_id,
                 state: AttachmentBeginStateTag::Staging,
-                next_chunk_index: 0,
+                next_chunk_index,
             }))
             .map_err(|error| ServerError::internal(error.to_string()))
         }
@@ -215,6 +342,11 @@ pub(crate) fn handle_attachment_chunk(
     params: Value,
 ) -> Result<Value, ServerError> {
     let params: AttachmentChunkParams = parse_params(V4_ATTACHMENT_CHUNK_METHOD, params)?;
+    validate_upload_ids(&params.session_id, &params.upload_id)?;
+    // 单块 base64 上限（约 8 MiB 原文），避免单次 RPC 打满内存。
+    if params.data_base64.len() > 12 * 1024 * 1024 {
+        return Err(ServerError::invalid_params("attachment chunk is too large"));
+    }
     let next = server
         .v4_state()
         .attachments
@@ -237,6 +369,7 @@ pub(crate) fn handle_attachment_commit(
     params: Value,
 ) -> Result<Value, ServerError> {
     let params: AttachmentTerminalParams = parse_params(V4_ATTACHMENT_COMMIT_METHOD, params)?;
+    validate_upload_ids(&params.session_id, &params.upload_id)?;
     let data_root = server
         .data_root()
         .ok_or_else(|| ServerError::internal("数据根不可用：附件无落点"))?;
@@ -254,6 +387,7 @@ pub(crate) fn handle_attachment_abort(
     params: Value,
 ) -> Result<Value, ServerError> {
     let params: AttachmentTerminalParams = parse_params(V4_ATTACHMENT_ABORT_METHOD, params)?;
+    validate_upload_ids(&params.session_id, &params.upload_id)?;
     server
         .v4_state()
         .attachments

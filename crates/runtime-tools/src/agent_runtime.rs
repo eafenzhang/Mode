@@ -38,8 +38,31 @@ fn resolve_existing_path(
     None
 }
 
+/// Node 侧平台代号（`process.platform`）。Rust 的 `std::env::consts::OS` 给出
+/// `windows`/`macos`，而随包目录与 `.exe` 后缀按 `win32-*` 布局；这里统一归一。
+fn platform_token(platform: &str) -> &str {
+    match platform {
+        "windows" => "win32",
+        "macos" => "darwin",
+        other => other,
+    }
+}
+
+/// Node 侧架构代号（`process.arch`）：`x86_64` → `x64`、`aarch64` → `arm64`。
+fn arch_token(arch: &str) -> &str {
+    match arch {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        other => other,
+    }
+}
+
 fn platform_key(context: &AgentRuntimeContext<'_>) -> String {
-    format!("{}-{}", context.platform, context.arch)
+    format!(
+        "{}-{}",
+        platform_token(&context.platform),
+        arch_token(&context.arch)
+    )
 }
 
 fn platform_scoped_bundled_agent_roots(context: &AgentRuntimeContext<'_>) -> Vec<Option<PathBuf>> {
@@ -144,7 +167,7 @@ fn find_resource(context: &AgentRuntimeContext<'_>, entry_segments: &[String]) -
 
 fn binary_entry_segments(platform: &str) -> Vec<String> {
     let mut name = AGENT_BINARY_NAME.to_string();
-    if platform == "win32" {
+    if matches!(platform_token(platform), "win32") {
         name.push_str(".exe");
     }
     vec![name]
@@ -162,4 +185,46 @@ pub fn find_mode_agent_runtime_binary(context: &AgentRuntimeContext<'_>) -> Opti
 
 pub fn find_mode_agent_runtime_node_bundle(context: &AgentRuntimeContext<'_>) -> Option<String> {
     find_resource(context, &[AGENT_NODE_BUNDLE_ENTRY.to_string()])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct FakeFs(Vec<PathBuf>);
+
+    impl ToolFileSystem for FakeFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.0.iter().any(|candidate| candidate == path)
+        }
+
+        fn is_executable(&self, _path: &Path) -> bool {
+            true
+        }
+    }
+
+    /// Rust 常量是 `windows`/`x86_64`，随包目录是 `win32-x64` 且二进制带 `.exe`。
+    #[test]
+    fn rust_os_tokens_resolve_the_node_bundled_layout() {
+        let cwd = PathBuf::from("/ws");
+        let expected = resolve_path(
+            &cwd,
+            &["bundled-agents", "win32-x64", "glm", "mode-agent.exe"],
+        );
+        let fs = FakeFs(vec![expected.clone()]);
+        let context = AgentRuntimeContext {
+            platform: "windows".to_string(),
+            arch: "x86_64".to_string(),
+            cwd,
+            module_dir: None,
+            resources_path: None,
+            home_dir: PathBuf::from("/home"),
+            env: EnvMap::default(),
+            fs: &fs,
+        };
+        assert_eq!(
+            find_mode_agent_runtime_binary(&context),
+            Some(expected.to_string_lossy().into_owned())
+        );
+    }
 }

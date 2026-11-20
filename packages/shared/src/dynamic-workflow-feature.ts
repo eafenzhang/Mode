@@ -74,3 +74,28 @@ export function resolveDynamicWorkflowClientConfig(input: {
   if (remoteMode) return createDynamicWorkflowClientConfig(remoteMode, "remote");
   return createDynamicWorkflowClientConfig(DEFAULT_DYNAMIC_WORKFLOW_MODE, "default");
 }
+
+/**
+ * 灰度读取的阻塞边界：createSession / client-ready 路径最多等 `timeoutMs`。
+ * 超时按 disabled（fail-closed）；底层请求继续完成并自行缓存，但不再阻塞建会话。
+ */
+export const DYNAMIC_WORKFLOW_GATE_TIMEOUT_MS = 1500;
+
+export async function resolveDynamicWorkflowGateWithTimeout(
+  resolve: (() => Promise<DynamicWorkflowClientConfig | undefined>) | undefined,
+  timeoutMs: number = DYNAMIC_WORKFLOW_GATE_TIMEOUT_MS,
+): Promise<boolean> {
+  if (!resolve) return false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeout = new Promise<undefined>((settle) => {
+      timer = setTimeout(() => settle(undefined), timeoutMs);
+    });
+    const configured = await Promise.race([resolve(), timeout]);
+    return configured?.enabled === true;
+  } catch {
+    return false;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}

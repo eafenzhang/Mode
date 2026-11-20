@@ -49,6 +49,18 @@ impl SessionStore {
         message: MessageRecord,
         parts: &[PartRecord],
     ) -> Result<(), StoreError> {
+        self.with_write_transaction(|transaction| {
+            Self::append_message_with_parts_tx(transaction, &message, parts)
+        })
+    }
+
+    /// [`Self::append_message_with_parts`] 的**调用方事务内**变体：
+    /// compact 落库把多条派生写合并进单个事务时使用。
+    pub fn append_message_with_parts_tx(
+        tx: &rusqlite::Transaction<'_>,
+        message: &MessageRecord,
+        parts: &[PartRecord],
+    ) -> Result<(), StoreError> {
         for part in parts {
             if part.message_id != message.id || part.session_id != message.session_id {
                 return Err(StoreError::InvalidInput(format!(
@@ -57,13 +69,11 @@ impl SessionStore {
                 )));
             }
         }
-        self.with_write_transaction(|transaction| {
-            insert_message(transaction, &message)?;
-            for part in parts {
-                insert_part(transaction, part)?;
-            }
-            Ok(())
-        })
+        insert_message(tx, message)?;
+        for part in parts {
+            insert_part(tx, part)?;
+        }
+        Ok(())
     }
 
     /// 读取会话的 messages（含 parts），按升序返回。

@@ -94,6 +94,12 @@ struct Entry {
     status: TaskStatus,
     exit_code: Option<i32>,
     child: Option<Child>,
+    /// Windows：作业对象句柄（kill-on-close）。agent 进程被强杀时由 OS 关闭
+    /// 并终止任务子树（孤儿防线）；非 Windows 无此字段。句柄只在 Drop 时生效，
+    /// 保留到 Entry 移除/registry 释放为止。
+    #[cfg(windows)]
+    #[allow(dead_code)]
+    job: Option<crate::win_job::JobHandle>,
 }
 
 /// 一条后台任务完成通知（`<task-notification>` 的内容来源；观察见 spec §3.4）。
@@ -303,6 +309,8 @@ impl TaskRegistry {
         output_path: PathBuf,
     ) -> TaskRegistration {
         let id = next_task_id();
+        #[cfg(windows)]
+        let job = crate::win_job::JobHandle::assign(&child);
         let entry = Arc::new(Mutex::new(Entry {
             id: id.clone(),
             tool_call_id: tool_call_id.into(),
@@ -311,6 +319,8 @@ impl TaskRegistry {
             output_path: output_path.clone(),
             status: TaskStatus::Running,
             exit_code: None,
+            #[cfg(windows)]
+            job,
             child: Some(child),
         }));
         self.entries

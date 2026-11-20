@@ -999,11 +999,16 @@ async fn compact_with_instructions_accepts_persists_and_advances_revision() {
     let mut conn = connect(Arc::clone(&fixture.server)).await;
     let session_id = create_session(&mut conn, &fixture.ws).await;
 
-    // 两个 turn 作为 compact 的历史。
+    // 两个 turn 作为 compact 的历史。首条输入按契约先发 titleUpdated。
     let first = send_turn(&mut conn, &session_id, "first prompt").await;
     assert_eq!(
         event_types(&first),
-        vec!["turn.started", "model.streaming", "turn.completed"]
+        vec![
+            "session.titleUpdated",
+            "turn.started",
+            "model.streaming",
+            "turn.completed"
+        ]
     );
     let second = send_turn(&mut conn, &session_id, "second prompt").await;
     assert_eq!(
@@ -1585,9 +1590,13 @@ async fn long_history_turn_does_not_auto_compact() {
     for turn in 0..15 {
         let prompt = format!("prompt {turn}: {}", "p".repeat(1_000));
         let events = send_turn(&mut conn, &session_id, &prompt).await;
+        let mut expected = vec!["turn.started", "model.streaming", "turn.completed"];
+        if turn == 0 {
+            expected.insert(0, "session.titleUpdated");
+        }
         assert_eq!(
             event_types(&events),
-            vec!["turn.started", "model.streaming", "turn.completed"],
+            expected,
             "turn {turn} 只有普通事件，没有 compact 信号"
         );
         assert!(

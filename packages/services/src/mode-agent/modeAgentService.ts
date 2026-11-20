@@ -104,6 +104,7 @@ import {
   modeWorkspaceUpdateOffPeakToolPolicyResultSchema,
   modeWorkspaceUpdateDynamicWorkflowPolicyResultSchema,
   type DynamicWorkflowClientConfig,
+  resolveDynamicWorkflowGateWithTimeout,
   type AgentLaneResourceSample,
   type ProcessResourceCliLane,
   type ModeMcpTelemetryEvent,
@@ -3363,16 +3364,14 @@ export function createModeAgentService(
   function resolveDynamicWorkflowGate(): Promise<boolean> {
     const resolve = options?.resolveDynamicWorkflowClientConfig;
     if (!resolve) return Promise.resolve(false);
-    dynamicWorkflowGate ??= (async () => {
-      try {
-        return (await resolve())?.enabled === true;
-      } catch (error) {
-        logger.warn(undefined, "动态工作流灰度读取失败，按关闭处理", {
-          errorMessage: error instanceof Error ? error.message : String(error),
-        });
-        return false;
-      }
-    })();
+    // 远端 /api/v1/client/configs 不可达时，首次建会话不能被网络超时拖住；
+    // shared 的 helper 在 1.5s 后按 disabled 返回（fail-closed），请求本身继续缓存。
+    dynamicWorkflowGate ??= resolveDynamicWorkflowGateWithTimeout(resolve).catch((error) => {
+      logger.warn(undefined, "动态工作流灰度读取失败，按关闭处理", {
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    });
     return dynamicWorkflowGate;
   }
 

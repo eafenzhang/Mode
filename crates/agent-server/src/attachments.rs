@@ -111,9 +111,21 @@ impl AttachmentStore {
                 }
                 return Ok(BeginOutcome::Committed(attachment_ref.clone()));
             }
-            Some(Upload::Staging { .. }) => {
-                // 幂等重现 staging；不重置已收块。
-                return Ok(BeginOutcome::Staging);
+            Some(Upload::Staging {
+                session_id: owner,
+                chunks,
+                ..
+            }) => {
+                if owner != session_id {
+                    return Err(AttachmentError::SessionMismatch);
+                }
+                // 幂等重现 staging；不重置已收块，返回真实的下一个块号。
+                let next = chunks
+                    .keys()
+                    .next_back()
+                    .map(|index| index.saturating_add(1))
+                    .unwrap_or(0);
+                return Ok(BeginOutcome::Staging(next));
             }
             None => {}
         }
@@ -128,7 +140,7 @@ impl AttachmentStore {
                 chunks: BTreeMap::new(),
             },
         );
-        Ok(BeginOutcome::Staging)
+        Ok(BeginOutcome::Staging(0))
     }
 
     /// chunk：追加一块；返回 next_chunk_index。
@@ -304,7 +316,9 @@ impl AttachmentStore {
                 uploads.remove(upload_id);
                 Ok(())
             }
-            Some(Upload::Committed { .. }) => Ok(()),
+            Some(Upload::Committed {
+                session_id: owner, ..
+            }) if owner == session_id => Ok(()),
             Some(_) => Err(AttachmentError::SessionMismatch),
             None => Err(AttachmentError::UploadNotFound),
         }
@@ -335,8 +349,12 @@ impl AttachmentStore {
         use base64::engine::general_purpose::STANDARD as BASE64;
         let bytes =
             std::fs::read(&stored.path).map_err(|error| AttachmentError::Io(error.to_string()))?;
-        let start = (offset as usize).min(bytes.len());
-        let end = ((offset + limit) as usize).min(bytes.len());
+        let start = usize::try_from(offset)
+            .unwrap_or(usize::MAX)
+            .min(bytes.len());
+        let end = usize::try_from(offset.saturating_add(limit))
+            .unwrap_or(usize::MAX)
+            .min(bytes.len());
         let slice = &bytes[start..end];
         let next_offset = if end < bytes.len() {
             Some(end as u64)
@@ -350,7 +368,7 @@ impl AttachmentStore {
 /// begin 的两支结果。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BeginOutcome {
-    Staging,
+    Staging(u64),
     Committed(String),
 }
 
@@ -363,6 +381,11 @@ fn artifact_path(
     let extension = std::path::Path::new(file_name)
         .extension()
         .and_then(|value| value.to_str())
+        .filter(|value| {
+            !value.is_empty()
+                && value.len() <= 16
+                && value.chars().all(|ch| ch.is_ascii_alphanumeric())
+        })
         .map(|value| format!(".{value}"))
         .unwrap_or_default();
     data_root

@@ -141,8 +141,16 @@ pub struct ToolUsageRecord {
 impl SessionStore {
     /// 追加一条 model 请求用量记录。
     pub fn record_model_usage(&self, record: ModelUsageRecord) -> Result<(), StoreError> {
+        self.with_write_transaction(|transaction| Self::record_model_usage_tx(transaction, record))
+    }
+
+    /// [`Self::record_model_usage`] 的**调用方事务内**变体（compact 落库合并写）。
+    pub fn record_model_usage_tx(
+        transaction: &rusqlite::Transaction<'_>,
+        record: ModelUsageRecord,
+    ) -> Result<(), StoreError> {
         let sql = insert_sql("model_usage", MODEL_USAGE_COLUMNS, 40);
-        self.with_write_transaction(|transaction| {
+        {
             transaction.execute(
                 &sql,
                 params![
@@ -189,13 +197,21 @@ impl SessionStore {
                 ],
             )?;
             Ok(())
-        })
+        }
     }
 
     /// 追加一条 turn 用量记录；同一 `(session_id, turn_id)` 重复写入会报主键错误。
     pub fn record_turn_usage(&self, record: TurnUsageRecord) -> Result<(), StoreError> {
+        self.with_write_transaction(|transaction| Self::record_turn_usage_tx(transaction, record))
+    }
+
+    /// [`Self::record_turn_usage`] 的**调用方事务内**变体（compact 落库合并写）。
+    pub fn record_turn_usage_tx(
+        transaction: &rusqlite::Transaction<'_>,
+        record: TurnUsageRecord,
+    ) -> Result<(), StoreError> {
         let sql = insert_sql("turn_usage", TURN_USAGE_COLUMNS, 26);
-        self.with_write_transaction(|transaction| {
+        {
             transaction.execute(
                 &sql,
                 params![
@@ -228,7 +244,7 @@ impl SessionStore {
                 ],
             )?;
             Ok(())
-        })
+        }
     }
 
     /// 会话已持久化的 turn id（升序；`turn_usage` 主键的一部分）。

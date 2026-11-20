@@ -139,7 +139,8 @@ impl SessionStore {
     }
 
     /// 在一个 `BEGIN IMMEDIATE` 事务里执行写操作；闭包返回错误时回滚。
-    pub(crate) fn with_write_transaction<T>(
+    /// 供调用方把多条派生写合并进**单个** Immediate 事务（compact 落库的原子性）。
+    pub fn with_write_transaction<T>(
         &self,
         operation: impl FnOnce(&rusqlite::Transaction<'_>) -> Result<T, StoreError>,
     ) -> Result<T, StoreError> {
