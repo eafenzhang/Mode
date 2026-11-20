@@ -12,6 +12,7 @@ use serde_json::{json, Value};
 
 pub mod lan;
 pub mod server_info;
+pub mod ws_host;
 
 use server_info::{ServerInfoConfig, ServerRemoteInfo};
 
@@ -32,6 +33,18 @@ pub fn router_from_env() -> Router {
 /// base 路由 + LAN 管理面（`lan-http` 桥接）；装配方注入具体凭据端口。
 pub fn router_with_lan(config: ServerInfoConfig, pairing: lan::SharedLanHttp) -> Router {
     router(config).merge(lan::lan_router(pairing))
+}
+
+/// base + LAN + `/ws/host`（trusted-host WS RPC 帧桥）。
+///
+/// capability store 进程内单例；频道装配用 [`host_channels::register_service_channels`]
+/// （server-mode 无 Agent 控制面，agent 频道不可构造留痕跳过）。
+pub fn router_with_ws_host(config: ServerInfoConfig, data_root: std::path::PathBuf) -> Router {
+    let deps = ws_host::WsHostDeps {
+        host_capabilities: Arc::new(ws_host::HostCapabilityStore::new()),
+        data_root,
+    };
+    router(config).merge(ws_host::ws_host_router(deps))
 }
 
 async fn healthz() -> Json<Value> {

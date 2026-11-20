@@ -36,8 +36,16 @@
 ## 3. 后续切片
 
 1. LAN 装配：`crates/server` 的内存凭据端口换 credential-store（宿主装配注入）。（`/api/lan/state`、`peers`）：复用 `crates/lan-*`，写操作仍走现有 Host。
-2. `/ws/host`：先接 RPC 帧转发，保持 `desktop-continuous` 与
-   `web-remote-replayable` 两种语义（见 W2 spec）。
+2. `/ws/host` 首切已接（LT-15 P2 切二，2026-11-21）：capability 签发
+   （`POST /api/rpc-host-capability`，30s TTL 一次性、先删后比防重放）+ WS 升级 +
+   每连接一个 `rpc_host::ChannelServer`（TS `new ChannelServer(protocol, "server")`
+   同款 deferInit=false）+ `host_channels::assembly` 全频道装配。差异：LAN 客户端
+   录制（resolveLanClientByToken/workspace 记录）依赖 Node Host 录制面未迁；
+   mode-agent 连接域与 agent 频道依赖 Agent 控制面，server-mode 暂不注册
+   （`agent_control: None`，四个频道不可构造留痕跳过）。`desktop-continuous` 与
+   `web-remote-replayable` 的 mode-agent 连接语义随 agent 频道接线补验。
+   capability 格式差异：TS `randomBytes(32).toString("base64url")`（256bit），
+   Rust uuid v4×2 拼接（244bit，无 rand/getrandom 依赖）；header 名与消费语义一致。
 3. 更新/远程桌面/附件组逐组迁移；每组先补契约对拍，再切换所有权。
 4. 全部路由对拍通过后，`packages/server` 才进入退役。
 
