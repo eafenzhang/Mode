@@ -47,7 +47,7 @@ pub use candidates::{
 pub use marketplace_install::{
     install_marketplace_plugin, load_marketplace_manifest, resolve_dependency_closure,
     resolve_installed_plugin_version, resolve_plugin_source_root, MarketplaceInstallResult,
-    MarketplaceManifest, MarketplacePluginEntry,
+    MarketplaceManifest, MarketplacePluginEntry, ResolvedPluginSourceRoot,
 };
 pub use marketplace_source::{
     export_marketplace_source_archive, import_marketplace_source_archive,

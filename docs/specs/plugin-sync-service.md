@@ -117,8 +117,14 @@ sourceFingerprints})[..12]>`。
   `allowCrossMarketplaceDependenciesOn` 显式放行；环检测报 `cycle`；缺失依赖报
   `Dependency not found`）→ 逐条拷贝到 cache 目录 → 记录 upsert → 原子保存 →
   config 写回（安装即默认启用）。
-- 源：directory/file/字符串相对路径 + filesystem/sea 兜底；git/npm/url 等网络源
-  返回错误（后续切片接入）。
+- 源：directory/local/裸字符串相对路径（含 `pluginRoot` 基准目录）+ filesystem/sea
+  兜底；网络源 github/git/url/git-subdir 走 git clone 子进程（npm/pip/zip 显式不支持）。
+- 网络源细节：`resolve_plugin_source_root` 返回 `ResolvedPluginSourceRoot { path,
+  temp_dir }`，`cleanup()` 对应 TS `{path, cleanup}` 的所有权——网络 clone 落系统
+  临时目录，复制进 cache 后必须清理；`MODE_GIT_BINARY` 覆盖 git 二进制；90s 超时；
+  仅网络型错误（RPC failed/timeout/Connection reset 等）重试 3 次（间隔 1s×attempt，
+  重试间重建目标目录）；无 sha 用 `--depth 1`，有 sha 补 `checkout`；`owner/repo`
+  简写补成 GitHub HTTPS URL（`git-subdir`）。
 - 已有记录重装：保留原 `installedAt`、覆盖其余字段；cache 目录先删后拷。
 - 失败回滚本轮新建的 cache 目录（已有目录不动）。
 - 返回 `MarketplaceInstallResult { dependency_closure, installed_plugins, enabled_ids }`；
@@ -154,6 +160,13 @@ sourceFingerprints})[..12]>`。
 6. **镜像 manifest key 顺序**：Rust 用 `serde_json::Map`（有序 map）序列化，键顺序与 TS
    对象插入顺序可能不同，导致 `directoryName` 的 12 位后缀不同；内容与导入行为一致，
    fixture 把 `-<12 hex>` 归一为 `<hash12>`。
+7. **网络源传输**：TS 先走 GitHub archive 快路径（codeload tar.gz），网络型失败回退
+   git clone；Rust 直接 git clone（同一解析结果，省一次 HTTP 探测）。zip/url-zip、
+   npm、pip 在 TS 支持或显式报错，Rust 本切片统一返回
+   `Plugin source is recognized but not supported in this runtime: <kind>`。
+8. **git 子进程环境**：TS 用 `buildMarketplaceGitEnv`（sanitize + 显式恢复代理/CA）；
+   Rust 直接继承父进程环境。manifest-only 大 catalog 的按需稀疏检出
+   （`fetchMarketplacePluginFromRepo`）TS 有、Rust 待接（本地缺失即报错）。
 
 ## 6. 验收
 

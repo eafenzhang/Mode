@@ -34,6 +34,8 @@ pub struct MarketplaceManifest {
     pub name: String,
     pub allow_cross_marketplace_dependencies_on: Vec<String>,
     pub plugins: Vec<MarketplacePluginEntry>,
+    /// TS `manifest.pluginRoot`：插件目录相对 marketplace 目录的基准（顶层或 metadata.pluginRoot）。
+    pub plugin_root: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -77,6 +79,16 @@ pub fn load_marketplace_manifest(
                 .collect()
         })
         .unwrap_or_default();
+    let plugin_root = object
+        .get("pluginRoot")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            object
+                .get("metadata")
+                .and_then(|metadata| metadata.get("pluginRoot"))
+                .and_then(Value::as_str)
+        })
+        .map(str::to_string);
     let raw_plugins = object.get("plugins")?;
     let plugin_entries: Vec<(String, &Value)> = match raw_plugins {
         Value::Array(items) => items
@@ -95,6 +107,7 @@ pub fn load_marketplace_manifest(
     Some(MarketplaceManifest {
         name,
         allow_cross_marketplace_dependencies_on: allow_cross,
+        plugin_root,
         plugins: plugin_entries
             .into_iter()
             .map(|(plugin_name, entry)| MarketplacePluginEntry {
@@ -199,13 +212,318 @@ pub fn resolve_dependency_closure(
     Ok(context.closure)
 }
 
-/// 源根目录解析：directory/file/字符串相对路径 与 filesystem/sea 缓存兜底。
-/// git/npm/url 等网络源返回错误（后续按需接入）。
+const GIT_COMMAND_TIMEOUT_MS: u64 = 90_000;
+const GIT_CLONE_MAX_ATTEMPTS: u32 = 3;
+const GIT_CLONE_RETRY_DELAY_MS: u64 = 1_000;
+
+/// TS `resolveMarketplacePluginBaseDir`：manifest.pluginRoot 相对 marketplace 目录，
+/// 解析失败或目录缺失回落 marketplace 目录本身。
+fn resolve_marketplace_plugin_base_dir(
+    marketplace_dir: &Path,
+    manifest: Option<&MarketplaceManifest>,
+) -> PathBuf {
+    let Some(plugin_root) = manifest.and_then(|manifest| manifest.plugin_root.as_deref()) else {
+        return marketplace_dir.to_path_buf();
+    };
+    let stripped = plugin_root.strip_prefix("./").unwrap_or(plugin_root);
+    let Ok(resolved) = crate::paths::resolve_within(marketplace_dir, stripped) else {
+        return marketplace_dir.to_path_buf();
+    };
+    if resolved.is_dir() {
+        resolved
+    } else {
+        marketplace_dir.to_path_buf()
+    }
+}
+
+/// TS `readRequiredPluginSourceString`：字段必须是非空字符串。
+fn read_required_plugin_source_string(
+    source: &serde_json::Map<String, Value>,
+    field: &str,
+    label: &str,
+) -> Result<String, String> {
+    match source.get(field).and_then(Value::as_str) {
+        Some(value) if !value.trim().is_empty() => Ok(value.to_string()),
+        _ => Err(format!(
+            "Plugin {label} source requires a non-empty {field}"
+        )),
+    }
+}
+
+/// TS `readPluginSourceIdentityPin`：zip sha256 → sha → commit（旧写法兼容）。
+fn read_plugin_source_identity_pin(source: &serde_json::Map<String, Value>) -> Option<String> {
+    for field in ["sha256", "sha", "commit"] {
+        if let Some(value) = source
+            .get(field)
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+        {
+            return Some(value.to_string());
+        }
+    }
+    None
+}
+
+/// TS `normalizeGitUrl`：`owner/repo` 简写（无 `:`）补成 GitHub HTTPS URL。
+fn normalize_git_url(value: &str) -> String {
+    if value.matches('/').count() == 1
+        && !value.contains(':')
+        && value.split('/').all(|part| !part.is_empty())
+    {
+        let (owner, repo) = (
+            value.split('/').next().unwrap_or_default(),
+            value.split('/').nth(1).unwrap_or_default(),
+        );
+        return format!("https://github.com/{owner}/{repo}.git");
+    }
+    value.to_string()
+}
+
+/// TS `isRetryableGitCloneError`：仅网络型错误短重试，权限/路径/仓库不存在等
+/// 确定性错误不重试。
+fn is_retryable_git_clone_error(output: &str) -> bool {
+    const PATTERNS: [&str; 11] = [
+        "rpc failed",
+        "operation timed out",
+        "recv failure",
+        "expected flush",
+        "early eof",
+        "remote end hung up",
+        "http/2 stream",
+        "connection reset",
+        "etimedout",
+        "econnreset",
+        "network timeout",
+    ];
+    let lower = output.to_lowercase();
+    PATTERNS.iter().any(|pattern| lower.contains(pattern))
+}
+
+struct GitCommandOutput {
+    success: bool,
+    combined: String,
+}
+
+/// TS `execGitCommand`：显式二进制覆盖（`MODE_GIT_BINARY`）+ 90s 超时（超时 kill）。
+fn exec_git(args: &[String]) -> Result<(), String> {
+    let output = exec_git_with_output(args)?;
+    if output.success {
+        Ok(())
+    } else {
+        Err(output.combined)
+    }
+}
+
+fn exec_git_with_output(args: &[String]) -> Result<GitCommandOutput, String> {
+    let binary = std::env::var("MODE_GIT_BINARY")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "git".to_string());
+    let mut child = std::process::Command::new(&binary)
+        .args(args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                format!("Git binary not available: {binary}")
+            } else {
+                format!("Failed to spawn git: {error}")
+            }
+        })?;
+    let deadline =
+        std::time::Instant::now() + std::time::Duration::from_millis(GIT_COMMAND_TIMEOUT_MS);
+    let mut failure = String::new();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let stdout = child.stdout.take().map(|mut stream| {
+                    let mut buffer = Vec::new();
+                    std::io::Read::read_to_end(&mut stream, &mut buffer).ok();
+                    String::from_utf8_lossy(&buffer).to_string()
+                });
+                let stderr = child.stderr.take().map(|mut stream| {
+                    let mut buffer = Vec::new();
+                    std::io::Read::read_to_end(&mut stream, &mut buffer).ok();
+                    String::from_utf8_lossy(&buffer).to_string()
+                });
+                let combined = [stdout, stderr]
+                    .into_iter()
+                    .flatten()
+                    .filter(|text| !text.trim().is_empty())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                if !status.success() {
+                    failure = combined;
+                }
+                return Ok(GitCommandOutput {
+                    success: status.success(),
+                    combined: failure,
+                });
+            }
+            Ok(None) => {
+                if std::time::Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    // 循环唯一出口是超时：kill 后直接返回超时错误。
+                    return Ok(GitCommandOutput {
+                        success: false,
+                        combined: format!("git command timed out after {GIT_COMMAND_TIMEOUT_MS}ms"),
+                    });
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            Err(error) => return Err(format!("Failed to wait for git: {error}")),
+        }
+    }
+}
+
+/// TS `execGitCloneWithRetry`：仅网络型错误重试，重试间重建目标目录。
+fn exec_git_clone_with_retry(args: &[String], target_dir: &Path) -> Result<(), String> {
+    let mut last_error = String::new();
+    for attempt in 1..=GIT_CLONE_MAX_ATTEMPTS {
+        if attempt > 1 {
+            let _ = std::fs::remove_dir_all(target_dir);
+            std::fs::create_dir_all(target_dir).map_err(|error| error.to_string())?;
+        }
+        match exec_git(args) {
+            Ok(()) => return Ok(()),
+            Err(error) => {
+                last_error = error;
+                if attempt >= GIT_CLONE_MAX_ATTEMPTS || !is_retryable_git_clone_error(&last_error) {
+                    return Err(last_error);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(
+                    GIT_CLONE_RETRY_DELAY_MS * attempt as u64,
+                ));
+            }
+        }
+    }
+    Err(last_error)
+}
+
+/// TS `clonePluginSource`：临时目录 clone（无 sha 用 --depth 1，有 ref 用 --branch，
+/// 有 sha 补 checkout），失败清理临时目录。
+fn clone_plugin_source(
+    url: &str,
+    git_ref: Option<&str>,
+    sha: Option<&str>,
+) -> Result<PathBuf, String> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_nanos())
+        .unwrap_or(0);
+    let dir = std::env::temp_dir().join(format!("mode-plugin-src-{}-{nanos}", std::process::id()));
+    let mut args: Vec<String> = vec!["clone".to_string()];
+    if sha.is_none() {
+        args.push("--depth".to_string());
+        args.push("1".to_string());
+    }
+    if let Some(git_ref) = git_ref {
+        args.push("--branch".to_string());
+        args.push(git_ref.to_string());
+    }
+    args.push(url.to_string());
+    args.push(dir.display().to_string());
+    let result = exec_git_clone_with_retry(&args, &dir).and_then(|()| {
+        if let Some(sha) = sha {
+            exec_git(&[
+                "-C".to_string(),
+                dir.display().to_string(),
+                "checkout".to_string(),
+                sha.to_string(),
+            ])
+        } else {
+            Ok(())
+        }
+    });
+    if result.is_err() {
+        let _ = std::fs::remove_dir_all(&dir);
+        return result.map(|()| dir);
+    }
+    Ok(dir)
+}
+
+/// 解析结果：源根目录 + 需要调用方用完后清理的临时目录（TS `{path, cleanup}` 的
+/// 所有权对应物；网络源 clone 到系统临时目录，复制进 cache 后必须清理）。
+#[derive(Debug)]
+pub struct ResolvedPluginSourceRoot {
+    pub path: PathBuf,
+    temp_dir: Option<PathBuf>,
+}
+
+impl ResolvedPluginSourceRoot {
+    /// 网络 clone 的临时目录（本地目录源为 None；仅测试与诊断用）。
+    pub fn temp_dir(&self) -> Option<&Path> {
+        self.temp_dir.as_deref()
+    }
+
+    /// TS cleanup 语义：删除网络源 clone 的临时目录（幂等）。
+    pub fn cleanup(&self) {
+        if let Some(temp_dir) = &self.temp_dir {
+            let _ = std::fs::remove_dir_all(temp_dir);
+        }
+    }
+}
+
+fn local_source_root(path: PathBuf) -> ResolvedPluginSourceRoot {
+    ResolvedPluginSourceRoot {
+        path,
+        temp_dir: None,
+    }
+}
+
+fn cloned_source_root(path: PathBuf, temp_dir: PathBuf) -> ResolvedPluginSourceRoot {
+    ResolvedPluginSourceRoot {
+        path,
+        temp_dir: Some(temp_dir),
+    }
+}
+
+/// TS `resolveGitPluginSource`：clone 后按 `path` 取子目录（须在克隆目录内）。
+fn resolve_git_plugin_source(
+    url: &str,
+    git_ref: Option<&str>,
+    sha: Option<&str>,
+    path: Option<&str>,
+) -> Result<ResolvedPluginSourceRoot, String> {
+    let dir = clone_plugin_source(url, git_ref, sha)?;
+    let Some(path) = path else {
+        return Ok(cloned_source_root(dir.clone(), dir));
+    };
+    let stripped = path.strip_prefix("./").unwrap_or(path);
+    let subdir = crate::paths::resolve_within(&dir, stripped)
+        .ok()
+        .filter(|resolved| resolved.is_dir());
+    match subdir {
+        Some(subdir) => Ok(cloned_source_root(subdir, dir)),
+        None => {
+            let _ = std::fs::remove_dir_all(&dir);
+            Err(format!("Plugin source subdirectory does not exist: {path}"))
+        }
+    }
+}
+
+/// TS `resolveRepositoryPluginSource`：先试 GitHub archive 快路径（codeload tar.gz），
+/// 网络型失败回退 git clone；本切片直接 git clone（结果一致，传输差异记录 spec 已知差异）。
+fn resolve_repository_plugin_source(
+    url: &str,
+    git_ref: Option<&str>,
+    sha: Option<&str>,
+    path: Option<&str>,
+) -> Result<ResolvedPluginSourceRoot, String> {
+    resolve_git_plugin_source(url, git_ref, sha, path)
+}
+
+/// 源根目录解析：directory/local/字符串相对路径、filesystem/sea 缓存兜底，
+/// 以及 github/git/url/git-subdir 网络源（git clone 子进程）；npm/pip 显式不支持。
 pub fn resolve_plugin_source_root(
     storage_root: &Path,
     marketplace: &str,
     entry: &MarketplacePluginEntry,
-) -> Result<PathBuf, String> {
+    manifest: Option<&MarketplaceManifest>,
+) -> Result<ResolvedPluginSourceRoot, String> {
     let marketplace_dir = marketplace_manifest_path(storage_root, marketplace)
         .parent()
         .unwrap_or(Path::new("."))
@@ -218,7 +536,7 @@ pub fn resolve_plugin_source_root(
             if let Some(cache_path) = &entry.cache_path {
                 let path = Path::new(cache_path);
                 if path.is_dir() {
-                    return Ok(path.to_path_buf());
+                    return Ok(local_source_root(path.to_path_buf()));
                 }
             }
             let computed = plugin_cache_dir(
@@ -228,7 +546,7 @@ pub fn resolve_plugin_source_root(
                 entry.version.as_deref().unwrap_or(DEFAULT_VERSION),
             );
             if computed.is_dir() {
-                return Ok(computed);
+                return Ok(local_source_root(computed));
             }
             return Err(format!(
                 "Bundled plugin cache directory missing: {}@{marketplace} (this plugin ships inside the official client and is not bundled in this fork)",
@@ -240,38 +558,137 @@ pub fn resolve_plugin_source_root(
                 .get("source")
                 .and_then(Value::as_str)
                 .unwrap_or("");
-            if kind == "directory" || kind == "file" {
-                let path = source_object
-                    .get("path")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                let resolved = Path::new(path);
-                if resolved.is_dir() {
-                    return Ok(resolved.to_path_buf());
+            match kind {
+                "directory" => {
+                    let path = read_required_plugin_source_string(
+                        source_object,
+                        "path",
+                        "directory path",
+                    )?;
+                    let resolved = crate::paths::resolve_user_path(&path);
+                    if resolved.is_dir() {
+                        return Ok(local_source_root(resolved));
+                    }
+                    return Err(format!(
+                        "Plugin source directory does not exist: {}",
+                        resolved.display()
+                    ));
                 }
-                return Err(format!("Plugin source directory does not exist: {path}"));
+                "local" => {
+                    // Codex 格式市场条目：{ source: "local", path: "./plugins/<owner>/<name>" }。
+                    let source_path =
+                        read_required_plugin_source_string(source_object, "path", "local path")?;
+                    let stripped = source_path.strip_prefix("./").unwrap_or(&source_path);
+                    let base_dir = resolve_marketplace_plugin_base_dir(&marketplace_dir, manifest);
+                    if let Ok(local) = crate::paths::resolve_within(&base_dir, stripped) {
+                        if local.is_dir() {
+                            return Ok(local_source_root(local));
+                        }
+                    }
+                    // TS 本地缺失还会按需从 marketplace 仓库稀疏检出（manifest-only 大
+                    // catalog）；该路径依赖 marketplace repo 身份，留待后续切片。
+                    return Err(format!(
+                        "Plugin source directory does not exist: {stripped}"
+                    ));
+                }
+                "github" => {
+                    let repo =
+                        read_required_plugin_source_string(source_object, "repo", "GitHub repo")?;
+                    let url = format!("https://github.com/{repo}.git");
+                    return resolve_repository_plugin_source(
+                        &url,
+                        source_object.get("ref").and_then(Value::as_str),
+                        read_plugin_source_identity_pin(source_object).as_deref(),
+                        source_object.get("path").and_then(Value::as_str),
+                    );
+                }
+                "git" => {
+                    let url = read_required_plugin_source_string(source_object, "url", "Git URL")?;
+                    return resolve_repository_plugin_source(
+                        &url,
+                        source_object.get("ref").and_then(Value::as_str),
+                        read_plugin_source_identity_pin(source_object).as_deref(),
+                        source_object.get("path").and_then(Value::as_str),
+                    );
+                }
+                "url" => {
+                    let url = read_required_plugin_source_string(source_object, "url", "URL")?;
+                    let source_type = source_object
+                        .get("type")
+                        .and_then(Value::as_str)
+                        .unwrap_or("");
+                    if source_type == "zip" {
+                        // zip 源需要 HTTP 下载 + sha256 校验，本切片未接入。
+                        return Err(
+                            "Plugin source is recognized but not supported in this runtime: url:zip"
+                                .to_string(),
+                        );
+                    }
+                    if !source_type.is_empty() && source_type != "git" {
+                        return Err(format!(
+                            "Plugin source is recognized but not supported in this runtime: url:{source_type}"
+                        ));
+                    }
+                    return resolve_repository_plugin_source(
+                        &url,
+                        source_object.get("ref").and_then(Value::as_str),
+                        read_plugin_source_identity_pin(source_object).as_deref(),
+                        source_object.get("path").and_then(Value::as_str),
+                    );
+                }
+                "git-subdir" => {
+                    let path = read_required_plugin_source_string(
+                        source_object,
+                        "path",
+                        "git-subdir path",
+                    )?;
+                    let raw_url =
+                        read_required_plugin_source_string(source_object, "url", "git-subdir URL")?;
+                    let url = normalize_git_url(&raw_url);
+                    return resolve_repository_plugin_source(
+                        &url,
+                        source_object.get("ref").and_then(Value::as_str),
+                        read_plugin_source_identity_pin(source_object).as_deref(),
+                        Some(&path),
+                    );
+                }
+                "npm" | "pip" => {
+                    return Err(format!(
+                        "Plugin source is recognized but not supported in this runtime: {kind}"
+                    ));
+                }
+                _ => {
+                    // 显式 object source 配置错误时不能降级到 marketplace 内同名目录。
+                    return Err(format!(
+                        "Plugin source is invalid or unsupported for {}@{marketplace}: {}",
+                        entry.name,
+                        if kind.is_empty() {
+                            "missing kind"
+                        } else {
+                            kind
+                        }
+                    ));
+                }
             }
-            // git / npm / url / github 等网络源暂不接入。
-            return Err(format!(
-                "Network plugin source not supported in this slice: {kind} ({})",
-                entry.name
-            ));
         }
     }
-    // 裸字符串：manifest 相对路径或绝对路径。
+    // 裸字符串：manifest 相对路径（含 pluginRoot 基准）或绝对路径。
     if let Some(source) = source.and_then(Value::as_str) {
         let stripped = source.strip_prefix("./").unwrap_or(source);
-        let relative = marketplace_dir.join(stripped);
+        let base_dir = resolve_marketplace_plugin_base_dir(&marketplace_dir, manifest);
+        let relative = base_dir.join(stripped);
         if relative.is_dir() {
-            return Ok(relative);
+            return Ok(local_source_root(relative));
         }
-        let absolute = Path::new(source);
+        let absolute = crate::paths::resolve_user_path(source);
         if absolute.is_dir() {
-            return Ok(absolute.to_path_buf());
+            return Ok(local_source_root(absolute));
         }
+        // TS 本地缺失还会按需从 marketplace 仓库稀疏检出；留待后续切片。
+        return Err(format!("Unsupported or missing plugin source: {source}"));
     }
     Err(format!(
-        "Unsupported or missing plugin source: {}@{marketplace}",
+        "Plugin source is not supported for {}@{marketplace}",
         entry.name
     ))
 }
@@ -363,17 +780,25 @@ pub fn install_marketplace_plugin(
                 .iter()
                 .find(|entry| entry.name == plugin_name)
                 .ok_or_else(|| format!("Plugin not found: {plugin_id}"))?;
-            let source_root = resolve_plugin_source_root(storage_root, &plugin_marketplace, entry)?;
-            let version = resolve_installed_plugin_version(&source_root, entry);
+            let source_root = resolve_plugin_source_root(
+                storage_root,
+                &plugin_marketplace,
+                entry,
+                Some(&manifest),
+            )?;
+            let version = resolve_installed_plugin_version(&source_root.path, entry);
             let target =
                 plugin_cache_dir(storage_root, &plugin_marketplace, &plugin_name, &version);
-            if source_root != target {
+            if source_root.path != target {
                 if target.exists() {
                     std::fs::remove_dir_all(&target).map_err(|error| error.to_string())?;
                 }
-                copy_dir_recursive(&source_root, &target)?;
+                copy_dir_recursive(&source_root.path, &target)?;
                 created_dirs.push(target.clone());
             }
+            // 网络源 clone 的临时目录复制完成即清理（TS cacheMarketplacePlugin 的
+            // cleanup 语义）；本地目录不动。
+            source_root.cleanup();
             let now = now_iso();
             let record = InstalledPluginRecord {
                 id: format!("{plugin_name}@{plugin_marketplace}"),
@@ -568,6 +993,332 @@ mod tests {
         let state = load_installed_plugins_state(&root);
         assert_eq!(state.plugins.len(), 1);
         assert_eq!(state.plugins[0].id, "demo@market-a");
+    }
+
+    fn temp_clone_dirs() -> Vec<PathBuf> {
+        std::fs::read_dir(std::env::temp_dir())
+            .expect("tmp")
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("mode-plugin-src-")
+            })
+            .map(|entry| entry.path())
+            .collect()
+    }
+
+    fn entry_with_source(source: Value) -> MarketplacePluginEntry {
+        MarketplacePluginEntry {
+            name: "demo".to_string(),
+            version: None,
+            dependencies: None,
+            source: Some(source),
+            cache_path: None,
+        }
+    }
+
+    #[test]
+    fn normalize_git_url_expands_owner_repo_shorthand() {
+        assert_eq!(
+            normalize_git_url("owner/repo"),
+            "https://github.com/owner/repo.git"
+        );
+        assert_eq!(
+            normalize_git_url("https://github.com/owner/repo"),
+            "https://github.com/owner/repo"
+        );
+        assert_eq!(
+            normalize_git_url("git@host:owner/repo"),
+            "git@host:owner/repo"
+        );
+        assert_eq!(normalize_git_url("a/b/c"), "a/b/c");
+    }
+
+    #[test]
+    fn identity_pin_prefers_sha_then_commit() {
+        let mut source = serde_json::Map::new();
+        assert_eq!(read_plugin_source_identity_pin(&source), None);
+        source.insert("commit".to_string(), Value::String("abc".to_string()));
+        assert_eq!(
+            read_plugin_source_identity_pin(&source).as_deref(),
+            Some("abc")
+        );
+        source.insert("sha".to_string(), Value::String("def".to_string()));
+        assert_eq!(
+            read_plugin_source_identity_pin(&source).as_deref(),
+            Some("def")
+        );
+        source.insert("sha256".to_string(), Value::String("789".to_string()));
+        assert_eq!(
+            read_plugin_source_identity_pin(&source).as_deref(),
+            Some("789")
+        );
+    }
+
+    #[test]
+    fn retryable_git_errors_match_network_patterns() {
+        assert!(is_retryable_git_clone_error(
+            "fatal: the remote end hung up unexpectedly"
+        ));
+        assert!(is_retryable_git_clone_error(
+            "error: RPC failed; curl 56 Recv failure"
+        ));
+        assert!(is_retryable_git_clone_error("Connection reset by peer"));
+        assert!(!is_retryable_git_clone_error(
+            "fatal: repository 'x' not found"
+        ));
+        assert!(!is_retryable_git_clone_error("permission denied"));
+    }
+
+    #[test]
+    fn unsupported_source_kinds_report_runtime_error() {
+        let root = tmp_root("kinds");
+        std::fs::create_dir_all(&root).expect("root");
+        let npm = entry_with_source(json!({ "source": "npm" }));
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &npm, None).expect_err("npm"),
+            "Plugin source is recognized but not supported in this runtime: npm"
+        );
+        let pip = entry_with_source(json!({ "source": "pip" }));
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &pip, None).expect_err("pip"),
+            "Plugin source is recognized but not supported in this runtime: pip"
+        );
+        let zip = entry_with_source(json!({
+            "source": "url", "type": "zip", "url": "https://example.com/x.zip",
+            "sha256": "deadbeef",
+        }));
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &zip, None).expect_err("zip"),
+            "Plugin source is recognized but not supported in this runtime: url:zip"
+        );
+        let tar = entry_with_source(json!({
+            "source": "url", "type": "tar", "url": "https://example.com/x.tar",
+        }));
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &tar, None).expect_err("tar"),
+            "Plugin source is recognized but not supported in this runtime: url:tar"
+        );
+        let file_kind = entry_with_source(json!({ "source": "file", "path": "x" }));
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &file_kind, None).expect_err("file"),
+            "Plugin source is invalid or unsupported for demo@m: file"
+        );
+        let missing_kind = entry_with_source(json!({}));
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &missing_kind, None).expect_err("missing"),
+            "Plugin source is invalid or unsupported for demo@m: missing kind"
+        );
+    }
+
+    #[test]
+    fn required_source_fields_report_non_empty_errors() {
+        let root = tmp_root("required");
+        std::fs::create_dir_all(&root).expect("root");
+        let git = entry_with_source(json!({ "source": "git" }));
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &git, None).expect_err("git"),
+            "Plugin Git URL source requires a non-empty url"
+        );
+        let github = entry_with_source(json!({ "source": "github" }));
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &github, None).expect_err("github"),
+            "Plugin GitHub repo source requires a non-empty repo"
+        );
+        let url = entry_with_source(json!({ "source": "url" }));
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &url, None).expect_err("url"),
+            "Plugin URL source requires a non-empty url"
+        );
+        let subdir = entry_with_source(json!({ "source": "git-subdir", "url": "owner/repo" }));
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &subdir, None).expect_err("subdir"),
+            "Plugin git-subdir path source requires a non-empty path"
+        );
+        let directory = entry_with_source(json!({ "source": "directory" }));
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &directory, None).expect_err("directory"),
+            "Plugin directory path source requires a non-empty path"
+        );
+    }
+
+    #[test]
+    fn local_source_resolves_inside_plugin_root_base_dir() {
+        let root = tmp_root("local-root");
+        // pluginRoot: "plugins" → base 目录是 marketplace 目录下的 plugins/。
+        let marketplace_dir = root.join("marketplaces").join("m");
+        std::fs::create_dir_all(marketplace_dir.join("plugins").join("demo")).expect("plugin");
+        let manifest = json!({
+            "name": "m",
+            "pluginRoot": "plugins",
+            "plugins": [ { "name": "demo", "source": "local", "path": "./demo" } ],
+        });
+        std::fs::write(
+            marketplace_dir.join(MARKETPLACE_FILE),
+            serde_json::to_string_pretty(&manifest).expect("serialize"),
+        )
+        .expect("write");
+        let loaded = load_marketplace_manifest(&root, "m").expect("manifest");
+        assert_eq!(loaded.plugin_root.as_deref(), Some("plugins"));
+        let entry = entry_with_source(json!({ "source": "local", "path": "./demo" }));
+        let resolved =
+            resolve_plugin_source_root(&root, "m", &entry, Some(&loaded)).expect("local");
+        assert_eq!(resolved.path, marketplace_dir.join("plugins").join("demo"));
+
+        // pluginRoot 指向不存在目录时回落 marketplace 目录。
+        let entry2 = entry_with_source(json!({ "source": "local", "path": "./top-level" }));
+        let resolved2 = resolve_plugin_source_root(&root, "m", &entry2, Some(&loaded)).is_err();
+        assert!(resolved2, "plugins/demo 下没有 top-level，应报错");
+        let missing_path = entry_with_source(json!({ "source": "local", "path": "./absent" }));
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &missing_path, Some(&loaded))
+                .expect_err("missing"),
+            "Plugin source directory does not exist: absent"
+        );
+    }
+
+    #[test]
+    fn string_source_error_reports_raw_source_text() {
+        let root = tmp_root("string-err");
+        write_marketplace(
+            &root,
+            "m",
+            json!([ { "name": "demo", "source": "./absent" } ]),
+        );
+        let loaded = load_marketplace_manifest(&root, "m").expect("manifest");
+        let entry = loaded
+            .plugins
+            .iter()
+            .find(|entry| entry.name == "demo")
+            .cloned()
+            .expect("entry");
+        assert_eq!(
+            resolve_plugin_source_root(&root, "m", &entry, Some(&loaded)).expect_err("err"),
+            "Unsupported or missing plugin source: ./absent"
+        );
+    }
+
+    #[test]
+    fn git_source_clones_local_repo_subdirectory_with_pin() {
+        // git 缺失时跳过（与 TS e2e 同思路：环境无 git 则不测该链路）。
+        let probe = std::process::Command::new(
+            std::env::var("MODE_GIT_BINARY").unwrap_or_else(|_| "git".to_string()),
+        )
+        .arg("--version")
+        .output();
+        let Ok(probe) = probe else {
+            eprintln!("git unavailable; skipping clone e2e");
+            return;
+        };
+        if !probe.status.success() {
+            eprintln!("git unavailable; skipping clone e2e");
+            return;
+        }
+
+        let root = tmp_root("git-clone");
+        let repo_dir = root.join("repo");
+        std::fs::create_dir_all(repo_dir.join("plugins/demo/.mode-plugin")).expect("repo");
+        std::fs::create_dir_all(repo_dir.join("plugins/helper/.mode-plugin")).expect("helper");
+        std::fs::write(
+            repo_dir.join("plugins/demo/.mode-plugin/plugin.json"),
+            r#"{"name":"demo","version":"1.0.0"}"#,
+        )
+        .expect("demo manifest");
+        std::fs::write(
+            repo_dir.join("plugins/helper/.mode-plugin/plugin.json"),
+            r#"{"name":"helper","version":"0.1.0"}"#,
+        )
+        .expect("helper manifest");
+        let run = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&repo_dir)
+                .status()
+                .expect("git run");
+            assert!(status.success(), "git {args:?} failed");
+        };
+        run(&["init", "-q"]);
+        run(&["-c", "user.email=t@local", "-c", "user.name=t", "add", "."]);
+        run(&[
+            "-c",
+            "user.email=t@local",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "-m",
+            "init",
+        ]);
+        let sha_output = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&repo_dir)
+            .output()
+            .expect("rev-parse");
+        let sha = String::from_utf8_lossy(&sha_output.stdout)
+            .trim()
+            .to_string();
+
+        // url + path：clone 后取子目录。
+        let entry = entry_with_source(json!({
+            "source": "git", "url": repo_dir.display().to_string(), "path": "plugins/demo",
+        }));
+        let resolved = resolve_plugin_source_root(&root, "m", &entry, None).expect("clone");
+        assert_eq!(
+            std::fs::read_to_string(resolved.path.join(".mode-plugin/plugin.json")).expect("read"),
+            r#"{"name":"demo","version":"1.0.0"}"#
+        );
+        // 网络源 clone 落在临时目录，用完必须清理（TS cleanup 所有权）。
+        let temp_root = resolved.temp_dir().expect("temp dir");
+        assert!(temp_root.is_dir());
+        resolved.cleanup();
+        assert!(!temp_root.exists(), "cleanup 应删除临时 clone 目录");
+
+        // 带 sha pin：clone 后 checkout 指定提交。
+        let pinned = entry_with_source(json!({
+            "source": "git", "url": repo_dir.display().to_string(), "sha": sha, "path": "plugins/helper",
+        }));
+        let resolved_pinned =
+            resolve_plugin_source_root(&root, "m", &pinned, None).expect("clone pin");
+        assert!(resolved_pinned
+            .path
+            .join(".mode-plugin/plugin.json")
+            .exists());
+
+        // 子目录不存在：报错并清理临时目录（前后快照对比，不依赖共享 temp 的历史残留）。
+        let before = temp_clone_dirs();
+        let bad_path = entry_with_source(json!({
+            "source": "git", "url": repo_dir.display().to_string(), "path": "plugins/absent",
+        }));
+        let error = resolve_plugin_source_root(&root, "m", &bad_path, None).expect_err("absent");
+        assert_eq!(
+            error,
+            "Plugin source subdirectory does not exist: plugins/absent"
+        );
+        let after = temp_clone_dirs();
+        assert_eq!(after.len(), before.len(), "失败 clone 应清理自己的临时目录");
+        assert!(
+            after.iter().all(|dir| before.contains(dir)),
+            "不应新增临时目录: {after:?}"
+        );
+
+        // git-subdir + owner/repo 简写不适用于本地路径，直接用绝对 URL 验证透传。
+        let subdir = entry_with_source(json!({
+            "source": "git-subdir", "url": repo_dir.display().to_string(), "path": "plugins/demo",
+        }));
+        let resolved_subdir =
+            resolve_plugin_source_root(&root, "m", &subdir, None).expect("git-subdir");
+        assert!(resolved_subdir
+            .path
+            .to_string_lossy()
+            .contains("mode-plugin-src-"));
+        assert_eq!(
+            std::fs::read_to_string(resolved_subdir.path.join(".mode-plugin/plugin.json"))
+                .expect("read"),
+            r#"{"name":"demo","version":"1.0.0"}"#
+        );
+        resolved_subdir.cleanup();
     }
 
     #[test]

@@ -16,7 +16,7 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 | --- | --- | --- | --- |
 | **P1** | TUI Agent 传输接线 | `agent-server` stdio spawn、sessions-index 订阅、live 增量、Ctrl-N 新建；单测 + 真子进程 e2e | ✅ 2026-11-21 |
 | **P2** | axum LAN/WS | LAN 六端点全部桥接（state/pair/enable/pair-code/reset/clients 删除，11 测试；pair 含 Set-Cookie、enable 走监听视图）；剩 `/ws/host` RPC 帧桥接与凭据装配 | 🟡 HTTP 全收口 |
-| **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | 🟡 记录层+卸载编排+安装编排+config 写回已迁 `plugin-sync-service`（26 测试 + 3 对拍）；网络源（git/npm/url）待做 |
+| **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | 🟡 记录层+卸载编排+安装编排+config 写回+网络源（git clone）已迁 `plugin-sync-service`（34 测试 + 3 对拍）；zip/npm/pip 源与 TS 对拍补充待做 |
 | **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | ⬜ |
 | **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | 🟡 phase/goalStatus/title/lastAssistantPreview 已接（turn 事件驱动 + store 读尾）；hasBackgroundWork/workflowActivity 待做 |
 | **P6** | W6 收口 | `w6:readiness --fail-on-blockers` 通过；删 stdioFrames/stdoutGuard、TS 宿主编排与 host-sidecar 发运集 | ⬜ |
@@ -64,7 +64,17 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
   `config_path` 参数并返回 `enabled_ids`，`uninstall_marketplace_plugin` 改返
   `Result<Option<_>, String>`（记录不存在幂等 `Ok(None)`，config 写回失败传 `Err`）。
   spec 已补 §4d；29 条测试（26 单测 + 3 对拍）。
-- 待做：网络源（git/npm/url）、与 TS 行为对拍补充。
+- **网络源已迁**：`marketplace_install.rs`——github/git/url/git-subdir 四类走 git
+  clone 子进程（`MODE_GIT_BINARY` 覆盖、90s 超时、网络型错误 3 次重试、`--depth 1`/
+  `--branch`/`checkout` sha pin）；`ResolvedPluginSourceRoot { path, temp_dir }` +
+  `cleanup()` 对应 TS `{path, cleanup}` 所有权（修掉了成功 clone 临时目录无人清理的
+  生产泄漏）；`local` 源与裸字符串源接上 `pluginRoot` 基准目录（manifest 新增
+  `plugin_root` 字段）；修正两处文案保真度（`directory` 缺路径必填校验、裸字符串
+  错误带原始 source 文本、`file` kind 归入 invalid/unsupported——TS 仅 marketplace
+  级 source 支持 `file`）；npm/pip/zip 显式不支持（与 TS UnsupportedPluginSourceError
+  同文案）。差异记录 spec 已知差异 #7/#8。e2e 用本地 git 仓库当远端（clone/subdir/
+  sha pin/失败清理），git 缺失自动跳过；37 条测试（34 单测 + 3 对拍）。
+- 待做：zip/npm/pip 源、与 TS 行为对拍补充。
 
 ## P4/P5 进展
 
