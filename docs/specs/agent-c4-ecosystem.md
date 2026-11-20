@@ -1,6 +1,8 @@
 # Spec：C4 生态面接入与默认翻转（LT-1 C4）
 
-状态：**方向已定（2026-11-19，用户「继续 C4」）**；实现前由 C4-T0 补齐黑盒观察。
+状态：**已实现并翻转（2026-11-20）**。T0 黑盒契约、T1–T5 生态面完成；T6 真机
+headless 验收 19 PASS / 1 PARTIAL（唯一缺口为任务 16 远程/手机重连，环境受限）。
+用户裁决在该状态下执行默认翻转；翻转记录见 §4。
 关联：`docs/specs/agent-core-parity.md`（LT-1 总 spec，C4 = 生态面 + 20 任务 + 默认翻转）、
 `docs/specs/host-ownership-switch.md`（§7 20 任务清单）、
 `docs/specs/agent-c3-recovery-goal.md`（C3 携带项）、`docs/specs/clean-room-policy.md`。
@@ -46,10 +48,17 @@ C4 把 C1–C3 交付的 Rust 会话运行时从「核心子集」扩到**产品
 
 ## 4. 默认翻转
 
-- `resolve_agent_command`：默认解析顺序改 Rust（打包 `agent-server` 优先）→ 仍保留
-  `MODE_AGENT_SERVER_COMMAND` 回退 Node；健康面 `runtime=rust` 为默认值；
-- Node 回退路径保留测试；`host-ownership-switch.md` §7 的 20 任务是翻转门禁；
-- 翻转后 Node 不再为同一 workspace 启动（沿用 C2 的共享 DB 串行写语义）。
+执行记录（2026-11-20，用户裁决「翻转吧」）：
+
+- `resolve_agent_command` 顺序改为：`MODE_AGENT_SERVER_COMMAND` 显式覆盖 →
+  **已部署 native Rust binary（默认）** → dev dist / dev 源码 / 打包 `mode.cjs`
+  （Rust 缺失时回退）→ `NotConfigured`；
+- 健康面 `runtime` 取自解析结果：默认路径为 `rust`；显式 env 命令仍按
+  `MODE_AGENT_RUNTIME` 提示（Node 回退入口）；
+- 回滚：设置 `MODE_AGENT_SERVER_COMMAND=<node> [MODE_AGENT_RUNTIME=node]`；
+  测试覆盖 native 优先级、env 覆盖与移除后回到 Node 链；
+- 门禁说明：§7 的 20 任务实测 19 PASS / 1 PARTIAL（任务 16 需真实桌面/手机远程
+  环境）；用户知情后在 1 项环境受限的情况下执行翻转，剩余项登记为 C4 follow-up。
 
 ## 5. 验收
 

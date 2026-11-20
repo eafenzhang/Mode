@@ -129,7 +129,7 @@ sequenceDiagram
 | **C1 最小闭环**（已完成 2026-11-17） | `agent-server` + OpenAI Chat Completions + `session-store`（已有数据根）+ 6 个工具 + 权限 + create/send/subscribe/read/messages/list/close/resume + setter + 切换/回滚 | MCP/Skills/Plugins/Subagents/Workflows/附件/v4 帧；compact/memory/goal；Anthropic/Responses；fresh-install migration |
 | **C2 上下文/记忆/压缩**（已完成 2026-11-18） | 上下文装配、compact、memory、token 预算、会话快照齐全；Anthropic Messages / OpenAI Responses；C2 夹具回放 9/9 全绿（T8 对拍 harness），差异登记见 `tauri-agent-runtime.md` §C2.8 | 生态面；自动 compact 阈值（未观察）；memory 写路径（extraction 子代理，未观察）                                     |
 | **C3 恢复/目标/故障**（已完成 2026-11-19） | stream recovery/retry（`mode-api-retry` 单源）、goal/target 续跑（`session_target` 单一事实源）、后台通知（空闲开 turn / 忙时合并 / 前台工具窗口丢弃）、`session/subagents` 只读面、终态恰好一次；C3 夹具回放 11/11 全绿（`replay-c3.mts`），差异登记见 `tauri-agent-runtime.md` §C3；C1 38/38 + C2 11/11 保持 | 生态面；goal 预算/轮次上限（协议无入口，未观察）；spawn/child runtime（C4）                                        |
-| **C4 生态与默认翻转**（T1–T5 完成；2026-11-20 真机 headless 验收补齐后 19 PASS / 1 PARTIAL / 0 FAIL） | MCP/Skills/Plugins/Subagents/Workflows/附件/v4 已接入 `agent-server`；T6 补齐 TodoWrite/TodoRead、ExitPlanMode + plans、fileChanges/fileRewindPreview、backgroundBashOutput；验收修复 workflow events seq0 与 resync/unsubscribe 参数形状（`ac552018e`）；差异登记见 `tauri-agent-runtime.md` §C4 | 唯一 PARTIAL：任务 16 远程/手机重连（需真机；sessions-index live 增量未接）；**默认 Rust 翻转未执行**（§9.3 门禁未满足）；C4 replay driver 与真实端点 smoke 待补 |
+| **C4 生态与默认翻转**（2026-11-20 已翻转：默认 Rust；headless 验收 19 PASS / 1 PARTIAL） | MCP/Skills/Plugins/Subagents/Workflows/附件/v4 已接入 `agent-server`；T6 补齐 TodoWrite/TodoRead、ExitPlanMode + plans、fileChanges/fileRewindPreview、backgroundBashOutput；验收修复 workflow events seq0 与 resync/unsubscribe 参数形状（`ac552018e`）；差异登记见 `tauri-agent-runtime.md` §C4 | 唯一 PARTIAL：任务 16 远程/手机重连（需真机；sessions-index live 增量未接）；**默认 Rust 已翻转**（`resolve_agent_command` native 优先；用户在任务 16 环境受限的已知状态下裁决执行）；C4 replay driver 与真实端点 smoke 待补 |
 
 C1 的详细任务见 `docs/plans/2026-11-16-lt1-c1-rust-agent-server.md`。
 
@@ -389,7 +389,8 @@ Rust `agent-server` 必须用**同一份**比较器（TS `compare.mts`）或与�
 ### 9.3 C4 门禁
 
 - `host-ownership-switch.md §7` 的 20 个真实模型任务全部通过。
-- 默认运行时翻到 Rust；Node 只在显式回退时启动；`db.sqlite` 单写者有测试。
+- 默认运行时翻到 Rust（2026-11-20 已执行，用户裁决）；Node 只在显式回退时启动；
+  `db.sqlite` 单写者有测试。
 - 性能基线：turn 首事件延迟、工具往返、内存占用与 Node 基线对比；不达标项登记。
 
 ## 10. 风险与开放决策

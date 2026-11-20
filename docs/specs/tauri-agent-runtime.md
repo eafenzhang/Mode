@@ -1351,8 +1351,9 @@ T7 的 C4 回放 driver 与真实端点 smoke 仍待补。默认解析顺序**�
 2. `v4/conversation/resync|unsubscribe` 误用订阅参数结构，文档形状被 `-32602` 拒绝；
    改为 `ConversationResyncParams` / `ConversationUnsubscribeParams`，新增往返用例。
 
-门禁结论：6 项 PARTIAL 全部是已登记的未实现/未观察面，**未达到 20 项全绿**，因此
-`resolve_agent_command` 保持 Node 优先、默认运行时未翻转。
+门禁结论：补齐后 19 PASS / 1 PARTIAL（任务 16 远程/手机重连环境受限）；用户
+2026-11-20 裁决在已知状态下执行翻转：`resolve_agent_command` 改为 native Rust 优先
+（env 显式命令仍覆盖，Node 链在 Rust 缺失时回退），健康面默认 `runtime=rust`。
 
 ## 验收场景（Task 0）
 
