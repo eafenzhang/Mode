@@ -36,6 +36,7 @@ mod runtime;
 mod scripted;
 mod server;
 mod session_tools;
+mod sessions_index;
 mod skills;
 mod state;
 mod subagents_exec;

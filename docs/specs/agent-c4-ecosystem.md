@@ -1,7 +1,8 @@
 # Spec：C4 生态面接入与默认翻转（LT-1 C4）
 
 状态：**已实现并翻转（2026-11-20）**。T0 黑盒契约、T1–T5 生态面完成；T6 真机
-headless 验收 19 PASS / 1 PARTIAL（唯一缺口为任务 16 远程/手机重连，环境受限）。
+headless 验收 19 PASS / 1 PARTIAL（唯一缺口为任务 16 远程/手机重连，环境受限；
+sessions-index 列表行 live upsert/remove 已于 2026-11-21 补上，会话内 phase/预览投影仍待）。
 用户裁决在该状态下执行默认翻转；翻转记录见 §4。
 关联：`docs/specs/agent-core-parity.md`（LT-1 总 spec，C4 = 生态面 + 20 任务 + 默认翻转）、
 `docs/specs/host-ownership-switch.md`（§7 20 任务清单）、
@@ -69,6 +70,8 @@ C4 把 C1–C3 交付的 Rust 会话运行时从「核心子集」扩到**产品
   测试覆盖 native 优先级、env 覆盖与移除后回到 Node 链；
 - 门禁说明：§7 的 20 任务实测 19 PASS / 1 PARTIAL（任务 16 需真实桌面/手机远程
   环境）；用户知情后在 1 项环境受限的情况下执行翻转，剩余项登记为 C4 follow-up。
+  2026-11-21 已补 sessions-index 列表行 live upsert/remove（create/rename/delete），
+  真机重连与会话内 phase/预览投影仍在 follow-up。
 
 ## 5. 验收
 

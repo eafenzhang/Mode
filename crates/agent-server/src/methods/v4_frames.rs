@@ -9,7 +9,8 @@
 //!
 //! 登记差异（契约 §5.9）：createdAtSeq 用 DB sequence 近似事件 seq；cold 会话的
 //! usage/contextWindow 缺省；backgroundBashOutput 恒 unavailable；fileChanges 只做
-//! stale 守卫 + 空 items；sessions-index 的 live 增量未接。
+//! stale 守卫 + 空 items；sessions-index 的列表行 live upsert/remove 已接，
+//! 会话内 phase/预览/后台工作投影仍未接。
 
 use agent_protocol::v4_queries::{
     AppUsageDailyModelItem, AppUsageDailyModelUsage, AppUsageFavoriteModel, AppUsageHeatmap,
@@ -43,6 +44,7 @@ use std::collections::BTreeMap;
 
 use crate::dispatch::{AgentServer, PendingV4Forward};
 use crate::server::ServerError;
+use crate::sessions_index::summary_from_record;
 use crate::v4_projection::{build_snapshot, project_rows, ProjectedMessage};
 
 use super::parse_params;
@@ -349,7 +351,11 @@ fn subscribe_sessions_index(
         base36(server.v4_state().next_epoch_counter())
     );
     let sessions = sessions_index_sessions(server, workspace_id);
-    server.v4_state().register_subscription(
+    server
+        .sessions_index()
+        .ensure_workspace(workspace_id, &sessions);
+    let sessions = server.sessions_index().snapshot(workspace_id);
+    let cancel = server.v4_state().register_subscription(
         &subscription_id,
         &topic,
         &topic,
@@ -357,6 +363,7 @@ fn subscribe_sessions_index(
         0,
     );
     server.queue_v4_forward(crate::dispatch::PendingV4Forward::SessionsIndex {
+        workspace_id: workspace_id.to_string(),
         topic: topic.clone(),
         subscription_id: subscription_id.clone(),
         log_epoch: log_epoch.clone(),
@@ -366,6 +373,7 @@ fn subscribe_sessions_index(
             log_epoch: log_epoch.clone(),
             sessions,
         },
+        cancel,
     });
     serde_json::to_value(ConversationSubscribeResult {
         ack: ConversationSubscribeAck {
@@ -448,22 +456,10 @@ fn sessions_index_sessions(server: &AgentServer, workspace_id: &str) -> Vec<Sess
         .unwrap_or_default();
     records
         .into_iter()
-        .map(|record| SessionSummary {
-            session_id: record.id.clone(),
-            workspace_id: record.workspace_id.clone().unwrap_or_default(),
-            parent_session_id: record.parent_id.clone(),
-            title: record.title.clone(),
-            title_source: None,
-            phase: agent_protocol::v4_snapshot::SessionPhase::Draft,
-            session_ended: record.time_archived.is_some(),
-            has_background_work: false,
-            workflow_activity: None,
-            pending_interaction: None,
-            pending_interaction_summary: None,
-            goal_status: None,
-            last_activity_at: Number::from(record.time_updated.max(0)),
-            last_assistant_preview: None,
-            created_at: Number::from(record.time_created.max(0)),
+        .map(|record| {
+            let mut summary = summary_from_record(&record);
+            summary.workspace_id = workspace_id.to_string();
+            summary
         })
         .collect()
 }

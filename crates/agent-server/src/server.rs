@@ -433,7 +433,8 @@ fn conversation_snapshot(
 }
 
 /// C4 T4c：v4 live 转发。conversation 先发初始快照帧，随后把会话事件映射为
-/// 行/状态增量帧；sessions-index 只发初始快照帧（live 增量未接，登记）。
+/// 行/状态增量帧；sessions-index 先发初始快照，再转发 store 行变化产生的
+/// upsert/remove 增量（phase/预览等会话内投影仍待补）。
 async fn run_v4_forward(
     server: Arc<AgentServer>,
     forward: crate::dispatch::PendingV4Forward,
@@ -446,6 +447,102 @@ async fn run_v4_forward(
             params: Some(params),
             trace: None,
         })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn sessions_index_wire_frame(
+        subscription_id: &str,
+        topic: &str,
+        ordinal: u64,
+        delivery_kind: agent_protocol::v4_transport::WireDeliveryKind,
+        from_seq: u64,
+        to_seq: u64,
+        payload: agent_protocol::v4_sessions_index::SessionsIndexFramePayload,
+    ) -> Option<Value> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_millis() as u64)
+            .unwrap_or(0);
+        let frame = agent_protocol::v4_sessions_index::SessionsIndexCompleteWireFrame {
+            wire_version: V4_WIRE_PROTOCOL_VERSION,
+            kind: agent_protocol::v4_transport::WireFrameKindComplete::Complete,
+            delivery_kind,
+            logical_frame_id: format!("{subscription_id}-lf-{ordinal}"),
+            logical_frame_ordinal: ordinal,
+            topic: topic.to_string(),
+            subscription_id: subscription_id.to_string(),
+            frame: agent_protocol::v4_sessions_index::SessionsIndexTopicFrame {
+                topic: topic.to_string(),
+                subscription_id: subscription_id.to_string(),
+                from_seq: Number::from(from_seq),
+                to_seq: Number::from(to_seq),
+                sent_at: Number::from(now),
+                payload,
+            },
+        };
+        serde_json::to_value(&frame).ok()
+    }
+
+    fn send_sessions_index_snapshot(
+        outbound: &mpsc::UnboundedSender<Frame>,
+        subscription_id: &str,
+        topic: &str,
+        ordinal: u64,
+        delivery_kind: agent_protocol::v4_transport::WireDeliveryKind,
+        snapshot: agent_protocol::v4_sessions_index::SessionsIndexSnapshot,
+    ) {
+        let payload =
+            agent_protocol::v4_sessions_index::SessionsIndexFramePayload::Snapshot(Box::new(
+                agent_protocol::v4_sessions_index::SessionsIndexSnapshotPayload {
+                    kind: agent_protocol::v4_transport::FramePayloadKindSnapshot::Snapshot,
+                    snapshot,
+                },
+            ));
+        if let Some(params) = sessions_index_wire_frame(
+            subscription_id,
+            topic,
+            ordinal,
+            delivery_kind,
+            0,
+            0,
+            payload,
+        ) {
+            let _ = outbound.send(v4_notification(
+                agent_protocol::v4_transport::V4_CONVERSATION_FRAME_NOTIFICATION,
+                params,
+            ));
+        }
+    }
+
+    fn send_sessions_index_delta(
+        outbound: &mpsc::UnboundedSender<Frame>,
+        subscription_id: &str,
+        topic: &str,
+        ordinal: u64,
+        from_seq: u64,
+        to_seq: u64,
+        delta: agent_protocol::v4_sessions_index::SessionsIndexDelta,
+    ) {
+        let payload = agent_protocol::v4_sessions_index::SessionsIndexFramePayload::Deltas(
+            agent_protocol::v4_sessions_index::SessionsIndexDeltasPayload {
+                kind: agent_protocol::v4_transport::FramePayloadKindDeltas::Deltas,
+                deltas: vec![delta],
+            },
+        );
+        if let Some(params) = sessions_index_wire_frame(
+            subscription_id,
+            topic,
+            ordinal,
+            agent_protocol::v4_transport::WireDeliveryKind::Online,
+            from_seq,
+            to_seq,
+            payload,
+        ) {
+            let _ = outbound.send(v4_notification(
+                agent_protocol::v4_transport::V4_CONVERSATION_FRAME_NOTIFICATION,
+                params,
+            ));
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -568,45 +665,90 @@ async fn run_v4_forward(
             }
         }
         PendingV4Forward::SessionsIndex {
+            workspace_id,
             topic,
             subscription_id,
-            log_epoch: _,
+            log_epoch,
             snapshot,
+            mut cancel,
         } => {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|elapsed| elapsed.as_millis() as u64)
-                .unwrap_or(0);
-            let frame = agent_protocol::v4_sessions_index::SessionsIndexCompleteWireFrame {
-                wire_version: V4_WIRE_PROTOCOL_VERSION,
-                kind: agent_protocol::v4_transport::WireFrameKindComplete::Complete,
-                delivery_kind: agent_protocol::v4_transport::WireDeliveryKind::Initial,
-                logical_frame_id: format!("{subscription_id}-lf-1"),
-                logical_frame_ordinal: 1,
-                topic: topic.clone(),
-                subscription_id: subscription_id.clone(),
-                frame: agent_protocol::v4_sessions_index::SessionsIndexTopicFrame {
-                    topic,
-                    subscription_id,
-                    from_seq: Number::from(0u64),
-                    to_seq: Number::from(0u64),
-                    sent_at: Number::from(now),
-                    payload: agent_protocol::v4_sessions_index::SessionsIndexFramePayload::Snapshot(
-                        Box::new(
-                            agent_protocol::v4_sessions_index::SessionsIndexSnapshotPayload {
-                                kind:
-                                    agent_protocol::v4_transport::FramePayloadKindSnapshot::Snapshot,
-                                snapshot,
-                            },
-                        ),
-                    ),
-                },
-            };
-            if let Ok(params) = serde_json::to_value(&frame) {
-                let _ = outbound.send(v4_notification(
-                    agent_protocol::v4_transport::V4_CONVERSATION_FRAME_NOTIFICATION,
-                    params,
-                ));
+            // 初始快照后保持订阅：store 行变化经 hub 广播成 upsert/remove 增量。
+            let ordinal = server.v4_state().next_frame_ordinal(&subscription_id);
+            send_sessions_index_snapshot(
+                &outbound,
+                &subscription_id,
+                &topic,
+                ordinal,
+                agent_protocol::v4_transport::WireDeliveryKind::Initial,
+                snapshot,
+            );
+            let mut receiver = server.sessions_index().subscribe();
+            let mut seq: u64 = 0;
+            loop {
+                let received = tokio::select! {
+                    changed = cancel.changed() => {
+                        if changed.is_err() || *cancel.borrow() {
+                            return;
+                        }
+                        continue;
+                    }
+                    received = receiver.recv() => received,
+                };
+                match received {
+                    Ok(event) => {
+                        if event.workspace_id != workspace_id {
+                            continue;
+                        }
+                        seq += 1;
+                        let ordinal = server.v4_state().next_frame_ordinal(&subscription_id);
+                        send_sessions_index_delta(
+                            &outbound,
+                            &subscription_id,
+                            &topic,
+                            ordinal,
+                            seq - 1,
+                            seq,
+                            event.delta,
+                        );
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        // 订阅落后时用最新 store 行重建快照；seq 不前进，客户端按最新态覆盖。
+                        let Ok(store) = server.store() else {
+                            return;
+                        };
+                        let records = store
+                            .list_sessions(&workspace_id, true, None)
+                            .unwrap_or_default();
+                        let summaries: Vec<_> = records
+                            .iter()
+                            .map(|record| {
+                                let mut summary =
+                                    crate::sessions_index::summary_from_record(record);
+                                summary.workspace_id = workspace_id.clone();
+                                summary
+                            })
+                            .collect();
+                        server
+                            .sessions_index()
+                            .replace_workspace(&workspace_id, &summaries);
+                        let snapshot = agent_protocol::v4_sessions_index::SessionsIndexSnapshot {
+                            protocol_version: 1,
+                            workspace_id: workspace_id.clone(),
+                            log_epoch: log_epoch.clone(),
+                            sessions: server.sessions_index().snapshot(&workspace_id),
+                        };
+                        let ordinal = server.v4_state().next_frame_ordinal(&subscription_id);
+                        send_sessions_index_snapshot(
+                            &outbound,
+                            &subscription_id,
+                            &topic,
+                            ordinal,
+                            agent_protocol::v4_transport::WireDeliveryKind::Online,
+                            snapshot,
+                        );
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+                }
             }
         }
         PendingV4Forward::Conversation {

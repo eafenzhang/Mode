@@ -52,6 +52,10 @@ sessions-index 与 conversation 共用 `v4/conversation/subscribe`（`topic` 自
 4. topic、protocolVersion、runs/phases/alongside 越界；
 5. complete/fragment wire frame 解析与 topic 前缀校验。
 
+`cargo test -p agent-server --test v4_frames`（sessions-index 相关 2 条）：初始快照；
+新建会话产生 live `session.upserted`；`cargo test -p agent-server sessions_index` 覆盖
+hub 的 conflate/remove/缺省 workspace 键。
+
 `cargo test -p agent-process --test v4_transport`（sessions-index 相关 2 条）：
 
 1. 订阅请求帧 topic 正确、ACK 无 openTiming、首帧反序列化为

@@ -45,6 +45,8 @@ pub(crate) fn handle(
             record
         }
     };
+    // sessions-index live：新建/重建行立即进入 conflated 列表态。
+    server.sessions_index().upsert(&record);
 
     let runtime = resume::materialize(
         server,

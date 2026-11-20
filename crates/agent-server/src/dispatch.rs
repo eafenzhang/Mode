@@ -27,6 +27,7 @@ use crate::provider_config::{
 use crate::reverse::ReverseHub;
 use crate::runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
 use crate::server::ServerError;
+use crate::sessions_index::{SessionsIndexHub, SharedSessionsIndexHub};
 use agent_protocol::v4::CommandAck;
 use provider_http::{
     AnthropicMessagesProvider, OpenAiChatConfig, OpenAiChatProvider, OpenAiResponsesProvider,
@@ -291,6 +292,8 @@ pub struct AgentServer {
     v4: V4State,
     /// C4 T4c：待 spawn 的 v4 live 转发（response 写完后由 stdio 循环拉走）。
     pending_v4_forwards: Mutex<Vec<crate::dispatch::PendingV4Forward>>,
+    /// sessions-index 的 conflated 最新态 + live delta 广播。
+    sessions_index: SharedSessionsIndexHub,
 }
 
 /// v4 live 转发的变体：conversation（快照 + 增量）与 sessions-index（仅快照）。
@@ -312,10 +315,12 @@ pub enum PendingV4Forward {
         from_seq: u64,
     },
     SessionsIndex {
+        workspace_id: String,
         topic: String,
         subscription_id: String,
         log_epoch: String,
         snapshot: agent_protocol::v4_sessions_index::SessionsIndexSnapshot,
+        cancel: tokio::sync::watch::Receiver<bool>,
     },
     /// workspace-config topic：订阅/重同步的一次性快照帧（Host 复用同一个 subscribe RPC）。
     WorkspaceConfig {
@@ -551,6 +556,7 @@ impl AgentServer {
             mcp: Arc::new(McpHub::new()),
             v4: V4State::default(),
             pending_v4_forwards: Mutex::new(Vec::new()),
+            sessions_index: Arc::new(SessionsIndexHub::new()),
         }
     }
 
@@ -583,7 +589,13 @@ impl AgentServer {
             mcp: Arc::new(McpHub::new()),
             v4: V4State::default(),
             pending_v4_forwards: Mutex::new(Vec::new()),
+            sessions_index: Arc::new(SessionsIndexHub::new()),
         }
+    }
+
+    /// sessions-index 的 conflated 最新态 + live delta 广播（唯一所有者）。
+    pub fn sessions_index(&self) -> &SharedSessionsIndexHub {
+        &self.sessions_index
     }
 
     /// 按方法名分派一次请求。

@@ -1333,8 +1333,10 @@ T7 的 C4 回放 driver 与真实端点 smoke 仍待补。默认解析顺序**�
 
 - PASS：1–15、17–20（其中 8/9/11/12 为补齐后复测；20 的健康面由
   `host-channels/tests/health_channel.rs` 6 条 + `agent-process/tests/health.rs` 4 条覆盖）。
-- PARTIAL：16——sessions-index 快照与 `web-remote-replayable` ACK 正常，但真实
-  桌面/手机重连不在本机环境，且 sessions-index live 增量仍未接。
+- PARTIAL：16——sessions-index 快照与 `web-remote-replayable` ACK 正常；真实桌面/手机
+  重连不在本机环境。sessions-index 的列表行 live upsert/remove 已补（2026-11-21：
+  create/rename/delete 经 hub 广播，`v4_frames` 增量测试），会话内 phase/预览/后台工作
+  投影与真机重连仍待。
 
 补齐项（2026-11-20）：
 

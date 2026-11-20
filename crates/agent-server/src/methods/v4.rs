@@ -678,7 +678,14 @@ fn handle_rename_session(
             .map_err(|error| crate::state::RuntimeError::Store(error.to_string())),
     };
     match result {
-        Ok(()) => Ok(accepted_ack(&envelope.command_id, revision, None)),
+        Ok(()) => {
+            if let Ok(store) = server.store() {
+                if let Ok(Some(record)) = store.get_session(session_id) {
+                    server.sessions_index().upsert(&record);
+                }
+            }
+            Ok(accepted_ack(&envelope.command_id, revision, None))
+        }
         Err(error) => Ok(failed_ack(
             &envelope.command_id,
             revision,
@@ -714,8 +721,17 @@ fn handle_delete_session(
         server.remove_runtime(session_id);
         let _ = runtime.cancel_turn();
     }
+    let removed = server
+        .store()
+        .ok()
+        .and_then(|store| store.get_session(session_id).ok().flatten());
     match server.store()?.delete_session(session_id) {
-        Ok(_) => Ok(accepted_ack(&envelope.command_id, revision, None)),
+        Ok(_) => {
+            if let Some(record) = removed {
+                server.sessions_index().remove_record(&record);
+            }
+            Ok(accepted_ack(&envelope.command_id, revision, None))
+        }
         Err(error) => Ok(failed_ack(
             &envelope.command_id,
             revision,

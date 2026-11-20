@@ -615,6 +615,57 @@ fn sessions_index_subscribe_emits_snapshot_frame() {
         .any(|session| session["sessionId"] == json!("sess_idx")));
 }
 
+#[test]
+fn sessions_index_emits_live_upsert_for_new_session() {
+    let root = TempRoot::new("index-live");
+    let mut first = String::new();
+    first.push_str(&request_line(
+        1,
+        "session/create",
+        serde_json::json!({
+            "sessionId": "sess_live_a",
+            "workspace": { "workspacePath": WORKSPACE, "workspaceKey": WORKSPACE },
+        }),
+    ));
+    first.push_str(&request_line(
+        2,
+        "v4/conversation/subscribe",
+        serde_json::json!({
+            "topic": "sessions-index/C:/mode-v4f-ws",
+            "connectionId": "conn-idx-live",
+            "clientMode": "desktop-continuous",
+        }),
+    ));
+    let mut second = String::new();
+    second.push_str(&request_line(
+        3,
+        "session/create",
+        serde_json::json!({
+            "sessionId": "sess_live_b",
+            "workspace": { "workspacePath": WORKSPACE, "workspaceKey": WORKSPACE },
+        }),
+    ));
+    let (responses, notifications) = drive_batches(&root, vec![first, second]);
+    assert_eq!(responses[&2]["ack"]["mode"], serde_json::json!("snapshot"));
+    let frames = v4_frames(&notifications);
+    let deltas: Vec<_> = frames
+        .iter()
+        .filter(|frame| frame["params"]["frame"]["payload"]["kind"] == serde_json::json!("deltas"))
+        .collect();
+    assert_eq!(
+        deltas.len(),
+        1,
+        "expected one live upsert, got {} frames",
+        frames.len()
+    );
+    let delta = &deltas[0]["params"]["frame"]["payload"]["deltas"][0];
+    assert_eq!(delta["op"], serde_json::json!("session.upserted"));
+    assert_eq!(
+        delta["session"]["sessionId"],
+        serde_json::json!("sess_live_b")
+    );
+}
+
 // 函数级回归：global 缺省定位（project → global）不被 T4 改动破坏。
 #[test]
 fn workflow_get_falls_back_to_global_scope() {

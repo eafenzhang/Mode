@@ -9,13 +9,13 @@
 | ID | 长任务 | 依赖 | 出口条件 | 状态 |
 | --- | --- | --- | --- | --- |
 | **LT-7** | IM SDK 在线升级发布侧 | 无 | Release 挂载 `manifest.json` / `.sig` / `bundle.tar.gz`；配置公钥后客户端可在线激活 | 🟡 工具链完成；签名 secret、客户端公钥、设置页、壳资源注入待做 |
-| **LT-8** | W5 TUI 改 ratatui | 无强依赖 | 33 个场景清单逐项过 + 真机交互验收 | ⬜ 未开始 |
-| **LT-9** | W5 Web/远程服务端改 axum | W2/W4 稳定 | 契约对拍 + 手机远控验收 | ⬜ 未开始 |
-| **LT-10** | W5 插件市场逻辑进壳 | `plugin-host` 资产层 | 目录/安装/卸载走壳，素材仍按资产层 | ⬜ 未开始 |
-| **LT-11** | W6 收口 | LT-7 ~ LT-10 | `stdioFrames`/`stdoutGuard` 退场、删 TS 宿主编排与 `host-sidecar` 发运集、插件宿主换嵌入引擎、四仪表终值复测 | ⬜ 未开始 |
-| **LT-12** | W3 剩余域 | W1/W2 | provider 写路径/usage 网络凭据、LAN WS/公网中继、CUA PiP/Windows helper host、远程工作区、云账号 | 🟡 部分已迁 |
-| **LT-13** | W1 SQLite 迁移门禁 | 无 | 基线改由 Rust 迁移生成 + `--base-ref` 只增校验 | ⬜ 未开始 |
-| **LT-14** | LT-1 C4 唯一 PARTIAL 收尾 | 真机 | 20 任务全 PASS；随后删 Node 回退路径 | 🟡 19 PASS / 1 PARTIAL |
+| **LT-8** | W5 TUI 改 ratatui | 无强依赖 | 33 个场景清单逐项过 + 真机交互验收 | 🟡 首片：`crates/tui` 视图模型/渲染/入口 + 5 测试（spec `tui-ratatui.md`）；Agent 接线与 33 场景待做 |
+| **LT-9** | W5 Web/远程服务端改 axum | W2/W4 稳定 | 契约对拍 + 手机远控验收 | 🟡 首片：`crates/server` axum health/version + 3 测试（spec `server-axum.md`）；路由组/WS 待迁 |
+| **LT-10** | W5 插件市场逻辑进壳 | `plugin-host` 资产层 | 目录/安装/卸载走壳，素材仍按资产层 | ⬜ 未开始；install/uninstall 仍在 Agent/TS，`plugin-sync-service` 只覆盖同步/归档 |
+| **LT-11** | W6 收口 | LT-7 ~ LT-10 | `stdioFrames`/`stdoutGuard` 退场、删 TS 宿主编排与 `host-sidecar` 发运集、插件宿主换嵌入引擎、四仪表终值复测 | 🟡 新增 `pnpm w6:readiness` 审计；当前 product 阻塞 6/6/119/95，未就绪 |
+| **LT-12** | W3 剩余域 | W1/W2 | provider 写路径/usage 网络凭据、LAN WS/公网中继、CUA PiP/Windows helper host、远程工作区、云账号 | 🟡 部分；配置实时轮询已迁，剩 usage 网络/凭据、LAN WS/中继、CUA PiP/helper、远程工作区、云账号 |
+| **LT-13** | W1 SQLite 迁移门禁 | 无 | 基线改由 Rust 迁移生成 + `--base-ref` 只增校验 | ✅ 门禁已具备（`--base-ref` + TS/Rust 对拍）；生产者切换等 Rust 接管写库 |
+| **LT-14** | LT-1 C4 唯一 PARTIAL 收尾 | 真机 | 20 任务全 PASS；随后删 Node 回退路径 | 🟡 19 PASS / 1 PARTIAL；sessions-index 列表 live upsert/remove 已接（create/rename/delete + 2 测试），phase/预览/后台投影与真机重连仍待 |
 
 ## LT-7 本轮交付（2026-11-21）
 

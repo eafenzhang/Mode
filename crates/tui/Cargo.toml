@@ -1,0 +1,13 @@
+[package]
+name = "mode-tui"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+
+[dependencies]
+crossterm.workspace = true
+ratatui.workspace = true
+
+[[bin]]
+name = "mode-tui"
+path = "src/main.rs"
