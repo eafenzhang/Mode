@@ -41,7 +41,7 @@ use agent_protocol::v4_transport::{
 use serde_json::{json, Number, Value};
 use std::collections::BTreeMap;
 
-use crate::dispatch::AgentServer;
+use crate::dispatch::{AgentServer, PendingV4Forward};
 use crate::server::ServerError;
 use crate::v4_projection::{build_snapshot, project_rows, ProjectedMessage};
 
@@ -425,6 +425,17 @@ pub(crate) fn handle_conversation_resync(
     };
     let subscription_id = params.subscription_id.clone();
     server.v4_state().touch_subscription(&subscription_id);
+    // 恢复帧必须落在原 subscription 的 live 转发上：UI 的 resync ACK 后等待
+    // deliveryKind:"recovery" 的快照帧，只有 ACK 会触发 recoveryFrameTimedOut。
+    if let Some(session_id) = params.topic.strip_prefix("conversation/") {
+        server.queue_v4_forward(PendingV4Forward::ConversationRecovery {
+            session_id: session_id.to_string(),
+            topic: params.topic.clone(),
+            subscription_id: subscription_id.clone(),
+            log_epoch: log_epoch.clone(),
+            from_seq: params.base.as_ref().map(|base| base.seq).unwrap_or(0),
+        });
+    }
     serde_json::to_value(ConversationSubscribeResult {
         ack: ConversationSubscribeAck {
             subscription_id,

@@ -468,12 +468,22 @@ fn resync_and_unsubscribe_use_documented_params() {
             "subscriptionId": "sub-fixture",
         }),
     );
-    let (responses, _notifications) = drive(&root, format!("{create}{resync}{unsubscribe}"));
+    let (responses, notifications) = drive(&root, format!("{create}{resync}{unsubscribe}"));
     let ack = &responses[&2]["ack"];
     assert_eq!(ack["subscriptionId"], json!("sub-fixture"));
     assert_eq!(ack["mode"], json!("resume"));
     assert_eq!(ack["logEpoch"], json!("epoch-fixture"));
     assert_eq!(responses[&3], serde_json::json!({}));
+    // resync 必须补一帧 deliveryKind:"recovery"，否则 UI 等帧超时
+    // （fault.subscription.recoveryFrameTimedOut）。
+    let frames = v4_frames(&notifications);
+    assert!(
+        frames.iter().any(|frame| {
+            frame["params"]["deliveryKind"] == json!("recovery")
+                && frame["params"]["frame"]["payload"]["kind"] == json!("snapshot")
+        }),
+        "resync 未产生 recovery 快照帧：{frames:?}"
+    );
 }
 
 #[test]
