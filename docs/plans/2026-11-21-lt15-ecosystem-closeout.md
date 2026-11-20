@@ -16,7 +16,7 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 | --- | --- | --- | --- |
 | **P1** | TUI Agent 传输接线 | `agent-server` stdio spawn、sessions-index 订阅、live 增量、Ctrl-N 新建；单测 + 真子进程 e2e | ✅ 2026-11-21 |
 | **P2** | axum LAN/WS | LAN 六端点全部桥接（state/pair/enable/pair-code/reset/clients 删除，11 测试；pair 含 Set-Cookie、enable 走监听视图）；剩 `/ws/host` RPC 帧桥接与凭据装配 | 🟡 HTTP 全收口 |
-| **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | 🟡 首切：installed_plugins.json 记录层（读归一/原子写）已落 `plugin-sync-service`；安装/卸载编排待做 |
+| **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | 🟡 记录层+卸载编排+安装编排（directory/file 源+依赖闭包）已迁 `plugin-sync-service`（19 测试）；网络源与 config 写回待做 |
 | **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | ⬜ |
 | **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | ⬜ |
 | **P6** | W6 收口 | `w6:readiness --fail-on-blockers` 通过；删 stdioFrames/stdoutGuard、TS 宿主编排与 host-sidecar 发运集 | ⬜ |
@@ -52,8 +52,11 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
   `getPluginDataDir` / `getPluginCacheDir` / `legacyOfficialPluginId` /
   `sanitizePluginId`——先 splice + 原子保存记录，再按 `removeCache`/`keepData`
   删安装目录与用户数据目录（官方市场改名后旧 id 目录兜底）；7 条单测。
-- 待做：安装编排（marketplace cache → 依赖闭包 → 原子落盘）、config 写回
-  （`removePluginFromFileConfig`/suppression）、与 TS 行为对拍。
+- **安装编排已迁**：`marketplace_install.rs`——manifest 读取、依赖闭包 BFS（跨市场
+  阻断/循环检测）、directory/file/filesystem 源解析、真实版本读取（plugin.json 优先
+  于条目）、cache 目录拷贝（旧 id 兜底）、记录 upsert、失败回滚；6 条单测。
+- 待做：网络源（git/npm/url）、config 写回（`removePluginFromFileConfig`/suppression）、
+  与 TS 行为对拍。
 
 ## P4/P5 入口
 

@@ -7,6 +7,7 @@
 mod archive;
 mod candidates;
 mod installed_records;
+mod marketplace_install;
 mod marketplace_source;
 mod paths;
 mod plugin_management;
@@ -37,6 +38,11 @@ pub use candidates::{
     compute_recursive_size, create_short_hash, normalize_plugin_id, normalize_plugin_id_key,
     read_plugin_manifest_info, read_user_plugin_config_state, PluginManifestInfo,
     UserPluginConfigState,
+};
+pub use marketplace_install::{
+    install_marketplace_plugin, load_marketplace_manifest, resolve_dependency_closure,
+    resolve_installed_plugin_version, resolve_plugin_source_root, MarketplaceInstallResult,
+    MarketplaceManifest, MarketplacePluginEntry,
 };
 pub use marketplace_source::{
     export_marketplace_source_archive, import_marketplace_source_archive,
