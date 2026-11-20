@@ -2590,3 +2590,79 @@ async fn messages_projection_keeps_semantics_and_strips_private_tool_metadata() 
         "非私有 metadata 保留"
     );
 }
+
+// ---------------------------------------------------------------------------
+// C4 T6：workspace 策略写方法（Host 切到 Rust owner 后同步 workspace 事实）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn workspace_policy_methods_echo_effective_values() {
+    let fixture = fixture("workspace-policy", vec![]);
+    let mut conn = connect(Arc::clone(&fixture.server)).await;
+    let workspace = json!({
+        "workspacePath": fixture.ws.to_string_lossy(),
+        "workspaceKey": fixture.ws.to_string_lossy(),
+    });
+
+    let id = conn
+        .send(
+            "workspace/updateInteractionPreferences",
+            json!({ "workspace": workspace, "preferences": { "askUserQuestionAutoResolutionEnabled": true } }),
+        )
+        .await;
+    let result = conn.result(id).await;
+    assert_eq!(result["askUserQuestionAutoResolutionEnabled"], json!(true));
+    assert_eq!(result["snoozedInteractionCount"], json!(0));
+
+    let id = conn
+        .send(
+            "workspace/updateModelIoPreferences",
+            json!({ "workspace": workspace, "preferences": { "fullRetentionEnabled": true } }),
+        )
+        .await;
+    let result = conn.result(id).await;
+    assert_eq!(result["fullRetentionEnabled"], json!(true));
+    assert_eq!(result["updatedSessionCount"], json!(0));
+
+    let id = conn
+        .send(
+            "workspace/updateOffPeakToolPolicy",
+            json!({ "workspace": workspace, "enabled": false }),
+        )
+        .await;
+    assert_eq!(conn.result(id).await["enabled"], json!(false));
+
+    let id = conn
+        .send(
+            "workspace/updateDynamicWorkflowPolicy",
+            json!({ "workspace": workspace, "enabled": true }),
+        )
+        .await;
+    assert_eq!(conn.result(id).await["enabled"], json!(true));
+
+    let id = conn
+        .send(
+            "workspace/readPresentation",
+            json!({ "workspace": workspace }),
+        )
+        .await;
+    let result = conn.result(id).await;
+    assert_eq!(result["mode"], json!("build"));
+    assert_eq!(
+        result["slashCommands"]
+            .as_array()
+            .expect("slashCommands")
+            .len(),
+        4
+    );
+
+    // 严格参数：未知字段按 -32602 拒绝（not method-not-found）。
+    let id = conn
+        .send(
+            "workspace/updateOffPeakToolPolicy",
+            json!({ "workspace": workspace, "enabled": true, "extra": 1 }),
+        )
+        .await;
+    let (code, _, _) = conn.error(id).await;
+    assert_eq!(code, -32602);
+}

@@ -862,6 +862,22 @@ Rust 实现（`agent-server/src/session_tools.rs`）按上述形状；ExitPlanMo
 <plan>`（oracle 的成功结果正文未录到；只对齐 plans 行的
 input/toolName 形状）。Todo 持久化走 `session-store::todo`，冷/热 `session/read` 同源。
 
+### 5.11 启动修复：workspace 只读/策略方法（2026-11-20）
+
+用户安装 v0.0.138 后打开任务报 `Method not found`。黑盒诊断（临时记录未知方法）确认
+Host 启动/打开任务时调用、而 Rust agent-server 缺失的三个方法：
+
+- `workspace/readPresentation {workspace}` →
+  `{workspace, mode, slashCommands[]}`（mode 取该 workspace 最近会话的权限档，
+  无会话按 `build`；slashCommands 与快照同一份 builtin 数据）；
+- `workspace/updateInteractionPreferences {workspace,preferences:{askUserQuestionAutoResolutionEnabled}}`
+  → `{workspace,askUserQuestionAutoResolutionEnabled,snoozedInteractionCount:0}`；
+- `workspace/updateOffPeakToolPolicy {workspace,enabled}` → `{workspace,enabled}`。
+
+同时补齐同族的 `workspace/updateModelIoPreferences`（`updatedSessionCount:0`）与
+`workspace/updateDynamicWorkflowPolicy`，避免 Host 后续策略同步再次 -32601。
+四组策略方法严格解析、回显生效值、无会话副作用（`session-write-group.md` §2q）。
+
 ## 6. automation / provider / account（`automation-stdio-surface` / `provider-account-stdio-surface`）
 
 automation 协议镜像的 5 个方法（`create/update/checkTaskBinding/list/delete`）在 stdio

@@ -501,6 +501,21 @@ impl AgentServer {
                 .provider_config
                 .handle_account_config(params)
                 .map_err(ServerError::from),
+            agent_protocol::workspace::WORKSPACE_READ_PRESENTATION_METHOD => {
+                methods::workspace::handle_read_presentation(self, params)
+            }
+            agent_protocol::workspace_policy::WORKSPACE_UPDATE_INTERACTION_PREFERENCES_METHOD => {
+                methods::workspace::handle_update_interaction_preferences(self, params)
+            }
+            agent_protocol::workspace_policy::WORKSPACE_UPDATE_MODEL_IO_PREFERENCES_METHOD => {
+                methods::workspace::handle_update_model_io_preferences(self, params)
+            }
+            agent_protocol::workspace_policy::WORKSPACE_UPDATE_OFF_PEAK_TOOL_POLICY_METHOD => {
+                methods::workspace::handle_update_off_peak_tool_policy(self, params)
+            }
+            agent_protocol::workspace_policy::WORKSPACE_UPDATE_DYNAMIC_WORKFLOW_POLICY_METHOD => {
+                methods::workspace::handle_update_dynamic_workflow_policy(self, params)
+            }
             crate::methods::SESSION_CREATE_METHOD => methods::create::handle(self, params),
             crate::methods::SESSION_SEND_METHOD => methods::send::handle(self, params),
             crate::methods::SESSION_SUBSCRIBE_METHOD => methods::subscribe::handle(self, params),

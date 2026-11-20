@@ -30,6 +30,7 @@ pub mod v4;
 pub mod v4_attachments;
 pub mod v4_frames;
 pub mod workflows;
+pub mod workspace;
 
 use agent_core::ModelCapabilities;
 use agent_protocol::message::MessageModel;
