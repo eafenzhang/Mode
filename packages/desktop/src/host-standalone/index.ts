@@ -422,6 +422,11 @@ async function bootstrap(): Promise<ChannelServer> {
   );
   logStartupMark("services");
 
+  // IM SDK 运行时在线升级：仅在配置了清单 URL + 公钥时后台触发（失败回退随包 SDK），
+  // 不阻塞 ready，也不重启已有通道连接。
+  const { maybeRefreshImSdkRuntimeInBackground } = await import("@mode/services/node");
+  maybeRefreshImSdkRuntimeInBackground();
+
   // ④ `deferInit = true`：先把频道注册齐再 ready()，否则 Initialize 可能抢在 registerChannel 之前
   //    （与 Task 0 的 Host 替身同一理由）。真服务频道与诊断频道都过守卫。
   const server = new ChannelServer(protocol, "mode-host-sidecar", 1000, true);

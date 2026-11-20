@@ -1,8 +1,11 @@
-# IM 四通道传输层 Rust 自实现（W5 第一阶段）
+# IM 四通道传输层 Rust 自实现（W5 第一阶段，已转参考）
 
-> 状态：v1（2026-11-20）。上位计划：`docs/plans/2026-10-29-full-rust-rewrite.md` §W5
-> 「IM 四通道 Rust 自实现：不再复用 SDK」。产品行为真源不在这份 spec——
-> `docs/specs/bot-*.md` / `im-bot-*.md` / `wecom-reply-feedback.md` 等既有规范继续有效。
+> 状态：**归档参考（2026-11-20 改向）**。上位计划：`docs/plans/2026-10-29-full-rust-rewrite.md` §W5。
+> 本文的传输层实现**不再进入产品**：产品改回集成官方 npm SDK，裁决与在线升级机制见
+> `docs/specs/im-sdk-runtime.md`。下文 wire 事实与假服务端对拍用例保留，作为协议资料与
+> 未来离线诊断参考；不得据此新增产品依赖或恢复 bots 频道迁移。
+> 产品行为真源不在这份 spec——`docs/specs/bot-*.md` / `im-bot-*.md` /
+> `wecom-reply-feedback.md` 等既有规范继续有效。
 
 ## 1. 范围与切分线
 

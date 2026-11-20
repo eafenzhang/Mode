@@ -519,8 +519,12 @@ rust=102 / not-needed=11 / blocked=2。已接入 `verify:pre-push` 与 release v
 
 ### W5 生态面替换
 
-- **IM 四通道 Rust 自实现**（飞书/企微/钉钉/微信，HTTP + WS）：不再复用 SDK，
-  删掉 `@larksuiteoapi/node-sdk`、`@wecom/aibot-node-sdk` 及其 protobufjs 依赖。
+- **IM 通道：集成官方 SDK，停止 Rust 自实现（2026-11-20 改向）**。裁决与在线升级机制见
+  `docs/specs/im-sdk-runtime.md`：飞书/企微使用 `@larksuiteoapi/node-sdk`、
+  `@wecom/aibot-node-sdk`，钉钉/微信保留现有手写 TS；bots 域继续归 Node Host，
+  B3–B5 迁移取消。已交付的 `crates/{dingtalk-stream,weixin-ilink,feishu-ws,wecom-ws,
+  bots-core,bots-adapters}` 仅作协议参考资料，不进入产品依赖路径。
+  以下为改向前已完成的传输层记录（保留供查阅，不得作为实施依据）：
   **第一波已开工（2026-11-20，spec `docs/specs/bots-im-transport.md`）**：wire 事实源矩阵
   定案（钉钉/微信=官方文档+自家手写 TS；飞书/企微=**SDK 接口面提取**，2026-11-20 用户
   裁决：读 SDK 只限提取 wire 事实入 spec、禁贴实现，真机抓包留作验收，纪律入
@@ -567,7 +571,7 @@ rust=102 / not-needed=11 / blocked=2。已接入 `verify:pre-push` 与 release v
 
 | 原决策 | 原结论 | 2026-10-29 更替 |
 | --- | --- | --- |
-| DR-IM-1 | IM 由 Host sidecar 复用 TS SDK，M3 不新增 `crates/bots` | **作废**：W5 用 Rust 自实现四通道，新增 `crates/bots` |
+| DR-IM-1 | IM 由 Host sidecar 复用 TS SDK，M3 不新增 `crates/bots` | **恢复原结论（2026-11-20 再裁决）**：IM 通道集成官方 SDK、由 Node Host 持有；W5 的 Rust 传输 crate 仅作参考，不新增 `crates/bots`，在线升级见 `docs/specs/im-sdk-runtime.md` |
 | DR-TUI-1 | 沿用 TS/React TUI，M3 不新增 `crates/tui` | **作废**：W5 改 ratatui |
 | DR-PM-1 | 插件市场由 sidecar 复用，M3 不新增 `crates/marketplace` | **作废**：市场逻辑进壳（负载仍第三方） |
 | DR-WEB-1 | Web 端复用 `packages/server`，M3 不新增 `crates/server` | **作废**：W5 改 axum |

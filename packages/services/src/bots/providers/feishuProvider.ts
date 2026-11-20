@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- Feishu provider 集中承载鉴权、消息解析、卡片发送和 reaction typing 适配，后续按能力拆分。 */
+import { pathToFileURL } from "node:url";
 import type {
   BotInboundAttachment,
   BotConfig,
@@ -15,6 +16,7 @@ import type {
   BotTransientInteractionCardHandle,
 } from "./types.js";
 import { formatBotMessage } from "../messages.js";
+import { resolveImSdkEntry } from "#src/bots/imSdkRuntime.js";
 import { fetchBotProviderJson } from "#src/bots/providers/providerRequest.js";
 
 interface FeishuProviderDeps {
@@ -1672,7 +1674,11 @@ export async function startFeishuBotWebSocket(params: {
     throw new Error("Feishu WebSocket startup aborted.");
   }
   // SDK 全量源码会常驻 Host；只有实际启动长连接才加载，卡片和 HTTP 路径不承担这份开销。
-  const Lark = await import("@larksuiteoapi/node-sdk");
+  // 入口优先取在线升级运行时，未安装/校验失败时回退随包 node_modules。
+  const larkEntry = resolveImSdkEntry("@larksuiteoapi/node-sdk");
+  const Lark = (await (larkEntry
+    ? import(pathToFileURL(larkEntry).href)
+    : import("@larksuiteoapi/node-sdk"))) as typeof import("@larksuiteoapi/node-sdk");
   // 加载期间 channel 可能已停用，迟到的模块不能重新创建连接。
   if (signal?.aborted) {
     throw new Error("Feishu WebSocket startup aborted.");

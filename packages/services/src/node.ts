@@ -31,6 +31,26 @@ export {
   type ProcessResourceSampler,
 } from "./process/processResourceSampler.js";
 export { createMediaPreviewService } from "./media-preview/mediaPreview.js";
+export {
+  describeImSdkRuntime,
+  isImSdkRuntimeDisabled,
+  readActiveImSdkRuntime,
+  readImSdkRuntimePointer,
+  resolveImSdkEntry,
+  resolveImSdkRuntimeLayout,
+  IM_SDK_RUNTIME_DIR_NAME,
+  IM_SDK_RUNTIME_DISABLE_ENV,
+  IM_SDK_RUNTIME_MANIFEST_URL_ENV,
+  IM_SDK_RUNTIME_PUBKEY_ENV,
+} from "./bots/imSdkRuntime.js";
+export {
+  installImSdkRuntime,
+  maybeRefreshImSdkRuntimeInBackground,
+  refreshImSdkRuntime,
+  type ImSdkRuntimeRefreshResult,
+  type InstallImSdkRuntimeOptions,
+  type InstallImSdkRuntimeResult,
+} from "./bots/imSdkRuntimeUpgrade.js";
 export type { CreateFileServiceOptions } from "./file/fileService.js";
 export {
   defaultWorkspaceFileSearchFilter,

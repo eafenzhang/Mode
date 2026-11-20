@@ -1,8 +1,10 @@
 # bots 域接入形态裁决与迁移契约（W5 传输层收口）
 
-> 状态：v1（2026-11-20）。上位：`docs/plans/2026-10-29-full-rust-rewrite.md` §W5；
-> 传输层四通道已落地（`crates/{dingtalk-stream,weixin-ilink,feishu-ws,wecom-ws}`，
-> wire 事实见 `docs/specs/bots-im-transport.md`）。本文裁决**传输层如何接入产品**。
+> 状态：**已作废（2026-11-20）**。上位：`docs/plans/2026-10-29-full-rust-rewrite.md` §W5。
+> 本裁决被 `docs/specs/im-sdk-runtime.md` 取代：IM 传输层改回集成官方 npm SDK，
+> bots 域继续由 Node Host 持有；`crates/{bots-core,bots-adapters,dingtalk-stream,
+> weixin-ilink,feishu-ws,wecom-ws}` 不进入产品依赖路径，仅作协议参考资料保留；
+> 下表 B3–B5 取消。下文保留为决策历史，不得按本文实施。
 
 ## 1. 裁决：壳内接管 bots 域（拒绝 napi 桥）
 
@@ -20,9 +22,9 @@
 | --- | --- | --- |
 | B1 | **seam 契约**：`crates/bots-core` —— provider 中立类型 + `ProviderAdapter` trait（镜像 TS `BotProviderAdapter` 的可移植子集），四通道 transport crate 与后续 service 层之间的唯一接缝 | ✅ 本波 |
 | B2 | 四通道**入站解析移植**：`crates/bots-adapters`（transport crate 保持协议纯，适配层做「平台载荷 → provider 中立消息」投影 + 发送目标判定）。**B2a 钉钉**（`bot-dingtalk.test.ts` 6 条镜像）；**B2b 飞书/企微/微信已交付**——飞书 text/post/attachment/mention gating（Lark 域映射）、企微 text/mixed/voice/quote/媒体附件、微信紧凑投影 + 原始 item_list/直接附件（多别名、AES key、size）；**B2c 待做**：各通道发送路径（HTTP + token + 卡片/流式） | 🟡 B2a+B2b |
-| B3 | **bots service 核心**：命令解析/授权与黑名单/群历史/回合准入（botTurnGate）/回复颗粒度/流式卡片/恢复链——按 `bot-*.md` 逐条移植（≈9.3k 行 TS，分多波） | ⬜ |
-| B4 | **频道接入**：`crates/host-channels` 新增 `bots` 频道（`IBotsService` 45 方法面）+ 配置/凭据仓储 Rust 化 + `MODE_HOST_INPROCESS_CHANNELS` 显式启用；真机 20 项验收 | ⬜ |
-| B5 | **退役**：删 `@larksuiteoapi/node-sdk`、`@wecom/aibot-node-sdk` 依赖；`bot-sdk-lazy-import` 守卫改为「无 SDK 依赖」门禁 | ⬜ |
+| B3 | bots service 核心（Rust 移植） | ⛔ 取消（2026-11-20 改向） |
+| B4 | `bots` 频道接入与配置/凭据所有权移交 | ⛔ 取消（2026-11-20 改向） |
+| B5 | 删除两个 IM SDK 依赖 | ⛔ 取消（反向：SDK 保留并支持在线升级） |
 
 **切换纪律**：同一频道只有一个 owner（m4b §2/§5）。B4 之前 bots 归 Node Host；B4 打开
 `bots` 频道后归壳；回滚 = 从开关移除并重启。配置/凭据不做双写：B4 的切换包含
