@@ -310,3 +310,41 @@ test("发运集：agentBundleDir 缺 mode.cjs 时明确失败", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("发运集：Rust-only glm（mode-agent.exe，无 mode.cjs）可发运", () => {
+  const root = mkdtempSync(join(tmpdir(), "mode-ship-agent-native-"));
+  try {
+    const packageDir = makeFakeNodePty(root);
+    const bundleFile = join(root, "bundle.mjs");
+    writeFileSync(bundleFile, "export {};\n");
+    const nodeSource = join(root, "fake-node.exe");
+    writeFileSync(nodeSource, "z".repeat(64));
+    const configSource = join(root, "mode-builtin.json");
+    writeFileSync(configSource, "{}\n");
+
+    const agentDir = join(root, "glm");
+    mkdirSync(join(agentDir, "packages/bundled-skills/skills/dynamic-workflows"), {
+      recursive: true,
+    });
+    writeFileSync(join(agentDir, "mode-agent.exe"), "native");
+    writeFileSync(
+      join(agentDir, "packages/bundled-skills/skills/dynamic-workflows/SKILL.md"),
+      "# skill\n",
+    );
+
+    const stageRoot = join(root, "ship");
+    stageShipSet({
+      variant: "pruned",
+      bundleFile,
+      stageRoot,
+      nodeSource,
+      builtinProviderConfigSource: configSource,
+      closure: makeClosure(packageDir),
+      agentBundleDir: agentDir,
+    });
+    assert.equal(existsSync(join(stageRoot, "agent", "glm", "mode-agent.exe")), true);
+    assert.equal(existsSync(join(stageRoot, "agent", "glm", "mode.cjs")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

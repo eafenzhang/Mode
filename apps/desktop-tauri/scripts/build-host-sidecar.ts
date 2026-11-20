@@ -289,11 +289,13 @@ function parseStageVariant(argv: string[]): ShipVariant | null {
 function ensureAgentBundleDir(): string {
   const platformKey = `${process.platform}-${process.arch}`;
   const glmDir = join(repoRoot, "packages/desktop/bundled-agents", platformKey, "glm");
+  const nativePresent = ["mode-agent", "mode-agent.exe"].some((name) =>
+    existsSync(join(glmDir, name)),
+  );
   const required = [
-    join(glmDir, "mode.cjs"),
     join(glmDir, "packages", "bundled-skills", "skills", "dynamic-workflows", "SKILL.md"),
   ];
-  if (required.every((path) => existsSync(path))) return glmDir;
+  if (nativePresent && required.every((path) => existsSync(path))) return glmDir;
 
   console.log("[host-sidecar] 随包 agent 未就绪，执行 prepare:agent-bundle ...");
   const result = spawnSync(
@@ -306,9 +308,12 @@ function ensureAgentBundleDir(): string {
       shell: process.platform === "win32",
     },
   );
-  if (result.status !== 0 || !existsSync(join(glmDir, "mode.cjs"))) {
+  const produced =
+    ["mode-agent", "mode-agent.exe"].some((name) => existsSync(join(glmDir, name))) ||
+    existsSync(join(glmDir, "mode.cjs"));
+  if (result.status !== 0 || !produced) {
     throw new Error(
-      `[host-sidecar] prepare:agent-bundle 未产出 ${join(glmDir, "mode.cjs")}（exit=${String(result.status)}）`,
+      `[host-sidecar] prepare:agent-bundle 未产出 mode-agent[.exe]/mode.cjs（exit=${String(result.status)}）`,
     );
   }
   return glmDir;

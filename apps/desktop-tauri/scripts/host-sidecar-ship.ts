@@ -378,10 +378,14 @@ export function stageShipSet(options: {
   copyFileSync(options.builtinProviderConfigSource, configTarget);
 
   if (options.agentBundleDir) {
+    // C4 默认 Rust：随包运行时是 mode-agent[.exe]；mode.cjs 仅 dev/回退时存在。
+    const nativePresent = ["mode-agent", "mode-agent.exe"].some((name) =>
+      existsSync(join(options.agentBundleDir!, name)),
+    );
     const sourceBundle = join(options.agentBundleDir, "mode.cjs");
-    if (!existsSync(sourceBundle)) {
+    if (!nativePresent && !existsSync(sourceBundle)) {
       throw new Error(
-        `[host-sidecar-ship] 随包 agent 缺少 ${sourceBundle}；先跑 pnpm --filter @mode/desktop prepare:agent-bundle`,
+        `[host-sidecar-ship] 随包 agent 缺少 mode-agent[.exe]/mode.cjs（${options.agentBundleDir}）；先跑 pnpm --filter @mode/desktop prepare:agent-bundle`,
       );
     }
     const agentTarget = join(stageRoot, "agent", "glm");

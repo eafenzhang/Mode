@@ -1,5 +1,5 @@
-// Agent bundle 的暂存动作：把 apps/mode-cli/packages/cli/dist/mode.cjs 放进
-// bundled-agents/<平台>/glm，并写 meta。
+// Agent bundle 的暂存动作：C4 默认 Rust 后把 agent-server 作为 mode-agent 放进
+// bundled-agents/<平台>/glm，并写 meta；native 缺失时才回退 stage mode.cjs。
 //
 // dev 与打包**必须**用同一份暂存实现。
 // 只有打包链（prepare-agent-node-bundle.mjs）会暂存是不够的，dev 链
@@ -31,7 +31,7 @@ export function resolveAgentBundlePaths({ repoRoot, platformKey }) {
 /**
  * 默认运行时翻转（C4）：把 Rust `agent-server` 作为 `mode-agent` 一起放进 glm。
  *
- * 来源优先级：`MODE_AGENT_NATIVE_BINARY` → `target/debug|release/agent-server[.exe]`。
+ * 来源优先级：`MODE_AGENT_NATIVE_BINARY` → `target/agent-release|release|debug/agent-server[.exe]`。
  * 找不到就只保留 Node bundle（宿主会回退 mode.cjs）。dev 先 `cargo build -p agent-server`
  * 即可让随包/本地解析命中 Rust；发布链在 tauri build 前显式构建并传 env。
  */
@@ -42,8 +42,9 @@ export function stageNativeAgentBinary({ repoRoot, glmDir, platformKey, log = co
   const configured = process.env.MODE_AGENT_NATIVE_BINARY?.trim();
   const candidates = [
     configured ? (isAbsolute(configured) ? configured : resolve(repoRoot, configured)) : null,
-    resolve(repoRoot, "target", "debug", serverName),
+    resolve(repoRoot, "target", "agent-release", serverName),
     resolve(repoRoot, "target", "release", serverName),
+    resolve(repoRoot, "target", "debug", serverName),
   ].filter(Boolean);
   for (const candidate of candidates) {
     if (!existsSync(candidate)) continue;
@@ -62,24 +63,27 @@ export function stageAgentBundle({ repoRoot, platformKey, log = console.log }) {
     repoRoot,
     platformKey,
   });
-  if (!existsSync(cliBundlePath)) {
-    throw new Error(`[stage:agent-bundle] agent bundle 源产物不存在：${cliBundlePath}`);
-  }
   rmSync(glmDir, { recursive: true, force: true });
   mkdirSync(glmDir, { recursive: true });
-  copyFileSync(cliBundlePath, stagedBundlePath);
   const nativeBinaryPath = stageNativeAgentBinary({ repoRoot, glmDir, platformKey, log });
+  // 默认 Rust：native 存在时不再随包 mode.cjs（省掉 ~16.5MB 的 Node bundle）；
+  // 仅 native 缺失的 dev/异常场景保留 mode.cjs 回退。
+  if (!nativeBinaryPath) {
+    if (!existsSync(cliBundlePath)) {
+      throw new Error(`[stage:agent-bundle] agent bundle 源产物不存在：${cliBundlePath}`);
+    }
+    copyFileSync(cliBundlePath, stagedBundlePath);
+  }
+  const nativeName = platformKey.startsWith("win32") ? "mode-agent.exe" : "mode-agent";
   const meta = {
     runtime: nativeBinaryPath ? "rust" : "node",
-    entry: nativeBinaryPath ? "mode-agent" : "mode.cjs",
+    entry: nativeBinaryPath ? nativeName : "mode.cjs",
     ...(nativeBinaryPath
-      ? { nativeBinary: platformKey.startsWith("win32") ? "mode-agent.exe" : "mode-agent" }
-      : {}),
-    fallbackEntry: "mode.cjs",
+      ? { nativeBinary: nativeName }
+      : { fallbackEntry: "mode.cjs", source: AGENT_BUNDLE_SOURCE_RELATIVE }),
     platform: platformKey,
-    source: AGENT_BUNDLE_SOURCE_RELATIVE,
   };
   writeFileSync(stagedMetaPath, `${JSON.stringify(meta, null, 2)}\n`, "utf8");
-  log(`[stage:agent-bundle] staged ${stagedBundlePath}`);
+  if (!nativeBinaryPath) log(`[stage:agent-bundle] staged ${stagedBundlePath}`);
   return { stagedBundlePath, stagedMetaPath, nativeBinaryPath };
 }
