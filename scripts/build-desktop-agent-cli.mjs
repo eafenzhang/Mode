@@ -57,6 +57,8 @@ const cliWorkspaceBuilds = [
   { packageName: "@mode/core", packageDir: "core" },
   { packageName: "@mode/adapters", packageDir: "adapters" },
   { packageName: "@mode/i18n", packageDir: "i18n" },
+  // LT-4：CLI run.ts 静态 import `@mode/eval`；干净检出没有 dist 时 esbuild 会拒绝打包。
+  { packageName: "@mode/eval", packageDir: "eval" },
   { packageName: "@mode/bootstrap", packageDir: "bootstrap" },
 ];
 // 官方插件 manifest 可以在 server.js 缺失时被 filesystem seed，直到 session
