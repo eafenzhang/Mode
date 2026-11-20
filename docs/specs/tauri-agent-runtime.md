@@ -1328,13 +1328,21 @@ T7 的 C4 回放 driver 与真实端点 smoke 仍待补。默认解析顺序**�
 本地 stdio MCP、directory marketplace 插件与 workspace skill 作夹具。完整记录见
 `.plan/accept-c4/report.md`（本地验收产物，不入库）。
 
-结果：**14 PASS / 6 PARTIAL / 0 FAIL**，约 36.8k tokens。
+结果：**首轮 14 PASS / 6 PARTIAL / 0 FAIL**；补齐后 **19 PASS / 1 PARTIAL / 0 FAIL**
+（约 47k tokens，含补测）。
 
-- PASS：1–7、10、13–15、17–19。
-- PARTIAL：8（`fileChanges` 空 items、`fileRewindPreview` 未注册）、9（后台 Bash 全链路成功，
-  `backgroundBashOutput` 恒 unavailable）、11（`ExitPlanMode` 属 LT-5）、12（goal 生命周期
-  成功，Todo 工具未实现）、16（sessions-index 快照成功，桌面/手机重连不在本环境）、
-  20（真实子代理成功，`agent-health` 在 Host 面）。
+- PASS：1–15、17–20（其中 8/9/11/12 为补齐后复测；20 的健康面由
+  `host-channels/tests/health_channel.rs` 6 条 + `agent-process/tests/health.rs` 4 条覆盖）。
+- PARTIAL：16——sessions-index 快照与 `web-remote-replayable` ACK 正常，但真实
+  桌面/手机重连不在本机环境，且 sessions-index live 增量仍未接。
+
+补齐项（2026-11-20）：
+
+- `TodoWrite/TodoRead` 工具 + `todo` 表 + `session/read` 的 todos/todoGroups；
+- `ExitPlanMode` 工具与 `v4/conversation/plans` 行；
+- `fileChanges`（turn 内 Write/Edit 投影 + turnHeader 摘要）与 `fileRewindPreview`
+  （新建文件 delete / 其余 checkpoint_missing）；
+- `backgroundBashOutput`（TaskRegistry existing-only 输出快照）。
 
 验收发现并修复两处协议实现缺陷（commit `ac552018e`）：
 

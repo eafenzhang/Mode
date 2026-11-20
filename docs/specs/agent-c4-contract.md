@@ -822,6 +822,8 @@ T4 分三个切片落地：
 - resync/unsubscribe 按文档参数形状 `{topic,connectionId,subscriptionId,base}` 解析；
   resync ACK 回显 `subscriptionId` + `mode:"resume"`（T6 真机验收修复，commit
   `ac552018e`）。
+- `fileChanges` / `fileRewindPreview` / `backgroundBashOutput` 按 §5.5 的协议形状实现；
+  `fileRewindPreview` 已进方法表（原 `-32601` 缺口关闭）。
 
 差异 / 未覆盖（不伪造观察值）：
 
@@ -833,11 +835,32 @@ T4 分三个切片落地：
 | cold 快照事实        | 无 runtime 时 `usage.contextWindow=null`、cumulative 全 0、control.activeWorks=[]、lastError=null；oracle 暖会话有 contextWindow。       | §5.4      |
 | availability/routing | fork 恒 `forkTargetNotStable`；compact 恒 `idleCannotCompact`；running 时 inputRouting=`enqueue`/sendQueuedNow 允许（oracle 未逐一录）。 | §5.4      |
 | sessions-index live  | 只发初始快照帧；`session.upserted/removed` 增量未接。                                                                                    | §5.4      |
-| fileChanges          | 只做 `proto.staleLogEpoch` 守卫；通过后恒空 items（无 git/diff 事实）。                                                                  | §5.5      |
-| backgroundBashOutput | 恒 `unavailable`（TaskRegistry 输出读取未接）。                                                                                          | §5.5      |
+| fileChanges          | 从 turn 内 Write/Edit tool part 投影路径/增删行/writeCount/toolNames/hunks；hunk 行号与行计数为近似值（无基线快照）。target 必须是当前投影的 turnHeader，否则 `proto.staleTarget`。 | §5.5 |
+| fileRewindPreview    | 新建文件的唯一 Write 返回 `canApply:true` + `safeFiles:[{action:"delete"}]`；其余文件无 checkpoint，返回 `unsafeFiles.checkpoint_missing`。 | §5.5 |
+| backgroundBashOutput | 活跃 runtime 的 TaskRegistry existing-only 读取：命中返回 `{kind:"output",status,output,truncated,outputPath}`；任务不存在/runtime 缺失返回 `unavailable`，不拉起进程。 | §5.5 |
 | workflow artifacts   | artifacts 恒空清单；workspace nodes 恒空；nodeResult 恒 `fault.workflowRun.nodeNotFound`（本波执行器不产 artifact/node 行）。            | §4.4      |
 | 附件→模型内容        | `sendText` 的 attachments 只做 ref 授权与保存；agent-core 的 user message 尚无附件 part 面，未注入模型请求（后续切片）。                 | §5.2/§5.7 |
 | 附件成功读差异       | oracle 对同 session 的 read/preview 也报未授权（缺陷）；Rust 按正确行为返回字节/本地路径（裁决②）。                                      | §5.3      |
+
+### 5.10 T6 补齐：Todo 与 Plan 工具（2026-11-20 黑盒观察）
+
+oracle 工具声明逐字（`TodoWrite`/`TodoRead`/`ExitPlanMode`）：
+
+- `TodoWrite`：`{todos:[{content,status:"pending"|"in_progress"|"completed",
+  priority:"high"|"medium"|"low"}]}`；结果 content 是压缩 JSON
+  `{"oldTodos":[...],"todos":[...],"summary":{"total","pending","inProgress","completed"}}`；
+  `todo` 表整表替换，position=列表顺序。
+- `TodoRead`：空对象入参；结果 content `{"todos":[...]}`。
+- `session/read` 顶层 `todos` 为条目数组，`todoGroups` 为
+  `[{id,source:"session",startedAt,updatedAt,todos}]`。
+- `ExitPlanMode`：`{plan:string, allowedPrompts?:[{tool:"Bash",prompt}]}`；工具行进入
+  `v4/conversation/plans` 的 `toolCall`（toolName=`ExitPlanMode`，input/inputText 保留 plan）。
+
+Rust 实现（`agent-server/src/session_tools.rs`）按上述形状；ExitPlanMode 的结果正文为
+`Plan submitted for approval.
+
+<plan>`（oracle 的成功结果正文未录到；只对齐 plans 行的
+input/toolName 形状）。Todo 持久化走 `session-store::todo`，冷/热 `session/read` 同源。
 
 ## 6. automation / provider / account（`automation-stdio-surface` / `provider-account-stdio-surface`）
 
