@@ -25,7 +25,8 @@ use agent_protocol::v4_queries::{
     V4_USAGE_STATS_METHOD,
 };
 use agent_protocol::v4_queries::{
-    V4_CONVERSATION_RESYNC_METHOD, V4_CONVERSATION_UNSUBSCRIBE_METHOD,
+    ConversationResyncParams, ConversationUnsubscribeParams, V4_CONVERSATION_RESYNC_METHOD,
+    V4_CONVERSATION_UNSUBSCRIBE_METHOD,
 };
 use agent_protocol::v4_sessions_index::{
     SessionSummary, SessionsIndexSnapshot, SESSIONS_INDEX_TOPIC_PREFIX,
@@ -399,22 +400,14 @@ pub(crate) fn handle_conversation_resync(
     server: &AgentServer,
     params: Value,
 ) -> Result<Value, ServerError> {
-    let params: ConversationSubscribeParams = parse_params(V4_CONVERSATION_RESYNC_METHOD, params)?;
-    // 复用同一参数形状的 base 字段（logEpoch + seq）；ack 与 subscribe 同形。
+    // 线形状按 §5.4：`{topic,connectionId,subscriptionId,base:{logEpoch,seq}}`；
+    // ACK 回显同一 subscriptionId、`mode:"resume"`。
+    let params: ConversationResyncParams = parse_params(V4_CONVERSATION_RESYNC_METHOD, params)?;
     let log_epoch = match &params.base {
         Some(base) => base.log_epoch.clone(),
         None => log_epoch_for(server, &params.topic),
     };
-    let subscription_id = params
-        .legacy_task_ids
-        .as_ref()
-        .and_then(|ids| ids.first().cloned())
-        .unwrap_or_else(|| {
-            format!(
-                "sub-{}-resync",
-                base36(server.v4_state().next_epoch_counter())
-            )
-        });
+    let subscription_id = params.subscription_id.clone();
     server.v4_state().touch_subscription(&subscription_id);
     serde_json::to_value(ConversationSubscribeResult {
         ack: ConversationSubscribeAck {
@@ -431,8 +424,9 @@ pub(crate) fn handle_conversation_unsubscribe(
     server: &AgentServer,
     params: Value,
 ) -> Result<Value, ServerError> {
-    let params: ConversationSubscribeParams =
+    let params: ConversationUnsubscribeParams =
         parse_params(V4_CONVERSATION_UNSUBSCRIBE_METHOD, params)?;
+    let _ = (params.connection_id, params.subscription_id);
     server.v4_state().drop_subscription_by_topic(&params.topic);
     serde_json::to_value(json!({})).map_err(|error| ServerError::internal(error.to_string()))
 }
@@ -1017,13 +1011,17 @@ pub(crate) fn handle_workflow_events(
              and sequence > ?2 order by sequence limit ?3",
         )
         .map_err(|error| ServerError::internal(error.to_string()))?;
-    let after = params.after_sequence.unwrap_or(0);
+    // `afterSequence` 是排他游标，缺省表示「从头取」——`dwf_event.sequence` 从 0 开始，
+    // 不能用 0 当缺省（会吞掉 run-started）。
+    let after = params
+        .after_sequence
+        .map(|value| value as i64)
+        .unwrap_or(-1);
     let limit = params.limit.unwrap_or(500).clamp(1, 500) as i64;
     let rows: Vec<(i64, String, String)> = statement
-        .query_map(
-            rusqlite::params![params.run_id, after as i64, limit + 1],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )
+        .query_map(rusqlite::params![params.run_id, after, limit + 1], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
         .map(|rows| rows.flatten().collect())
         .map_err(|error| ServerError::internal(error.to_string()))?;
     let has_more = rows.len() > limit as usize;

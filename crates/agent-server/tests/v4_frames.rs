@@ -439,6 +439,44 @@ fn rows_range_pages_the_projection() {
 }
 
 #[test]
+fn resync_and_unsubscribe_use_documented_params() {
+    let root = TempRoot::new("resync");
+    let create = request_line(
+        1,
+        "session/create",
+        serde_json::json!({
+            "sessionId": "sess_resync",
+            "workspace": { "workspacePath": WORKSPACE, "workspaceKey": WORKSPACE },
+        }),
+    );
+    let resync = request_line(
+        2,
+        "v4/conversation/resync",
+        serde_json::json!({
+            "topic": "conversation/sess_resync",
+            "connectionId": "conn-resync",
+            "subscriptionId": "sub-fixture",
+            "base": { "logEpoch": "epoch-fixture", "seq": 3 },
+        }),
+    );
+    let unsubscribe = request_line(
+        3,
+        "v4/conversation/unsubscribe",
+        serde_json::json!({
+            "topic": "conversation/sess_resync",
+            "connectionId": "conn-resync",
+            "subscriptionId": "sub-fixture",
+        }),
+    );
+    let (responses, _notifications) = drive(&root, format!("{create}{resync}{unsubscribe}"));
+    let ack = &responses[&2]["ack"];
+    assert_eq!(ack["subscriptionId"], json!("sub-fixture"));
+    assert_eq!(ack["mode"], json!("resume"));
+    assert_eq!(ack["logEpoch"], json!("epoch-fixture"));
+    assert_eq!(responses[&3], serde_json::json!({}));
+}
+
+#[test]
 fn usage_and_workflow_queries_read_agent_db() {
     let root = TempRoot::new("usage");
     let data_root = root.path().join(".mode");

@@ -315,6 +315,61 @@ fn start_saved_workflow_accepts_and_executes_via_dispatch() {
 }
 
 #[test]
+fn workflow_run_events_query_starts_at_sequence_zero() {
+    let root = TempRoot::new("dispatch-events");
+    let fallback_workspace = root.path().join(".mode");
+    let dirs = WorkflowDirs::new(
+        fallback_workspace.to_str().expect("ws"),
+        &root.path().join(".mode"),
+    );
+    std::fs::create_dir_all(&dirs.project).expect("workflows dir");
+    std::fs::write(dirs.project.join("probe-run.dwf.ts"), SAVED).expect("write workflow");
+    let server = open_server(&root);
+
+    let ack = server
+        .dispatch(
+            "v4/command",
+            envelope(
+                "cmd-c4-wf-events",
+                "sess_v4",
+                "startSavedWorkflow",
+                json!({ "name": "probe-run", "scope": "project" }),
+            ),
+        )
+        .expect("ack");
+    let run_id = ack["result"]["runId"].as_str().expect("runId");
+
+    // 缺省 afterSequence 必须包含 sequence 0 的 run-started（bug 回归）。
+    let all = server
+        .dispatch(
+            "v4/conversation/workflowRunEvents",
+            json!({ "sessionId": "sess_v4", "runId": run_id }),
+        )
+        .expect("events");
+    let events = all["events"].as_array().expect("events");
+    assert_eq!(events.len(), 3);
+    assert_eq!(events[0]["sequence"], json!(0));
+    assert_eq!(events[0]["type"], json!("run-started"));
+    assert_eq!(events[2]["type"], json!("run-settled"));
+    assert_eq!(all["hasMore"], json!(false));
+
+    // 排他游标：afterSequence=1 只返回 2、3。
+    let after = server
+        .dispatch(
+            "v4/conversation/workflowRunEvents",
+            json!({ "sessionId": "sess_v4", "runId": run_id, "afterSequence": 1 }),
+        )
+        .expect("events after");
+    let sequences: Vec<i64> = after["events"]
+        .as_array()
+        .expect("events")
+        .iter()
+        .map(|event| event["sequence"].as_i64().expect("sequence"))
+        .collect();
+    assert_eq!(sequences, vec![2]);
+}
+
+#[test]
 fn unsupported_command_type_fails_per_command() {
     let root = TempRoot::new("dispatch-unsupported");
     let server = open_server(&root);
