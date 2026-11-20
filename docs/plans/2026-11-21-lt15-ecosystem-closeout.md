@@ -48,8 +48,12 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
   `normalizeInstalledPluginsState`（旧 map 形态、官方市场改名归一、scope 别名、
   非法条目过滤）与 `saveInstalledPlugins`（atomic-file 原子写，两空格缩进 + 尾随
   换行字节对齐）；5 条单测。
-- 待做：安装编排（本地目录/归档 → manifest 校验 → 原子落盘）、卸载定位与
-  config 写回（`removePluginFromFileConfig`/suppression）、与 TS 行为对拍。
+- **卸载编排已迁**：`plugin_management.rs` 对齐 TS `uninstallMarketplacePlugin` /
+  `getPluginDataDir` / `getPluginCacheDir` / `legacyOfficialPluginId` /
+  `sanitizePluginId`——先 splice + 原子保存记录，再按 `removeCache`/`keepData`
+  删安装目录与用户数据目录（官方市场改名后旧 id 目录兜底）；7 条单测。
+- 待做：安装编排（marketplace cache → 依赖闭包 → 原子落盘）、config 写回
+  （`removePluginFromFileConfig`/suppression）、与 TS 行为对拍。
 
 ## P4/P5 入口
 

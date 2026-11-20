@@ -9,6 +9,7 @@ mod candidates;
 mod installed_records;
 mod marketplace_source;
 mod paths;
+mod plugin_management;
 mod plugins_archive;
 mod statuses;
 mod types;
@@ -25,6 +26,9 @@ pub use installed_records::{
     load_installed_plugins_state, normalize_installed_plugins_state, parse_plugin_id,
     save_installed_plugins_state, InstalledPluginRecord, InstalledPluginScope,
     InstalledPluginsState,
+};
+pub use plugin_management::{
+    plugin_cache_dir, plugin_data_dir, sanitize_plugin_id, uninstall_marketplace_plugin,
 };
 pub use plugins_archive::{import_plugins_archive, read_archive_metadata};
 
