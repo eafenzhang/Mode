@@ -32,7 +32,7 @@ pub(crate) fn handle(
         .map_err(store_error)?;
     let projected = super::projection::project_messages(&record, messages)?;
 
-    let snapshot = match server.find_runtime(&record.id) {
+    let mut snapshot = match server.find_runtime(&record.id) {
         Some(runtime) => {
             let mut snapshot = runtime.snapshot();
             snapshot.messages = projected;
@@ -44,5 +44,11 @@ pub(crate) fn handle(
             super::cold_snapshot(&record, projected, target, verifications, timeline)
         }
     };
+    // C4 T6：todos/todoGroups 以 `todo` 表为准（冷/热同一读面）。
+    let records = store.todos(&record.id).map_err(store_error)?;
+    let items = crate::session_tools::items_from_records(&records);
+    let (todos, groups) = crate::session_tools::todo_snapshot(&items);
+    snapshot.todos = Some(todos);
+    snapshot.todo_groups = Some(groups);
     serde_json::to_value(snapshot).map_err(|error| ServerError::internal(error.to_string()))
 }

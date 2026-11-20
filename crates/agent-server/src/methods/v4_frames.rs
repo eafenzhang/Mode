@@ -14,9 +14,11 @@
 use agent_protocol::v4_queries::{
     AppUsageDailyModelItem, AppUsageDailyModelUsage, AppUsageFavoriteModel, AppUsageHeatmap,
     AppUsageHeatmapCell, AppUsageHeatmapWeek, AppUsageModelUsage, AppUsageRange, AppUsageSource,
-    AppUsageSummary, AppUsageToolUsage, BackgroundBashOutputParams, BackgroundBashOutputResult,
+    AppUsageSummary, AppUsageToolUsage, BackgroundBashOutput, BackgroundBashOutputKind,
+    BackgroundBashOutputParams, BackgroundBashOutputResult, BackgroundBashStatus,
     BackgroundBashUnavailable, BackgroundBashUnavailableKind, ConversationUsageParams,
-    ConversationUsageResult, FileChangesParams, FileChangesResult, PlansParams, PlansResult,
+    ConversationUsageResult, FileChangesParams, FileRewindPreviewParams, FileRewindPreviewResult,
+    PlansParams, PlansResult, RewindAction, RewindSafeFile, RewindUnsafeFile, RewindUnsafeReason,
     RowsRangeParams, RowsRangeResult, UsageStatsParams, WorkflowRunEventsParams,
     WorkflowRunEventsResult, WorkflowRunSummary, WorkflowRunsQueryParams, WorkflowRunsQueryResult,
     V4_BACKGROUND_BASH_OUTPUT_METHOD, V4_CONVERSATION_FILE_CHANGES_METHOD,
@@ -150,6 +152,20 @@ fn rows_from_loaded(loaded: &[LoadedMessage]) -> Vec<agent_protocol::v4_rows::Co
         })
         .collect();
     project_rows(&projected)
+}
+
+fn projected_from_loaded(loaded: &[LoadedMessage]) -> Vec<ProjectedMessage<'_>> {
+    loaded
+        .iter()
+        .map(|(id, role, sequence, time, data, parts)| ProjectedMessage {
+            id,
+            role,
+            sequence: *sequence,
+            time_created: *time,
+            data,
+            parts,
+        })
+        .collect()
 }
 
 fn goal_from_store(
@@ -622,13 +638,99 @@ pub(crate) fn handle_file_changes(
             Some(serde_json::json!({ "name": "Error" })),
         ));
     }
-    // 本波不产 git/file-diff 事实（登记）：stale 守卫通过后返回空 items。
-    serde_json::to_value(FileChangesResult {
-        files: 0,
-        additions: 0,
-        deletions: 0,
-        state: None,
-        items: Vec::new(),
+    let target_turn = turn_target(server, &params.session_id, &params.target)?;
+    let store = server.store()?;
+    let loaded = load_projected(&store, &params.session_id)?;
+    let projected = projected_from_loaded(&loaded);
+    serde_json::to_value(crate::v4_projection::file_changes_for_turn(
+        &projected,
+        &target_turn,
+    ))
+    .map_err(|error| ServerError::internal(error.to_string()))
+}
+
+/// 校验 `ConversationRowTarget` 并返回该行的 `turnId`。
+///
+/// 观察：fileChanges 的 target 必须是当前投影里的 turnHeader 行；否则
+/// `-32603 proto.staleTarget`（黑盒探针 `probe-v4-target.mts`）。
+fn turn_target(
+    server: &AgentServer,
+    session_id: &str,
+    target: &agent_protocol::v4_queries::ConversationRowTarget,
+) -> Result<String, ServerError> {
+    let store = server.store()?;
+    let loaded = load_projected(&store, session_id)?;
+    let rows = rows_from_loaded(&loaded);
+    let expected_entity = target.entity_id.as_str();
+    for row in rows {
+        if let agent_protocol::v4_rows::ConversationRow::TurnHeader(header) = row {
+            if header.base.row_id.as_u64() == Some(target.row_id)
+                && header.base.entity_id.as_deref() == Some(expected_entity)
+            {
+                return Ok(header.base.turn_id);
+            }
+        }
+    }
+    Err(ServerError::rpc(
+        -32603,
+        "proto.staleTarget",
+        Some(serde_json::json!({ "name": "Error" })),
+    ))
+}
+
+pub(crate) fn handle_file_rewind_preview(
+    server: &AgentServer,
+    params: Value,
+) -> Result<Value, ServerError> {
+    let params: FileRewindPreviewParams = parse_params(
+        crate::methods::V4_CONVERSATION_FILE_REWIND_PREVIEW_METHOD,
+        params,
+    )?;
+    let current = log_epoch_for(server, &params.session_id);
+    if params.base_log_epoch.trim() != current {
+        return Err(ServerError::rpc(
+            -32603,
+            "proto.staleLogEpoch",
+            Some(serde_json::json!({ "name": "Error" })),
+        ));
+    }
+    let target_turn = turn_target(server, &params.session_id, &params.target)?;
+    let store = server.store()?;
+    let loaded = load_projected(&store, &params.session_id)?;
+    let projected = projected_from_loaded(&loaded);
+    let changes = crate::v4_projection::file_changes_for_turn(&projected, &target_turn);
+    let mut safe_files = Vec::new();
+    let mut unsafe_files = Vec::new();
+    for item in changes.items {
+        // 新建文件的唯一 Write 可安全回退为删除；其余文件没有基线快照，标记
+        // `checkpoint_missing`（本波不落 git checkpoint，登记差异）。
+        let created_only =
+            item.write_count == 1 && item.tool_names.as_slice() == ["Write"] && item.deletions == 0;
+        if created_only {
+            safe_files.push(RewindSafeFile {
+                action: RewindAction::Delete,
+                operation_count: item.write_count,
+                path: item.path,
+                tool_names: item.tool_names,
+            });
+        } else {
+            unsafe_files.push(RewindUnsafeFile {
+                current_hash: None,
+                expected_hash: None,
+                message: Some("No checkpoint is available for this file".to_string()),
+                operation_count: item.write_count,
+                path: item.path,
+                reason: RewindUnsafeReason::CheckpointMissing,
+                tool_names: item.tool_names,
+            });
+        }
+    }
+    let can_apply = unsafe_files.is_empty() && !safe_files.is_empty();
+    serde_json::to_value(FileRewindPreviewResult {
+        can_apply,
+        ignored_files: Vec::new(),
+        safe_files,
+        unsafe_files,
     })
     .map_err(|error| ServerError::internal(error.to_string()))
 }
@@ -639,15 +741,34 @@ pub(crate) fn handle_background_bash_output(
 ) -> Result<Value, ServerError> {
     let params: BackgroundBashOutputParams =
         parse_params(V4_BACKGROUND_BASH_OUTPUT_METHOD, params)?;
-    let _ = server;
-    // runtime 的 TaskRegistry 读取面未接入（登记）：统一 unavailable。
-    serde_json::to_value(BackgroundBashOutputResult::Unavailable(
-        BackgroundBashUnavailable {
-            kind: BackgroundBashUnavailableKind::Unavailable,
-            work_id: params.work_id,
-            code: None,
-        },
-    ))
+    // existing-only：只读活跃 runtime 的 TaskRegistry，不拉起进程。
+    let snapshot = server
+        .find_runtime(&params.session_id)
+        .and_then(|runtime| runtime.background_task_snapshot(&params.work_id));
+    let Some(snapshot) = snapshot else {
+        return serde_json::to_value(BackgroundBashOutputResult::Unavailable(
+            BackgroundBashUnavailable {
+                kind: BackgroundBashUnavailableKind::Unavailable,
+                work_id: params.work_id,
+                code: None,
+            },
+        ))
+        .map_err(|error| ServerError::internal(error.to_string()));
+    };
+    let status = match snapshot.status {
+        agent_core::TaskStatus::Running => BackgroundBashStatus::Running,
+        agent_core::TaskStatus::Completed => BackgroundBashStatus::Completed,
+        agent_core::TaskStatus::Failed => BackgroundBashStatus::Failed,
+        agent_core::TaskStatus::Cancelled => BackgroundBashStatus::Cancelled,
+    };
+    serde_json::to_value(BackgroundBashOutputResult::Output(BackgroundBashOutput {
+        kind: BackgroundBashOutputKind::Output,
+        work_id: params.work_id,
+        status,
+        output: snapshot.output,
+        truncated: false,
+        output_path: snapshot.output_path.display().to_string(),
+    }))
     .map_err(|error| ServerError::internal(error.to_string()))
 }
 

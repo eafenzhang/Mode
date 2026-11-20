@@ -63,7 +63,7 @@ pub use read::{
 };
 pub use task::{
     preflight_error, task_output_input_schema, task_stop_input_schema, TaskNotification,
-    TaskRegistry, TaskStatus, TASK_OUTPUT_DESCRIPTION, TASK_OUTPUT_INPUT_SCHEMA,
+    TaskRegistry, TaskSnapshot, TaskStatus, TASK_OUTPUT_DESCRIPTION, TASK_OUTPUT_INPUT_SCHEMA,
     TASK_STOP_DESCRIPTION, TASK_STOP_INPUT_SCHEMA,
 };
 pub use write::{write_input_schema, WRITE_DESCRIPTION, WRITE_INPUT_SCHEMA};

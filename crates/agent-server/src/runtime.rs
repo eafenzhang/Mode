@@ -540,6 +540,8 @@ struct Shared {
     mcp_hub: Arc<crate::mcp::McpHub>,
     /// C4 T5：宿主是否提供子代理执行端口（`Agent` 声明只在可用时进入工具目录）。
     subagents_enabled: bool,
+    /// C4 T6：会话 todo 缓存；TodoWrite 写穿 DB 并更新它，快照/工具读同一份。
+    todos: Arc<Mutex<Vec<agent_protocol::snapshot::TodoItem>>>,
 }
 
 impl Shared {
@@ -817,6 +819,11 @@ impl SessionRuntime {
         let (queue, receiver) = tokio::sync::mpsc::unbounded_channel();
         let data_root = config.data_root.clone();
         let subagents_enabled = wiring.subagent_runner.is_some();
+        let todo_items = store
+            .todos(&record.id)
+            .map(|rows| crate::session_tools::items_from_records(&rows))
+            .unwrap_or_default();
+        let todos = Arc::new(Mutex::new(todo_items));
         let shared = Arc::new(Shared {
             live: Mutex::new(Live {
                 status: RuntimeStatus::Idle,
@@ -852,6 +859,7 @@ impl SessionRuntime {
             mcp: wiring.mcp,
             mcp_hub: wiring.mcp_hub,
             subagents_enabled,
+            todos,
             record,
         });
 
@@ -1127,6 +1135,16 @@ impl SessionRuntime {
     /// `messages` 恒空（历史消息由 `session/read` / `session/resume` 从 store 投影）。
     /// settings / slashCommands / projection 的事实面按 C2 T6 对齐（见
     /// `state::build_snapshot` 与 `agent-c2-contract.md` §4）。
+    /// C4 T6：按 workId 读取后台任务快照（`v4/conversation/backgroundBashOutput`）。
+    /// `None` = 运行时没有任务表或任务不存在（观察者不得拉起新进程）。
+    pub(crate) fn background_task_snapshot(
+        &self,
+        work_id: &str,
+    ) -> Option<agent_core::TaskSnapshot> {
+        let tasks = self.shared.tasks.get()?;
+        tasks.snapshot(work_id, false, std::time::Duration::ZERO)
+    }
+
     pub fn snapshot(&self) -> agent_protocol::snapshot::SessionStateSnapshot {
         let live = self.shared.lock();
         self.snapshot_locked(&live)
@@ -1166,7 +1184,19 @@ impl SessionRuntime {
             return snapshot;
         };
         let projected = self.shared.api_retry.with_api_retry_runtime(&value);
-        serde_json::from_value(projected).unwrap_or(snapshot)
+        let mut snapshot: agent_protocol::snapshot::SessionStateSnapshot =
+            serde_json::from_value(projected).unwrap_or(snapshot);
+        // C4 T6：todos/todoGroups 与 DB 的 `todo` 表同源（TodoWrite 已更新缓存）。
+        let items = self
+            .shared
+            .todos
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        let (todos, groups) = crate::session_tools::todo_snapshot(&items);
+        snapshot.todos = Some(todos);
+        snapshot.todo_groups = Some(groups);
+        snapshot
     }
 
     /// `session/resume` 的 `goalStats` 投影（观察键：timeUsedSeconds/tokensUsed/
@@ -2228,6 +2258,11 @@ async fn run_one_input(
                 if shared_for_turn.subagents_enabled {
                     sources.push(Arc::new(crate::subagents_exec::AgentToolSource));
                 }
+                sources.push(Arc::new(crate::session_tools::SessionToolSource::new(
+                    Arc::clone(&shared_for_turn.store),
+                    shared_for_turn.record.id.clone(),
+                    Arc::clone(&shared_for_turn.todos),
+                )));
                 if let Some(mcp) = shared_for_turn.mcp.as_ref() {
                     sources.push(Arc::clone(mcp) as Arc<dyn agent_core::PluginToolSource>);
                 }

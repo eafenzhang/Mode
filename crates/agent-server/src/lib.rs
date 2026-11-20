@@ -34,6 +34,7 @@ mod reverse;
 mod runtime;
 mod scripted;
 mod server;
+mod session_tools;
 mod skills;
 mod state;
 mod subagents_exec;
@@ -58,6 +59,7 @@ pub use reverse::{
 };
 pub use runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
 pub use scripted::{ScriptedFixtureSource, SCRIPTED_PROVIDER_ENV};
+pub use session_tools::{items_from_records, todo_snapshot, SessionToolSource};
 pub use skills::{CompositeToolSource, SkillCatalog, SkillToolSource};
 pub use state::{Accepted, RuntimeConfig, RuntimeError, SessionInput};
 pub use subagents_exec::{subagent_system_prompt, AgentToolSource, SubagentRunnerImpl};

@@ -14,10 +14,12 @@ use agent_protocol::v4_delta::{
     ConversationDelta, RowAppendedDelta, RowDeltaDelta, RowUpsertedDelta, StatePatch,
     StateUpdatedDelta, StreamablePath,
 };
+use agent_protocol::v4_queries::{FileChangeItem, FileChangesResult, FileDiffHunk};
 use agent_protocol::v4_rows::{
     AssistantTextKind, AssistantTextRow, AssistantTextState, ConversationRow, RowBase,
-    ToolCallKind, ToolCallRow, ToolCallStatus, ToolOutput, TurnHeaderKind, TurnHeaderRow,
-    TurnOrigin, TurnState, UserInputKind, UserInputOrigin, UserInputRow,
+    ToolCallKind, ToolCallRow, ToolCallStatus, ToolOutput, TurnFileChangeState, TurnFileChanges,
+    TurnHeaderKind, TurnHeaderRow, TurnOrigin, TurnState, UserInputKind, UserInputOrigin,
+    UserInputRow,
 };
 use agent_protocol::v4_snapshot::{
     ActionAvailability, ContextWindowUsage, CumulativeUsage, DeniedAction, GoalState, GoalStatus,
@@ -206,7 +208,152 @@ pub fn project_rows(messages: &[ProjectedMessage<'_>]) -> Vec<ConversationRow> {
             }
         }
     }
+    // C4 T6：turnHeader 的 fileChanges 摘要（oracle 观察到 `{additions,deletions,files,state}`）。
+    for row in &mut rows {
+        if let ConversationRow::TurnHeader(header) = row {
+            let changes = file_changes_for_turn(messages, &header.base.turn_id);
+            if changes.files > 0 {
+                header.file_changes = Some(TurnFileChanges {
+                    additions: Number::from(changes.additions),
+                    deletions: Number::from(changes.deletions),
+                    files: Number::from(changes.files),
+                    state: Some(TurnFileChangeState::Active),
+                });
+            }
+        }
+    }
     rows
+}
+
+/// 一个 turn 内 Write/Edit 的文件变更投影（`fileChanges` 查询与 turnHeader 摘要共用）。
+///
+/// hunk 行号是近似值（DB 没有基线快照；登记差异）；新增/删除行数按工具入参文本行数计。
+pub fn file_changes_for_turn(
+    messages: &[ProjectedMessage<'_>],
+    turn_id: &str,
+) -> FileChangesResult {
+    struct Acc {
+        path: String,
+        additions: u64,
+        deletions: u64,
+        write_count: u64,
+        tool_names: Vec<String>,
+        patches: Vec<FileDiffHunk>,
+    }
+    // 行上的 `turnId` 是产生该 turn 的 user message id（模块注释）；工具 part 的
+    // `anchor.turnId` 是运行时 turn id，先用 user 行的 anchor 做一次映射。
+    let anchor_turn = messages
+        .iter()
+        .find(|message| message.id == turn_id)
+        .and_then(|message| message.data.get("anchor"))
+        .and_then(|anchor| anchor.get("turnId"))
+        .and_then(Value::as_str)
+        .unwrap_or(turn_id);
+    let mut order: Vec<String> = Vec::new();
+    let mut by_path: BTreeMap<String, Acc> = BTreeMap::new();
+    for message in messages {
+        if message
+            .data
+            .get("anchor")
+            .and_then(|anchor| anchor.get("turnId"))
+            .and_then(Value::as_str)
+            != Some(anchor_turn)
+        {
+            continue;
+        }
+        for (_part_id, _sequence, _time, data) in message.parts {
+            if data.get("type").and_then(Value::as_str) != Some("tool") {
+                continue;
+            }
+            let tool = data.get("tool").and_then(Value::as_str).unwrap_or_default();
+            if tool != "Write" && tool != "Edit" {
+                continue;
+            }
+            let Some(state) = data.get("state") else {
+                continue;
+            };
+            let input = state.get("input").cloned().unwrap_or(Value::Null);
+            let Some(path) = input.get("file_path").and_then(Value::as_str) else {
+                continue;
+            };
+            let entry = by_path.entry(path.to_string()).or_insert_with(|| {
+                order.push(path.to_string());
+                Acc {
+                    path: path.to_string(),
+                    additions: 0,
+                    deletions: 0,
+                    write_count: 0,
+                    tool_names: Vec::new(),
+                    patches: Vec::new(),
+                }
+            });
+            entry.write_count += 1;
+            if !entry.tool_names.iter().any(|name| name == tool) {
+                entry.tool_names.push(tool.to_string());
+            }
+            if tool == "Write" {
+                let content = input
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let lines: Vec<&str> = content.lines().collect();
+                entry.additions += lines.len() as u64;
+                if !lines.is_empty() {
+                    entry.patches.push(FileDiffHunk {
+                        old_start: Number::from(1),
+                        old_lines: Number::from(0),
+                        new_start: Number::from(1),
+                        new_lines: Number::from(lines.len()),
+                        lines: lines.iter().map(|line| format!("+{line}")).collect(),
+                    });
+                }
+            } else {
+                let old = input
+                    .get("old_string")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let new = input
+                    .get("new_string")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let old_lines: Vec<&str> = old.lines().collect();
+                let new_lines: Vec<&str> = new.lines().collect();
+                entry.additions += new_lines.len() as u64;
+                entry.deletions += old_lines.len() as u64;
+                if !old_lines.is_empty() || !new_lines.is_empty() {
+                    let mut lines: Vec<String> =
+                        old_lines.iter().map(|line| format!("-{line}")).collect();
+                    lines.extend(new_lines.iter().map(|line| format!("+{line}")));
+                    entry.patches.push(FileDiffHunk {
+                        old_start: Number::from(1),
+                        old_lines: Number::from(old_lines.len()),
+                        new_start: Number::from(1),
+                        new_lines: Number::from(new_lines.len()),
+                        lines,
+                    });
+                }
+            }
+        }
+    }
+    let items: Vec<FileChangeItem> = order
+        .into_iter()
+        .filter_map(|path| by_path.remove(&path))
+        .map(|acc| FileChangeItem {
+            path: acc.path,
+            additions: acc.additions,
+            deletions: acc.deletions,
+            write_count: acc.write_count,
+            tool_names: acc.tool_names,
+            patches: acc.patches,
+        })
+        .collect();
+    FileChangesResult {
+        files: items.len() as u64,
+        additions: items.iter().map(|item| item.additions).sum(),
+        deletions: items.iter().map(|item| item.deletions).sum(),
+        state: None,
+        items,
+    }
 }
 
 fn turn_id_of<'a>(messages: &'a [ProjectedMessage<'a>], message_id: &str) -> String {
@@ -903,4 +1050,71 @@ fn row_upserted_assistant_complete(row_id: u64) -> ConversationDelta {
         model: None,
         feedback: None,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn file_changes_for_turn_projects_write_parts() {
+        let user_data = json!({ "anchor": { "turnId": "turn_1" }, "role": "user" });
+        let assistant_data = json!({ "anchor": { "turnId": "turn_1" }, "role": "assistant" });
+        let write_part = json!({
+            "type": "tool",
+            "tool": "Write",
+            "callID": "call_1",
+            "state": {
+                "input": { "file_path": "C:/ws/a.txt", "content": "line one\nline two\n" },
+                "status": "completed"
+            }
+        });
+        let user_parts: Vec<(String, Option<i64>, i64, Value)> = Vec::new();
+        let assistant_parts = vec![("part_1".to_string(), Some(0), 2, write_part)];
+        let messages = vec![
+            ProjectedMessage {
+                id: "msg_1",
+                role: "user",
+                sequence: Some(0),
+                time_created: 1,
+                data: &user_data,
+                parts: &user_parts,
+            },
+            ProjectedMessage {
+                id: "msg_2",
+                role: "assistant",
+                sequence: Some(1),
+                time_created: 2,
+                data: &assistant_data,
+                parts: &assistant_parts,
+            },
+        ];
+        let changes = file_changes_for_turn(&messages, "turn_1");
+        assert_eq!(changes.files, 1);
+        assert_eq!(changes.additions, 2);
+        assert_eq!(changes.deletions, 0);
+        assert_eq!(changes.items[0].path, "C:/ws/a.txt");
+        assert_eq!(changes.items[0].write_count, 1);
+        assert_eq!(changes.items[0].tool_names, vec!["Write"]);
+        assert_eq!(changes.items[0].patches[0].old_lines.as_u64(), Some(0));
+        assert_eq!(changes.items[0].patches[0].new_lines.as_u64(), Some(2));
+        assert_eq!(
+            changes.items[0].patches[0].lines,
+            vec!["+line one", "+line two"]
+        );
+
+        // turnHeader 行带摘要（与 `v4/conversation/rowsRange` 的观察一致）。
+        let rows = project_rows(&messages);
+        let header = rows
+            .iter()
+            .find_map(|row| match row {
+                ConversationRow::TurnHeader(header) => Some(header),
+                _ => None,
+            })
+            .expect("turnHeader");
+        let summary = header.file_changes.clone().expect("fileChanges");
+        assert_eq!(summary.additions.as_u64(), Some(2));
+        assert_eq!(summary.files.as_u64(), Some(1));
+    }
 }

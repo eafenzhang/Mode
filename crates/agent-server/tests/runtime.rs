@@ -2138,3 +2138,113 @@ duration_ms: "
         agent_part["state"]
     );
 }
+
+// ---------------------------------------------------------------------------
+// C4 T6：TodoWrite/TodoRead（工具结果、todo 表与 snapshot todos）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn todo_tools_persist_and_project_the_session_list() {
+    let fixture = fixture("todo-tools");
+    let provider = RecordingProvider::new(vec![
+        ScriptStep::ToolCalls(vec![ScriptToolCall {
+            name: "TodoWrite".to_string(),
+            input: json!({
+                "todos": [
+                    { "content": "first task", "status": "pending", "priority": "high" },
+                    { "content": "second task", "status": "in_progress", "priority": "medium" }
+                ]
+            }),
+        }]),
+        ScriptStep::Text("todo written".to_string()),
+        ScriptStep::ToolCalls(vec![ScriptToolCall {
+            name: "TodoRead".to_string(),
+            input: json!({}),
+        }]),
+        ScriptStep::Text("todo read".to_string()),
+    ]);
+    let runtime = spawn_runtime_with_wiring(&fixture, provider, RuntimeWiring::default());
+    let (_, mut receiver) = runtime.subscribe(None);
+
+    runtime
+        .submit(SessionInput::text("write todos"))
+        .expect("提交");
+    drain_until_terminal(&mut receiver).await;
+    wait_settled(&runtime).await;
+
+    // DB：整表替换后的两行（position 顺序）。
+    let connection = raw_connection(&fixture.db_path);
+    let rows: Vec<(String, String, String, i64)> = connection
+        .prepare("SELECT content, status, priority, position FROM todo ORDER BY position")
+        .expect("prepare todo")
+        .query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .expect("query todo")
+        .map(|row| row.expect("todo row"))
+        .collect();
+    assert_eq!(
+        rows,
+        vec![
+            (
+                "first task".to_string(),
+                "pending".to_string(),
+                "high".to_string(),
+                0
+            ),
+            (
+                "second task".to_string(),
+                "in_progress".to_string(),
+                "medium".to_string(),
+                1
+            ),
+        ]
+    );
+
+    // 快照：todos/todoGroups 与 DB 同源。
+    let snapshot = runtime.snapshot();
+    assert_eq!(
+        snapshot.todos,
+        Some(vec![
+            agent_protocol::snapshot::TodoItem {
+                content: "first task".to_string(),
+                status: agent_protocol::snapshot::TodoStatus::Pending,
+                priority: agent_protocol::snapshot::TodoPriority::High,
+            },
+            agent_protocol::snapshot::TodoItem {
+                content: "second task".to_string(),
+                status: agent_protocol::snapshot::TodoStatus::InProgress,
+                priority: agent_protocol::snapshot::TodoPriority::Medium,
+            },
+        ])
+    );
+    let groups = snapshot.todo_groups.expect("todoGroups");
+    assert_eq!(groups.len(), 1);
+    assert_eq!(
+        groups[0].source,
+        agent_protocol::snapshot::TodoGroupSource::Session
+    );
+    assert_eq!(groups[0].todos.len(), 2);
+
+    // TodoRead 的结果内容（tool part 的 state.output）。
+    runtime
+        .submit(SessionInput::text("read todos"))
+        .expect("提交");
+    drain_until_terminal(&mut receiver).await;
+    wait_settled(&runtime).await;
+    let mut messages = connection
+        .prepare("SELECT data FROM part WHERE session_id = ?1 ORDER BY rowid")
+        .expect("prepare parts");
+    let outputs: Vec<String> = messages
+        .query_map([fixture.record.id.as_str()], |row| row.get::<_, String>(0))
+        .expect("query parts")
+        .map(|row| row.expect("part row"))
+        .filter(|data| data.contains("TodoRead"))
+        .collect();
+    assert!(
+        outputs.iter().any(|data| {
+            data.contains("first task") && data.contains("second task") && data.contains("todos")
+        }),
+        "TodoRead 结果必须回显当前列表：{outputs:?}"
+    );
+}

@@ -626,6 +626,9 @@ impl AgentServer {
             crate::methods::V4_CONVERSATION_FILE_CHANGES_METHOD => {
                 methods::v4_frames::handle_file_changes(self, params)
             }
+            crate::methods::V4_CONVERSATION_FILE_REWIND_PREVIEW_METHOD => {
+                methods::v4_frames::handle_file_rewind_preview(self, params)
+            }
             crate::methods::V4_BACKGROUND_BASH_OUTPUT_METHOD => {
                 methods::v4_frames::handle_background_bash_output(self, params)
             }

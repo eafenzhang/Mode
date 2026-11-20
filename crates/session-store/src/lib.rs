@@ -36,6 +36,7 @@ mod part;
 mod schema;
 mod session;
 mod target;
+mod todo;
 mod usage;
 mod workflow_runs;
 
@@ -55,6 +56,7 @@ pub use part::PartRecord;
 pub use schema::{REQUIRED_TABLES, SCHEMA_MIGRATION_TABLE};
 pub use session::{SessionEntryRecord, SessionRecord};
 pub use target::TargetRecord;
+pub use todo::TodoRecord;
 pub use usage::{ModelUsageRecord, ToolUsageRecord, TurnUsageRecord};
 pub use workflow_runs::{WorkflowEventInsert, WorkflowRunInsert};
 
