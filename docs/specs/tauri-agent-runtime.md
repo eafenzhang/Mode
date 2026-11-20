@@ -1369,6 +1369,81 @@ agent-server 注册；已在 `methods/workspace.rs` 补齐并加集成测试，�
 Rust 二进制再 `tauri build`。`agent-server` 使用专用 `agent-release` profile（LTO、opt-level=z、
 codegen-units=1、strip），release 二进制 25.8MB → 14MB。
 
+### C4.6 代码审查与真人 UI 测试修复（2026-11-20）
+
+评审后按「桌面 UI 能真实新建任务并跑完 turn」补齐缺口：
+
+- **v4 命令面**：实现 `createSession`（workspace/config/firstInput/mcp/off-peak/dwf）、
+  `stop`、`compact`、`switchModelConfig`、`switchCollaborationMode`、`sendGoalCommand`、
+  `pauseGoal`/`resumeGoal`；`sendText` 的 accepted 结果改为协议要求的
+  `inputAccepted{delivery,inputId}`，并把首条 `modelSelection`/`mode` 写入 runtime。
+- **首条输入标题**：`session.titleUpdated` 先于 `turn.started`（seq 1/2），DB title 同步
+  写入；v4 快照从 session 行读 title/mode，`control.phase` 按 runtime 实际 busy 投影
+  （空闲会话不再误报 `canStop`）。
+- **路径安全**：附件 `sessionId/uploadId`、插件 marketplace/name/version/source/installPath
+  统一用 `path_safety` 校验，阻断 `../`/绝对路径/Windows drive 前缀与缓存目录外删除。
+- **Bash**：等待期间并发读 stdout/stderr（大输出不再把子进程卡在管道写满上）；
+  `is_safe_command` 按换行与 `||` 分段，堵住「安全首段 + 换行危险命令」的免审批绕过。
+- **子代理**：running 生命周期立即投递；子 turn 复用 reverse hub 的审批与 allow 规则
+  （不再隐式 AutoAllow）；Explore 使用 `with_tool_allowlist` 只读工具集。
+- **v4 流**：live 转发订阅 unsubscribe/连接结束的取消信号；rowId 从快照续接并登记
+  流式行；turnId 取最近的 user 锚点；tool status 保留 error/cancelled；fileChanges
+  只统计成功落盘；resync/initial/online 共用单调 ordinal。
+- **平台**：`runtime-tools` 把 Rust 的 `windows`/`x86_64` 归一为 Node 侧
+  `win32-x64`（含 `.exe`），修复随包/开发态原生二进制解析。
+
+真机 UI 测试（安装版 0.0.140 + 当前 `target/debug/agent-server`）：新建任务可创建会话、
+显示用户消息、执行 Bash 工具、完成 turn；headless 冒烟验证 `stop` ACK accepted 且 turn
+以 `resultType:"cancelled"` 收口。
+
+**残余补齐（同日第二波）**：
+
+- `v4/conversation` 先订阅 runtime、再读 DB 快照；水位用 `committed_seq`（persist →
+  commit），初始快照后按 seq 去重；广播 `Lagged` 不再静默跳帧，改为补发
+  `deliveryKind:"recovery"` 全量快照并重置 live 状态。
+- `workspace-config/<workspaceId>` topic 接入 `v4/conversation/subscribe|resync`
+  （ACK + snapshot/recovery 帧）；Host 不再因 `topic must be conversation/...` 每 0.8s 重试。
+- Host 动态工作流灰度读取加 1.5s 上限（shared `resolveDynamicWorkflowGateWithTimeout`，
+  超时 fail-closed）：`createSession` 不再被 `/client/configs` 的冷启动网络超时拖住。
+- 实现 `renameSession`（DB + `session.titleUpdated(source:"custom")`）、`deleteSession`
+  （空闲会话：移除 runtime → 事务删除 session 及无外键 usage/input/target 行；busy 显式
+  `fault.command.busyCannotDelete`）与 `cancelBackgroundWork`（TaskRegistry stop）。
+  `LiveView` 增加 title/titleSource 覆盖，warm `session/read` 能立即看到首条输入/rename
+  后的标题与来源；create 的空标题仍省略 `titleSource`（C1 观察）。
+- **首 turn 延迟根因（28s → 0.5s）**：`provider-config` 的 `matches_rule` 原先为
+  provider×model×rule 每次重新编译正则（实测单次 resolve 14.8s）；改为按
+  pattern+大小写缓存编译结果后 resolve ≈0.2s，`v4 createSession` 的 Host ACK 从
+  28.5s 降到 0.55s（真机 Host 计时）。
+- `turn.started` 在 Skill/MCP 工具目录建连**之前**投递；偏好请求
+  （`runtime-materialization` / `user-execution`）从 15s 超时收紧为 750ms
+  （fail-closed），不再把「新任务已受理」拖住。
+
+**残余补齐（同日第三波——队列/孤儿/原子性）**：
+
+- **队列事实源迁移**：待执行输入从 mpsc 缓冲迁到 `Shared.queue`（`VecDeque` + 投影
+  元数据）；mpsc 只剩唤醒/关闭语义（drop → receiver `None` → worker 先排干 pending）。
+  快照 `queue.items` 从此有真实数据（`queueItemId = inputId`），`config.followupMode`、
+  `queue.autoDrain` 按 `Live` 投影。
+- **六条 v4 命令**：`sendQueuedNow`（移到队首）、`editQueueItem`（改正文，compact 项
+  拒绝）、`deleteQueueItem`（compact 项同时复位协调器相位）、`reorderQueueItem`
+  （before/null→队尾）、`setFollowupMode`、`setAutoDrain`——全部走 CAS 壳
+  （`baseRevision != stateRevision` → `status:"stale"` + `revisionAtDecision`）。
+  guide 模式的「引导进当前 turn」行为未实现，输入仍按 queue 准入（登记）。
+- **孤儿防线（Windows）**：Bash 子进程挂进 kill-on-close 作业对象
+  （`agent-tools::win_job`）——前台命令句柄随函数返回关闭，后台任务句柄随
+  `TaskEntry` 释放；agent 进程被**强杀**时 OS 关句柄 → 内核终止整个子树
+  （`taskkill /T` 与优雅退出之外唯一在强杀场景成立的防线）。内核级测试：
+  挂 30s `ping` 子进程 → Drop 句柄 → 子进程 364µs 内被终止。
+- **compact 落库单事务**：timeline/摘要/`turn_usage`/`model_usage`/`touch_session`
+  合并进单个 Immediate 事务（success/skipped/failure 三路径），任一失败整体回滚，
+  不再留「半截 compact」状态。`SessionStore` 暴露 `with_write_transaction` 与
+  `*_tx` 变体（`append_message_with_parts_tx` / `record_turn_usage_tx` /
+  `record_model_usage_tx` / `touch_session_tx`）。
+
+仍存在的残余：`resolveInteraction`、行级 fork/rewind/edit/retry、子代理
+`run_in_background`（当前同步执行）仍未实现；`setFollowupMode=guide` 的引导行为
+按 queue 准入（已登记）。
+
 ## 验收场景（Task 0）
 
 1. `pnpm test:agent-runtime-oracle`（唯一入口；等价于

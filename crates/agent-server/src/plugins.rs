@@ -41,9 +41,20 @@ use plugin_discovery::{
 };
 use serde_json::{json, Map, Value};
 
+use crate::path_safety::{is_safe_segment, is_within};
+
 const KNOWN_MARKETPLACES_FILE: &str = "known_marketplaces.json";
 const INSTALLED_PLUGINS_FILE: &str = "installed_plugins.json";
 const MARKETPLACE_FILE: &str = "marketplace.json";
+
+/// 校验调用方/清单提供的目录名，避免 `../` 把落盘路径带出插件根。
+fn validate_segment(value: &str, label: &str) -> Result<(), String> {
+    if is_safe_segment(value) {
+        Ok(())
+    } else {
+        Err(format!("Invalid {label}: {value:?}"))
+    }
+}
 
 /// 插件服务的路径与配置快照（每次请求重新读，避免跨进程缓存陈旧）。
 pub struct PluginService {
@@ -297,6 +308,7 @@ impl PluginService {
             .known_marketplaces()
             .iter()
             .filter_map(marketplace_summary)
+            .filter(|marketplace| is_safe_segment(&marketplace.id))
             .collect();
         let installed_ids: BTreeSet<String> = snapshot
             .installed
@@ -568,7 +580,12 @@ impl PluginService {
             .filter(|value| !value.is_empty())
             .ok_or_else(|| "Marketplace manifest has no name".to_string())?
             .to_string();
-        let target = self.storage_root.join("marketplaces").join(&name);
+        validate_segment(&name, "marketplace name")?;
+        let marketplaces_root = self.storage_root.join("marketplaces");
+        let target = marketplaces_root.join(&name);
+        if !is_within(&marketplaces_root, &target) {
+            return Err(format!("Marketplace path escapes storage root: {name:?}"));
+        }
         copy_directory(&source_path, &target)?;
         let plugin_count = manifest
             .get("plugins")
@@ -610,7 +627,14 @@ impl PluginService {
         &self,
         marketplace: &str,
     ) -> Result<PluginsMarketplaceMutationResult, String> {
-        let target = self.storage_root.join("marketplaces").join(marketplace);
+        validate_segment(marketplace, "marketplace")?;
+        let marketplaces_root = self.storage_root.join("marketplaces");
+        let target = marketplaces_root.join(marketplace);
+        if !is_within(&marketplaces_root, &target) {
+            return Err(format!(
+                "Marketplace path escapes storage root: {marketplace:?}"
+            ));
+        }
         let _ = fs::remove_dir_all(&target);
         let mut known = self.known_marketplace_document();
         if let Some(entries) = known.get_mut("marketplaces").and_then(Value::as_array_mut) {
@@ -642,6 +666,10 @@ impl PluginService {
                 if marketplace.is_some_and(|wanted| wanted != id) {
                     continue;
                 }
+                // id 来自磁盘上的 known_marketplaces.json：非法段直接跳过，不拼路径。
+                if !is_safe_segment(id) {
+                    continue;
+                }
                 let Some(source_path) = entry
                     .get("source")
                     .and_then(|source| source.get("path"))
@@ -650,7 +678,11 @@ impl PluginService {
                     continue;
                 };
                 let source_path = PathBuf::from(source_path);
-                let target = self.storage_root.join("marketplaces").join(id);
+                let marketplaces_root = self.storage_root.join("marketplaces");
+                let target = marketplaces_root.join(id);
+                if !is_within(&marketplaces_root, &target) {
+                    continue;
+                }
                 copy_directory(&source_path, &target)?;
                 let plugin_count = read_json_object(&target.join(MARKETPLACE_FILE))
                     .and_then(|manifest| {
@@ -690,7 +722,15 @@ impl PluginService {
         marketplace: &str,
         scope: Option<PluginScope>,
     ) -> Result<PluginsInstallResult, String> {
-        let marketplace_root = self.storage_root.join("marketplaces").join(marketplace);
+        validate_segment(plugin_name, "plugin name")?;
+        validate_segment(marketplace, "marketplace")?;
+        let marketplaces_root = self.storage_root.join("marketplaces");
+        let marketplace_root = marketplaces_root.join(marketplace);
+        if !is_within(&marketplaces_root, &marketplace_root) {
+            return Err(format!(
+                "Marketplace path escapes storage root: {marketplace:?}"
+            ));
+        }
         let entry = read_marketplace_plugins(&self.storage_root, marketplace)
             .into_iter()
             .find(|entry| entry.get("name").and_then(Value::as_str) == Some(plugin_name))
@@ -699,6 +739,12 @@ impl PluginService {
             })?;
         let relative = entry.get("source").and_then(Value::as_str).unwrap_or(".");
         let source = resolve_marketplace_source(&marketplace_root, relative);
+        // marketplace.json 的 source 可能写成绝对路径或 `../../`：只允许快照目录内。
+        if !is_within(&marketplace_root, &source) {
+            return Err(format!(
+                "Plugin source escapes marketplace: {relative:?} in {marketplace}"
+            ));
+        }
         let manifest = read_plugin_manifest_object(&source)
             .ok_or_else(|| format!("Plugin manifest not found: {}", source.display()))?;
         let version = manifest
@@ -706,12 +752,17 @@ impl PluginService {
             .and_then(Value::as_str)
             .unwrap_or("0.0.0")
             .to_string();
-        let install_path = self
-            .storage_root
-            .join("cache")
+        validate_segment(&version, "plugin version")?;
+        let cache_root = self.storage_root.join("cache");
+        let install_path = cache_root
             .join(marketplace)
             .join(plugin_name)
             .join(&version);
+        if !is_within(&cache_root, &install_path) {
+            return Err(format!(
+                "Plugin cache path escapes storage root: {version:?}"
+            ));
+        }
         copy_directory(&source, &install_path)?;
         let now = iso8601_now();
         let id = format!("{plugin_name}@{marketplace}");
@@ -783,13 +834,20 @@ impl PluginService {
         let record = entries.remove(position);
         write_json_object(&self.storage_root.join(INSTALLED_PLUGINS_FILE), &document)?;
         let _ = self.set_enabled(&target, false);
-        let install_path = record
+        let recorded_install_path = record
             .get("installPath")
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string();
+        // 记录文件可被篡改：只处理 cache 根内的路径，避免任意目录删除/扫描。
+        let cache_root = self.storage_root.join("cache");
+        let install_path = (!recorded_install_path.is_empty()
+            && is_within(&cache_root, Path::new(&recorded_install_path)))
+        .then_some(recorded_install_path);
         if remove_cache.unwrap_or(true) {
-            let _ = fs::remove_dir_all(&install_path);
+            if let Some(path) = &install_path {
+                let _ = fs::remove_dir_all(path);
+            }
         }
         let name = record
             .get("name")
@@ -817,7 +875,7 @@ impl PluginService {
             version,
             enabled: false,
             scope: PluginScope::User,
-            install_path: Some(install_path),
+            install_path: install_path.clone(),
             installed_at,
             component_types: None,
             hook_details: None,

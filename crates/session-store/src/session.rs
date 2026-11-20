@@ -122,17 +122,26 @@ impl SessionStore {
     /// （fail-closed：静默 Ok 会把「runtime 指向了不存在的会话」藏起来）。
     pub fn touch_session(&self, session_id: &str, time_updated: i64) -> Result<(), StoreError> {
         self.with_write_transaction(|transaction| {
-            let updated = transaction.execute(
-                "UPDATE session SET time_updated = ?2 WHERE id = ?1",
-                params![session_id, time_updated],
-            )?;
-            if updated == 0 {
-                return Err(StoreError::InvalidInput(format!(
-                    "touch_session：会话不存在：{session_id}"
-                )));
-            }
-            Ok(())
+            Self::touch_session_tx(transaction, session_id, time_updated)
         })
+    }
+
+    /// [`Self::touch_session`] 的**调用方事务内**变体（compact 落库合并写）。
+    pub fn touch_session_tx(
+        tx: &rusqlite::Transaction<'_>,
+        session_id: &str,
+        time_updated: i64,
+    ) -> Result<(), StoreError> {
+        let updated = tx.execute(
+            "UPDATE session SET time_updated = ?2 WHERE id = ?1",
+            params![session_id, time_updated],
+        )?;
+        if updated == 0 {
+            return Err(StoreError::InvalidInput(format!(
+                "touch_session：会话不存在：{session_id}"
+            )));
+        }
+        Ok(())
     }
 
     /// 更新会话标题与来源（goal 的 `session.titleUpdated` 副作用落库）。
@@ -160,8 +169,33 @@ impl SessionStore {
         })
     }
 
-    /// 更新 `session.permission`（JSON 文本）与 `time_updated`。
+    /// 删除会话及其派生行。
     ///
+    /// `message`/`part`/`session_entry`/`todo`/`session_task_link(child)` 由外键级联；
+    /// 无外键的 usage/input/target 表显式清理。返回是否真的删掉了 session 行。
+    /// 调用方必须先确保 runtime 已停止写入（v4 deleteSession 在空闲会话上执行）。
+    pub fn delete_session(&self, session_id: &str) -> Result<bool, StoreError> {
+        self.with_write_transaction(|transaction| {
+            for table in [
+                "tool_usage",
+                "model_usage",
+                "turn_usage",
+                "session_input",
+                "input_history",
+                "session_target",
+            ] {
+                transaction.execute(
+                    &format!("DELETE FROM {table} WHERE session_id = ?1"),
+                    params![session_id],
+                )?;
+            }
+            let deleted =
+                transaction.execute("DELETE FROM session WHERE id = ?1", params![session_id])?;
+            Ok(deleted > 0)
+        })
+    }
+
+    /// 更新 `session.permission`（JSON 文本）与 `time_updated`。    ///
     /// `session/setMode` 用：热快照的 mode 来自 runtime 配置，而 `session/list` /
     /// 冷读从这一列投影，两处必须看到同一事实（最终评审 I4）。行不存在时报
     /// [`StoreError::InvalidInput`]，不静默成功。

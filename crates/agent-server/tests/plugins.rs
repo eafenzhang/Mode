@@ -368,3 +368,103 @@ fn installed_summary_carries_installation_metadata() {
         .expect("component types")
         .contains(&"skill".to_string()));
 }
+
+#[test]
+fn marketplace_and_install_reject_path_traversal() {
+    let root = TempRoot::new("traversal");
+    let marketplace_root = root.path().join("marketplace");
+    seed_marketplace(&marketplace_root);
+
+    // 1) marketplace 名不能把快照目录带出 plugins 根。
+    let manifest = json!({
+        "name": "../escaped-marketplace",
+        "owner": { "name": "C4 Probe" },
+        "plugins": []
+    });
+    write(
+        &marketplace_root.join("marketplace.json"),
+        &serde_json::to_string_pretty(&manifest).expect("json"),
+    );
+    let service = service(&root);
+    let error = service
+        .marketplace_add(marketplace_root.to_str().expect("path"))
+        .expect_err("traversal marketplace name must fail");
+    assert!(error.contains("Invalid marketplace name"), "{error}");
+
+    // 2) marketplace.json 的 plugin source 不能逃出快照目录。
+    seed_marketplace(&marketplace_root);
+    service
+        .marketplace_add(marketplace_root.to_str().expect("path"))
+        .expect("add marketplace");
+    let manifest = json!({
+        "name": "fixture-marketplace",
+        "owner": { "name": "C4 Probe" },
+        "plugins": [{
+            "name": "fixture",
+            "source": "../../../../outside-plugin",
+            "description": "escape attempt"
+        }]
+    });
+    write(
+        &marketplace_root.join("marketplace.json"),
+        &serde_json::to_string_pretty(&manifest).expect("json"),
+    );
+    service
+        .marketplace_update(Some("fixture-marketplace"))
+        .expect("refresh snapshot");
+    let error = service
+        .install("fixture", "fixture-marketplace", None)
+        .expect_err("escaping plugin source must fail");
+    assert!(error.contains("escapes marketplace"), "{error}");
+
+    // 3) remove 的市场 id 同样是路径段。
+    let error = service
+        .marketplace_remove("../../escaped-marketplace")
+        .expect_err("traversal marketplace id must fail");
+    assert!(error.contains("Invalid marketplace"), "{error}");
+    assert!(!root.path().join("escaped-marketplace").exists());
+}
+
+#[test]
+fn uninstall_never_deletes_outside_plugin_cache() {
+    let root = TempRoot::new("uninstall-outside");
+    let marketplace_root = root.path().join("marketplace");
+    seed_marketplace(&marketplace_root);
+    let service = service(&root);
+    service
+        .marketplace_add(marketplace_root.to_str().expect("path"))
+        .expect("add marketplace");
+    let installed = service
+        .install("fixture", "fixture-marketplace", None)
+        .expect("install");
+    let install_path = installed.installed_plugins[0]
+        .install_path
+        .as_deref()
+        .expect("install path");
+    // <storage>/cache/<marketplace>/<plugin>/<version> → 向上 4 级是 plugins 存储根。
+    let storage_root = Path::new(install_path)
+        .ancestors()
+        .nth(4)
+        .expect("storage root")
+        .to_path_buf();
+    let installed_file = storage_root.join("installed_plugins.json");
+    let mut document: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&installed_file).expect("read installed"))
+            .expect("parse installed");
+    let outside = root.path().join("outside-delete");
+    write(&outside.join("keep.txt"), "keep\n");
+    document["plugins"][0]["installPath"] = json!(outside.display().to_string());
+    fs::write(
+        &installed_file,
+        serde_json::to_string_pretty(&document).expect("json"),
+    )
+    .expect("write installed");
+
+    service
+        .uninstall(Some("fixture@fixture-marketplace"), None, None, Some(true))
+        .expect("uninstall with tampered path");
+    assert!(
+        outside.join("keep.txt").exists(),
+        "cache 根外的路径不能被删除"
+    );
+}

@@ -208,6 +208,11 @@ pub(crate) fn handle_conversation_subscribe(
     if let Some(workspace_id) = params.topic.strip_prefix(SESSIONS_INDEX_TOPIC_PREFIX) {
         return subscribe_sessions_index(server, workspace_id);
     }
+    if let Some(workspace_id) =
+        agent_protocol::v4_workspace_config::parse_workspace_config_topic(&params.topic)
+    {
+        return subscribe_workspace_config(server, workspace_id, params.client_mode);
+    }
     let session_id = params.topic.strip_prefix("conversation/").ok_or_else(|| {
         ServerError::invalid_params(format!(
             "topic must be conversation/<sessionId> or {SESSIONS_INDEX_TOPIC_PREFIX}<workspaceId>: {}",
@@ -242,6 +247,9 @@ pub(crate) fn handle_conversation_subscribe(
         mode: &mode,
         provider: &provider,
         model: &model,
+        queue_items: Vec::new(),
+        auto_drain: true,
+        followup_mode: agent_protocol::v4_snapshot::FollowupMode::Queue,
         running,
         goal,
         subagents: agent_protocol::v4_snapshot::SubagentProjectionState {
@@ -260,7 +268,7 @@ pub(crate) fn handle_conversation_subscribe(
         base36(server.v4_state().next_epoch_counter())
     );
     let rows_total = snapshot.rows.total_count.as_u64().unwrap_or(0);
-    server.v4_state().register_subscription(
+    let cancel = server.v4_state().register_subscription(
         &subscription_id,
         session_id,
         &params.topic,
@@ -274,6 +282,7 @@ pub(crate) fn handle_conversation_subscribe(
         client_mode: params.client_mode,
         log_epoch: log_epoch.clone(),
         last_seq: seq,
+        cancel,
     });
     serde_json::to_value(ConversationSubscribeResult {
         ack: ConversationSubscribeAck {
@@ -381,6 +390,55 @@ fn subscribe_sessions_index(
     .map_err(|error| ServerError::internal(error.to_string()))
 }
 
+/// workspace-config topic：Host 用它同步 workspace 级配置目录（模型/mode/slash 命令）。
+///
+/// 本仓库当前只提供空目录（schema 合法）；配置目录的远端灰度不在这里重新发明。
+fn subscribe_workspace_config(
+    server: &AgentServer,
+    workspace_id: &str,
+    client_mode: agent_protocol::v4_transport::V4ClientMode,
+) -> Result<Value, ServerError> {
+    let workspace_id = workspace_id.trim();
+    if workspace_id.is_empty() {
+        return Err(ServerError::invalid_params("workspaceId must be non-empty"));
+    }
+    let topic = agent_protocol::v4_workspace_config::workspace_config_topic(workspace_id);
+    let log_epoch = log_epoch_for(server, &topic);
+    let subscription_id = format!(
+        "wcfg-{}-{}-1",
+        log_epoch,
+        base36(server.v4_state().next_epoch_counter())
+    );
+    let snapshot = agent_protocol::v4_workspace_config::WorkspaceConfigSnapshot {
+        protocol_version: 1,
+        workspace_id: workspace_id.to_string(),
+        log_epoch: log_epoch.clone(),
+        config: agent_protocol::v4_workspace_config::WorkspaceConfigState {
+            config_options: Vec::new(),
+            slash_commands: Vec::new(),
+        },
+    };
+    server
+        .v4_state()
+        .register_subscription(&subscription_id, workspace_id, &topic, client_mode, 0);
+    server.queue_v4_forward(crate::dispatch::PendingV4Forward::WorkspaceConfig {
+        topic: topic.clone(),
+        subscription_id: subscription_id.clone(),
+        log_epoch: log_epoch.clone(),
+        snapshot,
+        recovery: false,
+    });
+    serde_json::to_value(ConversationSubscribeResult {
+        ack: ConversationSubscribeAck {
+            subscription_id,
+            mode: SubscribeMode::Snapshot,
+            log_epoch,
+            open_timing: None,
+        },
+    })
+    .map_err(|error| ServerError::internal(error.to_string()))
+}
+
 fn sessions_index_sessions(server: &AgentServer, workspace_id: &str) -> Vec<SessionSummary> {
     let Ok(store) = server.store() else {
         return Vec::new();
@@ -435,6 +493,25 @@ pub(crate) fn handle_conversation_resync(
             log_epoch: log_epoch.clone(),
             from_seq: params.base.as_ref().map(|base| base.seq).unwrap_or(0),
         });
+    } else if let Some(workspace_id) =
+        agent_protocol::v4_workspace_config::parse_workspace_config_topic(&params.topic)
+    {
+        let snapshot = agent_protocol::v4_workspace_config::WorkspaceConfigSnapshot {
+            protocol_version: 1,
+            workspace_id: workspace_id.to_string(),
+            log_epoch: log_epoch.clone(),
+            config: agent_protocol::v4_workspace_config::WorkspaceConfigState {
+                config_options: Vec::new(),
+                slash_commands: Vec::new(),
+            },
+        };
+        server.queue_v4_forward(PendingV4Forward::WorkspaceConfig {
+            topic: params.topic.clone(),
+            subscription_id: subscription_id.clone(),
+            log_epoch: log_epoch.clone(),
+            snapshot,
+            recovery: true,
+        });
     }
     serde_json::to_value(ConversationSubscribeResult {
         ack: ConversationSubscribeAck {
@@ -453,8 +530,14 @@ pub(crate) fn handle_conversation_unsubscribe(
 ) -> Result<Value, ServerError> {
     let params: ConversationUnsubscribeParams =
         parse_params(V4_CONVERSATION_UNSUBSCRIBE_METHOD, params)?;
-    let _ = (params.connection_id, params.subscription_id);
-    server.v4_state().drop_subscription_by_topic(&params.topic);
+    let _ = params.connection_id;
+    // 先按 subscriptionId 精确取消；缺失/不匹配时再按 topic 兜底（旧客户端）。
+    if !server
+        .v4_state()
+        .cancel_subscription(&params.subscription_id)
+    {
+        server.v4_state().drop_subscription_by_topic(&params.topic);
+    }
     serde_json::to_value(json!({})).map_err(|error| ServerError::internal(error.to_string()))
 }
 

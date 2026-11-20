@@ -42,7 +42,7 @@
 //!   会阻塞当前线程，不能占 tokio worker（否则与 stdio 单写者互等死锁）；provider
 //!   解析（账号型凭据钩子）同理。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -72,7 +72,7 @@ use agent_protocol::snapshot::{
     SeparatorDisplay, SessionGoalStats, SessionStateSnapshot, SyntheticKind,
 };
 use agent_protocol::ExtraFields;
-use serde_json::{json, Value};
+use serde_json::{json, Number, Value};
 use session_store::{
     MessageRecord, MessageWithParts, ModelUsageRecord, PartRecord, SessionEntryRecord,
     SessionRecord, SessionStore, TargetRecord, ToolUsageRecord, TurnUsageRecord,
@@ -130,6 +130,46 @@ struct QueuedInput {
     /// 非空 = 运行时生成的后台通知 turn（C3 T3）。这类 turn 不进 `CommandInbox`，
     /// 其 `input` 是已拼好的 `<task-notification>` 文本（多条空行分隔）。
     notifications: Vec<agent_core::TaskNotification>,
+}
+
+/// v4 提交方带来的队列投影元数据（`submit_with_meta`）。
+#[derive(Debug, Clone)]
+pub struct QueueMetaInput {
+    pub client_id: String,
+    pub mode: Option<String>,
+    pub plan_enabled: Option<bool>,
+    pub model_selection: Option<agent_protocol::message::MessageModel>,
+}
+
+/// 队列项的投影元数据（`v4/conversation` 快照的 `queue.items`）。
+/// key 是 `input_id`（同时充当协议的 `queueItemId`）。
+#[derive(Debug, Clone)]
+struct QueueMeta {
+    client_id: String,
+    kind: QueueMetaKind,
+    mode: Option<String>,
+    plan_enabled: Option<bool>,
+    model_selection: Option<agent_protocol::message::MessageModel>,
+    admitted_at: i64,
+    admission_seq: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum QueueMetaKind {
+    Text,
+    Compact,
+}
+
+/// Shared 持有的队列事实源：待执行输入（admission 顺序）+ 投影元数据。
+///
+/// 之前队列只存在 mpsc 缓冲里，快照投影拿不到、队列项命令也无法编辑；
+/// 现在输入本体进 `pending`，mpsc 只剩唤醒/关闭语义（submit 发 `()`，
+/// runtime drop → receiver `None` → worker 先排干 pending 再退出）。
+#[derive(Default)]
+struct QueueStorage {
+    pending: VecDeque<QueuedInput>,
+    meta: HashMap<String, QueueMeta>,
+    admission_seq: u64,
 }
 
 /// 一个已受理的 goal 任务（进入 worker 队列的事实）。
@@ -435,6 +475,15 @@ struct Live {
     status: RuntimeStatus,
     /// 乐观并发版本：每次接受输入 +1，每个 turn 终态 +1，setter 成功 +1。
     revision: u64,
+    /// 会话标题覆盖（首条输入/rename/goal 控制 turn 写入；None = 沿用 record.title）。
+    title: Option<String>,
+    /// followup 模式（`setFollowupMode`；guide 的「引导进当前 turn」行为未实现，
+    /// 输入仍按 queue 准入——登记在 tauri-agent-runtime.md §C4.6）。
+    followup_mode: agent_protocol::v4_snapshot::FollowupMode,
+    /// 队列自动排空开关（`setAutoDrain`）。
+    auto_drain: bool,
+    /// 覆盖标题的来源（与 title 同步写入）。
+    title_source: Option<String>,
     updated_at: i64,
     last_error: Option<String>,
     turn_count: u64,
@@ -529,6 +578,8 @@ struct Shared {
     /// `TaskRegistry` 的通知判据在任务完成线程上读它：窗口内完成的通知按 C1 观察
     /// 丢弃；窗口外（含模型流式等待）入队，等当前 turn 结束后合并投递。
     tool_execution: AtomicBool,
+    /// 首条输入标题是否已写过（`session.titleUpdated` 恰好一次）。
+    title_emitted: AtomicBool,
     /// 后台任务注册表（与 `Session` 共享同一 Arc）。
     ///
     /// **诊断/测试面，不是协议面**：[`SessionRuntime::pending_task_notifications`]
@@ -542,6 +593,8 @@ struct Shared {
     subagents_enabled: bool,
     /// C4 T6：会话 todo 缓存；TodoWrite 写穿 DB 并更新它，快照/工具读同一份。
     todos: Arc<Mutex<Vec<agent_protocol::snapshot::TodoItem>>>,
+    /// 队列事实源：待执行输入与投影元数据（mpsc 只做唤醒/关闭）。
+    queue: Mutex<QueueStorage>,
 }
 
 impl Shared {
@@ -765,7 +818,7 @@ fn make_event(
 /// 写者互等死锁。
 pub struct SessionRuntime {
     shared: Arc<Shared>,
-    queue: tokio::sync::mpsc::UnboundedSender<QueuedInput>,
+    queue: tokio::sync::mpsc::UnboundedSender<()>,
     worker: tokio::task::JoinHandle<()>,
 }
 
@@ -816,7 +869,7 @@ impl SessionRuntime {
             config.event_log_capacity,
         );
         let (drained, _drained_receiver) = tokio::sync::watch::channel(false);
-        let (queue, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let (queue, receiver) = tokio::sync::mpsc::unbounded_channel::<()>();
         let data_root = config.data_root.clone();
         let subagents_enabled = wiring.subagent_runner.is_some();
         let todo_items = store
@@ -828,6 +881,10 @@ impl SessionRuntime {
             live: Mutex::new(Live {
                 status: RuntimeStatus::Idle,
                 revision: 0,
+                title: None,
+                title_source: None,
+                followup_mode: agent_protocol::v4_snapshot::FollowupMode::Queue,
+                auto_drain: true,
                 updated_at: record.time_updated,
                 last_error: None,
                 turn_count: 0,
@@ -854,12 +911,14 @@ impl SessionRuntime {
             last_memory_error: RwLock::new(None),
             api_retry: mode_api_retry::SessionApiRetryTracker::new(),
             tool_execution: AtomicBool::new(false),
+            title_emitted: AtomicBool::new(false),
             tasks: std::sync::OnceLock::new(),
             retry_traces: Mutex::new(HashMap::new()),
             mcp: wiring.mcp,
             mcp_hub: wiring.mcp_hub,
             subagents_enabled,
             todos,
+            queue: Mutex::new(QueueStorage::default()),
             record,
         });
 
@@ -918,6 +977,24 @@ impl SessionRuntime {
     ///
     /// 立即返回，不等 turn 结束；`Accepted.admission` 区分 running / queued。
     pub fn submit(&self, input: SessionInput) -> Result<Accepted, RuntimeError> {
+        self.submit_inner(input, None)
+    }
+
+    /// 带队列投影元数据的提交（v4 sendText）：client_id / mode / plan / 模型选择
+    /// 进 `queue.items`，队列项命令（edit/reorder/delete/sendNow）据其编辑。
+    pub fn submit_with_meta(
+        &self,
+        input: SessionInput,
+        meta: QueueMetaInput,
+    ) -> Result<Accepted, RuntimeError> {
+        self.submit_inner(input, Some(meta))
+    }
+
+    fn submit_inner(
+        &self,
+        input: SessionInput,
+        meta: Option<QueueMetaInput>,
+    ) -> Result<Accepted, RuntimeError> {
         let mut live = self.shared.lock();
         let provided = input
             .input_id
@@ -952,17 +1029,140 @@ impl SessionRuntime {
         };
         // 先确认入队成功再记幂等回执：队列入队失败时不能把「已接受」写进台账
         //（最终评审 Minor；失败后 runtime 已关闭，回执也不会再被查询）。
-        self.queue
-            .send(QueuedInput {
+        self.enqueue_input(
+            QueuedInput {
                 input,
                 input_id: input_id.clone(),
                 compact: None,
                 goal: None,
                 notifications: Vec::new(),
-            })
-            .map_err(|_| RuntimeError::RuntimeClosed)?;
+            },
+            meta.map(|meta| QueueMetaInput {
+                client_id: meta.client_id,
+                mode: meta.mode,
+                plan_enabled: meta.plan_enabled,
+                model_selection: meta.model_selection,
+            }),
+        )?;
         live.seen_inputs.insert(input_id, accepted.clone());
         Ok(accepted)
+    }
+
+    /// 队列事实源入队：输入进 `Shared.queue.pending`，mpsc 只发唤醒 token。
+    fn enqueue_input(
+        &self,
+        item: QueuedInput,
+        meta: Option<QueueMetaInput>,
+    ) -> Result<(), RuntimeError> {
+        {
+            let mut queue = self
+                .shared
+                .queue
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            queue.admission_seq += 1;
+            let admission_seq = queue.admission_seq;
+            if let Some(meta) = meta {
+                queue.meta.insert(
+                    item.input_id.clone(),
+                    QueueMeta {
+                        client_id: meta.client_id,
+                        kind: if item.compact.is_some() {
+                            QueueMetaKind::Compact
+                        } else {
+                            QueueMetaKind::Text
+                        },
+                        mode: meta.mode,
+                        plan_enabled: meta.plan_enabled,
+                        model_selection: meta.model_selection,
+                        admitted_at: now_ms(),
+                        admission_seq,
+                    },
+                );
+            }
+            queue.pending.push_back(item);
+        }
+        self.queue.send(()).map_err(|_| RuntimeError::RuntimeClosed)
+    }
+
+    /// 快照 `queue.items` 投影 + `autoDrain`（当前运行中的输入不在其中）。
+    pub fn queue_projection(
+        &self,
+    ) -> (
+        Vec<agent_protocol::v4_snapshot::QueueItem>,
+        bool,
+        agent_protocol::v4_snapshot::FollowupMode,
+    ) {
+        let queue = self
+            .shared
+            .queue
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let live = self.shared.lock();
+        let items = queue
+            .pending
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| {
+                // goal 控制项是内部 turn，不进投影。
+                if item.goal.is_some() {
+                    return None;
+                }
+                let meta = queue.meta.get(&item.input_id);
+                let kind = match meta.map(|meta| meta.kind) {
+                    Some(QueueMetaKind::Compact) => {
+                        agent_protocol::v4_snapshot::IntentKind::Compact
+                    }
+                    _ => agent_protocol::v4_snapshot::IntentKind::SendText,
+                };
+                Some(agent_protocol::v4_snapshot::QueueItem {
+                    source_command_id: item.input_id.clone(),
+                    queue_item_id: item.input_id.clone(),
+                    client_id: meta
+                        .map(|meta| meta.client_id.clone())
+                        .unwrap_or_else(|| "legacy".to_string()),
+                    kind,
+                    text: item.input.content.clone(),
+                    attachments: Vec::new(),
+                    model_selection: meta.and_then(|meta| meta.model_selection.clone()),
+                    mode: meta.and_then(|meta| meta.mode.clone()).map(|mode| {
+                        match mode.as_str() {
+                            "edit" => agent_protocol::v4_snapshot::SubmissionMode::Edit,
+                            "plan" => agent_protocol::v4_snapshot::SubmissionMode::Plan,
+                            "yolo" => agent_protocol::v4_snapshot::SubmissionMode::Yolo,
+                            _ => agent_protocol::v4_snapshot::SubmissionMode::Build,
+                        }
+                    }),
+                    plan_enabled: meta.and_then(|meta| meta.plan_enabled),
+                    shared_context_refs: None,
+                    delivery: agent_protocol::v4_snapshot::ConversationInputDelivery {
+                        requested: agent_protocol::v4_snapshot::InputDeliveryRequested::Queue,
+                        admitted: agent_protocol::v4_snapshot::InputDeliveryAdmitted::Queue,
+                        fallback_reason_code: None,
+                    },
+                    order: agent_protocol::v4_snapshot::ConversationInputOrder {
+                        admission_seq: meta
+                            .map(|meta| meta.admission_seq)
+                            .unwrap_or(queue.admission_seq),
+                        queue_position: Some(index as u64 + 1),
+                    },
+                    steer: agent_protocol::v4_snapshot::ConversationInputSteer {
+                        state: agent_protocol::v4_snapshot::SteerState::NotRequested,
+                        reason_code: None,
+                    },
+                    dispatch: agent_protocol::v4_snapshot::QueueDispatch {
+                        state: agent_protocol::v4_snapshot::QueueDispatchState::Queued,
+                        reservation_id: None,
+                    },
+                    admitted_at: Number::from(
+                        meta.map(|meta| meta.admitted_at.max(0) as u64).unwrap_or(0),
+                    ),
+                    provenance: None,
+                    tool_disallowlist: None,
+                })
+            })
+            .collect();
+        (items, live.auto_drain, live.followup_mode)
     }
 
     /// 订阅事件流：`(replay, live)`。replay 来自内存日志（`seq > after_seq`，缺省
@@ -1078,6 +1278,11 @@ impl SessionRuntime {
         self.shared.events.current_seq()
     }
 
+    /// 已提交（已落库）的事件 seq 高水位；v4 快照的稳定水位。
+    pub fn committed_event_seq(&self) -> u64 {
+        self.shared.events.committed_seq()
+    }
+
     /// worker 退出（drain 完成）信号的订阅端（`session/close` 的 closing 台账用；
     /// `materialize` 直接 `borrow()` 判断 drain 是否已结束）。
     pub(crate) fn drain_watcher(&self) -> tokio::sync::watch::Receiver<bool> {
@@ -1160,6 +1365,8 @@ impl SessionRuntime {
         let view = LiveView {
             status: live.status,
             revision: live.revision,
+            title: live.title.clone(),
+            title_source: live.title_source.clone(),
             updated_at: live.updated_at,
             last_error: live.last_error.clone(),
             turn_count: live.turn_count,
@@ -1283,9 +1490,16 @@ impl SessionRuntime {
         };
         // 先入队、后改状态：worker 取任务需要 `live` 锁，本临界区内不会被插队；
         // 入队失败（worker 已退出）时不留下半截受理状态。
-        if self.queue.send(item).is_err() {
-            return Err(CompactReject::RuntimeClosed);
-        }
+        self.enqueue_input(
+            item,
+            Some(QueueMetaInput {
+                client_id: "compact".to_string(),
+                mode: None,
+                plan_enabled: None,
+                model_selection: None,
+            }),
+        )
+        .map_err(|_| CompactReject::RuntimeClosed)?;
         live.compact.on_accept();
         live.revision += 1;
         let snapshot = self.snapshot_locked(&live);
@@ -1383,6 +1597,8 @@ impl SessionRuntime {
         let mut events = Vec::new();
         let emit_title = !live.goal.title_emitted && self.shared.record.title.is_empty();
         if emit_title {
+            live.title = Some(objective.to_string());
+            live.title_source = Some("first_input".to_string());
             events.push(make_event(
                 &self.shared.events,
                 None,
@@ -1590,6 +1806,8 @@ impl SessionRuntime {
                 ));
             }
             live.revision += 1;
+            live.title = Some("/goal paused".to_string());
+            live.title_source = Some("first_input".to_string());
             let snapshot = self.snapshot_locked(&live);
             drop(live);
             self.shared.publish_many(events);
@@ -1718,7 +1936,8 @@ impl SessionRuntime {
             goal: Some(job),
             notifications: Vec::new(),
         };
-        self.queue.send(item).map_err(|_| GoalReject::RuntimeClosed)
+        self.enqueue_input(item, None)
+            .map_err(|_| GoalReject::RuntimeClosed)
     }
 
     fn persist_goal_target(&self, target: &GoalTarget) -> Result<(), GoalReject> {
@@ -1769,6 +1988,206 @@ impl SessionRuntime {
     /// 当前配置快照（方法层判断「会话是否已有模型」用）。
     pub fn config(&self) -> RuntimeConfig {
         self.shared.read_config()
+    }
+
+    /// 是否有正在执行的 turn（v4 快照的 `control.phase`/`canStop` 事实）。
+    pub fn is_busy(&self) -> bool {
+        self.shared.lock().status == RuntimeStatus::Running
+    }
+
+    /// `v4 renameSession`：写 DB 并广播 `session.titleUpdated`（source=custom）。
+    pub fn rename(&self, title: &str) -> Result<(), RuntimeError> {
+        let now = now_ms();
+        self.shared
+            .store
+            .set_session_title(&self.shared.record.id, title, "custom", now)
+            .map_err(|error| RuntimeError::Store(error.to_string()))?;
+        {
+            let mut live = self.shared.lock();
+            live.title = Some(title.to_string());
+            live.title_source = Some("custom".to_string());
+        }
+        let event = make_event(
+            &self.shared.events,
+            None,
+            SessionEventType::SessionTitleUpdated,
+            json!({
+                "previousTitle": self.shared.record.title,
+                "source": "custom",
+                "title": title,
+            }),
+        );
+        self.shared.publish(&event);
+        Ok(())
+    }
+
+    /// `v4 cancelBackgroundWork`：停止一个 Bash 后台任务（workId 即任务 id）。
+    pub fn cancel_background_work(&self, work_id: &str) -> Option<agent_core::TaskSnapshot> {
+        self.shared.tasks.get()?.stop(work_id)
+    }
+
+    /// `setFollowupMode`：CAS 更新 followup 模式（guide 的引导行为未实现，输入
+    /// 仍按 queue 准入；登记在 tauri-agent-runtime.md §C4.6）。
+    pub fn set_followup_mode(
+        &self,
+        mode: agent_protocol::v4_snapshot::FollowupMode,
+        expected_revision: Option<u64>,
+    ) -> Result<u64, RuntimeError> {
+        let mut live = self.shared.lock();
+        if let Some(expected) = expected_revision {
+            if expected != live.revision {
+                return Err(RuntimeError::RevisionConflict {
+                    expected,
+                    current: live.revision,
+                });
+            }
+        }
+        live.followup_mode = mode;
+        live.revision += 1;
+        live.updated_at = now_ms();
+        Ok(live.revision)
+    }
+
+    /// `setAutoDrain`：CAS 更新队列自动排空开关。
+    pub fn set_auto_drain(
+        &self,
+        auto_drain: bool,
+        expected_revision: Option<u64>,
+    ) -> Result<u64, RuntimeError> {
+        let mut live = self.shared.lock();
+        if let Some(expected) = expected_revision {
+            if expected != live.revision {
+                return Err(RuntimeError::RevisionConflict {
+                    expected,
+                    current: live.revision,
+                });
+            }
+        }
+        live.auto_drain = auto_drain;
+        live.revision += 1;
+        live.updated_at = now_ms();
+        Ok(live.revision)
+    }
+
+    /// `sendQueuedNow`：把排队项移到队首（当前 turn 结束后下一个执行它）。
+    pub fn send_queued_now(&self, queue_item_id: &str) -> Result<u64, RuntimeError> {
+        let mut queue = self
+            .shared
+            .queue
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let position = queue
+            .pending
+            .iter()
+            .position(|item| item.input_id == queue_item_id)
+            .ok_or_else(|| RuntimeError::InvalidInput(format!("队列项不存在: {queue_item_id}")))?;
+        let item = queue.pending.remove(position).expect("position 已校验");
+        queue.pending.push_front(item);
+        drop(queue);
+        let mut live = self.shared.lock();
+        live.revision += 1;
+        live.updated_at = now_ms();
+        Ok(live.revision)
+    }
+
+    /// `editQueueItem`：改排队输入的正文（compact 项不可编辑）。
+    pub fn edit_queue_item(
+        &self,
+        queue_item_id: &str,
+        new_text: &str,
+    ) -> Result<u64, RuntimeError> {
+        let new_text = new_text.trim();
+        if new_text.is_empty() {
+            return Err(RuntimeError::InvalidInput("newText 不能为空".to_string()));
+        }
+        let mut queue = self
+            .shared
+            .queue
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let item = queue
+            .pending
+            .iter_mut()
+            .find(|item| item.input_id == queue_item_id)
+            .ok_or_else(|| RuntimeError::InvalidInput(format!("队列项不存在: {queue_item_id}")))?;
+        if item.compact.is_some() {
+            return Err(RuntimeError::InvalidInput(
+                "compact 队列项不可编辑".to_string(),
+            ));
+        }
+        item.input.content = new_text.to_string();
+        if let Some(meta) = queue.meta.get_mut(queue_item_id) {
+            meta.kind = QueueMetaKind::Text;
+        }
+        drop(queue);
+        let mut live = self.shared.lock();
+        live.revision += 1;
+        live.updated_at = now_ms();
+        Ok(live.revision)
+    }
+
+    /// `deleteQueueItem`：从队列移除（compact 项同时复位协调器，避免卡在 Queued）。
+    pub fn delete_queue_item(&self, queue_item_id: &str) -> Result<u64, RuntimeError> {
+        let removed = {
+            let mut queue = self
+                .shared
+                .queue
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let position = queue
+                .pending
+                .iter()
+                .position(|item| item.input_id == queue_item_id)
+                .ok_or_else(|| {
+                    RuntimeError::InvalidInput(format!("队列项不存在: {queue_item_id}"))
+                })?;
+            let item = queue.pending.remove(position).expect("position 已校验");
+            queue.meta.remove(queue_item_id);
+            item
+        };
+        if removed.compact.is_some() {
+            let mut live = self.shared.lock();
+            // 取消未执行的 compact：复位协调器相位（无结算计数——它没跑过）。
+            live.compact.on_settled(false);
+        }
+        let mut live = self.shared.lock();
+        live.revision += 1;
+        live.updated_at = now_ms();
+        Ok(live.revision)
+    }
+
+    /// `reorderQueueItem`：把排队项移到 `before` 之前；`None` = 移到队尾。
+    pub fn reorder_queue_item(
+        &self,
+        queue_item_id: &str,
+        before_queue_item_id: Option<&str>,
+    ) -> Result<u64, RuntimeError> {
+        let mut queue = self
+            .shared
+            .queue
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let position = queue
+            .pending
+            .iter()
+            .position(|item| item.input_id == queue_item_id)
+            .ok_or_else(|| RuntimeError::InvalidInput(format!("队列项不存在: {queue_item_id}")))?;
+        let item = queue.pending.remove(position).expect("position 已校验");
+        let target = before_queue_item_id.and_then(|before| {
+            queue
+                .pending
+                .iter()
+                .position(|item| item.input_id == before)
+        });
+        match target {
+            Some(index) => queue.pending.insert(index, item),
+            None => queue.pending.push_back(item),
+        }
+        drop(queue);
+        let mut live = self.shared.lock();
+        live.revision += 1;
+        live.updated_at = now_ms();
+        Ok(live.revision)
     }
 
     /// 宿主对 `session/requestRuntimePreferences` 的缓存应答（Task 8 控制器裁决 3）。
@@ -1878,7 +2297,7 @@ fn drain_notification_input(session: &Session) -> Option<QueuedInput> {
 /// 不能占 tokio worker。配置失败（无模型 / 解析失败）走
 /// [`run_configuration_failure`]，不静默用默认模型兜底（Task 7 控制器裁决 7）。
 async fn worker_loop(
-    mut receiver: tokio::sync::mpsc::UnboundedReceiver<QueuedInput>,
+    mut receiver: tokio::sync::mpsc::UnboundedReceiver<()>,
     shared: Arc<Shared>,
     mut session: Session,
     store: Arc<SessionStore>,
@@ -1890,7 +2309,13 @@ async fn worker_loop(
     // 「worker 已退出」，drain 守卫会把会话卡在 closing（最终评审 Minor）。
     let _drain_guard = DrainGuard(shared.drained.clone());
     if let Some(reverse) = &reverse {
-        let preferences = reverse.request_runtime_preferences(&shared.record.id).await;
+        let preferences = reverse
+            .request_runtime_preferences_scoped_with_timeout(
+                &shared.record.id,
+                "runtime-materialization",
+                std::time::Duration::from_millis(750),
+            )
+            .await;
         *shared
             .preferences
             .write()
@@ -1899,20 +2324,57 @@ async fn worker_loop(
     // user-execution 偏好只在每运行时的首个 turn 前发一次（见函数注释）。
     let mut user_execution_requested = false;
     let mut current: Option<(String, String, String, Arc<dyn ModelProvider>)> = None;
+    // close 语义：runtime drop → receiver `None`。与旧 mpsc 缓冲一致，已接受的
+    // 排队输入仍要 drain 执行完才退出；`pending_queue` 是现在的事实源。
+    let mut closing = false;
     loop {
         // C3 T3：先投递已完成的后台通知（当前 turn 的忙时完成在上一轮结束时就已
         // 入队），一批合并成一个 `background_task` turn；没有通知才等下一个输入。
         // `Notify` 只负责叫醒空闲 worker，队列仍归 `TaskRegistry`。
         let item = if let Some(item) = drain_notification_input(&session) {
             item
+        } else if closing {
+            let popped = {
+                shared
+                    .queue
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .pending
+                    .pop_front()
+            };
+            match popped {
+                Some(item) => item,
+                None => break,
+            }
         } else {
             let maybe_item = tokio::select! {
                 maybe_item = receiver.recv() => maybe_item,
                 _ = notification_signal.notified() => continue,
             };
             match maybe_item {
-                Some(item) => item,
-                None => break,
+                // 唤醒 token：从 Shared 队列取下一个输入；mpsc 不再携带输入本体。
+                Some(()) => {
+                    let popped = {
+                        let mut queue = shared
+                            .queue
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner());
+                        if let Some(item) = queue.pending.pop_front() {
+                            queue.meta.remove(&item.input_id);
+                            Some(item)
+                        } else {
+                            None
+                        }
+                    };
+                    match popped {
+                        Some(item) => item,
+                        None => continue,
+                    }
+                }
+                None => {
+                    closing = true;
+                    continue;
+                }
             }
         };
         let is_notification_turn = !item.notifications.is_empty();
@@ -1955,7 +2417,11 @@ async fn worker_loop(
             if !user_execution_requested {
                 user_execution_requested = true;
                 let preferences = reverse
-                    .request_runtime_preferences_scoped(&shared.record.id, "user-execution")
+                    .request_runtime_preferences_scoped_with_timeout(
+                        &shared.record.id,
+                        "user-execution",
+                        std::time::Duration::from_millis(750),
+                    )
                     .await;
                 *shared
                     .preferences
@@ -2249,6 +2715,49 @@ async fn run_one_input(
                 .last_memory_error
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = memory_load.error;
+            // 先投递 turn.started（首条输入还有 titleUpdated），再做 Skill/MCP 工具
+            // 目录建连：Host 的 prompt ACK 等待 committed TurnStarted，建连慢不能把
+            // 「新任务已受理」拖到二十多秒（v4 建会话实测 28s）。
+            let first_title = if is_notification_turn {
+                None
+            } else if shared_for_turn.record.title.is_empty()
+                && !shared_for_turn.title_emitted.swap(true, Ordering::SeqCst)
+            {
+                let _ = shared_for_turn.store.set_session_title(
+                    &session_id,
+                    &content,
+                    "first_input",
+                    now_ms(),
+                );
+                {
+                    let mut live = shared_for_turn.lock();
+                    live.title = Some(content.clone());
+                    live.title_source = Some("first_input".to_string());
+                }
+                Some(content.clone())
+            } else {
+                None
+            };
+            let (started, title_event) = if is_notification_turn {
+                (
+                    session.begin_background_notification_turn(
+                        &content,
+                        &input_id,
+                        &notifications,
+                        notification_execution_ordinal,
+                    ),
+                    None,
+                )
+            } else if let Some(title) = first_title.as_deref() {
+                let (started, title_event) = session.begin_turn_with_title(&content, title);
+                (started, Some(title_event))
+            } else {
+                (session.begin_turn(&content), None)
+            };
+            if let Some(title_event) = title_event {
+                recorder.emit(title_event);
+            }
+            recorder.emit(started.clone());
             // C4 T1/T2：首 turn 在阻塞线程上建连并注入动态工具目录（Skill + MCP）；
             // 失败 server 跳过，不阻断 turn（观察：失败后会话照常可用）。
             {
@@ -2290,19 +2799,24 @@ async fn run_one_input(
             }
             let result = if is_notification_turn {
                 session
-                    .run_background_notification_turn(
+                    .run_background_notification_turn_after_started(
+                        started,
                         &content,
                         &input_id,
-                        &notifications,
                         provider.as_ref(),
                         &mut recorder,
                         &token,
-                        notification_execution_ordinal,
                     )
                     .await
             } else {
                 session
-                    .run_turn(&content, provider.as_ref(), &mut recorder, &token)
+                    .run_turn_after_started(
+                        started,
+                        &content,
+                        provider.as_ref(),
+                        &mut recorder,
+                        &token,
+                    )
                     .await
             };
 
@@ -2628,20 +3142,20 @@ async fn run_compact_blocking(
         .lock()
         .usage
         .observe(&RequestUsage::from_model_usage(&model_response.usage));
+    // 单事务落库：timeline/摘要/turn_usage/model_usage/touch 任一失败整体回滚
+    //（残余清单：compact 多表写此前是三个独立事务，崩溃窗口会留半截状态）。
     let mut persist_error: Option<String> = None;
-    if let Err(error) = persist_compact_rows(
-        &shared,
-        &store,
-        &facts,
-        CompactRows::Success { summary: &summary },
-    ) {
+    if let Err(error) = store.with_write_transaction(|tx| {
+        persist_compact_rows(
+            tx,
+            &shared,
+            &facts,
+            CompactRows::Success { summary: &summary },
+        )?;
+        record_compact_success_usage(tx, &facts, &model_response)?;
+        SessionStore::touch_session_tx(tx, &session_id, facts.ended_at)
+    }) {
         persist_error = Some(error.to_string());
-    }
-    if let Err(error) = record_compact_success_usage(&store, &facts, &model_response) {
-        persist_error.get_or_insert_with(|| error.to_string());
-    }
-    if let Err(error) = store.touch_session(&session_id, facts.ended_at) {
-        persist_error.get_or_insert_with(|| error.to_string());
     }
 
     let payload = TurnCompletedPayload {
@@ -2703,14 +3217,13 @@ fn finish_compact_skipped(
     let session_id = facts.session_id.clone();
     let turn_id = facts.turn_id.clone();
     let pre_tokens = facts.pre_tokens;
+    // 单事务落库（残余清单：compact 多表写原子性）。
     let mut persist_error: Option<String> = None;
-    if let Err(error) = persist_compact_rows(&shared, &store, &facts, CompactRows::Skipped) {
+    if let Err(error) = store.with_write_transaction(|tx| {
+        persist_compact_rows(tx, &shared, &facts, CompactRows::Skipped)?;
+        SessionStore::touch_session_tx(tx, &session_id, facts.ended_at)
+    }) {
         persist_error = Some(error.to_string());
-    }
-    // 观察（`compact-same-tick` 的 `dbSkippedRows`）只新增 skipped timeline 消息 +
-    // compact part，**没有** skipped `turn_usage` 行；这里不写（§1.9 登记）。
-    if let Err(error) = store.touch_session(&session_id, facts.ended_at) {
-        persist_error.get_or_insert_with(|| error.to_string());
     }
 
     let payload = TurnCompletedPayload {
@@ -2773,17 +3286,14 @@ fn compact_failure(
     };
     let session_id = facts.session_id.clone();
     let turn_id = facts.turn_id.clone();
+    // 单事务落库（残余清单：compact 多表写原子性）。
     let mut persist_error: Option<String> = None;
-    if let Err(error) = persist_compact_rows(&shared, &store, &facts, CompactRows::Failed) {
+    if let Err(error) = store.with_write_transaction(|tx| {
+        persist_compact_rows(tx, &shared, &facts, CompactRows::Failed)?;
+        record_compact_failure_usage(tx, &facts, model_response.as_ref(), model_started_at)?;
+        SessionStore::touch_session_tx(tx, &session_id, facts.ended_at)
+    }) {
         persist_error = Some(error.to_string());
-    }
-    if let Err(error) =
-        record_compact_failure_usage(&store, &facts, model_response.as_ref(), model_started_at)
-    {
-        persist_error.get_or_insert_with(|| error.to_string());
-    }
-    if let Err(error) = store.touch_session(&session_id, facts.ended_at) {
-        persist_error.get_or_insert_with(|| error.to_string());
     }
 
     let payload = TurnFailedPayload {
@@ -4120,8 +4630,8 @@ enum CompactRows<'a> {
 
 /// 写 compact 的消息 + part 行（每条消息一个原子事务；顺序 = sequence 顺序）。
 fn persist_compact_rows(
+    tx: &rusqlite::Transaction<'_>,
     shared: &Shared,
-    store: &SessionStore,
     facts: &CompactFacts,
     rows: CompactRows<'_>,
 ) -> Result<(), session_store::StoreError> {
@@ -4160,7 +4670,7 @@ fn persist_compact_rows(
             sequence: Some(1),
         },
     ];
-    store.append_message_with_parts(timeline_message, &timeline_parts)?;
+    SessionStore::append_message_with_parts_tx(tx, &timeline_message, &timeline_parts)?;
 
     if let CompactRows::Success { summary } = rows {
         let summary_message_id = facts
@@ -4201,7 +4711,7 @@ fn persist_compact_rows(
                 sequence: Some(1),
             },
         ];
-        store.append_message_with_parts(summary_message, &summary_parts)?;
+        SessionStore::append_message_with_parts_tx(tx, &summary_message, &summary_parts)?;
     }
     Ok(())
 }
@@ -4392,32 +4902,35 @@ fn summary_compaction_part_data(facts: &CompactFacts) -> Value {
 
 /// `turn_usage` + `model_usage`（成功；契约 §1.3 的观察值）。
 fn record_compact_success_usage(
-    store: &SessionStore,
+    tx: &rusqlite::Transaction<'_>,
     facts: &CompactFacts,
     model: &CompactModelResponse,
 ) -> Result<(), session_store::StoreError> {
     let total = model.usage.input_tokens + model.usage.output_tokens;
-    store.record_turn_usage(TurnUsageRecord {
-        session_id: facts.session_id.clone(),
-        turn_id: facts.turn_id.clone(),
-        started_at: facts.started_at.max(1),
-        status: "completed".to_string(),
-        completed_at: Some(facts.ended_at),
-        duration_ms: Some((facts.ended_at - facts.started_at.max(1)).max(0)),
-        cancelled_by_user: false,
-        input_tokens: model.usage.input_tokens as i64,
-        output_tokens: model.usage.output_tokens as i64,
-        computed_total_tokens: total as i64,
-        model_request_count: 1,
-        tool_call_count: 0,
-        tool_error_count: 0,
-        user_message_id: None,
-        first_model_start_at: Some(model.started_at),
-        // 夹具观察 compact 的 `turn_usage.trace_id` 非空（折叠为 `<id>`）。
-        trace_id: Some(uuid::Uuid::new_v4().to_string()),
-        ..TurnUsageRecord::default()
-    })?;
-    store.record_model_usage(model_usage_record(facts, model))?;
+    SessionStore::record_turn_usage_tx(
+        tx,
+        TurnUsageRecord {
+            session_id: facts.session_id.clone(),
+            turn_id: facts.turn_id.clone(),
+            started_at: facts.started_at.max(1),
+            status: "completed".to_string(),
+            completed_at: Some(facts.ended_at),
+            duration_ms: Some((facts.ended_at - facts.started_at.max(1)).max(0)),
+            cancelled_by_user: false,
+            input_tokens: model.usage.input_tokens as i64,
+            output_tokens: model.usage.output_tokens as i64,
+            computed_total_tokens: total as i64,
+            model_request_count: 1,
+            tool_call_count: 0,
+            tool_error_count: 0,
+            user_message_id: None,
+            first_model_start_at: Some(model.started_at),
+            // 夹具观察 compact 的 `turn_usage.trace_id` 非空（折叠为 `<id>`）。
+            trace_id: Some(uuid::Uuid::new_v4().to_string()),
+            ..TurnUsageRecord::default()
+        },
+    )?;
+    SessionStore::record_model_usage_tx(tx, model_usage_record(facts, model))?;
     Ok(())
 }
 
@@ -4425,35 +4938,38 @@ fn record_compact_success_usage(
 /// `error_type:"unknown_error"`、`error_code:"UNKNOWN_ERROR"`；`model_usage` 仍记
 /// provider 的原始 usage 与 `finish_reason`）。
 fn record_compact_failure_usage(
-    store: &SessionStore,
+    tx: &rusqlite::Transaction<'_>,
     facts: &CompactFacts,
     model: Option<&CompactModelResponse>,
     model_started_at: i64,
 ) -> Result<(), session_store::StoreError> {
-    store.record_turn_usage(TurnUsageRecord {
-        session_id: facts.session_id.clone(),
-        turn_id: facts.turn_id.clone(),
-        started_at: facts.started_at.max(1),
-        status: "error".to_string(),
-        completed_at: Some(facts.ended_at),
-        duration_ms: Some((facts.ended_at - facts.started_at.max(1)).max(0)),
-        cancelled_by_user: false,
-        input_tokens: 0,
-        output_tokens: 0,
-        computed_total_tokens: 0,
-        model_request_count: 1,
-        tool_call_count: 0,
-        tool_error_count: 0,
-        user_message_id: None,
-        first_model_start_at: Some(model_started_at),
-        error_type: Some("unknown_error".to_string()),
-        error_code: Some("UNKNOWN_ERROR".to_string()),
-        // 夹具观察失败 compact 的 `turn_usage.trace_id` 同样非空（折叠为 `<id>`）。
-        trace_id: Some(uuid::Uuid::new_v4().to_string()),
-        ..TurnUsageRecord::default()
-    })?;
+    SessionStore::record_turn_usage_tx(
+        tx,
+        TurnUsageRecord {
+            session_id: facts.session_id.clone(),
+            turn_id: facts.turn_id.clone(),
+            started_at: facts.started_at.max(1),
+            status: "error".to_string(),
+            completed_at: Some(facts.ended_at),
+            duration_ms: Some((facts.ended_at - facts.started_at.max(1)).max(0)),
+            cancelled_by_user: false,
+            input_tokens: 0,
+            output_tokens: 0,
+            computed_total_tokens: 0,
+            model_request_count: 1,
+            tool_call_count: 0,
+            tool_error_count: 0,
+            user_message_id: None,
+            first_model_start_at: Some(model_started_at),
+            error_type: Some("unknown_error".to_string()),
+            error_code: Some("UNKNOWN_ERROR".to_string()),
+            // 夹具观察失败 compact 的 `turn_usage.trace_id` 同样非空（折叠为 `<id>`）。
+            trace_id: Some(uuid::Uuid::new_v4().to_string()),
+            ..TurnUsageRecord::default()
+        },
+    )?;
     if let Some(model) = model {
-        store.record_model_usage(model_usage_record(facts, model))?;
+        SessionStore::record_model_usage_tx(tx, model_usage_record(facts, model))?;
     }
     Ok(())
 }

@@ -101,12 +101,14 @@ pub fn project_rows(messages: &[ProjectedMessage<'_>]) -> Vec<ConversationRow> {
                 workflow_launch: None,
                 file_changes: None,
             }));
+            // 用户正文在 text part 里（message.data 只带 role/semantics 等元数据）。
             let text = message
-                .data
-                .get("data")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
+                .parts
+                .iter()
+                .filter(|(_, _, _, data)| data.get("type").and_then(Value::as_str) == Some("text"))
+                .filter_map(|(_, _, _, data)| data.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("\n");
             rows.push(ConversationRow::UserInput(UserInputRow {
                 base: assign.base(
                     turn_id.clone(),
@@ -155,6 +157,8 @@ pub fn project_rows(messages: &[ProjectedMessage<'_>]) -> Vec<ConversationRow> {
                     let state = part_data.get("state").cloned().unwrap_or(Value::Null);
                     let status = match state.get("status").and_then(Value::as_str) {
                         Some("running") | Some("pending") => ToolCallStatus::Running,
+                        Some("error") => ToolCallStatus::Error,
+                        Some("cancelled") | Some("canceled") => ToolCallStatus::Cancelled,
                         _ => ToolCallStatus::Success,
                     };
                     let output =
@@ -272,6 +276,14 @@ pub fn file_changes_for_turn(
             let Some(state) = data.get("state") else {
                 continue;
             };
+            // 只有成功落盘的工具调用产生文件变更；running/error/cancelled 不计。
+            if state
+                .get("status")
+                .and_then(Value::as_str)
+                .is_some_and(|status| status != "completed")
+            {
+                continue;
+            }
             let input = state.get("input").cloned().unwrap_or(Value::Null);
             let Some(path) = input.get("file_path").and_then(Value::as_str) else {
                 continue;
@@ -357,13 +369,15 @@ pub fn file_changes_for_turn(
 }
 
 fn turn_id_of<'a>(messages: &'a [ProjectedMessage<'a>], message_id: &str) -> String {
-    // assistant 行的 turnId 是产生它的 user message id：取它前面最近的一条 user 行。
+    // assistant 行的 turnId 是产生它的 user message id：取它**前面最近**的一条
+    // user 行（不能取第一条，否则整段历史都会被并进第一个 turn）。
+    let mut current = message_id.to_string();
     for message in messages {
         if message.id == message_id {
-            break;
+            return current;
         }
         if message.role == "user" {
-            return message.id.to_string();
+            current = message.id.to_string();
         }
     }
     message_id.to_string()
@@ -404,6 +418,12 @@ pub struct SnapshotStateFacts<'a> {
     pub log_epoch: &'a str,
     pub seq: u64,
     pub revision: u64,
+    /// 快照 `queue.items`（待执行输入，admission 顺序）。
+    pub queue_items: Vec<agent_protocol::v4_snapshot::QueueItem>,
+    /// 快照 `queue.autoDrain`（`setAutoDrain`）。
+    pub auto_drain: bool,
+    /// 快照 `config.followupMode`（`setFollowupMode`）。
+    pub followup_mode: agent_protocol::v4_snapshot::FollowupMode,
     pub title: &'a str,
     pub title_source: &'a str,
     pub mode: &'a str,
@@ -547,7 +567,7 @@ pub fn build_snapshot(
             model: facts.model.to_string(),
             thought: String::new(),
             thought_levels: Vec::new(),
-            followup_mode: agent_protocol::v4_snapshot::FollowupMode::Queue,
+            followup_mode: facts.followup_mode,
             mode: facts.mode.to_string(),
             plan_enabled: None,
             permission_grant: None,
@@ -565,8 +585,8 @@ pub fn build_snapshot(
             },
         },
         queue: QueueState {
-            items: Vec::new(),
-            auto_drain: true,
+            items: facts.queue_items,
+            auto_drain: facts.auto_drain,
             pause_reason: None,
         },
         pending_interactions: Vec::new(),
@@ -612,6 +632,50 @@ impl LiveDeltaState {
             turn_rows: None,
             tool_rows: BTreeMap::new(),
         }
+    }
+
+    /// 用刚发出的快照行初始化 live 状态：rowId 续接快照，且把仍在流式中的
+    /// assistant/tool 行登记进映射，后续 `row.delta` 才会更新原行而不是新建重复行。
+    pub fn from_snapshot_rows(rows_total: u64, rows: &[ConversationRow]) -> Self {
+        let mut state = Self::from_snapshot(rows_total);
+        let mut pending_turn: Option<(String, u64)> = None;
+        for row in rows {
+            match row {
+                ConversationRow::TurnHeader(header) => {
+                    let row_id = header.base.row_id.as_u64().unwrap_or(0);
+                    state.next_row_id = state.next_row_id.max(row_id.saturating_add(1));
+                    pending_turn = Some((header.base.turn_id.clone(), row_id));
+                    state.turn_rows = None;
+                }
+                ConversationRow::UserInput(input) => {
+                    if let Some((turn_id, header_id)) = pending_turn.take() {
+                        state.turn_rows =
+                            Some((turn_id, header_id, input.base.row_id.as_u64().unwrap_or(0)));
+                    }
+                }
+                ConversationRow::AssistantText(text) => {
+                    let row_id = text.base.row_id.as_u64().unwrap_or(0);
+                    state.next_row_id = state.next_row_id.max(row_id.saturating_add(1));
+                    let key = text
+                        .assistant_response_id
+                        .clone()
+                        .or_else(|| text.base.entity_id.clone())
+                        .unwrap_or_default();
+                    if !key.is_empty() {
+                        state.text_rows.insert(key, row_id);
+                    }
+                }
+                ConversationRow::ToolCall(tool) => {
+                    let row_id = tool.base.row_id.as_u64().unwrap_or(0);
+                    state.next_row_id = state.next_row_id.max(row_id.saturating_add(1));
+                    if !tool.tool_call_id.is_empty() {
+                        state.tool_rows.insert(tool.tool_call_id.clone(), row_id);
+                    }
+                }
+                _ => {}
+            }
+        }
+        state
     }
 
     fn base(&mut self, turn_id: &str, entity_id: String, at: i64) -> RowBase {
@@ -1116,5 +1180,147 @@ mod tests {
         let summary = header.file_changes.clone().expect("fileChanges");
         assert_eq!(summary.additions.as_u64(), Some(2));
         assert_eq!(summary.files.as_u64(), Some(1));
+    }
+
+    #[test]
+    fn turn_ids_use_the_nearest_user_message_and_tool_status_is_preserved() {
+        let user1 = json!({ "role": "user", "anchor": { "turnId": "t1" } });
+        let user2 = json!({ "role": "user", "anchor": { "turnId": "t2" } });
+        let assistant = json!({ "role": "assistant" });
+        let text1 = json!({ "type": "text", "text": "a1" });
+        let text2 = json!({ "type": "text", "text": "a2" });
+        let failed_tool = json!({
+            "type": "tool",
+            "tool": "Read",
+            "state": { "callID": "call_2", "status": "error", "input": {} }
+        });
+        let empty: Vec<(String, Option<i64>, i64, Value)> = Vec::new();
+        let parts1 = vec![("p1".to_string(), Some(0), 2, text1)];
+        let parts2 = vec![
+            ("p2".to_string(), Some(0), 4, text2),
+            ("p3".to_string(), Some(1), 5, failed_tool),
+        ];
+        let messages = vec![
+            ProjectedMessage {
+                id: "msg_1",
+                role: "user",
+                sequence: Some(0),
+                time_created: 1,
+                data: &user1,
+                parts: &empty,
+            },
+            ProjectedMessage {
+                id: "msg_2",
+                role: "assistant",
+                sequence: Some(1),
+                time_created: 2,
+                data: &assistant,
+                parts: &parts1,
+            },
+            ProjectedMessage {
+                id: "msg_3",
+                role: "user",
+                sequence: Some(2),
+                time_created: 3,
+                data: &user2,
+                parts: &empty,
+            },
+            ProjectedMessage {
+                id: "msg_4",
+                role: "assistant",
+                sequence: Some(3),
+                time_created: 4,
+                data: &assistant,
+                parts: &parts2,
+            },
+        ];
+        let rows = project_rows(&messages);
+        let texts: Vec<(String, String)> = rows
+            .iter()
+            .filter_map(|row| match row {
+                ConversationRow::AssistantText(text) => {
+                    Some((text.base.turn_id.clone(), text.text.clone()))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            texts,
+            vec![
+                ("msg_1".to_string(), "a1".to_string()),
+                ("msg_3".to_string(), "a2".to_string())
+            ]
+        );
+        let tool = rows
+            .iter()
+            .find_map(|row| match row {
+                ConversationRow::ToolCall(tool) => Some(tool),
+                _ => None,
+            })
+            .expect("tool row");
+        assert_eq!(tool.status, ToolCallStatus::Error);
+        assert_eq!(tool.base.turn_id, "msg_3");
+    }
+
+    #[test]
+    fn live_state_continues_snapshot_row_ids_and_registers_rows() {
+        let user1 = json!({ "role": "user", "anchor": { "turnId": "t1" } });
+        let user2 = json!({ "role": "user", "anchor": { "turnId": "t2" } });
+        let assistant = json!({ "role": "assistant" });
+        let text = json!({ "type": "text", "text": "hello" });
+        let tool = json!({
+            "type": "tool",
+            "tool": "Bash",
+            "state": { "callID": "call_live", "status": "running", "input": {} }
+        });
+        let empty: Vec<(String, Option<i64>, i64, Value)> = Vec::new();
+        let parts1 = vec![("p1".to_string(), Some(0), 2, text.clone())];
+        let parts2 = vec![
+            ("p2".to_string(), Some(0), 4, text),
+            ("p3".to_string(), Some(1), 5, tool),
+        ];
+        let messages = vec![
+            ProjectedMessage {
+                id: "msg_1",
+                role: "user",
+                sequence: Some(0),
+                time_created: 1,
+                data: &user1,
+                parts: &empty,
+            },
+            ProjectedMessage {
+                id: "msg_2",
+                role: "assistant",
+                sequence: Some(1),
+                time_created: 2,
+                data: &assistant,
+                parts: &parts1,
+            },
+            ProjectedMessage {
+                id: "msg_3",
+                role: "user",
+                sequence: Some(2),
+                time_created: 3,
+                data: &user2,
+                parts: &empty,
+            },
+            ProjectedMessage {
+                id: "msg_4",
+                role: "assistant",
+                sequence: Some(3),
+                time_created: 4,
+                data: &assistant,
+                parts: &parts2,
+            },
+        ];
+        let rows = project_rows(&messages);
+        let total = rows.len() as u64;
+        let state = LiveDeltaState::from_snapshot_rows(total, &rows);
+        assert_eq!(state.next_row_id, total + 1);
+        // 两个 assistant 文本行都登记到 messageId，后续 delta 复用而不是新建。
+        assert_eq!(state.text_rows.get("msg_2").copied(), Some(3));
+        assert_eq!(state.text_rows.get("msg_4").copied(), Some(6));
+        assert_eq!(state.tool_rows.get("call_live").copied(), Some(7));
+        assert_eq!(state.turn_rows, Some(("msg_3".to_string(), 4, 5)));
     }
 }

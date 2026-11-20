@@ -166,6 +166,7 @@ pub(super) fn spawn_runtime(
             server.data_root(),
             record.id.clone(),
             tokio::runtime::Handle::current(),
+            reverse.clone(),
         )) as Arc<dyn agent_core::SubagentRunner>
     });
     let wiring = crate::reverse::RuntimeWiring {

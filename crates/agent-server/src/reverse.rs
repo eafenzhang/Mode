@@ -292,11 +292,26 @@ impl ReverseHub {
         session_id: &str,
         scope: &str,
     ) -> RuntimePreferences {
+        self.request_runtime_preferences_scoped_with_timeout(session_id, scope, self.reply_timeout)
+            .await
+    }
+
+    /// 带显式上限的偏好请求：worker 首 turn 的偏好只能**短暂**借用 turn 启动路径，
+    /// 宿主不回/回得慢时按保守默认继续（不能 15s×2 拖住建会话）。
+    pub async fn request_runtime_preferences_scoped_with_timeout(
+        &self,
+        session_id: &str,
+        scope: &str,
+        reply_timeout: Duration,
+    ) -> RuntimePreferences {
         let params = serde_json::json!({
             "sessionId": session_id,
             "scope": scope,
         });
-        match self.request_async(RUNTIME_PREFERENCES_METHOD, params).await {
+        match self
+            .request_async_with_timeout(RUNTIME_PREFERENCES_METHOD, params, reply_timeout)
+            .await
+        {
             Ok(value) => RuntimePreferences::from_reply(&value),
             Err(_) => RuntimePreferences::fallback(),
         }
@@ -323,14 +338,15 @@ impl ReverseHub {
     }
 
     /// 异步请求（worker 任务用）：注册 oneshot → 发帧 → 超时等待。
-    async fn request_async(
+    async fn request_async_with_timeout(
         &self,
         method: &str,
         params: Value,
+        reply_timeout: Duration,
     ) -> Result<Value, ReverseRequestError> {
         let (sender, receiver) = tokio::sync::oneshot::channel();
         let id = self.send_request(method, params, PendingReply::Async(sender))?;
-        match tokio::time::timeout(self.reply_timeout, receiver).await {
+        match tokio::time::timeout(reply_timeout, receiver).await {
             Ok(Ok(outcome)) => outcome,
             Ok(Err(_recv_closed)) => Err(ReverseRequestError::TransportClosed),
             Err(_elapsed) => {

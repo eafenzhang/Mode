@@ -17,7 +17,7 @@ use agent_core::{Admission, ModelCapabilities};
 use agent_protocol::message::{MessageModel, ModelOptions};
 use agent_protocol::session_read::{
     SessionGoal, SessionInfo, SessionKind, SessionMode, SessionModel, SessionStatus,
-    SessionWorkspaceRef,
+    SessionTitleSource, SessionWorkspaceRef,
 };
 use agent_protocol::snapshot::{
     ActiveTurnKind, ContextCacheUsage as ProtocolContextCacheUsage,
@@ -210,6 +210,10 @@ impl From<session_store::StoreError> for RuntimeError {
 pub(crate) struct LiveView {
     pub status: RuntimeStatus,
     pub revision: u64,
+    /// 运行期标题覆盖（首条输入/rename）；None 用 record.title。
+    pub title: Option<String>,
+    /// 覆盖标题的来源（与 title 同步写入）。
+    pub title_source: Option<String>,
     pub updated_at: i64,
     pub last_error: Option<String>,
     pub turn_count: u64,
@@ -312,8 +316,19 @@ pub(crate) fn build_snapshot(
             parent_session_id: record.parent_id.clone(),
             trace_id: record.trace_id.clone(),
             session_kind: SessionKind::Interactive,
-            title: record.title.clone(),
-            title_source: None,
+            title: live.title.clone().unwrap_or_else(|| record.title.clone()),
+            // create 时 title 为空 → titleSource 缺省省略（C1 观察）；首条输入后
+            // Live 覆盖给出 first_input，冷读按 DB 行的 title_source。
+            title_source: live
+                .title_source
+                .as_deref()
+                .or_else(|| (!record.title.is_empty()).then_some(record.title_source.as_str()))
+                .map(|source| match source {
+                    "first_input" => SessionTitleSource::FirstInput,
+                    "generated" => SessionTitleSource::Generated,
+                    "custom" => SessionTitleSource::Custom,
+                    _ => SessionTitleSource::Default,
+                }),
             mode,
             status,
             model,

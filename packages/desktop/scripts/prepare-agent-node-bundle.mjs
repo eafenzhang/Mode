@@ -23,7 +23,6 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(desktopRoot, "..", "..");
 const cliBundlePath = resolve(repoRoot, "apps/mode-cli/packages/cli/dist/mode.cjs");
-const adaptersRoot = resolve(repoRoot, "apps/mode-cli/packages/adapters");
 const pnpmRunEnv = {
   ...process.env,
   // pnpm 11 会在 apps/mode-cli 子 workspace 执行 run 前触发 install；

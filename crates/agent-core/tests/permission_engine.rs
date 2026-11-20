@@ -95,7 +95,7 @@ fn bash_command_battery_matches_the_observed_matrix() {
         assert_risk(command, None);
     }
 
-    const HIGH: [&str; 37] = [
+    const HIGH: [&str; 40] = [
         "echo hi > out.txt",
         "echo hi >> out.txt",
         "echo $(echo hi)",
@@ -134,6 +134,10 @@ fn bash_command_battery_matches_the_observed_matrix() {
         "echo x >&2 >> file",
         "sleep 1 &",
         "sleep 1; rm -rf dir1",
+        // 换行 / `||` 同样分段：安全首段不能掩盖后面的危险命令。
+        "ls\nrm -rf dir1",
+        "ls\r\nrm -rf dir1",
+        "ls || rm -rf dir1",
     ];
     for command in HIGH {
         assert_risk(command, Some("high"));
