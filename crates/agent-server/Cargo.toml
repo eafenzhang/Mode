@@ -54,6 +54,7 @@ uuid.workspace = true
 # Task 9 切换测试：跨包拿不到本包二进制的 CARGO_BIN_EXE，由本包集成测试驱动
 # agent-process 的 spawn API（MODE_AGENT_SERVER_COMMAND 指向本二进制）。
 agent-process = { path = "../agent-process" }
+mode-tui = { path = "../tui" }
 rusqlite.workspace = true
 tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "time"] }
 

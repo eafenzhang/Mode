@@ -3,13 +3,15 @@
 > 上位：`docs/plans/2026-10-29-full-rust-rewrite.md` §10、
 > `docs/plans/2026-11-16-upstream-capability-long-tasks.md`。
 > 每个 LT 开工前先补该任务的 spec/细计划；本文件只做 program-level 排序与出口定义。
+> 剩余生态面已收敛为单一长任务 **LT-15**（P1–P6），执行状态见
+> `2026-11-21-lt15-ecosystem-closeout.md`。
 
 ## 总览
 
 | ID | 长任务 | 依赖 | 出口条件 | 状态 |
 | --- | --- | --- | --- | --- |
 | **LT-7** | IM SDK 在线升级发布侧 | 无 | Release 挂载 `manifest.json` / `.sig` / `bundle.tar.gz`；配置公钥后客户端可在线激活 | 🟡 工具链完成；签名 secret、客户端公钥、设置页、壳资源注入待做 |
-| **LT-8** | W5 TUI 改 ratatui | 无强依赖 | 33 个场景清单逐项过 + 真机交互验收 | 🟡 首片：`crates/tui` 视图模型/渲染/入口 + sessions-index 归约，8 测试（spec `tui-ratatui.md`）；Agent 传输接线与 33 场景待做 |
+| **LT-8** | W5 TUI 改 ratatui | 无强依赖 | 33 个场景清单逐项过 + 真机交互验收 | 🟡 P1 完成：视图模型/渲染/入口 + sessions-index 归约 + Agent stdio 传输（订阅/live/Ctrl-N），14 单测 + 1 e2e（spec `tui-ratatui.md`）；发送面与 33 场景待做 |
 | **LT-9** | W5 Web/远程服务端改 axum | W2/W4 稳定 | 契约对拍 + 手机远控验收 | 🟡 首片：`crates/server` axum health/version/server-info + 7 测试（spec `server-axum.md`）；LAN/WS 等路由组待迁 |
 | **LT-10** | W5 插件市场逻辑进壳 | `plugin-host` 资产层 | 目录/安装/卸载走壳，素材仍按资产层 | ⬜ 未开始；install/uninstall 仍在 Agent/TS，`plugin-sync-service` 只覆盖同步/归档 |
 | **LT-11** | W6 收口 | LT-7 ~ LT-10 | `stdioFrames`/`stdoutGuard` 退场、删 TS 宿主编排与 `host-sidecar` 发运集、插件宿主换嵌入引擎、四仪表终值复测 | 🟡 新增 `pnpm w6:readiness` 审计；当前 product 阻塞 6/6/119/95，未就绪 |

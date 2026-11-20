@@ -22,16 +22,17 @@
 - 可运行二进制：`cargo run -p mode-tui`，`↑/↓` 选择、`Enter` 本地回显、`q/Esc` 退出。
 - `agent_events`：sessions-index 快照/增量 → 会话列表（标题缺省、phase 映射、按活动
   时间排序、按 sessionId 保持选中；remove 后选中夹紧）。
-- 测试：8 条（选择环回、集合收缩夹紧、Unicode 输入、空态、截断、快照归约、
-  upsert/remove 归约）。
+- `agent_client` / `agent_wire`：spawn `agent-server app-server --stdio`，按行 JSON-RPC；
+  启动订阅 `sessions-index/<workspace>`，Ctrl-N 新建任务并接收 live 增量；反向请求自动应答。
+- 测试：14 条单测 + 1 条真子进程 e2e（spawn → 订阅 → 新建 → upsert 到达）。
 
 验收：`cargo test -p mode-tui` 全绿；`cargo run -p mode-tui` 在 Windows Terminal /
 macOS Terminal / Linux tty 能绘制并退出。
 
 ## 3. 后续切片（按 33 场景）
 
-1. **A1/A2/A3**：sessions-index 归约已具备；接 Agent 订阅流（启动、恢复、turn 完成），
-   替换本地回显。
+1. **A1/A2/A3**：sessions-index 的 spawn/订阅/live 已具备；补 turn 完成事件与发送面
+   （`session/send`），替换本地回显。
 2. **A5/A6**：排队输入与输入历史（busy 时入队、上下键召回）。
 3. **B 组**：流式文本/工具增量（复用事件归约，不重写投影）。
 4. **C 组（审批/权限）**：权限请求面板与键盘确认。

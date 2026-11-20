@@ -85,6 +85,7 @@ dependencies = [
  "data-root",
  "indexmap 2.14.2",
  "mode-api-retry",
+ "mode-tui",
  "model-selection",
  "plugin-discovery",
  "project-memory",
