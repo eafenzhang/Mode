@@ -595,6 +595,8 @@ struct Shared {
     todos: Arc<Mutex<Vec<agent_protocol::snapshot::TodoItem>>>,
     /// 队列事实源：待执行输入与投影元数据（mpsc 只做唤醒/关闭）。
     queue: Mutex<QueueStorage>,
+    /// LT-15 P5：sessions-index hub（live upsert）。
+    sessions_index: Option<Arc<crate::sessions_index::SessionsIndexHub>>,
 }
 
 impl Shared {
@@ -619,6 +621,16 @@ impl Shared {
         } else {
             self.track_api_retry(event);
             self.events.commit(event);
+        }
+        // LT-15 P5：关键事件后同步 sessions-index live 状态。
+        if matches!(
+            event.event_type,
+            SessionEventType::TurnStarted
+                | SessionEventType::TurnCompleted
+                | SessionEventType::TurnFailed
+                | SessionEventType::SessionTitleUpdated
+        ) {
+            self.publish_sessions_index_upsert();
         }
         // 终态后释放该 turn 的重试追踪 id（不随会话生命周期累积），并清空 apiRetry
         // （C3 T3）：goal 续跑失败后状态可能回到 idle，若只靠 completed/error 快照
@@ -783,6 +795,46 @@ impl Shared {
     }
 
     /// 顺序提交一批已分配事件（goal 方法层的同步事件）。
+    /// LT-15 P5：把当前 live 状态派生为 sessions-index 摘要并 upsert。
+    /// 只在关键事件（turn 开始/完成/失败、标题更新）后调用，不逐事件触发。
+    fn publish_sessions_index_upsert(&self) {
+        let Some(hub) = self.sessions_index.as_ref() else {
+            return;
+        };
+        let live = self.lock();
+        let phase = match live.status {
+            crate::state::RuntimeStatus::Running => {
+                agent_protocol::v4_snapshot::SessionPhase::Running
+            }
+            crate::state::RuntimeStatus::Error => agent_protocol::v4_snapshot::SessionPhase::Error,
+            crate::state::RuntimeStatus::Idle => {
+                if live.turn_count > 0 {
+                    agent_protocol::v4_snapshot::SessionPhase::CompletedSuccess
+                } else {
+                    agent_protocol::v4_snapshot::SessionPhase::Draft
+                }
+            }
+        };
+        let title = live.title.as_deref().unwrap_or(&self.record.title);
+        let mut summary = crate::sessions_index::summary_from_record(&self.record);
+        summary.phase = phase;
+        summary.title = title.to_string();
+        // agent_core::GoalStatus → agent_protocol::v4_snapshot::GoalStatus。
+        if let Some(goal) = &live.goal.target {
+            summary.goal_status = Some(match goal.status {
+                agent_core::GoalStatus::Active => agent_protocol::v4_snapshot::GoalStatus::Active,
+                agent_core::GoalStatus::Paused => agent_protocol::v4_snapshot::GoalStatus::Paused,
+                agent_core::GoalStatus::Complete => {
+                    agent_protocol::v4_snapshot::GoalStatus::Verified
+                }
+                agent_core::GoalStatus::BudgetLimited => {
+                    agent_protocol::v4_snapshot::GoalStatus::Failed
+                }
+            });
+        }
+        hub.upsert_summary(summary);
+    }
+
     fn publish_many(&self, events: Vec<SessionEvent>) {
         for event in events {
             if let Some(enriched) = self.enriched_retry_event(&event) {
@@ -919,6 +971,7 @@ impl SessionRuntime {
             subagents_enabled,
             todos,
             queue: Mutex::new(QueueStorage::default()),
+            sessions_index: wiring.sessions_index,
             record,
         });
 
@@ -1125,14 +1178,14 @@ impl SessionRuntime {
                     text: item.input.content.clone(),
                     attachments: Vec::new(),
                     model_selection: meta.and_then(|meta| meta.model_selection.clone()),
-                    mode: meta.and_then(|meta| meta.mode.clone()).map(|mode| {
-                        match mode.as_str() {
+                    mode: meta
+                        .and_then(|meta| meta.mode.clone())
+                        .map(|mode| match mode.as_str() {
                             "edit" => agent_protocol::v4_snapshot::SubmissionMode::Edit,
                             "plan" => agent_protocol::v4_snapshot::SubmissionMode::Plan,
                             "yolo" => agent_protocol::v4_snapshot::SubmissionMode::Yolo,
                             _ => agent_protocol::v4_snapshot::SubmissionMode::Build,
-                        }
-                    }),
+                        }),
                     plan_enabled: meta.and_then(|meta| meta.plan_enabled),
                     shared_context_refs: None,
                     delivery: agent_protocol::v4_snapshot::ConversationInputDelivery {

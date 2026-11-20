@@ -1717,6 +1717,7 @@ async fn denied_tool_call_has_matching_tool_result_in_next_model_request() {
         ScriptStep::Text("after denial".to_string()),
     ]);
     let wiring = RuntimeWiring {
+        sessions_index: None,
         permission_handler: Some(Box::new(DenyAll)),
         rule_db_path: None,
         reverse: None,
@@ -1992,6 +1993,7 @@ async fn agent_tool_runs_child_turn_and_persists_child_rows() {
         ScriptStep::Text("parent done".to_string()),
     ]);
     let wiring = RuntimeWiring {
+        sessions_index: None,
         permission_handler: None,
         rule_db_path: None,
         reverse: None,

@@ -83,6 +83,24 @@ impl SessionsIndexHub {
             .unwrap_or_default()
     }
 
+    /// 从运行时直接 upsert 一条 summary（不需要 store 行）。
+    /// 等价摘要不产帧；summary 已包含 phase/goalStatus/title 等真实值。
+    pub fn upsert_summary(&self, summary: SessionSummary) {
+        let mut workspaces = self.lock();
+        let sessions = workspaces.entry(summary.workspace_id.clone()).or_default();
+        if sessions.get(&summary.session_id) == Some(&summary) {
+            return;
+        }
+        sessions.insert(summary.session_id.clone(), summary.clone());
+        drop(workspaces);
+        let _ = self.sender.send(SessionsIndexEvent {
+            workspace_id: summary.workspace_id.clone(),
+            delta: SessionsIndexDelta::SessionUpserted {
+                session: Box::new(summary),
+            },
+        });
+    }
+
     /// 行变化 → 对每个可能的 workspace 主题 upsert（等价摘要不产帧）。
     ///
     /// 主题 key 既可能是 workspaceIdentity（远程），也可能是 workspacePath（本地）；

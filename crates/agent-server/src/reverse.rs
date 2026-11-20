@@ -474,4 +474,6 @@ pub struct RuntimeWiring {
     pub mcp_hub: Arc<crate::mcp::McpHub>,
     /// C4 T5：子代理执行端口（`Agent` 工具）。
     pub subagent_runner: Option<Arc<dyn agent_core::SubagentRunner>>,
+    /// LT-15 P5：sessions-index hub（phase/预览 live 投影用）。
+    pub sessions_index: Option<Arc<crate::sessions_index::SessionsIndexHub>>,
 }

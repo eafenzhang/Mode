@@ -1342,6 +1342,7 @@ async fn permission_reply_timeout_denies_with_batch_error() {
     let (outbound_tx, mut outbound_rx) = tokio::sync::mpsc::unbounded_channel();
     let reverse = ReverseHub::with_timeout(outbound_tx, Duration::from_millis(300));
     let wiring = RuntimeWiring {
+        sessions_index: None,
         permission_handler: Some(Box::new(agent_server::ProtocolPermissionHandler::new(
             Arc::clone(&reverse),
         ))),

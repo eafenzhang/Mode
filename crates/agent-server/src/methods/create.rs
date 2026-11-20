@@ -182,6 +182,7 @@ pub(super) fn spawn_runtime(
         mcp,
         mcp_hub: Arc::clone(server.mcp_hub()),
         subagent_runner,
+        sessions_index: Some(server.sessions_index().clone()),
     };
     let runtime = Arc::new(
         SessionRuntime::new(record, store, server.provider_source(), config, wiring)

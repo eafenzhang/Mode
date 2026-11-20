@@ -18,7 +18,7 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 | **P2** | axum LAN/WS | LAN 六端点全部桥接（state/pair/enable/pair-code/reset/clients 删除，11 测试；pair 含 Set-Cookie、enable 走监听视图）；剩 `/ws/host` RPC 帧桥接与凭据装配 | 🟡 HTTP 全收口 |
 | **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | 🟡 记录层+卸载编排+安装编排（directory/file 源+依赖闭包）已迁 `plugin-sync-service`（19 测试）；网络源与 config 写回待做 |
 | **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | ⬜ |
-| **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | ⬜ |
+| **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | 🟡 首切：`Shared::publish` 关键事件（turn 开始/完成/失败/标题更新）后从 live 状态派生 phase/title/goalStatus 并 upsert；预览/后台工作待做 |
 | **P6** | W6 收口 | `w6:readiness --fail-on-blockers` 通过；删 stdioFrames/stdoutGuard、TS 宿主编排与 host-sidecar 发运集 | ⬜ |
 
 ## P1 交付（2026-11-21）
@@ -58,11 +58,15 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 - 待做：网络源（git/npm/url）、config 写回（`removePluginFromFileConfig`/suppression）、
   与 TS 行为对拍。
 
-## P4/P5 入口
+## P4/P5 进展
 
-- P4：`crates/lan-*` 的 WebSocket/中继缺口与 `crates/usage-stats` 网络/凭据接线。
-- P5：把 TS `sessions-index-projection` 的 phase/预览/后台工作归约移植到
-  `crates/agent-server/src/sessions_index.rs`，由会话事件驱动。
+- P5 首切（2026-11-21）：`RuntimeWiring` 注入 `SessionsIndexHub`；`Shared::publish`
+  在 TurnStarted/TurnCompleted/TurnFailed/SessionTitleUpdated 后调用
+  `publish_sessions_index_upsert`（从 live 状态派生 Running/CompletedSuccess/Draft/Error
+  phase + goalStatus + title，通过 `hub.upsert_summary` 广播）。
+  预览/后台工作/workflowActivity 投影待做。
+- P4：`crates/lan-*` 的 WebSocket/中继缺口与 `crates/usage-stats` 网络/凭据接线
+  （服务面已有 trait 注入，待装配具体 HTTP 端口）。
 
 ## P6 门禁
 
