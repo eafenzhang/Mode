@@ -7,6 +7,7 @@
 mod archive;
 mod candidates;
 mod config_write_back;
+mod zip_source;
 mod installed_records;
 mod marketplace_install;
 mod marketplace_source;

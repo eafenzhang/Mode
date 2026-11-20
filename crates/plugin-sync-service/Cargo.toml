@@ -13,6 +13,13 @@ path = "src/lib.rs"
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+# LT-15 P3 切五：zip 插件源。yauzl 同口径只支持 store/deflate——deflate64/lzma/
+# bzip2/zstd 等条目在本配置下报 UnsupportedArchive，与 TS 拒绝行为一致。
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
+url.workspace = true
+# zip 源的 HTTP 下载（手动重定向 + 200 MiB 上限 + 180s 超时）。
+reqwest.workspace = true
+rustls.workspace = true
 flate2 = "1"
 plugin-discovery = { path = "../plugin-discovery" }
 atomic-file = { path = "../atomic-file" }

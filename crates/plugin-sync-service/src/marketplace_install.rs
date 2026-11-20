@@ -467,14 +467,14 @@ impl ResolvedPluginSourceRoot {
     }
 }
 
-fn local_source_root(path: PathBuf) -> ResolvedPluginSourceRoot {
+pub(crate) fn local_source_root(path: PathBuf) -> ResolvedPluginSourceRoot {
     ResolvedPluginSourceRoot {
         path,
         temp_dir: None,
     }
 }
 
-fn cloned_source_root(path: PathBuf, temp_dir: PathBuf) -> ResolvedPluginSourceRoot {
+pub(crate) fn cloned_source_root(path: PathBuf, temp_dir: PathBuf) -> ResolvedPluginSourceRoot {
     ResolvedPluginSourceRoot {
         path,
         temp_dir: Some(temp_dir),
@@ -502,6 +502,41 @@ fn resolve_git_plugin_source(
             let _ = std::fs::remove_dir_all(&dir);
             Err(format!("Plugin source subdirectory does not exist: {path}"))
         }
+    }
+}
+
+/// TS zip 分支的入参读取（headers/path/sha256/stripRoot；sha256 必填）。
+fn read_zip_source_input(
+    source_object: &serde_json::Map<String, Value>,
+    url: &str,
+) -> crate::zip_source::ZipSourceInput {
+    fn read_headers(
+        source_object: &serde_json::Map<String, Value>,
+    ) -> Option<serde_json::Map<String, Value>> {
+        let headers = source_object.get("headers")?;
+        let Some(headers) = headers.as_object() else {
+            // 非对象 headers 由 zip 源校验报错；这里先透传原样。
+            let mut map = serde_json::Map::new();
+            map.insert("invalid".to_string(), headers.clone());
+            return Some(map);
+        };
+        Some(headers.clone())
+    }
+    crate::zip_source::ZipSourceInput {
+        url: url.to_string(),
+        sha256: source_object
+            .get("sha256")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        headers: read_headers(source_object),
+        path: source_object
+            .get("path")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        strip_root: source_object
+            .get("stripRoot")
+            .and_then(Value::as_bool),
     }
 }
 
@@ -618,11 +653,10 @@ pub fn resolve_plugin_source_root(
                         .and_then(Value::as_str)
                         .unwrap_or("");
                     if source_type == "zip" {
-                        // zip 源需要 HTTP 下载 + sha256 校验，本切片未接入。
-                        return Err(
-                            "Plugin source is recognized but not supported in this runtime: url:zip"
-                                .to_string(),
-                        );
+                        return crate::zip_source::resolve_zip_plugin_source(&read_zip_source_input(
+                            source_object,
+                            &url,
+                        ));
                     }
                     if !source_type.is_empty() && source_type != "git" {
                         return Err(format!(
@@ -1086,13 +1120,14 @@ mod tests {
             resolve_plugin_source_root(&root, "m", &pip, None).expect_err("pip"),
             "Plugin source is recognized but not supported in this runtime: pip"
         );
+        // url:zip 已接入（真实实现）；缺 sha256/短 sha256 走必填校验。
         let zip = entry_with_source(json!({
             "source": "url", "type": "zip", "url": "https://example.com/x.zip",
             "sha256": "deadbeef",
         }));
         assert_eq!(
             resolve_plugin_source_root(&root, "m", &zip, None).expect_err("zip"),
-            "Plugin source is recognized but not supported in this runtime: url:zip"
+            "Plugin zip source sha256 must be a 64 character hex string"
         );
         let tar = entry_with_source(json!({
             "source": "url", "type": "tar", "url": "https://example.com/x.tar",
