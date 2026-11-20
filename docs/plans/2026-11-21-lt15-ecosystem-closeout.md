@@ -15,7 +15,7 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 | 阶段 | 内容 | 出口条件 | 状态 |
 | --- | --- | --- | --- |
 | **P1** | TUI Agent 传输接线 | `agent-server` stdio spawn、sessions-index 订阅、live 增量、Ctrl-N 新建；单测 + 真子进程 e2e | ✅ 2026-11-21 |
-| **P2** | axum LAN/WS | LAN 管理四端点已桥接（state/pair-code/reset/clients 删除，10 测试）；剩 pair/enable、`/ws/host` RPC 帧桥接 | 🟡 首切完成 |
+| **P2** | axum LAN/WS | LAN 六端点全部桥接（state/pair/enable/pair-code/reset/clients 删除，11 测试；pair 含 Set-Cookie、enable 走监听视图）；剩 `/ws/host` RPC 帧桥接与凭据装配 | 🟡 HTTP 全收口 |
 | **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | ⬜ |
 | **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | ⬜ |
 | **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | ⬜ |
@@ -33,14 +33,14 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 - 测试：TUI 14 条单测；`crates/agent-server/tests/tui_client.rs` 1 条真子进程 e2e
   （spawn → 订阅 → 新建 → 收到 `sessions.upserted`）。
 
-## P2 首切（下一步）
+## P2 进展（2026-11-21）
 
-1. `/api/lan/state`：从 `crates/lan-pairing` 的只读快照投影（enabled/客户端数/是否配码），
-   不复制业务状态。
-2. `/api/lan/peers`：只读列表；发现/配对写操作仍留现有 Host，迁移后切所有权。
-3. `/ws/host`：axum WebSocket upgrade → 现有 RPC 帧语义；同时验
-   `desktop-continuous` 与 `web-remote-replayable`。
-4. 每组路由先补 TS 契约对拍与错误码，再切换所有者。
+- LAN 管理面 HTTP 全部收口：`lan-http` 抽出 `management_request` 传输无关入口（含令牌
+  鉴权与错误码），`crates/server/src/lan.rs` 桥接六端点；`handle_pair` 透传 Set-Cookie；
+  `set_enabled` 走监听视图（持久化待接 credential-store）。11 条 server 测试 +
+  12 条 lan-http 测试全绿。
+- 剩余：`/ws/host` RPC 帧桥接（与 P4 LAN WS 语义合并推进）、凭据装配从内存端口换
+  credential-store。
 
 ## P3 首切
 

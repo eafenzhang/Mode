@@ -2,15 +2,17 @@
 //!
 //! 状态/令牌/限速/配对的唯一所有者仍是 `crates/lan-http`（`LanPairHttp`）；
 //! 本模块只把它的传输无关管理面挂到 axum，错误码与鉴权口径不复制。
-//! `/api/lan/pair`（配对端点，含 Set-Cookie）与 `/api/lan/enable` 仍待迁移。
+//! 六个端点全部桥接：state / pair（Set-Cookie 配对）/ enable / pair-code / reset /
+//! clients 删除；鉴权、限速与错误码沿用 `lan-http`，不复制。
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
-use axum::http::header::{AUTHORIZATION, COOKIE};
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::Json;
+use axum::http::header::{AUTHORIZATION, COOKIE, SET_COOKIE};
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{delete, get, post};
 use axum::Router;
 use lan_http::LanPairHttp;
@@ -40,6 +42,8 @@ pub type SharedLanHttp = Arc<LanPairHttp<Box<dyn LanCredentialPort>>>;
 pub fn lan_router(pairing: SharedLanHttp) -> Router {
     Router::new()
         .route("/api/lan/state", get(lan_state))
+        .route("/api/lan/pair", post(lan_pair))
+        .route("/api/lan/enable", post(lan_enable))
         .route("/api/lan/pair-code", post(lan_pair_code))
         .route("/api/lan/reset", post(lan_reset))
         .route("/api/lan/clients/{client_id}", delete(lan_remove_client))
@@ -52,6 +56,35 @@ async fn lan_state(
     Query(query): Query<HashMap<String, String>>,
 ) -> (StatusCode, Json<Value>) {
     respond(&state, "GET", "/api/lan/state", &headers, &query).await
+}
+
+/// 配对端点：限速、一次性码、成功下发 HttpOnly Cookie 的语义全部沿用 lan-http。
+async fn lan_pair(State(state): State<SharedLanHttp>, body: Bytes) -> Response {
+    let response = state.handle_pair(&body).await;
+    let status = StatusCode::from_u16(response.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    let value: Value = serde_json::from_slice(&response.body).unwrap_or(Value::Null);
+    let mut builder = (status, Json(value)).into_response();
+    if let Some(cookie) = response.set_cookie {
+        if let Ok(header_value) = HeaderValue::from_str(&cookie) {
+            builder.headers_mut().insert(SET_COOKIE, header_value);
+        }
+    }
+    builder
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LanEnableRequest {
+    enabled: bool,
+}
+
+/// 启用开关：持久化属宿主凭据面（待接 credential-store），这里只更新监听视图。
+async fn lan_enable(
+    State(state): State<SharedLanHttp>,
+    Json(request): Json<LanEnableRequest>,
+) -> (StatusCode, Json<Value>) {
+    let state_value = state.set_enabled(request.enabled).await;
+    (StatusCode::OK, Json(state_value))
 }
 
 async fn lan_pair_code(
@@ -115,6 +148,7 @@ mod tests {
     use http_body_util::BodyExt;
     use lan_http::LanAccessView;
     use lan_pairing::LanPairingOptions;
+    use serde_json::json;
     use tower::ServiceExt;
 
     #[derive(Default)]
@@ -241,6 +275,85 @@ mod tests {
         // 删除客户端会吊销其令牌：同一令牌再调管理面必须 401（lan-http 语义）。
         let (status, _) = request_json(router, "POST", "/api/lan/reset", Some(&token)).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn pair_endpoint_issues_token_and_enable_toggles_view() {
+        let (http, first_token) = lan_http_with_client().await;
+        let router = lan_router(Arc::clone(&http));
+
+        // 先造配对码（管理面需要已配对客户端令牌）。
+        let (status, body) = request_json(
+            router.clone(),
+            "POST",
+            "/api/lan/pair-code",
+            Some(&first_token),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let code = body["pairCode"]["code"]
+            .as_str()
+            .expect("pair code")
+            .to_string();
+
+        // 用码配对：200 + 令牌 + HttpOnly Set-Cookie。
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/lan/pair")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({ "code": code, "label": "second" })).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let set_cookie = response
+            .headers()
+            .get(SET_COOKIE)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
+        assert!(set_cookie
+            .as_deref()
+            .is_some_and(|cookie| cookie.starts_with("mode_lite_token=")));
+        let pair_body: Value =
+            serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        let second_token = pair_body["token"].as_str().expect("token").to_string();
+
+        // 新令牌可直接调管理面。
+        let (status, state_body) =
+            request_json(router.clone(), "GET", "/api/lan/state", Some(&second_token)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(state_body["clients"].as_array().map(Vec::len), Some(2));
+
+        // enable false：关闭监听、清配对码；enable true 恢复开关。
+        for enabled in [false, true] {
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/api/lan/enable")
+                        .header("content-type", "application/json")
+                        .body(Body::from(json!({ "enabled": enabled }).to_string()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let body: Value =
+                serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes())
+                    .unwrap();
+            assert_eq!(body["enabled"], enabled);
+            if !enabled {
+                assert!(body["pairCode"].is_null());
+            }
+        }
     }
 
     #[tokio::test]

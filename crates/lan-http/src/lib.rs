@@ -128,6 +128,20 @@ impl<C: LanCredentialPort + Send + 'static> LanPairHttp<C> {
         self.pairing.lock().await.verify_token(&token).is_some()
     }
 
+    /// `POST /api/lan/enable`：监听开关由传输层持有（持久化属宿主凭据面）。
+    /// 关闭时清 pairCode；返回更新后的 state。
+    pub async fn set_enabled(&self, enabled: bool) -> Value {
+        let mut view = self.view.lock().expect("lan access view poisoned").clone();
+        view.enabled = enabled;
+        if !enabled {
+            self.pairing.lock().await.clear_pair_code();
+            view.port = None;
+            view.addresses.clear();
+        }
+        self.set_view(view);
+        self.get_state().await
+    }
+
     /// `GET /api/lan/state`。
     pub async fn get_state(&self) -> Value {
         self.state_value().await

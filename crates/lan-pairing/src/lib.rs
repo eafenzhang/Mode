@@ -208,6 +208,11 @@ impl<C: LanCredentialPort> LanPairing<C> {
         }))
     }
 
+    /// 关闭监听时作废未消费的配对码（与 TS `setEnabled(false)` 清 pairCode 同语义）。
+    pub fn clear_pair_code(&mut self) {
+        self.pair_code = None;
+    }
+
     /// 令牌校验：命中返回 clientId，并按 60s 节流更新 lastUsedAt。
     pub fn verify_token(&mut self, presented: &str) -> Option<String> {
         let client_id = self
@@ -379,7 +384,9 @@ mod tests {
             Ok(self.0.borrow().get(key).cloned())
         }
         fn save(&self, key: &str, value: &str) -> Result<(), String> {
-            self.0.borrow_mut().insert(key.to_string(), value.to_string());
+            self.0
+                .borrow_mut()
+                .insert(key.to_string(), value.to_string());
             Ok(())
         }
         fn delete(&self, key: &str) -> Result<(), String> {
@@ -441,7 +448,9 @@ mod tests {
         let mut pairing = LanPairing::load(
             MemoryCredentials::default(),
             LanPairingOptions {
-                now_ms: Box::new(move || clock_for_pairing.load(std::sync::atomic::Ordering::SeqCst)),
+                now_ms: Box::new(move || {
+                    clock_for_pairing.load(std::sync::atomic::Ordering::SeqCst)
+                }),
                 ..options()
             },
         )
@@ -497,7 +506,9 @@ mod tests {
     fn token_is_base64url_without_padding() {
         let token = mint_client_token(&[0xff; 32]);
         assert!(!token.contains('='));
-        assert!(token.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_'));
+        assert!(token
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_'));
     }
 
     #[test]
