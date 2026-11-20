@@ -17,7 +17,7 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 | **P1** | TUI Agent 传输接线 | `agent-server` stdio spawn、sessions-index 订阅、live 增量、Ctrl-N 新建；单测 + 真子进程 e2e | ✅ 2026-11-21 |
 | **P2** | axum LAN/WS | LAN 六端点全部桥接（state/pair/enable/pair-code/reset/clients 删除，11 测试；pair 含 Set-Cookie、enable 走监听视图）；剩 `/ws/host` RPC 帧桥接与凭据装配 | 🟡 HTTP 全收口 |
 | **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | 🟡 记录层+卸载编排+安装编排+config 写回+网络源（git clone）已迁 `plugin-sync-service`（34 测试 + 3 对拍）；zip/npm/pip 源与 TS 对拍补充待做 |
-| **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | 🟡 余额查询 HTTP fetcher + Personal 层凭据装配已接（reqwest/ring/15s 超时 + personal-layer resolver，12 测试）；服务面端点接线与 LAN WS 待做 |
+| **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | 🟡 `usage-stats` 频道已接（getProviderBalanceSnapshot：凭据→fetcher→快照全链路，7 频道测试 + 壳内装配 + 降级语义）；LAN WS/中继待做 |
 | **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | ✅ phase/goalStatus/title/lastAssistantPreview 已接（turn 事件驱动 + store 读尾）；hasBackgroundWork/workflowActivity 诚实投影为空（依赖 W4 backgroundWorks 运行时状态迁移，见 P5 说明） |
 | **P6** | W6 收口 | `w6:readiness --fail-on-blockers` 通过；删 stdioFrames/stdoutGuard、TS 宿主编排与 host-sidecar 发运集 | ⬜ |
 
@@ -96,6 +96,13 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
   「UI 不把局部状态当服务端事实」；等 W4 backgroundWorks 状态迁移后在
   `publish_sessions_index_upsert` 补派生（TS 口径：`backgroundWorks.some(status==="running")`
   + `deriveSessionWorkflowActivity`）。
+- P4 服务面接线（2026-11-21）：`crates/host-channels` 新增 `usage_stats` 频道
+  （`getProviderBalanceSnapshot`：`{providerId?}` → 快照 JSON；缺省/undefined 与 TS
+  `?? ""` 同语义进 unsupported，不是参数错误）+ 壳内装配（inprocess.rs：MODE env
+  优先、data_root/v2 回退构造 PersonalConfigRepository，1s 轮询；仓库/客户端构造失败
+  降级 default unsupported 并留 shell 日志，不阻塞注册）+ 频道名漂移守卫。
+  spec 新建 docs/specs/usage-stats-service.md；官方套餐链路 dormant 不接线。
+- P4 剩余：`crates/lan-*` WebSocket/中继。
 - P4 凭据装配首切（2026-11-21）：`provider-balance` 增
   `provider_balance_target_from_personal_layer`（只有 ApiKey access 参与，
   ZhipuAccount/未配置 → None）+ `PersonalLayerTargetResolver`（读层闭包 →

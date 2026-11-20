@@ -33,7 +33,7 @@ use host_channels::{
 };
 use host_channels::{
     AgentHealthChannel, HOOKS_CHANNEL, HooksChannel, MCP_SYNC_CHANNEL, MODE_AGENT_CHANNEL,
-    McpSyncChannel, ModeAgentChannel,
+    McpSyncChannel, ModeAgentChannel, USAGE_STATS_CHANNEL, UsageStatsChannel,
 };
 use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
@@ -95,6 +95,7 @@ fn is_owned_channel(name: &str) -> bool {
             | GIT_CHANNEL
             | GIT_CHECKPOINT_CHANNEL
             | PLUGIN_SYNC_CHANNEL
+            | USAGE_STATS_CHANNEL
             | MCP_SYNC_CHANNEL
             | AGENT_HEALTH_CHANNEL
             | MODE_AGENT_CHANNEL
@@ -129,6 +130,7 @@ fn default_owned_channels() -> Vec<String> {
         GIT_CHANNEL,
         GIT_CHECKPOINT_CHANNEL,
         PLUGIN_SYNC_CHANNEL,
+        USAGE_STATS_CHANNEL,
         MCP_SYNC_CHANNEL,
         AGENT_HEALTH_CHANNEL,
         HOOKS_CHANNEL,
@@ -556,6 +558,64 @@ fn build_server(
                     host_channels::plugin_sync::default_service(),
                 )),
             ),
+            USAGE_STATS_CHANNEL => {
+                // 余额查询凭据源：Personal 层仓库（1s 轮询 LKG）。路径显式 env 优先，
+                // 回退 data_root/v2（与 agent_runtime 的 ProviderPaths fallback 同口径）。
+                // 仓库不可用时不阻塞频道注册：退化为 default（一律 unsupported）。
+                let personal_path = std::env::var(
+                    provider_config_repository::MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
+                )
+                .ok()
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| {
+                    data_root
+                        .join("v2")
+                        .join(provider_config_repository::PERSONAL_PROVIDER_CONFIG_FILE_NAME)
+                });
+                match provider_config_repository::PersonalConfigRepository::new(
+                    provider_config_repository::PersonalConfigRepositoryOptions {
+                        file_path: personal_path,
+                        import_legacy: None,
+                        on_recovery: None,
+                        on_polling_error: None,
+                        polling_interval: provider_config_repository::PollingInterval::Millis(1_000),
+                    },
+                ) {
+                    Ok(repository) => {
+                        // 首次读取同时启动轮询线程（与 AccountFactsRuntime 同款）。
+                        let repository = StdArc::new(repository);
+                        let _ = repository.read();
+                        match UsageStatsChannel::with_personal_layer(StdArc::clone(&repository)) {
+                            Ok(channel) => {
+                                let _repository = repository;
+                                server.register_channel(
+                                    USAGE_STATS_CHANNEL,
+                                    Arc::new(channel),
+                                );
+                            }
+                            Err(error) => {
+                                crate::host::shell_log(&format!(
+                                    "usage-stats channel degraded to unsupported: {error}"
+                                ));
+                                let _repository = repository;
+                                server.register_channel(
+                                    USAGE_STATS_CHANNEL,
+                                    Arc::new(UsageStatsChannel::default_channel()),
+                                );
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        crate::host::shell_log(&format!(
+                            "usage-stats personal config unavailable: {error}; channel degraded to unsupported"
+                        ));
+                        server.register_channel(
+                            USAGE_STATS_CHANNEL,
+                            Arc::new(UsageStatsChannel::default_channel()),
+                        );
+                    }
+                }
+            }
             MCP_SYNC_CHANNEL => {
                 server.register_channel(
                     MCP_SYNC_CHANNEL,

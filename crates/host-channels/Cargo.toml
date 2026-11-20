@@ -34,9 +34,15 @@ workspace-hooks-service = { path = "../workspace-hooks-service" }
 terminal-service = { path = "../terminal-service" }
 rpc-host = { path = "../rpc-host" }
 rpc-wire = { path = "../rpc-wire" }
+# LT-15 P4：usage-stats 频道的余额查询链路（凭据 + HTTP 取回）。
+provider-balance = { path = "../provider-balance" }
+provider-config-repository = { path = "../provider-config-repository" }
+provider-config-source = { path = "../provider-config-source" }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros", "sync", "time"] }
+provider-config = { path = "../provider-config" }
+provider-config-file-codec = { path = "../provider-config-file-codec" }

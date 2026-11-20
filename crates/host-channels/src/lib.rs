@@ -28,6 +28,7 @@ pub mod hooks;
 pub mod mcp_sync;
 pub mod media_preview;
 pub mod memory_channel;
+pub mod usage_stats;
 pub mod mode_agent;
 pub mod plugin_sync;
 pub mod setting;
@@ -53,6 +54,10 @@ pub use hooks::{HooksChannel, GRANT_WORKSPACE_HOOK_TRUST, HOOKS_CHANNEL, LOAD_HO
 pub use mcp_sync::McpSyncChannel;
 pub use media_preview::MediaPreviewChannel;
 pub use memory_channel::{MemoryChannel, LIST_MEMORIES, READ_MEMORY_FILE};
+pub use usage_stats::{
+    channel_with_layer, default_provider_balance, empty_args, GET_PROVIDER_BALANCE_SNAPSHOT,
+    USAGE_STATS_CHANNEL, UsageStatsChannel,
+};
 pub use mode_agent::{
     dynamic_workflow_enabled, ModeAgentChannel, DYNAMIC_WORKFLOW_MODE_ENV,
     MCP_STATUS_MODE_UNSUPPORTED_CODE, MODE_AGENT_CHANNEL, UNSUPPORTED_METHOD_CODE,
