@@ -1354,6 +1354,9 @@ T7 的 C4 回放 driver 与真实端点 smoke 仍待补。默认解析顺序**�
 门禁结论：补齐后 19 PASS / 1 PARTIAL（任务 16 远程/手机重连环境受限）；用户
 2026-11-20 裁决在已知状态下执行翻转：`resolve_agent_command` 改为 native Rust 优先
 （env 显式命令仍覆盖，Node 链在 Rust 缺失时回退），健康面默认 `runtime=rust`。
+随包侧：`stage-agent-bundle` 把 `agent-server` 落为 `glm/mode-agent[.exe]`，
+`bundledAgentRuntime` 优先 native 并注入 `MODE_AGENT_RUNTIME=rust`；release 三平台腿
+先构建同 target 的 Rust 二进制再 `tauri build`。
 
 ## 验收场景（Task 0）
 

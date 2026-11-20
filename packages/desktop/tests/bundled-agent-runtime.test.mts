@@ -4,6 +4,7 @@ import { test } from "node:test";
 
 import {
   BUNDLED_AGENT_ENTRY_RELATIVE,
+  BUNDLED_AGENT_NATIVE_WINDOWS_RELATIVE,
   applyBundledAgentRuntime,
   resolveBundledAgentRuntime,
 } from "../src/host-standalone/bundledAgentRuntime.js";
@@ -40,6 +41,7 @@ test("随包 agent：命中时用当前 Node 执行 agent/glm/mode.cjs app-serve
   });
   assert.ok(runtime);
   assert.equal(runtime.command, "C:\Program Files\Mode\node\node.exe");
+  assert.equal(runtime.runtime, "node");
   assert.deepEqual(JSON.parse(runtime.argsJson), [ENTRY, "app-server", "--stdio"]);
 });
 
@@ -50,6 +52,7 @@ test("随包 agent：apply 写回两条环境变量；未命中时不改环境",
     true,
   );
   assert.equal(env.MODE_AGENT_SERVER_COMMAND, "node.exe");
+  assert.equal(env.MODE_AGENT_RUNTIME, "node");
   assert.deepEqual(JSON.parse(env.MODE_AGENT_SERVER_ARGS_JSON ?? "[]"), [
     ENTRY,
     "app-server",
@@ -79,4 +82,18 @@ test("随包 agent：存在随包 provider config 且未显式设置时一并注
   };
   applyBundledAgentRuntime(explicit, "node.exe", (path) => path === ENTRY || path === PROVIDER);
   assert.equal(explicit.MODE_BUILTIN_PROVIDER_CONFIG_FILE, "D:\custom\provider.json");
+});
+
+
+test("随包 agent：Rust 二进制存在时优先于 mode.cjs（C4 默认翻转）", () => {
+  const native = join(RESOURCES, BUNDLED_AGENT_NATIVE_WINDOWS_RELATIVE);
+  const runtime = resolveBundledAgentRuntime({
+    env: { MODE_HOST_RESOURCES_DIR: RESOURCES },
+    execPath: "C:\Program Files\Mode\node\node.exe",
+    exists: (path) => path === native || path === ENTRY,
+  });
+  assert.ok(runtime);
+  assert.equal(runtime.command, native);
+  assert.equal(runtime.runtime, "rust");
+  assert.deepEqual(JSON.parse(runtime.argsJson), ["app-server", "--stdio"]);
 });

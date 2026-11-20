@@ -55,6 +55,11 @@ C4 把 C1–C3 交付的 Rust 会话运行时从「核心子集」扩到**产品
   （Rust 缺失时回退）→ `NotConfigured`；
 - 健康面 `runtime` 取自解析结果：默认路径为 `rust`；显式 env 命令仍按
   `MODE_AGENT_RUNTIME` 提示（Node 回退入口）；
+- 随包：`stage-agent-bundle.mjs` 在 Node bundle 旁落 `glm/mode-agent[.exe]`
+  （来源 `MODE_AGENT_NATIVE_BINARY` 或 `target/{debug,release}/agent-server`）；
+  desktop host 的 `bundledAgentRuntime` 优先 native 并写 `MODE_AGENT_RUNTIME=rust`，
+  Tauri 解析链同时认 `<resources>/agent/glm/...`；release workflow 在三平台腿
+  构建同 target 的 `agent-server` 后再 `tauri build`；
 - 回滚：设置 `MODE_AGENT_SERVER_COMMAND=<node> [MODE_AGENT_RUNTIME=node]`；
   测试覆盖 native 优先级、env 覆盖与移除后回到 Node 链；
 - 门禁说明：§7 的 20 任务实测 19 PASS / 1 PARTIAL（任务 16 需真实桌面/手机远程
