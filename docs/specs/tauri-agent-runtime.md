@@ -1321,6 +1321,31 @@ T7 的 C4 回放 driver 与真实端点 smoke 仍待补。默认解析顺序**�
 2. 全部通过后再翻转 `resolve_agent_command` 默认并跑回滚/无 Node 并启测试；
 3. 补 C4 replay driver、真实端点 smoke，并与本节的差异表逐条对账。
 
+### C4.5 真机验收记录（2026-11-20，headless + 真实模型）
+
+方式：stdio 直连 Rust `agent-server`（`target/debug/agent-server.exe`），真实 provider
+（`tokendance/deepseek-v4.1-flash`，任务 3 切到 `deepseek-v4-pro`），隔离数据根/工作区；
+本地 stdio MCP、directory marketplace 插件与 workspace skill 作夹具。完整记录见
+`.plan/accept-c4/report.md`（本地验收产物，不入库）。
+
+结果：**14 PASS / 6 PARTIAL / 0 FAIL**，约 36.8k tokens。
+
+- PASS：1–7、10、13–15、17–19。
+- PARTIAL：8（`fileChanges` 空 items、`fileRewindPreview` 未注册）、9（后台 Bash 全链路成功，
+  `backgroundBashOutput` 恒 unavailable）、11（`ExitPlanMode` 属 LT-5）、12（goal 生命周期
+  成功，Todo 工具未实现）、16（sessions-index 快照成功，桌面/手机重连不在本环境）、
+  20（真实子代理成功，`agent-health` 在 Host 面）。
+
+验收发现并修复两处协议实现缺陷（commit `ac552018e`）：
+
+1. `v4/conversation/workflowRunEvents` 缺省 `afterSequence` 当作 0，吞掉 sequence 0 的
+   `run-started`；改为缺省 `-1`，新增 `[0,1,2]` 回归用例。
+2. `v4/conversation/resync|unsubscribe` 误用订阅参数结构，文档形状被 `-32602` 拒绝；
+   改为 `ConversationResyncParams` / `ConversationUnsubscribeParams`，新增往返用例。
+
+门禁结论：6 项 PARTIAL 全部是已登记的未实现/未观察面，**未达到 20 项全绿**，因此
+`resolve_agent_command` 保持 Node 优先、默认运行时未翻转。
+
 ## 验收场景（Task 0）
 
 1. `pnpm test:agent-runtime-oracle`（唯一入口；等价于

@@ -816,8 +816,12 @@ T4 分三个切片落地：
   标题、goal 未接）；`wireVersion:3`、`logicalFrameId/Ordinal`、`deliveryKind initial/online`。
 - rowsRange：DB 行投影 + `beforeRowId` 分页、`atSeq/atRevision/atLogEpoch/hasMore`；
   plans（ExitPlanMode 行）；usage（turn*usage/model_usage 聚合）；workflow run
-  runs/events 读 `dwf*\*`；fileChanges 先做 staleLogEpoch 守卫；usageStats 从
+  runs/events 读 `dwf*\*`（缺省 `afterSequence` 从头取，包含 sequence 0 的
+  `run-started`）；fileChanges 先做 staleLogEpoch 守卫；usageStats 从
   model_usage/turn_usage/tool_usage 聚合；sessions-index 订阅返回快照帧。
+- resync/unsubscribe 按文档参数形状 `{topic,connectionId,subscriptionId,base}` 解析；
+  resync ACK 回显 `subscriptionId` + `mode:"resume"`（T6 真机验收修复，commit
+  `ac552018e`）。
 
 差异 / 未覆盖（不伪造观察值）：
 
