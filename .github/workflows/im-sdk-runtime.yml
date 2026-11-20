@@ -1,0 +1,171 @@
+name: IM SDK runtime bundle
+
+# 在线升级发布侧（LT-7）：把两个官方 SDK 的生产依赖树打包为版本化运行时，
+# 生成并签名清单，挂到对应 GitHub Release。
+#
+# 需要仓库 secret：IM_SDK_RUNTIME_SIGNING_KEY（Ed25519 PKCS8 PEM）。
+# 未配置时只做 dry-run（临时密钥签名 + workflow artifact），不会更新 Release。
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "目标 Release tag（留空取最新 Release）"
+        required: false
+        type: string
+      version:
+        description: "运行时版本（数字点分；留空取 tag 去掉 v）"
+        required: false
+        type: string
+      dry_run:
+        description: "只构建/验签并上传 workflow artifact，不写入 Release"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: im-sdk-runtime-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MODE_IM_SDK_RUNTIME_SIGNING_KEY: ${{ secrets.IM_SDK_RUNTIME_SIGNING_KEY }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag || github.ref }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve release tag and runtime version
+        id: meta
+        shell: bash
+        env:
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="${EVENT_TAG:-${INPUT_TAG:-}}"
+          if [ -z "$TAG" ]; then
+            TAG="$(gh release view --json tagName -q .tagName)"
+          fi
+          test -n "$TAG"
+          VERSION="${INPUT_VERSION:-${TAG#v}}"
+          # 运行时版本必须是数字点分（客户端按点分数值比较）；预发布 tag 的
+          # `-audit.2026...` 后缀改成追加 run number，既保持数字也保持单调。
+          if ! [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+            BASE="${VERSION%%-*}"
+            if ! [[ "$BASE" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+              echo "::error::invalid runtime version: $VERSION"
+              exit 1
+            fi
+            VERSION="$BASE.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "building version=$VERSION for $TAG"
+
+      - name: Detect signing key
+        id: key
+        shell: bash
+        run: |
+          if [ -n "${MODE_IM_SDK_RUNTIME_SIGNING_KEY:-}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::IM_SDK_RUNTIME_SIGNING_KEY 未配置；本次只产出 artifact，不更新 Release"
+          fi
+
+      - name: Test pipeline
+        run: pnpm im-sdk-runtime:test
+
+      - name: Build runtime bundle
+        run: >-
+          pnpm im-sdk-runtime:bundle
+          --version "${{ steps.meta.outputs.version }}"
+          --out dist/im-sdk-runtime
+
+      - name: Sign with release key
+        if: steps.key.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST=dist/im-sdk-runtime/im-sdk-runtime-manifest.json
+          pnpm im-sdk-runtime:sign sign --manifest "$MANIFEST" --key-env MODE_IM_SDK_RUNTIME_SIGNING_KEY
+          pnpm im-sdk-runtime:sign public-key --key-env MODE_IM_SDK_RUNTIME_SIGNING_KEY \
+            > "$RUNNER_TEMP/im-sdk-runtime-public-key.txt"
+          pnpm im-sdk-runtime:sign verify --manifest "$MANIFEST" \
+            --sig "$MANIFEST.sig" --pubkey "$RUNNER_TEMP/im-sdk-runtime-public-key.txt"
+
+      - name: Dry-run signature (ephemeral key)
+        if: steps.key.outputs.present == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST=dist/im-sdk-runtime/im-sdk-runtime-manifest.json
+          pnpm im-sdk-runtime:sign generate --out "$RUNNER_TEMP/im-sdk-key"
+          pnpm im-sdk-runtime:sign sign --manifest "$MANIFEST" \
+            --key "$RUNNER_TEMP/im-sdk-key/im-sdk-runtime-signing-key.pem"
+          pnpm im-sdk-runtime:sign verify --manifest "$MANIFEST" \
+            --sig "$MANIFEST.sig" --pubkey "$RUNNER_TEMP/im-sdk-key/im-sdk-runtime-public-key.txt"
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: im-sdk-runtime-${{ steps.meta.outputs.version }}
+          path: dist/im-sdk-runtime/*
+          if-no-files-found: error
+
+      - name: Upload to release
+        if: steps.key.outputs.present == 'true' && env.DRY_RUN != 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          files=(
+            "dist/im-sdk-runtime/im-sdk-runtime-manifest.json"
+            "dist/im-sdk-runtime/im-sdk-runtime-manifest.json.sig"
+            "dist/im-sdk-runtime/im-sdk-runtime-${{ steps.meta.outputs.version }}.tar.gz"
+          )
+          for file in "${files[@]}"; do
+            test -f "$file" || { echo "::error::missing $file"; exit 1; }
+          done
+          for attempt in 1 2 3; do
+            if gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"; then
+              exit 0
+            fi
+            echo "::warning::release asset upload failed (attempt $attempt/3), retrying in 10s"
+            sleep 10
+          done
+          echo "::error::release asset upload failed after 3 attempts"
+          exit 1
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "### IM SDK runtime"
+            echo ""
+            echo "- version: \`${{ steps.meta.outputs.version }}\`"
+            echo "- release: \`${{ steps.meta.outputs.tag }}\`"
+            echo "- signing: ${{ steps.key.outputs.present == 'true' && 'release key' || 'dry-run ephemeral key' }}"
+            echo "- manifest URL: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/im-sdk-runtime-manifest.json"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -55,14 +55,14 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | W2 传输切换 | **完成（2026-11-20 收口，`db3395eec`）**：`MODE_HOST_INPROCESS_CHANNELS` 的 `default`/`none` 语义、scope 门禁修复（未挂接/detach/登记表不可读一律回落 Node）、256 帧有界队列 + V4 连接级 saturated/drained 对拍；裁决与验收见 `docs/specs/w2-transport-cutover.md`。`stdioFrames`/`stdoutGuard` 退场归 W6。 |
 | W3 宿主域 | **已接管/迁移**：设置类、文件类、凭据、git/checkpoint、conversation-mirror、skills、skill-sync、plugin-sync、subagents、settings-sync、broadcast、system、automation-service（10/10）、onboarding-record-service（9/9）、provider 旧 store 迁移、provider 余额识别/编排/目标解析、official MCP 鉴权判定、远程桌面自适应码率/画质降档状态机；**部分**：任务/会话（Repos 已迁、频道未）、provider 写路径与运行时、plugins 管理面、hooks/onboarding、usage-stats（时间范围/quota/legacy+credit monitor 已迁）、terminal（服务面与频道已迁、真机未验收）、LAN（发现纯逻辑已迁、UDP/CLI 未迁）、CUA broker（raw input socket 解析策略已迁）；**未开始**：远程工作区、云账号 |
 | W4 Agent 运行时 | **协议/客户端镜像 102/115（todo=0，not-needed=11，blocked=2，均为决策 2 的 provider/account）**；S0 健康快照与 S1 覆盖矩阵完成；会话级 api-retry tracker/draft registry 已迁移；频道所有权切换（S2）：S0 健康面已接线、S2 mode-agent 适配器已覆盖 88/100 请求面方法 + 全部 15 个事件面（会话读写、plugins、workflows、v4 帧/订阅/query 族、attachments、用量、process/telemetry/CUA 观测、连接流控、v4 命令转发等；默认不注册、未迁移=unsupported_method，2026-11-05），剩余 automation 10（决策 4 由 Renderer 分调两个 owner）；native binary 兜底已落并接入壳、真机 20 任务清单已定（`host-ownership-switch` §7）、设计已批准（2026-11-04，按「最彻底」口径：网络方法不委托 Host、独立只读健康频道）；**C1–C4 已完成并合并 main（2026-11-20/21）**：C4 默认翻转（merge `ddbd18238`）——随包 Rust agent 落地并成为默认运行时（Node 保留显式回退），真机验收 19 PASS / 1 PARTIAL；残余 `d3eec12b7` 补齐 v4 命令面、安全加固与首任务性能 |
-| W5 生态面 | **IM 线改向（2026-11-20）**：飞书/企微改回官方 SDK，Rust 四通道转协议参考；客户端侧 IM SDK 运行时在线升级已交付（`docs/specs/im-sdk-runtime.md`，9 用例）。**未开始**：TUI ratatui、Web/远程服务端 axum、插件市场逻辑进壳。 |
+| W5 生态面 | **IM 线改向（2026-11-20）**：飞书/企微改回官方 SDK，Rust 四通道转协议参考；客户端侧 IM SDK 运行时在线升级与发布工具链已交付（`docs/specs/im-sdk-runtime.md`，客户端 9 用例 + 流水线 3 用例）。**未开始**：TUI ratatui、Web/远程服务端 axum、插件市场逻辑进壳。 |
 | W6 收口 | 未开始 |
 
 **近期交付（2026-11-20 ~ 11-21）**
 
 - **W2 收口**（`db3395eec`）：`default`/`none` 开关语义、scope 门禁修复、256 帧有界队列 + V4 saturated/drained；`stdioFrames`/`stdoutGuard` 退场归 W6。
 - **LT-1 C4**（`ddbd18238`、`d3eec12b7`）：C1–C4 全部合并 main，随包 Rust agent 成为默认运行时（Node 显式回退），真机 19 PASS / 1 PARTIAL；残余补齐 v4 命令面、安全加固与首任务性能。
-- **W5 IM 改向**（`046a1a02c`）：官方 SDK + 版本化运行时在线升级；清单 Ed25519 验签、tar.gz 安全解包、逐文件校验、原子激活/回滚、失败回退随包 SDK；9 条用例。发布流水线、设置页与壳资源注入待做。
+- **W5 IM 改向**（`046a1a02c` + 本轮发布工具链）：官方 SDK + 版本化运行时在线升级；清单 Ed25519 验签、tar.gz 安全解包、逐文件校验、原子激活/回滚、失败回退随包 SDK；客户端 9 条用例。发布侧 `scripts/im-sdk-runtime/`（打包/签名）与 `.github/workflows/im-sdk-runtime.yml`（release 挂载、secret 未配置时 dry-run）已交付，3 条流水线用例；待配置签名 secret/客户端公钥、设置页与壳资源注入。
 - **LT-4 CLI 评测**（`b6f254186`、`c96690818`，属上游能力对齐轨道）：`mode eval run|replay|diff`、34 条测试、CI opt-in `eval.yml`。
 - **产品修复**（`71295e855`、`9b51a0fa5`）：恢复 dialog 默认 `p-4 gap-4`；虚拟锚点弹窗不再被触发器覆盖（同时修掉首页 28px 游离滚动条）。
 
@@ -537,8 +537,10 @@ rust=102 / not-needed=11 / blocked=2。已接入 `verify:pre-push` 与 release v
   `packages/services/src/bots/imSdk{Runtime,RuntimeUpgrade,Manifest,Tar}.ts`——
   清单 Ed25519 验签、tar.gz 安全解包（路径/符号链接/体积上限）、逐文件校验、原子安装与
   active 指针切换、保留回滚目标、失败回退随包 SDK；`wecomSdk.ts` / `feishuProvider.ts`
-  的懒加载优先取运行时入口；Host 启动按环境配置后台刷新；9 条用例。**待做**：发布流水线
-  （bundle + 清单 + 签名）、设置页版本/检查入口、壳资源注入。
+  的懒加载优先取运行时入口；Host 启动按环境配置后台刷新；9 条用例。**发布工具链（2026-11-21）**：
+  `scripts/im-sdk-runtime/` 打包/签名 + `.github/workflows/im-sdk-runtime.yml`（release 挂载，
+  secret 未配置时 dry-run），3 条流水线用例；真实 SDK 包已完成安装/入口加载验证。**待做**：
+  配置签名 secret 与客户端公钥、设置页版本/检查入口、壳资源注入。
   以下为改向前已完成的传输层记录（保留供查阅，不得作为实施依据）：
   **第一波已开工（2026-11-20，spec `docs/specs/bots-im-transport.md`）**：wire 事实源矩阵
   定案（钉钉/微信=官方文档+自家手写 TS；飞书/企微=**SDK 接口面提取**，2026-11-20 用户
@@ -625,7 +627,7 @@ rust=102 / not-needed=11 / blocked=2。已接入 `verify:pre-push` 与 release v
 ### 10.1 当前顺序
 
 1. **W5 剩余生态面**：TUI 改 ratatui、Web/远程服务端改 axum、插件市场逻辑进壳；每项按原计划出口验收。
-2. **W5 IM 在线升级发布侧**：bundle + 清单 + Ed25519 签名流水线；设置页展示当前版本/检查更新；壳资源注入 manifest URL 与公钥。
+2. **W5 IM 在线升级收尾**：发布工具链已落（打包/签名/workflow）；待配置签名 secret 与客户端公钥、跑一次真实 Release 上传；设置页展示当前版本/检查更新；壳资源注入 manifest URL 与公钥。
 3. **W6 收口**：`stdioFrames`/`stdoutGuard` 从产品路径退场，删 TS 宿主编排与 `host-sidecar` 发运集，插件宿主换嵌入引擎，四仪表（语言/重合度/体积/性能）终值复测。
 4. **LT-1 C4 收尾**：真机 20 任务中唯一 PARTIAL 项补齐；之后按 W6 删除 Node 回退路径。
 5. **W3 剩余域**：provider 写路径与 usage 网络/凭据接线、LAN WebSocket 与公网中继（HTTP 配对/管理已迁）、CUA PiP/Windows helper host、远程工作区、云账号。

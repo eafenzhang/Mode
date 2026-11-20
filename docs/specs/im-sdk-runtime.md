@@ -1,9 +1,10 @@
 # IM SDK 集成与运行时在线升级
 
-状态：v1（2026-11-20）。**实现进度（2026-11-21）：客户端侧已实现**
+状态：v1（2026-11-20）。**实现进度（2026-11-21）：客户端侧与发布工具链已实现**
 （`packages/services/src/bots/imSdk{Runtime,RuntimeUpgrade,Manifest,Tar}.ts`，9 条用例；
-`wecomSdk.ts` / `feishuProvider.ts` 已接入，Host 启动可按环境配置后台刷新）；
-发布流水线（bundle + 清单 + 签名）、设置页与壳资源注入待做。
+`wecomSdk.ts` / `feishuProvider.ts` 已接入，Host 启动可按环境配置后台刷新；
+`scripts/im-sdk-runtime/` + `.github/workflows/im-sdk-runtime.yml` 提供打包/签名/发布，
+3 条流水线用例）。待做：配置签名 secret 与客户端公钥、设置页、壳资源注入。
 上位：`docs/plans/2026-10-29-full-rust-rewrite.md` §W5；
 本文对该计划的「IM 四通道 Rust 自实现」作出方向修正。
 关联：`docs/specs/bots-im-transport.md`（wire 事实，转参考资料）、
@@ -162,9 +163,30 @@ refresh（启动时可选 + 后续手动入口）
 - GC 保留 active 与上一个 active（回滚目标）；上一个 active 不可用时保留最高旧版本。
 - `pnpm typecheck`、`pnpm lint`、`pnpm --filter @mode/services test` 全绿。
 
+## 8.1 发布流水线（2026-11-21 已实现工具链）
+
+- **打包**：`pnpm im-sdk-runtime:bundle --version <数字点分版本>`。默认在临时目录用
+  `npm install --omit=dev --ignore-scripts` 安装 `packages/services/package.json` 里两个 SDK
+  的精确版本，产出 `dist/im-sdk-runtime/im-sdk-runtime-<version>.tar.gz` 与
+  `im-sdk-runtime-manifest.json`；排除类型声明/sourcemap，拒绝符号链接树与原生二进制，
+  tar 条目排序、mtime 归零，保证同输入同字节。`--node-modules <dir>` 仅供测试/离线打包。
+- **签名**：`pnpm im-sdk-runtime:sign generate --out <dir>` 生成 PKCS8 PEM 私钥与 base64 raw
+  公钥；`sign --manifest ... --key-env MODE_IM_SDK_RUNTIME_SIGNING_KEY` 写出 `<manifest>.sig`
+  （base64 文本）；`public-key` 从私钥推导客户端公钥；`verify` 复用客户端口径自检。
+- **CI**：`.github/workflows/im-sdk-runtime.yml` 在 `release: published` 或手工触发时构建、
+  签名并挂载三个资产。secret `IM_SDK_RUNTIME_SIGNING_KEY` 未配置时自动降级为 dry-run
+  （临时密钥签名、只上传 workflow artifact，不写 Release）。
+- **客户端配置**：清单地址
+  `https://github.com/eafenzhang/Mode/releases/latest/download/im-sdk-runtime-manifest.json`，
+  公钥取 `generate`/`public-key` 输出；分别写入 `MODE_IM_SDK_RUNTIME_MANIFEST_URL` 与
+  `MODE_IM_SDK_RUNTIME_PUBKEY`。
+- **自测**：`pnpm im-sdk-runtime:test` 覆盖「打包→清单→双向验签」「本地 HTTP→refresh→激活→
+  加载真实入口」「bundle 篡改→失败且不切 active」；真实 SDK 包（589 文件 / 约 1.56 MB）已
+  用临时密钥完成一次安装与两个入口加载验证（2026-11-21）。
+
 ## 9. 后续
 
-1. 发布流水线：生产安装两个 SDK（含传递依赖）→ tar.gz → 生成清单 → Ed25519 签名 → 上传。
+1. 配置发布密钥与客户端公钥（secret + 壳资源/环境），并在首个 Release 上跑一次真实上传。
 2. 设置页展示当前 SDK 版本/来源（随包/在线）与「检查更新」入口。
 3. 壳资源注入 `manifest-url` / `pubkey`，替代环境变量。
 4. 视需要把钉钉（如引入官方 SDK）与微信纳入同一运行时清单。
