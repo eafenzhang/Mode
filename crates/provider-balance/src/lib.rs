@@ -5,9 +5,13 @@
 //! 不发起网络请求。规范见 `docs/specs/provider-balance.md`。
 
 mod http;
+mod personal_layer;
 mod service;
 
 pub use http::{ReqwestBalanceFetcher, REQUEST_TIMEOUT_MS};
+pub use personal_layer::{
+    provider_balance_target_from_personal_layer, PersonalLayerTargetResolver,
+};
 pub use service::{
     provider_balance_target_from_view, BalanceFuture, FetchError, ProviderBalanceFetcher,
     ProviderBalanceProvider, ProviderBalanceSnapshot, ProviderBalanceStatus, ProviderBalanceTarget,

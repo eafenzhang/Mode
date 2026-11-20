@@ -82,6 +82,20 @@ SiliconFlow 的币种由它决定（`.ai` / `.com` 为 USD，其余 CNY）。
 `effectiveConfig.api.baseUrl`（缺失/null 为 null）；`apiKey` 仅接受字符串（原样保留，
 不 trim），否则 null。
 
+## 3.2a Personal 层装配（LT-15 P4）
+
+`provider_balance_target_from_personal_layer` 从 `PersonalLayer.providers` 直读目标：
+
+- 只有 `access = ApiKey` 的 Provider 参与；`ZhipuAccount`（官方账号链路）与
+  未配置的 providerId 返回 `None`（外部 api-key Provider 由用户自配、落在 personal 层；
+  builtin 模板 + personal 覆盖的 effectiveConfig 合成待 ProviderSettingsView 移植）。
+- `providerName` trim 后为空回退 `providerId`；`baseUrl` 取 `config.api.base_url`；
+  `apiKey` 原样保留。
+- `PersonalLayerTargetResolver` 把「读当前 PersonalLayer」的闭包包装成
+  `ProviderBalanceTargetResolver`（同步读取 + `future::ready`），服务面装配点
+  `resolver: PersonalLayerTargetResolver::new(|| repository.read())` 即可闭合
+  「凭据 → HTTP fetcher → 快照」链路。
+
 ## 4. 已知差异
 
 1. **数字字符串**：`Number("1_000")`、`Number(" 12px")` 等非法形式两边都返回缺失；

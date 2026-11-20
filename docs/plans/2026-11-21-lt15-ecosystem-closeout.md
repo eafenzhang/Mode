@@ -17,8 +17,8 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 | **P1** | TUI Agent 传输接线 | `agent-server` stdio spawn、sessions-index 订阅、live 增量、Ctrl-N 新建；单测 + 真子进程 e2e | ✅ 2026-11-21 |
 | **P2** | axum LAN/WS | LAN 六端点全部桥接（state/pair/enable/pair-code/reset/clients 删除，11 测试；pair 含 Set-Cookie、enable 走监听视图）；剩 `/ws/host` RPC 帧桥接与凭据装配 | 🟡 HTTP 全收口 |
 | **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | 🟡 记录层+卸载编排+安装编排+config 写回+网络源（git clone）已迁 `plugin-sync-service`（34 测试 + 3 对拍）；zip/npm/pip 源与 TS 对拍补充待做 |
-| **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | 🟡 余额查询 HTTP fetcher 已接（reqwest + ring TLS + 15s 超时，mock server 5 用例）；凭据装配（Provider Settings View）与 LAN WS 待做 |
-| **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | 🟡 phase/goalStatus/title/lastAssistantPreview 已接（turn 事件驱动 + store 读尾）；hasBackgroundWork/workflowActivity 待做 |
+| **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | 🟡 余额查询 HTTP fetcher + Personal 层凭据装配已接（reqwest/ring/15s 超时 + personal-layer resolver，12 测试）；服务面端点接线与 LAN WS 待做 |
+| **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | ✅ phase/goalStatus/title/lastAssistantPreview 已接（turn 事件驱动 + store 读尾）；hasBackgroundWork/workflowActivity 诚实投影为空（依赖 W4 backgroundWorks 运行时状态迁移，见 P5 说明） |
 | **P6** | W6 收口 | `w6:readiness --fail-on-blockers` 通过；删 stdioFrames/stdoutGuard、TS 宿主编排与 host-sidecar 发运集 | ⬜ |
 
 ## P1 交付（2026-11-21）
@@ -88,8 +88,20 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
   全部落 `request_failed`，与 TS readApiJson 口径一致；ring TLS provider 构造时装）
   + mock server 5 用例。官方套餐/额度链路随去智谱化已 dormant 短路
   （`assertOfficialServiceRemoved` 恒抛），无需接线。
-- P4 剩余：凭据装配（Provider Settings View 投影 Rust 侧未实现，
-  `provider_balance_target_from_view` 已备形状）+ `crates/lan-*` WebSocket/中继。
+- P5 收口说明（2026-11-21）：hasBackgroundWork/workflowActivity 的忠实投影依赖
+  `backgroundWorks`/`workflowRuns` 的 live 运行时状态，而 Rust 侧这两个状态尚未迁移
+  （`state.rs` 里 `background_jobs` 硬编码空，W4 C 面遗留）。sessions-index 现投影
+  `has_background_work: false` + `workflow_activity: None` 是「无此状态」的诚实值
+  （协议上 workflowActivity optional、布尔为默认值，不谎报）。硬造投影会违反
+  「UI 不把局部状态当服务端事实」；等 W4 backgroundWorks 状态迁移后在
+  `publish_sessions_index_upsert` 补派生（TS 口径：`backgroundWorks.some(status==="running")`
+  + `deriveSessionWorkflowActivity`）。
+- P4 凭据装配首切（2026-11-21）：`provider-balance` 增
+  `provider_balance_target_from_personal_layer`（只有 ApiKey access 参与，
+  ZhipuAccount/未配置 → None）+ `PersonalLayerTargetResolver`（读层闭包 →
+  resolver trait，同步读取 + ready future）。effectiveConfig 的 builtin 模板合并
+  待 ProviderSettingsView 移植；服务面端点接线（server/agent-server 的 usage 面
+  组装 resolver + fetcher）与 `crates/lan-*` WebSocket/中继待做。
 
 ## P6 门禁
 
