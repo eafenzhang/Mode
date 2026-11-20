@@ -16,3 +16,4 @@ sha2.workspace = true
 flate2 = "1"
 base64 = "0.22"
 plugin-discovery = { path = "../plugin-discovery" }
+atomic-file = { path = "../atomic-file" }

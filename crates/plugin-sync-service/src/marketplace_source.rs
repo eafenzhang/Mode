@@ -9,7 +9,9 @@ use crate::archive::{
     extract_archive, ArchiveEntry, ArchiveMetadataPlugin, PLUGIN_SYNC_METADATA_ARCHIVE_PATH,
 };
 use crate::candidates::{create_short_hash, read_plugin_manifest_info};
-use crate::paths::{normalize_relative_path, resolve_user_path, resolve_within, user_mode_plugin_root};
+use crate::paths::{
+    normalize_relative_path, resolve_user_path, resolve_within, user_mode_plugin_root,
+};
 use crate::types::{PluginSyncMarketplaceImportResult, PluginSyncMarketplaceImportStatus};
 
 pub const MARKETPLACE_SOURCE_ROOT_DIRECTORY: &str = "marketplace-sources";
@@ -104,7 +106,8 @@ pub fn export_marketplace_source_archive(
                 .transpose()
         })
         .collect::<Result<_, _>>()?;
-    let directory_name = create_source_directory_name(&marketplace_id, &manifest_content, &fingerprints);
+    let directory_name =
+        create_source_directory_name(&marketplace_id, &manifest_content, &fingerprints);
     let mut entries: Vec<ArchiveEntry> = vec![ArchiveEntry::Content {
         archive_path: format!("{directory_name}/marketplace.json"),
         content: manifest_content.into_bytes(),
@@ -112,9 +115,10 @@ pub fn export_marketplace_source_archive(
         mtime_ms: None,
     }];
     for entry in &mirror_entries {
-        if let (Some(path), Some(relative)) =
-            (&entry.mirrored_source_path, &entry.mirrored_source_relative_path)
-        {
+        if let (Some(path), Some(relative)) = (
+            &entry.mirrored_source_path,
+            &entry.mirrored_source_relative_path,
+        ) {
             entries.push(ArchiveEntry::Source {
                 source_path: path.clone(),
                 archive_path: format!("{directory_name}/{relative}"),
@@ -194,7 +198,8 @@ fn load_marketplace_source(source: &Value) -> Result<LoadedSource, String> {
     let kind = object.get("source").and_then(Value::as_str).unwrap_or("");
     match kind {
         "file" => {
-            let file_path = required_value_string(object.get("path"), "marketplace source file path")?;
+            let file_path =
+                required_value_string(object.get("path"), "marketplace source file path")?;
             let path = resolve_user_path(&file_path);
             Ok(LoadedSource {
                 manifest: read_marketplace_manifest(&path)?,
@@ -206,17 +211,21 @@ fn load_marketplace_source(source: &Value) -> Result<LoadedSource, String> {
                 object.get("path"),
                 "marketplace source directory path",
             )?);
-            let manifest_path = find_marketplace_manifest_path(&source_root)
-                .ok_or_else(|| format!("marketplace manifest not found in directory: {}", source_root.display()))?;
+            let manifest_path = find_marketplace_manifest_path(&source_root).ok_or_else(|| {
+                format!(
+                    "marketplace manifest not found in directory: {}",
+                    source_root.display()
+                )
+            })?;
             Ok(LoadedSource {
                 manifest: read_marketplace_manifest(&manifest_path)?,
                 source_root: Some(source_root),
             })
         }
         "settings" => {
-            let marketplace = object
-                .get("marketplace")
-                .ok_or_else(|| "settings marketplace source is missing marketplace manifest".to_string())?;
+            let marketplace = object.get("marketplace").ok_or_else(|| {
+                "settings marketplace source is missing marketplace manifest".to_string()
+            })?;
             Ok(LoadedSource {
                 manifest: parse_marketplace_manifest(marketplace)?,
                 source_root: None,
@@ -241,11 +250,7 @@ fn parse_marketplace_manifest(value: &Value) -> Result<MarketplaceManifest, Stri
         .ok_or_else(|| "marketplace manifest is invalid".to_string())?;
     let name = required_value_string(object.get("name"), "marketplace name")?;
     let plugin_values: Vec<Map<String, Value>> = match object.get("plugins") {
-        Some(Value::Array(items)) => items
-            .iter()
-            .filter_map(Value::as_object)
-            .cloned()
-            .collect(),
+        Some(Value::Array(items)) => items.iter().filter_map(Value::as_object).cloned().collect(),
         Some(Value::Object(map)) => map
             .iter()
             .map(|(plugin_name, plugin)| {
@@ -281,7 +286,10 @@ fn parse_marketplace_manifest(value: &Value) -> Result<MarketplaceManifest, Stri
     let plugin_root = read_plugin_root(object);
     Ok(MarketplaceManifest {
         name,
-        description: object.get("description").and_then(Value::as_str).map(str::to_string),
+        description: object
+            .get("description")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         plugin_root,
         plugins,
         raw: object.clone(),
@@ -341,12 +349,26 @@ fn resolve_closure(
         result.push(entry.clone());
         for dependency in &entry.dependencies {
             let name = normalize_dependency(dependency, marketplace_id, required_by)?;
-            visit(&name, &entry.name, manifest, marketplace_id, visited, result)?;
+            visit(
+                &name,
+                &entry.name,
+                manifest,
+                marketplace_id,
+                visited,
+                result,
+            )?;
         }
         Ok(())
     }
     for name in plugin_names {
-        visit(name, name, manifest, marketplace_id, &mut visited, &mut result)?;
+        visit(
+            name,
+            name,
+            manifest,
+            marketplace_id,
+            &mut visited,
+            &mut result,
+        )?;
     }
     Ok(result)
 }
@@ -409,7 +431,9 @@ fn resolve_local_marketplace_plugin_source(
     entry: &MarketplacePluginEntry,
 ) -> Result<PathBuf, String> {
     match &entry.source {
-        Some(Value::String(source)) => resolve_local_source_path(loaded, source, &format!("{} source", entry.name), false),
+        Some(Value::String(source)) => {
+            resolve_local_source_path(loaded, source, &format!("{} source", entry.name), false)
+        }
         Some(Value::Object(object)) => {
             let kind = object.get("source").and_then(Value::as_str).unwrap_or("");
             if kind == "directory" {
@@ -443,9 +467,8 @@ fn resolve_local_plugin_fallback(
     };
     let _ = source_root;
     let base = resolve_marketplace_plugin_base_dir(loaded)?;
-    let fallback = resolve_within(&base, &entry.name).map_err(|_| {
-        format!("unsafe marketplace plugin source path: {}", entry.name)
-    })?;
+    let fallback = resolve_within(&base, &entry.name)
+        .map_err(|_| format!("unsafe marketplace plugin source path: {}", entry.name))?;
     if fallback.is_dir() {
         assert_plugin_source_root(&fallback)
     } else {
@@ -618,7 +641,13 @@ fn compute_content_fingerprint(path: &Path) -> Result<String, String> {
             )
         });
         for child in children {
-            hasher.update(child.file_name().unwrap_or_default().to_string_lossy().as_bytes());
+            hasher.update(
+                child
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .as_bytes(),
+            );
             hasher.update(b"\0");
             visit(&child, hasher)?;
             hasher.update(b"\0");
@@ -628,7 +657,11 @@ fn compute_content_fingerprint(path: &Path) -> Result<String, String> {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     visit(path, &mut hasher)?;
-    Ok(hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect())
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }
 
 fn read_marketplace_source_metadata(temp_root: &Path) -> Result<(String, String), String> {
@@ -686,16 +719,23 @@ fn create_archive_with_sources(
 ) -> Result<Vec<u8>, String> {
     let value = serde_json::to_value(MetadataEnvelope {
         plugins: metadata.plugins.clone(),
-        marketplace_sources: metadata.marketplace_sources.iter().map(|source| MarketplaceSourceMetadata {
-            marketplace_id: source.marketplace_id.clone(),
-            directory_name: source.directory_name.clone(),
-        }).collect(),
+        marketplace_sources: metadata
+            .marketplace_sources
+            .iter()
+            .map(|source| MarketplaceSourceMetadata {
+                marketplace_id: source.marketplace_id.clone(),
+                directory_name: source.directory_name.clone(),
+            })
+            .collect(),
     })
     .map_err(|error| error.to_string())?;
     create_archive_with_metadata_value(entries, value)
 }
 
-fn create_archive_with_metadata_value(entries: &[ArchiveEntry], metadata: Value) -> Result<Vec<u8>, String> {
+fn create_archive_with_metadata_value(
+    entries: &[ArchiveEntry],
+    metadata: Value,
+) -> Result<Vec<u8>, String> {
     // `create_archive` 的 metadata 类型是固定结构；marketplaceSources 通过临时写盘不可行，
     // 这里复用底层 tar 写入：把 metadata JSON 当成内容条目追加。
     crate::archive::create_archive_with_metadata_value(entries, metadata)
@@ -733,7 +773,13 @@ fn to_safe_directory_name(value: &str) -> String {
     let sanitized: String = value
         .trim()
         .chars()
-        .map(|ch| if matches!(ch, '\\' | '/' | ':') { '-' } else { ch })
+        .map(|ch| {
+            if matches!(ch, '\\' | '/' | ':') {
+                '-'
+            } else {
+                ch
+            }
+        })
         .collect();
     let sanitized = if sanitized.is_empty() {
         "plugin".to_string()

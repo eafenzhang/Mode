@@ -6,6 +6,7 @@
 
 mod archive;
 mod candidates;
+mod installed_records;
 mod marketplace_source;
 mod paths;
 mod plugins_archive;
@@ -19,6 +20,12 @@ pub use archive::{
     create_archive, extract_archive, ArchiveEntry, ArchiveMetadata, ArchiveMetadataPlugin,
     PLUGIN_SYNC_METADATA_ARCHIVE_PATH,
 };
+pub use installed_records::{
+    canonical_official_marketplace_id, canonical_plugin_id, load_installed_plugin_records,
+    load_installed_plugins_state, normalize_installed_plugins_state, parse_plugin_id,
+    save_installed_plugins_state, InstalledPluginRecord, InstalledPluginScope,
+    InstalledPluginsState,
+};
 pub use plugins_archive::{import_plugins_archive, read_archive_metadata};
 
 pub use candidates::{
@@ -27,15 +34,15 @@ pub use candidates::{
     read_plugin_manifest_info, read_user_plugin_config_state, PluginManifestInfo,
     UserPluginConfigState,
 };
+pub use marketplace_source::{
+    export_marketplace_source_archive, import_marketplace_source_archive,
+    MARKETPLACE_SOURCE_ROOT_DIRECTORY,
+};
 pub use paths::{
     default_home_dir, normalize_relative_path, resolve_user_path, resolve_within,
     user_mode_config_path, user_mode_plugin_root, MODE_DATA_ROOT_DIR_NAME,
 };
 pub use statuses::{list_remote_user_plugin_statuses, RemoteStatusQuery};
-pub use marketplace_source::{
-    export_marketplace_source_archive, import_marketplace_source_archive,
-    MARKETPLACE_SOURCE_ROOT_DIRECTORY,
-};
 pub use types::{
     PluginSyncArchiveExportResult, PluginSyncArchivePlugin, PluginSyncCandidate,
     PluginSyncCandidateListResult, PluginSyncComponentType, PluginSyncImportResult,
