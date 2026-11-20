@@ -17,7 +17,7 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 | **P1** | TUI Agent 传输接线 | `agent-server` stdio spawn、sessions-index 订阅、live 增量、Ctrl-N 新建；单测 + 真子进程 e2e | ✅ 2026-11-21 |
 | **P2** | axum LAN/WS | LAN 六端点全部桥接（state/pair/enable/pair-code/reset/clients 删除，11 测试；pair 含 Set-Cookie、enable 走监听视图）；剩 `/ws/host` RPC 帧桥接与凭据装配 | ✅ HTTP 全收口 + `/ws/host` 帧桥 + LAN 凭据落盘 + 「最近打开目录」录制已接（25 测试）；remote-desktop/direct 面 W3 遗留另册 |
 | **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | 🟡 记录层+卸载编排+安装编排+config 写回+网络源（git clone）已迁 `plugin-sync-service`（34 测试 + 3 对拍）；zip/npm/pip 源与 TS 对拍补充待做 |
-| **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | 🟡 `usage-stats` 频道已接（getProviderBalanceSnapshot：凭据→fetcher→快照全链路，7 频道测试 + 壳内装配 + 降级语义）；LAN WS/中继待做 |
+| **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | ✅ usage-stats 频道全链路（凭据→fetcher→快照）；`/ws/host` + 录制全接；remote-desktop/direct W3 遗留另册（见 LT-16） |
 | **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | ✅ phase/goalStatus/title/lastAssistantPreview 已接（turn 事件驱动 + store 读尾）；hasBackgroundWork/workflowActivity 诚实投影为空（依赖 W4 backgroundWorks 运行时状态迁移，见 P5 说明） |
 | **P6** | W6 收口 | `w6:readiness --fail-on-blockers` 通过；删 stdioFrames/stdoutGuard、TS 宿主编排与 host-sidecar 发运集 | ⬜ |
 
@@ -114,7 +114,30 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
   待 ProviderSettingsView 移植；服务面端点接线（server/agent-server 的 usage 面
   组装 resolver + fetcher）与 `crates/lan-*` WebSocket/中继待做。
 
-## P6 门禁
+## P6 门禁（2026-11-21 评估）
 
-`pnpm w6:readiness --fail-on-blockers` 必须返回 READY；当前（2026-11-21）product 阻塞：
-stdioFrames 6、stdoutGuard 6、host-sidecar 119、Node agent 回退 95。P1–P5 完成前不动删除。
+`node scripts/w6-readiness.mjs`：**NOT READY**。四组 blocker 的性质判定（按引用位点
+逐条核对后确认）：
+
+| blocker | 计数 | 性质 |
+| --- | --- | --- |
+| stdioFrames | product=6（tests=6） | **活传输层**：`host-standalone/index.ts` 是 Node Host sidecar 的运行入口，stdio 帧是它与桌面壳的现役链路（W2 翻面只接管了业务频道白名单，mode-agent/agent-server TS 面仍在 Node） |
+| stdoutGuard | product=6 | 同上（stdout 只用于帧的强制约束，随 Node Host 退役） |
+| host-sidecar | product=119（22 文件） | Node Host 发运集（打包/启动/watchdog），整体退役面 |
+| node-agent-fallback | product=95（34 文件） | Node agent 运行时回退随包，随 Node Host 退役 |
+
+**结论**：四组 blocker 同源——**Node Host 还活着**。删除动作（P6 的正文）的硬前提是
+mode-agent/agent 面全部进 Rust（W4 S2 门禁 + mode-agent 频道接线 + agent-server TS
+面退役），这不是 LT-15 内可完成的。按计划「P1–P5 完成前不动删除」，本轮只落档、
+不执行删除。W6 收口 = Node Host 退役专项，排在 LT-15 全收口之后独立排期。
+
+## 残项另册（2026-11-21 评估）
+
+- **remote-desktop WS**（`/ws/remote-desktop`、`/ws/remote-desktop-media`）：
+  TS 面约 1031 行（lanRemoteAttach 467 + remoteDesktopPeerController 466 +
+  lanPeerTransport 98），含 peer-capability/peer-session、同意流票据、信令单帧
+  转发与媒体 WS 交接——独立子系统（spec lan-remote-desktop*.md 五篇），建议
+  独立长任务，不塞 LT-15。
+- **`/ws/v1/direct`**（v3 ControlLink 直连）：首帧 `direct.attach` 票据校验后
+  交给 v3 ControlLink——依赖 Rust 侧 v3 直连协议实现（当前不存在），与
+  remote-desktop 同批另册。
