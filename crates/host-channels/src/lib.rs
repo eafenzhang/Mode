@@ -27,6 +27,7 @@ pub mod health;
 pub mod hooks;
 pub mod mcp_sync;
 pub mod media_preview;
+pub mod assembly;
 pub mod memory_channel;
 pub mod usage_stats;
 pub mod mode_agent;
@@ -53,6 +54,9 @@ pub use health::{AgentHealthChannel, DESCRIBE, LIST};
 pub use hooks::{HooksChannel, GRANT_WORKSPACE_HOOK_TRUST, HOOKS_CHANNEL, LOAD_HOOKS, SAVE_HOOKS};
 pub use mcp_sync::McpSyncChannel;
 pub use media_preview::MediaPreviewChannel;
+pub use assembly::{
+    build_channel, register_service_channels, service_channel_names, ChannelAssemblyOptions,
+};
 pub use memory_channel::{MemoryChannel, LIST_MEMORIES, READ_MEMORY_FILE};
 pub use usage_stats::{
     channel_with_layer, default_provider_balance, empty_args, GET_PROVIDER_BALANCE_SNAPSHOT,

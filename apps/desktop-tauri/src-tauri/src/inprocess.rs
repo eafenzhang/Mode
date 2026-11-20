@@ -20,22 +20,14 @@ use std::time::Duration;
 
 use agent_process::AgentControlClient;
 use host_channels::{
-    AGENT_HEALTH_CHANNEL, ATTACHMENT_TRANSFER_CHANNEL, AttachmentTransferChannel,
-    BROADCAST_CHANNEL, BroadcastChannel, CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL,
-    COMMANDS_CHANNEL, CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL, ClientConfigChannel,
-    ClientScenesChannel, CommandsChannel, ConversationMirrorChannel, CredentialChannel,
-    FILE_CHANNEL, FILE_WATCHER_CHANNEL, FileChannel, FileWatcherChannel, GIT_CHANNEL,
-    GIT_CHECKPOINT_CHANNEL, GitChannel, GitCheckpointChannel, MEDIA_PREVIEW_CHANNEL,
-    MEMORY_CHANNEL, MediaPreviewChannel, MemoryChannel, PLUGIN_SYNC_CHANNEL, PluginSyncChannel,
-    SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL, SKILL_SYNC_CHANNEL, SKILLS_CHANNEL, SUBAGENTS_CHANNEL,
-    SYSTEM_CHANNEL, SettingChannel, SettingsSyncChannel, SkillSyncChannel, SkillsChannel,
-    SubagentsChannel, SystemChannel, TERMINAL_CHANNEL, TerminalChannel,
+    build_channel, AGENT_HEALTH_CHANNEL, ATTACHMENT_TRANSFER_CHANNEL, BROADCAST_CHANNEL,
+    CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL, CONVERSATION_MIRROR_CHANNEL,
+    CREDENTIAL_CHANNEL, FILE_CHANNEL, FILE_WATCHER_CHANNEL, GIT_CHANNEL,
+    GIT_CHECKPOINT_CHANNEL, HOOKS_CHANNEL, MCP_SYNC_CHANNEL, MEDIA_PREVIEW_CHANNEL,
+    MEMORY_CHANNEL, MODE_AGENT_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL,
+    SETTINGS_SYNC_CHANNEL, SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL,
+    TERMINAL_CHANNEL, USAGE_STATS_CHANNEL,
 };
-use host_channels::{
-    AgentHealthChannel, HOOKS_CHANNEL, HooksChannel, MCP_SYNC_CHANNEL, MODE_AGENT_CHANNEL,
-    McpSyncChannel, ModeAgentChannel, USAGE_STATS_CHANNEL, UsageStatsChannel,
-};
-use project_memory::ProjectMemoryService;
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
 use std::sync::Arc as StdArc;
 
@@ -383,285 +375,19 @@ fn build_server(
         Duration::from_millis(1000),
         true,
     );
+    // 频道构造清单抽到 `host_channels::assembly`（LT-15 P2 切一）供 server-mode
+    // 复用；分支体逐行等价搬移，壳日志注入化。mode-agent 的注册与否仍由
+    // `owned` 名单决定（S2 门禁不变）。
+    let options = host_channels::ChannelAssemblyOptions {
+        data_root: data_root.to_path_buf(),
+        agent_control: Some(StdArc::clone(agent_control)),
+        on_shell_log: Some(StdArc::new(|message: &str| crate::host::shell_log(message))),
+    };
     for name in owned {
-        match name.as_str() {
-            MEMORY_CHANNEL => server.register_channel(
-                MEMORY_CHANNEL,
-                Arc::new(MemoryChannel::new(Arc::new(ProjectMemoryService::new(
-                    data_root.to_path_buf(),
-                )))),
-            ),
-            BROADCAST_CHANNEL => server.register_channel(
-                BROADCAST_CHANNEL,
-                Arc::new(BroadcastChannel::new(Arc::new(
-                    broadcast_service::BroadcastService::new(),
-                ))),
-            ),
-            ATTACHMENT_TRANSFER_CHANNEL => server.register_channel(
-                ATTACHMENT_TRANSFER_CHANNEL,
-                Arc::new(AttachmentTransferChannel),
-            ),
-            CLIENT_CONFIG_CHANNEL => {
-                server.register_channel(CLIENT_CONFIG_CHANNEL, Arc::new(ClientConfigChannel))
-            }
-            CLIENT_SCENES_CHANNEL => {
-                server.register_channel(CLIENT_SCENES_CHANNEL, Arc::new(ClientScenesChannel))
-            }
-            MEDIA_PREVIEW_CHANNEL => {
-                server.register_channel(MEDIA_PREVIEW_CHANNEL, Arc::new(MediaPreviewChannel))
-            }
-            CONVERSATION_MIRROR_CHANNEL => server.register_channel(
-                CONVERSATION_MIRROR_CHANNEL,
-                Arc::new(ConversationMirrorChannel::new(
-                    conversation_mirror::ConversationMirrorService::new(data_root.to_path_buf()),
-                )),
-            ),
-            SETTING_CHANNEL => {
-                let env = settings_store::HomeEnv::from_process();
-                let paths = settings_store::resolve_settings_paths(&env);
-                let home = paths.home.clone();
-                let current_base = data_root
-                    .parent()
-                    .map(std::path::Path::to_path_buf)
-                    .unwrap_or_else(|| home.clone());
-                server.register_channel(
-                    SETTING_CHANNEL,
-                    Arc::new(SettingChannel::new(
-                        Arc::new(settings_store::SettingsService::new(paths, current_base)),
-                        home,
-                    )),
-                );
-            }
-            CREDENTIAL_CHANNEL => {
-                // 坏凭据文件必须留下可观察的告警：服务层日志走不了 Node 的 logger，
-                // 用壳侧结构化日志记录路径与备份名（不记录任何值）。
-                let store = credential_store::CredentialStore::new(data_root)
-                    .with_corrupt_listener(Arc::new(|path, backup| {
-                        crate::host::shell_log(&format!(
-                            "credential store corrupt: path={} backup={}",
-                            path.display(),
-                            backup
-                                .map(|path| path.display().to_string())
-                                .unwrap_or_else(|| "<none>".to_string())
-                        ));
-                    }));
-                server.register_channel(
-                    CREDENTIAL_CHANNEL,
-                    Arc::new(CredentialChannel::new(Arc::new(store))),
-                );
-            }
-            SYSTEM_CHANNEL => server.register_channel(
-                SYSTEM_CHANNEL,
-                Arc::new(SystemChannel::new(Arc::new(
-                    system_service::SystemService::new(),
-                ))),
-            ),
-            FILE_CHANNEL => {
-                // 索引降级（规则文件不可用/解析失败）必须可观察；日志只带原因，不带文件内容。
-                let mut options =
-                    file_service::FileServiceOptions::from_process(data_root.to_path_buf());
-                options.on_warn = Some(Arc::new(|message: &str| {
-                    crate::host::shell_log(message);
-                }));
-                server.register_channel(
-                    FILE_CHANNEL,
-                    Arc::new(FileChannel::new(Arc::new(file_service::FileService::new(
-                        options,
-                    )))),
-                );
-            }
-            FILE_WATCHER_CHANNEL => {
-                let service = file_watcher::FileWatcherService::with_warn_sink(Some(Arc::new(
-                    |message: &str| crate::host::shell_log(message),
-                )));
-                server.register_channel(
-                    FILE_WATCHER_CHANNEL,
-                    Arc::new(FileWatcherChannel::new(Arc::new(service))),
-                );
-            }
-            COMMANDS_CHANNEL => {
-                // 命令域的真源以**用户 home** 为根（`{home}/.mode/commands`、
-                // `{home}/.mode/cli/config.json`），自定义数据目录（`data_root`）不参与，
-                // 与 TS `resolveUserHomeDir()` 一致；因此这里不传 `data_root`。
-                server.register_channel(
-                    COMMANDS_CHANNEL,
-                    Arc::new(CommandsChannel::new(Arc::new(
-                        commands_service::CommandsService::new(
-                            commands_service::CommandsServiceOptions::from_process(),
-                        ),
-                    ))),
-                );
-            }
-            SKILLS_CHANNEL => {
-                // 用户级技能在桌面运行时始终可用：Node Host 显式传 `{ isDesktopRuntime: true }`，
-                // 壳内没有 `MODE_PROCESS_LABEL`，不能依赖 `from_process()` 的默认判定。
-                let mut options = skills_service::SkillsServiceOptions::from_process();
-                options.is_desktop_runtime = true;
-                server.register_channel(
-                    SKILLS_CHANNEL,
-                    Arc::new(SkillsChannel::new(Arc::new(
-                        skills_service::SkillsService::new(options),
-                    ))),
-                );
-            }
-            SUBAGENTS_CHANNEL => {
-                let mut options = subagents_service::SubagentsServiceOptions::from_process();
-                options.is_desktop_runtime = Some(true);
-                server.register_channel(
-                    SUBAGENTS_CHANNEL,
-                    Arc::new(SubagentsChannel::new(Arc::new(
-                        subagents_service::SubagentsService::new(options),
-                    ))),
-                );
-            }
-            SETTINGS_SYNC_CHANNEL => {
-                // 首启提示状态落在 `setting.json`：与 `setting` 频道用同一套路径解析
-                // （坏文件重试与原子写都在 `settings_store` 内），只是各持一个无状态实例。
-                let env = settings_store::HomeEnv::from_process();
-                let paths = settings_store::resolve_settings_paths(&env);
-                let current_base = data_root
-                    .parent()
-                    .map(std::path::Path::to_path_buf)
-                    .unwrap_or_else(|| paths.home.clone());
-                let settings = Arc::new(settings_store::SettingsService::new(paths, current_base));
-                server.register_channel(
-                    SETTINGS_SYNC_CHANNEL,
-                    Arc::new(SettingsSyncChannel::new(Arc::new(
-                        settings_sync_service::SettingsSyncService::new(
-                            settings_sync_service::SettingsSyncServiceOptions::default(),
-                            settings,
-                        ),
-                    ))),
-                );
-            }
-            SKILL_SYNC_CHANNEL => server.register_channel(
-                SKILL_SYNC_CHANNEL,
-                Arc::new(SkillSyncChannel::new(Arc::new(
-                    skill_sync_service::SkillSyncService::new(
-                        skill_sync_service::SkillSyncServiceOptions::default(),
-                    ),
-                ))),
-            ),
-            GIT_CHANNEL => server.register_channel(
-                GIT_CHANNEL,
-                Arc::new(GitChannel::new(host_channels::git::default_service())),
-            ),
-            GIT_CHECKPOINT_CHANNEL => server.register_channel(
-                GIT_CHECKPOINT_CHANNEL,
-                Arc::new(GitCheckpointChannel::new(
-                    host_channels::git_checkpoint::default_service(data_root.to_path_buf()),
-                )),
-            ),
-            PLUGIN_SYNC_CHANNEL => server.register_channel(
-                PLUGIN_SYNC_CHANNEL,
-                Arc::new(PluginSyncChannel::new(
-                    host_channels::plugin_sync::default_service(),
-                )),
-            ),
-            USAGE_STATS_CHANNEL => {
-                // 余额查询凭据源：Personal 层仓库（1s 轮询 LKG）。路径显式 env 优先，
-                // 回退 data_root/v2（与 agent_runtime 的 ProviderPaths fallback 同口径）。
-                // 仓库不可用时不阻塞频道注册：退化为 default（一律 unsupported）。
-                let personal_path = std::env::var(
-                    provider_config_repository::MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
-                )
-                .ok()
-                .map(std::path::PathBuf::from)
-                .unwrap_or_else(|| {
-                    data_root
-                        .join("v2")
-                        .join(provider_config_repository::PERSONAL_PROVIDER_CONFIG_FILE_NAME)
-                });
-                match provider_config_repository::PersonalConfigRepository::new(
-                    provider_config_repository::PersonalConfigRepositoryOptions {
-                        file_path: personal_path,
-                        import_legacy: None,
-                        on_recovery: None,
-                        on_polling_error: None,
-                        polling_interval: provider_config_repository::PollingInterval::Millis(1_000),
-                    },
-                ) {
-                    Ok(repository) => {
-                        // 首次读取同时启动轮询线程（与 AccountFactsRuntime 同款）。
-                        let repository = StdArc::new(repository);
-                        let _ = repository.read();
-                        match UsageStatsChannel::with_personal_layer(StdArc::clone(&repository)) {
-                            Ok(channel) => {
-                                let _repository = repository;
-                                server.register_channel(
-                                    USAGE_STATS_CHANNEL,
-                                    Arc::new(channel),
-                                );
-                            }
-                            Err(error) => {
-                                crate::host::shell_log(&format!(
-                                    "usage-stats channel degraded to unsupported: {error}"
-                                ));
-                                let _repository = repository;
-                                server.register_channel(
-                                    USAGE_STATS_CHANNEL,
-                                    Arc::new(UsageStatsChannel::default_channel()),
-                                );
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        crate::host::shell_log(&format!(
-                            "usage-stats personal config unavailable: {error}; channel degraded to unsupported"
-                        ));
-                        server.register_channel(
-                            USAGE_STATS_CHANNEL,
-                            Arc::new(UsageStatsChannel::default_channel()),
-                        );
-                    }
-                }
-            }
-            MCP_SYNC_CHANNEL => {
-                server.register_channel(
-                    MCP_SYNC_CHANNEL,
-                    Arc::new(McpSyncChannel::from_process(Arc::clone(agent_control))),
-                );
-            }
-            MODE_AGENT_CHANNEL => {
-                // S2（host-ownership-switch §5）：默认不注册，只有开关显式包含
-                // mode-agent 时才接管；未迁移方法返回 unsupported_method。
-                server.register_channel(
-                    MODE_AGENT_CHANNEL,
-                    Arc::new(ModeAgentChannel::new(
-                        Arc::clone(agent_control),
-                        data_root.join(".mode").join("plugin-workspace"),
-                    )),
-                );
-            }
-            AGENT_HEALTH_CHANNEL => {
-                server.register_channel(
-                    AGENT_HEALTH_CHANNEL,
-                    Arc::new(AgentHealthChannel::new(Arc::clone(agent_control))),
-                );
-            }
-            HOOKS_CHANNEL => {
-                server.register_channel(
-                    HOOKS_CHANNEL,
-                    Arc::new(HooksChannel::new(Arc::clone(agent_control))),
-                );
-            }
-            TERMINAL_CHANNEL => {
-                let env = settings_store::HomeEnv::from_process();
-                let paths = settings_store::resolve_settings_paths(&env);
-                let current_base = data_root
-                    .parent()
-                    .map(std::path::Path::to_path_buf)
-                    .unwrap_or_else(|| paths.home.clone());
-                let settings = Arc::new(settings_store::SettingsService::new(paths, current_base));
-                server.register_channel(
-                    TERMINAL_CHANNEL,
-                    Arc::new(TerminalChannel::new(
-                        host_channels::terminal::default_service(settings),
-                    )),
-                );
-            }
-            other => {
-                crate::host::shell_log(&format!("inprocess channel not constructible: {other}"))
+        match build_channel(name, &options) {
+            Some(channel) => server.register_channel(name, channel),
+            None => {
+                crate::host::shell_log(&format!("inprocess channel not constructible: {name}"))
             }
         }
     }
