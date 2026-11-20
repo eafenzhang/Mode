@@ -10,6 +10,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::config_write_back::{remove_plugin_from_config, remove_suppressed_builtin};
 use crate::installed_records::{
     load_installed_plugins_state, save_installed_plugins_state, InstalledPluginRecord,
     MODE_OFFICIAL_PLUGIN_MARKETPLACE, MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID,
@@ -88,30 +89,41 @@ pub fn plugin_data_dir(storage_root: &Path, plugin_id: &str) -> PathBuf {
     current
 }
 
-/// 卸载编排：定位记录 → splice → 原子保存 →（可选）删安装目录与用户数据目录。
+/// 卸载编排：定位记录 → splice → 原子保存 →（可选）删安装目录与用户数据目录
+/// → config 写回（清 enabledPlugins/options + 清遗留 suppression，让状态自愈）。
 ///
 /// `remove_cache=false` 时只摘记录不删文件（`keepData` 不参与该分支，与 TS 一致）。
-/// 找不到 `plugin_id` 返回 `None`。
+/// 找不到 `plugin_id` 返回 `Ok(None)`；config 写回失败传 `Err`（TS 同序：卸载成功后
+/// 写回报错会让调用方感知，此时记录层已落盘，重试按记录不存在走幂等清理）。
+/// `config_path=None` 跳过写回（对拍测试/纯编排复用）。
 pub fn uninstall_marketplace_plugin(
     storage_root: &Path,
     plugin_id: &str,
     remove_cache: bool,
     keep_data: bool,
-) -> Option<InstalledPluginRecord> {
+    config_path: Option<&Path>,
+) -> Result<Option<InstalledPluginRecord>, String> {
     let mut state = load_installed_plugins_state(storage_root);
-    let index = state
+    let Some(index) = state
         .plugins
         .iter()
-        .position(|record| record.id == plugin_id)?;
+        .position(|record| record.id == plugin_id)
+    else {
+        return Ok(None);
+    };
     let removed = state.plugins.remove(index);
-    save_installed_plugins_state(storage_root, &state).ok()?;
+    save_installed_plugins_state(storage_root, &state).map_err(|error| error.to_string())?;
     if remove_cache {
         let _ = std::fs::remove_dir_all(&removed.install_path);
         if !keep_data {
             let _ = std::fs::remove_dir_all(plugin_data_dir(storage_root, plugin_id));
         }
     }
-    Some(removed)
+    if let Some(path) = config_path {
+        remove_plugin_from_config(path, &removed.id)?;
+        remove_suppressed_builtin(path, &removed.id)?;
+    }
+    Ok(Some(removed))
 }
 
 #[cfg(test)]
@@ -212,6 +224,52 @@ mod tests {
     }
 
     #[test]
+    fn uninstall_clears_config_and_leftover_suppression() {
+        let root = tmp_root("uninstall-config");
+        let install_path = root.join("plugins").join("demo");
+        std::fs::create_dir_all(&install_path).expect("install");
+        seed_state(
+            &root,
+            json!({
+                "version": 1,
+                "plugins": [
+                    { "id": "demo@other", "name": "demo", "marketplace": "other", "version": "1",
+                      "installPath": install_path.display().to_string(), "installedAt": "t",
+                      "scope": "user" },
+                ],
+            }),
+        );
+        let config_path = root.join("config.json");
+        std::fs::write(
+            &config_path,
+            serde_json::to_string_pretty(&json!({
+                "plugins": {
+                    "enabledPlugins": { "demo@other": true },
+                    "options": { "demo@other": { "key": "value" } },
+                    "suppressedBuiltins": ["demo@other", "keep@other"],
+                },
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        uninstall_marketplace_plugin(&root, "demo@other", true, false, Some(&config_path))
+            .expect("removed")
+            .expect("record");
+        let config: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).expect("read"))
+                .expect("json");
+        assert!(config["plugins"]["enabledPlugins"]
+            .get("demo@other")
+            .is_none());
+        assert!(config["plugins"]["options"].get("demo@other").is_none());
+        // 遗留 suppression 被清（状态自愈），无关条目保留。
+        let suppressed = config["plugins"]["suppressedBuiltins"]
+            .as_array()
+            .expect("array");
+        assert_eq!(suppressed, &[json!("keep@other")]);
+    }
+
+    #[test]
     fn uninstall_removes_record_and_files_with_data_kept() {
         let root = tmp_root("uninstall-keep");
         let install_path = root.join("plugins").join("demo");
@@ -231,15 +289,20 @@ mod tests {
                 ],
             }),
         );
-        let removed =
-            uninstall_marketplace_plugin(&root, "demo@other", true, true).expect("removed");
+        let removed = uninstall_marketplace_plugin(&root, "demo@other", true, true, None)
+            .expect("removed")
+            .expect("record");
         assert_eq!(removed.id, "demo@other");
         assert!(!install_path.exists(), "安装目录应删除");
         assert!(data_dir.exists(), "keepData=true 保留数据目录");
         let after = state(&root);
         assert_eq!(after.plugins.len(), 1);
         assert_eq!(after.plugins[0].id, "keep@other");
-        assert!(uninstall_marketplace_plugin(&root, "demo@other", true, false).is_none());
+        assert!(
+            uninstall_marketplace_plugin(&root, "demo@other", true, true, None)
+                .expect("idempotent")
+                .is_none()
+        );
     }
 
     #[test]
@@ -258,8 +321,9 @@ mod tests {
                 ],
             }),
         );
-        let removed =
-            uninstall_marketplace_plugin(&root, "demo@other", false, false).expect("removed");
+        let removed = uninstall_marketplace_plugin(&root, "demo@other", false, false, None)
+            .expect("removed")
+            .expect("record");
         assert_eq!(removed.id, "demo@other");
         assert!(install_path.exists(), "removeCache=false 不删文件");
         assert!(state(&root).plugins.is_empty());
@@ -283,8 +347,9 @@ mod tests {
                 ],
             }),
         );
-        let removed =
-            uninstall_marketplace_plugin(&root, "demo@other", true, false).expect("removed");
+        let removed = uninstall_marketplace_plugin(&root, "demo@other", true, false, None)
+            .expect("removed")
+            .expect("record");
         assert_eq!(removed.id, "demo@other");
         assert!(!install_path.exists());
         assert!(!data_dir.exists(), "keepData=false 删用户数据目录");

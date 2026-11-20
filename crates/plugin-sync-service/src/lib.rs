@@ -6,6 +6,7 @@
 
 mod archive;
 mod candidates;
+mod config_write_back;
 mod installed_records;
 mod marketplace_install;
 mod marketplace_source;
@@ -21,6 +22,10 @@ use std::path::{Path, PathBuf};
 pub use archive::{
     create_archive, extract_archive, ArchiveEntry, ArchiveMetadata, ArchiveMetadataPlugin,
     PLUGIN_SYNC_METADATA_ARCHIVE_PATH,
+};
+pub use config_write_back::{
+    add_suppressed_builtin, canonicalize_config_plugin_id, config_plugin_id_aliases,
+    enable_plugins_in_config, remove_plugin_from_config, remove_suppressed_builtin,
 };
 pub use installed_records::{
     canonical_official_marketplace_id, canonical_plugin_id, load_installed_plugin_records,

@@ -8,17 +8,15 @@
 //! git/npm/url 等网络源返回错误（后续按需接入）。安装按依赖闭包展开，逐条
 //! 拷贝到 cache 目录（官方市场改名后旧目录兜底），失败时回滚新建目录。
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
 
 use serde_json::Value;
 
+use crate::config_write_back::enable_plugins_in_config;
 use crate::installed_records::{
-    canonical_official_marketplace_id, load_installed_plugins_state, parse_plugin_id,
-    save_installed_plugins_state, InstalledPluginRecord, InstalledPluginScope,
-    InstalledPluginsState, DEFAULT_VERSION, MODE_OFFICIAL_PLUGIN_MARKETPLACE,
-    MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID,
+    load_installed_plugins_state, parse_plugin_id, save_installed_plugins_state,
+    InstalledPluginRecord, InstalledPluginScope, DEFAULT_VERSION,
 };
 use crate::plugin_management::{plugin_cache_dir, sanitize_plugin_id};
 
@@ -325,18 +323,23 @@ fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// 安装编排结果：依赖闭包与实际写入的安装记录。
+/// 安装编排结果：依赖闭包、实际写入的安装记录，以及本次默认启用的插件 id
+/// （TS bootstrap 用它区分「新置默认启用」与「沿用既有显式配置」）。
 pub struct MarketplaceInstallResult {
     pub dependency_closure: Vec<String>,
     pub installed_plugins: Vec<InstalledPluginRecord>,
+    pub enabled_ids: Vec<String>,
 }
 
-/// 安装编排（directory/file 源）：闭包展开 → 逐条拷贝到 cache → 记录 upsert → 原子保存。
+/// 安装编排（directory/file 源）：闭包展开 → 逐条拷贝到 cache → 记录 upsert → 原子保存
+/// → config 写回（安装即默认启用，只动未显式声明的 id）。
 /// 任一步失败回滚本轮新建的 cache 目录，并返回错误；已有记录不动。
+/// `config_path=None` 跳过写回（对拍测试/纯编排复用）。
 pub fn install_marketplace_plugin(
     storage_root: &Path,
     marketplace: &str,
     name: &str,
+    config_path: Option<&Path>,
 ) -> Result<MarketplaceInstallResult, String> {
     let allow_cross = load_marketplace_manifest(storage_root, marketplace)
         .map(|manifest| manifest.allow_cross_marketplace_dependencies_on)
@@ -404,10 +407,22 @@ pub fn install_marketplace_plugin(
         save_installed_plugins_state(storage_root, &state).map_err(|error| error.to_string())
     })();
     match result {
-        Ok(()) => Ok(MarketplaceInstallResult {
-            dependency_closure: closure,
-            installed_plugins: installed,
-        }),
+        Ok(()) => {
+            // 安装即默认启用：写入 User config（TS bootstrap 在安装成功后同步写回，
+            // 失败向上抛，与安装同成败）。
+            let enabled_ids = match config_path {
+                Some(path) => {
+                    let ids: Vec<String> = installed.iter().map(|r| r.id.clone()).collect();
+                    enable_plugins_in_config(path, &ids)?
+                }
+                None => Vec::new(),
+            };
+            Ok(MarketplaceInstallResult {
+                dependency_closure: closure,
+                installed_plugins: installed,
+                enabled_ids,
+            })
+        }
         Err(error) => {
             // 回滚本轮新建的 cache 目录（已有目录不动）。
             for path in created_dirs.iter().rev() {
@@ -539,7 +554,7 @@ mod tests {
                 },
             ]),
         );
-        let result = install_marketplace_plugin(&root, "market-a", "demo").expect("install");
+        let result = install_marketplace_plugin(&root, "market-a", "demo", None).expect("install");
         assert_eq!(result.dependency_closure, vec!["demo@market-a"]);
         assert_eq!(result.installed_plugins.len(), 1);
         let record = &result.installed_plugins[0];
@@ -556,6 +571,61 @@ mod tests {
     }
 
     #[test]
+    fn install_writes_enabled_ids_to_config() {
+        let root = tmp_root("install-config");
+        let source = write_plugin_source(&root, "sources/demo", "1.0.0");
+        write_marketplace(
+            &root,
+            "market-a",
+            json!([
+                {
+                    "name": "demo",
+                    "source": { "source": "directory", "path": source.display().to_string() },
+                },
+            ]),
+        );
+        let config_path = root.join("config.json");
+        // 预置显式停用项，验证不被覆盖（只动未显式声明的 id）。
+        std::fs::write(
+            &config_path,
+            serde_json::to_string_pretty(&json!({
+                "plugins": { "enabledPlugins": { "demo@market-a": false } },
+            }))
+            .expect("serialize"),
+        )
+        .expect("write");
+        let result = install_marketplace_plugin(&root, "market-a", "demo", Some(&config_path))
+            .expect("install");
+        // 已显式声明（false）的 id 不重复写：enabled_ids 为空，config 保持 false。
+        assert!(result.enabled_ids.is_empty());
+        let config: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).expect("read"))
+                .expect("json");
+        assert_eq!(config["plugins"]["enabledPlugins"]["demo@market-a"], false);
+
+        // 未显式声明的 id 安装后写 true。
+        let source2 = write_plugin_source(&root, "sources/helper", "1.0.0");
+        write_marketplace(
+            &root,
+            "market-a",
+            json!([
+                { "name": "demo" },
+                {
+                    "name": "helper",
+                    "source": { "source": "directory", "path": source2.display().to_string() },
+                },
+            ]),
+        );
+        let result = install_marketplace_plugin(&root, "market-a", "helper", Some(&config_path))
+            .expect("install helper");
+        assert_eq!(result.enabled_ids, vec!["helper@market-a".to_string()]);
+        let config: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).expect("read"))
+                .expect("json");
+        assert_eq!(config["plugins"]["enabledPlugins"]["helper@market-a"], true);
+    }
+
+    #[test]
     fn install_error_rolls_back_created_cache_dirs() {
         let root = tmp_root("rollback");
         let source = write_plugin_source(&root, "sources/demo", "1.0.0");
@@ -567,7 +637,7 @@ mod tests {
                   "source": { "source": "directory", "path": source.display().to_string() } },
             ]),
         );
-        assert!(install_marketplace_plugin(&root, "m", "demo").is_err());
+        assert!(install_marketplace_plugin(&root, "m", "demo", None).is_err());
         // 回滚：本轮创建的 cache 目录被清掉（或从未落盘）。
         let cache = root.join("cache");
         assert!(
@@ -590,7 +660,7 @@ mod tests {
                 { "name": "demo", "source": { "source": "directory", "path": source_v1.display().to_string() } },
             ]),
         );
-        install_marketplace_plugin(&root, "m", "demo").expect("install v1");
+        install_marketplace_plugin(&root, "m", "demo", None).expect("install v1");
         // 换源重装：manifest 更新到 v2。
         write_marketplace(
             &root,
@@ -599,7 +669,7 @@ mod tests {
                 { "name": "demo", "source": { "source": "directory", "path": source_v2.display().to_string() } },
             ]),
         );
-        let result = install_marketplace_plugin(&root, "m", "demo").expect("install v2");
+        let result = install_marketplace_plugin(&root, "m", "demo", None).expect("install v2");
         assert_eq!(result.installed_plugins[0].version, "2.0.0");
         let state = load_installed_plugins_state(&root);
         assert_eq!(state.plugins.len(), 1);
@@ -617,7 +687,8 @@ mod tests {
                   "source": "filesystem" },
             ]),
         );
-        let result = install_marketplace_plugin(&root, "official", "builtin").expect("install");
+        let result =
+            install_marketplace_plugin(&root, "official", "builtin", None).expect("install");
         assert_eq!(result.installed_plugins.len(), 1);
     }
 }

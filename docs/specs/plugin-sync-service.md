@@ -1,7 +1,9 @@
 # Spec：插件归档同步（Rust `plugin-sync-service`）
 
-状态：2026-11-01 首版（三个本地方法；归档与 marketplace source 待后续切片）。
-对应 `packages/services/src/plugin-sync/pluginSyncService.ts` 与 `pluginSyncPath.ts`。
+状态：2026-11-21 更新（新增 §4d marketplace 安装/卸载编排与 config 写回；网络源待做）。
+对应 `packages/services/src/plugin-sync/pluginSyncService.ts`、`pluginSyncPath.ts`，
+以及 LT-15 P3 迁移的 `apps/mode-cli/packages/adapters/src/plugins/marketplace.ts`
+与 `apps/mode-cli/packages/adapters/src/config/file-config.adapter.ts`。
 
 ## 1. 范围
 
@@ -83,6 +85,60 @@ sourceFingerprints})[..12]>`。
   `{plugins: [], marketplaceSources: [{marketplaceId, directoryName}]}`。
 - 导入校验 metadata 只有一个 marketplace、manifest.name 与 marketplaceId 一致；
   目标已存在 → `skipped`，否则递归复制 → `synced`；`overwrite` 直接拒绝。
+
+## 4d. marketplace 安装/卸载编排与 config 写回（LT-15 P3）
+
+真源为 TS bootstrap/plugins.ts 与 file-config.adapter.ts；全部写盘走 `atomic-file`
+（两空格缩进 + 尾随换行，与 TS 字节对齐）。
+
+### 4d.1 installed_plugins.json 记录层
+
+- 读时归一：缺失/坏 JSON → 空状态；旧 map 形态（`plugins` 为对象，entry 或
+  entry 数组）与数组形态都收敛为 `Vec<InstalledPluginRecord>`；缺 installPath、
+  `plugins` 键缺失或非法的条目丢弃；scope 别名 `project`/`local` → `workspace`。
+- id 归一：`@zcode-plugins-official` → `@mode-plugins-official`（读时归一，
+  不改写用户数据原字段之外的部分）。
+- 写回原子化；记录字段 camelCase 序列化，与 TS 同形。
+
+### 4d.2 卸载编排 `uninstall_marketplace_plugin`
+
+- 顺序：定位记录 → splice → 原子保存 →（`removeCache=true`）删 installPath 与
+  用户 data 目录 → config 写回。
+- `removeCache=false` 只摘记录不删文件（`keepData` 不参与该分支，与 TS 一致）；
+  `keepData=true` 保留 data 目录。
+- 记录不存在返回 `Ok(None)`（幂等）；config 写回失败传 `Err`（记录层已落盘，
+  重试按记录不存在走幂等清理）。
+- 路径安全：插件 id 白名单字符 `[A-Za-z0-9_.@-]` 以外替换为 `-`；官方市场改名后
+  cache/data 目录旧 id 兜底（新目录优先，旧目录次之，都缺失落当前 id 目录）。
+
+### 4d.3 安装编排 `install_marketplace_plugin`
+
+- 顺序：读取 marketplace manifest → 依赖闭包（BFS；跨市场依赖默认拒绝，
+  `allowCrossMarketplaceDependenciesOn` 显式放行；环检测报 `cycle`；缺失依赖报
+  `Dependency not found`）→ 逐条拷贝到 cache 目录 → 记录 upsert → 原子保存 →
+  config 写回（安装即默认启用）。
+- 源：directory/file/字符串相对路径 + filesystem/sea 兜底；git/npm/url 等网络源
+  返回错误（后续切片接入）。
+- 已有记录重装：保留原 `installedAt`、覆盖其余字段；cache 目录先删后拷。
+- 失败回滚本轮新建的 cache 目录（已有目录不动）。
+- 返回 `MarketplaceInstallResult { dependency_closure, installed_plugins, enabled_ids }`；
+  `enabled_ids` 是本次新置默认启用的 id（TS bootstrap 用它区分「新置默认启用」与
+  「沿用既有显式配置」）。
+
+### 4d.4 config 写回（`plugins` 段）
+
+只操作 Mode 配置 JSON 的 `plugins` 段（`enabledPlugins`/`options`/`suppressedBuiltins`），
+不碰 provider/模型等其他段；与 TS `file-config.adapter` 同口径：
+
+- `enable_plugins_in_config`：把 `id → true` 写入 `plugins.enabledPlugins`；
+  已有显式设置（含 `false`）的 id 跳过，不覆盖用户选择。
+- `remove_plugin_from_config`：按别名集从 `enabledPlugins` 与 `options` 移除
+  （别名 = canonical id + `mode-cua`/`computer-use` 名字别名 × 新旧官方市场段）。
+- `add_suppressed_builtin`：归一后写入 `plugins.suppressedBuiltins` 数组，
+  同时移除旧别名（去重幂等）。
+- `remove_suppressed_builtin`：按别名集清除遗留 suppression（无变化不写盘）。
+- 编排接线：安装成功后 `enable`；卸载记录路径成功后 `remove` + `remove_suppressed`；
+  `config_path=None` 跳过写回（对拍测试/纯编排复用）。
 
 ## 5. 已知差异
 

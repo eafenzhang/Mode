@@ -16,7 +16,7 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 | --- | --- | --- | --- |
 | **P1** | TUI Agent 传输接线 | `agent-server` stdio spawn、sessions-index 订阅、live 增量、Ctrl-N 新建；单测 + 真子进程 e2e | ✅ 2026-11-21 |
 | **P2** | axum LAN/WS | LAN 六端点全部桥接（state/pair/enable/pair-code/reset/clients 删除，11 测试；pair 含 Set-Cookie、enable 走监听视图）；剩 `/ws/host` RPC 帧桥接与凭据装配 | 🟡 HTTP 全收口 |
-| **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | 🟡 记录层+卸载编排+安装编排（directory/file 源+依赖闭包）已迁 `plugin-sync-service`（19 测试）；网络源与 config 写回待做 |
+| **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | 🟡 记录层+卸载编排+安装编排+config 写回已迁 `plugin-sync-service`（26 测试 + 3 对拍）；网络源（git/npm/url）待做 |
 | **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | ⬜ |
 | **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | 🟡 phase/goalStatus/title/lastAssistantPreview 已接（turn 事件驱动 + store 读尾）；hasBackgroundWork/workflowActivity 待做 |
 | **P6** | W6 收口 | `w6:readiness --fail-on-blockers` 通过；删 stdioFrames/stdoutGuard、TS 宿主编排与 host-sidecar 发运集 | ⬜ |
@@ -55,8 +55,16 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 - **安装编排已迁**：`marketplace_install.rs`——manifest 读取、依赖闭包 BFS（跨市场
   阻断/循环检测）、directory/file/filesystem 源解析、真实版本读取（plugin.json 优先
   于条目）、cache 目录拷贝（旧 id 兜底）、记录 upsert、失败回滚；6 条单测。
-- 待做：网络源（git/npm/url）、config 写回（`removePluginFromFileConfig`/suppression）、
-  与 TS 行为对拍。
+- **config 写回已迁**：`config_write_back.rs`——`enable_plugins_in_config`（安装即
+  默认启用，已有显式设置含 `false` 不覆盖）、`remove_plugin_from_config`（别名集清理
+  `enabledPlugins`/`options`）、`add_suppressed_builtin`/`remove_suppressed_builtin`
+  （suppression 去重幂等/清除遗留让状态自愈）；官方市场改名与 `mode-cua` 别名归一。
+  编排接线：安装成功后 enable、卸载记录路径成功后 remove+remove_suppressed
+  （`config_path=None` 跳过，对拍复用）；签名变更：`install_marketplace_plugin` 增
+  `config_path` 参数并返回 `enabled_ids`，`uninstall_marketplace_plugin` 改返
+  `Result<Option<_>, String>`（记录不存在幂等 `Ok(None)`，config 写回失败传 `Err`）。
+  spec 已补 §4d；29 条测试（26 单测 + 3 对拍）。
+- 待做：网络源（git/npm/url）、与 TS 行为对拍补充。
 
 ## P4/P5 进展
 
