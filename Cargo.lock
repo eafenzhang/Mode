@@ -3692,6 +3692,8 @@ name = "mode-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "credential-store",
+ "data-root",
  "futures-util",
  "host-channels",
  "http-body-util",
