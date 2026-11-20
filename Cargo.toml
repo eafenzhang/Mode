@@ -167,3 +167,17 @@ portable-pty = "0.9"
 
 [patch.crates-io]
 httpdate = { path = "crates/httpdate-shim" }
+
+# C4：随包 Rust agent 的体积优先档（仅 agent-server；Tauri/其它二进制不受影响）。
+[profile.release.package.agent-server]
+opt-level = "z"
+codegen-units = 1
+strip = "symbols"
+
+# 随包 Rust agent 专用最小体积档（LTO；不改变 Tauri 的 release 档）。
+[profile.agent-release]
+inherits = "release"
+lto = true
+codegen-units = 1
+strip = "symbols"
+opt-level = "z"

@@ -444,7 +444,7 @@ jobs:
       # 与 tauri 同一 target 构建，`prepare:agent-bundle` 会把它暂存为 glm/mode-agent。
       - name: Build Rust agent server for packaged app
         shell: bash
-        run: cargo build --locked --release --target "${{ matrix.rustTarget }}" -p agent-server
+        run: cargo build --locked --profile agent-release --target "${{ matrix.rustTarget }}" -p agent-server
 
       - name: Export native agent binary
         shell: bash
@@ -452,7 +452,7 @@ jobs:
           set -euo pipefail
           ext=""
           if [ "${{ matrix.target }}" = "win" ]; then ext=".exe"; fi
-          binary="target/${{ matrix.rustTarget }}/release/agent-server${ext}"
+          binary="target/${{ matrix.rustTarget }}/agent-release/agent-server${ext}"
           test -f "$binary"
           echo "MODE_AGENT_NATIVE_BINARY=$binary" >> "$GITHUB_ENV"
 
