@@ -6,6 +6,8 @@ license = "MIT"
 
 [dependencies]
 axum.workspace = true
+lan-http = { path = "../lan-http" }
+lan-pairing = { path = "../lan-pairing" }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["net"] }

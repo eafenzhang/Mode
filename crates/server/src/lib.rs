@@ -10,6 +10,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde_json::{json, Value};
 
+pub mod lan;
 pub mod server_info;
 
 use server_info::{ServerInfoConfig, ServerRemoteInfo};
@@ -26,6 +27,11 @@ pub fn router(config: ServerInfoConfig) -> Router {
 
 pub fn router_from_env() -> Router {
     router(ServerInfoConfig::from_env())
+}
+
+/// base 路由 + LAN 管理面（`lan-http` 桥接）；装配方注入具体凭据端口。
+pub fn router_with_lan(config: ServerInfoConfig, pairing: lan::SharedLanHttp) -> Router {
+    router(config).merge(lan::lan_router(pairing))
 }
 
 async fn healthz() -> Json<Value> {

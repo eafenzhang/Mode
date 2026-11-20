@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 use bytes::Bytes;
 use http_body_util::Full;
 use hyper::body::Incoming;
-use hyper::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, COOKIE, SET_COOKIE};
+use hyper::header::{HeaderValue, AUTHORIZATION, CONTENT_TYPE, COOKIE, SET_COOKIE};
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
@@ -74,6 +74,58 @@ impl<C: LanCredentialPort + Send + 'static> LanPairHttp<C> {
     /// 传输层更新监听状态（启用/端口/地址/会话数/中继地址）。
     pub fn set_view(&self, view: LanAccessView) {
         *self.view.lock().expect("lan access view poisoned") = view;
+    }
+
+    /// 传输无关的管理面入口（`/api/lan/state|pair-code|reset|clients/:id`）：
+    /// 内含令牌鉴权与错误码映射，返回 `(status, json)`。配对端点（`/api/lan/pair`）
+    /// 不在此列——它有自己的限速与 Cookie 语义。
+    pub async fn management_request(
+        &self,
+        method: &str,
+        path: &str,
+        authorization: Option<&str>,
+        cookie: Option<&str>,
+        query_token: Option<&str>,
+    ) -> (u16, Value) {
+        let is_management = (method == "GET" && path == "/api/lan/state")
+            || (method == "POST" && path == "/api/lan/pair-code")
+            || (method == "POST" && path == "/api/lan/reset")
+            || (method == "DELETE" && path.starts_with("/api/lan/clients/"));
+        if !is_management {
+            return (404, json!({ "error": "Not Found" }));
+        }
+        if !self.authorized_by(authorization, cookie, query_token).await {
+            return (401, json!({ "error": "Unauthorized" }));
+        }
+        let result = match (method, path) {
+            ("GET", "/api/lan/state") => Ok(self.get_state().await),
+            ("POST", "/api/lan/pair-code") => self.create_pair_code().await,
+            ("POST", "/api/lan/reset") => self.reset_tokens().await,
+            ("DELETE", value) if value.starts_with("/api/lan/clients/") => {
+                let client_id = &value["/api/lan/clients/".len()..];
+                if client_id.is_empty() {
+                    return (400, json!({ "error": "Missing clientId" }));
+                }
+                self.remove_client(client_id).await
+            }
+            _ => return (404, json!({ "error": "Not Found" })),
+        };
+        match result {
+            Ok(value) => (200, value),
+            Err(message) => (409, json!({ "error": message })),
+        }
+    }
+
+    async fn authorized_by(
+        &self,
+        authorization: Option<&str>,
+        cookie: Option<&str>,
+        query_token: Option<&str>,
+    ) -> bool {
+        let Some(token) = presented_token(authorization, cookie, query_token) else {
+            return false;
+        };
+        self.pairing.lock().await.verify_token(&token).is_some()
     }
 
     /// `GET /api/lan/state`。
@@ -239,64 +291,30 @@ where
         return pair_response(state.handle_pair(&body).await);
     }
 
-    let is_management = (method == Method::GET && path == "/api/lan/state")
-        || (method == Method::POST && path == "/api/lan/pair-code")
-        || (method == Method::POST && path == "/api/lan/reset")
-        || (method == Method::DELETE && path.starts_with("/api/lan/clients/"));
-    if !is_management {
-        return json_response(404, json!({ "error": "Not Found" }));
-    }
-
-    let query_token = request
-        .uri()
-        .query()
-        .and_then(|query| {
-            query.split('&').find_map(|pair| {
-                let (key, value) = pair.split_once('=')?;
-                (key == "token").then(|| value.to_string())
-            })
-        });
-    if !authorized(state, request.headers(), query_token.as_deref()).await {
-        return json_response(401, json!({ "error": "Unauthorized" }));
-    }
-    let result = match (method, path.as_str()) {
-        (Method::GET, "/api/lan/state") => Ok(state.get_state().await),
-        (Method::POST, "/api/lan/pair-code") => state.create_pair_code().await,
-        (Method::POST, "/api/lan/reset") => state.reset_tokens().await,
-        (Method::DELETE, value) if value.starts_with("/api/lan/clients/") => {
-            let client_id = &value["/api/lan/clients/".len()..];
-            if client_id.is_empty() {
-                return json_response(400, json!({ "error": "Missing clientId" }));
-            }
-            state.remove_client(client_id).await
-        }
-        _ => return json_response(404, json!({ "error": "Not Found" })),
-    };
-    match result {
-        Ok(value) => json_response(200, value),
-        Err(message) => json_response(409, json!({ "error": message })),
-    }
-}
-
-async fn authorized<C>(
-    state: &Arc<LanPairHttp<C>>,
-    headers: &HeaderMap,
-    query_token: Option<&str>,
-) -> bool
-where
-    C: LanCredentialPort + Send + 'static,
-{
-    let authorization = headers.get(AUTHORIZATION).and_then(|value| value.to_str().ok());
-    let cookie = headers.get(COOKIE).and_then(|value| value.to_str().ok());
-    let Some(token) = presented_token(authorization, cookie, query_token) else {
-        return false;
-    };
-    state
-        .pairing
-        .lock()
-        .await
-        .verify_token(&token)
-        .is_some()
+    let query_token = request.uri().query().and_then(|query| {
+        query.split('&').find_map(|pair| {
+            let (key, value) = pair.split_once('=')?;
+            (key == "token").then(|| value.to_string())
+        })
+    });
+    let authorization = request
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|value| value.to_str().ok());
+    let cookie = request
+        .headers()
+        .get(COOKIE)
+        .and_then(|value| value.to_str().ok());
+    let (status, body) = state
+        .management_request(
+            method.as_str(),
+            &path,
+            authorization,
+            cookie,
+            query_token.as_deref(),
+        )
+        .await;
+    json_response(status, body)
 }
 
 fn json_response(status: u16, value: Value) -> Response<Full<Bytes>> {
@@ -404,7 +422,9 @@ mod tests {
             Ok(self.0.borrow().get(key).cloned())
         }
         fn save(&self, key: &str, value: &str) -> Result<(), String> {
-            self.0.borrow_mut().insert(key.to_string(), value.to_string());
+            self.0
+                .borrow_mut()
+                .insert(key.to_string(), value.to_string());
             Ok(())
         }
         fn delete(&self, key: &str) -> Result<(), String> {
@@ -417,7 +437,12 @@ mod tests {
         let uuid = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
         let random_uuid = {
             let uuid = std::sync::Arc::clone(&uuid);
-            move || format!("client-{}", uuid.fetch_add(1, std::sync::atomic::Ordering::SeqCst))
+            move || {
+                format!(
+                    "client-{}",
+                    uuid.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                )
+            }
         };
         LanPairing::load(
             MemoryCredentials::default(),
@@ -449,7 +474,9 @@ mod tests {
         let value: Value = serde_json::from_slice(&response.body).unwrap();
         assert_eq!(value["serverId"], "client-0");
         assert_eq!(value["name"], "Test Machine");
-        assert!(value["token"].as_str().is_some_and(|token| !token.is_empty()));
+        assert!(value["token"]
+            .as_str()
+            .is_some_and(|token| !token.is_empty()));
         let cookie = response.set_cookie.expect("cookie");
         assert!(cookie.starts_with("mode_lite_token="));
         assert!(cookie.contains("HttpOnly"));
@@ -483,15 +510,21 @@ mod tests {
         pairing.create_pair_code();
         let http = LanPairHttp::new(pairing).with_attempt_limit(2, Duration::from_secs(60));
         assert_eq!(
-            http.handle_pair(&body(&json!({ "code": "ffffff" }))).await.status,
+            http.handle_pair(&body(&json!({ "code": "ffffff" })))
+                .await
+                .status,
             401
         );
         assert_eq!(
-            http.handle_pair(&body(&json!({ "code": "ffffff" }))).await.status,
+            http.handle_pair(&body(&json!({ "code": "ffffff" })))
+                .await
+                .status,
             401
         );
         assert_eq!(
-            http.handle_pair(&body(&json!({ "code": "ffffff" }))).await.status,
+            http.handle_pair(&body(&json!({ "code": "ffffff" })))
+                .await
+                .status,
             429
         );
     }
@@ -598,7 +631,9 @@ Connection: close
         stream.read_to_string(&mut response).await.unwrap();
         assert!(response.starts_with("HTTP/1.1 200"), "{response}");
         assert!(
-            response.to_lowercase().contains("set-cookie: mode_lite_token="),
+            response
+                .to_lowercase()
+                .contains("set-cookie: mode_lite_token="),
             "{response}"
         );
         task.abort();
@@ -666,8 +701,12 @@ Connection: close
             Some("query-token")
         );
         assert_eq!(
-            presented_token(Some("Bearer bearer-token"), Some("mode_lite_token=cookie"), None)
-                .as_deref(),
+            presented_token(
+                Some("Bearer bearer-token"),
+                Some("mode_lite_token=cookie"),
+                None
+            )
+            .as_deref(),
             Some("bearer-token")
         );
         assert_eq!(

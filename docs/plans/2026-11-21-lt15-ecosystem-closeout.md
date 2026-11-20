@@ -15,7 +15,7 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 | 阶段 | 内容 | 出口条件 | 状态 |
 | --- | --- | --- | --- |
 | **P1** | TUI Agent 传输接线 | `agent-server` stdio spawn、sessions-index 订阅、live 增量、Ctrl-N 新建；单测 + 真子进程 e2e | ✅ 2026-11-21 |
-| **P2** | axum LAN/WS | `/api/lan/state`、`/api/lan/peers` 只读对拍；`/ws/host` RPC 帧桥接；契约测试 | ⬜ 下一步 |
+| **P2** | axum LAN/WS | LAN 管理四端点已桥接（state/pair-code/reset/clients 删除，10 测试）；剩 pair/enable、`/ws/host` RPC 帧桥接 | 🟡 首切完成 |
 | **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | ⬜ |
 | **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | ⬜ |
 | **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | ⬜ |
