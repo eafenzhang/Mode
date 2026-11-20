@@ -536,8 +536,12 @@ rust=102 / not-needed=11 / blocked=2。已接入 `verify:pre-push` 与 release v
   智能机器人 WS（aibot_subscribe 认证/30s 心跳 + 2 次丢 pong 判死/两套重连计数器/
   `aibot_respond_msg` 串行 ack 队列 + 5s 超时/非阻塞流式/三步分片上传（512KiB×100、
   md5、动态并发）/HTTP 下载 + AES-256-CBC 手写解密/disconnected_event 不重连），
-  13 单测 + 5 假 WS 集成全绿——**四通道传输层全部落地**；接入形态（napi vs 壳内频道）
-  与真机验收留后续。
+  13 单测 + 5 假 WS 集成全绿——**四通道传输层全部落地**；**接入形态已裁决（2026-11-20，
+  `docs/specs/bots-domain-migration.md`）**：壳内接管 bots 域（否决 napi 桥），
+  阶段 B1 seam（`crates/bots-core`：provider 中立类型 + `ProviderAdapter` trait，
+  5 单测）→ B2 入站解析移植 → B3 bots service 核心（9.3k 行分波）→ B4 频道接入 +
+  配置/凭据所有权移交 → B5 删 SDK 依赖；每阶段 TS 保留为 oracle，真机验收门禁见 spec §4。
+  接入形态与真机验收留后续。
 - **TUI 改 ratatui**（9,837 行 TS → `crates/tui`）：33 个场景清单逐项过。
 - **Web/远程服务端改 axum**（17,766 行 → `crates/server`）：契约对拍 + 手机远控验收。
 - **插件市场**：目录/安装/卸载逻辑进壳，素材仍按 `crate/plugin-host` 的资产层。

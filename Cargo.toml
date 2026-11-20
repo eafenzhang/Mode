@@ -38,6 +38,7 @@ members = [
   "crates/weixin-ilink",
   "crates/feishu-ws",
   "crates/wecom-ws",
+  "crates/bots-core",
   "crates/mode-protocol-client",
   "crates/agent-process",
   "crates/protocol",

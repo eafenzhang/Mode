@@ -1,0 +1,21 @@
+[package]
+name = "bots-core"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "IM bots 域 provider 中立契约（W5 B1 seam，见 docs/specs/bots-domain-migration.md §3）"
+
+[lib]
+name = "bots_core"
+path = "src/lib.rs"
+
+[dependencies]
+futures-util = { workspace = true, features = ["std"] }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
