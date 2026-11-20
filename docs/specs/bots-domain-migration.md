@@ -19,7 +19,7 @@
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
 | B1 | **seam 契约**：`crates/bots-core` —— provider 中立类型 + `ProviderAdapter` trait（镜像 TS `BotProviderAdapter` 的可移植子集），四通道 transport crate 与后续 service 层之间的唯一接缝 | ✅ 本波 |
-| B2 | 四通道**入站解析移植**：`crates/bots-adapters`（transport crate 保持协议纯，适配层做「平台载荷 → provider 中立消息」投影 + 发送目标判定）。**B2a 已交付：钉钉**（`parse_callback`/`parse_message`/`resolve_send_target`，用例镜像 `bot-dingtalk.test.ts` 6 条）；B2b 起移植飞书/企微/微信解析与各通道发送路径（HTTP + token） | 🟡 B2a |
+| B2 | 四通道**入站解析移植**：`crates/bots-adapters`（transport crate 保持协议纯，适配层做「平台载荷 → provider 中立消息」投影 + 发送目标判定）。**B2a 钉钉**（`bot-dingtalk.test.ts` 6 条镜像）；**B2b 飞书/企微/微信已交付**——飞书 text/post/attachment/mention gating（Lark 域映射）、企微 text/mixed/voice/quote/媒体附件、微信紧凑投影 + 原始 item_list/直接附件（多别名、AES key、size）；**B2c 待做**：各通道发送路径（HTTP + token + 卡片/流式） | 🟡 B2a+B2b |
 | B3 | **bots service 核心**：命令解析/授权与黑名单/群历史/回合准入（botTurnGate）/回复颗粒度/流式卡片/恢复链——按 `bot-*.md` 逐条移植（≈9.3k 行 TS，分多波） | ⬜ |
 | B4 | **频道接入**：`crates/host-channels` 新增 `bots` 频道（`IBotsService` 45 方法面）+ 配置/凭据仓储 Rust 化 + `MODE_HOST_INPROCESS_CHANNELS` 显式启用；真机 20 项验收 | ⬜ |
 | B5 | **退役**：删 `@larksuiteoapi/node-sdk`、`@wecom/aibot-node-sdk` 依赖；`bot-sdk-lazy-import` 守卫改为「无 SDK 依赖」门禁 | ⬜ |

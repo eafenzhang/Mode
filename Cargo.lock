@@ -517,6 +517,7 @@ name = "bots-adapters"
 version = "0.1.0"
 dependencies = [
  "bots-core",
+ "regex",
  "serde_json",
 ]
 

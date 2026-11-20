@@ -114,6 +114,7 @@ mod tests {
                         provider_user_id: "u".into(),
                         display_name: None,
                         is_mention: true,
+                        quoted_text: None,
                         context_token: None,
                         attachments: Vec::new(),
                         raw: payload.clone(),

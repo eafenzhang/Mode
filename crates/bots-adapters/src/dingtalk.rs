@@ -120,6 +120,7 @@ pub fn parse_message(bot_id: &str, data: &Value) -> Option<InboundMessage> {
         display_name: (!sender_nick.is_empty()).then_some(sender_nick),
         // 单聊天然"被 @"；群聊按 isInAtList（钉钉在 @ 机器人时才回调）。
         is_mention: if is_group { is_in_at_list } else { true },
+        quoted_text: None,
         context_token: None,
         attachments: Vec::new(),
         raw: data.clone(),

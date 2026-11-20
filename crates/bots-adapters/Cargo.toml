@@ -11,6 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 bots-core = { path = "../bots-core" }
+regex = "1"
 serde_json.workspace = true
 
 [lints.clippy]

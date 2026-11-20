@@ -12,6 +12,7 @@ use serde_json::Value;
 #[serde(rename_all = "lowercase")]
 pub enum ProviderKind {
     Feishu,
+    Lark,
     Wecom,
     Dingtalk,
     Weixin,
@@ -21,6 +22,7 @@ impl ProviderKind {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Feishu => "feishu",
+            Self::Lark => "lark",
             Self::Wecom => "wecom",
             Self::Dingtalk => "dingtalk",
             Self::Weixin => "weixin",
@@ -79,6 +81,9 @@ pub struct InboundMessage {
     /// 是否 @ 机器人（TS `actor.isMention`）：单聊恒 true；群聊按平台字段。
     #[serde(default)]
     pub is_mention: bool,
+    /// 被引用/回复的原文（TS `quotedText`；企微支持，其它通道缺省）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quoted_text: Option<String>,
     /// 会话上下文令牌（微信 `context_token`；其它通道可为空）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_token: Option<String>,
@@ -189,6 +194,7 @@ mod tests {
     fn provider_kind_serializes_to_protocol_strings() {
         for (kind, expected) in [
             (ProviderKind::Feishu, "\"feishu\""),
+            (ProviderKind::Lark, "\"lark\""),
             (ProviderKind::Wecom, "\"wecom\""),
             (ProviderKind::Dingtalk, "\"dingtalk\""),
             (ProviderKind::Weixin, "\"weixin\""),
@@ -210,6 +216,7 @@ mod tests {
             provider_user_id: "u-1".into(),
             display_name: None,
             is_mention: false,
+            quoted_text: None,
             context_token: None,
             attachments: Vec::new(),
             raw: serde_json::json!({"msgId":"m-1"}),
