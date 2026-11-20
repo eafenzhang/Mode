@@ -102,7 +102,11 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
   优先、data_root/v2 回退构造 PersonalConfigRepository，1s 轮询；仓库/客户端构造失败
   降级 default unsupported 并留 shell 日志，不阻塞注册）+ 频道名漂移守卫。
   spec 新建 docs/specs/usage-stats-service.md；官方套餐链路 dormant 不接线。
-- P4 剩余：`crates/lan-*` WebSocket/中继。
+- P4 剩余：`/ws/host` RPC 帧桥接（= P2 剩余，合并推进）。实施路径：crates/server
+  构造 ChannelServer 并复用 host-channels 全频道（inprocess.rs 的装配清单抽出为
+  可复用模块），axum WS upgrade + lan-pairing 长期令牌 → 客户端记录解析 → 帧双向
+  转发（rpc-wire 帧，与桌面 stdio 同格式）；`/ws/remote-desktop`/`/ws/remote-desktop-media`
+  依赖远程桌面流面（W3 遗留），`/ws/v1/direct` 依赖 v3 直连协议。
 - P4 凭据装配首切（2026-11-21）：`provider-balance` 增
   `provider_balance_target_from_personal_layer`（只有 ApiKey access 参与，
   ZhipuAccount/未配置 → None）+ `PersonalLayerTargetResolver`（读层闭包 →
