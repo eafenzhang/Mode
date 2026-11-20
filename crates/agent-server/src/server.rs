@@ -306,6 +306,80 @@ where
     }
 }
 
+/// 从 DB + 当前 runtime 构造 conversation 快照（初始帧与 recovery 帧共用）。
+fn conversation_snapshot(
+    server: &AgentServer,
+    session_id: &str,
+    log_epoch: &str,
+) -> Option<(agent_protocol::v4_snapshot::ConversationSnapshot, u64)> {
+    let store = server.store().ok()?;
+    let messages = store.messages(session_id, None, None).ok()?;
+    let loaded: Vec<crate::methods::v4_frames::LoadedMessage> = messages
+        .into_iter()
+        .map(|with_parts| {
+            (
+                with_parts.message.id.clone(),
+                with_parts
+                    .message
+                    .data
+                    .get("role")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                with_parts.message.sequence,
+                with_parts.message.time_created,
+                with_parts.message.data.clone(),
+                with_parts
+                    .parts
+                    .into_iter()
+                    .map(|part| (part.id, part.sequence, part.time_created, part.data))
+                    .collect(),
+            )
+        })
+        .collect();
+    let projected: Vec<crate::v4_projection::ProjectedMessage<'_>> = loaded
+        .iter()
+        .map(
+            |(id, role, sequence, time, data, parts)| crate::v4_projection::ProjectedMessage {
+                id,
+                role,
+                sequence: *sequence,
+                time_created: *time,
+                data,
+                parts,
+            },
+        )
+        .collect();
+    let rows = crate::v4_projection::project_rows(&projected);
+    let (seq, revision, running) = match server.find_runtime(session_id) {
+        Some(runtime) => (runtime.event_seq(), runtime.state_revision(), true),
+        None => (0, 0, false),
+    };
+    let snapshot = crate::v4_projection::build_snapshot(crate::v4_projection::SnapshotStateFacts {
+        session_id,
+        log_epoch,
+        seq,
+        revision,
+        title: "",
+        title_source: "default",
+        mode: "build",
+        provider: "",
+        model: "",
+        running,
+        goal: None,
+        subagents: agent_protocol::v4_snapshot::SubagentProjectionState {
+            revision: 1,
+            child_session_ids: Vec::new(),
+            running: Vec::new(),
+            ended_total: 0,
+        },
+        workflow_runs: None,
+        rows,
+        context_window: None,
+    });
+    Some((snapshot, seq))
+}
+
 /// C4 T4c：v4 live 转发。conversation 先发初始快照帧，随后把会话事件映射为
 /// 行/状态增量帧；sessions-index 只发初始快照帧（live 增量未接，登记）。
 async fn run_v4_forward(
@@ -322,6 +396,52 @@ async fn run_v4_forward(
         })
     }
     match forward {
+        PendingV4Forward::ConversationRecovery {
+            session_id,
+            topic,
+            subscription_id,
+            log_epoch,
+            from_seq,
+        } => {
+            // resync 的恢复帧：同一 subscription 上补一帧 deliveryKind:"recovery" 的全量
+            // 快照；现有 live 转发循环继续服务后续 online 帧。
+            let Some((snapshot, seq)) = conversation_snapshot(&server, &session_id, &log_epoch)
+            else {
+                return;
+            };
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_millis() as u64)
+                .unwrap_or(0);
+            let frame = agent_protocol::v4_transport::CompleteWireFrame {
+                wire_version: V4_WIRE_PROTOCOL_VERSION,
+                kind: agent_protocol::v4_transport::WireFrameKindComplete::Complete,
+                delivery_kind: agent_protocol::v4_transport::WireDeliveryKind::Recovery,
+                logical_frame_id: format!("{subscription_id}-rf-1"),
+                logical_frame_ordinal: 1,
+                topic: topic.clone(),
+                subscription_id: subscription_id.clone(),
+                frame: ConversationTopicFrame {
+                    topic: topic.clone(),
+                    subscription_id: subscription_id.clone(),
+                    from_seq: Number::from(from_seq),
+                    to_seq: Number::from(seq),
+                    sent_at: Number::from(now),
+                    payload: ConversationFramePayload::Snapshot(Box::new(SnapshotFramePayload {
+                        kind: agent_protocol::v4_transport::FramePayloadKindSnapshot::Snapshot,
+                        snapshot,
+                    })),
+                    ttft: None,
+                    ttft_related: None,
+                },
+            };
+            if let Ok(params) = serde_json::to_value(&frame) {
+                let _ = outbound.send(v4_notification(
+                    agent_protocol::v4_transport::V4_CONVERSATION_FRAME_NOTIFICATION,
+                    params,
+                ));
+            }
+        }
         PendingV4Forward::SessionsIndex {
             topic,
             subscription_id,
@@ -373,78 +493,10 @@ async fn run_v4_forward(
             last_seq,
         } => {
             // 初始快照帧：从 store/runtime 现状投影（会话行缺省标题等事实随 delta 修）。
-            let store = match server.store() {
-                Ok(store) => store,
-                Err(_) => return,
+            let Some((snapshot, seq)) = conversation_snapshot(&server, &session_id, &log_epoch)
+            else {
+                return;
             };
-            let messages = match store.messages(&session_id, None, None) {
-                Ok(messages) => messages,
-                Err(_) => return,
-            };
-            let loaded: Vec<crate::methods::v4_frames::LoadedMessage> = messages
-                .into_iter()
-                .map(|with_parts| {
-                    (
-                        with_parts.message.id.clone(),
-                        with_parts
-                            .message
-                            .data
-                            .get("role")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default()
-                            .to_string(),
-                        with_parts.message.sequence,
-                        with_parts.message.time_created,
-                        with_parts.message.data.clone(),
-                        with_parts
-                            .parts
-                            .into_iter()
-                            .map(|part| (part.id, part.sequence, part.time_created, part.data))
-                            .collect(),
-                    )
-                })
-                .collect();
-            let projected: Vec<crate::v4_projection::ProjectedMessage<'_>> = loaded
-                .iter()
-                .map(|(id, role, sequence, time, data, parts)| {
-                    crate::v4_projection::ProjectedMessage {
-                        id,
-                        role,
-                        sequence: *sequence,
-                        time_created: *time,
-                        data,
-                        parts,
-                    }
-                })
-                .collect();
-            let rows = crate::v4_projection::project_rows(&projected);
-            let (seq, revision, running) = match server.find_runtime(&session_id) {
-                Some(runtime) => (runtime.event_seq(), runtime.state_revision(), true),
-                None => (0, 0, false),
-            };
-            let snapshot =
-                crate::v4_projection::build_snapshot(crate::v4_projection::SnapshotStateFacts {
-                    session_id: &session_id,
-                    log_epoch: &log_epoch,
-                    seq,
-                    revision,
-                    title: "",
-                    title_source: "default",
-                    mode: "build",
-                    provider: "",
-                    model: "",
-                    running,
-                    goal: None,
-                    subagents: agent_protocol::v4_snapshot::SubagentProjectionState {
-                        revision: 1,
-                        child_session_ids: Vec::new(),
-                        running: Vec::new(),
-                        ended_total: 0,
-                    },
-                    workflow_runs: None,
-                    rows,
-                    context_window: None,
-                });
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|elapsed| elapsed.as_millis() as u64)

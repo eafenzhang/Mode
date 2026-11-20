@@ -303,6 +303,13 @@ pub enum PendingV4Forward {
         log_epoch: String,
         last_seq: u64,
     },
+    ConversationRecovery {
+        session_id: String,
+        topic: String,
+        subscription_id: String,
+        log_epoch: String,
+        from_seq: u64,
+    },
     SessionsIndex {
         topic: String,
         subscription_id: String,

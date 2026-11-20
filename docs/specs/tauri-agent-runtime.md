@@ -1351,6 +1351,10 @@ T7 的 C4 回放 driver 与真实端点 smoke 仍待补。默认解析顺序**�
 2. `v4/conversation/resync|unsubscribe` 误用订阅参数结构，文档形状被 `-32602` 拒绝；
    改为 `ConversationResyncParams` / `ConversationUnsubscribeParams`，新增往返用例。
 
+**恢复帧修复（2026-11-20）**：v0.0.140 在运行时重启后 resync 只回 ACK、不补
+`deliveryKind:"recovery"` 帧，UI 报 `fault.subscription.recoveryFrameTimedOut`；
+已在 `run_v4_forward` 增加 `ConversationRecovery` 帧并加回归断言。
+
 **启动修复（2026-11-20）**：v0.0.138 打开任务报 `Method not found`，诊断确认 Host 调用的
 `workspace/readPresentation`、`workspace/updateInteractionPreferences`、
 `workspace/updateOffPeakToolPolicy`（及同族 model-IO/dynamic-workflow 策略）未在

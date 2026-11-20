@@ -824,6 +824,9 @@ T4 分三个切片落地：
   `ac552018e`）。
 - `fileChanges` / `fileRewindPreview` / `backgroundBashOutput` 按 §5.5 的协议形状实现；
   `fileRewindPreview` 已进方法表（原 `-32601` 缺口关闭）。
+- `v4/conversation/resync` 在 ACK 之后向原 subscription 补发一帧
+  `deliveryKind:"recovery"` 的全量快照（UI 的 recovery flight 只认该帧，只有 ACK 会
+  触发 `fault.subscription.recoveryFrameTimedOut`；2026-11-20 修复）。
 
 差异 / 未覆盖（不伪造观察值）：
 
