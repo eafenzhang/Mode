@@ -4,8 +4,10 @@
 //! 纯函数：只按 `baseUrl` 主机名识别供应商，解析固定余额接口的响应 JSON；
 //! 不发起网络请求。规范见 `docs/specs/provider-balance.md`。
 
+mod http;
 mod service;
 
+pub use http::{ReqwestBalanceFetcher, REQUEST_TIMEOUT_MS};
 pub use service::{
     provider_balance_target_from_view, BalanceFuture, FetchError, ProviderBalanceFetcher,
     ProviderBalanceProvider, ProviderBalanceSnapshot, ProviderBalanceStatus, ProviderBalanceTarget,

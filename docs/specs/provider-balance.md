@@ -60,6 +60,20 @@ SiliconFlow 的币种由它决定（`.ai` / `.com` 为 USD，其余 CNY）。
 5. 解析结果为空 → `error` + `empty_response`；否则 `ok` + balances。
 6. 所有非 ok 快照的 `balances` 为空数组，`message` 只在 error 时出现。
 
+## 3.1a HTTP 取回（LT-15 P4）
+
+`ReqwestBalanceFetcher`（`src/http.rs`）是 `ProviderBalanceFetcher` 的真实网络实现：
+
+- GET + `Authorization: Bearer <apiKey>` + `Accept: application/json`；单次墙钟超时
+  15s（TS `REQUEST_TIMEOUT_MS`）。
+- 非 2xx → `FetchError::HttpStatus(<状态码>)`（401/403 由状态机映射 `unauthorized`）；
+  连接失败/超时/2xx 但 body 不是 JSON → `FetchError::Network`（→ `request_failed`），
+  与 TS `readApiJson` 的抛错口径一致。
+- TLS：workspace `reqwest` 以 `rustls-no-provider` 编译，构造时安装 ring provider
+  （`install_default` 幂等，与 `crates/platform/src/source_url.rs` 同款）。
+- 用例：mock HTTP server 驱动 2xx JSON 解析、401/500 状态码、非 JSON body、
+  连接拒绝；生产 https 与测试 http 走同一实现。
+
 ## 3.2 目标解析
 
 从 Provider Settings View（JSON）按 `providerId` 精确查找；只有

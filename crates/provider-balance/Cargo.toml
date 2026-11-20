@@ -13,6 +13,10 @@ path = "src/lib.rs"
 serde.workspace = true
 serde_json.workspace = true
 url.workspace = true
+# LT-15 P4：余额查询的真实 HTTP 取回；reqwest 以 rustls-no-provider 编译，
+# ring provider 在构造时安装（见 crates/platform/src/source_url.rs 同款）。
+reqwest.workspace = true
+rustls.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros"] }

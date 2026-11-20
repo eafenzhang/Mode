@@ -17,7 +17,7 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 | **P1** | TUI Agent 传输接线 | `agent-server` stdio spawn、sessions-index 订阅、live 增量、Ctrl-N 新建；单测 + 真子进程 e2e | ✅ 2026-11-21 |
 | **P2** | axum LAN/WS | LAN 六端点全部桥接（state/pair/enable/pair-code/reset/clients 删除，11 测试；pair 含 Set-Cookie、enable 走监听视图）；剩 `/ws/host` RPC 帧桥接与凭据装配 | 🟡 HTTP 全收口 |
 | **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | 🟡 记录层+卸载编排+安装编排+config 写回+网络源（git clone）已迁 `plugin-sync-service`（34 测试 + 3 对拍）；zip/npm/pip 源与 TS 对拍补充待做 |
-| **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | ⬜ |
+| **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | 🟡 余额查询 HTTP fetcher 已接（reqwest + ring TLS + 15s 超时，mock server 5 用例）；凭据装配（Provider Settings View）与 LAN WS 待做 |
 | **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | 🟡 phase/goalStatus/title/lastAssistantPreview 已接（turn 事件驱动 + store 读尾）；hasBackgroundWork/workflowActivity 待做 |
 | **P6** | W6 收口 | `w6:readiness --fail-on-blockers` 通过；删 stdioFrames/stdoutGuard、TS 宿主编排与 host-sidecar 发运集 | ⬜ |
 
@@ -83,8 +83,13 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
   `publish_sessions_index_upsert`（从 live 状态派生 Running/CompletedSuccess/Draft/Error
   phase + goalStatus + title，通过 `hub.upsert_summary` 广播）。
   预览/后台工作/workflowActivity 投影待做。
-- P4：`crates/lan-*` 的 WebSocket/中继缺口与 `crates/usage-stats` 网络/凭据接线
-  （服务面已有 trait 注入，待装配具体 HTTP 端口）。
+- P4 余额查询首切（2026-11-21）：`crates/provider-balance` 增 `ReqwestBalanceFetcher`
+  （`ProviderBalanceFetcher` 的真实网络实现：GET + Bearer + 15s 超时；401/403 之外
+  全部落 `request_failed`，与 TS readApiJson 口径一致；ring TLS provider 构造时装）
+  + mock server 5 用例。官方套餐/额度链路随去智谱化已 dormant 短路
+  （`assertOfficialServiceRemoved` 恒抛），无需接线。
+- P4 剩余：凭据装配（Provider Settings View 投影 Rust 侧未实现，
+  `provider_balance_target_from_view` 已备形状）+ `crates/lan-*` WebSocket/中继。
 
 ## P6 门禁
 
