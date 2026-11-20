@@ -13,10 +13,14 @@ use std::fmt;
 use std::io;
 use std::sync::Arc;
 
+use agent_protocol::v4_transport::{
+    ConversationFramePayload, ConversationTopicFrame, SnapshotFramePayload,
+    V4_WIRE_PROTOCOL_VERSION,
+};
 use agent_protocol::{
     ErrorObject, ErrorResponseFrame, Frame, NotificationFrame, RequestFrame, ResponseFrame,
 };
-use serde_json::Value;
+use serde_json::{Number, Value};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc;
 
@@ -251,7 +255,16 @@ where
         }
         let value: Value = serde_json::from_slice(&line)
             .map_err(|error| ServerError::invalid_frame(format!("invalid JSON frame: {error}")))?;
-        let frame = frame_from_value(value)?;
+        let frame = match frame_from_value(value) {
+            Ok(frame) => frame,
+            Err(error) => {
+                eprintln!(
+                    "[dbg] invalid frame line: {}",
+                    String::from_utf8_lossy(&line)
+                );
+                return Err(error);
+            }
+        };
         line.clear();
 
         match frame {
@@ -276,11 +289,248 @@ where
                 for forward in server.take_pending_forwards() {
                     tokio::spawn(run_live_forward(forward, outbound.clone()));
                 }
+                // C4 T4c：v4 帧 live 转发（初始快照帧由任务先发，再接增量）。
+                for forward in server.take_pending_v4_forwards() {
+                    tokio::spawn(run_v4_forward(
+                        Arc::clone(&server),
+                        forward,
+                        outbound.clone(),
+                    ));
+                }
             }
             // 通知（宿主→server）暂无订阅者。
             Frame::Notification(_) => {}
             // 反向请求的应答：交给 hub 按 id 认领 pending（审批/偏好/凭据）。
             Frame::Response(_) | Frame::ErrorResponse(_) => reverse.deliver(&frame),
+        }
+    }
+}
+
+/// C4 T4c：v4 live 转发。conversation 先发初始快照帧，随后把会话事件映射为
+/// 行/状态增量帧；sessions-index 只发初始快照帧（live 增量未接，登记）。
+async fn run_v4_forward(
+    server: Arc<AgentServer>,
+    forward: crate::dispatch::PendingV4Forward,
+    outbound: mpsc::UnboundedSender<Frame>,
+) {
+    use crate::dispatch::PendingV4Forward;
+    fn v4_notification(method: &str, params: Value) -> Frame {
+        Frame::Notification(NotificationFrame {
+            method: method.to_string(),
+            params: Some(params),
+            trace: None,
+        })
+    }
+    match forward {
+        PendingV4Forward::SessionsIndex {
+            topic,
+            subscription_id,
+            log_epoch: _,
+            snapshot,
+        } => {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_millis() as u64)
+                .unwrap_or(0);
+            let frame = agent_protocol::v4_sessions_index::SessionsIndexCompleteWireFrame {
+                wire_version: V4_WIRE_PROTOCOL_VERSION,
+                kind: agent_protocol::v4_transport::WireFrameKindComplete::Complete,
+                delivery_kind: agent_protocol::v4_transport::WireDeliveryKind::Initial,
+                logical_frame_id: format!("{subscription_id}-lf-1"),
+                logical_frame_ordinal: 1,
+                topic: topic.clone(),
+                subscription_id: subscription_id.clone(),
+                frame: agent_protocol::v4_sessions_index::SessionsIndexTopicFrame {
+                    topic,
+                    subscription_id,
+                    from_seq: Number::from(0u64),
+                    to_seq: Number::from(0u64),
+                    sent_at: Number::from(now),
+                    payload: agent_protocol::v4_sessions_index::SessionsIndexFramePayload::Snapshot(
+                        Box::new(
+                            agent_protocol::v4_sessions_index::SessionsIndexSnapshotPayload {
+                                kind:
+                                    agent_protocol::v4_transport::FramePayloadKindSnapshot::Snapshot,
+                                snapshot,
+                            },
+                        ),
+                    ),
+                },
+            };
+            if let Ok(params) = serde_json::to_value(&frame) {
+                let _ = outbound.send(v4_notification(
+                    agent_protocol::v4_transport::V4_CONVERSATION_FRAME_NOTIFICATION,
+                    params,
+                ));
+            }
+        }
+        PendingV4Forward::Conversation {
+            session_id,
+            topic,
+            subscription_id,
+            client_mode: _,
+            log_epoch,
+            last_seq,
+        } => {
+            // 初始快照帧：从 store/runtime 现状投影（会话行缺省标题等事实随 delta 修）。
+            let store = match server.store() {
+                Ok(store) => store,
+                Err(_) => return,
+            };
+            let messages = match store.messages(&session_id, None, None) {
+                Ok(messages) => messages,
+                Err(_) => return,
+            };
+            let loaded: Vec<crate::methods::v4_frames::LoadedMessage> = messages
+                .into_iter()
+                .map(|with_parts| {
+                    (
+                        with_parts.message.id.clone(),
+                        with_parts
+                            .message
+                            .data
+                            .get("role")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string(),
+                        with_parts.message.sequence,
+                        with_parts.message.time_created,
+                        with_parts.message.data.clone(),
+                        with_parts
+                            .parts
+                            .into_iter()
+                            .map(|part| (part.id, part.sequence, part.time_created, part.data))
+                            .collect(),
+                    )
+                })
+                .collect();
+            let projected: Vec<crate::v4_projection::ProjectedMessage<'_>> = loaded
+                .iter()
+                .map(|(id, role, sequence, time, data, parts)| {
+                    crate::v4_projection::ProjectedMessage {
+                        id,
+                        role,
+                        sequence: *sequence,
+                        time_created: *time,
+                        data,
+                        parts,
+                    }
+                })
+                .collect();
+            let rows = crate::v4_projection::project_rows(&projected);
+            let (seq, revision, running) = match server.find_runtime(&session_id) {
+                Some(runtime) => (runtime.event_seq(), runtime.state_revision(), true),
+                None => (0, 0, false),
+            };
+            let snapshot =
+                crate::v4_projection::build_snapshot(crate::v4_projection::SnapshotStateFacts {
+                    session_id: &session_id,
+                    log_epoch: &log_epoch,
+                    seq,
+                    revision,
+                    title: "",
+                    title_source: "default",
+                    mode: "build",
+                    provider: "",
+                    model: "",
+                    running,
+                    goal: None,
+                    subagents: agent_protocol::v4_snapshot::SubagentProjectionState {
+                        revision: 1,
+                        child_session_ids: Vec::new(),
+                        running: Vec::new(),
+                        ended_total: 0,
+                    },
+                    workflow_runs: None,
+                    rows,
+                    context_window: None,
+                });
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_millis() as u64)
+                .unwrap_or(0);
+            let initial = agent_protocol::v4_transport::CompleteWireFrame {
+                wire_version: V4_WIRE_PROTOCOL_VERSION,
+                kind: agent_protocol::v4_transport::WireFrameKindComplete::Complete,
+                delivery_kind: agent_protocol::v4_transport::WireDeliveryKind::Initial,
+                logical_frame_id: format!("{subscription_id}-lf-1"),
+                logical_frame_ordinal: 1,
+                topic: topic.clone(),
+                subscription_id: subscription_id.clone(),
+                frame: ConversationTopicFrame {
+                    topic: topic.clone(),
+                    subscription_id: subscription_id.clone(),
+                    from_seq: Number::from(last_seq),
+                    to_seq: Number::from(seq),
+                    sent_at: Number::from(now),
+                    payload: ConversationFramePayload::Snapshot(Box::new(SnapshotFramePayload {
+                        kind: agent_protocol::v4_transport::FramePayloadKindSnapshot::Snapshot,
+                        snapshot,
+                    })),
+                    ttft: None,
+                    ttft_related: None,
+                },
+            };
+            if let Ok(params) = serde_json::to_value(&initial) {
+                let _ = outbound.send(v4_notification(
+                    agent_protocol::v4_transport::V4_CONVERSATION_FRAME_NOTIFICATION,
+                    params,
+                ));
+            }
+            // 增量：broadcast 事件 → deltas 帧（Lagged 跳过、Closed 退出）。
+            let (_, mut receiver) = match server.find_runtime(&session_id) {
+                Some(runtime) => runtime.subscribe(None),
+                None => return,
+            };
+            let mut live = crate::v4_projection::LiveDeltaState::default();
+            let mut ordinal: u64 = 1;
+            loop {
+                match receiver.recv().await {
+                    Ok(event) => {
+                        let deltas = crate::v4_projection::event_to_deltas(&event, &mut live);
+                        if deltas.is_empty() {
+                            continue;
+                        }
+                        ordinal += 1;
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|elapsed| elapsed.as_millis() as u64)
+                            .unwrap_or(0);
+                        let frame = agent_protocol::v4_transport::CompleteWireFrame {
+                            wire_version: V4_WIRE_PROTOCOL_VERSION,
+                            kind: agent_protocol::v4_transport::WireFrameKindComplete::Complete,
+                            delivery_kind: agent_protocol::v4_transport::WireDeliveryKind::Online,
+                            logical_frame_id: format!("{subscription_id}-lf-{ordinal}"),
+                            logical_frame_ordinal: ordinal,
+                            topic: topic.clone(),
+                            subscription_id: subscription_id.clone(),
+                            frame: ConversationTopicFrame {
+                                topic: topic.clone(),
+                                subscription_id: subscription_id.clone(),
+                                from_seq: Number::from(event.seq),
+                                to_seq: Number::from(event.seq),
+                                sent_at: Number::from(now),
+                                payload: ConversationFramePayload::Deltas(
+                                    agent_protocol::v4_transport::DeltasFramePayload {
+                                        kind: agent_protocol::v4_transport::FramePayloadKindDeltas::Deltas,
+                                        deltas,
+                                    },
+                                ),
+                                ttft: None,
+                                ttft_related: None,
+                            },
+                        };
+                        if let Ok(params) = serde_json::to_value(&frame) {
+                            let _ = outbound.send(v4_notification(
+                                agent_protocol::v4_transport::V4_CONVERSATION_FRAME_NOTIFICATION,
+                                params,
+                            ));
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+                }
+            }
         }
     }
 }

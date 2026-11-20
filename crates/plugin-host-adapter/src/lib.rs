@@ -61,6 +61,8 @@ impl PluginToolSource for PluginHostSource {
                     risk_level: optional("riskLevel"),
                     side_effect_scope: optional("sideEffectScope"),
                     budget_strategy: optional("budgetStrategy"),
+                    read_only: None,
+                    display_json: None,
                 })
             })
             .collect()

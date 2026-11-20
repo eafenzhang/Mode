@@ -1,0 +1,97 @@
+{
+  "case": "mcp-stdio-failure",
+  "note": "C4 Task 0 oracle 捕获：stdio MCP server 立即退出（exit 3）与输出非 JSON 行两种失败的mcp/list 状态机终态（failureKind/error 诊断文本）、会话是否照常创建与可用。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "mcpServers": [
+      {
+        "name": "probe-crash",
+        "scriptKind": "process.exit(3)"
+      },
+      {
+        "name": "probe-garbage",
+        "scriptKind": "non-json stdout"
+      }
+    ]
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages"]
+    },
+    "settled": {
+      "status": {
+        "ok": true,
+        "result": {
+          "statuses": {
+            "probe-crash": {
+              "status": "disconnected",
+              "transport": "stdio",
+              "toolCount": "<count>",
+              "updatedAt": "<time>"
+            },
+            "probe-garbage": {
+              "status": "disconnected",
+              "transport": "stdio",
+              "toolCount": "<count>",
+              "updatedAt": "<time>"
+            }
+          }
+        }
+      },
+      "connect": {
+        "ok": true,
+        "result": {
+          "statuses": {
+            "probe-crash": {
+              "status": "failed",
+              "transport": "stdio",
+              "toolCount": "<count>",
+              "updatedAt": "<time>",
+              "error": "Connection closed",
+              "failureKind": "process_start_failed"
+            },
+            "probe-garbage": {
+              "status": "failed",
+              "transport": "stdio",
+              "toolCount": "<count>",
+              "updatedAt": "<time>",
+              "error": "MCP server probe-garbage connection timed out after 30000ms",
+              "failureKind": "connection_timeout"
+            }
+          }
+        }
+      }
+    },
+    "declaredMcpTools": ["mcp__node_repl__js"],
+    "childProcesses": {
+      "ok": true,
+      "result": {
+        "processes": [
+          {
+            "pid": "<pid>",
+            "serverName": "node_repl",
+            "mcpSource": "builtin",
+            "pluginName": "browser-use"
+          }
+        ]
+      }
+    },
+    "contextUsageBreakdown": {
+      "sources": [
+        "system_prompt",
+        "meta_user_context",
+        "skills",
+        "system_tool_schemas",
+        "mcp_tool_schemas",
+        "messages"
+      ],
+      "hasMcpToolSchemas": true
+    },
+    "telemetryNotifications": 2
+  }
+}

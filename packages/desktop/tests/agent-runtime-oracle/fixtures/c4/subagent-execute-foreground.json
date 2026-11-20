@@ -1,0 +1,552 @@
+{
+  "case": "subagent-execute-foreground",
+  "note": "C4 Task 0 oracle 捕获：父请求里的 `Agent` 工具定义（name/description/input_schema 逐字）、child 请求与父请求的 system/messages/toolNames 差异、child 会话 session/message/part 行、Agent 工具结果（agentId/usage）与 `session.updated` 生命周期事件摘要。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "scriptKind": "user-text-keyed step function",
+    "agent": {
+      "subagent_type": "general-purpose",
+      "description": "exec child"
+    },
+    "foreground": true
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages", "/v1/messages", "/v1/messages"]
+    },
+    "agentTool": {
+      "name": "Agent",
+      "description": "Launch a new agent to handle complex, multi-step tasks. Each agent type has specific capabilities and tools available to it.\n\nAvailable agent types and the tools they have access to:\n- general-purpose: General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries use this agent to perform the search for you. (Tools: *)\n- Explore: Read-only search agent for broad fan-out searches - when answering means sweeping many files, directories, or naming conventions and you only need the conclusion, not the file dumps. It reads excerpts rather than whole files, so it locates code; it doesn't review or audit it. Specify search breadth: \"medium\" for moderate exploration, \"very thorough\" for multiple locations and naming conventions. (Tools: Read, Bash, WebFetch, WebSearch, TodoWrite)\n\nWhen using the Agent tool, specify a subagent_type parameter to select which agent type to use. If omitted, the general-purpose agent is used.\n\n## When to use\n\nReach for this when the task matches an available agent type, when you have independent work to run in parallel, or when answering would mean reading across several files — delegate it and you keep the conclusion, not the file dumps. For a single-fact lookup where you already know the file, symbol, or value, search directly. Once you've delegated a search, don't also run it yourself — wait for the result.\n\n- The agent's final message is returned to you as the tool result; it is not shown to the user — relay what matters.\n- A new Agent call starts fresh, so the prompt must be self-contained.\n- `run_in_background: true` runs the agent asynchronously; you'll be notified when it completes.\n- When you launch multiple agents for independent work, send them in a single message with multiple tool uses so they run concurrently.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "A short (3-5 word) description of the task"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "The task for the agent to perform"
+          },
+          "subagent_type": {
+            "type": "string",
+            "description": "The type of specialized agent to use for this task"
+          },
+          "run_in_background": {
+            "type": "boolean",
+            "description": "Set to true to run this agent in the background. You will be notified when it completes."
+          }
+        },
+        "required": ["description", "prompt"],
+        "additionalProperties": false,
+        "$schema": "https://json-schema.org/draft/2020-12/schema"
+      }
+    },
+    "requests": [
+      {
+        "index": 0,
+        "path": "/v1/messages",
+        "model": "mock-1",
+        "maxTokens": 8192,
+        "stream": true,
+        "thinking": {
+          "type": "disabled"
+        },
+        "keys": [
+          "max_tokens",
+          "messages",
+          "metadata",
+          "model",
+          "stream",
+          "system",
+          "thinking",
+          "tool_choice",
+          "tools"
+        ],
+        "toolCount": 21,
+        "toolNames": [
+          "Agent",
+          "AskUserQuestion",
+          "Bash",
+          "CronCreate",
+          "CronDelete",
+          "CronList",
+          "CronUpdate",
+          "Edit",
+          "EnterPlanMode",
+          "ExitPlanMode",
+          "Read",
+          "Skill",
+          "TaskOutput",
+          "TaskStop",
+          "TodoRead",
+          "TodoWrite",
+          "WebFetch",
+          "Write",
+          "SendMessage",
+          "ReadSessionContext",
+          "mcp__node_repl__js"
+        ],
+        "system": [
+          {
+            "type": "text",
+            "chars": 41,
+            "head": "You are Mode, an interactive coding agent",
+            "memorySection": false,
+            "memoryFileHeader": false
+          },
+          {
+            "type": "text",
+            "chars": 1218,
+            "head": "\nYou are Mode, an interactive coding agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational co",
+            "memorySection": false,
+            "memoryFileHeader": false
+          },
+          {
+            "type": "text",
+            "chars": 5404,
+            "head": "\n\n# Communicating with the user\n\nYour text output is what the user reads; they usually can't see your thinking or the raw tool results. Write it for a teammate who stepped away and is catching up, not",
+            "memorySection": false,
+            "memoryFileHeader": false
+          }
+        ],
+        "messages": [
+          {
+            "role": "user",
+            "contentTypes": ["text", "text"],
+            "textChars": 320,
+            "textHeads": [
+              "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# currentDate\nToday's date is <date>.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>",
+              "spawn child execute"
+            ]
+          },
+          {
+            "role": "system",
+            "contentTypes": "string",
+            "textChars": 931,
+            "textHeads": [
+              "The following skills are available for use with the Skill tool:\n\n- browser-use:control-browser: Use when opening, navigating, inspecting, testing, clicking, typing, filling, screenshotting, or verifying web pages and local HTTP targets (localhost, 127.0.0.1, ::1) inside Mode, including browser/web-U"
+            ]
+          }
+        ],
+        "isChild": false,
+        "lastUserTail": "spawn child execute"
+      },
+      {
+        "index": 1,
+        "path": "/v1/messages",
+        "model": "mock-1",
+        "maxTokens": 8192,
+        "stream": true,
+        "thinking": {
+          "type": "disabled"
+        },
+        "keys": [
+          "max_tokens",
+          "messages",
+          "metadata",
+          "model",
+          "stream",
+          "system",
+          "thinking",
+          "tool_choice",
+          "tools"
+        ],
+        "toolCount": 14,
+        "toolNames": [
+          "AskUserQuestion",
+          "Bash",
+          "Edit",
+          "Read",
+          "Skill",
+          "TaskOutput",
+          "TaskStop",
+          "TodoRead",
+          "TodoWrite",
+          "WebFetch",
+          "Write",
+          "RespondToCoordinator",
+          "ReadSessionContext",
+          "mcp__node_repl__js"
+        ],
+        "system": [
+          {
+            "type": "text",
+            "chars": 41,
+            "head": "You are Mode, an interactive coding agent",
+            "memorySection": false,
+            "memoryFileHeader": false
+          },
+          {
+            "type": "text",
+            "chars": 1245,
+            "head": "\nYou are an agent for Mode. Given the user's message, you should use the tools available to complete the task. Complete the task fully—don't gold-plate, but don't leave it half-done. When you complete",
+            "memorySection": false,
+            "memoryFileHeader": false
+          },
+          {
+            "type": "text",
+            "chars": 813,
+            "head": "\n\nNotes:\n- Agent threads always have their cwd reset between bash calls, as a result please only use absolute file paths.\n- In your final response, share file paths (always absolute, never relative) t",
+            "memorySection": false,
+            "memoryFileHeader": false
+          },
+          {
+            "type": "text",
+            "chars": 256,
+            "head": "\n\nHere is useful information about the environment you are running in:\n<env>\nWorking directory: <cwd>\nIs directory a git repo: No\nPlatform: win32\nShell: Git Bash\nOS Version: win32 10.0.19044 x64\n</env",
+            "memorySection": false,
+            "memoryFileHeader": false
+          }
+        ],
+        "messages": [
+          {
+            "role": "user",
+            "contentTypes": ["text", "text", "text"],
+            "textChars": 1303,
+            "textHeads": [
+              "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# currentDate\nToday's date is <date>.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>",
+              "<system-reminder>\nThe following skills are available for use with the Skill tool:\n\n- browser-use:control-browser: Use when opening, navigating, inspecting, testing, clicking, typing, filling, screenshotting, or verifying web pages and local HTTP targets (localhost, 127.0.0.1, ::1) inside Mode, inclu",
+              "child execute prompt: inspect only"
+            ]
+          }
+        ],
+        "isChild": true,
+        "lastUserTail": "child execute prompt: inspect only"
+      },
+      {
+        "index": 2,
+        "path": "/v1/messages",
+        "model": "mock-1",
+        "maxTokens": 8192,
+        "stream": true,
+        "thinking": {
+          "type": "disabled"
+        },
+        "keys": [
+          "max_tokens",
+          "messages",
+          "metadata",
+          "model",
+          "stream",
+          "system",
+          "thinking",
+          "tool_choice",
+          "tools"
+        ],
+        "toolCount": 21,
+        "toolNames": [
+          "Agent",
+          "AskUserQuestion",
+          "Bash",
+          "CronCreate",
+          "CronDelete",
+          "CronList",
+          "CronUpdate",
+          "Edit",
+          "EnterPlanMode",
+          "ExitPlanMode",
+          "Read",
+          "Skill",
+          "TaskOutput",
+          "TaskStop",
+          "TodoRead",
+          "TodoWrite",
+          "WebFetch",
+          "Write",
+          "SendMessage",
+          "ReadSessionContext",
+          "mcp__node_repl__js"
+        ],
+        "system": [
+          {
+            "type": "text",
+            "chars": 41,
+            "head": "You are Mode, an interactive coding agent",
+            "memorySection": false,
+            "memoryFileHeader": false
+          },
+          {
+            "type": "text",
+            "chars": 1218,
+            "head": "\nYou are Mode, an interactive coding agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational co",
+            "memorySection": false,
+            "memoryFileHeader": false
+          },
+          {
+            "type": "text",
+            "chars": 5404,
+            "head": "\n\n# Communicating with the user\n\nYour text output is what the user reads; they usually can't see your thinking or the raw tool results. Write it for a teammate who stepped away and is catching up, not",
+            "memorySection": false,
+            "memoryFileHeader": false
+          }
+        ],
+        "messages": [
+          {
+            "role": "user",
+            "contentTypes": ["text", "text"],
+            "textChars": 320,
+            "textHeads": [
+              "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# currentDate\nToday's date is <date>.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>",
+              "spawn child execute"
+            ]
+          },
+          {
+            "role": "system",
+            "contentTypes": "string",
+            "textChars": 931,
+            "textHeads": [
+              "The following skills are available for use with the Skill tool:\n\n- browser-use:control-browser: Use when opening, navigating, inspecting, testing, clicking, typing, filling, screenshotting, or verifying web pages and local HTTP targets (localhost, 127.0.0.1, ::1) inside Mode, including browser/web-U"
+            ]
+          },
+          {
+            "role": "assistant",
+            "contentTypes": ["tool_use"],
+            "textChars": 0,
+            "textHeads": []
+          },
+          {
+            "role": "user",
+            "contentTypes": ["tool_result"],
+            "textChars": 0,
+            "textHeads": []
+          }
+        ],
+        "isChild": false,
+        "lastUserTail": ""
+      }
+    ],
+    "toolResult": {
+      "toolCallId": "<id>",
+      "input": null,
+      "content": "child final text\nagentId: agent_<id> (use SendMessage with to: 'agent_<id>' to continue this agent)\n<usage>subagent_tokens: 22\ntool_uses: 0\nduration_ms: <time></usage>",
+      "truncated": false,
+      "budgetStrategy": "artifact",
+      "originalBytes": 228,
+      "returnedBytes": 228,
+      "metadata": null
+    },
+    "childRows": {
+      "sessionColumns": [
+        "id",
+        "project_id",
+        "workspace_id",
+        "parent_id",
+        "slug",
+        "directory",
+        "path",
+        "title",
+        "version",
+        "share_url",
+        "summary_additions",
+        "summary_deletions",
+        "summary_files",
+        "summary_diffs",
+        "revert",
+        "permission",
+        "time_created",
+        "time_updated",
+        "time_compacting",
+        "time_archived",
+        "task_type",
+        "title_source",
+        "title_message_id",
+        "time_title_updated",
+        "trace_id"
+      ],
+      "sessions": [
+        {
+          "id": "<id>",
+          "parent_id": "<session-id>",
+          "task_type": "subagent_child",
+          "title": "child execute prompt: inspect only",
+          "slug": "<id>",
+          "directory": "<cwd>"
+        }
+      ],
+      "messages": [
+        {
+          "sequence": 0,
+          "role": "assistant",
+          "finish": "completed",
+          "semanticsKind": "timeline_event",
+          "source": null,
+          "partTypes": ["timeline"]
+        },
+        {
+          "sequence": 1,
+          "role": "user",
+          "finish": null,
+          "semanticsKind": "user_prompt",
+          "source": null,
+          "partTypes": ["text"]
+        },
+        {
+          "sequence": 2,
+          "role": "assistant",
+          "finish": "stop",
+          "semanticsKind": "assistant_response",
+          "source": null,
+          "partTypes": ["step-start", "text", "step-finish"]
+        }
+      ],
+      "partCount": 5
+    },
+    "ended": {
+      "ok": true,
+      "result": {
+        "revision": 4,
+        "childSessionIds": ["child-1"],
+        "running": [],
+        "ended": {
+          "total": 1,
+          "items": [
+            {
+              "childSessionId": "child-1",
+              "agentId": "agent_<id>",
+              "toolCallId": "<id>",
+              "subagentType": "general-purpose",
+              "title": "exec child",
+              "startedAt": "<time>",
+              "status": "success",
+              "summary": "child final text",
+              "endedAt": "<time>"
+            }
+          ]
+        }
+      }
+    },
+    "eventSummary": {
+      "types": [
+        "session.titleUpdated",
+        "turn.started",
+        "session.updated",
+        "session.updated",
+        "model.streaming",
+        "model.streaming",
+        "model.streaming",
+        "model.streaming",
+        "session.updated",
+        "session.updated",
+        "tool.updated",
+        "tool.updated",
+        "session.updated",
+        "session.updated",
+        "tool.updated",
+        "tool.updated",
+        "streamRecovery.updated",
+        "session.updated",
+        "session.updated",
+        "model.streaming",
+        "session.updated",
+        "session.updated",
+        "turn.completed"
+      ],
+      "terminals": [
+        {
+          "type": "turn.completed",
+          "resultType": "success"
+        }
+      ],
+      "turnStarts": [
+        {
+          "turnNumber": 0,
+          "executionKind": null,
+          "inputSource": null,
+          "input": "spawn child execute",
+          "targetId": null
+        }
+      ]
+    },
+    "eventNames": [
+      "session.titleUpdated",
+      "turn.started",
+      "session.updated",
+      "session.updated",
+      "model.streaming",
+      "model.streaming",
+      "model.streaming",
+      "model.streaming",
+      "session.updated",
+      "session.updated",
+      "tool.updated",
+      "tool.updated",
+      "session.updated",
+      "session.updated",
+      "tool.updated",
+      "tool.updated",
+      "streamRecovery.updated",
+      "session.updated",
+      "session.updated",
+      "model.streaming",
+      "session.updated",
+      "session.updated",
+      "turn.completed"
+    ],
+    "dbSessions": [
+      {
+        "id": "<id>",
+        "project_id": "<project-id>",
+        "workspace_id": null,
+        "parent_id": null,
+        "slug": "<id>",
+        "directory": "<cwd>",
+        "path": "<cwd>",
+        "title": "spawn child execute",
+        "version": "0.0.0",
+        "share_url": null,
+        "summary_additions": null,
+        "summary_deletions": null,
+        "summary_files": null,
+        "summary_diffs": null,
+        "revert": null,
+        "permission": {
+          "mode": "build"
+        },
+        "time_created": "<time>",
+        "time_updated": "<time>",
+        "time_compacting": null,
+        "time_archived": null,
+        "task_type": "interactive",
+        "title_source": "first_input",
+        "title_message_id": null,
+        "time_title_updated": "<time>",
+        "trace_id": "<id>"
+      },
+      {
+        "id": "<id>",
+        "project_id": "<project-id>",
+        "workspace_id": null,
+        "parent_id": "<session-id>",
+        "slug": "<id>",
+        "directory": "<cwd>",
+        "path": "<cwd>",
+        "title": "child execute prompt: inspect only",
+        "version": "0.0.0",
+        "share_url": null,
+        "summary_additions": null,
+        "summary_deletions": null,
+        "summary_files": null,
+        "summary_diffs": null,
+        "revert": null,
+        "permission": {
+          "mode": "build"
+        },
+        "time_created": "<time>",
+        "time_updated": "<time>",
+        "time_compacting": null,
+        "time_archived": null,
+        "task_type": "subagent_child",
+        "title_source": "first_input",
+        "title_message_id": null,
+        "time_title_updated": "<time>",
+        "trace_id": "<id>"
+      }
+    ]
+  }
+}

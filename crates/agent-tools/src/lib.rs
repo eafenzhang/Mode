@@ -63,7 +63,7 @@ pub use read::{
 };
 pub use task::{
     preflight_error, task_output_input_schema, task_stop_input_schema, TaskNotification,
-    TaskRegistry, TaskStatus, TASK_OUTPUT_DESCRIPTION, TASK_OUTPUT_INPUT_SCHEMA,
+    TaskRegistry, TaskSnapshot, TaskStatus, TASK_OUTPUT_DESCRIPTION, TASK_OUTPUT_INPUT_SCHEMA,
     TASK_STOP_DESCRIPTION, TASK_STOP_INPUT_SCHEMA,
 };
 pub use write::{write_input_schema, WRITE_DESCRIPTION, WRITE_INPUT_SCHEMA};
@@ -100,6 +100,9 @@ pub struct PluginToolMetadata {
     pub risk_level: String,
     pub side_effect_scope: String,
     pub budget_strategy: String,
+    /// 调度事件的 `display` 对象（C4 T1：MCP 的
+    /// `{kind:"mcp_tool",serverName,toolName,description}`）；`None` = 不写该键。
+    pub display_json: Option<String>,
 }
 
 impl Default for PluginToolMetadata {
@@ -108,6 +111,7 @@ impl Default for PluginToolMetadata {
             risk_level: "medium".to_string(),
             side_effect_scope: "network".to_string(),
             budget_strategy: "truncate".to_string(),
+            display_json: None,
         }
     }
 }
@@ -210,6 +214,9 @@ pub struct ToolOutcome {
     /// Edit 是 `{kind:"patch", filesystem:{…}, patch:{…}}`（全部来自行为夹具的录制）。
     /// `Read` 没有 detail（观察如此），保持 `None`。
     pub detail_json: Option<String>,
+    /// `result.skillMetadata` 的 JSON 文本（C4 T2：Skill 工具观察到的 `{source:"mode"}`）；
+    /// `None` = 不写该键。
+    pub skill_metadata_json: Option<String>,
 }
 
 impl ToolOutcome {
@@ -227,6 +234,7 @@ impl ToolOutcome {
             artifact_path: None,
             display_json: None,
             detail_json: None,
+            skill_metadata_json: None,
         }
     }
 
@@ -244,6 +252,7 @@ impl ToolOutcome {
             artifact_path: None,
             display_json: None,
             detail_json: None,
+            skill_metadata_json: None,
         }
     }
 

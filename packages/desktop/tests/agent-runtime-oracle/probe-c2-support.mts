@@ -300,6 +300,8 @@ export type C2HarnessOptions = {
   onMockRequest?: (path: string, body: JsonObject) => void;
   /** 纯观测钩子：每个原始 stdout 帧（C3 保留未二次规范化的 session/event）。 */
   onRawFrame?: (frame: JsonObject) => void;
+  /** C4 生态面录制用：合并进 session/create 的额外参数（C1–C3 不传，路径不变）。 */
+  sessionCreateParams?: Record<string, unknown>;
 };
 
 export type C2Harness = {
@@ -339,6 +341,7 @@ export async function startC2Harness(options: C2HarnessOptions): Promise<C2Harne
     script: options.script,
     runtimePreferencesReply: options.runtimePreferencesReply,
     mockAuxiliaryResponse: options.mockAuxiliaryResponse,
+    sessionCreateParams: options.sessionCreateParams,
     onRawFrame: (frame) => {
       hooks.onFrame(frame);
       options.onRawFrame?.(frame);

@@ -1,0 +1,191 @@
+{
+  "case": "workflows-saved-lifecycle",
+  "note": "C4 Task 0 oracle 捕获：dynamicWorkflowEnabled 会话的 Skill(dynamic-workflows) 门禁、CreateWorkflow 未加载 skill 的拒绝文案、SaveWorkflow(project/global) 落盘（.dwf.ts + frontmatter 逐字节）、workflows 六方法形状（list/get/updateMeta/delete/move + 边界）。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "dynamicWorkflowEnabled": true,
+    "savedScript": "return { ok: true };",
+    "prompts": [
+      "create without skill",
+      "load the skill then save the workflow",
+      "save global workflow too"
+    ]
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": [
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages",
+        "/v1/messages"
+      ]
+    },
+    "refusalToolEvents": [
+      {
+        "kind": "scheduled",
+        "toolName": "CreateWorkflow",
+        "errorType": null,
+        "errorMessage": null,
+        "success": null
+      },
+      {
+        "kind": "error",
+        "toolName": null,
+        "errorType": "tool_execution_failed",
+        "errorMessage": "CreateWorkflow needs the `dynamic-workflows` skill loaded in this session before it accepts a script. Call the Skill tool with skill \"dynamic-workflows\" first — it carries the facade declarations the script is checked against, the authoring rules and this tool's full contract — then call CreateWorkflow again. Nothing was started.",
+        "success": null
+      },
+      {
+        "kind": "batch",
+        "toolName": null,
+        "errorType": null,
+        "errorMessage": null,
+        "success": null
+      }
+    ],
+    "savedBytes": "/* mode-workflow\ndescription: probe workflow saved by tool\nwhenToUse: use when the C4 probe runs the saved workflow\n*/\nreturn { ok: true };",
+    "list": {
+      "ok": true,
+      "result": {
+        "workflows": [
+          {
+            "name": "probe-wf",
+            "description": "probe workflow saved by tool",
+            "whenToUse": "use when the C4 probe runs the saved workflow",
+            "scope": "project",
+            "path": "<cwd>\\.mode\\workflows\\probe-wf.dwf.ts"
+          }
+        ],
+        "invalid": [],
+        "dir": "<cwd>\\.mode\\workflows"
+      }
+    },
+    "get": {
+      "ok": true,
+      "result": {
+        "ok": true,
+        "name": "probe-wf",
+        "path": "<cwd>\\.mode\\workflows\\probe-wf.dwf.ts",
+        "scope": "project",
+        "meta": {
+          "description": "probe workflow saved by tool",
+          "whenToUse": "use when the C4 probe runs the saved workflow"
+        },
+        "script": "return { ok: true };"
+      }
+    },
+    "globalList": {
+      "ok": true,
+      "result": {
+        "workflows": [
+          {
+            "name": "global-probe",
+            "description": "probe global workflow",
+            "scope": "global",
+            "path": "<data-root>\\.mode\\workflows\\global-probe.dwf.ts"
+          }
+        ],
+        "invalid": [],
+        "dir": "<data-root>\\.mode\\workflows"
+      }
+    },
+    "updateMeta": {
+      "ok": true,
+      "result": {
+        "ok": true,
+        "path": "<cwd>\\.mode\\workflows\\probe-wf.dwf.ts"
+      }
+    },
+    "getAfterMeta": {
+      "ok": true,
+      "result": {
+        "ok": true,
+        "name": "probe-wf",
+        "path": "<cwd>\\.mode\\workflows\\probe-wf.dwf.ts",
+        "scope": "project",
+        "meta": {
+          "description": "probe workflow saved by tool (meta updated)",
+          "whenToUse": "updated whenToUse",
+          "args": {
+            "target": {
+              "type": "string",
+              "description": "probe arg",
+              "required": false,
+              "default": "x"
+            }
+          }
+        },
+        "script": "return { ok: true };"
+      }
+    },
+    "move": {
+      "ok": true,
+      "result": {
+        "ok": true,
+        "from": "<data-root>\\.mode\\workflows\\global-probe.dwf.ts",
+        "to": "<cwd>\\.mode\\workflows\\global-probe.dwf.ts"
+      }
+    },
+    "listAfterMove": {
+      "ok": true,
+      "result": {
+        "workflows": [
+          {
+            "name": "global-probe",
+            "description": "probe global workflow",
+            "scope": "project",
+            "path": "<cwd>\\.mode\\workflows\\global-probe.dwf.ts"
+          },
+          {
+            "name": "probe-wf",
+            "description": "probe workflow saved by tool (meta updated)",
+            "whenToUse": "updated whenToUse",
+            "args": {
+              "target": {
+                "type": "string",
+                "description": "probe arg",
+                "required": false,
+                "default": "x"
+              }
+            },
+            "scope": "project",
+            "path": "<cwd>\\.mode\\workflows\\probe-wf.dwf.ts"
+          }
+        ],
+        "invalid": [],
+        "dir": "<cwd>\\.mode\\workflows"
+      }
+    },
+    "deleteResult": {
+      "ok": true,
+      "result": {
+        "ok": true,
+        "path": "<cwd>\\.mode\\workflows\\global-probe.dwf.ts"
+      }
+    },
+    "deleteMissing": {
+      "ok": true,
+      "result": {
+        "ok": false,
+        "reason": "not_found"
+      }
+    },
+    "getInvalidName": {
+      "ok": true,
+      "result": {
+        "ok": false,
+        "reason": "invalid_name",
+        "detail": "workflow names may only contain letters, digits, '.', '-' and '_', and must be 1-64 characters"
+      }
+    }
+  }
+}

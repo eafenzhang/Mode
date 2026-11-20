@@ -21,21 +21,34 @@
 //! 「存储启动门」「Account Provider Config 交付」「反向请求」、
 //! `docs/specs/tauri-agent-runtime.md` §1.3、`docs/specs/agent-server-c1-contract.md`。
 
+mod attachments;
 mod dispatch;
 mod history;
 mod lifecycle;
+mod mcp;
 mod memory;
 mod methods;
+mod plugins;
 mod provider_config;
 mod reverse;
 mod runtime;
 mod scripted;
 mod server;
+mod session_tools;
+mod skills;
 mod state;
+mod subagents_exec;
+mod v4_projection;
+pub mod workflows;
 
+pub use attachments::{
+    AttachmentError, AttachmentStore, BeginOutcome, RefAuthorization, StoredAttachment,
+};
 pub use dispatch::{AgentServer, HubProviderSource, ServerConfig};
 pub use lifecycle::{parse_startup_args, run_main, StartupArgs, APP_SERVER_MODE, STDIO_FLAG};
+pub use mcp::{McpConnection, McpHub, McpSession, McpToolDescriptor};
 pub use memory::{load_memory_section, MemoryContext, MemoryLoad};
+pub use plugins::PluginService;
 pub use provider_config::{
     AccountRuntimeHeadersTarget, ApiFormat, ProviderConfigError, ProviderConfigHub, Resolution,
     ResolvedProvider, PROVIDER_UPDATE_ACCOUNT_CONFIG_METHOD,
@@ -46,7 +59,14 @@ pub use reverse::{
 };
 pub use runtime::{ProviderRequestContext, ProviderSource, SessionRuntime};
 pub use scripted::{ScriptedFixtureSource, SCRIPTED_PROVIDER_ENV};
+pub use session_tools::{items_from_records, todo_snapshot, SessionToolSource};
+pub use skills::{CompositeToolSource, SkillCatalog, SkillToolSource};
 pub use state::{Accepted, RuntimeConfig, RuntimeError, SessionInput};
+pub use subagents_exec::{subagent_system_prompt, AgentToolSource, SubagentRunnerImpl};
+pub use v4_projection::{
+    build_snapshot, event_to_deltas, project_rows, LiveDeltaState, SnapshotStateFacts,
+};
+pub use workflows::{parse_workflow, render_workflow, WorkflowDirs};
 // 线上帧类型的唯一所有者是 `agent-protocol`；这里只做转出，避免第二套帧定义。
 pub use agent_protocol::{
     ErrorObject, ErrorResponseFrame, Frame, NotificationFrame, RequestFrame, RequestId,

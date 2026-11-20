@@ -24,7 +24,9 @@ use agent_protocol::session_event::{
 };
 use agent_protocol::session_event::{SessionEvent, SessionEventType};
 use agent_protocol::snapshot::SessionStateSnapshot;
-use agent_server::{Accepted, RuntimeConfig, RuntimeError, SessionInput, SessionRuntime};
+use agent_server::{
+    Accepted, RuntimeConfig, RuntimeError, SessionInput, SessionRuntime, SubagentRunnerImpl,
+};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{json, Value};
 use session_store::{SessionRecord, SessionStore};
@@ -1692,6 +1694,9 @@ async fn denied_tool_call_has_matching_tool_result_in_next_model_request() {
         permission_handler: Some(Box::new(DenyAll)),
         rule_db_path: None,
         reverse: None,
+        mcp: None,
+        mcp_hub: Default::default(),
+        subagent_runner: None,
     };
     let runtime = spawn_runtime_with_wiring(&fixture, provider.clone(), wiring);
     let (_, mut receiver) = runtime.subscribe(None);
@@ -1938,4 +1943,308 @@ async fn stale_after_seq_is_treated_as_reset() {
     );
     wait_settled(&runtime).await;
     runtime.shutdown().await;
+}
+
+// ---------------------------------------------------------------------------
+// C4 T5：`Agent` 工具 → 子 turn 执行、生命周期事件与 child 行
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn agent_tool_runs_child_turn_and_persists_child_rows() {
+    let fixture = fixture("subagent-exec");
+    let child_prompt = "child execute prompt: inspect only";
+    let provider = RecordingProvider::new(vec![
+        ScriptStep::ToolCalls(vec![ScriptToolCall {
+            name: "Agent".to_string(),
+            input: json!({
+                "description": "exec child",
+                "prompt": child_prompt,
+                "subagent_type": "general-purpose",
+            }),
+        }]),
+        ScriptStep::Text("child final text".to_string()),
+        ScriptStep::Text("parent done".to_string()),
+    ]);
+    let wiring = RuntimeWiring {
+        permission_handler: None,
+        rule_db_path: None,
+        reverse: None,
+        mcp: None,
+        mcp_hub: Default::default(),
+        subagent_runner: Some(Arc::new(SubagentRunnerImpl::new(
+            Arc::clone(&fixture.store),
+            Arc::new(FixedSource(provider.clone())),
+            "fixture-provider".to_string(),
+            "fixture-model".to_string(),
+            fixture.cwd.to_string_lossy().to_string(),
+            None,
+            fixture.record.id.clone(),
+            tokio::runtime::Handle::current(),
+        ))),
+    };
+    let runtime = spawn_runtime_with_wiring(&fixture, provider.clone(), wiring);
+    let (_, mut receiver) = runtime.subscribe(None);
+    runtime
+        .submit(SessionInput::text("run the child"))
+        .expect("提交");
+    let events = drain_until_terminal(&mut receiver).await;
+    wait_settled(&runtime).await;
+
+    // 生命周期：running → completed，两事件共用 agentId / childSessionId。
+    let updates: Vec<Value> = events
+        .iter()
+        .filter(|event| event.event_type == SessionEventType::SessionUpdated)
+        .filter_map(|event| event.payload.clone())
+        .filter(|payload| payload.get("agentId").is_some())
+        .collect();
+    assert_eq!(updates.len(), 2, "Agent 生命周期恰好 running/completed");
+    assert_eq!(updates[0]["status"], "running");
+    assert_eq!(updates[1]["status"], "completed");
+    let agent_id = updates[0]["agentId"].as_str().expect("agentId");
+    assert!(agent_id.starts_with("agent_"), "实际: {agent_id}");
+    let child_id = updates[0]["childSessionId"]
+        .as_str()
+        .expect("childSessionId");
+    assert!(
+        child_id.starts_with("sess_subagent_agent_"),
+        "实际: {child_id}"
+    );
+    assert_eq!(updates[1]["agentId"], agent_id);
+    assert_eq!(updates[1]["childSessionId"], child_id);
+    assert_eq!(updates[1]["totalTokens"], 22);
+    assert_eq!(updates[1]["totalToolUseCount"], 0);
+
+    // 父请求注入 Agent 声明；child 请求用子代理系统提示，且没有 Agent 工具（不递归）。
+    let requests = provider.requests();
+    assert_eq!(requests.len(), 3, "父 → 子 → 父 三次模型请求");
+    let parent_tools: Vec<&str> = requests[0]
+        .tools
+        .iter()
+        .map(|tool| tool.name.as_str())
+        .collect();
+    assert!(parent_tools.contains(&"Agent"), "父请求缺 Agent 声明");
+    let child_request = &requests[1];
+    let ModelMessage::System(system) = &child_request.messages[0] else {
+        panic!("child 首消息必须是 System");
+    };
+    assert!(
+        system.contains("Subagent type: general-purpose"),
+        "child 系统提示: {system}"
+    );
+    assert_eq!(
+        child_request.messages.len(),
+        2,
+        "child 只有 system + user（fresh 上下文）"
+    );
+    match &child_request.messages[1] {
+        ModelMessage::User(text) => assert_eq!(text, child_prompt),
+        other => panic!("child 第二消息应为 User，实际: {other:?}"),
+    }
+    let child_tools: Vec<&str> = child_request
+        .tools
+        .iter()
+        .map(|tool| tool.name.as_str())
+        .collect();
+    assert!(!child_tools.contains(&"Agent"), "child 不能再暴露 Agent");
+    assert!(child_tools.contains(&"Read"), "child 使用静态工具目录");
+
+    let tool_result = requests[2]
+        .messages
+        .iter()
+        .find_map(|message| match message {
+            ModelMessage::ToolResult {
+                tool_call_id,
+                content,
+            } if content.contains("child final text") => {
+                Some((tool_call_id.as_str(), content.as_str()))
+            }
+            _ => None,
+        })
+        .expect("父第二轮请求必须含 Agent 工具结果");
+    assert_eq!(tool_result.0, "toolu_rec_0_0");
+    assert!(
+        tool_result.1.contains(&format!("agentId: {agent_id}")),
+        "{}",
+        tool_result.1
+    );
+    assert!(
+        tool_result.1.contains(
+            "<usage>subagent_tokens: 22
+tool_uses: 0
+duration_ms: "
+        ),
+        "{}",
+        tool_result.1
+    );
+
+    // child 行：session（parent/task_type/title）、3 条 message、5 个 part、turn_usage。
+    let connection = raw_connection(&fixture.db_path);
+    let (parent_id, task_type, title): (Option<String>, String, String) = connection
+        .query_row(
+            "SELECT parent_id, task_type, title FROM session WHERE id = ?1",
+            [child_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("child session 行");
+    assert_eq!(parent_id.as_deref(), Some(fixture.record.id.as_str()));
+    assert_eq!(task_type, "subagent_child");
+    assert_eq!(title, child_prompt);
+    let messages: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM message WHERE session_id = ?1",
+            [child_id],
+            |row| row.get(0),
+        )
+        .expect("child message 数");
+    assert_eq!(messages, 3);
+    let parts: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM part WHERE session_id = ?1",
+            [child_id],
+            |row| row.get(0),
+        )
+        .expect("child part 数");
+    assert_eq!(parts, 5);
+    let (status, tokens): (String, i64) = connection
+        .query_row(
+            "SELECT status, computed_total_tokens FROM turn_usage WHERE session_id = ?1",
+            [child_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("child turn_usage 行");
+    assert_eq!(status, "completed");
+    assert_eq!(tokens, 22);
+
+    // 父会话的 Agent tool part 带 state.output（`session/subagents` 的读面输入）。
+    let mut statement = connection
+        .prepare("SELECT data FROM part WHERE session_id = ?1")
+        .expect("prepare 父 part");
+    let parent_parts: Vec<Value> = statement
+        .query_map([fixture.record.id.as_str()], |row| row.get::<_, String>(0))
+        .expect("查询父 part")
+        .map(|row| serde_json::from_str(&row.expect("父 part 行")).expect("part JSON"))
+        .collect();
+    let agent_part = parent_parts
+        .iter()
+        .find(|data| data.get("tool").and_then(Value::as_str) == Some("Agent"))
+        .expect("父会话必须有 Agent tool part");
+    assert_eq!(agent_part["state"]["status"], "completed");
+    assert!(
+        agent_part["state"]["output"]
+            .as_str()
+            .unwrap_or_default()
+            .contains(&format!("agentId: {agent_id}")),
+        "{}",
+        agent_part["state"]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// C4 T6：TodoWrite/TodoRead（工具结果、todo 表与 snapshot todos）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn todo_tools_persist_and_project_the_session_list() {
+    let fixture = fixture("todo-tools");
+    let provider = RecordingProvider::new(vec![
+        ScriptStep::ToolCalls(vec![ScriptToolCall {
+            name: "TodoWrite".to_string(),
+            input: json!({
+                "todos": [
+                    { "content": "first task", "status": "pending", "priority": "high" },
+                    { "content": "second task", "status": "in_progress", "priority": "medium" }
+                ]
+            }),
+        }]),
+        ScriptStep::Text("todo written".to_string()),
+        ScriptStep::ToolCalls(vec![ScriptToolCall {
+            name: "TodoRead".to_string(),
+            input: json!({}),
+        }]),
+        ScriptStep::Text("todo read".to_string()),
+    ]);
+    let runtime = spawn_runtime_with_wiring(&fixture, provider, RuntimeWiring::default());
+    let (_, mut receiver) = runtime.subscribe(None);
+
+    runtime
+        .submit(SessionInput::text("write todos"))
+        .expect("提交");
+    drain_until_terminal(&mut receiver).await;
+    wait_settled(&runtime).await;
+
+    // DB：整表替换后的两行（position 顺序）。
+    let connection = raw_connection(&fixture.db_path);
+    let rows: Vec<(String, String, String, i64)> = connection
+        .prepare("SELECT content, status, priority, position FROM todo ORDER BY position")
+        .expect("prepare todo")
+        .query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .expect("query todo")
+        .map(|row| row.expect("todo row"))
+        .collect();
+    assert_eq!(
+        rows,
+        vec![
+            (
+                "first task".to_string(),
+                "pending".to_string(),
+                "high".to_string(),
+                0
+            ),
+            (
+                "second task".to_string(),
+                "in_progress".to_string(),
+                "medium".to_string(),
+                1
+            ),
+        ]
+    );
+
+    // 快照：todos/todoGroups 与 DB 同源。
+    let snapshot = runtime.snapshot();
+    assert_eq!(
+        snapshot.todos,
+        Some(vec![
+            agent_protocol::snapshot::TodoItem {
+                content: "first task".to_string(),
+                status: agent_protocol::snapshot::TodoStatus::Pending,
+                priority: agent_protocol::snapshot::TodoPriority::High,
+            },
+            agent_protocol::snapshot::TodoItem {
+                content: "second task".to_string(),
+                status: agent_protocol::snapshot::TodoStatus::InProgress,
+                priority: agent_protocol::snapshot::TodoPriority::Medium,
+            },
+        ])
+    );
+    let groups = snapshot.todo_groups.expect("todoGroups");
+    assert_eq!(groups.len(), 1);
+    assert_eq!(
+        groups[0].source,
+        agent_protocol::snapshot::TodoGroupSource::Session
+    );
+    assert_eq!(groups[0].todos.len(), 2);
+
+    // TodoRead 的结果内容（tool part 的 state.output）。
+    runtime
+        .submit(SessionInput::text("read todos"))
+        .expect("提交");
+    drain_until_terminal(&mut receiver).await;
+    wait_settled(&runtime).await;
+    let mut messages = connection
+        .prepare("SELECT data FROM part WHERE session_id = ?1 ORDER BY rowid")
+        .expect("prepare parts");
+    let outputs: Vec<String> = messages
+        .query_map([fixture.record.id.as_str()], |row| row.get::<_, String>(0))
+        .expect("query parts")
+        .map(|row| row.expect("part row"))
+        .filter(|data| data.contains("TodoRead"))
+        .collect();
+    assert!(
+        outputs.iter().any(|data| {
+            data.contains("first task") && data.contains("second task") && data.contains("todos")
+        }),
+        "TodoRead 结果必须回显当前列表：{outputs:?}"
+    );
 }

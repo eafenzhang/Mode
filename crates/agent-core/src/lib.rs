@@ -37,6 +37,7 @@ pub mod recovery;
 pub mod rule_store;
 pub mod session;
 pub mod stream;
+pub mod subagent;
 pub mod tool;
 
 pub use agent_protocol::session_event::{
@@ -45,8 +46,8 @@ pub use agent_protocol::session_event::{
     ToolUpdatedPayload,
 };
 pub use agent_tools::{
-    FileState, ModeToolFamily, TaskNotification, TaskRegistry, ToolContext, ToolError, ToolOutcome,
-    ToolSpec,
+    FileState, ModeToolFamily, TaskNotification, TaskRegistry, TaskSnapshot, TaskStatus,
+    ToolContext, ToolError, ToolOutcome, ToolSpec,
 };
 pub use cancel::CancelToken;
 pub use command_inbox::{Admission, CommandInbox, Completion};
@@ -79,3 +80,4 @@ pub use recovery::RetryPolicy;
 pub use rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
 pub use session::TurnTerminalFacts;
 pub use stream::{EventSink, TurnError, TurnProgress};
+pub use subagent::{SubagentRunOutcome, SubagentRunRequest, SubagentRunner};

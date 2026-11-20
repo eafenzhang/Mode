@@ -1,0 +1,44 @@
+{
+  "case": "workflows-invalid-files",
+  "note": "C4 Task 0 oracle 捕获：手写非法工作流文件（无 frontmatter / 缺 description / 非 .dwf.ts 扩展名）在 workflows/list 的 workflows/invalid 归类与 workflows/get 的失败形状。",
+  "input": {
+    "files": [
+      "bad-frontmatter.dwf.ts (no frontmatter)",
+      "missing-description.dwf.ts",
+      "wrong-ext.ts"
+    ]
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": []
+    },
+    "list": {
+      "ok": true,
+      "result": {
+        "workflows": [],
+        "invalid": [
+          {
+            "path": "<cwd>\\.mode\\workflows\\bad-frontmatter.dwf.ts",
+            "reason": "missing_frontmatter: file does not start with the `/* mode-workflow` metadata block"
+          },
+          {
+            "path": "<cwd>\\.mode\\workflows\\missing-description.dwf.ts",
+            "reason": "missing_frontmatter: file does not start with the `/* mode-workflow` metadata block"
+          }
+        ],
+        "dir": "<cwd>\\.mode\\workflows"
+      }
+    },
+    "getBad": {
+      "ok": true,
+      "result": {
+        "ok": false,
+        "reason": "parse_error",
+        "detail": "file does not start with the `/* mode-workflow` metadata block"
+      }
+    }
+  }
+}

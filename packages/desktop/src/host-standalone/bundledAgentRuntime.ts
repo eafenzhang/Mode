@@ -18,9 +18,15 @@ import { join } from "node:path";
 /** 随包 agent 入口相对资源目录的路径（与 `host-sidecar-ship.ts` 的落点一致）。 */
 export const BUNDLED_AGENT_ENTRY_RELATIVE = join("agent", "glm", "mode.cjs");
 
+/** 随包 Rust agent 二进制相对资源目录的路径（C4 默认运行时）。 */
+export const BUNDLED_AGENT_NATIVE_RELATIVE = join("agent", "glm", "mode-agent");
+export const BUNDLED_AGENT_NATIVE_WINDOWS_RELATIVE = join("agent", "glm", "mode-agent.exe");
+
 export interface BundledAgentRuntime {
   command: string;
   argsJson: string;
+  /** 健康面/解析归属；native 为 rust，mode.cjs 为 node。 */
+  runtime: "rust" | "node";
   /** 随包 Built-in Provider Config；agent 进程需要它才能解析内置 provider。 */
   providerConfigPath?: string;
 }
@@ -37,15 +43,33 @@ export function resolveBundledAgentRuntime(options: {
   if (options.env.MODE_AGENT_SERVER_COMMAND?.trim()) return null;
   const resourcesDir = options.env.MODE_HOST_RESOURCES_DIR?.trim();
   if (!resourcesDir) return null;
+  const providerConfigPath = join(resourcesDir, "config", "provider", "mode-builtin.json");
+  const provider =
+    options.exists(providerConfigPath) && !options.env.MODE_BUILTIN_PROVIDER_CONFIG_FILE?.trim()
+      ? { providerConfigPath }
+      : {};
+  // C4 默认翻转：随包 Rust 二进制存在时优先；Node bundle 保留为显式/缺失回退。
+  for (const nativeRelative of [
+    BUNDLED_AGENT_NATIVE_WINDOWS_RELATIVE,
+    BUNDLED_AGENT_NATIVE_RELATIVE,
+  ]) {
+    const nativeEntry = join(resourcesDir, nativeRelative);
+    if (options.exists(nativeEntry)) {
+      return {
+        command: nativeEntry,
+        argsJson: JSON.stringify(["app-server", "--stdio"]),
+        runtime: "rust",
+        ...provider,
+      };
+    }
+  }
   const entry = join(resourcesDir, BUNDLED_AGENT_ENTRY_RELATIVE);
   if (!options.exists(entry)) return null;
-  const providerConfigPath = join(resourcesDir, "config", "provider", "mode-builtin.json");
   return {
     command: options.execPath,
     argsJson: JSON.stringify([entry, "app-server", "--stdio"]),
-    ...(options.exists(providerConfigPath) && !options.env.MODE_BUILTIN_PROVIDER_CONFIG_FILE?.trim()
-      ? { providerConfigPath }
-      : {}),
+    runtime: "node",
+    ...provider,
   };
 }
 
@@ -59,6 +83,9 @@ export function applyBundledAgentRuntime(
   if (!runtime) return false;
   env.MODE_AGENT_SERVER_COMMAND = runtime.command;
   env.MODE_AGENT_SERVER_ARGS_JSON = runtime.argsJson;
+  if (!env.MODE_AGENT_RUNTIME?.trim()) {
+    env.MODE_AGENT_RUNTIME = runtime.runtime;
+  }
   if (runtime.providerConfigPath) {
     env.MODE_BUILTIN_PROVIDER_CONFIG_FILE = runtime.providerConfigPath;
   }

@@ -1,0 +1,159 @@
+{
+  "case": "skills-catalog-injection",
+  "note": "C4 Task 0 oracle 捕获：workspace skill 的发现位置黑盒对照（.mode/skills vs .claude/skills）、skills/referenceCatalog 的 workspace/session authority 条目形状、未知 sessionId 的 fail-closed、plugins/referenceCatalog 的插件条目，以及首个模型请求里 skill 注入（system 段与合成 user 提醒）。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "seededSkills": [
+      ".mode/skills/probe-workspace-skill/SKILL.md",
+      ".claude/skills/probe-claude-skill/SKILL.md"
+    ],
+    "prompt": "plain prompt"
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages"]
+    },
+    "workspaceCatalog": {
+      "ok": true,
+      "result": {
+        "authority": "workspace",
+        "skills": [
+          {
+            "id": "<id>",
+            "name": "control-browser",
+            "description": "Use when opening, navigating, inspecting, testing, clicking, typing, filling, screenshotting, or verifying web pages and local HTTP targets (localhost, 127.0.0.1, ::1) inside Mode, including browser/web-UI automation, rendered-page scraping, frontend checks, and visible page-state reading. Prefer this over Computer Use for anything that stays inside a web page, unless the user explicitly asks for Computer Use. Main agent only.",
+            "path": "<data-root>\\.mode\\cli\\plugins\\cache\\mode-plugins-official\\browser-use\\0.5.1\\skills\\control-browser\\SKILL.md",
+            "scope": "plugin",
+            "enabled": true,
+            "pluginName": "browser-use"
+          },
+          {
+            "id": "<id>",
+            "name": "probe-workspace-skill",
+            "description": "Use when the C4 probe asks for the workspace skill path discovery.",
+            "path": "<cwd>\\.mode\\skills\\probe-workspace-skill\\SKILL.md",
+            "scope": "workspace",
+            "enabled": true
+          },
+          {
+            "id": "<id>",
+            "name": "web-gui-tester",
+            "description": "Use the browser automation tooling available in the session to test web frontends interactively in a purely GUI-based, black-box manner: simulate real user clicks, text input, scrolling, and other actions; use screenshots for visual verification and read-only DOM inspection for cross-validation; and produce a final test report. Suitable for verifying whether web functionality works correctly, reproducing frontend bugs, checking interaction feedback and layout styling, or conducting exploratory testing of a page. Use this skill when the user asks to test a webpage/frontend feature, verify UI behavior, reproduce a page bug, or provides only a URL and asks you to “test it.”",
+            "path": "<data-root>\\.mode\\cli\\plugins\\cache\\mode-plugins-official\\browser-use\\0.5.1\\skills\\web-gui-tester\\SKILL.md",
+            "scope": "plugin",
+            "enabled": true,
+            "pluginName": "browser-use"
+          }
+        ]
+      }
+    },
+    "beforeTurnSessionCatalog": {
+      "ok": true,
+      "result": {
+        "authority": "session",
+        "skills": [
+          {
+            "id": "<id>",
+            "name": "control-browser",
+            "description": "Use when opening, navigating, inspecting, testing, clicking, typing, filling, screenshotting, or verifying web pages and local HTTP targets (localhost, 127.0.0.1, ::1) inside Mode, including browser/web-UI automation, rendered-page scraping, frontend checks, and visible page-state reading. Prefer this over Computer Use for anything that stays inside a web page, unless the user explicitly asks for Computer Use. Main agent only.",
+            "path": "<data-root>\\.mode\\cli\\plugins\\cache\\mode-plugins-official\\browser-use\\0.5.1\\skills\\control-browser\\SKILL.md",
+            "scope": "plugin",
+            "enabled": true,
+            "pluginName": "browser-use"
+          },
+          {
+            "id": "<id>",
+            "name": "probe-workspace-skill",
+            "description": "Use when the C4 probe asks for the workspace skill path discovery.",
+            "path": "<cwd>\\.mode\\skills\\probe-workspace-skill\\SKILL.md",
+            "scope": "workspace",
+            "enabled": true
+          },
+          {
+            "id": "<id>",
+            "name": "web-gui-tester",
+            "description": "Use the browser automation tooling available in the session to test web frontends interactively in a purely GUI-based, black-box manner: simulate real user clicks, text input, scrolling, and other actions; use screenshots for visual verification and read-only DOM inspection for cross-validation; and produce a final test report. Suitable for verifying whether web functionality works correctly, reproducing frontend bugs, checking interaction feedback and layout styling, or conducting exploratory testing of a page. Use this skill when the user asks to test a webpage/frontend feature, verify UI behavior, reproduce a page bug, or provides only a URL and asks you to “test it.”",
+            "path": "<data-root>\\.mode\\cli\\plugins\\cache\\mode-plugins-official\\browser-use\\0.5.1\\skills\\web-gui-tester\\SKILL.md",
+            "scope": "plugin",
+            "enabled": true,
+            "pluginName": "browser-use"
+          }
+        ]
+      }
+    },
+    "sessionCatalog": {
+      "ok": true,
+      "result": {
+        "authority": "session",
+        "skills": [
+          {
+            "id": "<id>",
+            "name": "control-browser",
+            "description": "Use when opening, navigating, inspecting, testing, clicking, typing, filling, screenshotting, or verifying web pages and local HTTP targets (localhost, 127.0.0.1, ::1) inside Mode, including browser/web-UI automation, rendered-page scraping, frontend checks, and visible page-state reading. Prefer this over Computer Use for anything that stays inside a web page, unless the user explicitly asks for Computer Use. Main agent only.",
+            "path": "<data-root>\\.mode\\cli\\plugins\\cache\\mode-plugins-official\\browser-use\\0.5.1\\skills\\control-browser\\SKILL.md",
+            "scope": "plugin",
+            "enabled": true,
+            "pluginName": "browser-use"
+          },
+          {
+            "id": "<id>",
+            "name": "probe-workspace-skill",
+            "description": "Use when the C4 probe asks for the workspace skill path discovery.",
+            "path": "<cwd>\\.mode\\skills\\probe-workspace-skill\\SKILL.md",
+            "scope": "workspace",
+            "enabled": true
+          },
+          {
+            "id": "<id>",
+            "name": "web-gui-tester",
+            "description": "Use the browser automation tooling available in the session to test web frontends interactively in a purely GUI-based, black-box manner: simulate real user clicks, text input, scrolling, and other actions; use screenshots for visual verification and read-only DOM inspection for cross-validation; and produce a final test report. Suitable for verifying whether web functionality works correctly, reproducing frontend bugs, checking interaction feedback and layout styling, or conducting exploratory testing of a page. Use this skill when the user asks to test a webpage/frontend feature, verify UI behavior, reproduce a page bug, or provides only a URL and asks you to “test it.”",
+            "path": "<data-root>\\.mode\\cli\\plugins\\cache\\mode-plugins-official\\browser-use\\0.5.1\\skills\\web-gui-tester\\SKILL.md",
+            "scope": "plugin",
+            "enabled": true,
+            "pluginName": "browser-use"
+          }
+        ]
+      }
+    },
+    "missingSessionError": {
+      "ok": false,
+      "error": {
+        "frame": {
+          "code": -32004,
+          "message": "Session is not active: sess_missing"
+        }
+      }
+    },
+    "pluginCatalogEntryCount": 3,
+    "pluginCatalogPluginNames": [
+      "node-repl-host@mode-plugins-official",
+      "browser-use@mode-plugins-official",
+      "computer-use@mode-plugins-official"
+    ],
+    "injection": {
+      "systemBlocks": [
+        {
+          "chars": 41,
+          "mentionsProbeSkill": false
+        },
+        {
+          "chars": 1218,
+          "mentionsProbeSkill": false
+        },
+        {
+          "chars": 5467,
+          "mentionsProbeSkill": false
+        }
+      ],
+      "reminders": [],
+      "firstRequestLastUserHead": "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# currentDate\nToday's date is <date>.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context u"
+    },
+    "workspaceModeSkillFile": "<cwd>\\.mode\\skills\\probe-workspace-skill\\SKILL.md",
+    "claudeSkillFile": "<cwd>\\.claude\\skills\\probe-claude-skill\\SKILL.md"
+  }
+}

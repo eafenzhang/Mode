@@ -1,15 +1,15 @@
 //! Agent 启动规格解析（所有权切换的配置层）。
 //!
-//! 顺序与 TS `resolveDefaultModeAgentCommand` 对齐：
+//! 顺序（C4 默认翻转后）：
 //! 1. `MODE_AGENT_SERVER_COMMAND` 显式覆盖（args 取 `MODE_AGENT_SERVER_ARGS_JSON`，
-//!    cwd 取 `MODE_AGENT_SERVER_CWD`，缺省为 workspace）；
-//! 2. monorepo dev dist：向上找 `apps/mode-cli/packages/cli/dist/mode.cjs`；
-//! 3. monorepo dev 源码：`apps/mode-cli/packages/cli/src/main.ts` + `node_modules/.bin/tsx`；
-//! 4. 打包资源：`<resources>/agent/glm/mode.cjs`（Node 解释执行）；
-//! 5. 已部署 native binary 兜底（TS `resolveDeployedModeAgentBinaryCommand`：
-//!    `runtime-tools::find_mode_agent_runtime_binary` 的候选链——`GLM_BINARY_PATH`、
-//!    打包资源、`~/.mode/server/agents/glm`、bundled-agents 平台目录；宿主预解析后
-//!    经 `deployed_native_binary` 注入）。Electron Node runtime 分支不移植
+//!    cwd 取 `MODE_AGENT_SERVER_CWD`，缺省为 workspace；Node 显式回退走这里）；
+//! 2. **已部署 native binary（默认 Rust）**：TS `resolveDeployedModeAgentBinaryCommand`
+//!    的候选链——`GLM_BINARY_PATH`、打包资源、`~/.mode/server/agents/glm`、
+//!    bundled-agents 平台目录；宿主预解析后经 `deployed_native_binary` 注入；
+//! 3. monorepo dev dist：向上找 `apps/mode-cli/packages/cli/dist/mode.cjs`；
+//! 4. monorepo dev 源码：`apps/mode-cli/packages/cli/src/main.ts` + `node_modules/.bin/tsx`；
+//! 5. 打包资源：`<resources>/agent/glm/mode.cjs`（Node 解释执行，Rust 二进制缺失时回退）。
+//!    6. 都没有 → `NotConfigured`。Electron Node runtime 分支不移植
 //!    （Tauri 壳没有 Electron；远端 SSH/WSL host 同样跳过该分支）。
 //!
 //! native binary 兜底不承诺 storage 启动上报（TS 只给 bundled 分支
@@ -147,6 +147,24 @@ pub fn resolve_agent_command(
         ));
     }
 
+    // C4 默认翻转：宿主预解析到 native binary 时优先 Rust（打包 agent-server）；
+    // 显式 `MODE_AGENT_SERVER_COMMAND`（上一步）仍是回滚/覆盖入口。
+    if let Some(binary_path) = context
+        .deployed_native_binary
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(finish(
+            context,
+            binary_path.to_string(),
+            vec![DEFAULT_ARGS[0].into(), DEFAULT_ARGS[1].into()],
+            context.workspace_path.clone(),
+            None,
+            AgentCommandSource::NativeBinary,
+        ));
+    }
+
     if let Some(entry) = find_upward(&context.upward_start, DEV_DIST_ENTRY) {
         return Ok(finish(
             context,
@@ -198,24 +216,6 @@ pub fn resolve_agent_command(
                 AgentCommandSource::Packaged,
             ));
         }
-    }
-
-    // 已部署 native binary 兜底：远端 SSH 把 mode-server/agents 部署到 ~/.mode 后
-    // cwd 不在仓库内、env 也不继承，只有这条候选链能命中（TS 同注释）。
-    if let Some(binary_path) = context
-        .deployed_native_binary
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        return Ok(finish(
-            context,
-            binary_path.to_string(),
-            vec![DEFAULT_ARGS[0].into(), DEFAULT_ARGS[1].into()],
-            context.workspace_path.clone(),
-            None,
-            AgentCommandSource::NativeBinary,
-        ));
     }
 
     Err(AgentResolveError::NotConfigured {
@@ -545,7 +545,7 @@ mod tests {
     }
 
     #[test]
-    fn native_binary_fallback_loses_to_bundled_and_env() {
+    fn native_binary_wins_over_bundled_but_loses_to_env() {
         let workspace = temp_dir("native-order");
         let entry = workspace.join(DEV_DIST_ENTRY);
         std::fs::create_dir_all(entry.parent().unwrap()).unwrap();
@@ -553,7 +553,8 @@ mod tests {
         let mut ctx = context(&workspace);
         ctx.deployed_native_binary = Some("C:/deploy/mode-agent".into());
         let resolved = resolve_agent_command(&ctx).unwrap();
-        assert_eq!(resolved.source, AgentCommandSource::DevDist);
+        assert_eq!(resolved.source, AgentCommandSource::NativeBinary);
+        assert_eq!(resolved.runtime, RuntimeKind::Rust);
 
         let mut ctx = context(&workspace);
         ctx.env

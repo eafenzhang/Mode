@@ -534,6 +534,14 @@ struct Shared {
     /// **诊断/测试面，不是协议面**：[`SessionRuntime::pending_task_notifications`]
     /// 用它观察「任务完成通知是否已入队」，避免测试靠 sleep 判断完成时序。
     tasks: std::sync::OnceLock<Arc<agent_core::TaskRegistry>>,
+    /// C4 T1：MCP 工具源（首 turn 在阻塞线程上建连并注入工具目录）。
+    mcp: Option<Arc<crate::mcp::McpSession>>,
+    /// C4 T2：MCP 连接 hub（插件 MCP 的会话工具源按 turn 读取）。
+    mcp_hub: Arc<crate::mcp::McpHub>,
+    /// C4 T5：宿主是否提供子代理执行端口（`Agent` 声明只在可用时进入工具目录）。
+    subagents_enabled: bool,
+    /// C4 T6：会话 todo 缓存；TodoWrite 写穿 DB 并更新它，快照/工具读同一份。
+    todos: Arc<Mutex<Vec<agent_protocol::snapshot::TodoItem>>>,
 }
 
 impl Shared {
@@ -810,6 +818,12 @@ impl SessionRuntime {
         let (drained, _drained_receiver) = tokio::sync::watch::channel(false);
         let (queue, receiver) = tokio::sync::mpsc::unbounded_channel();
         let data_root = config.data_root.clone();
+        let subagents_enabled = wiring.subagent_runner.is_some();
+        let todo_items = store
+            .todos(&record.id)
+            .map(|rows| crate::session_tools::items_from_records(&rows))
+            .unwrap_or_default();
+        let todos = Arc::new(Mutex::new(todo_items));
         let shared = Arc::new(Shared {
             live: Mutex::new(Live {
                 status: RuntimeStatus::Idle,
@@ -842,6 +856,10 @@ impl SessionRuntime {
             tool_execution: AtomicBool::new(false),
             tasks: std::sync::OnceLock::new(),
             retry_traces: Mutex::new(HashMap::new()),
+            mcp: wiring.mcp,
+            mcp_hub: wiring.mcp_hub,
+            subagents_enabled,
+            todos,
             record,
         });
 
@@ -862,6 +880,9 @@ impl SessionRuntime {
         }
         if let Some(rule_db_path) = wiring.rule_db_path {
             session = session.with_sqlite_rules(rule_db_path);
+        }
+        if let Some(runner) = wiring.subagent_runner {
+            session = session.with_subagent_runner(runner);
         }
         let _ = shared.tasks.set(session.tasks().clone());
         // C3 T3：后台通知的准入判据 + 空闲唤醒。队列仍在 `TaskRegistry`；
@@ -1114,6 +1135,16 @@ impl SessionRuntime {
     /// `messages` 恒空（历史消息由 `session/read` / `session/resume` 从 store 投影）。
     /// settings / slashCommands / projection 的事实面按 C2 T6 对齐（见
     /// `state::build_snapshot` 与 `agent-c2-contract.md` §4）。
+    /// C4 T6：按 workId 读取后台任务快照（`v4/conversation/backgroundBashOutput`）。
+    /// `None` = 运行时没有任务表或任务不存在（观察者不得拉起新进程）。
+    pub(crate) fn background_task_snapshot(
+        &self,
+        work_id: &str,
+    ) -> Option<agent_core::TaskSnapshot> {
+        let tasks = self.shared.tasks.get()?;
+        tasks.snapshot(work_id, false, std::time::Duration::ZERO)
+    }
+
     pub fn snapshot(&self) -> agent_protocol::snapshot::SessionStateSnapshot {
         let live = self.shared.lock();
         self.snapshot_locked(&live)
@@ -1153,7 +1184,19 @@ impl SessionRuntime {
             return snapshot;
         };
         let projected = self.shared.api_retry.with_api_retry_runtime(&value);
-        serde_json::from_value(projected).unwrap_or(snapshot)
+        let mut snapshot: agent_protocol::snapshot::SessionStateSnapshot =
+            serde_json::from_value(projected).unwrap_or(snapshot);
+        // C4 T6：todos/todoGroups 与 DB 的 `todo` 表同源（TodoWrite 已更新缓存）。
+        let items = self
+            .shared
+            .todos
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        let (todos, groups) = crate::session_tools::todo_snapshot(&items);
+        snapshot.todos = Some(todos);
+        snapshot.todo_groups = Some(groups);
+        snapshot
     }
 
     /// `session/resume` 的 `goalStats` 投影（观察键：timeUsedSeconds/tokensUsed/
@@ -2206,6 +2249,45 @@ async fn run_one_input(
                 .last_memory_error
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = memory_load.error;
+            // C4 T1/T2：首 turn 在阻塞线程上建连并注入动态工具目录（Skill + MCP）；
+            // 失败 server 跳过，不阻断 turn（观察：失败后会话照常可用）。
+            {
+                let mut sources: Vec<Arc<dyn agent_core::PluginToolSource>> = vec![Arc::new(
+                    crate::skills::SkillToolSource::new(shared_for_turn.record.directory.clone()),
+                )];
+                if shared_for_turn.subagents_enabled {
+                    sources.push(Arc::new(crate::subagents_exec::AgentToolSource));
+                }
+                sources.push(Arc::new(crate::session_tools::SessionToolSource::new(
+                    Arc::clone(&shared_for_turn.store),
+                    shared_for_turn.record.id.clone(),
+                    Arc::clone(&shared_for_turn.todos),
+                )));
+                if let Some(mcp) = shared_for_turn.mcp.as_ref() {
+                    sources.push(Arc::clone(mcp) as Arc<dyn agent_core::PluginToolSource>);
+                }
+                // C4 T2：已启用插件自带的 MCP server（`.mcp.json`）也进工具目录。
+                if let Some(data_root) = shared_for_turn.read_config().data_root.clone() {
+                    let plugin_service = crate::plugins::PluginService::from_data_root(&data_root);
+                    for plugin in plugin_service.session_mcp_servers() {
+                        sources.push(shared_for_turn.mcp_hub.session_with_origin(
+                            vec![plugin.server],
+                            agent_protocol::workspace::McpSource::Plugin,
+                            plugin.plugin_name,
+                        )
+                            as Arc<dyn agent_core::PluginToolSource>);
+                    }
+                }
+                if let Ok((declarations, composite)) =
+                    crate::skills::CompositeToolSource::combine(sources)
+                {
+                    let tools = declarations
+                        .into_iter()
+                        .map(agent_core::PluginToolDeclaration::into_spec)
+                        .collect();
+                    session.set_dynamic_tools(tools, composite);
+                }
+            }
             let result = if is_notification_turn {
                 session
                     .run_background_notification_turn(

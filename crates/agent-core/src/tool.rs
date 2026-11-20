@@ -80,6 +80,11 @@ pub fn result_object(
         let value = serde_json::from_str(display).unwrap_or_else(|_| json!(display));
         extra.insert("display".to_string(), value);
     }
+    // C4 T2：Skill 工具的结果带 `skillMetadata`（观察 `{source:"mode"}`）。
+    if let Some(skill_metadata) = &outcome.skill_metadata_json {
+        let value = serde_json::from_str(skill_metadata).unwrap_or_else(|_| json!(skill_metadata));
+        extra.insert("skillMetadata".to_string(), value);
+    }
     ToolResultObject {
         success: Some(true),
         content: Some(Value::String(outcome.content.clone())),

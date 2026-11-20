@@ -1,0 +1,633 @@
+{
+  "case": "mcp-stdio-happy",
+  "note": "C4 Task 0 oracle 捕获：session/create 带 stdio mcpServers 后 mcp/list(connect/status) 的connected 形状、模型请求工具目录的 mcp__ 前缀命名、echo 调用与 fail 调用的 tool.updated 事件、process/childProcesses 的 MCP 子进程行与 contextUsageBreakdown 的 mcp_tool_schemas 段。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "mcpServers": [
+      {
+        "name": "probe-mcp",
+        "command": "<node>",
+        "args": ["<mcp-server-path>"],
+        "env": []
+      }
+    ],
+    "prompts": ["call echo please", "call fail now"]
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": ["/v1/messages", "/v1/messages", "/v1/messages", "/v1/messages"]
+    },
+    "settled": {
+      "status": {
+        "ok": true,
+        "result": {
+          "statuses": {
+            "probe-mcp": {
+              "status": "disconnected",
+              "transport": "stdio",
+              "toolCount": "<count>",
+              "updatedAt": "<time>"
+            }
+          }
+        }
+      },
+      "connect": {
+        "ok": true,
+        "result": {
+          "statuses": {
+            "probe-mcp": {
+              "status": "connected",
+              "transport": "stdio",
+              "toolCount": "<count>",
+              "updatedAt": "<time>",
+              "protocolEra": "legacy"
+            }
+          }
+        }
+      }
+    },
+    "settledAfter": {
+      "status": {
+        "ok": true,
+        "result": {
+          "statuses": {
+            "probe-mcp": {
+              "status": "connected",
+              "transport": "stdio",
+              "toolCount": "<count>",
+              "updatedAt": "<time>",
+              "protocolEra": "legacy"
+            }
+          }
+        }
+      },
+      "connect": {
+        "ok": true,
+        "result": {
+          "statuses": {
+            "probe-mcp": {
+              "status": "connected",
+              "transport": "stdio",
+              "toolCount": "<count>",
+              "updatedAt": "<time>",
+              "protocolEra": "legacy"
+            }
+          }
+        }
+      }
+    },
+    "declaredMcpTools": [
+      "mcp__probe-mcp__echo",
+      "mcp__probe-mcp__fail",
+      "mcp__probe-mcp__slow",
+      "mcp__node_repl__js"
+    ],
+    "childProcesses": {
+      "ok": true,
+      "result": {
+        "processes": [
+          {
+            "pid": "<pid>",
+            "serverName": "probe-mcp",
+            "mcpSource": "custom"
+          },
+          {
+            "pid": "<pid>",
+            "serverName": "node_repl",
+            "mcpSource": "builtin",
+            "pluginName": "browser-use"
+          },
+          {
+            "pid": "<pid>",
+            "serverName": "probe-mcp",
+            "mcpSource": "custom"
+          }
+        ]
+      }
+    },
+    "echoEvents": [
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "previousTitle": "",
+          "source": "first_input",
+          "title": "call echo please"
+        },
+        "seq": 1,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.titleUpdated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "executionStartedAt": "<time>",
+          "turnNumber": 0,
+          "input": "call echo please",
+          "messageId": "<id>",
+          "foregroundExecutionId": "runtime_command_1",
+          "queryId": "<id>"
+        },
+        "seq": 2,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.started"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 4,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 9,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "mcp__probe-mcp__echo",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": false,
+          "display": {
+            "kind": "mcp_tool",
+            "serverName": "probe-mcp",
+            "toolName": "echo",
+            "description": "Echo the given text back."
+          },
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": "<count>",
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        },
+        "seq": 11,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallId": "<id>",
+          "toolName": "mcp__probe-mcp__echo",
+          "startedAt": "<time>",
+          "display": {
+            "kind": "mcp_tool",
+            "serverName": "probe-mcp",
+            "toolName": "echo",
+            "description": "Echo the given text back."
+          },
+          "readOnly": false,
+          "sideEffectScope": "network",
+          "kind": "started"
+        },
+        "seq": 14,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallId": "<id>",
+          "result": {
+            "success": true,
+            "content": "echo:roundtrip",
+            "display": {
+              "kind": "mcp_tool",
+              "serverName": "probe-mcp",
+              "toolName": "echo",
+              "description": "Echo the given text back."
+            },
+            "perf": {
+              "totalMs": "<time>",
+              "permissionWaitMs": "<time>"
+            },
+            "truncated": false,
+            "originalBytes": 14,
+            "returnedBytes": 14,
+            "budgetStrategy": "truncate"
+          },
+          "duration": "<time>",
+          "kind": "result"
+        },
+        "seq": 15,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallIds": ["<id>"],
+          "successCount": 1,
+          "errorCount": 0,
+          "kind": "batch"
+        },
+        "seq": 16,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      }
+    ],
+    "failEvents": [
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "executionStartedAt": "<time>",
+          "turnNumber": 1,
+          "input": "call fail now",
+          "messageId": "<id>",
+          "foregroundExecutionId": "runtime_command_2",
+          "queryId": "<id>"
+        },
+        "seq": 24,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "turn.started"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 26,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        },
+        "seq": 31,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "session.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "mcp__probe-mcp__fail",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": false,
+          "display": {
+            "kind": "mcp_tool",
+            "serverName": "probe-mcp",
+            "toolName": "fail",
+            "description": "Always fails on purpose."
+          },
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": "<count>",
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        },
+        "seq": 33,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallId": "<id>",
+          "toolName": "mcp__probe-mcp__fail",
+          "startedAt": "<time>",
+          "display": {
+            "kind": "mcp_tool",
+            "serverName": "probe-mcp",
+            "toolName": "fail",
+            "description": "Always fails on purpose."
+          },
+          "readOnly": false,
+          "sideEffectScope": "network",
+          "kind": "started"
+        },
+        "seq": 36,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallId": "<id>",
+          "result": {
+            "success": true,
+            "content": "MCP tool returned an error:\nprobe-mcp deliberate failure",
+            "display": {
+              "kind": "mcp_tool",
+              "serverName": "probe-mcp",
+              "toolName": "fail",
+              "description": "Always fails on purpose."
+            },
+            "perf": {
+              "totalMs": "<time>",
+              "permissionWaitMs": "<time>"
+            },
+            "truncated": false,
+            "originalBytes": 56,
+            "returnedBytes": 56,
+            "budgetStrategy": "truncate"
+          },
+          "duration": "<time>",
+          "kind": "result"
+        },
+        "seq": 37,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      },
+      {
+        "deliveryKind": "desktop-continuous",
+        "eventId": "<id>",
+        "payload": {
+          "toolCallIds": ["<id>"],
+          "successCount": 1,
+          "errorCount": 0,
+          "kind": "batch"
+        },
+        "seq": 38,
+        "sessionId": "<id>",
+        "timestamp": "<time>",
+        "traceId": "<id>",
+        "turnId": "<id>",
+        "type": "tool.updated"
+      }
+    ],
+    "contextUsageBreakdown": {
+      "sources": [
+        "system_prompt",
+        "meta_user_context",
+        "skills",
+        "system_tool_schemas",
+        "mcp_tool_schemas",
+        "messages"
+      ],
+      "hasMcpToolSchemas": true
+    },
+    "telemetryNotifications": 4
+  }
+}

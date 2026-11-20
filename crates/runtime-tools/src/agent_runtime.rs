@@ -105,6 +105,14 @@ fn find_resource(context: &AgentRuntimeContext<'_>, entry_segments: &[String]) -
 
     let mut candidates: Vec<Option<PathBuf>> = Vec::new();
     if let Some(resources_path) = &context.resources_path {
+        // Tauri 发运集把 `ship/agent` 映射成 `<resources>/agent`，因此随包二进制
+        // 实际在 `<resources>/agent/glm/...`；同时保留旧的 `<resources>/glm/...` 口径。
+        let mut packaged_segments: Vec<&str> = vec!["agent"];
+        packaged_segments.extend(resource_segments.iter().copied());
+        candidates.push(Some(resolve_path(
+            Path::new(resources_path),
+            &packaged_segments,
+        )));
         candidates.push(Some(resolve_path(
             Path::new(resources_path),
             &resource_segments,

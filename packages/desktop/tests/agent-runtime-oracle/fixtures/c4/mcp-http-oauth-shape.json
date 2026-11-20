@@ -1,0 +1,110 @@
+{
+  "case": "mcp-http-oauth-shape",
+  "note": "C4 Task 0 oracle 捕获：http+oauth 参数形状（client_credentials / authorization_code 两种 oauth 字段都被 session/create 接受）在本地 loopback 404 假端点下的状态机终态与诊断；不做真实 OAuth。",
+  "input": {
+    "seed": {
+      "hello.txt": "hello\n"
+    },
+    "mcpServers": [
+      {
+        "name": "probe-http-oauth",
+        "oauth": "client_credentials"
+      },
+      {
+        "name": "probe-http-authcode",
+        "oauth": "authorization_code"
+      }
+    ],
+    "endpoint": "loopback 404"
+  },
+  "expect": {
+    "isolation": {
+      "dataRootManifest": true,
+      "cliLayoutSentinel": true,
+      "invalidStdoutLines": 0,
+      "mockRequestPaths": []
+    },
+    "settled": {
+      "status": {
+        "ok": true,
+        "result": {
+          "statuses": {
+            "probe-http-oauth": {
+              "status": "disconnected",
+              "transport": "http",
+              "toolCount": "<count>",
+              "updatedAt": "<time>"
+            },
+            "probe-http-authcode": {
+              "status": "disconnected",
+              "transport": "http",
+              "toolCount": "<count>",
+              "updatedAt": "<time>"
+            }
+          }
+        }
+      },
+      "connect": {
+        "ok": true,
+        "result": {
+          "statuses": {
+            "probe-http-oauth": {
+              "status": "failed",
+              "transport": "http",
+              "toolCount": "<count>",
+              "updatedAt": "<time>",
+              "error": "Error POSTing to endpoint: {\"error\":\"not_found\"}",
+              "failureKind": "network_unreachable"
+            },
+            "probe-http-authcode": {
+              "status": "failed",
+              "transport": "http",
+              "toolCount": "<count>",
+              "updatedAt": "<time>",
+              "error": "Error POSTing to endpoint: {\"error\":\"not_found\"}",
+              "failureKind": "network_unreachable"
+            }
+          }
+        }
+      }
+    },
+    "loopbackRequests": [
+      {
+        "url": "/mcp",
+        "method": "POST",
+        "bodyBytes": 270
+      },
+      {
+        "url": "/mcp-authcode",
+        "method": "POST",
+        "bodyBytes": 270
+      },
+      {
+        "url": "/mcp",
+        "method": "POST",
+        "bodyBytes": 153
+      },
+      {
+        "url": "/mcp-authcode",
+        "method": "POST",
+        "bodyBytes": 153
+      },
+      {
+        "url": "/mcp",
+        "method": "POST",
+        "bodyBytes": 270
+      },
+      {
+        "url": "/mcp-authcode",
+        "method": "POST",
+        "bodyBytes": 270
+      }
+    ],
+    "childProcesses": {
+      "ok": true,
+      "result": {
+        "processes": []
+      }
+    }
+  }
+}
