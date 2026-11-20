@@ -819,6 +819,45 @@ impl Shared {
         let mut summary = crate::sessions_index::summary_from_record(&self.record);
         summary.phase = phase;
         summary.title = title.to_string();
+        // 预览只在 turn 终态后刷新（不在 TurnStarted 时读库）。
+        if live.status != crate::state::RuntimeStatus::Running {
+            summary.last_assistant_preview = self
+                .store
+                .messages(&self.record.id, None, None)
+                .ok()
+                .and_then(|messages| {
+                    messages.iter().rev().find_map(|with_parts| {
+                        let role = with_parts
+                            .message
+                            .data
+                            .get("role")
+                            .and_then(Value::as_str)?;
+                        if role != "assistant" {
+                            return None;
+                        }
+                        let text = with_parts
+                            .parts
+                            .iter()
+                            .filter_map(|part| {
+                                part.data
+                                    .get("text")
+                                    .and_then(Value::as_str)
+                                    .map(str::to_string)
+                            })
+                            .collect::<Vec<_>>()
+                            .join("");
+                        let trimmed = text.trim();
+                        (!trimmed.is_empty()).then(|| {
+                            let chars: Vec<char> = trimmed.chars().collect();
+                            if chars.len() > 120 {
+                                format!("{}…", chars[..120].iter().collect::<String>())
+                            } else {
+                                trimmed.to_string()
+                            }
+                        })
+                    })
+                });
+        }
         // agent_core::GoalStatus → agent_protocol::v4_snapshot::GoalStatus。
         if let Some(goal) = &live.goal.target {
             summary.goal_status = Some(match goal.status {

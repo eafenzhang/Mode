@@ -17,7 +17,7 @@
 | **LT-11** | W6 收口 | LT-7 ~ LT-10 | `stdioFrames`/`stdoutGuard` 退场、删 TS 宿主编排与 `host-sidecar` 发运集、插件宿主换嵌入引擎、四仪表终值复测 | 🟡 新增 `pnpm w6:readiness` 审计；当前 product 阻塞 6/6/119/95，未就绪 |
 | **LT-12** | W3 剩余域 | W1/W2 | provider 写路径/usage 网络凭据、LAN WS/公网中继、CUA PiP/Windows helper host、远程工作区、云账号 | 🟡 部分；配置实时轮询已迁，剩 usage 网络/凭据、LAN WS/中继、CUA PiP/helper、远程工作区、云账号 |
 | **LT-13** | W1 SQLite 迁移门禁 | 无 | 基线改由 Rust 迁移生成 + `--base-ref` 只增校验 | ✅ 门禁已具备（`--base-ref` + TS/Rust 对拍）；生产者切换等 Rust 接管写库 |
-| **LT-14** | LT-1 C4 唯一 PARTIAL 收尾 | 真机 | 20 任务全 PASS；随后删 Node 回退路径 | 🟡 19 PASS / 1 PARTIAL；sessions-index 列表 live upsert/remove + phase/goalStatus 投影已接（create/rename/delete/turn 事件），预览/后台投影与真机重连仍待 |
+| **LT-14** | LT-1 C4 唯一 PARTIAL 收尾 | 真机 | 20 任务全 PASS；随后删 Node 回退路径 | 🟡 19 PASS / 1 PARTIAL；sessions-index live upsert/remove + phase/goalStatus/lastAssistantPreview 已接（turn 事件驱动 + store 读尾），hasBackgroundWork/workflowActivity 投影与真机重连仍待 |
 
 ## LT-7 本轮交付（2026-11-21）
 
