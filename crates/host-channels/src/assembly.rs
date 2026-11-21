@@ -240,6 +240,7 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
                 Arc::new(repo),
                 options.agent_control.clone(),
                 queue,
+                Arc::new(crate::mode_task::TaskEventBus::new()),
             )))
         }
         USAGE_STATS_CHANNEL => {

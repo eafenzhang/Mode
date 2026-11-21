@@ -6,7 +6,8 @@
 //! 生命周期/命令队列/permission/elicitation/snapshot 族属编排面（16.2），不在
 //! 本切片——未知方法显式报错，不做静默降级。
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use serde::Deserialize;
 
@@ -32,6 +33,87 @@ pub struct ModeTaskChannel {
     /// 运行时命令队列（16.2b）：replayable 手机端的 host command queue；
     /// `None` 时队列方法显式 unsupported。
     queue: Option<Arc<TaskCommandQueue>>,
+    /// 事件面（16.2c）：任务列表变更与任务收口（readyOutcome）广播。
+    events: Arc<TaskEventBus>,
+}
+
+pub type TaskEventListeners = Arc<Mutex<HashMap<String, rpc_host::EventCallback>>>;
+
+pub const ON_WORKSPACE_TASK_LIST_CHANGED: &str = "onWorkspaceTaskListChanged";
+pub const ON_DYNAMIC_TASK_READY: &str = "onDynamicTaskReady";
+
+/// mode-task 事件总线（broadcast 频道的 subscribe/notify 模式；TS Emitter 等价）。
+#[derive(Default, Clone)]
+pub struct TaskEventBus {
+    task_list_listeners: TaskEventListeners,
+    ready_listeners: TaskEventListeners,
+}
+
+impl TaskEventBus {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn subscribe(
+        listeners: &TaskEventListeners,
+        emit: rpc_host::EventCallback,
+    ) -> rpc_host::Subscription {
+        let id = uuid::Uuid::new_v4().to_string();
+        listeners
+            .lock()
+            .expect("task event listeners poisoned")
+            .insert(id.clone(), emit);
+        let map = Arc::clone(listeners);
+        Box::new(move || {
+            map.lock()
+                .expect("task event listeners poisoned")
+                .remove(&id);
+        })
+    }
+
+    pub fn subscribe_task_list(&self, emit: rpc_host::EventCallback) -> rpc_host::Subscription {
+        Self::subscribe(&self.task_list_listeners, emit)
+    }
+
+    pub fn subscribe_ready(&self, emit: rpc_host::EventCallback) -> rpc_host::Subscription {
+        Self::subscribe(&self.ready_listeners, emit)
+    }
+
+    /// TS `emitWorkspaceTaskListChanged`：task_created / task_meta_changed / task_list_changed。
+    pub fn notify_task_list(&self, kind: &str, meta: Option<&serde_json::Value>) {
+        let mut payload = serde_json::json!({ "kind": kind });
+        if let Some(meta) = meta {
+            payload["meta"] = meta.clone();
+        }
+        for emit in self
+            .task_list_listeners
+            .lock()
+            .expect("task event listeners poisoned")
+            .values()
+        {
+            if let Ok(text) = serde_json::to_string(&payload) {
+                emit(WireValue::Json(text));
+            }
+        }
+    }
+
+    /// TS `onDynamicTaskReady`：任务收口（prompt_completed/failed）。
+    pub fn notify_ready(&self, task_id: &str, reason: &str, error: Option<&str>) {
+        let mut payload = serde_json::json!({ "taskId": task_id, "reason": reason });
+        if let Some(error) = error {
+            payload["error"] = serde_json::json!(error);
+        }
+        for emit in self
+            .ready_listeners
+            .lock()
+            .expect("task event listeners poisoned")
+            .values()
+        {
+            if let Ok(text) = serde_json::to_string(&payload) {
+                emit(WireValue::Json(text));
+            }
+        }
+    }
 }
 
 impl ModeTaskChannel {
@@ -39,11 +121,13 @@ impl ModeTaskChannel {
         repo: Arc<TaskIndexRepo>,
         control: Option<Arc<AgentControlClient>>,
         queue: Option<Arc<TaskCommandQueue>>,
+        events: Arc<TaskEventBus>,
     ) -> Self {
         Self {
             repo,
             control,
             queue,
+            events,
         }
     }
 }
@@ -759,6 +843,10 @@ async fn run_orchestration(
                     result["initialSlashCommands"] = value;
                 }
             }
+            // create 事件保留 task_created 语义（远控首页靠它插入新任务）。
+            channel
+                .events
+                .notify_task_list("task_created", Some(&result.clone()));
             json_value(&result)
         }
         "closeTask" => {
@@ -783,9 +871,9 @@ async fn run_orchestration(
                 .map_err(|error| ChannelError::error(error.to_string()))?;
             repo.update_task_state(
                 &task_index_repo::TaskRef {
-                    workspace_path: parsed.workspace_path,
+                    workspace_path: parsed.workspace_path.clone(),
                     workspace_identity: parsed.workspace_identity,
-                    task_id: parsed.task_id,
+                    task_id: parsed.task_id.clone(),
                 },
                 &task_index_repo::TaskIndexStatePatch {
                     deleted: Some(true),
@@ -793,6 +881,8 @@ async fn run_orchestration(
                 },
             )
             .map_err(|error| ChannelError::error(error.to_string()))?;
+            // 删除列表收敛由 sessions-index session.removed 驱动；广播沿用旧语义兜底。
+            channel.events.notify_task_list("task_meta_changed", None);
             Ok(WireValue::Undefined)
         }
         "resumeTask" => {
@@ -1094,6 +1184,24 @@ async fn run_orchestration(
 }
 
 impl ServerChannel for ModeTaskChannel {
+    fn listen(
+        &self,
+        _ctx: String,
+        event: String,
+        _arg: WireValue,
+        emit: rpc_host::EventCallback,
+    ) -> Result<rpc_host::Subscription, ChannelError> {
+        match event.as_str() {
+            ON_WORKSPACE_TASK_LIST_CHANGED => {
+                Ok(self.events.subscribe_task_list(emit))
+            }
+            ON_DYNAMIC_TASK_READY => Ok(self.events.subscribe_ready(emit)),
+            other => Err(ChannelError::error(format!(
+                "mode-task channel: unknown event {other}"
+            ))),
+        }
+    }
+
     fn call(
         &self,
         _ctx: String,
@@ -1107,6 +1215,7 @@ impl ServerChannel for ModeTaskChannel {
             repo: Arc::clone(&self.repo),
             control: self.control.clone(),
             queue: self.queue.clone(),
+            events: Arc::clone(&self.events),
         };
         Box::pin(async move {
             match command.as_str() {

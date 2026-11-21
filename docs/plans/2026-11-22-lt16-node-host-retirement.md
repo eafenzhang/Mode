@@ -52,8 +52,14 @@
 `answer.optionId` / `answer.action+content` additive 扩展，与 TS 同语义）；
 getTaskTarget 的索引归属回读抽为 `resolve_task_workspace` helper。
 16.2b 全收口（209 测试全过，clippy 0）。
-- **16.2c snapshot 族 + 事件面**：getTaskSnapshot 族（store 读 + byteBudget 切片）、
-  task_meta_changed/taskListChanged 事件（EventFire 桥）。
+- **16.2c snapshot 族 + 事件面**：🟡 首切已落（2026-11-22）——getTaskSnapshot
+  （resume 快照 → messageLimit 尾部截断 → syncTaskIndexMeta 回源 → 返回
+  snapshot+meta；TS snapshotToMode 投影 rows/history/stats 族未迁，形状差异记录
+  spec）+ TaskEventBus 事件面（onWorkspaceTaskListChanged/onDynamicTaskReady
+  subscribe/notify，createTask→task_created、closeTask→task_meta_changed；
+  broadcast 频道同模式；readyOutcome 的 agent 事件触发源待 16.2c 续接）。
+  192 测试全过。**剩余**：getTaskSnapshotWithEtag/Body/Ref/ToolCallsSlice 族、
+  readyOutcome 事件源（prompt 生命周期跟踪）、task_meta_changed 全 emit 点。
 
 window-controller（16.3）依赖 16.2a+b（多源聚合消费 IModeTaskService 事件与
 sessions-index observer）——**排序 16.2 先于 16.3**。

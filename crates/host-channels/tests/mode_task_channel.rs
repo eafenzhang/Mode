@@ -89,7 +89,7 @@ async fn list_tasks_and_task_list_read_surface() {
     let r = repo(&db);
     seed_task(&r, "task-1", "实现登录页", "D:/work/app", 1_000);
     seed_task(&r, "task-2", "修复滚动条", "D:/work/app", 2_000);
-    let channel = ModeTaskChannel::new(Arc::clone(&r), None, None);
+    let channel = ModeTaskChannel::new(Arc::clone(&r), None, None, Arc::new(host_channels::mode_task::TaskEventBus::new()));
 
     // listTasks：workspace 全量。
     let tasks = call(&channel, "listTasks", json!({ "workspacePath": "D:/work/app" })).await;
@@ -146,7 +146,7 @@ async fn group_crud_and_view_structure() {
     let db = TempDb::new("group");
     let r = repo(&db);
     seed_task(&r, "task-1", "实现登录页", "D:/work/app", 1_000);
-    let channel = ModeTaskChannel::new(Arc::clone(&r), None, None);
+    let channel = ModeTaskChannel::new(Arc::clone(&r), None, None, Arc::new(host_channels::mode_task::TaskEventBus::new()));
 
     // 分组 CRUD。
     let group = call(
@@ -236,7 +236,7 @@ async fn archive_workspace_tasks_patches_and_lists() {
     let r = repo(&db);
     seed_task(&r, "task-1", "实现登录页", "D:/work/app", 1_000);
     seed_task(&r, "task-2", "修复滚动条", "D:/work/app", 2_000);
-    let channel = ModeTaskChannel::new(Arc::clone(&r), None, None);
+    let channel = ModeTaskChannel::new(Arc::clone(&r), None, None, Arc::new(host_channels::mode_task::TaskEventBus::new()));
 
     let archived = call(
         &channel,
@@ -277,7 +277,7 @@ async fn archive_workspace_tasks_patches_and_lists() {
 #[tokio::test]
 async fn unknown_or_lifecycle_methods_error_explicitly() {
     let db = TempDb::new("unknown");
-    let channel = ModeTaskChannel::new(repo(&db), None, None);
+    let channel = ModeTaskChannel::new(repo(&db), None, None, Arc::new(host_channels::mode_task::TaskEventBus::new()));
     // 编排方法（16.2a）在无 agent 控制面装配时显式报错（可识别文案）。
     for method in ["createTask", "sendPrompt"] {
         let error = channel
@@ -299,8 +299,8 @@ async fn unknown_or_lifecycle_methods_error_explicitly() {
             other => panic!("期望 Error 变体，实际 {other:?}"),
         }
     }
-    // 尚未迁移的编排面（16.2c）与未知方法同样显式报错。
-    for method in ["getTaskSnapshot", "notARealMethod"] {
+    // 尚未迁移的方法与未知方法同样显式报错。
+    for method in ["notARealMethod"] {
         let error = channel
             .call(
                 "ctx".into(),
@@ -325,4 +325,94 @@ async fn unknown_or_lifecycle_methods_error_explicitly() {
 #[test]
 fn channel_name_constant() {
     assert_eq!(MODE_TASK_CHANNEL, "mode-task");
+}
+
+#[tokio::test]
+async fn task_event_bus_notify_and_listen() {
+    use host_channels::mode_task::{
+        TaskEventBus, ON_DYNAMIC_TASK_READY, ON_WORKSPACE_TASK_LIST_CHANGED,
+    };
+    use rpc_host::ServerChannel as _;
+
+    let db = TempDb::new("events");
+    let bus = Arc::new(TaskEventBus::new());
+    let channel = ModeTaskChannel::new(
+        repo(&db),
+        None,
+        None,
+        Arc::clone(&bus),
+    );
+
+    // 订阅两类事件：listen 分派 + emit 回传 JSON。
+    let received = Arc::new(std::sync::Mutex::new(Vec::<serde_json::Value>::new()));
+    let received_tl = Arc::clone(&received);
+    let sub_task_list = channel
+        .listen(
+            "ctx".into(),
+            ON_WORKSPACE_TASK_LIST_CHANGED.into(),
+            Value::Undefined,
+            Arc::new(move |value| {
+                if let Value::Json(text) = value {
+                    if let Ok(parsed) = serde_json::from_str(&text) {
+                        received_tl.lock().expect("recv").push(parsed);
+                    }
+                }
+            }),
+        )
+        .expect("listen task list");
+    let received_ready = Arc::new(std::sync::Mutex::new(Vec::<serde_json::Value>::new()));
+    let received_ready_clone = Arc::clone(&received_ready);
+    let sub_ready = channel
+        .listen(
+            "ctx".into(),
+            ON_DYNAMIC_TASK_READY.into(),
+            Value::Undefined,
+            Arc::new(move |value| {
+                if let Value::Json(text) = value {
+                    if let Ok(parsed) = serde_json::from_str(&text) {
+                        received_ready_clone.lock().expect("recv").push(parsed);
+                    }
+                }
+            }),
+        )
+        .expect("listen ready");
+
+    // 广播：task_created 带 meta；ready 带 taskId/reason。
+    bus.notify_task_list("task_created", Some(&json!({ "taskId": "task-1" })));
+    bus.notify_ready("task-1", "prompt_completed", None);
+    {
+        let received = received.lock().expect("recv");
+        assert_eq!(received.len(), 1);
+        assert_eq!(received[0]["kind"], "task_created");
+        assert_eq!(received[0]["meta"]["taskId"], "task-1");
+    }
+    {
+        let received = received_ready.lock().expect("recv");
+        assert_eq!(received.len(), 1);
+        assert_eq!(received[0]["taskId"], "task-1");
+        assert_eq!(received[0]["reason"], "prompt_completed");
+    }
+
+    // 释放订阅后不再收到。
+    sub_task_list();
+    bus.notify_task_list("task_meta_changed", None);
+    assert_eq!(received.lock().expect("recv").len(), 1);
+    drop(sub_ready);
+
+    // 未知事件显式报错。
+    let error = match channel.listen(
+        "ctx".into(),
+        "notAnEvent".into(),
+        Value::Undefined,
+        Arc::new(|_value| {}),
+    ) {
+        Ok(_) => panic!("unknown event 应报错"),
+        Err(error) => error,
+    };
+    match error {
+        rpc_host::ChannelError::Error { message, .. } => {
+            assert!(message.contains("unknown event"));
+        }
+        other => panic!("期望 Error 变体，实际 {other:?}"),
+    }
 }
