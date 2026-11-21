@@ -19,8 +19,9 @@ use rpc_host::{BoxFuture, CancellationToken, ChannelError, ServerChannel};
 use rpc_wire::Value as WireValue;
 use task_index_repo::{
     ArchiveStaleTasksParams, GroupedTaskGroupRefs, GroupedTaskRef, GroupedTaskViewOrderInput,
-    GroupedTaskViewTopLevelNodeRef, ListDeletedTaskIdsParams, ListTaskMetasParams, TaskIndexRepo,
-    TaskListKind, TaskListQuery, TaskListSortBy, TaskListWorkspaceScope, TaskRef,
+    GroupedTaskViewTopLevelNodeRef, ListDeletedTaskIdsParams, ListTaskMetasParams, ModeTaskMeta,
+    TaskIndexRepo, TaskIndexStatePatch, TaskListKind, TaskListQuery, TaskListSortBy,
+    TaskListWorkspaceScope, TaskRef,
 };
 
 pub const MODE_TASK_CHANNEL: &str = "mode-task";
@@ -388,6 +389,23 @@ fn first_listen_arg(arg: &WireValue) -> Option<serde_json::Value> {
             serde_json::Value::Array(items) => items.first().cloned(),
             json => Some(json),
         },
+    }
+}
+
+/// 单任务 workspace 事件（带 meta，TS emitWorkspaceTaskListChanged 直接形态）。
+fn task_workspace_event(
+    workspace_path: &str,
+    workspace_identity: Option<&str>,
+    task_id: &str,
+    reason: &'static str,
+    meta: &ModeTaskMeta,
+) -> WorkspaceTaskListChanged {
+    WorkspaceTaskListChanged {
+        workspace_path: workspace_path.to_string(),
+        workspace_identity: workspace_identity.map(str::to_string),
+        task_id: Some(task_id.to_string()),
+        reason,
+        task_meta: serde_json::to_value(meta).ok(),
     }
 }
 
@@ -887,6 +905,325 @@ fn run_read(
                 &serde_json::to_value(&metas)
                     .map_err(|error| ChannelError::error(error.to_string()))?,
             )
+        }
+        // ── 任务状态写面（renderer 侧菜单/归档/未读直接调用 mode-task）──
+        "renameTask" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+                title: String,
+            }
+            let parsed: P = parse(object)?;
+            // TS renameTask：同时推进 updatedAt + titleOverridden，避免运行中
+            // optimistic merge 把同 updatedAt 的旧长标题当成更强 meta。
+            let meta = repo
+                .update_task_state(
+                    &TaskRef {
+                        workspace_path: parsed.workspace_path.clone(),
+                        workspace_identity: parsed.workspace_identity.clone(),
+                        task_id: parsed.task_id.clone(),
+                    },
+                    &TaskIndexStatePatch {
+                        title: Some(parsed.title.clone()),
+                        title_overridden: Some(true),
+                        updated_at: Some(now_ms_i64()),
+                        ..TaskIndexStatePatch::default()
+                    },
+                )
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            // 已知差距：TS 还会 best-effort 发 v4 renameSession 同步 CLI session store；
+            // 壳内先只保 tasks-index，v4 侧边栏标题同步待 16.2 续。
+            events.notify_task_list(&task_workspace_event(
+                &parsed.workspace_path,
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+                "task_title_changed",
+                &meta,
+            ));
+            json_value(
+                &serde_json::to_value(&meta)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
+        }
+        "getTaskMeta" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let meta = repo
+                .get_task_meta(&TaskRef {
+                    workspace_path: parsed.workspace_path,
+                    workspace_identity: parsed.workspace_identity,
+                    task_id: parsed.task_id,
+                })
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            match meta {
+                Some(meta) => json_value(
+                    &serde_json::to_value(&meta)
+                        .map_err(|error| ChannelError::error(error.to_string()))?,
+                ),
+                None => json_value(&serde_json::Value::Null),
+            }
+        }
+        "setTaskPinned" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+                pinned: bool,
+            }
+            let parsed: P = parse(object)?;
+            let meta = repo
+                .update_task_state(
+                    &TaskRef {
+                        workspace_path: parsed.workspace_path.clone(),
+                        workspace_identity: parsed.workspace_identity.clone(),
+                        task_id: parsed.task_id.clone(),
+                    },
+                    &TaskIndexStatePatch {
+                        pinned: Some(parsed.pinned),
+                        ..TaskIndexStatePatch::default()
+                    },
+                )
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            events.notify_task_list(&task_workspace_event(
+                &parsed.workspace_path,
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+                if parsed.pinned {
+                    "task_pinned"
+                } else {
+                    "task_unpinned"
+                },
+                &meta,
+            ));
+            json_value(
+                &serde_json::to_value(&meta)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
+        }
+        "setTaskUnread" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+                unread: bool,
+                #[serde(default)]
+                expected_unread_at: Option<i64>,
+            }
+            let parsed: P = parse(object)?;
+            let task_ref = TaskRef {
+                workspace_path: parsed.workspace_path.clone(),
+                workspace_identity: parsed.workspace_identity.clone(),
+                task_id: parsed.task_id.clone(),
+            };
+            let (meta, emit) = if !parsed.unread {
+                if let Some(expected) = parsed.expected_unread_at {
+                    // CAS 未命中不能先乐观清除（旧手机点击可能晚于新的终态未读）。
+                    let result = repo
+                        .clear_task_unread_if_matches(&task_ref, expected)
+                        .map_err(|error| ChannelError::error(error.to_string()))?;
+                    (result.meta, result.cleared.then_some("task_meta_changed"))
+                } else {
+                    let meta = repo
+                        .update_task_state(
+                            &task_ref,
+                            &TaskIndexStatePatch {
+                                unread_at: Some(None),
+                                ..TaskIndexStatePatch::default()
+                            },
+                        )
+                        .map_err(|error| ChannelError::error(error.to_string()))?;
+                    (meta, Some("task_meta_changed"))
+                }
+            } else {
+                let meta = repo
+                    .update_task_state(
+                        &task_ref,
+                        &TaskIndexStatePatch {
+                            unread_at: Some(Some(now_ms_i64())),
+                            ..TaskIndexStatePatch::default()
+                        },
+                    )
+                    .map_err(|error| ChannelError::error(error.to_string()))?;
+                (meta, Some("task_meta_changed"))
+            };
+            if let Some(reason) = emit {
+                events.notify_task_list(&task_workspace_event(
+                    &parsed.workspace_path,
+                    parsed.workspace_identity.as_deref(),
+                    &parsed.task_id,
+                    reason,
+                    &meta,
+                ));
+            }
+            json_value(
+                &serde_json::to_value(&meta)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
+        }
+        "archiveTask" | "unarchiveTask" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let archived = command == "archiveTask";
+            let meta = repo
+                .update_task_state(
+                    &TaskRef {
+                        workspace_path: parsed.workspace_path.clone(),
+                        workspace_identity: parsed.workspace_identity.clone(),
+                        task_id: parsed.task_id.clone(),
+                    },
+                    &TaskIndexStatePatch {
+                        archived: Some(archived),
+                        ..TaskIndexStatePatch::default()
+                    },
+                )
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            events.notify_task_list(&task_workspace_event(
+                &parsed.workspace_path,
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+                if archived {
+                    "task_archived"
+                } else {
+                    "task_unarchived"
+                },
+                &meta,
+            ));
+            json_value(
+                &serde_json::to_value(&meta)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
+        }
+        "deleteTask" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let meta = repo
+                .update_task_state(
+                    &TaskRef {
+                        workspace_path: parsed.workspace_path.clone(),
+                        workspace_identity: parsed.workspace_identity.clone(),
+                        task_id: parsed.task_id.clone(),
+                    },
+                    &TaskIndexStatePatch {
+                        deleted: Some(true),
+                        ..TaskIndexStatePatch::default()
+                    },
+                )
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            // TS deleteTask：持久删除后发 task_deleted（带 meta），UI 立即移除并换代 tombstone。
+            events.notify_task_list(&task_workspace_event(
+                &parsed.workspace_path,
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+                "task_deleted",
+                &meta,
+            ));
+            Ok(WireValue::Undefined)
+        }
+        "deleteArchivedTask" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let deleted = repo
+                .delete_archived_task(&TaskRef {
+                    workspace_path: parsed.workspace_path.clone(),
+                    workspace_identity: parsed.workspace_identity.clone(),
+                    task_id: parsed.task_id.clone(),
+                })
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            if let Some(meta) = &deleted {
+                events.notify_task_list(&task_workspace_event(
+                    &parsed.workspace_path,
+                    parsed.workspace_identity.as_deref(),
+                    &parsed.task_id,
+                    "task_deleted",
+                    meta,
+                ));
+            }
+            json_value(&serde_json::json!(deleted.is_some()))
+        }
+        "deleteArchivedTasks" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+                task_ids: Vec<String>,
+            }
+            let parsed: P = parse(object)?;
+            let mut seen = std::collections::HashSet::new();
+            let task_ids: Vec<String> = parsed
+                .task_ids
+                .into_iter()
+                .filter(|task_id| seen.insert(task_id.clone()))
+                .collect();
+            let mut deleted = Vec::new();
+            let mut skipped = Vec::new();
+            let mut failed = Vec::new();
+            for task_id in task_ids {
+                let single = TaskRef {
+                    workspace_path: parsed.workspace_path.clone(),
+                    workspace_identity: parsed.workspace_identity.clone(),
+                    task_id,
+                };
+                match repo.delete_archived_task(&single) {
+                    Ok(Some(meta)) => deleted.push(meta.task_id),
+                    Ok(None) => skipped.push(single.task_id),
+                    Err(_) => failed.push(single.task_id),
+                }
+            }
+            // TS：整批成功后只广播一次 task_deleted（无逐任务 meta），避免逐项全量重读。
+            if !deleted.is_empty() {
+                events.notify_task_list(&WorkspaceTaskListChanged {
+                    workspace_path: parsed.workspace_path,
+                    workspace_identity: parsed.workspace_identity,
+                    task_id: None,
+                    reason: "task_deleted",
+                    task_meta: None,
+                });
+            }
+            json_value(&serde_json::json!({
+                "deletedTaskIds": deleted,
+                "skippedTaskIds": skipped,
+                "failedTaskIds": failed,
+            }))
         }
         // TS 空桩（legacy ACP 下线后 Body/Ref/ToolCallsSlice 恒 null）——同语义。
         "getTaskSnapshotBody" | "getTaskSnapshotRef" | "getTaskSnapshotToolCallsSlice" => {

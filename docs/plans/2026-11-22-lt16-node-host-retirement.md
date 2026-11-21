@@ -70,6 +70,13 @@ getTaskTarget 的索引归属回读抽为 `resolve_task_workspace` helper。
   task_deleted/task_meta_changed（CAS 未命中不广播）。**剩余**：
   getTaskSnapshotBody/Ref/ToolCallsSlice 族（TS 空桩恒 null，已同语义）、
   readyOutcome 事件源（prompt 生命周期跟踪）、status/title/分组等其余 TS 发射点。
+  **状态写面（2026-11-22）**：renderer 直接调用的 mode-task 写方法已落——
+  renameTask（title+titleOverridden+updatedAt，task_title_changed）、deleteTask、
+  deleteArchivedTask(s)（批量去重/单次广播）、setTaskPinned、setTaskUnread
+  （expectedUnreadAt CAS：未命中不写不广播）、archiveTask/unarchiveTask、
+  getTaskMeta；均按 TS reason 回发 workspace 事件。**剩余**：rename 的 v4
+  renameSession 同步（best-effort）与 updateIndexedTaskState 的「索引缺失时
+  resume seed」兜底。
 
 window-controller（16.3）依赖 16.2a+b（多源聚合消费 IModeTaskService 事件与
 sessions-index observer）——**排序 16.2 先于 16.3**。

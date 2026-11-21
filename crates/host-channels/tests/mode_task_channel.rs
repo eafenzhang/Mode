@@ -475,3 +475,195 @@ async fn snapshot_stubs_return_undefined_and_snapshot_requires_control() {
         }
     }
 }
+
+#[tokio::test]
+async fn rename_task_persists_title_and_emits_title_changed() {
+    use host_channels::mode_task::{TaskEventBus, WorkspaceEventScope};
+
+    let db = TempDb::new("rename");
+    let r = repo(&db);
+    seed_task(&r, "task-1", "旧标题", "D:/work/app", 1_000);
+    let bus = Arc::new(TaskEventBus::new());
+    let channel = ModeTaskChannel::new(Arc::clone(&r), None, None, Arc::clone(&bus));
+    let received = Arc::new(std::sync::Mutex::new(Vec::<Json>::new()));
+    let sink = Arc::clone(&received);
+    let _sub = bus.subscribe_task_list(
+        WorkspaceEventScope::default(),
+        Arc::new(move |value| {
+            if let Value::Json(text) = value {
+                sink.lock()
+                    .expect("events")
+                    .push(serde_json::from_str(&text).expect("event JSON"));
+            }
+        }),
+    );
+
+    let meta = call(&channel, "renameTask", json!({
+        "taskId": "task-1",
+        "workspacePath": "D:/work/app",
+        "title": "新标题",
+    }))
+    .await;
+    assert_eq!(meta["title"], "新标题");
+    assert_eq!(meta["titleOverridden"], true);
+    assert!(meta["updatedAt"].as_i64().expect("updatedAt") >= 1_000);
+    {
+        let received = received.lock().expect("events");
+        assert_eq!(received.len(), 1, "{received:?}");
+        assert_eq!(received[0]["reason"], "task_title_changed");
+        assert_eq!(received[0]["taskMeta"]["title"], "新标题");
+    }
+}
+
+#[tokio::test]
+async fn task_state_writes_persist_and_emit_workspace_events() {
+    use host_channels::mode_task::{TaskEventBus, WorkspaceEventScope};
+
+    let db = TempDb::new("state-writes");
+    let r = repo(&db);
+    seed_task(&r, "task-1", "标题", "D:/work/app", 1_000);
+    seed_task(&r, "task-2", "归档任务", "D:/work/app", 2_000);
+    let bus = Arc::new(TaskEventBus::new());
+    let channel = ModeTaskChannel::new(Arc::clone(&r), None, None, Arc::clone(&bus));
+
+    let received = Arc::new(std::sync::Mutex::new(Vec::<Json>::new()));
+    let sink = Arc::clone(&received);
+    let _sub = bus.subscribe_task_list(
+        WorkspaceEventScope {
+            workspace_path: Some("D:/work/app".to_string()),
+            workspace_identity: None,
+        },
+        Arc::new(move |value| {
+            if let Value::Json(text) = value {
+                sink.lock()
+                    .expect("events")
+                    .push(serde_json::from_str(&text).expect("event JSON"));
+            }
+        }),
+    );
+    fn reasons(received: &Arc<std::sync::Mutex<Vec<Json>>>) -> Vec<String> {
+        received
+            .lock()
+            .expect("events")
+            .iter()
+            .map(|event| event["reason"].as_str().unwrap_or_default().to_string())
+            .collect()
+    }
+
+    // pin → task_pinned；列表 membership 立即生效。
+    let meta = call(&channel, "setTaskPinned", json!({
+        "taskId": "task-1",
+        "workspacePath": "D:/work/app",
+        "pinned": true,
+    }))
+    .await;
+    assert_eq!(meta["taskId"], "task-1");
+    let pinned = call(&channel, "listPinnedTasks", json!({ "workspacePath": "D:/work/app" })).await;
+    assert_eq!(pinned.as_array().expect("pinned").len(), 1);
+    assert_eq!(reasons(&received), vec!["task_pinned"]);
+
+    // mark-unread → task_meta_changed；错误 expected 的 mark-read 不写不广播。
+    let meta = call(&channel, "setTaskUnread", json!({
+        "taskId": "task-1",
+        "workspacePath": "D:/work/app",
+        "unread": true,
+    }))
+    .await;
+    let unread_at = meta["unreadAt"].as_i64().expect("unreadAt");
+    call(&channel, "setTaskUnread", json!({
+        "taskId": "task-1",
+        "workspacePath": "D:/work/app",
+        "unread": false,
+        "expectedUnreadAt": 999,
+    }))
+    .await;
+    assert_eq!(reasons(&received), vec!["task_pinned", "task_meta_changed"]);
+    let meta = call(&channel, "getTaskMeta", json!({
+        "taskId": "task-1",
+        "workspacePath": "D:/work/app",
+    }))
+    .await;
+    assert_eq!(meta["unreadAt"], unread_at, "CAS 未命中保留 unread");
+
+    // 匹配 expected → 清除并广播。
+    call(&channel, "setTaskUnread", json!({
+        "taskId": "task-1",
+        "workspacePath": "D:/work/app",
+        "unread": false,
+        "expectedUnreadAt": unread_at,
+    }))
+    .await;
+    assert_eq!(
+        reasons(&received),
+        vec!["task_pinned", "task_meta_changed", "task_meta_changed"]
+    );
+
+    // archive/unarchive → task_archived/task_unarchived。
+    call(&channel, "archiveTask", json!({
+        "taskId": "task-2",
+        "workspacePath": "D:/work/app",
+    }))
+    .await;
+    call(&channel, "unarchiveTask", json!({
+        "taskId": "task-2",
+        "workspacePath": "D:/work/app",
+    }))
+    .await;
+    let all = reasons(&received);
+    assert_eq!(&all[3..], &["task_archived", "task_unarchived"]);
+
+    // 归档删除单条/批量 → task_deleted；批量去重且 skipped 不含重复项。
+    call(&channel, "archiveTask", json!({
+        "taskId": "task-2",
+        "workspacePath": "D:/work/app",
+    }))
+    .await;
+    let deleted = call(&channel, "deleteArchivedTask", json!({
+        "taskId": "task-2",
+        "workspacePath": "D:/work/app",
+    }))
+    .await;
+    assert_eq!(deleted, json!(true));
+    assert_eq!(reasons(&received).last().map(String::as_str), Some("task_deleted"));
+
+    call(&channel, "archiveTask", json!({
+        "taskId": "task-1",
+        "workspacePath": "D:/work/app",
+    }))
+    .await;
+    let batch = call(&channel, "deleteArchivedTasks", json!({
+        "workspacePath": "D:/work/app",
+        "taskIds": ["task-1", "task-1", "absent"],
+    }))
+    .await;
+    assert_eq!(batch["deletedTaskIds"], json!(["task-1"]));
+    assert_eq!(batch["skippedTaskIds"], json!(["absent"]));
+    assert!(batch["failedTaskIds"].as_array().expect("failed").is_empty());
+
+    // deleteTask → 持久删除（getTaskMeta 变 null），广播 task_deleted。
+    seed_task(&r, "task-3", "待删除", "D:/work/app", 3_000);
+    let value = channel
+        .call(
+            "ctx".into(),
+            "deleteTask".into(),
+            Value::Json(
+                json!({
+                    "taskId": "task-3",
+                    "workspacePath": "D:/work/app",
+                })
+                .to_string(),
+            ),
+            CancellationToken::default(),
+        )
+        .await
+        .expect("deleteTask");
+    // TS `deleteTask(): Promise<void>`。
+    assert!(matches!(value, Value::Undefined), "{value:?}");
+    let meta = call(&channel, "getTaskMeta", json!({
+        "taskId": "task-3",
+        "workspacePath": "D:/work/app",
+    }))
+    .await;
+    assert_eq!(meta, Json::Null);
+    assert_eq!(reasons(&received).last().map(String::as_str), Some("task_deleted"));
+}
