@@ -26,7 +26,22 @@
 | # | 子任务 | 内容 | 依赖 | 出口 |
 | --- | --- | --- | --- | --- |
 | 16.1 | **mode-task 读面进壳** | `host-channels` 增 `mode-task` 频道（首切只读 + 分组管理写面）：listTasks/listPinnedTaskIds/listPinnedTasks/listDeletedTaskIds/listTaskList/listGroupedTaskViewStructure/applyGroupedTaskViewOrder/listArchivedTasks/archiveStaleTasks/archiveWorkspaceTasks + 分组 CRUD（create/rename/color/delete group，底层 repo 全齐） | 无（repo 已迁） | 频道对拍（TS 形状逐字段）+ 真机任务列表渲染一致 |
-| 16.2 | **mode-task 编排面进壳** | 生命周期/命令队列/permission/elicitation/close/resume/snapshot 族：依赖 AgentControlClient（agent-server 已是 Rust）+ 事件桥（sendPrompt/deliverSessionMessage/readyOutcome） | 16.1 | 20 任务清单中任务系统场景全过 |
+| 16.2 | **mode-task 编排面进壳** | 生命周期/命令队列/permission/elicitation/close/resume/snapshot 族 | 16.1 | 20 任务清单中任务系统场景全过 |
+
+16.2 细拆（调查结论 2026-11-22）：编排真源 = `modeTaskServiceAdapter.ts`（5768 行，
+任务↔agent 会话桥状态机）+ `modeTaskService.ts`（746 行）。**按依赖排序三片**：
+
+- **16.2a 会话桥接状态机**：createTask→agent-server createSession、sendPrompt→
+  sessionSend（inputId/traceId 对齐）、close/resume；`crates/agent-server` 的
+  session 面已 Rust（v4 protocol），桥接是「任务 meta ↔ 会话生命周期」同步 +
+  readyOutcome（prompt_completed/failed）事件。
+- **16.2b 命令队列 + permission/elicitation**：enqueue/promote/cancel 命令队列、
+  respondPermission/respondElicitation 转发（AgentControlClient 已在壳内可用）。
+- **16.2c snapshot 族 + 事件面**：getTaskSnapshot 族（store 读 + byteBudget 切片）、
+  task_meta_changed/taskListChanged 事件（EventFire 桥）。
+
+window-controller（16.3）依赖 16.2a+b（多源聚合消费 IModeTaskService 事件与
+sessions-index observer）——**排序 16.2 先于 16.3**。
 | 16.3 | **window-controller 进壳** | windowController 子系统（~1716 行）：窗口会话/Host sessions-index observer | 无强依赖 | 真机窗口操作一致 |
 | 16.4 | **remote 面进壳** | remote-desktop（~1031 行独立子系统）/ remote-v3（v3 ControlLink）/ lan-access / remoteWorkspaceService（959 行） | 16.2 | 手机远控验收 |
 | 16.5 | **host-standalone 收口** | 骨架（~4.4k 行）随上述面退役：stdioFrames/stdoutGuard/scopedAttachments/rendererConnectionScope 退场 | 16.1–16.4 | `w6:readiness` 四组 blocker 归零 |
