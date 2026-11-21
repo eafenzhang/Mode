@@ -56,6 +56,29 @@
 
 响应一律为 shared `lanAccessStateSchema` 形状；非法 body → 400。
 
+## Rust 侧监督器（LT-16.4a，2026-11-22）
+
+`crates/server/src/lan_host.rs` 的 `LanHostSupervisor` 是桌面/服务端共用的本机被连端
+运行时，复用既有底座（`lan_router` 六端点桥 + `ws_host_router` capability/帧桥 +
+`router` 健康/版本/server-info）：
+
+- `start(expose_lan)`：`true` 绑 `0.0.0.0:45880`（占用回落系统分配），`false` 只绑
+  `127.0.0.1:0`（本机服务）；成功后更新 `LanPairHttp` 监听视图（enabled/port/
+  addresses）并广播 `onDidChange`。
+- `set_enabled(true/false)`：启动成功后才调用宿主持久化回调（桌面 = setting
+  `lanAccessEnabled`，服务端 = 凭据键）；关闭 = 停监听、清配对码、port/addresses 归零。
+- `create_pair_code`/`remove_client`/`reset_tokens`：委托 `LanPairHttp`（唯一状态
+  所有者），成功后广播幂等状态快照；`onDidChange` 首个订阅者经事件循环补当前快照。
+- `LanAccessHostPort` 同步端口：`state`/`set_enabled`/配对码/clients/reset 走
+  `Handle::block_on`（频道侧在 `spawn_blocking` 中调用）；`subscribe_changes` 不阻塞，
+  快照用 `handle.spawn` 投递。
+- 每 server 一条 supervisor 经 `ChannelAssemblyOptions.lan_host` 注入 `lan-access`
+  频道；`WsHostDeps.agent_control` 让 LAN 客户端获得 agent 频道（桌面注入、
+  server-mode 为 None）。
+
+**未覆盖**：静态 Web 资源（手机页面 `/`）、公网中继、远程桌面逐设备 hooks；
+当前监听只提供 `/api/*` 与 `/ws/host`（桌面↔桌面挂接可用）。
+
 ## 状态所有权与事件顺序
 
 - 卡片状态唯一所有者 = packages/server 的 `lanAccessHost`（内存缓存 + 凭据服务持久化，

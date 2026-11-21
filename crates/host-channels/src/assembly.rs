@@ -72,6 +72,8 @@ pub struct ChannelAssemblyOptions {
     /// 同一 server 内的任务事件总线：mode-task 发事件、window-controller 订阅刷新投影
     /// （TS Host 进程内 Emitter 等价）。每 server 一条，跨 server 不共享。
     pub task_events: Arc<crate::mode_task::TaskEventBus>,
+    /// LAN server supervisor（桌面/服务端宿主注入）；`None` 时 lan-access 管理面显式报错。
+    pub lan_host: Option<Arc<dyn crate::lan_access::LanAccessHostPort>>,
 }
 
 impl ChannelAssemblyOptions {
@@ -139,12 +141,16 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
             system_service::SystemService::new(),
         )))),
         LAN_ACCESS_CHANNEL => {
-            // 16.4a 首切：只装配对端配对 registry（credential-store 有文件锁，
-            // 与 credential 频道多实例并存安全）；server supervisor 未装配，
-            // getState/setEnabled/配对码等显式报错。
-            Some(Arc::new(LanAccessChannel::new(Arc::new(
-                credential_store::CredentialStore::new(data_root.clone()),
-            ))))
+            // 16.4a：对端配对 registry + 宿主注入的 supervisor（监听生命周期/
+            // 配对码/clients/onDidChange）；未注入时 getState 走 offline 快照、
+            // 管理面显式报错。
+            let credentials = Arc::new(credential_store::CredentialStore::new(data_root.clone()));
+            Some(match &options.lan_host {
+                Some(host) => {
+                    Arc::new(LanAccessChannel::with_host(credentials, Arc::clone(host)))
+                }
+                None => Arc::new(LanAccessChannel::new(credentials)),
+            })
         }
         FILE_CHANNEL => {
             // 索引降级（规则文件不可用/解析失败）必须可观察；日志只带原因，不带文件内容。

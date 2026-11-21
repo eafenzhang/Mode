@@ -11,6 +11,7 @@ use axum::{Json, Router};
 use serde_json::{json, Value};
 
 pub mod lan;
+pub mod lan_host;
 pub mod server_info;
 pub mod ws_host;
 
@@ -49,6 +50,7 @@ pub fn router_with_ws_host(
 ) -> Router {
     let deps = ws_host::WsHostDeps {
         host_capabilities: Arc::new(ws_host::HostCapabilityStore::new()),
+        agent_control: None,
         data_root,
         lan_pairing,
     };

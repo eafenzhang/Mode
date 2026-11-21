@@ -8,7 +8,8 @@
 //!
 //! 差异记录 spec：LAN 客户端录制（`resolveLanClientByToken`/workspace 记录）依赖
 //! Node Host 录制面，未迁；`connectionScope`（mode-agent 连接域）依赖 Agent
-//! 控制面，server-mode 首切不注册 agent 频道（`agent_control: None`）。
+//! 控制面：由 `WsHostDeps.agent_control` 注入（桌面 Host 传入，server-mode 为 None→
+//! agent 频道构造留痕跳过）。
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -137,6 +138,9 @@ impl Default for HostCapabilityStore {
 #[derive(Clone)]
 pub struct WsHostDeps {
     pub host_capabilities: Arc<HostCapabilityStore>,
+    /// Agent 控制面：`Some` 时 LAN 客户端获得 mode-agent/mode-task 等频道
+    /// （桌面 Host 注入）；server-mode 没有 Agent 面时为 `None`（频道构造留痕跳过）。
+    pub agent_control: Option<Arc<agent_process::AgentControlClient>>,
     /// 频道装配的数据根（memory / conversation-mirror / usage-stats 等）。
     pub data_root: PathBuf,
     /// LAN 配对面（可选）：`None` 时该连接不参与「最近打开目录」录制
@@ -283,10 +287,12 @@ async fn bridge_host_socket(socket: WebSocket, deps: WsHostDeps, client_id: Opti
         &mut server,
         &ChannelAssemblyOptions {
             data_root: deps.data_root,
-            agent_control: None,
+            agent_control: deps.agent_control.clone(),
             on_shell_log: None,
             // 每连接一条：单连接内 mode-task → window-controller 投影刷新。
             task_events: std::sync::Arc::new(host_channels::mode_task::TaskEventBus::new()),
+            // server-mode 的 lan-access 由宿主监督器注入（本入口 None）。
+            lan_host: None,
         },
     );
     let outbound = tokio::spawn(async move {

@@ -33,6 +33,7 @@ fn test_config() -> ServerInfoConfig {
 /// （进程内单例语义；POST 端点的 JSON 形状由 issue_endpoint 测试覆盖）。
 fn ws_app(now: Arc<dyn Fn() -> Instant + Send + Sync>) -> (axum::Router, Arc<HostCapabilityStore>) {
     let deps = WsHostDeps {
+        agent_control: None,
         host_capabilities: Arc::new(HostCapabilityStore::with_injectables(
             Duration::from_millis(30_000),
             now,
@@ -261,6 +262,7 @@ async fn ws_host_records_workspace_path_for_paired_client() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let deps = WsHostDeps {
+        agent_control: None,
         host_capabilities: Arc::new(HostCapabilityStore::new()),
         data_root: dir.join("data"),
         lan_pairing: Some(pairing),

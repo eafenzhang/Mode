@@ -3694,12 +3694,14 @@ dependencies = [
 name = "mode-server"
 version = "0.1.0"
 dependencies = [
+ "agent-process",
  "axum",
  "credential-store",
  "data-root",
  "futures-util",
  "host-channels",
  "http-body-util",
+ "lan-discovery",
  "lan-http",
  "lan-pairing",
  "rpc-host",
