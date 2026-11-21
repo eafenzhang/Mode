@@ -454,7 +454,12 @@ async fn snapshot_stubs_return_undefined_and_snapshot_requires_control() {
         assert!(matches!(value, Value::Undefined), "{method} 应恒 null");
     }
     // 快照主方法与 Etag 变体：需要控制面。
-    for method in ["getTaskSnapshot", "getTaskSnapshotWithEtag"] {
+    for method in [
+        "getTaskSnapshot",
+        "getTaskSnapshotWithEtag",
+        "stopGeneration",
+        "getTaskTokenUsage",
+    ] {
         let error = channel
             .call(
                 "ctx".into(),
@@ -474,6 +479,19 @@ async fn snapshot_stubs_return_undefined_and_snapshot_requires_control() {
             other => panic!("期望 Error 变体，实际 {other:?}"),
         }
     }
+}
+
+#[tokio::test]
+async fn session_file_path_is_computed_from_target() {
+    let db = TempDb::new("session-path");
+    let channel = ModeTaskChannel::new(repo(&db), None, None, Arc::new(host_channels::mode_task::TaskEventBus::new()));
+    let result = call(&channel, "getTaskSessionFilePath", json!({
+        "taskId": "task-1",
+        "workspacePath": "D:/work/app",
+    }))
+    .await;
+    assert_eq!(result["path"], "D:/work/app/task-1.mode-session");
+    assert_eq!(result["exists"], false);
 }
 
 #[tokio::test]

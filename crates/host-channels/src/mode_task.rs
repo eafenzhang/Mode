@@ -974,6 +974,20 @@ fn run_read(
                 None => json_value(&serde_json::Value::Null),
             }
         }
+        "getTaskSessionFilePath" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                workspace_path: String,
+            }
+            let parsed: P = parse(object)?;
+            // TS 同实现：legacy ACP 下线后无真实 session 文件，恒 exists=false。
+            json_value(&serde_json::json!({
+                "path": format!("{}/{}.mode-session", parsed.workspace_path, parsed.task_id),
+                "exists": false,
+            }))
+        }
         "setTaskPinned" => {
             #[derive(Deserialize)]
             #[serde(rename_all = "camelCase")]
@@ -1856,6 +1870,85 @@ async fn run_orchestration(
             }
             json_value(&result)
         }
+        "stopGeneration" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let (workspace_path, workspace_identity) = resolve_task_workspace(
+                repo,
+                parsed.workspace_path.as_deref(),
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+            )?;
+            let target = AgentWorkspaceTarget {
+                workspace_path,
+                workspace_identity,
+                remote_session_id: None,
+            };
+            // TS stopGeneration：session/stop → v4 stop（goal-pause barrier 由 CLI 承接）。
+            let envelope = agent_protocol::v4::ConversationCommandEnvelope {
+                ttft: None,
+                command_id: uuid::Uuid::new_v4().to_string(),
+                client_id: "mode-host".to_string(),
+                session_id: agent_protocol::v4::CommandSessionId(Some(parsed.task_id.clone())),
+                base_revision: None,
+                base_log_epoch: None,
+                command_type: agent_protocol::v4::CommandType::Stop,
+                payload: serde_json::json!({}),
+                issued_at: serde_json::Number::from(now_ms_i64()),
+            };
+            control
+                .send_conversation_command_v4(&target, &envelope)
+                .await
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            // TS `stopGeneration(): Promise<void>`。
+            Ok(WireValue::Undefined)
+        }
+        "getTaskTokenUsage" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let (workspace_path, workspace_identity) = resolve_task_workspace(
+                repo,
+                parsed.workspace_path.as_deref(),
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+            )?;
+            let target = AgentWorkspaceTarget {
+                workspace_path,
+                workspace_identity,
+                remote_session_id: None,
+            };
+            // TS getTaskTokenUsage：只读观察 v4/conversation/usage，不拉起 runtime。
+            let usage = control
+                .conversation_usage_v4(
+                    &target,
+                    agent_protocol::v4_queries::ConversationUsageParams {
+                        session_id: parsed.task_id,
+                    },
+                    agent_process::RuntimePolicy::ExistingOnly,
+                )
+                .await
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            json_value(
+                &serde_json::to_value(&usage)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
+        }
         other => Err(ChannelError::error(format!(
             "mode-task channel: unknown orchestration command {other}"
         ))),
@@ -1903,7 +1996,8 @@ impl ServerChannel for ModeTaskChannel {
                 "createTask" | "closeTask" | "resumeTask" | "sendPrompt"
                 | "enqueueTaskCommand" | "promoteTaskCommand" | "cancelTaskCommand"
                 | "respondPermission" | "respondElicitation"
-                | "getTaskSnapshot" | "getTaskSnapshotWithEtag" => {
+                | "getTaskSnapshot" | "getTaskSnapshotWithEtag"
+                | "stopGeneration" | "getTaskTokenUsage" => {
                     let object = crate::params::first_arg_object(&arg)?;
                     let control = control.ok_or_else(|| {
                         ChannelError::error(format!(
