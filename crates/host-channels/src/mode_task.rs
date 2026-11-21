@@ -16,7 +16,7 @@ use agent_protocol::snapshot::SessionStateSnapshot;
 use rpc_host::{BoxFuture, CancellationToken, ChannelError, ServerChannel};
 use rpc_wire::Value as WireValue;
 use task_index_repo::{
-    ArchiveStaleTasksParams, GroupedTaskRef, GroupedTaskGroupRefs, GroupedTaskViewOrderInput,
+    ArchiveStaleTasksParams, GroupedTaskGroupRefs, GroupedTaskRef, GroupedTaskViewOrderInput,
     GroupedTaskViewTopLevelNodeRef, ListDeletedTaskIdsParams, ListTaskMetasParams, TaskIndexRepo,
     TaskListKind, TaskListQuery, TaskListSortBy, TaskListWorkspaceScope,
 };
@@ -219,7 +219,10 @@ fn run_read(
                     limit: parsed.limit,
                 })
                 .map_err(|error| ChannelError::error(error.to_string()))?;
-            json_value(&serde_json::to_value(&result).map_err(|error| ChannelError::error(error.to_string()))?)
+            json_value(
+                &serde_json::to_value(&result)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
         }
         "listTasks" | "listPinnedTasks" | "listArchivedTasks" => {
             let parsed: WorkspaceParams = parse(object)?;
@@ -239,7 +242,10 @@ fn run_read(
                     include_deleted: false,
                 })
                 .map_err(|error| ChannelError::error(error.to_string()))?;
-            json_value(&serde_json::to_value(&metas).map_err(|error| ChannelError::error(error.to_string()))?)
+            json_value(
+                &serde_json::to_value(&metas)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
         }
         "listPinnedTaskIds" => {
             let ids: Vec<String> = repo
@@ -255,7 +261,10 @@ fn run_read(
                 .into_iter()
                 .map(|meta| meta.task_id)
                 .collect();
-            json_value(&serde_json::to_value(&ids).map_err(|error| ChannelError::error(error.to_string()))?)
+            json_value(
+                &serde_json::to_value(&ids)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
         }
         "listDeletedTaskIds" => {
             let parsed: WorkspaceParams = parse(object)?;
@@ -266,7 +275,10 @@ fn run_read(
                     provider: None,
                 })
                 .map_err(|error| ChannelError::error(error.to_string()))?;
-            json_value(&serde_json::to_value(&ids).map_err(|error| ChannelError::error(error.to_string()))?)
+            json_value(
+                &serde_json::to_value(&ids)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
         }
         "listGroupedTaskViewStructure" => {
             #[derive(Deserialize)]
@@ -276,11 +288,13 @@ fn run_read(
                 workspace_scopes: Vec<WorkspaceScopeParams>,
             }
             let parsed: P = parse(object)?;
-            let structure = repo.query_grouped_task_view_structure(&repo_scopes(
-                parsed.workspace_scopes,
-            ))
-            .map_err(|error| ChannelError::error(error.to_string()))?;
-            json_value(&serde_json::to_value(&structure).map_err(|error| ChannelError::error(error.to_string()))?)
+            let structure = repo
+                .query_grouped_task_view_structure(&repo_scopes(parsed.workspace_scopes))
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            json_value(
+                &serde_json::to_value(&structure)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
         }
         "applyGroupedTaskViewOrder" => {
             #[derive(Deserialize)]
@@ -374,15 +388,18 @@ fn run_read(
                         .collect(),
                 })
                 .collect();
-            let view = repo.apply_grouped_task_view_order(&GroupedTaskViewOrderInput {
+            let view = repo
+                .apply_grouped_task_view_order(&GroupedTaskViewOrderInput {
                     workspace_scopes: repo_scopes(parsed.workspace_scopes),
                     top_level_nodes,
                     groups,
                     provider: None,
-                },
+                })
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            json_value(
+                &serde_json::to_value(&view)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
             )
-            .map_err(|error| ChannelError::error(error.to_string()))?;
-            json_value(&serde_json::to_value(&view).map_err(|error| ChannelError::error(error.to_string()))?)
         }
         "createTaskGroup" => {
             #[derive(Deserialize)]
@@ -397,7 +414,10 @@ fn run_read(
             let group = repo
                 .create_task_group(parsed.title.as_deref(), parsed.color.as_deref())
                 .map_err(|error| ChannelError::error(error.to_string()))?;
-            json_value(&serde_json::to_value(&group).map_err(|error| ChannelError::error(error.to_string()))?)
+            json_value(
+                &serde_json::to_value(&group)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
         }
         "renameTaskGroup" | "updateTaskGroupColor" | "deleteTaskGroup" => {
             #[derive(Deserialize)]
@@ -419,18 +439,20 @@ fn run_read(
                         .rename_task_group(&parsed.group_id, &title)
                         .map_err(|error| ChannelError::error(error.to_string()))?;
                     json_value(
-                        &serde_json::to_value(&group).map_err(|error| ChannelError::error(error.to_string()))?,
+                        &serde_json::to_value(&group)
+                            .map_err(|error| ChannelError::error(error.to_string()))?,
                     )
                 }
                 "updateTaskGroupColor" => {
-                    let color = parsed
-                        .color
-                        .ok_or_else(|| ChannelError::error("updateTaskGroupColor requires color"))?;
+                    let color = parsed.color.ok_or_else(|| {
+                        ChannelError::error("updateTaskGroupColor requires color")
+                    })?;
                     let group = repo
                         .update_task_group_color(&parsed.group_id, &color)
                         .map_err(|error| ChannelError::error(error.to_string()))?;
                     json_value(
-                        &serde_json::to_value(&group).map_err(|error| ChannelError::error(error.to_string()))?,
+                        &serde_json::to_value(&group)
+                            .map_err(|error| ChannelError::error(error.to_string()))?,
                     )
                 }
                 _ => {
@@ -478,7 +500,10 @@ fn run_read(
                     include_deleted: false,
                 })
                 .map_err(|error| ChannelError::error(error.to_string()))?;
-            json_value(&serde_json::to_value(&archived).map_err(|error| ChannelError::error(error.to_string()))?)
+            json_value(
+                &serde_json::to_value(&archived)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
         }
         "archiveStaleTasks" => {
             #[derive(Deserialize)]
@@ -498,7 +523,10 @@ fn run_read(
                     provider: None,
                 })
                 .map_err(|error| ChannelError::error(error.to_string()))?;
-            json_value(&serde_json::to_value(&metas).map_err(|error| ChannelError::error(error.to_string()))?)
+            json_value(
+                &serde_json::to_value(&metas)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
         }
         other => Err(ChannelError::error(format!(
             "mode-task channel: unknown or not-yet-migrated command {other}"
@@ -531,6 +559,9 @@ async fn run_orchestration(
                 automation_id: Option<String>,
                 #[serde(default)]
                 off_peak_task_id: Option<String>,
+                // replayable 首发复用 draft session（手机端草稿；TS createTask 首分支）。
+                #[serde(default)]
+                draft_session_id: Option<String>,
             }
             let parsed: P = parse(object)?;
             // control 已由 call 分流保证存在
@@ -543,34 +574,119 @@ async fn run_orchestration(
                 .ensure_provider_config(&target)
                 .await
                 .map_err(|error| ChannelError::error(error.to_string()))?;
-            // automation / 闲时任务新建空 session 后立即 sendText——V4 admission
-            // 必须在首发前统一持久化 session 主记录（TS deferred persistence 同因）。
-            let persistence = if parsed.automation_id.is_some() {
-                Some(SessionPersistence::Deferred)
-            } else {
-                None
+
+            // draft 复用（TS createTask 首分支）：draft session 存在 → 按请求同步
+            // model/thoughtLevel → 复用 snapshot；session missing → 降级新建
+            // （远端重连/agent 重启后旧 draftSessionId 可能失效，避免用户卡死）。
+            // mcpServers 载荷不在本切片（None 时才尝试复用，TS 同条件）。
+            let mut reused_snapshot: Option<SessionStateSnapshot> = None;
+            let draft_session_id = parsed
+                .draft_session_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string);
+            if let Some(draft_id) = &draft_session_id {
+                match control
+                    .read_session(&target, draft_id, None, None, None)
+                    .await
+                {
+                    Ok(draft) => {
+                        let mut current = draft;
+                        if let Some(selection) = &parsed.model {
+                            // replayable 首发复用 draft 时必须以 UI 当前模型为准，
+                            // 否则手机远控显示新模型但真实请求仍用旧模型（TS 同因注释）。
+                            let same = current
+                                .settings
+                                .model
+                                .current
+                                .as_ref()
+                                .map(|existing| {
+                                    existing.provider_id == selection.provider_id
+                                        && existing.model_id == selection.model_id
+                                        && existing.options == selection.options
+                                })
+                                .unwrap_or(false);
+                            if !same {
+                                current = control
+                                    .set_session_model(&target, draft_id, selection, None, None)
+                                    .await
+                                    .map_err(|error| ChannelError::error(error.to_string()))?;
+                            }
+                        }
+                        if let Some(selection) = &parsed.model {
+                            if let Some(reasoning) = selection
+                                .options
+                                .as_ref()
+                                .and_then(|options| options.reasoning_level.as_deref())
+                            {
+                                if current.settings.thought_level.current.as_deref()
+                                    != Some(reasoning)
+                                {
+                                    current = control
+                                        .set_session_thought_level(
+                                            &target,
+                                            draft_id,
+                                            Some(reasoning),
+                                            None,
+                                            None,
+                                        )
+                                        .await
+                                        .map_err(|error| ChannelError::error(error.to_string()))?;
+                                }
+                            }
+                        }
+                        reused_snapshot = Some(current);
+                    }
+                    Err(error) => {
+                        let message = error.to_string();
+                        // TS isSessionMissingError：/Session (not found|is not active):/i
+                        let missing = message.contains("Session not found")
+                            || message.contains("Session is not active");
+                        if !missing {
+                            return Err(ChannelError::error(message));
+                        }
+                        // 降级新建（TS logger.warn 同义）。
+                    }
+                }
+            }
+
+            let snapshot: SessionStateSnapshot = match reused_snapshot {
+                Some(snapshot) => snapshot,
+                None => {
+                    // automation / 闲时任务新建空 session 后立即 sendText——V4 admission
+                    // 必须在首发前统一持久化 session 主记录（TS deferred persistence 同因）。
+                    let persistence = if parsed.automation_id.is_some() {
+                        Some(SessionPersistence::Deferred)
+                    } else {
+                        None
+                    };
+                    control
+                        .create_session(
+                            &target,
+                            agent_process::CreateSessionOptions {
+                                session_id: None,
+                                parent_session_id: None,
+                                mode: parsed.mode,
+                                model: parsed.model,
+                                persistence,
+                                thought_level: parsed.thought_level,
+                                title_generation_enabled: parsed
+                                    .automation_id
+                                    .as_ref()
+                                    .map(|_| false),
+                                mcp_servers: None,
+                                tool_allowlist: None,
+                                tool_denylist: None,
+                                imported_history: None,
+                                off_peak_tool_enabled: false,
+                                dynamic_workflow_enabled: false,
+                            },
+                        )
+                        .await
+                        .map_err(|error| ChannelError::error(error.to_string()))?
+                }
             };
-            let snapshot: SessionStateSnapshot = control
-                .create_session(
-                    &target,
-                    agent_process::CreateSessionOptions {
-                        session_id: None,
-                        parent_session_id: None,
-                        mode: parsed.mode,
-                        model: parsed.model,
-                        persistence,
-                        thought_level: parsed.thought_level,
-                        title_generation_enabled: parsed.automation_id.as_ref().map(|_| false),
-                        mcp_servers: None,
-                        tool_allowlist: None,
-                        tool_denylist: None,
-                        imported_history: None,
-                        off_peak_tool_enabled: false,
-                        dynamic_workflow_enabled: false,
-                    },
-                )
-                .await
-                .map_err(|error| ChannelError::error(error.to_string()))?;
             let mut meta = snapshot_to_meta(&snapshot)?;
             if parsed.automation_id.is_some() || parsed.off_peak_task_id.is_some() {
                 meta.cron_automation_id = parsed.automation_id.clone();
@@ -590,8 +706,8 @@ async fn run_orchestration(
                 workspace_identity: meta.workspace_identity.clone(),
                 task_id: meta.task_id.clone(),
             });
-            let mut result =
-                serde_json::to_value(&meta).map_err(|error| ChannelError::error(error.to_string()))?;
+            let mut result = serde_json::to_value(&meta)
+                .map_err(|error| ChannelError::error(error.to_string()))?;
             // task 创建结果携带 agent 协议快照里的命令列表（TS initialSlashCommands）。
             if let Some(commands) = &snapshot.slash_commands {
                 if let Ok(value) = serde_json::to_value(commands) {
@@ -678,7 +794,10 @@ async fn run_orchestration(
                 searchable_text: None,
             })
             .map_err(|error| ChannelError::error(error.to_string()))?;
-            json_value(&serde_json::to_value(&meta).map_err(|error| ChannelError::error(error.to_string()))?)
+            json_value(
+                &serde_json::to_value(&meta)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
         }
         "sendPrompt" => {
             // TS sendPrompt = sessionSend 直转发（meta 更新事件在 16.2c 事件面）。
@@ -745,7 +864,10 @@ async fn run_orchestration(
                 )
                 .await
                 .map_err(|error| ChannelError::error(error.to_string()))?;
-            json_value(&serde_json::to_value(&result).map_err(|error| ChannelError::error(error.to_string()))?)
+            json_value(
+                &serde_json::to_value(&result)
+                    .map_err(|error| ChannelError::error(error.to_string()))?,
+            )
         }
         other => Err(ChannelError::error(format!(
             "mode-task channel: unknown orchestration command {other}"
