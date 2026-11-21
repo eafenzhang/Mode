@@ -128,9 +128,19 @@ renderer 消费方全部保留。结果：`windowControllerService` 是指向未
     一律 `idle`：SQLite 里的 running/waiting 可能是上次进程残留，不能重新解释成
     当前运行事实（TS `defaultLiveStatus` 同规则）。
 
-**未覆盖（16.3 续 / 16.4）**：sessions-index overlay（liveStatus/activity/
-pendingInteraction/title 富化）、remote source 聚合与重连换源、事件驱动的增量收敛
-（当前为调用时 refresh）、`registerSource`/`replaceDisconnectedSource` 的对外接线。
+**sessions-index overlay 投影（2026-11-22 已落）**：`SessionOverlayStore` 按
+workspaceKey 保存 `taskId → WindowHostControllerSessionOverlay`；
+`replace_session_overlays` 写入后 refresh 并广播 delta。行富化与 TS
+`buildSourceRows`/`sessionOverlay` 同口径——title（手动标题优先，custom 可覆盖）/
+titleOverridden/updatedAt/status（activity.phase 投影：prewarming|running→running、
+completedSuccess|CompletedInterrupted→completed、error→error、draft→移除）/
+pendingInteraction/liveStatus（overlay 优先，否则 defaultLiveStatus）/activity；
+`listTaskList` 同步富化并透传 searchSnippets。
+
+**未覆盖（16.3 续 / 16.4）**：sessions-index 订阅泵（existing-only subscribe +
+分片装配 + resync/重启恢复，把帧喂给 overlay store）、remote source 聚合与重连换源、
+事件驱动的增量收敛（当前为调用时 refresh）、`registerSource`/
+`replaceDisconnectedSource` 的对外接线。
 
 ## 验收场景
 

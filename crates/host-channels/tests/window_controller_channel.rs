@@ -726,6 +726,121 @@ async fn mutations_publish_workspace_task_events() {
     }
 }
 
+#[tokio::test]
+async fn session_overlays_enrich_rows_and_frames() {
+    let db = TempDb::new("overlay");
+    let r = repo(&db);
+    // DB 里是运行的残留状态 + 普通标题：无 overlay 时 liveStatus 必须回 idle。
+    r.sync_task_meta(SyncTaskMetaParams {
+        meta: parse_mode_task_meta(&json!({
+            "taskId": "task-1",
+            "traceId": "trace-task-1",
+            "title": "DB 标题",
+            "workspacePath": "D:/work/app",
+            "createdAt": 1_000,
+            "updatedAt": 1_000,
+            "mode": "build",
+            "provider": "glm",
+            "status": "running",
+        }))
+        .expect("meta"),
+        pinned: None,
+        archived: None,
+        deleted: None,
+        title_overridden: None,
+        searchable_text: None,
+    })
+    .expect("seed");
+    let channel = WindowControllerChannel::new(Arc::clone(&r));
+    let (frames, _listener) = listen_frames(&channel);
+
+    call(
+        &channel,
+        "subscribeControllerV4",
+        json!({ "topic": "controller/tasks-index" }),
+    )
+    .await;
+    let captured = take_frames(&frames);
+    assert_eq!(
+        captured[0]["payload"]["snapshot"]["tasks"][0]["liveStatus"],
+        "idle"
+    );
+    assert_eq!(
+        captured[0]["payload"]["snapshot"]["tasks"][0]["meta"]["title"],
+        "DB 标题"
+    );
+
+    channel
+        .replace_session_overlays(
+            "D:/work/app",
+            None,
+            vec![json!({
+                "taskId": "task-1",
+                "liveStatus": "waiting",
+                "title": "实时标题",
+                "titleSource": "custom",
+                "updatedAt": 3_000,
+                "pendingInteraction": {
+                    "interactionId": "i1",
+                    "kind": "permission",
+                    "toolName": "bash"
+                },
+                "activity": {
+                    "phase": "completedSuccess",
+                    "lastActivityAt": 3_000,
+                    "hasBackgroundWork": false
+                }
+            })],
+        )
+        .expect("replace overlays");
+    let captured = take_frames(&frames);
+    assert_eq!(captured.len(), 1, "{captured:?}");
+    let deltas = captured[0]["payload"]["deltas"].as_array().expect("deltas");
+    assert_eq!(deltas.len(), 1, "{deltas:?}");
+    assert_eq!(deltas[0]["op"], "task.upserted");
+    let row = &deltas[0]["task"];
+    assert_eq!(row["liveStatus"], "waiting");
+    assert_eq!(row["meta"]["title"], "实时标题");
+    assert_eq!(row["meta"]["titleOverridden"], true);
+    assert_eq!(row["meta"]["updatedAt"], 3_000);
+    assert_eq!(row["meta"]["status"], "completed");
+    assert_eq!(row["meta"]["pendingInteraction"]["interactionId"], "i1");
+    assert_eq!(row["activity"]["phase"], "completedSuccess");
+
+    // 列表投影同样富化。
+    let listed = call(
+        &channel,
+        "listTaskList",
+        json!({
+            "kind": "active",
+            "workspaceScopes": [{ "workspacePath": "D:/work/app" }],
+            "sortBy": "updated",
+        }),
+    )
+    .await;
+    assert_eq!(listed["items"][0]["liveStatus"], "waiting");
+    assert_eq!(listed["items"][0]["title"], "实时标题");
+    assert_eq!(listed["items"][0]["activity"]["phase"], "completedSuccess");
+
+    // 清空 overlay：回到 DB 值（running 视为残留 → idle）。
+    channel
+        .replace_session_overlays("D:/work/app", None, Vec::new())
+        .expect("clear overlays");
+    let listed = call(
+        &channel,
+        "listTaskList",
+        json!({
+            "kind": "active",
+            "workspaceScopes": [{ "workspacePath": "D:/work/app" }],
+            "sortBy": "updated",
+        }),
+    )
+    .await;
+    assert_eq!(listed["items"][0]["liveStatus"], "idle");
+    assert_eq!(listed["items"][0]["title"], "DB 标题");
+    assert!(listed["items"][0].get("activity").is_none());
+}
+
 #[test]
 fn channel_name_constant() {
     assert_eq!(WINDOW_CONTROLLER_CHANNEL, "window-controller");

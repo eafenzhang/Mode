@@ -40,6 +40,8 @@ pub struct WindowControllerChannel {
     repo: Arc<TaskIndexRepo>,
     /// V4 controller 帧总线（订阅注册 + snapshot/delta 广播）。
     frames: Arc<ControllerFrameBus>,
+    /// sessions-index overlay（liveStatus/activity/title 富化）。
+    overlays: Arc<SessionOverlayStore>,
     /// mode-task 任务事件总线：桥订阅 + 本频道 mutation 的事件回发
     /// （TS 两服务写同一索引、共用同一条 workspace 事件）。
     task_events: Option<Arc<crate::mode_task::TaskEventBus>>,
@@ -50,10 +52,15 @@ pub struct WindowControllerChannel {
 impl WindowControllerChannel {
     /// 独立频道（无跨频道事件总线）：refresh/事件回发只在本频道内生效。
     pub fn new(repo: Arc<TaskIndexRepo>) -> Self {
-        let frames = Arc::new(ControllerFrameBus::new(Arc::clone(&repo)));
+        let overlays = Arc::new(SessionOverlayStore::new());
+        let frames = Arc::new(ControllerFrameBus::new(
+            Arc::clone(&repo),
+            Arc::clone(&overlays),
+        ));
         Self {
             repo,
             frames,
+            overlays,
             task_events: None,
             _task_event_bridge: None,
         }
@@ -66,7 +73,11 @@ impl WindowControllerChannel {
         repo: Arc<TaskIndexRepo>,
         task_events: Arc<crate::mode_task::TaskEventBus>,
     ) -> Self {
-        let frames = Arc::new(ControllerFrameBus::new(Arc::clone(&repo)));
+        let overlays = Arc::new(SessionOverlayStore::new());
+        let frames = Arc::new(ControllerFrameBus::new(
+            Arc::clone(&repo),
+            Arc::clone(&overlays),
+        ));
         let bridge_frames = Arc::clone(&frames);
         let bridge = task_events.subscribe_local(Arc::new(
             move |_event: &crate::mode_task::WorkspaceTaskListChanged| {
@@ -77,9 +88,29 @@ impl WindowControllerChannel {
         Self {
             repo,
             frames,
+            overlays,
             task_events: Some(task_events),
             _task_event_bridge: Some(bridge),
         }
+    }
+
+    /// sessions-index observer 写入 overlay 后刷新投影并广播 delta 帧。
+    pub fn replace_session_overlays(
+        &self,
+        workspace_path: &str,
+        workspace_identity: Option<&str>,
+        overlays: Vec<JsonValue>,
+    ) -> Result<(), String> {
+        self.overlays.replace(
+            &workspace_identity_key(workspace_identity, workspace_path),
+            overlays,
+        );
+        self.frames.refresh()
+    }
+
+    /// 供观察器装配方持有（后续 sessions-index 订阅泵使用）。
+    pub fn overlays(&self) -> Arc<SessionOverlayStore> {
+        Arc::clone(&self.overlays)
     }
 
     /// per-call 克隆：共享 repo/frames/事件总线，但不持有事件桥订阅。
@@ -87,6 +118,7 @@ impl WindowControllerChannel {
         Self {
             repo: Arc::clone(&self.repo),
             frames: Arc::clone(&self.frames),
+            overlays: Arc::clone(&self.overlays),
             task_events: self.task_events.clone(),
             _task_event_bridge: None,
         }
@@ -168,7 +200,11 @@ struct TaskListItem {
     #[serde(flatten)]
     meta: serde_json::Value,
     source_availability: &'static str,
-    live_status: &'static str,
+    live_status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    activity: Option<JsonValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    search_snippets: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -196,6 +232,123 @@ fn default_live_status(meta: &ModeTaskMeta) -> &'static str {
         Some("error") => "error",
         _ => "idle",
     }
+}
+
+/// sessions-index 投影 overlay（TS `WindowHostSessionsIndexObserver` 的输出，
+/// 每个 workspace 一份 taskId → `WindowHostControllerSessionOverlay`）。
+#[derive(Default)]
+pub struct SessionOverlayStore {
+    rows: Mutex<HashMap<String, HashMap<String, JsonValue>>>,
+}
+
+impl SessionOverlayStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 整份替换某 workspace 的 overlay（observer 每次快照/增量后全量重放）。
+    pub fn replace(&self, workspace_key: &str, overlays: Vec<JsonValue>) {
+        let mut rows = HashMap::new();
+        for overlay in overlays {
+            let Some(task_id) = overlay.get("taskId").and_then(JsonValue::as_str) else {
+                continue;
+            };
+            rows.insert(task_id.to_string(), overlay);
+        }
+        self.rows
+            .lock()
+            .expect("session overlay store poisoned")
+            .insert(workspace_key.to_string(), rows);
+    }
+
+    fn get(&self, workspace_key: &str, task_id: &str) -> Option<JsonValue> {
+        self.rows
+            .lock()
+            .expect("session overlay store poisoned")
+            .get(workspace_key)
+            .and_then(|rows| rows.get(task_id))
+            .cloned()
+    }
+}
+
+/// TS `sessionOverlay` 的 activity.phase → meta.status 投影。
+fn status_from_activity(phase: &str) -> Option<&'static str> {
+    match phase {
+        "prewarming" | "running" => Some("running"),
+        "completedSuccess" | "completedInterrupted" => Some("completed"),
+        "error" => Some("error"),
+        // draft → undefined（移除 status 字段）。
+        "draft" => None,
+        _ => None,
+    }
+}
+
+/// TS `buildSourceRows` 的 overlay 合并：标题覆盖条件 / updatedAt / status /
+/// pendingInteraction。
+fn apply_overlay(meta_json: &mut JsonValue, overlay: Option<&JsonValue>) {
+    let Some(overlay) = overlay else {
+        return;
+    };
+    let Some(object) = meta_json.as_object_mut() else {
+        return;
+    };
+    let title_overridden = object
+        .get("titleOverridden")
+        .and_then(JsonValue::as_bool)
+        == Some(true);
+    let title_source = overlay.get("titleSource").and_then(JsonValue::as_str);
+    if let Some(title) = overlay.get("title").and_then(JsonValue::as_str) {
+        // 用户手动标题优先；overlay 的 custom 标题可覆盖。
+        if !title_overridden || title_source == Some("custom") {
+            object.insert("title".to_string(), JsonValue::String(title.to_string()));
+        }
+    }
+    if title_source == Some("custom") {
+        object.insert("titleOverridden".to_string(), JsonValue::Bool(true));
+    }
+    if let Some(updated_at) = overlay.get("updatedAt").and_then(JsonValue::as_i64) {
+        object.insert("updatedAt".to_string(), serde_json::json!(updated_at));
+    }
+    if let Some(phase) = overlay
+        .get("activity")
+        .and_then(|activity| activity.get("phase"))
+        .and_then(JsonValue::as_str)
+    {
+        match status_from_activity(phase) {
+            Some(status) => {
+                object.insert("status".to_string(), JsonValue::String(status.to_string()));
+            }
+            None => {
+                object.remove("status");
+            }
+        }
+    }
+    match overlay.get("pendingInteraction") {
+        Some(value) if !value.is_null() => {
+            object.insert("pendingInteraction".to_string(), value.clone());
+        }
+        _ => {
+            object.remove("pendingInteraction");
+        }
+    }
+}
+
+fn row_live_status(meta: &ModeTaskMeta, overlay: Option<&JsonValue>) -> String {
+    overlay
+        .and_then(|overlay| overlay.get("liveStatus"))
+        .and_then(JsonValue::as_str)
+        .unwrap_or_else(|| default_live_status(meta))
+        .to_string()
+}
+
+fn overlay_for(
+    overlays: &SessionOverlayStore,
+    meta: &ModeTaskMeta,
+) -> Option<JsonValue> {
+    overlays.get(
+        &workspace_identity_key(meta.workspace_identity.as_deref(), &meta.workspace_path),
+        &meta.task_id,
+    )
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -275,14 +428,16 @@ impl ControllerFrameState {
 /// subscriptionId 寻址，客户端自行按 cursor 过滤。
 struct ControllerFrameBus {
     repo: Arc<TaskIndexRepo>,
+    overlays: Arc<SessionOverlayStore>,
     state: Mutex<ControllerFrameState>,
     listeners: Arc<Mutex<HashMap<String, EventCallback>>>,
 }
 
 impl ControllerFrameBus {
-    fn new(repo: Arc<TaskIndexRepo>) -> Self {
+    fn new(repo: Arc<TaskIndexRepo>, overlays: Arc<SessionOverlayStore>) -> Self {
         Self {
             repo,
+            overlays,
             state: Mutex::new(ControllerFrameState::new()),
             listeners: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -325,7 +480,8 @@ impl ControllerFrameBus {
     /// delta 帧（TS `publishTaskDeltas`/`publishWorkspaceDeltas` 同语义：
     /// 即使没有订阅者也要推进 seq）。
     fn refresh(&self) -> Result<(), String> {
-        let (next_tasks, next_workspaces) = collect_frame_rows(&self.repo)?;
+        let (next_tasks, next_workspaces) =
+            collect_frame_rows(&self.repo, &self.overlays)?;
         let mut frames: Vec<JsonValue> = Vec::new();
         {
             let mut state = self
@@ -440,16 +596,21 @@ impl ControllerFrameBus {
 /// archived 行按 TS 固定 `membership.pinned = false`（即使 DB pinned 标志为真）。
 type FrameRows = (BTreeMap<String, TaskRowRecord>, BTreeMap<String, JsonValue>);
 
-fn collect_frame_rows(repo: &TaskIndexRepo) -> Result<FrameRows, String> {
+fn collect_frame_rows(
+    repo: &TaskIndexRepo,
+    overlays: &SessionOverlayStore,
+) -> Result<FrameRows, String> {
     let mut tasks: BTreeMap<String, TaskRowRecord> = BTreeMap::new();
     for (pinned, archived) in [(false, false), (true, false)] {
         for meta in list_metas(repo, Some(pinned), Some(archived))? {
-            let record = task_row_record(&meta, pinned, archived);
+            let overlay = overlay_for(overlays, &meta);
+            let record = task_row_record(&meta, pinned, archived, overlay.as_ref());
             tasks.insert(record.key.clone(), record);
         }
     }
     for meta in list_metas(repo, None, Some(true))? {
-        let record = task_row_record(&meta, false, true);
+        let overlay = overlay_for(overlays, &meta);
+        let record = task_row_record(&meta, false, true, overlay.as_ref());
         tasks.insert(record.key.clone(), record);
     }
     let workspaces = collect_workspace_facts(&tasks);
@@ -477,7 +638,12 @@ fn workspace_identity_key(identity: Option<&str>, workspace_path: &str) -> Strin
         .to_string()
 }
 
-fn task_row_record(meta: &ModeTaskMeta, pinned: bool, archived: bool) -> TaskRowRecord {
+fn task_row_record(
+    meta: &ModeTaskMeta,
+    pinned: bool,
+    archived: bool,
+    overlay: Option<&JsonValue>,
+) -> TaskRowRecord {
     let key = format!(
         "local\u{0}{}\u{0}{}",
         workspace_identity_key(meta.workspace_identity.as_deref(), &meta.workspace_path),
@@ -490,21 +656,29 @@ fn task_row_record(meta: &ModeTaskMeta, pinned: bool, archived: bool) -> TaskRow
     if let Some(identity) = &meta.workspace_identity {
         address["workspaceIdentity"] = serde_json::json!(identity);
     }
-    let meta_json = serde_json::to_value(meta).unwrap_or(JsonValue::Null);
+    let mut meta_json = serde_json::to_value(meta).unwrap_or(JsonValue::Null);
+    apply_overlay(&mut meta_json, overlay);
+    let live_status = row_live_status(meta, overlay);
+    let mut row = serde_json::json!({
+        "address": address,
+        "meta": meta_json,
+        "membership": {
+            "pinned": pinned,
+            "archived": archived,
+            "active": !archived,
+        },
+        "sourceAvailability": "online",
+        "liveStatus": live_status,
+    });
+    if let Some(activity) = overlay.and_then(|overlay| overlay.get("activity")) {
+        row["activity"] = activity.clone();
+    }
     TaskRowRecord {
         key,
-        updated_at: meta.updated_at,
-        json: serde_json::json!({
-            "address": address,
-            "meta": meta_json,
-            "membership": {
-                "pinned": pinned,
-                "archived": archived,
-                "active": !archived,
-            },
-            "sourceAvailability": "online",
-            "liveStatus": default_live_status(meta),
-        }),
+        updated_at: row["meta"]["updatedAt"]
+            .as_i64()
+            .unwrap_or(meta.updated_at),
+        json: row,
     }
 }
 
@@ -738,11 +912,23 @@ fn run(
                 .items
                 .iter()
                 .filter_map(|item| {
-                    let meta = serde_json::to_value(&item.meta).ok()?;
+                    // TS listTaskList 读投影 rows：overlay 富化 + searchSnippets 透传。
+                    let overlay = overlay_for(&channel.overlays, &item.meta);
+                    let mut meta = serde_json::to_value(&item.meta).ok()?;
+                    apply_overlay(&mut meta, overlay.as_ref());
+                    let live_status = row_live_status(&item.meta, overlay.as_ref());
+                    let activity = overlay
+                        .as_ref()
+                        .and_then(|overlay| overlay.get("activity").cloned());
+                    let search_snippets = item.search_snippets.clone().or_else(|| {
+                        item.search_snippet.clone().map(|snippet| vec![snippet])
+                    });
                     Some(TaskListItem {
-                        live_status: default_live_status(&item.meta),
+                        live_status,
                         meta,
                         source_availability: "online",
+                        activity,
+                        search_snippets,
                     })
                 })
                 .collect();
