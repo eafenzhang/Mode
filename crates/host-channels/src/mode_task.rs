@@ -363,6 +363,46 @@ fn run(
                 }
             }
         }
+        "archiveWorkspaceTasks" => {
+            // TS adapter 同语义：列出未归档 → 逐个 patch archived → 返回归档后列表。
+            // provider 固定 MODE_AGENT_PROVIDER（glm），与 TS GLM_PROVIDER 一致。
+            let parsed: WorkspaceParams = parse(object)?;
+            let metas = repo
+                .list_task_metas(&ListTaskMetasParams {
+                    workspace_path: Some(parsed.workspace_path.clone()),
+                    workspace_identity: parsed.workspace_identity.clone(),
+                    provider: Some(task_index_repo::MODE_AGENT_PROVIDER.to_string()),
+                    pinned: None,
+                    archived: Some(false),
+                    include_deleted: false,
+                })
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            for meta in &metas {
+                repo.update_task_state(
+                    &task_index_repo::TaskRef {
+                        workspace_path: meta.workspace_path.clone(),
+                        workspace_identity: meta.workspace_identity.clone(),
+                        task_id: meta.task_id.clone(),
+                    },
+                    &task_index_repo::TaskIndexStatePatch {
+                        archived: Some(true),
+                        ..task_index_repo::TaskIndexStatePatch::default()
+                    },
+                )
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            }
+            let archived = repo
+                .list_task_metas(&ListTaskMetasParams {
+                    workspace_path: Some(parsed.workspace_path),
+                    workspace_identity: parsed.workspace_identity,
+                    provider: Some(task_index_repo::MODE_AGENT_PROVIDER.to_string()),
+                    pinned: None,
+                    archived: Some(true),
+                    include_deleted: false,
+                })
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            json_value(&serde_json::to_value(&archived).map_err(|error| ChannelError::error(error.to_string()))?)
+        }
         "archiveStaleTasks" => {
             #[derive(Deserialize)]
             #[serde(rename_all = "camelCase")]

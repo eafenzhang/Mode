@@ -48,6 +48,8 @@ fn meta(task_id: &str, title: &str, workspace_path: &str, created_at: i64) -> Mo
         "createdAt": created_at,
         "updatedAt": created_at,
         "mode": "build",
+        // 与生产任务一致（TS mode-task 面按 provider=glm 过滤）。
+        "provider": "glm",
     }))
     .expect("meta 合法")
 }
@@ -226,6 +228,50 @@ async fn group_crud_and_view_structure() {
     )
     .await;
     assert_eq!(structure["groups"].as_array().expect("groups").len(), 0);
+}
+
+#[tokio::test]
+async fn archive_workspace_tasks_patches_and_lists() {
+    let db = TempDb::new("archive-ws");
+    let r = repo(&db);
+    seed_task(&r, "task-1", "实现登录页", "D:/work/app", 1_000);
+    seed_task(&r, "task-2", "修复滚动条", "D:/work/app", 2_000);
+    let channel = ModeTaskChannel::new(Arc::clone(&r));
+
+    let archived = call(
+        &channel,
+        "archiveWorkspaceTasks",
+        json!({ "workspacePath": "D:/work/app" }),
+    )
+    .await;
+    let mut ids: Vec<&str> = archived
+        .as_array()
+        .expect("array")
+        .iter()
+        .map(|meta| meta["taskId"].as_str().expect("id"))
+        .collect();
+    ids.sort_unstable();
+    assert_eq!(ids, vec!["task-1", "task-2"]);
+
+    // 归档后 archived=true 列表可读、active 列表为空。
+    let archived_list = call(
+        &channel,
+        "listArchivedTasks",
+        json!({ "workspacePath": "D:/work/app" }),
+    )
+    .await;
+    assert_eq!(archived_list.as_array().expect("array").len(), 2);
+    let active = call(
+        &channel,
+        "listTaskList",
+        json!({
+            "kind": "active",
+            "workspaceScopes": [{ "workspacePath": "D:/work/app" }],
+            "sortBy": "updated",
+        }),
+    )
+    .await;
+    assert_eq!(active["total"], 0);
 }
 
 #[tokio::test]
