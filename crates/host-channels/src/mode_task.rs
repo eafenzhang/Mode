@@ -656,6 +656,10 @@ fn run_read(
                     .map_err(|error| ChannelError::error(error.to_string()))?,
             )
         }
+        // TS 空桩（legacy ACP 下线后 Body/Ref/ToolCallsSlice 恒 null）——同语义。
+        "getTaskSnapshotBody" | "getTaskSnapshotRef" | "getTaskSnapshotToolCallsSlice" => {
+            Ok(WireValue::Undefined)
+        }
         other => Err(ChannelError::error(format!(
             "mode-task channel: unknown or not-yet-migrated command {other}"
         ))),
@@ -1177,6 +1181,102 @@ async fn run_orchestration(
                 .map_err(|error| ChannelError::error(error.to_string()))?;
             json_value(&serde_json::json!({ "accepted": true, "ack": ack }))
         }
+        "getTaskSnapshot" | "getTaskSnapshotWithEtag" => {
+            // TS getTaskSnapshot（modeTaskServiceAdapter :2494）：resume 快照 →
+            // messageLimit 截断 → syncTaskIndexMeta 回源 → 返回 snapshot+meta；
+            // WithEtag 变体（:2547）：sha256(JSON) 作 ETag，ifNoneMatch 命中返回
+            // {snapshot:null, etag, notModified:true}（缓存协商）。
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+                #[serde(default)]
+                message_limit: Option<u64>,
+                #[serde(default)]
+                thought_level: Option<String>,
+                #[serde(default)]
+                if_none_match: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let control = channel.control.clone().ok_or_else(|| {
+                ChannelError::error(format!(
+                    "mode-task channel: {command} requires the agent control plane (not assembled)"
+                ))
+            })?;
+            let (workspace_path, workspace_identity) = resolve_task_workspace(
+                repo,
+                parsed.workspace_path.as_deref(),
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+            )?;
+            let target = AgentWorkspaceTarget {
+                workspace_path,
+                workspace_identity,
+                remote_session_id: None,
+            };
+            let mut snapshot: SessionStateSnapshot = control
+                .resume_session(
+                    &target,
+                    agent_protocol::session_write::SessionResumeParams {
+                        session_id: parsed.task_id.clone(),
+                        workspace: None,
+                        thought_level: parsed.thought_level,
+                        mcp_servers: None,
+                        tool_allowlist: None,
+                        tool_denylist: None,
+                        off_peak_tool_enabled: None,
+                        dynamic_workflow_enabled: None,
+                    },
+                )
+                .await
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            // messageLimit：截断 messages（保尾部——最新上下文优先）。
+            if let Some(limit) = parsed.message_limit.filter(|limit| *limit > 0) {
+                let total = snapshot.messages.len();
+                if total > limit as usize {
+                    snapshot.messages = snapshot.messages.split_off(total - limit as usize);
+                }
+            }
+            // session owner 的快照刷新索引投影（用户手动标题由 sync 保留）。
+            let meta = snapshot_to_meta(&snapshot)?;
+            let indexed_meta = repo
+                .sync_task_meta(task_index_repo::SyncTaskMetaParams {
+                    meta: meta.clone(),
+                    pinned: None,
+                    archived: None,
+                    deleted: None,
+                    title_overridden: None,
+                    searchable_text: None,
+                })
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            let mut result = serde_json::to_value(&snapshot)
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            if let Ok(meta_value) = serde_json::to_value(&indexed_meta) {
+                result["meta"] = meta_value;
+            }
+            if command == "getTaskSnapshotWithEtag" {
+                use sha2::Digest as _;
+                let text = serde_json::to_string(&result)
+                    .map_err(|error| ChannelError::error(error.to_string()))?;
+                let etag = format!("{:x}", sha2::Sha256::digest(text.as_bytes()));
+                if parsed.if_none_match.as_deref() == Some(etag.as_str()) {
+                    return json_value(&serde_json::json!({
+                        "snapshot": null,
+                        "etag": etag,
+                        "notModified": true,
+                    }));
+                }
+                return json_value(&serde_json::json!({
+                    "snapshot": result,
+                    "etag": etag,
+                }));
+            }
+            json_value(&result)
+        }
         other => Err(ChannelError::error(format!(
             "mode-task channel: unknown orchestration command {other}"
         ))),
@@ -1222,7 +1322,8 @@ impl ServerChannel for ModeTaskChannel {
                 // 编排面（async：AgentControlClient 会话调用）。
                 "createTask" | "closeTask" | "resumeTask" | "sendPrompt"
                 | "enqueueTaskCommand" | "promoteTaskCommand" | "cancelTaskCommand"
-                | "respondPermission" | "respondElicitation" => {
+                | "respondPermission" | "respondElicitation"
+                | "getTaskSnapshot" | "getTaskSnapshotWithEtag" => {
                     let object = crate::params::first_arg_object(&arg)?;
                     let control = control.ok_or_else(|| {
                         ChannelError::error(format!(

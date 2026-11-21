@@ -416,3 +416,52 @@ async fn task_event_bus_notify_and_listen() {
         other => panic!("期望 Error 变体，实际 {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn snapshot_stubs_return_undefined_and_snapshot_requires_control() {
+    let db = TempDb::new("snapshot-stubs");
+    let channel = ModeTaskChannel::new(
+        repo(&db),
+        None,
+        None,
+        Arc::new(host_channels::mode_task::TaskEventBus::new()),
+    );
+    // TS 空桩：Body/Ref/ToolCallsSlice 恒 null（wire Undefined，不需要控制面）。
+    for method in [
+        "getTaskSnapshotBody",
+        "getTaskSnapshotRef",
+        "getTaskSnapshotToolCallsSlice",
+    ] {
+        let value = channel
+            .call(
+                "ctx".into(),
+                method.into(),
+                Value::Json(json!({ "taskId": "task-1" }).to_string()),
+                CancellationToken::default(),
+            )
+            .await
+            .expect("stub");
+        assert!(matches!(value, Value::Undefined), "{method} 应恒 null");
+    }
+    // 快照主方法与 Etag 变体：需要控制面。
+    for method in ["getTaskSnapshot", "getTaskSnapshotWithEtag"] {
+        let error = channel
+            .call(
+                "ctx".into(),
+                method.into(),
+                Value::Json(json!({ "taskId": "task-1" }).to_string()),
+                CancellationToken::default(),
+            )
+            .await
+            .expect_err("requires control");
+        match error {
+            rpc_host::ChannelError::Error { message, .. } => {
+                assert!(
+                    message.contains("requires the agent control plane"),
+                    "{method}: {message}"
+                );
+            }
+            other => panic!("期望 Error 变体，实际 {other:?}"),
+        }
+    }
+}
