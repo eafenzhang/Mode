@@ -10,5 +10,7 @@ name = "agent_protocol"
 path = "src/lib.rs"
 
 [dependencies]
+base64.workspace = true
+crc32fast = "1"
 serde.workspace = true
 serde_json.workspace = true

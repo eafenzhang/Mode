@@ -42,6 +42,27 @@ sessions-index 与 conversation 共用 `v4/conversation/subscribe`（`topic` 自
 `subscribe_topic_frames`，避免两条链路各自实现过滤逻辑。unsubscribe/resync 复用现有
 `v4/conversation/unsubscribe|resync`（同为 topic 字符串）。
 
+## 4. Host 侧分片装配（2026-11-22）
+
+`crates/agent-protocol/src/v4_wire_assembler.rs` 的 `SessionsIndexWireAssembler`
+移植自 `wire-assembler.ts` 的 `TopicWireFrameAssembler`（收敛到 sessions-index）：
+
+- 每 `(topic, subscriptionId)` 一个进行中 logical frame；ordinal < 1 视为协议违规
+  （metadataMismatch）；旧 ordinal 吞掉，同 ordinal 不同 id → ordinalConflict。
+- tombstone（settled）记录每 route 已收 ordinal，旧分片回放不会复活。
+- 更高 ordinal 的权威 `recovery` 无 fault 取代残缺旧帧（同批旧超时 fault 一并过滤）；
+  普通帧取代时对旧帧记 superseded。complete 帧遇到进行中分片 → 对旧 assembly 记
+  metadataMismatch。
+- 上限与 TS 一致：物理帧 1 MiB / logical 16 MiB / 1024 片 / 32 并发 / 32 MiB 暂存 /
+  30 s 超时；分片 index/count/logicalBytes/checksum 格式校验、base64 解码、crc32、
+  严格 UTF-8、JSON、envelope(topic+subscriptionId) 与 `SessionsIndexTopicFrame::validate`。
+- 事件为 `Complete { frame, deliveryKind }` 或 `Fault(reasonCode…)`；`expire/discard/
+  abort/clear/stats` 与 TS 同名语义。
+
+验收：`cargo test -p agent-protocol --lib v4_wire_assembler`（6 条：complete/tombstone、
+ordinal 冲突与 invalid payload、分片拼装、crc32 失配、recovery supersede、超时与
+分片冲突）。
+
 ## 4. 验收
 
 `cargo test -p agent-protocol --test v4_sessions_index`（5 条）：
