@@ -485,6 +485,30 @@ async fn snapshot_stubs_return_undefined_and_snapshot_requires_control() {
 }
 
 #[tokio::test]
+async fn scan_importable_claude_sessions_returns_candidates_array() {
+    let db = TempDb::new("claude-scan");
+    let channel = ModeTaskChannel::new(
+        repo(&db),
+        None,
+        None,
+        Arc::new(host_channels::mode_task::TaskEventBus::new()),
+    );
+    // 只断言分发与形状（扫描真实 HOME）；环境无 Claude 历史时返回空数组。
+    let result = call(
+        &channel,
+        "scanImportableClaudeSessions",
+        json!({ "limit": 5 }),
+    )
+    .await;
+    assert!(result.is_array(), "{result:?}");
+    if let Some(candidate) = result.as_array().and_then(|items| items.first()) {
+        assert_eq!(candidate["provider"], "claude");
+        assert!(candidate["sessionId"].is_string());
+        assert!(candidate["sourcePath"].is_string());
+    }
+}
+
+#[tokio::test]
 async fn model_trajectory_dispatch_returns_shape() {
     let db = TempDb::new("trajectory");
     let channel = ModeTaskChannel::new(

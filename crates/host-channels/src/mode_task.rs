@@ -977,6 +977,30 @@ fn run_read(
                 None => json_value(&serde_json::Value::Null),
             }
         }
+        "scanImportableClaudeSessions" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                #[serde(default)]
+                workspace_path: Option<String>,
+                // 仅影响导入落盘目录；扫描按 jsonl 内 cwd 与 workspacePath 过滤。
+                #[serde(default)]
+                #[allow(dead_code)]
+                workspace_identity: Option<String>,
+                #[serde(default)]
+                modified_since: Option<i64>,
+                #[serde(default)]
+                limit: Option<f64>,
+            }
+            let parsed: P = parse(object)?;
+            let candidates =
+                crate::claude_import::scan_importable_sessions(&crate::claude_import::ScanParams {
+                    workspace_path: parsed.workspace_path,
+                    modified_since: parsed.modified_since,
+                    limit: parsed.limit,
+                });
+            json_value(&serde_json::Value::Array(candidates))
+        }
         "getModelTrajectory" => {
             #[derive(Deserialize)]
             #[serde(rename_all = "camelCase")]

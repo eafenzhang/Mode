@@ -683,7 +683,7 @@ fn to_time(value: Option<&str>) -> i64 {
     value.map(parse_time_ms).unwrap_or(0)
 }
 
-fn parse_time_ms(value: &str) -> i64 {
+pub(crate) fn parse_time_ms(value: &str) -> i64 {
     let bytes = value.as_bytes();
     if bytes.len() < 10 {
         return 0;
