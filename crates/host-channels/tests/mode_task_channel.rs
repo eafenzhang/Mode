@@ -461,6 +461,7 @@ async fn snapshot_stubs_return_undefined_and_snapshot_requires_control() {
         "getTaskTokenUsage",
         "releaseWorkspacePreparation",
         "restartWorkspaceProcess",
+        "initialize",
     ] {
         let error = channel
             .call(

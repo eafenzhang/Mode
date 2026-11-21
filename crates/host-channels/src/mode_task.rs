@@ -1873,6 +1873,27 @@ async fn run_orchestration(
             }
             json_value(&result)
         }
+        "initialize" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let target = AgentWorkspaceTarget {
+                workspace_path: parsed.workspace_path,
+                workspace_identity: parsed.workspace_identity,
+                remote_session_id: None,
+            };
+            let result = control.initialize(&target).await;
+            // TS adapter：{ available, version: protocolName/protocolVersion }。
+            json_value(&serde_json::json!({
+                "available": result.available,
+                "version": format!("{}/{}", result.protocol_name, result.protocol_version),
+            }))
+        }
         "releaseWorkspacePreparation" | "restartWorkspaceProcess" => {
             #[derive(Deserialize)]
             #[serde(rename_all = "camelCase")]
@@ -2022,7 +2043,8 @@ impl ServerChannel for ModeTaskChannel {
                 | "respondPermission" | "respondElicitation"
                 | "getTaskSnapshot" | "getTaskSnapshotWithEtag"
                 | "stopGeneration" | "getTaskTokenUsage"
-                | "releaseWorkspacePreparation" | "restartWorkspaceProcess" => {
+                | "releaseWorkspacePreparation" | "restartWorkspaceProcess"
+                | "initialize" => {
                     let object = crate::params::first_arg_object(&arg)?;
                     let control = control.ok_or_else(|| {
                         ChannelError::error(format!(
