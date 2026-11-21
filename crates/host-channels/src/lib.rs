@@ -30,6 +30,7 @@ pub mod media_preview;
 pub mod assembly;
 pub mod memory_channel;
 pub mod mode_task;
+pub mod task_command_queue;
 pub mod usage_stats;
 pub mod mode_agent;
 pub mod plugin_sync;
@@ -60,6 +61,10 @@ pub use assembly::{
 };
 pub use memory_channel::{MemoryChannel, LIST_MEMORIES, READ_MEMORY_FILE};
 pub use mode_task::{ModeTaskChannel, MODE_TASK_CHANNEL};
+pub use task_command_queue::{
+    CancelResult, EnqueueResult, QueueCommandParams, RuntimeCommand, RuntimeCommandStatus,
+    SendExecutor, TaskCommandQueue,
+};
 pub use usage_stats::{
     channel_with_layer, default_provider_balance, empty_args, GET_PROVIDER_BALANCE_SNAPSHOT,
     USAGE_STATS_CHANNEL, UsageStatsChannel,

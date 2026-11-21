@@ -11,6 +11,7 @@ use std::sync::Arc;
 use serde::Deserialize;
 
 use agent_process::{AgentControlClient, AgentWorkspaceTarget};
+use crate::task_command_queue::{CancelResult, EnqueueResult, QueueCommandParams, TaskCommandQueue};
 use agent_protocol::session_write::SessionPersistence;
 use agent_protocol::snapshot::SessionStateSnapshot;
 use rpc_host::{BoxFuture, CancellationToken, ChannelError, ServerChannel};
@@ -28,11 +29,22 @@ pub struct ModeTaskChannel {
     /// Agent 控制面（16.2a 编排方法需要）；`None` 时编排方法显式 unsupported
     /// （server-mode 无 agent 面，与 usage-stats 频道同降级语义）。
     control: Option<Arc<AgentControlClient>>,
+    /// 运行时命令队列（16.2b）：replayable 手机端的 host command queue；
+    /// `None` 时队列方法显式 unsupported。
+    queue: Option<Arc<TaskCommandQueue>>,
 }
 
 impl ModeTaskChannel {
-    pub fn new(repo: Arc<TaskIndexRepo>, control: Option<Arc<AgentControlClient>>) -> Self {
-        Self { repo, control }
+    pub fn new(
+        repo: Arc<TaskIndexRepo>,
+        control: Option<Arc<AgentControlClient>>,
+        queue: Option<Arc<TaskCommandQueue>>,
+    ) -> Self {
+        Self {
+            repo,
+            control,
+            queue,
+        }
     }
 }
 
@@ -536,6 +548,7 @@ fn run_read(
 
 // ── 16.2a 编排面（async：AgentControlClient 的会话面调用）──
 async fn run_orchestration(
+    channel: &ModeTaskChannel,
     repo: &TaskIndexRepo,
     control: &AgentControlClient,
     command: &str,
@@ -869,6 +882,75 @@ async fn run_orchestration(
                     .map_err(|error| ChannelError::error(error.to_string()))?,
             )
         }
+        "enqueueTaskCommand" | "promoteTaskCommand" | "cancelTaskCommand" => {
+            let queue = channel.queue.as_ref().ok_or_else(|| {
+                ChannelError::error(format!(
+                    "mode-task channel: {command} requires the task command queue (not assembled)"
+                ))
+            })?;
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                command_id: String,
+                task_id: String,
+                #[serde(default)]
+                trace_id: Option<String>,
+                #[serde(default)]
+                query_id: Option<String>,
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+                #[serde(default)]
+                content: String,
+                #[serde(default)]
+                automation_id: Option<String>,
+                #[serde(default)]
+                owner_run_id: Option<String>,
+                #[serde(default)]
+                client_id: Option<String>,
+                #[serde(default)]
+                client_label: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let params = QueueCommandParams {
+                command_id: parsed.command_id.clone(),
+                task_id: parsed.task_id.clone(),
+                trace_id: parsed.trace_id.clone(),
+                query_id: parsed.query_id.clone(),
+                workspace_path: parsed.workspace_path.clone(),
+                workspace_identity: parsed.workspace_identity.clone(),
+                content: parsed.content.clone(),
+                automation_id: parsed.automation_id.clone(),
+                attachments: None,
+            };
+            match command {
+                "enqueueTaskCommand" => {
+                    let result: EnqueueResult = queue.enqueue(
+                        &params,
+                        parsed.owner_run_id.as_deref(),
+                        parsed.client_id.as_deref(),
+                        parsed.client_label.as_deref(),
+                    )?;
+                    json_value(&serde_json::to_value(&result).map_err(|error| ChannelError::error(error.to_string()))?)
+                }
+                "promoteTaskCommand" => {
+                    let result: EnqueueResult = queue.promote(
+                        &params,
+                        &parsed.command_id,
+                        parsed.owner_run_id.as_deref(),
+                    )?;
+                    json_value(&serde_json::to_value(&result).map_err(|error| ChannelError::error(error.to_string()))?)
+                }
+                _ => {
+                    let result: CancelResult = queue.cancel(
+                        &params,
+                        &parsed.command_id,
+                        parsed.owner_run_id.as_deref(),
+                    )?;
+                    json_value(&serde_json::to_value(&result).map_err(|error| ChannelError::error(error.to_string()))?)
+                }
+            }
+        }
         other => Err(ChannelError::error(format!(
             "mode-task channel: unknown orchestration command {other}"
         ))),
@@ -885,17 +967,23 @@ impl ServerChannel for ModeTaskChannel {
     ) -> BoxFuture<Result<WireValue, ChannelError>> {
         let repo = Arc::clone(&self.repo);
         let control = self.control.clone();
+        let channel = ModeTaskChannel {
+            repo: Arc::clone(&self.repo),
+            control: self.control.clone(),
+            queue: self.queue.clone(),
+        };
         Box::pin(async move {
             match command.as_str() {
                 // 编排面（async：AgentControlClient 会话调用）。
-                "createTask" | "closeTask" | "resumeTask" | "sendPrompt" => {
+                "createTask" | "closeTask" | "resumeTask" | "sendPrompt"
+                | "enqueueTaskCommand" | "promoteTaskCommand" | "cancelTaskCommand" => {
                     let object = crate::params::first_arg_object(&arg)?;
                     let control = control.ok_or_else(|| {
                         ChannelError::error(format!(
                             "mode-task channel: {command} requires the agent control plane (not assembled)"
                         ))
                     })?;
-                    run_orchestration(&repo, &control, &command, object).await
+                    run_orchestration(&channel, &repo, &control, &command, object).await
                 }
                 // 读面（同步 repo，spawn_blocking 防阻塞 runtime）。
                 _ => tokio::task::spawn_blocking(move || run_read(&repo, &command, &arg))

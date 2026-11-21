@@ -39,8 +39,15 @@
   sendPrompt（sessionSend 直转发）；无控制面装配时显式 unsupported。真实 DB 测试
   186 全过。**剩余**：draftSessionId 复用（readSession→setModel/setThoughtLevel
   同步）与 v4Create 分支、readyOutcome 事件（16.2c）。
-- **16.2b 命令队列 + permission/elicitation**：enqueue/promote/cancel 命令队列、
-  respondPermission/respondElicitation 转发（AgentControlClient 已在壳内可用）。
+- **16.2b 命令队列**：🟡 队列状态机已落（2026-11-22）——`task_command_queue.rs`
+  （owner 门控三态：NO_ACTIVE_TASK_OWNER/STALE_TASK_OWNER_COMMAND/缺省跳过；
+  enqueue 队尾追加 accepted → promote 队首 accepted 化 → cancel not_found 容忍；
+  drain 单发消费：active-run/running 门控跳过 → mark running → 锁外 send executor
+  发送 → 成功移除/失败标 failed 留队；per-key tokio Mutex 串行 = TS Promise 链
+  等价；send executor 注入（生产 = control.send_prompt 包装，测试 = fake））；
+  mode-task 频道接 enqueueTaskCommand/promoteTaskCommand/cancelTaskCommand 三方法
+  （owner-run/clientId/clientLabel 透传）。9 队列用例（门控/状态转换/drain 成败）
+  + 209 测试全过。**待接**：permission/elicitation 转发（16.2b 剩余）。
 - **16.2c snapshot 族 + 事件面**：getTaskSnapshot 族（store 读 + byteBudget 切片）、
   task_meta_changed/taskListChanged 事件（EventFire 桥）。
 

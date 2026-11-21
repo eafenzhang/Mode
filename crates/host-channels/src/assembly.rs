@@ -218,9 +218,28 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
             let repo = task_index_repo::TaskIndexRepo::new(
                 data_root.join("v2").join("tasks-index.sqlite"),
             );
+            // 命令队列（16.2b）：send executor 包装 control.send_prompt；
+            // 无 agent 控制面时队列不装配（对应方法显式 unsupported）。
+            let queue = options.agent_control.as_ref().map(|control| {
+                let control = Arc::clone(control);
+                Arc::new(crate::task_command_queue::TaskCommandQueue::new(
+                    Arc::new(move |target, params| {
+                        let control = Arc::clone(&control);
+                        Box::pin(async move {
+                            control
+                                .send_prompt(&target, params)
+                                .await
+                                .map(|_result| ())
+                                .map_err(|error| error.to_string())
+                        })
+                    }),
+                    crate::task_command_queue::default_now_ms(),
+                ))
+            });
             Some(Arc::new(ModeTaskChannel::new(
                 Arc::new(repo),
                 options.agent_control.clone(),
+                queue,
             )))
         }
         USAGE_STATS_CHANNEL => {
