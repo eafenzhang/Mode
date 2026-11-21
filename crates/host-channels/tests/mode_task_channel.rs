@@ -459,6 +459,8 @@ async fn snapshot_stubs_return_undefined_and_snapshot_requires_control() {
         "getTaskSnapshotWithEtag",
         "stopGeneration",
         "getTaskTokenUsage",
+        "releaseWorkspacePreparation",
+        "restartWorkspaceProcess",
     ] {
         let error = channel
             .call(

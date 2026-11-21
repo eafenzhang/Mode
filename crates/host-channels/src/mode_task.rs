@@ -522,6 +522,9 @@ fn resolve_task_workspace(
     }
 }
 
+/// 与 mode-agent `disposeWorkspace` 同口径的回收宽限。
+const DISPOSE_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
+
 fn now_ms_i64() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1870,6 +1873,27 @@ async fn run_orchestration(
             }
             json_value(&result)
         }
+        "releaseWorkspacePreparation" | "restartWorkspaceProcess" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let target = AgentWorkspaceTarget {
+                workspace_path: parsed.workspace_path,
+                workspace_identity: parsed.workspace_identity,
+                remote_session_id: None,
+            };
+            // TS 两个入口都收敛到 modeAgentService.disposeWorkspace：关闭 workspace UI
+            // 只释放 RPC 使用方，runtime 必须按 workspaceKey 显式回收（WSL Host 共享）。
+            control
+                .dispose_workspace(&target, DISPOSE_GRACE)
+                .await;
+            Ok(WireValue::Undefined)
+        }
         "stopGeneration" => {
             #[derive(Deserialize)]
             #[serde(rename_all = "camelCase")]
@@ -1997,7 +2021,8 @@ impl ServerChannel for ModeTaskChannel {
                 | "enqueueTaskCommand" | "promoteTaskCommand" | "cancelTaskCommand"
                 | "respondPermission" | "respondElicitation"
                 | "getTaskSnapshot" | "getTaskSnapshotWithEtag"
-                | "stopGeneration" | "getTaskTokenUsage" => {
+                | "stopGeneration" | "getTaskTokenUsage"
+                | "releaseWorkspacePreparation" | "restartWorkspaceProcess" => {
                     let object = crate::params::first_arg_object(&arg)?;
                     let control = control.ok_or_else(|| {
                         ChannelError::error(format!(

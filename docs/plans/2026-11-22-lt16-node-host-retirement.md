@@ -77,7 +77,9 @@ getTaskTarget 的索引归属回读抽为 `resolve_task_workspace` helper。
   getTaskMeta；均按 TS reason 回发 workspace 事件。
   **会话只读/命令补充（2026-11-22）**：getTaskSessionFilePath（TS 同款路径投影、
   恒 exists=false）、stopGeneration（v4 Stop host envelope）、getTaskTokenUsage
-  （v4/conversation/usage，ExistingOnly 不拉起 runtime）。**剩余**：rename 的
+  （v4/conversation/usage，ExistingOnly 不拉起 runtime）、
+  releaseWorkspacePreparation/restartWorkspaceProcess（renderer 关闭 workspace/
+  重载会话入口 → `dispose_workspace`，2s 宽限与 mode-agent 同口径）。**剩余**：rename 的
   v4 renameSession 同步（best-effort）与 updateIndexedTaskState 的「索引缺失时
   resume seed」兜底；会话设置面（initialize/releaseWorkspacePreparation/
   getTaskConfigOptions/getTaskModelSelection/setMode/setConfigOption/setModel/
