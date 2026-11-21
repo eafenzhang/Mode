@@ -299,8 +299,8 @@ async fn unknown_or_lifecycle_methods_error_explicitly() {
             other => panic!("期望 Error 变体，实际 {other:?}"),
         }
     }
-    // 尚未迁移的编排面（16.2b/c）与未知方法同样显式报错。
-    for method in ["getTaskSnapshot", "respondPermission", "notARealMethod"] {
+    // 尚未迁移的编排面（16.2c）与未知方法同样显式报错。
+    for method in ["getTaskSnapshot", "notARealMethod"] {
         let error = channel
             .call(
                 "ctx".into(),

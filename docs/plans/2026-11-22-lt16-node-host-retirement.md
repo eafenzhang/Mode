@@ -47,7 +47,11 @@
   等价；send executor 注入（生产 = control.send_prompt 包装，测试 = fake））；
   mode-task 频道接 enqueueTaskCommand/promoteTaskCommand/cancelTaskCommand 三方法
   （owner-run/clientId/clientLabel 透传）。9 队列用例（门控/状态转换/drain 成败）
-  + 209 测试全过。**待接**：permission/elicitation 转发（16.2b 剩余）。
+  + 209 测试全过。**permission/elicitation 已接（2026-11-22）**：respondPermission/respondElicitation
+收敛 v4 resolveInteraction（ConversationCommandEnvelope + ResolveInteractionPayload，
+`answer.optionId` / `answer.action+content` additive 扩展，与 TS 同语义）；
+getTaskTarget 的索引归属回读抽为 `resolve_task_workspace` helper。
+16.2b 全收口（209 测试全过，clippy 0）。
 - **16.2c snapshot 族 + 事件面**：getTaskSnapshot 族（store 读 + byteBudget 切片）、
   task_meta_changed/taskListChanged 事件（EventFire 桥）。
 

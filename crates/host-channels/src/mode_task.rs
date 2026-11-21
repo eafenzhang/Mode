@@ -19,7 +19,7 @@ use rpc_wire::Value as WireValue;
 use task_index_repo::{
     ArchiveStaleTasksParams, GroupedTaskGroupRefs, GroupedTaskRef, GroupedTaskViewOrderInput,
     GroupedTaskViewTopLevelNodeRef, ListDeletedTaskIdsParams, ListTaskMetasParams, TaskIndexRepo,
-    TaskListKind, TaskListQuery, TaskListSortBy, TaskListWorkspaceScope,
+    TaskListKind, TaskListQuery, TaskListSortBy, TaskListWorkspaceScope, TaskRef,
 };
 
 pub const MODE_TASK_CHANNEL: &str = "mode-task";
@@ -189,6 +189,38 @@ fn parse<T: serde::de::DeserializeOwned>(
 ) -> Result<T, ChannelError> {
     serde_json::from_value(serde_json::Value::Object(object))
         .map_err(|error| ChannelError::error(format!("invalid arguments: {error}")))
+}
+
+/// TS `getTaskTarget`：显式 workspace 优先，缺省从任务索引回读任务归属。
+fn resolve_task_workspace(
+    repo: &TaskIndexRepo,
+    workspace_path: Option<&str>,
+    workspace_identity: Option<&str>,
+    task_id: &str,
+) -> Result<(String, Option<String>), ChannelError> {
+    if let Some(path) = workspace_path {
+        return Ok((path.to_string(), workspace_identity.map(str::to_string)));
+    }
+    let indexed = repo
+        .get_task_meta(&TaskRef {
+            workspace_path: String::new(),
+            workspace_identity: None,
+            task_id: task_id.to_string(),
+        })
+        .map_err(|error| ChannelError::error(error.to_string()))?;
+    match indexed {
+        Some(meta) => Ok((meta.workspace_path, meta.workspace_identity)),
+        None => Err(ChannelError::error(format!(
+            "task not indexed and workspacePath missing: {task_id}"
+        ))),
+    }
+}
+
+fn now_ms_i64() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 fn json_value(value: &serde_json::Value) -> Result<WireValue, ChannelError> {
@@ -951,6 +983,110 @@ async fn run_orchestration(
                 }
             }
         }
+        "respondPermission" => {
+            // permission 回执收敛 v4 resolveInteraction（TS respondPermission 同语义）：
+            // interactionId = 业务 requestId；optionId 由 CLI 侧精确回映 response。
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                request_id: String,
+                option_id: String,
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let control = channel.control.clone().ok_or_else(|| {
+                ChannelError::error(
+                    "mode-task channel: respondPermission requires the agent control plane",
+                )
+            })?;
+            let (workspace_path, workspace_identity) =
+                resolve_task_workspace(repo, parsed.workspace_path.as_deref(), parsed.workspace_identity.as_deref(), &parsed.task_id)?;
+            let target = AgentWorkspaceTarget {
+                workspace_path,
+                workspace_identity,
+                remote_session_id: None,
+            };
+            let envelope = agent_protocol::v4::ConversationCommandEnvelope {
+                ttft: None,
+                command_id: uuid::Uuid::new_v4().to_string(),
+                client_id: "mode-host".to_string(),
+                session_id: agent_protocol::v4::CommandSessionId(Some(parsed.task_id.clone())),
+                base_revision: None,
+                base_log_epoch: None,
+                command_type: agent_protocol::v4::CommandType::ResolveInteraction,
+                payload: serde_json::json!({
+                    "interactionId": parsed.request_id,
+                    "answer": { "optionId": parsed.option_id },
+                }),
+                issued_at: serde_json::Number::from(now_ms_i64()),
+            };
+            let ack = control
+                .send_conversation_command_v4(&target, &envelope)
+                .await
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            json_value(&serde_json::json!({ "accepted": true, "ack": ack }))
+        }
+        "respondElicitation" => {
+            // AskUserQuestion/plan-approval 回执收敛 v4 resolveInteraction：
+            // answer.action/content 是 additive 扩展（TS 同注释）。
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                request_id: String,
+                #[serde(default)]
+                action: Option<String>,
+                #[serde(default)]
+                content: Option<String>,
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let control = channel.control.clone().ok_or_else(|| {
+                ChannelError::error(
+                    "mode-task channel: respondElicitation requires the agent control plane",
+                )
+            })?;
+            let (workspace_path, workspace_identity) =
+                resolve_task_workspace(repo, parsed.workspace_path.as_deref(), parsed.workspace_identity.as_deref(), &parsed.task_id)?;
+            let target = AgentWorkspaceTarget {
+                workspace_path,
+                workspace_identity,
+                remote_session_id: None,
+            };
+            let mut answer = serde_json::Map::new();
+            if let Some(action) = &parsed.action {
+                answer.insert("action".to_string(), serde_json::json!(action));
+            }
+            if let Some(content) = &parsed.content {
+                answer.insert("content".to_string(), serde_json::json!(content));
+            }
+            let envelope = agent_protocol::v4::ConversationCommandEnvelope {
+                ttft: None,
+                command_id: uuid::Uuid::new_v4().to_string(),
+                client_id: "mode-host".to_string(),
+                session_id: agent_protocol::v4::CommandSessionId(Some(parsed.task_id.clone())),
+                base_revision: None,
+                base_log_epoch: None,
+                command_type: agent_protocol::v4::CommandType::ResolveInteraction,
+                payload: serde_json::json!({
+                    "interactionId": parsed.request_id,
+                    "answer": answer,
+                }),
+                issued_at: serde_json::Number::from(now_ms_i64()),
+            };
+            let ack = control
+                .send_conversation_command_v4(&target, &envelope)
+                .await
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            json_value(&serde_json::json!({ "accepted": true, "ack": ack }))
+        }
         other => Err(ChannelError::error(format!(
             "mode-task channel: unknown orchestration command {other}"
         ))),
@@ -976,7 +1112,8 @@ impl ServerChannel for ModeTaskChannel {
             match command.as_str() {
                 // 编排面（async：AgentControlClient 会话调用）。
                 "createTask" | "closeTask" | "resumeTask" | "sendPrompt"
-                | "enqueueTaskCommand" | "promoteTaskCommand" | "cancelTaskCommand" => {
+                | "enqueueTaskCommand" | "promoteTaskCommand" | "cancelTaskCommand"
+                | "respondPermission" | "respondElicitation" => {
                     let object = crate::params::first_arg_object(&arg)?;
                     let control = control.ok_or_else(|| {
                         ChannelError::error(format!(
