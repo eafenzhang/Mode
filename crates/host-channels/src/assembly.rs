@@ -45,6 +45,7 @@ use crate::subagents::SubagentsChannel;
 use crate::system::SystemChannel;
 use crate::terminal::TerminalChannel;
 use crate::usage_stats::UsageStatsChannel;
+use crate::window_controller::WindowControllerChannel;
 use crate::{
     AGENT_HEALTH_CHANNEL, ATTACHMENT_TRANSFER_CHANNEL, BROADCAST_CHANNEL, CLIENT_CONFIG_CHANNEL,
     CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL, CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL,
@@ -52,7 +53,7 @@ use crate::{
     MCP_SYNC_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL, MODE_AGENT_CHANNEL,
     MODE_TASK_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL,
     SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL,
-    USAGE_STATS_CHANNEL,
+    USAGE_STATS_CHANNEL, WINDOW_CONTROLLER_CHANNEL,
 };
 
 /// 壳侧结构化日志（降级/不可观察事件）；`None` 时静默。
@@ -212,6 +213,14 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
         PLUGIN_SYNC_CHANNEL => Some(Arc::new(PluginSyncChannel::new(
             crate::plugin_sync::default_service(),
         ))),
+        WINDOW_CONTROLLER_CHANNEL => {
+            // window-controller（16.3 首切）：local 单源列表 + 变更面；
+            // controller 帧订阅依赖 sessions-index 帧桥（显式报错）。
+            let repo = task_index_repo::TaskIndexRepo::new(
+                data_root.join("v2").join("tasks-index.sqlite"),
+            );
+            Some(Arc::new(WindowControllerChannel::new(Arc::new(repo))))
+        }
         MODE_TASK_CHANNEL => {
             // 任务索引 DB 与桌面壳同位（{data_root}/v2/tasks-index.sqlite）；
             // 首切只读 + 分组管理写面（16.1），编排面（16.2）未知方法显式报错。
@@ -363,6 +372,7 @@ pub fn service_channel_names() -> Vec<&'static str> {
         GIT_CHECKPOINT_CHANNEL,
         PLUGIN_SYNC_CHANNEL,
         MODE_TASK_CHANNEL,
+        WINDOW_CONTROLLER_CHANNEL,
         USAGE_STATS_CHANNEL,
         MCP_SYNC_CHANNEL,
         AGENT_HEALTH_CHANNEL,

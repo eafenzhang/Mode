@@ -30,6 +30,7 @@ fn every_local_channel_name_exists_in_service_channels() {
         ("plugin-sync", "PluginSync"),
         ("usage-stats", "UsageStats"),
         ("mode-task", "ModeTask"),
+        ("window-controller", "WindowController"),
         ("terminal", "Terminal"),
     ];
     for (value, key) in names {

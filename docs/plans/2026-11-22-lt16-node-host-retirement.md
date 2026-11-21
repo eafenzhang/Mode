@@ -64,6 +64,7 @@ getTaskTarget 的索引归属回读抽为 `resolve_task_workspace` helper。
 window-controller（16.3）依赖 16.2a+b（多源聚合消费 IModeTaskService 事件与
 sessions-index observer）——**排序 16.2 先于 16.3**。
 | 16.3 | **window-controller 进壳** | windowController 子系统（~1716 行）：窗口会话/Host sessions-index observer | 无强依赖 | 真机窗口操作一致 |
+|  |  | 🟡 首切已落（2026-11-22）：`window_controller.rs` local 单源——listTaskList（repo total/has_more 直用）、mutateTask 8 种 mutation（pin/archive/delete/delete-archived[-batch]/mark-read[CAS]/mark-unread/open/resume → 索引 patch，统一返回 meta\|null）、deleteArchivedTask(s)；controller 帧订阅三方法显式报错（依赖 sessions-index 帧桥）；assembly/inprocess/频道名守卫接线；5 用例。**剩余**：帧订阅（subscribe/resync/unsubscribe + onDynamicControllerFrame）、多源聚合（remote source）、liveStatus/activity 的 sessions-index 投影。 |
 | 16.4 | **remote 面进壳** | remote-desktop（~1031 行独立子系统）/ remote-v3（v3 ControlLink）/ lan-access / remoteWorkspaceService（959 行） | 16.2 | 手机远控验收 |
 | 16.5 | **host-standalone 收口** | 骨架（~4.4k 行）随上述面退役：stdioFrames/stdoutGuard/scopedAttachments/rendererConnectionScope 退场 | 16.1–16.4 | `w6:readiness` 四组 blocker 归零 |
 | 16.6 | **物理删除窗口** | 删 host-standalone、host-sidecar 发运集/脚本、mode.cjs 回退随包、bundled-agents；四仪表终值复测 | 16.5 | `--fail-on-blockers` READY；体积/性能仪表落档 |
