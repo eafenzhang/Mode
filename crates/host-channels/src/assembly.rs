@@ -31,6 +31,7 @@ use crate::git::GitChannel;
 use crate::git_checkpoint::GitCheckpointChannel;
 use crate::health::AgentHealthChannel;
 use crate::hooks::HooksChannel;
+use crate::lan_access::LanAccessChannel;
 use crate::media_preview::MediaPreviewChannel;
 use crate::memory_channel::MemoryChannel;
 use crate::mode_task::ModeTaskChannel;
@@ -50,7 +51,8 @@ use crate::{
     AGENT_HEALTH_CHANNEL, ATTACHMENT_TRANSFER_CHANNEL, BROADCAST_CHANNEL, CLIENT_CONFIG_CHANNEL,
     CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL, CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL,
     FILE_CHANNEL, FILE_WATCHER_CHANNEL, GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, HOOKS_CHANNEL,
-    MCP_SYNC_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL, MODE_AGENT_CHANNEL,
+    LAN_ACCESS_CHANNEL, MCP_SYNC_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
+    MODE_AGENT_CHANNEL,
     MODE_TASK_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL,
     SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL,
     USAGE_STATS_CHANNEL, WINDOW_CONTROLLER_CHANNEL,
@@ -136,6 +138,14 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
         SYSTEM_CHANNEL => Some(Arc::new(SystemChannel::new(Arc::new(
             system_service::SystemService::new(),
         )))),
+        LAN_ACCESS_CHANNEL => {
+            // 16.4a 首切：只装配对端配对 registry（credential-store 有文件锁，
+            // 与 credential 频道多实例并存安全）；server supervisor 未装配，
+            // getState/setEnabled/配对码等显式报错。
+            Some(Arc::new(LanAccessChannel::new(Arc::new(
+                credential_store::CredentialStore::new(data_root.clone()),
+            ))))
+        }
         FILE_CHANNEL => {
             // 索引降级（规则文件不可用/解析失败）必须可观察；日志只带原因，不带文件内容。
             let on_shell_log = options.on_shell_log.clone();
@@ -366,6 +376,7 @@ pub fn service_channel_names() -> Vec<&'static str> {
         SETTING_CHANNEL,
         CREDENTIAL_CHANNEL,
         SYSTEM_CHANNEL,
+        LAN_ACCESS_CHANNEL,
         FILE_CHANNEL,
         FILE_WATCHER_CHANNEL,
         COMMANDS_CHANNEL,

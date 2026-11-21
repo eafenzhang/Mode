@@ -25,6 +25,7 @@ pub mod git;
 pub mod git_checkpoint;
 pub mod health;
 pub mod hooks;
+pub mod lan_access;
 pub mod mcp_sync;
 pub mod media_preview;
 pub mod assembly;
@@ -55,6 +56,7 @@ pub use git::GitChannel;
 pub use git_checkpoint::GitCheckpointChannel;
 pub use health::{AgentHealthChannel, DESCRIBE, LIST};
 pub use hooks::{HooksChannel, GRANT_WORKSPACE_HOOK_TRUST, HOOKS_CHANNEL, LOAD_HOOKS, SAVE_HOOKS};
+pub use lan_access::{LanAccessChannel, LAN_ACCESS_CHANNEL};
 pub use mcp_sync::McpSyncChannel;
 pub use media_preview::MediaPreviewChannel;
 pub use assembly::{

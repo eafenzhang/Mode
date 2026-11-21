@@ -91,6 +91,22 @@
    `pnpm --filter @mode/server test`、desktop 测试、`pnpm typecheck`、`pnpm lint`、
    `pnpm architecture:check --changed` 全绿（shared 测试已入 CI 流水线）。
 
+## Rust 侧实现（LT-16.4a 首切）
+
+`crates/host-channels/src/lan_access.rs` 的 `LanAccessChannel`（`lan-access` 频道）
+先落**不依赖 LAN server supervisor** 的对端 registry：
+
+- `listPairedPeers`：枚举凭据 `lan:peer:*:token`，读同名 `:meta` 并归一化
+  （v1 单地址 → LAN http 端点；公网端点强制 HTTPS、按 scheme+host+port+path 去重、
+  公网优先稳定排序）；令牌本体不读不返回；缺 meta 的旧记录保留一行（host 空，
+  仍可按 serverId 删除）；按 `pairedAt` 降序（缺失按 0）。
+- `removePairedPeer`：token 与 meta 同生命周期、幂等删除；空 serverId 报「缺少 serverId」。
+- `renamePairedPeer`：只改本机 meta 展示名（trim 后 1–64，按 UTF-16 长度校验，
+  与 JS `.length` 同）；缺 meta 报「该配对缺少元数据，无法重命名」；地址/令牌不动。
+- 其余接口（`getState`/`setEnabled`/`createPairCode`/`removeClient`/`resetTokens`/
+  `discoverPeers`/`pairPeer`/`getPeerWorkspaces`）与 `onDidChange` 事件依赖本机
+  LAN server supervisor / 端点探测，未装配时显式报错，**不返回假状态**（16.4a 续）。
+
 ## 不做
 
 - 目录项点击发起连接（YAGNI，未被要求）。
