@@ -52,11 +52,11 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 | --- | --- |
 | W0 地基 | **完成**：线格式、协议、`rpc-host`、壳内路由；25 个频道可启动期接管（21 个业务频道 + `mcp-sync` / `agent-health` / `mode-agent` / `hooks`；默认关闭） |
 | W1 平台基元 | **完成**：settings/paths/credential/fs/file/file-watcher/SQLite/日志/进程/system/media-preview；近两轮新增数据根（归属/迁移/初始化完整）、子进程环境策略、bundled 工具解析、网络重试状态、存储分类与占用聚合。 |
-| W2 传输切换 | **完成（2026-11-20 收口，`db3395eec`）**：`MODE_HOST_INPROCESS_CHANNELS` 的 `default`/`none` 语义、scope 门禁修复（未挂接/detach/登记表不可读一律回落 Node）、256 帧有界队列 + V4 连接级 saturated/drained 对拍；裁决与验收见 `docs/specs/w2-transport-cutover.md`。`stdioFrames`/`stdoutGuard` 退场归 W6。 |
-| W3 宿主域 | **已接管/迁移**：设置类、文件类、凭据、git/checkpoint、conversation-mirror、skills、skill-sync、plugin-sync、subagents、settings-sync、broadcast、system、automation-service（10/10）、onboarding-record-service（9/9）、provider 旧 store 迁移、provider 余额识别/编排/目标解析、official MCP 鉴权判定、远程桌面自适应码率/画质降档状态机；**部分**：任务/会话（Repos 已迁、频道未）、provider 写路径与运行时、plugins 管理面、hooks/onboarding、usage-stats（时间范围/quota/legacy+credit monitor 已迁）、terminal（服务面与频道已迁、真机未验收）、LAN（发现纯逻辑已迁、UDP/CLI 未迁）、CUA broker（raw input socket 解析策略已迁）；**未开始**：远程工作区、云账号 |
-| W4 Agent 运行时 | **协议/客户端镜像 102/115（todo=0，not-needed=11，blocked=2，均为决策 2 的 provider/account）**；S0 健康快照与 S1 覆盖矩阵完成；会话级 api-retry tracker/draft registry 已迁移；频道所有权切换（S2）：S0 健康面已接线、S2 mode-agent 适配器已覆盖 88/100 请求面方法 + 全部 15 个事件面（会话读写、plugins、workflows、v4 帧/订阅/query 族、attachments、用量、process/telemetry/CUA 观测、连接流控、v4 命令转发等；默认不注册、未迁移=unsupported_method，2026-11-05），剩余 automation 10（决策 4 由 Renderer 分调两个 owner）；native binary 兜底已落并接入壳、真机 20 任务清单已定（`host-ownership-switch` §7）、设计已批准（2026-11-04，按「最彻底」口径：网络方法不委托 Host、独立只读健康频道）；**C1–C4 已完成并合并 main（2026-11-20/21）**：C4 默认翻转（merge `ddbd18238`）——随包 Rust agent 落地并成为默认运行时（Node 保留显式回退），真机验收 19 PASS / 1 PARTIAL；残余 `d3eec12b7` 补齐 v4 命令面、安全加固与首任务性能 |
-| W5 生态面 | **IM 线改向（2026-11-20）**：飞书/企微改回官方 SDK，Rust 四通道转协议参考；客户端侧 IM SDK 运行时在线升级与发布工具链已交付（`docs/specs/im-sdk-runtime.md`，客户端 9 用例 + 流水线 3 用例）。**首片已落（2026-11-21）**：`crates/tui`（视图模型/渲染/入口，5 测试）与 `crates/server`（axum health/version，3 测试）；完整 33 场景/路由迁移与插件市场进壳未完成。 |
-| W6 收口 | 未开始 |
+| W2 传输切换 | **完成（2026-11-20 收口，`db3395eec`）**：`default`/`none` 语义、scope 门禁修复、256 帧有界队列 + V4 对拍。**默认翻面已执行（2026-11-21，`dc095d729`）**：未设置 = 默认集接管全部白名单频道（原「纯转发」）；`.plan/accept-w6/` 清单转回归验证，回滚 = `none`。`stdioFrames`/`stdoutGuard` 退场归 W6。 |
+| W3 宿主域 | **已接管/迁移**：设置类、文件类、凭据、git/checkpoint、conversation-mirror、skills、skill-sync、plugin-sync、subagents、settings-sync、broadcast、system、automation-service（10/10）、onboarding-record-service（9/9）、provider 旧 store 迁移、provider 余额识别/编排/目标解析、official MCP 鉴权判定、远程桌面自适应码率/画质降档状态机；**部分**：任务/会话（Repos 已迁、频道未）、provider 写路径与运行时、plugins 管理面、hooks/onboarding、usage-stats（时间范围/quota/legacy+credit monitor 已迁）、terminal（服务面与频道已迁、真机未验收）、LAN（发现纯逻辑已迁、UDP/CLI 未迁；**LAN HTTP 管理面 + `/ws/host` 帧桥 + 凭据落 credential-store + 「最近打开目录」录制已接 axum server-mode**）、CUA broker（raw input socket 解析策略已迁）；**未开始**：远程工作区、云账号 |
+| W4 Agent 运行时 | **协议/客户端镜像 102/115（todo=0，not-needed=11，blocked=2，均为决策 2 的 provider/account）**；S0 健康快照与 S1 覆盖矩阵完成；会话级 api-retry tracker/draft registry 已迁移；频道所有权切换（S2）：S0 健康面已接线、S2 mode-agent 适配器已覆盖 88/100 请求面方法 + 全部 15 个事件面（会话读写、plugins、workflows、v4 帧/订阅/query 族、attachments、用量、process/telemetry/CUA 观测、连接流控、v4 命令转发等；默认不注册、未迁移=unsupported_method，2026-11-05），剩余 automation 10（决策 4 由 Renderer 分调两个 owner）；**S2 翻面已执行（2026-11-21，`dc095d729`）**：mode-agent 频道随默认集接管（88/100 请求面 + 15 事件面，automation/provider/account 决策归因齐全）；native binary 兜底已落并接入壳、真机 20 任务清单已工程化（`.plan/accept-w6/`）；**C1–C4 已完成并合并 main（2026-11-20/21）**：C4 默认翻转（merge `ddbd18238`）——随包 Rust agent 落地并成为默认运行时（Node 保留显式回退），真机验收 19 PASS / 1 PARTIAL；残余 `d3eec12b7` 补齐 v4 命令面、安全加固与首任务性能 |
+| W5 生态面 | **IM 线改向（2026-11-20）**：飞书/企微改回官方 SDK；IM SDK 运行时在线升级与发布工具链已交付。**LT-15 生态收口已落（2026-11-21，25 提交）**：TUI Agent 传输（真子进程 e2e）、axum server-mode（LAN HTTP 六端点 + `/ws/host` WS RPC 帧桥 + 一次性 capability + LAN 凭据落 credential-store + 「最近打开目录」录制 + usage-stats 频道）、插件安装/卸载进壳（记录层/卸载/安装/config 写回/git clone/zip 源，44 测试 + 3 对拍）、sessions-index phase/预览投影。`crates/server/main.rs` 为完整独立装配。 |
+| W6 收口 | **验收工程化 + W2/S2 翻面已执行（2026-11-21，`51309400a`/`dc095d729`）**：`.plan/accept-w6/` 验收包（W2 七项 + S2 二十任务清单）；默认集接管含 mode-agent。**物理删除未开窗**：renderer 仍消费 Node Host 独占面（mode-task/window-controller/remote-*，host-standalone ~6.1k 行 + services 实现面）——这些面迁入 Rust 后删除窗口才开；`w6:readiness` 仍 NOT READY（引用计数不变符合预期）。 |
 
 **近期交付（2026-11-20 ~ 11-21）**
 
@@ -65,10 +65,21 @@ SQLite、进程管理、日志、RPC 框架。共享协议类型（`packages/sha
 - **W5 IM 改向**（`046a1a02c` + 本轮发布工具链）：官方 SDK + 版本化运行时在线升级；清单 Ed25519 验签、tar.gz 安全解包、逐文件校验、原子激活/回滚、失败回退随包 SDK；客户端 9 条用例。发布侧 `scripts/im-sdk-runtime/`（打包/签名）与 `.github/workflows/im-sdk-runtime.yml`（release 挂载、secret 未配置时 dry-run）已交付，3 条流水线用例；待配置签名 secret/客户端公钥、设置页与壳资源注入。
 - **LT-4 CLI 评测**（`b6f254186`、`c96690818`，属上游能力对齐轨道）：`mode eval run|replay|diff`、34 条测试、CI opt-in `eval.yml`。
 - **产品修复**（`71295e855`、`9b51a0fa5`）：恢复 dialog 默认 `p-4 gap-4`；虚拟锚点弹窗不再被触发器覆盖（同时修掉首页 28px 游离滚动条）。
-- **L8–L14 首片并行（2026-11-21）**：`crates/tui`（ratatui 视图模型/渲染/入口，5 测试）、
-  `crates/server`（axum health/version，3 测试）、`pnpm w6:readiness` 阻塞审计、
-  sessions-index 列表行 live upsert/remove（create/rename/delete，hub 单测 + v4 帧集成测试）。
-  LT-13 门禁已具备；LT-10/LT-12 的剩余缺口已在清单中标注。
+- **LT-15 生态收口（2026-11-21，25 提交）**：
+  - **P1**：`crates/tui` Agent stdio 传输（sessions-index 订阅/live 增量/子进程 e2e）。
+  - **P2**：axum LAN HTTP 六端点（pair 含 Set-Cookie、enable 监听视图）→ `/ws/host`
+    WS RPC 帧桥（一次性 capability 30s TTL + 每连接 ChannelServer + 全频道装配
+    `host_channels::assembly`）→ LAN 凭据落 credential-store（与桌面壳同文件/加密）→
+    「最近打开目录」录制（token→clientId + workspacePath 上报落盘）。
+  - **P3**：插件安装/卸载进壳——记录层/卸载编排/安装编排（依赖闭包）/config 写回
+    （enable/remove/suppression）/网络源（git clone：MODE_GIT_BINARY、90s 超时、
+    网络型 3 次重试）/zip 源（sha256 + 四重限额 + 根定位，与 TS zip-source.ts 同口径）。
+  - **P4**：余额查询 HTTP fetcher（reqwest + ring TLS + 15s 超时）+ Personal 层凭据
+    装配 + `usage-stats` 频道（getProviderBalanceSnapshot 全链路 + 壳内装配降级语义）。
+  - **P5**：sessions-index phase/goalStatus/title/lastAssistantPreview live 投影。
+  - **P6**：W6 验收工程化（`.plan/accept-w6/`）+ W2/S2 翻面执行（`dc095d729`）；
+    物理删除待 mode-task/window-controller/remote-* 面迁入 Rust。
+  六个触碰 crate 终检：275 测试全过、architecture 0 违规。
 
 **服务层新增 crate（2026-11-01 ~ 11-03）**
 
@@ -632,13 +643,18 @@ rust=102 / not-needed=11 / blocked=2。已接入 `verify:pre-push` 与 release v
 
 ## 10. 下一步（2026-11-21 更新）
 
-### 10.1 当前顺序
+### 10.1 当前顺序（2026-11-21 LT-15 后刷新）
 
-1. **W5 剩余生态面**：TUI/axum 首片已落，继续 33 场景与路由组迁移；插件市场逻辑进壳未开始。
-2. **W5 IM 在线升级收尾**：发布工具链已落（打包/签名/workflow）；待配置签名 secret 与客户端公钥、跑一次真实 Release 上传；设置页展示当前版本/检查更新；壳资源注入 manifest URL 与公钥。
-3. **W6 收口**：`stdioFrames`/`stdoutGuard` 从产品路径退场，删 TS 宿主编排与 `host-sidecar` 发运集，插件宿主换嵌入引擎，四仪表（语言/重合度/体积/性能）终值复测。
-4. **LT-1 C4 收尾**：真机 20 任务中唯一 PARTIAL 项补齐；之后按 W6 删除 Node 回退路径。
-5. **W3 剩余域**：provider 写路径与 usage 网络/凭据接线、LAN WebSocket 与公网中继（HTTP 配对/管理已迁）、CUA PiP/Windows helper host、远程工作区、云账号。
+1. **W6 收口续段**：真机回归验证（`.plan/accept-w6/` 两份清单回填 report）→
+   mode-task/window-controller/remote-* 面迁入 Rust（Node Host 独占面，独立长任务）
+   → Node Host 退役删除 + `w6:readiness --fail-on-blockers` READY。
+2. **W5 IM 在线升级收尾**：待配置签名 secret 与客户端公钥、跑一次真实 Release 上传；
+   设置页展示当前版本/检查更新；壳资源注入 manifest URL 与公钥。
+3. **LT-15 残项另册**：remote-desktop WS（约 1031 行独立子系统）、`/ws/v1/direct`
+   （v3 ControlLink 未实现）、P3 zip 源之外的边缘源（npm/pip TS 同为不支持）。
+4. **LT-1 C4 收尾**：真机 20 任务中唯一 PARTIAL 项补齐。
+5. **W3 剩余域**：provider 写路径、LAN UDP/CLI、CUA PiP/Windows helper host、
+   远程工作区、云账号。
 6. **W1 收口**：SQLite 迁移门禁（基线改由 Rust 迁移生成 + `--base-ref` 只增校验）。
 
 ### 10.2 待办详情（2026-10-29 记录，未完成部分仍有效）
