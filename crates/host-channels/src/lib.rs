@@ -31,6 +31,7 @@ pub mod media_preview;
 pub mod assembly;
 pub mod memory_channel;
 pub mod mode_task;
+pub mod model_trajectory;
 pub mod task_command_queue;
 pub mod usage_stats;
 pub mod window_controller;

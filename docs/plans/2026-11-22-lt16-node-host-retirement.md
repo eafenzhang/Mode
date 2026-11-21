@@ -80,7 +80,9 @@ getTaskTarget 的索引归属回读抽为 `resolve_task_workspace` helper。
   （v4/conversation/usage，ExistingOnly 不拉起 runtime）、
   releaseWorkspacePreparation/restartWorkspaceProcess（renderer 关闭 workspace/
   重载会话入口 → `dispose_workspace`，2s 宽限与 mode-agent 同口径）、initialize
-  （控制面预热 → {available, version}）。**剩余**：rename 的
+  （控制面预热 → {available, version}）、getModelTrajectory
+  （`model_trajectory.rs`：model-io tail 读取 / delta 展开 / 消息与工具调用映射，
+   spec `model-trajectory-reader.md`；4 单测 + 频道分发用例）。**剩余**：rename 的
   v4 renameSession 同步（best-effort）与 updateIndexedTaskState 的「索引缺失时
   resume seed」兜底；会话设置面（initialize/releaseWorkspacePreparation/
   getTaskConfigOptions/getTaskModelSelection/setMode/setConfigOption/setModel/

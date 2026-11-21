@@ -485,6 +485,28 @@ async fn snapshot_stubs_return_undefined_and_snapshot_requires_control() {
 }
 
 #[tokio::test]
+async fn model_trajectory_dispatch_returns_shape() {
+    let db = TempDb::new("trajectory");
+    let channel = ModeTaskChannel::new(
+        repo(&db),
+        None,
+        None,
+        Arc::new(host_channels::mode_task::TaskEventBus::new()),
+    );
+    let result = call(
+        &channel,
+        "getModelTrajectory",
+        json!({ "taskId": "task-1", "limit": 5 }),
+    )
+    .await;
+    assert_eq!(result["taskId"], "task-1");
+    assert_eq!(result["available"], true);
+    assert!(result["records"].is_array());
+    assert!(result["sourceFiles"].is_array());
+    assert!(result["truncated"].is_boolean());
+}
+
+#[tokio::test]
 async fn session_file_path_is_computed_from_target() {
     let db = TempDb::new("session-path");
     let channel = ModeTaskChannel::new(repo(&db), None, None, Arc::new(host_channels::mode_task::TaskEventBus::new()));

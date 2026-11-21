@@ -977,6 +977,20 @@ fn run_read(
                 None => json_value(&serde_json::Value::Null),
             }
         }
+        "getModelTrajectory" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                #[serde(default)]
+                limit: Option<f64>,
+            }
+            let parsed: P = parse(object)?;
+            // TS：按 sessionId(=taskId) 读 model-io JSONL；runtime 未落盘时返回空 records。
+            let trajectory =
+                crate::model_trajectory::read_model_trajectory(&parsed.task_id, parsed.limit);
+            json_value(&trajectory)
+        }
         "getTaskSessionFilePath" => {
             #[derive(Deserialize)]
             #[serde(rename_all = "camelCase")]
