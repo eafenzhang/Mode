@@ -8,11 +8,12 @@ use std::sync::Arc;
 use rpc_host::{CancellationToken, ServerChannel as _};
 use rpc_wire::Value;
 use serde_json::{json, Value as Json};
-use task_index_repo::{
-    parse_mode_task_meta, ModeTaskMeta, SyncTaskMetaParams, TaskIndexRepo,
-};
+use task_index_repo::{parse_mode_task_meta, ModeTaskMeta, SyncTaskMetaParams, TaskIndexRepo};
 
-use host_channels::window_controller::{WindowControllerChannel, WINDOW_CONTROLLER_CHANNEL};
+use host_channels::window_controller::{
+    WindowControllerChannel, CONTROLLER_TASKS_INDEX_TOPIC, CONTROLLER_WORKSPACES_TOPIC,
+    ON_DYNAMIC_CONTROLLER_FRAME, WINDOW_CONTROLLER_CHANNEL,
+};
 
 struct TempDb(PathBuf);
 
@@ -135,16 +136,24 @@ async fn mutations_map_to_index_patches() {
     let channel = WindowControllerChannel::new(Arc::clone(&r));
 
     // pin。
-    call(&channel, "mutateTask", json!({
-        "address": address("task-1"),
-        "mutation": { "kind": "pin", "pinned": true },
-    }))
+    call(
+        &channel,
+        "mutateTask",
+        json!({
+            "address": address("task-1"),
+            "mutation": { "kind": "pin", "pinned": true },
+        }),
+    )
     .await;
     // archive。
-    call(&channel, "mutateTask", json!({
-        "address": address("task-1"),
-        "mutation": { "kind": "archive", "archived": true },
-    }))
+    call(
+        &channel,
+        "mutateTask",
+        json!({
+            "address": address("task-1"),
+            "mutation": { "kind": "archive", "archived": true },
+        }),
+    )
     .await;
     let archived = call(
         &channel,
@@ -159,15 +168,23 @@ async fn mutations_map_to_index_patches() {
     assert_eq!(archived["total"], 1);
 
     // unarchive + unpin：active 列表 SQL 排除 pinned 任务（pinned 只在 pinned 列表）。
-    call(&channel, "mutateTask", json!({
-        "address": address("task-1"),
-        "mutation": { "kind": "archive", "archived": false },
-    }))
+    call(
+        &channel,
+        "mutateTask",
+        json!({
+            "address": address("task-1"),
+            "mutation": { "kind": "archive", "archived": false },
+        }),
+    )
     .await;
-    call(&channel, "mutateTask", json!({
-        "address": address("task-1"),
-        "mutation": { "kind": "pin", "pinned": false },
-    }))
+    call(
+        &channel,
+        "mutateTask",
+        json!({
+            "address": address("task-1"),
+            "mutation": { "kind": "pin", "pinned": false },
+        }),
+    )
     .await;
     let active = call(
         &channel,
@@ -182,10 +199,14 @@ async fn mutations_map_to_index_patches() {
     assert_eq!(active["total"], 1);
 
     // mark-unread → mark-read（期望值 CAS 语义：错误 expected 不清除）。
-    call(&channel, "mutateTask", json!({
-        "address": address("task-1"),
-        "mutation": { "kind": "mark-unread" },
-    }))
+    call(
+        &channel,
+        "mutateTask",
+        json!({
+            "address": address("task-1"),
+            "mutation": { "kind": "mark-unread" },
+        }),
+    )
     .await;
     let meta = r
         .get_task_meta(&task_index_repo::TaskRef {
@@ -196,10 +217,14 @@ async fn mutations_map_to_index_patches() {
         .expect("meta")
         .expect("exists");
     assert!(meta.unread_at.is_some());
-    call(&channel, "mutateTask", json!({
-        "address": address("task-1"),
-        "mutation": { "kind": "mark-read", "expectedUnreadAt": 999 },
-    }))
+    call(
+        &channel,
+        "mutateTask",
+        json!({
+            "address": address("task-1"),
+            "mutation": { "kind": "mark-read", "expectedUnreadAt": 999 },
+        }),
+    )
     .await;
     let meta = r
         .get_task_meta(&task_index_repo::TaskRef {
@@ -226,10 +251,14 @@ async fn mutations_map_to_index_patches() {
     assert!(meta.unread_at.is_none(), "匹配 expected 清除 unread");
 
     // open/resume：地址校验（存在 → 返回 meta；不存在 → source 错误）。
-    let opened = call(&channel, "mutateTask", json!({
-        "address": address("task-1"),
-        "mutation": { "kind": "open" },
-    }))
+    let opened = call(
+        &channel,
+        "mutateTask",
+        json!({
+            "address": address("task-1"),
+            "mutation": { "kind": "open" },
+        }),
+    )
     .await;
     assert_eq!(opened["taskId"], "task-1");
     let error = channel
@@ -286,15 +315,29 @@ async fn archived_deletion_single_and_batch() {
     let channel = WindowControllerChannel::new(Arc::clone(&r));
 
     // 归档后删除单条。
-    call(&channel, "mutateTask", json!({
-        "address": address("task-1"),
-        "mutation": { "kind": "archive", "archived": true },
-    }))
+    call(
+        &channel,
+        "mutateTask",
+        json!({
+            "address": address("task-1"),
+            "mutation": { "kind": "archive", "archived": true },
+        }),
+    )
     .await;
-    let deleted = call(&channel, "deleteArchivedTask", json!({ "address": address("task-1") })).await;
+    let deleted = call(
+        &channel,
+        "deleteArchivedTask",
+        json!({ "address": address("task-1") }),
+    )
+    .await;
     assert_eq!(deleted, json!(true));
     // 再次 deleteArchivedTask：已不存在 → false。
-    let deleted = call(&channel, "deleteArchivedTask", json!({ "address": address("task-1") })).await;
+    let deleted = call(
+        &channel,
+        "deleteArchivedTask",
+        json!({ "address": address("task-1") }),
+    )
+    .await;
     assert_eq!(deleted, json!(false));
 
     // 批量：未归档任务进入 skipped。
@@ -318,37 +361,262 @@ async fn archived_deletion_single_and_batch() {
         .is_empty());
 }
 
+/// 注册 `onDynamicControllerFrame` 监听者并收集帧。
+fn listen_frames(
+    channel: &WindowControllerChannel,
+) -> (Arc<std::sync::Mutex<Vec<Json>>>, rpc_host::Subscription) {
+    let frames = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = Arc::clone(&frames);
+    let subscription = channel
+        .listen(
+            "ctx".into(),
+            ON_DYNAMIC_CONTROLLER_FRAME.into(),
+            Value::Json("{}".to_string()),
+            Arc::new(move |value| {
+                if let Value::Json(text) = value {
+                    sink.lock()
+                        .expect("frames")
+                        .push(serde_json::from_str(&text).expect("frame JSON"));
+                }
+            }),
+        )
+        .expect("listen");
+    (frames, subscription)
+}
+
+fn take_frames(frames: &Arc<std::sync::Mutex<Vec<Json>>>) -> Vec<Json> {
+    std::mem::take(&mut *frames.lock().expect("frames"))
+}
+
 #[tokio::test]
-async fn controller_frame_subscriptions_report_missing_bridge() {
+async fn controller_frames_snapshot_then_contiguous_deltas() {
     let db = TempDb::new("frames");
-    let channel = WindowControllerChannel::new(repo(&db));
-    for method in [
+    let r = repo(&db);
+    seed(&r, "task-1", "D:/work/app", 1_000);
+    seed(&r, "task-2", "D:/work/app", 2_000);
+    let channel = WindowControllerChannel::new(Arc::clone(&r));
+    let (frames, _listener) = listen_frames(&channel);
+
+    let subscribed = call(
+        &channel,
         "subscribeControllerV4",
+        json!({ "topic": "controller/tasks-index", "visibility": "foreground" }),
+    )
+    .await;
+    let ack = &subscribed["ack"];
+    assert_eq!(ack["mode"], "snapshot");
+    let log_epoch = ack["logEpoch"].as_str().expect("logEpoch").to_string();
+    assert!(!log_epoch.is_empty());
+    let subscription_id = ack["subscriptionId"]
+        .as_str()
+        .expect("subscriptionId")
+        .to_string();
+
+    // 订阅后立即推送 snapshot 帧。
+    let captured = take_frames(&frames);
+    assert_eq!(captured.len(), 1, "{captured:?}");
+    let snapshot = &captured[0];
+    assert_eq!(snapshot["topic"], "controller/tasks-index");
+    assert_eq!(snapshot["subscriptionId"], subscription_id.as_str());
+    assert_eq!(snapshot["logEpoch"], log_epoch.as_str());
+    assert_eq!(snapshot["payload"]["kind"], "snapshot");
+    assert_eq!(snapshot["payload"]["snapshot"]["protocolVersion"], 1);
+    assert_eq!(
+        snapshot["payload"]["snapshot"]["logEpoch"],
+        log_epoch.as_str()
+    );
+    // updatedAt 降序。
+    assert_eq!(
+        snapshot["payload"]["snapshot"]["tasks"][0]["meta"]["taskId"],
+        "task-2"
+    );
+    assert_eq!(
+        snapshot["payload"]["snapshot"]["tasks"][1]["meta"]["taskId"],
+        "task-1"
+    );
+    assert_eq!(
+        snapshot["payload"]["snapshot"]["tasks"][0]["membership"]["pinned"],
+        false
+    );
+    let snapshot_to_seq = snapshot["toSeq"].as_u64().expect("toSeq");
+
+    // mutation → delta 帧：fromSeq 必须等于上一帧 toSeq（Renderer gap 判定）。
+    call(
+        &channel,
+        "mutateTask",
+        json!({
+            "address": address("task-1"),
+            "mutation": { "kind": "pin", "pinned": true },
+        }),
+    )
+    .await;
+    let captured = take_frames(&frames);
+    assert_eq!(captured.len(), 1, "{captured:?}");
+    let delta = &captured[0];
+    assert_eq!(delta["payload"]["kind"], "deltas");
+    assert_eq!(delta["fromSeq"], snapshot_to_seq);
+    assert_eq!(delta["toSeq"], snapshot_to_seq + 1);
+    assert_eq!(delta["logEpoch"], log_epoch.as_str());
+    let deltas = delta["payload"]["deltas"].as_array().expect("deltas");
+    assert_eq!(deltas.len(), 1, "{deltas:?}");
+    assert_eq!(deltas[0]["op"], "task.upserted");
+    assert_eq!(deltas[0]["task"]["address"]["taskId"], "task-1");
+    assert_eq!(deltas[0]["task"]["membership"]["pinned"], true);
+
+    // resync：同一订阅重推 snapshot（seq 指到当前水位）。
+    let resynced = call(
+        &channel,
         "resyncControllerV4",
-        "unsubscribeControllerV4",
-    ] {
-        let error = channel
-            .call(
-                "ctx".into(),
-                method.into(),
-                Value::Json("{}".to_string()),
-                CancellationToken::default(),
-            )
-            .await
-            .expect_err("frame bridge missing");
-        match error {
-            rpc_host::ChannelError::Error { message, .. } => {
-                assert!(
-                    message.contains("sessions-index frame bridge"),
-                    "{method}: {message}"
-                );
-            }
-            other => panic!("期望 Error 变体，实际 {other:?}"),
+        json!({
+            "subscriptionId": subscription_id,
+            "base": null,
+            "forceSnapshot": true,
+        }),
+    )
+    .await;
+    assert_eq!(resynced["ack"]["logEpoch"], log_epoch.as_str());
+    let captured = take_frames(&frames);
+    assert_eq!(captured.len(), 1, "{captured:?}");
+    assert_eq!(captured[0]["payload"]["kind"], "snapshot");
+    assert_eq!(captured[0]["fromSeq"], 0);
+    assert_eq!(captured[0]["toSeq"], snapshot_to_seq + 1);
+
+    // unsubscribe：Promise<void>，之后不再收帧。
+    let value = channel
+        .call(
+            "ctx".into(),
+            "unsubscribeControllerV4".into(),
+            Value::Json(json!({ "subscriptionId": subscription_id }).to_string()),
+            CancellationToken::default(),
+        )
+        .await
+        .expect("unsubscribe");
+    assert!(matches!(value, Value::Undefined), "{value:?}");
+    call(
+        &channel,
+        "mutateTask",
+        json!({
+            "address": address("task-1"),
+            "mutation": { "kind": "pin", "pinned": false },
+        }),
+    )
+    .await;
+    assert!(take_frames(&frames).is_empty(), "退订后不应再收帧");
+}
+
+#[tokio::test]
+async fn controller_resync_unknown_subscription_and_topic_errors() {
+    let db = TempDb::new("frame-errors");
+    let channel = WindowControllerChannel::new(repo(&db));
+
+    let error = channel
+        .call(
+            "ctx".into(),
+            "resyncControllerV4".into(),
+            Value::Json(json!({ "subscriptionId": "absent", "base": null }).to_string()),
+            CancellationToken::default(),
+        )
+        .await
+        .expect_err("unknown subscription");
+    match error {
+        rpc_host::ChannelError::Error { message, .. } => {
+            assert!(
+                message.contains("未找到 Controller subscription"),
+                "{message}"
+            );
         }
+        other => panic!("期望 Error 变体，实际 {other:?}"),
     }
+
+    let error = channel
+        .call(
+            "ctx".into(),
+            "subscribeControllerV4".into(),
+            Value::Json(json!({ "topic": "controller/unknown" }).to_string()),
+            CancellationToken::default(),
+        )
+        .await
+        .expect_err("unknown topic");
+    match error {
+        rpc_host::ChannelError::Error { message, .. } => {
+            assert!(message.contains("unknown controller topic"), "{message}");
+        }
+        other => panic!("期望 Error 变体，实际 {other:?}"),
+    }
+
+    let error = match channel.listen(
+        "ctx".into(),
+        "onUnknownEvent".into(),
+        Value::Json("{}".to_string()),
+        Arc::new(|_| {}),
+    ) {
+        Ok(_) => panic!("unknown event 应当报错"),
+        Err(error) => error,
+    };
+    match error {
+        rpc_host::ChannelError::Error { message, .. } => {
+            assert!(message.contains("unknown event"), "{message}");
+        }
+        other => panic!("期望 Error 变体，实际 {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn controller_workspaces_snapshot_lists_index_workspaces() {
+    let db = TempDb::new("workspaces");
+    let r = repo(&db);
+    seed(&r, "task-1", "D:/work/app", 1_000);
+    r.sync_task_meta(SyncTaskMetaParams {
+        meta: parse_mode_task_meta(&json!({
+            "taskId": "task-2",
+            "traceId": "trace-task-2",
+            "title": "远程任务",
+            "workspacePath": "D:/work/other",
+            "workspaceIdentity": "remote-1",
+            "createdAt": 2_000,
+            "updatedAt": 2_000,
+            "mode": "build",
+            "provider": "glm",
+        }))
+        .expect("meta"),
+        pinned: None,
+        archived: None,
+        deleted: None,
+        title_overridden: None,
+        searchable_text: None,
+    })
+    .expect("seed remote identity");
+    let channel = WindowControllerChannel::new(Arc::clone(&r));
+    let (frames, _listener) = listen_frames(&channel);
+
+    let subscribed = call(
+        &channel,
+        "subscribeControllerV4",
+        json!({ "topic": "controller/workspaces" }),
+    )
+    .await;
+    assert_eq!(subscribed["ack"]["mode"], "snapshot");
+    let captured = take_frames(&frames);
+    assert_eq!(captured.len(), 1, "{captured:?}");
+    let frame = &captured[0];
+    assert_eq!(frame["topic"], "controller/workspaces");
+    assert_eq!(frame["payload"]["kind"], "snapshot");
+    let workspaces = frame["payload"]["snapshot"]["workspaces"]
+        .as_array()
+        .expect("workspaces");
+    assert_eq!(workspaces.len(), 2, "{workspaces:?}");
+    assert!(workspaces.iter().all(|fact| {
+        fact["sourceAvailability"] == "online" && fact["connectionState"] == "online"
+    }));
+    assert!(workspaces.iter().any(|fact| {
+        fact["workspacePath"] == "D:/work/other" && fact["workspaceIdentity"] == "remote-1"
+    }));
 }
 
 #[test]
 fn channel_name_constant() {
     assert_eq!(WINDOW_CONTROLLER_CHANNEL, "window-controller");
+    assert_eq!(ON_DYNAMIC_CONTROLLER_FRAME, "onDynamicControllerFrame");
+    assert_eq!(CONTROLLER_TASKS_INDEX_TOPIC, "controller/tasks-index");
+    assert_eq!(CONTROLLER_WORKSPACES_TOPIC, "controller/workspaces");
 }

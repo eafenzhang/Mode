@@ -87,6 +87,40 @@ renderer 消费方全部保留。结果：`windowControllerService` 是指向未
 | 远程 source 离线          | 投影冻结为 offline 快照，列表行带 `sourceAvailability: "offline"`；写操作拒绝 |
 | source refresh 代际失效   | 丢弃本次快照，不写投影（避免旧代覆盖新代）                                    |
 
+## Rust 侧实现（LT-16.3 首切 + 帧订阅）
+
+契约方法由 `crates/host-channels/src/window_controller.rs` 的
+`WindowControllerChannel` 承载（`window-controller` 频道），先落在 **local 单源**：
+
+- **列表/变更**：`listTaskList` 直查 `task-index-repo`（`total`/`has_more` 用 repo 的
+  全量计数，不按截断结果重算）；`mutateTask` 的 8 种 mutation 映射到索引 patch，
+  统一返回 meta 或 `null`（与 TS `mutateTask` 同语义）；`deleteArchivedTask(s)` 单条/批量。
+  remote address 在壳内 local 单源不可达，写操作按 TS 文案拒绝。
+- **controller 帧**：`subscribeControllerV4` / `resyncControllerV4` /
+  `unsubscribeControllerV4` 三个 RPC + `onDynamicControllerFrame` 事件。
+  - 两个 topic：`controller/tasks-index`、`controller/workspaces`；各自独立
+    `logEpoch`（uuid v4）与单调 `seq`。
+  - 订阅 ack `{subscriptionId, mode: "snapshot", logEpoch}`；订阅/重同步后向事件
+    监听者推送 snapshot 帧（`fromSeq = 0`，`toSeq = 当前 seq`，`snapshot.logEpoch`
+    与帧一致）。
+  - 每次 refresh 与上次发布的快照做结构 diff：`task.removed` / `task.upserted`、
+    `workspace.removed` / `workspace.upserted`；有 delta 才 `seq += 1` 并广播，
+    帧 `fromSeq` 恒等于上一帧 `toSeq`（Renderer 的 gap 判定依赖此连续性）。
+  - **refresh 触发点**：本频道每次读写调用前后（含 mutation 与归档删除）；壳内暂无
+    sessions-index observer/DB 变更观察者，其他频道写入索引后的收敛依赖下一次
+    本频道调用——这是与 TS「事件驱动 single-flight refresh」的已知差距。
+  - 快照行 = 索引全量未删除任务三分区合并（active/pinned/archived，archived 行
+    membership 固定 `pinned:false, archived:true`，与 TS `readSourceTaskIndex` 同）；
+    workspace facts 由索引中出现的 workspace 去重派生（`online/online`），空 workspace
+    不会出现（TS 由 source 注册表驱动，壳内当前无注册面）。
+  - `liveStatus` 在无 sessions-index overlay 时只投影 `completed`/`error`，其余
+    一律 `idle`：SQLite 里的 running/waiting 可能是上次进程残留，不能重新解释成
+    当前运行事实（TS `defaultLiveStatus` 同规则）。
+
+**未覆盖（16.3 续 / 16.4）**：sessions-index overlay（liveStatus/activity/
+pendingInteraction/title 富化）、remote source 聚合与重连换源、事件驱动的增量收敛
+（当前为调用时 refresh）、`registerSource`/`replaceDisconnectedSource` 的对外接线。
+
 ## 验收场景
 
 1. 打开桌面端，侧栏「任务」分区显示对话工作区的活跃会话（不再是「还没有任务」）。
