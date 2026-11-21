@@ -2570,6 +2570,7 @@ dependencies = [
  "skills-service",
  "subagents-service",
  "system-service",
+ "task-index-repo",
  "terminal-service",
  "tokio",
  "workspace-hooks-service",
