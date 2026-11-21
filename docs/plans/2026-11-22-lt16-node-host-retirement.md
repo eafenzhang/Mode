@@ -106,7 +106,14 @@ getState 读实时状态；未注入时显式报错/offline 快照。**宿主监
 `onDidChange` 快照、`LanAccessHostPort` 同步端口；`ChannelAssemblyOptions.lan_host`
 注入频道；`WsHostDeps.agent_control` 补 LAN 客户端 agent 频道。**16.4a 剩余**：
 inprocess 装配 supervisor（ServerInfo/工作区动态投影、设置持久化、Host 代重建）、
-静态 Web 资源与公网中继、discoverPeers/pairPeer/getPeerWorkspaces。`w6:readiness` 四组 blocker（stdioFrames/stdoutGuard/host-sidecar/
+静态 Web 资源与公网中继、discoverPeers/pairPeer/getPeerWorkspaces。
+**翻转约束（必须先解决再接线）**：Node Host 的 `lanAccessService` 仍按
+`restoreOnStart` 启动自己的 loopback/LAN 监听并持有配对状态；Rust supervisor
+一旦同时上电会出现双监听（45880 被 Node 占用→回落随机端口）与状态分叉。
+翻转必须是一个原子改动：先停/删 Node 侧 LAN server 启动点，再由**进程级单例**
+（不是每 window 一个）Rust supervisor 接管；需要真机验证「允许局域网直连」与
+桌面↔桌面挂接。工作区列表投影（ServerInfoConfig.workspaces）也需从当前打开的
+workspace 集合注入，不能沿用 from_env 的 cwd 兜底。`w6:readiness` 四组 blocker（stdioFrames/stdoutGuard/host-sidecar/
 node-agent-fallback）均为 Node Host 发运物，随 16.6 删除归零。 |
 | 16.5 | **host-standalone 收口** | 骨架（~4.4k 行）随上述面退役：stdioFrames/stdoutGuard/scopedAttachments/rendererConnectionScope 退场 | 16.1–16.4 | `w6:readiness` 四组 blocker 归零 |
 | 16.6 | **物理删除窗口** | 删 host-standalone、host-sidecar 发运集/脚本、mode.cjs 回退随包、bundled-agents；四仪表终值复测 | 16.5 | `--fail-on-blockers` READY；体积/性能仪表落档 |
