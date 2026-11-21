@@ -40,12 +40,50 @@ pub struct WindowControllerChannel {
     repo: Arc<TaskIndexRepo>,
     /// V4 controller 帧总线（订阅注册 + snapshot/delta 广播）。
     frames: Arc<ControllerFrameBus>,
+    /// mode-task 任务事件桥（进程内）：创建/关闭等索引写入后刷新投影。
+    /// 仅构造方持有（per-call 克隆为 `None`，不重复订阅）。
+    _task_event_bridge: Option<Subscription>,
 }
 
 impl WindowControllerChannel {
+    /// 独立频道（无跨频道事件桥）：refresh 只由本频道调用触发。
     pub fn new(repo: Arc<TaskIndexRepo>) -> Self {
         let frames = Arc::new(ControllerFrameBus::new(Arc::clone(&repo)));
-        Self { repo, frames }
+        Self {
+            repo,
+            frames,
+            _task_event_bridge: None,
+        }
+    }
+
+    /// 装配用：订阅同一 server 的 mode-task 事件总线（TS Host 进程内 Emitter 等价），
+    /// `onWorkspaceTaskListChanged` 到达时刷新 controller 投影并广播 delta 帧。
+    pub fn with_task_events(
+        repo: Arc<TaskIndexRepo>,
+        task_events: Arc<crate::mode_task::TaskEventBus>,
+    ) -> Self {
+        let frames = Arc::new(ControllerFrameBus::new(Arc::clone(&repo)));
+        let bridge_frames = Arc::clone(&frames);
+        let bridge = task_events.subscribe_local(Arc::new(
+            move |_kind: &str, _meta: Option<&JsonValue>| {
+                // 索引已在事件源侧提交；这里只把本地投影与新行做 diff 并广播。
+                let _ = bridge_frames.refresh();
+            },
+        ));
+        Self {
+            repo,
+            frames,
+            _task_event_bridge: Some(bridge),
+        }
+    }
+
+    /// per-call 克隆：共享 repo/frames，但不持有事件桥订阅。
+    fn handle(&self) -> Self {
+        Self {
+            repo: Arc::clone(&self.repo),
+            frames: Arc::clone(&self.frames),
+            _task_event_bridge: None,
+        }
     }
 }
 
@@ -961,10 +999,7 @@ impl ServerChannel for WindowControllerChannel {
         arg: WireValue,
         _cancel: CancellationToken,
     ) -> BoxFuture<Result<WireValue, ChannelError>> {
-        let channel = WindowControllerChannel {
-            repo: Arc::clone(&self.repo),
-            frames: Arc::clone(&self.frames),
-        };
+        let channel = self.handle();
         Box::pin(async move {
             tokio::task::spawn_blocking(move || run(&channel, &command, &arg))
                 .await

@@ -285,6 +285,8 @@ async fn bridge_host_socket(socket: WebSocket, deps: WsHostDeps, client_id: Opti
             data_root: deps.data_root,
             agent_control: None,
             on_shell_log: None,
+            // 每连接一条：单连接内 mode-task → window-controller 投影刷新。
+            task_events: std::sync::Arc::new(host_channels::mode_task::TaskEventBus::new()),
         },
     );
     let outbound = tokio::spawn(async move {

@@ -106,9 +106,13 @@ renderer 消费方全部保留。结果：`windowControllerService` 是指向未
   - 每次 refresh 与上次发布的快照做结构 diff：`task.removed` / `task.upserted`、
     `workspace.removed` / `workspace.upserted`；有 delta 才 `seq += 1` 并广播，
     帧 `fromSeq` 恒等于上一帧 `toSeq`（Renderer 的 gap 判定依赖此连续性）。
-  - **refresh 触发点**：本频道每次读写调用前后（含 mutation 与归档删除）；壳内暂无
-    sessions-index observer/DB 变更观察者，其他频道写入索引后的收敛依赖下一次
-    本频道调用——这是与 TS「事件驱动 single-flight refresh」的已知差距。
+  - **refresh 触发点**：本频道每次读写调用（含 mutation 与归档删除）+ **同 server
+    的 mode-task 任务事件桥**——`TaskEventBus` 的进程内监听者（`subscribe_local`）
+    在 `onWorkspaceTaskListChanged`（task_created/task_meta_changed/task_list_changed）
+    到达时刷新 controller 投影并广播 delta（TS Host 进程内 Emitter 等价）。
+    壳内仍无 sessions-index observer / DB 变更观察者；不经 mode-task 事件的索引写入
+    （例如直接改库）依赖下一次本频道调用收敛——这是与 TS「事件驱动 single-flight
+    refresh」的剩余差距。
   - 快照行 = 索引全量未删除任务三分区合并（active/pinned/archived，archived 行
     membership 固定 `pinned:false, archived:true`，与 TS `readSourceTaskIndex` 同）；
     workspace facts 由索引中出现的 workspace 去重派生（`online/online`），空 workspace

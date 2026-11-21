@@ -39,14 +39,20 @@ pub struct ModeTaskChannel {
 
 pub type TaskEventListeners = Arc<Mutex<HashMap<String, rpc_host::EventCallback>>>;
 
+/// 进程内任务事件监听者（不经 wire）：window-controller 等频道据此刷新投影。
+pub type TaskEventLocalListener = Arc<dyn Fn(&str, Option<&serde_json::Value>) + Send + Sync>;
+pub type TaskEventLocalListeners = Arc<Mutex<HashMap<String, TaskEventLocalListener>>>;
+
 pub const ON_WORKSPACE_TASK_LIST_CHANGED: &str = "onWorkspaceTaskListChanged";
 pub const ON_DYNAMIC_TASK_READY: &str = "onDynamicTaskReady";
 
 /// mode-task 事件总线（broadcast 频道的 subscribe/notify 模式；TS Emitter 等价）。
+/// wire 监听者（renderer）与进程内监听者（同 server 的其他频道）共用同一通知点。
 #[derive(Default, Clone)]
 pub struct TaskEventBus {
     task_list_listeners: TaskEventListeners,
     ready_listeners: TaskEventListeners,
+    local_listeners: TaskEventLocalListeners,
 }
 
 impl TaskEventBus {
@@ -79,6 +85,37 @@ impl TaskEventBus {
         Self::subscribe(&self.ready_listeners, emit)
     }
 
+    /// 进程内订阅 `onWorkspaceTaskListChanged`（TS Host 进程内 Emitter 等价）。
+    pub fn subscribe_local(
+        &self,
+        listener: TaskEventLocalListener,
+    ) -> rpc_host::Subscription {
+        let id = uuid::Uuid::new_v4().to_string();
+        self.local_listeners
+            .lock()
+            .expect("task event local listeners poisoned")
+            .insert(id.clone(), listener);
+        let map = Arc::clone(&self.local_listeners);
+        Box::new(move || {
+            map.lock()
+                .expect("task event local listeners poisoned")
+                .remove(&id);
+        })
+    }
+
+    fn notify_local(&self, kind: &str, meta: Option<&serde_json::Value>) {
+        let listeners: Vec<TaskEventLocalListener> = self
+            .local_listeners
+            .lock()
+            .expect("task event local listeners poisoned")
+            .values()
+            .cloned()
+            .collect();
+        for listener in listeners {
+            listener(kind, meta);
+        }
+    }
+
     /// TS `emitWorkspaceTaskListChanged`：task_created / task_meta_changed / task_list_changed。
     pub fn notify_task_list(&self, kind: &str, meta: Option<&serde_json::Value>) {
         let mut payload = serde_json::json!({ "kind": kind });
@@ -95,6 +132,7 @@ impl TaskEventBus {
                 emit(WireValue::Json(text));
             }
         }
+        self.notify_local(kind, meta);
     }
 
     /// TS `onDynamicTaskReady`：任务收口（prompt_completed/failed）。

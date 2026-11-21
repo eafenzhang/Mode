@@ -398,6 +398,8 @@ fn build_server(
         data_root: data_root.to_path_buf(),
         agent_control: Some(StdArc::clone(agent_control)),
         on_shell_log: Some(StdArc::new(|message: &str| crate::host::shell_log(message))),
+        // 同一 server 的 mode-task → window-controller 事件桥。
+        task_events: StdArc::new(host_channels::mode_task::TaskEventBus::new()),
     };
     for name in owned {
         match build_channel(name, &options) {

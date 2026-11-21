@@ -67,6 +67,9 @@ pub struct ChannelAssemblyOptions {
     pub agent_control: Option<Arc<AgentControlClient>>,
     /// 壳侧结构化日志（降级/不可观察事件）；`None` 时静默。
     pub on_shell_log: Option<ShellLogSink>,
+    /// 同一 server 内的任务事件总线：mode-task 发事件、window-controller 订阅刷新投影
+    /// （TS Host 进程内 Emitter 等价）。每 server 一条，跨 server 不共享。
+    pub task_events: Arc<crate::mode_task::TaskEventBus>,
 }
 
 impl ChannelAssemblyOptions {
@@ -214,12 +217,15 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
             crate::plugin_sync::default_service(),
         ))),
         WINDOW_CONTROLLER_CHANNEL => {
-            // window-controller（16.3 首切）：local 单源列表 + 变更面；
-            // controller 帧订阅依赖 sessions-index 帧桥（显式报错）。
+            // window-controller（16.3）：local 单源列表/变更面 + V4 帧订阅；
+            // 订阅同一 server 的任务事件总线，mode-task 写入后刷新投影推 delta。
             let repo = task_index_repo::TaskIndexRepo::new(
                 data_root.join("v2").join("tasks-index.sqlite"),
             );
-            Some(Arc::new(WindowControllerChannel::new(Arc::new(repo))))
+            Some(Arc::new(WindowControllerChannel::with_task_events(
+                Arc::new(repo),
+                Arc::clone(&options.task_events),
+            )))
         }
         MODE_TASK_CHANNEL => {
             // 任务索引 DB 与桌面壳同位（{data_root}/v2/tasks-index.sqlite）；
@@ -249,7 +255,7 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
                 Arc::new(repo),
                 options.agent_control.clone(),
                 queue,
-                Arc::new(crate::mode_task::TaskEventBus::new()),
+                Arc::clone(&options.task_events),
             )))
         }
         USAGE_STATS_CHANNEL => {

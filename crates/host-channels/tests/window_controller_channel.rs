@@ -613,6 +613,48 @@ async fn controller_workspaces_snapshot_lists_index_workspaces() {
     }));
 }
 
+#[tokio::test]
+async fn task_event_bridge_refreshes_frames_after_external_write() {
+    let db = TempDb::new("bridge");
+    let r = repo(&db);
+    seed(&r, "task-1", "D:/work/app", 1_000);
+    let events = Arc::new(host_channels::mode_task::TaskEventBus::new());
+    let channel = WindowControllerChannel::with_task_events(Arc::clone(&r), Arc::clone(&events));
+    let (frames, _listener) = listen_frames(&channel);
+
+    let subscribed = call(
+        &channel,
+        "subscribeControllerV4",
+        json!({ "topic": "controller/tasks-index" }),
+    )
+    .await;
+    assert_eq!(subscribed["ack"]["mode"], "snapshot");
+    let captured = take_frames(&frames);
+    assert_eq!(captured.len(), 1);
+    let snapshot_to_seq = captured[0]["toSeq"].as_u64().expect("toSeq");
+    assert_eq!(
+        captured[0]["payload"]["snapshot"]["tasks"]
+            .as_array()
+            .expect("tasks")
+            .len(),
+        1
+    );
+
+    // 外部写入索引（模拟 mode-task createTask）+ 事件通知 → 桥触发 refresh。
+    seed(&r, "task-2", "D:/work/app", 2_000);
+    events.notify_task_list("task_created", None);
+    let captured = take_frames(&frames);
+    assert_eq!(captured.len(), 1, "{captured:?}");
+    let delta = &captured[0];
+    assert_eq!(delta["payload"]["kind"], "deltas");
+    assert_eq!(delta["fromSeq"], snapshot_to_seq);
+    assert_eq!(delta["toSeq"], snapshot_to_seq + 1);
+    let deltas = delta["payload"]["deltas"].as_array().expect("deltas");
+    assert_eq!(deltas.len(), 1, "{deltas:?}");
+    assert_eq!(deltas[0]["op"], "task.upserted");
+    assert_eq!(deltas[0]["task"]["address"]["taskId"], "task-2");
+}
+
 #[test]
 fn channel_name_constant() {
     assert_eq!(WINDOW_CONTROLLER_CHANNEL, "window-controller");
