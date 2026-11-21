@@ -262,7 +262,6 @@ async fn server_supervisor_methods_report_missing_owner() {
     let channel = LanAccessChannel::new(store(&dir));
 
     for method in [
-        "getState",
         "setEnabled",
         "createPairCode",
         "removeClient",
@@ -303,6 +302,67 @@ async fn server_supervisor_methods_report_missing_owner() {
         }
         other => panic!("期望 Error 变体，实际 {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn get_state_reads_clients_from_credentials() {
+    let dir = TempDir::new("state");
+    let credentials = store(&dir);
+    credentials
+        .save(
+            "lan:access:clients",
+            &json!([
+                {
+                    "id": "c1",
+                    "label": "手机",
+                    "createdAt": 10,
+                    "lastUsedAt": 20,
+                    "lastWorkspacePath": "D:/work/app",
+                    "remoteDesktopAuthorized": true
+                },
+                { "id": "", "label": "bad" },
+                { "label": "missing-id" },
+                { "id": "c2" }
+            ])
+            .to_string(),
+        )
+        .expect("clients");
+    let channel = LanAccessChannel::new(Arc::clone(&credentials));
+
+    let state = call(&channel, "getState", json!({})).await;
+    assert_eq!(state["enabled"], false);
+    assert!(state["port"].is_null());
+    assert_eq!(state["addresses"], json!([]));
+    assert!(state["pairCode"].is_null());
+    assert_eq!(state["activeWebSessions"], 0);
+    assert!(state["publicRelayUrl"].is_null());
+    let clients = state["clients"].as_array().expect("clients");
+    assert_eq!(clients.len(), 2, "{clients:?}");
+    assert_eq!(clients[0]["id"], "c1");
+    assert_eq!(clients[0]["label"], "手机");
+    assert_eq!(clients[0]["lastUsedAt"], 20);
+    assert_eq!(clients[0]["lastWorkspacePath"], "D:/work/app");
+    assert_eq!(clients[0]["remoteDesktopAuthorized"], true);
+    // 缺字段按 TS 默认：label ""、createdAt now、lastUsedAt null；
+    // 授权只认显式 true。
+    assert_eq!(clients[1]["id"], "c2");
+    assert_eq!(clients[1]["label"], "");
+    assert!(clients[1]["createdAt"].as_i64().expect("createdAt") > 0);
+    assert!(clients[1]["lastUsedAt"].is_null());
+    assert!(clients[1].get("lastWorkspacePath").is_none());
+    assert!(clients[1].get("remoteDesktopAuthorized").is_none());
+
+    // 坏 JSON / 非数组 = 空 clients。
+    credentials
+        .save("lan:access:clients", "not-json")
+        .expect("bad json");
+    let state = call(&channel, "getState", json!({})).await;
+    assert!(state["clients"].as_array().expect("clients").is_empty());
+    credentials
+        .save("lan:access:clients", "{}")
+        .expect("non-array");
+    let state = call(&channel, "getState", json!({})).await;
+    assert!(state["clients"].as_array().expect("clients").is_empty());
 }
 
 #[test]

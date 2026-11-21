@@ -9,9 +9,12 @@
 //!   公网端点强制 HTTPS、公网优先排序），令牌本体不读不返回；
 //! - `removePairedPeer`：token 与 meta 同生命周期、幂等删除；
 //! - `renamePairedPeer`：只改本机 meta 展示名（1–64，缺 meta 显式报错）。
+//! - `getState`：监听未开启时的只读快照（TS `readDisabledLanAccessState`）——
+//!   enabled=false / port=null / addresses=[] / pairCode=null，clients 仍从凭据
+//!   读取（配对记录与逐设备授权是持久化事实，监听开关只管「现在能不能连进来」）。
 //!
-//! server 侧（getState/setEnabled/createPairCode/removeClient/resetTokens）与
-//! 网络 side（discoverPeers/pairPeer/getPeerWorkspaces）依赖本机 LAN server
+//! server 侧（setEnabled/createPairCode/removeClient/resetTokens）与网络
+//! side（discoverPeers/pairPeer/getPeerWorkspaces）依赖本机 LAN server
 //! supervisor 与端点探测，留 16.4a 续——显式报错，不返回假状态。
 
 use std::sync::Arc;
@@ -29,6 +32,8 @@ pub const ON_DID_CHANGE: &str = "onDidChange";
 const PEER_PREFIX: &str = "lan:peer:";
 const TOKEN_SUFFIX: &str = ":token";
 const META_SUFFIX: &str = ":meta";
+/// 已配对客户端注册表（JSON 数组）；LAN server 与设置页快照共用的持久事实。
+const LAN_ACCESS_CLIENTS_CREDENTIAL_KEY: &str = "lan:access:clients";
 
 pub struct LanAccessChannel {
     credentials: Arc<CredentialStore>,
@@ -150,6 +155,96 @@ impl LanPeerMeta {
             paired_at,
         })
     }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StoredLanAccessClientRecord {
+    id: String,
+    #[serde(default)]
+    label: Option<String>,
+    #[serde(default)]
+    created_at: Option<i64>,
+    #[serde(default)]
+    last_used_at: Option<i64>,
+    #[serde(default)]
+    last_workspace_path: Option<String>,
+    #[serde(default)]
+    remote_desktop_authorized: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LanAccessClientRecord {
+    id: String,
+    label: String,
+    created_at: i64,
+    last_used_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_workspace_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remote_desktop_authorized: Option<bool>,
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// TS `readLanAccessClientRecords`：只认 id 非空的记录；坏 JSON/非数组 = []。
+fn read_client_records(credentials: &CredentialStore) -> Result<Vec<LanAccessClientRecord>, String> {
+    let Some(raw) = credentials
+        .load(LAN_ACCESS_CLIENTS_CREDENTIAL_KEY)
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(Vec::new());
+    };
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return Ok(Vec::new());
+    };
+    let Some(items) = parsed.as_array() else {
+        return Ok(Vec::new());
+    };
+    let mut records = Vec::new();
+    for item in items {
+        let Ok(record) = serde_json::from_value::<StoredLanAccessClientRecord>(item.clone()) else {
+            continue;
+        };
+        if record.id.is_empty() {
+            continue;
+        }
+        records.push(LanAccessClientRecord {
+            id: record.id,
+            label: record.label.unwrap_or_default(),
+            created_at: record.created_at.unwrap_or_else(now_ms),
+            last_used_at: record.last_used_at,
+            // 只保留非空字符串（TS 同）。
+            last_workspace_path: record
+                .last_workspace_path
+                .filter(|path| !path.is_empty()),
+            // 远程桌面逐设备授权：只认显式 true（缺键/旧数据 = 未授权）。
+            remote_desktop_authorized: record
+                .remote_desktop_authorized
+                .filter(|authorized| *authorized),
+        });
+    }
+    Ok(records)
+}
+
+/// TS `readDisabledLanAccessState`：监听未开启时的只读快照。
+fn disabled_lan_access_state(credentials: &CredentialStore) -> Result<serde_json::Value, String> {
+    let clients = read_client_records(credentials)?;
+    Ok(serde_json::json!({
+        "enabled": false,
+        "port": serde_json::Value::Null,
+        "addresses": [],
+        "pairCode": serde_json::Value::Null,
+        "clients": clients,
+        "activeWebSessions": 0,
+        "publicRelayUrl": serde_json::Value::Null,
+    }))
 }
 
 #[derive(Debug, Serialize)]
@@ -296,6 +391,15 @@ fn run(
         "listPairedPeers" => {
             let peers = list_paired_peers(&channel.credentials).map_err(ChannelError::error)?;
             let text = serde_json::to_string(&peers)
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            Ok(WireValue::Json(text))
+        }
+        "getState" => {
+            // 壳内暂无 LAN server supervisor：监听必然未开启，按 TS 的
+            // readDisabledLanAccessState 输出真实快照（clients 来自凭据）。
+            let state =
+                disabled_lan_access_state(&channel.credentials).map_err(ChannelError::error)?;
+            let text = serde_json::to_string(&state)
                 .map_err(|error| ChannelError::error(error.to_string()))?;
             Ok(WireValue::Json(text))
         }

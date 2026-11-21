@@ -103,7 +103,13 @@
 - `removePairedPeer`：token 与 meta 同生命周期、幂等删除；空 serverId 报「缺少 serverId」。
 - `renamePairedPeer`：只改本机 meta 展示名（trim 后 1–64，按 UTF-16 长度校验，
   与 JS `.length` 同）；缺 meta 报「该配对缺少元数据，无法重命名」；地址/令牌不动。
-- 其余接口（`getState`/`setEnabled`/`createPairCode`/`removeClient`/`resetTokens`/
+- `getState`：壳内暂无 LAN server supervisor → 按 TS `readDisabledLanAccessState`
+  输出真实快照：`enabled:false`、`port:null`、`addresses:[]`、`pairCode:null`、
+  `activeWebSessions:0`、`publicRelayUrl:null`；`clients` 从
+  `lan:access:clients` 凭据读取并归一化（只认 id 非空；label 缺省 ""、
+  createdAt 缺省 now、lastUsedAt 缺省 null、lastWorkspacePath 只保留非空、
+  remoteDesktopAuthorized 只认显式 true；坏 JSON/非数组 = []）。
+- 其余接口（`setEnabled`/`createPairCode`/`removeClient`/`resetTokens`/
   `discoverPeers`/`pairPeer`/`getPeerWorkspaces`）与 `onDidChange` 事件依赖本机
   LAN server supervisor / 端点探测，未装配时显式报错，**不返回假状态**（16.4a 续）。
 

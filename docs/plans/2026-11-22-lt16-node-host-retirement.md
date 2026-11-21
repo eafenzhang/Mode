@@ -95,10 +95,11 @@ sessions-index observer）——**排序 16.2 先于 16.3**。
 |  |  | 🟡 调查拆分（2026-11-22）。TS 规模：lan-access 适配器 377 + LAN server 591 + 对端 registry/attach 892 ≈ 1.9k；remote-desktop 面依赖 `@mode/client` 主控 controller + `remoteDesktopServer` + 原生媒体（`crates/mode-cua-ax/rd_media` 已存在）；remoteV3 客户端 ~5.6k（`packages/desktop/src/host/remoteV3/`）；remoteWorkspace 959 + services/remote 接口 109。Rust 既有底座：`lan-pairing`（clients/token/配对码/远程桌面授权）、`lan-http`（pair + 六管理端点 + serve）、`lan-discovery`、`crates/server/src/lan.rs`（axum 桥）、`ws_host`（每连接 ChannelServer）、`remote-desktop-streaming`（自适应码率纯状态机）。<br>按依赖拆四片：**16.4a lan-access 管理面**（本机 server supervisor：loopback/LAN 双模式、/ws host 复用、静态资源/中继；getState/setEnabled/createPairCode/removeClient/resetTokens/onDidChange + 对端 side：discoverPeers/pairPeer/listPairedPeers/getPeerWorkspaces/remove/rename）→ **16.4b remote-desktop 频道**（设置/同意/被控状态 + 主控会话 open/probe/signal，复用原生媒体）→ **16.4c remote-v3 频道**（设备身份/登录/ControlLink/tunnels/E2EE，最大块）→ **16.4d remote workspaces**（connect/cancel/bind/dispose/attach/detach + remoteWorkspaceService）。<br>**状态**：16.4a 首切已落（2026-11-22）——`lan-access` 频道对端配对 registry
 （listPairedPeers v1→v2 归一化/公网 HTTPS 过滤/pairedAt 排序、removePairedPeer
 幂等、renamePairedPeer 1–64 展示名）；server supervisor 与网络 side 显式报错，
-channel 已进 assembly/inprocess 默认集；6 用例。**16.4a 剩余**：本机 server
-supervisor（loopback/LAN 双模式、/ws host 复用、静态资源/中继）、getState/
-setEnabled/配对码/clients/reset、discoverPeers/pairPeer/getPeerWorkspaces、
-onDidChange。`w6:readiness` 四组 blocker（stdioFrames/stdoutGuard/host-sidecar/
+channel 已进 assembly/inprocess 默认集；另 `getState` 按 TS
+`readDisabledLanAccessState` 输出真实 offline 快照（clients 读凭据并归一化）；
+7 用例。**16.4a 剩余**：本机 server
+supervisor（loopback/LAN 双模式、/ws host 复用、静态资源/中继）、setEnabled/
+配对码/clients/reset、discoverPeers/pairPeer/getPeerWorkspaces、onDidChange。`w6:readiness` 四组 blocker（stdioFrames/stdoutGuard/host-sidecar/
 node-agent-fallback）均为 Node Host 发运物，随 16.6 删除归零。 |
 | 16.5 | **host-standalone 收口** | 骨架（~4.4k 行）随上述面退役：stdioFrames/stdoutGuard/scopedAttachments/rendererConnectionScope 退场 | 16.1–16.4 | `w6:readiness` 四组 blocker 归零 |
 | 16.6 | **物理删除窗口** | 删 host-standalone、host-sidecar 发运集/脚本、mode.cjs 回退随包、bundled-agents；四仪表终值复测 | 16.5 | `--fail-on-blockers` READY；体积/性能仪表落档 |
