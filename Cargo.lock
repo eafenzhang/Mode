@@ -2566,6 +2566,7 @@ dependencies = [
  "serde_json",
  "settings-store",
  "settings-sync-service",
+ "sha2",
  "skill-sync-service",
  "skills-service",
  "subagents-service",
@@ -2573,6 +2574,7 @@ dependencies = [
  "task-index-repo",
  "terminal-service",
  "tokio",
+ "uuid",
  "workspace-hooks-service",
 ]
 
