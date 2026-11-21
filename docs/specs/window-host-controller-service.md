@@ -108,11 +108,18 @@ renderer 消费方全部保留。结果：`windowControllerService` 是指向未
     帧 `fromSeq` 恒等于上一帧 `toSeq`（Renderer 的 gap 判定依赖此连续性）。
   - **refresh 触发点**：本频道每次读写调用（含 mutation 与归档删除）+ **同 server
     的 mode-task 任务事件桥**——`TaskEventBus` 的进程内监听者（`subscribe_local`）
-    在 `onWorkspaceTaskListChanged`（task_created/task_meta_changed/task_list_changed）
+    在 `onDynamicWorkspaceEvent` 的 `workspace_task_list_changed`
+    （task_created/task_meta_changed/task_deleted/task_pinned/task_archived 等 reason）
     到达时刷新 controller 投影并广播 delta（TS Host 进程内 Emitter 等价）。
     壳内仍无 sessions-index observer / DB 变更观察者；不经 mode-task 事件的索引写入
     （例如直接改库）依赖下一次本频道调用收敛——这是与 TS「事件驱动 single-flight
     refresh」的剩余差距。
+  - **事件回发**：本频道的 mutation/归档删除成功后，按 mutation 语义向同一
+    `TaskEventBus` 发 workspace 事件（pin→task_pinned/task_unpinned、
+    archive→task_archived/task_unarchived、delete/delete-archived→task_deleted、
+    mark-read 命中/未读→task_meta_changed；CAS 未命中不广播），
+    驱动 renderer 的 mode-task 列表与 grouped 视图收敛（TS 两服务写同一索引、
+    共用同一条 workspace 事件）。
   - 快照行 = 索引全量未删除任务三分区合并（active/pinned/archived，archived 行
     membership 固定 `pinned:false, archived:true`，与 TS `readSourceTaskIndex` 同）；
     workspace facts 由索引中出现的 workspace 去重派生（`online/online`），空 workspace

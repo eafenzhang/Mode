@@ -330,27 +330,23 @@ fn channel_name_constant() {
 #[tokio::test]
 async fn task_event_bus_notify_and_listen() {
     use host_channels::mode_task::{
-        TaskEventBus, ON_DYNAMIC_TASK_READY, ON_WORKSPACE_TASK_LIST_CHANGED,
+        TaskEventBus, ON_DYNAMIC_TASK_READY, ON_DYNAMIC_WORKSPACE_EVENT,
+        WorkspaceTaskListChanged,
     };
     use rpc_host::ServerChannel as _;
 
     let db = TempDb::new("events");
     let bus = Arc::new(TaskEventBus::new());
-    let channel = ModeTaskChannel::new(
-        repo(&db),
-        None,
-        None,
-        Arc::clone(&bus),
-    );
+    let channel = ModeTaskChannel::new(repo(&db), None, None, Arc::clone(&bus));
 
-    // 订阅两类事件：listen 分派 + emit 回传 JSON。
+    // onDynamicWorkspaceEvent(scope)：按 workspace key 过滤投递。
     let received = Arc::new(std::sync::Mutex::new(Vec::<serde_json::Value>::new()));
     let received_tl = Arc::clone(&received);
     let sub_task_list = channel
         .listen(
             "ctx".into(),
-            ON_WORKSPACE_TASK_LIST_CHANGED.into(),
-            Value::Undefined,
+            ON_DYNAMIC_WORKSPACE_EVENT.into(),
+            Value::Json(json!(["D:/work/app"]).to_string()),
             Arc::new(move |value| {
                 if let Value::Json(text) = value {
                     if let Ok(parsed) = serde_json::from_str(&text) {
@@ -359,14 +355,15 @@ async fn task_event_bus_notify_and_listen() {
                 }
             }),
         )
-        .expect("listen task list");
+        .expect("listen workspace");
+    // onDynamicTaskReady(taskId)：按 task 过滤投递。
     let received_ready = Arc::new(std::sync::Mutex::new(Vec::<serde_json::Value>::new()));
     let received_ready_clone = Arc::clone(&received_ready);
     let sub_ready = channel
         .listen(
             "ctx".into(),
             ON_DYNAMIC_TASK_READY.into(),
-            Value::Undefined,
+            Value::Json(json!(["task-1"]).to_string()),
             Arc::new(move |value| {
                 if let Value::Json(text) = value {
                     if let Ok(parsed) = serde_json::from_str(&text) {
@@ -377,25 +374,38 @@ async fn task_event_bus_notify_and_listen() {
         )
         .expect("listen ready");
 
-    // 广播：task_created 带 meta；ready 带 taskId/reason。
-    bus.notify_task_list("task_created", Some(&json!({ "taskId": "task-1" })));
-    bus.notify_ready("task-1", "prompt_completed", None);
+    // 同 workspace 广播：真实载荷形状（type/workspacePath/taskId/reason/taskMeta）。
+    bus.notify_task_list(&WorkspaceTaskListChanged {
+        workspace_path: "D:/work/app".to_string(),
+        workspace_identity: None,
+        task_id: Some("task-1".to_string()),
+        reason: "task_created",
+        task_meta: Some(json!({ "taskId": "task-1" })),
+    });
+    // 其他 workspace 不投递（scope 过滤）。
+    bus.notify_task_list(&WorkspaceTaskListChanged::new("D:/work/other", "task_created"));
+    // ready：只投递给该 task 的订阅。
+    bus.notify_ready("task-1", "prompt_completed");
+    bus.notify_ready("task-2", "prompt_completed");
     {
         let received = received.lock().expect("recv");
-        assert_eq!(received.len(), 1);
-        assert_eq!(received[0]["kind"], "task_created");
-        assert_eq!(received[0]["meta"]["taskId"], "task-1");
+        assert_eq!(received.len(), 1, "{received:?}");
+        assert_eq!(received[0]["type"], "workspace_task_list_changed");
+        assert_eq!(received[0]["workspacePath"], "D:/work/app");
+        assert_eq!(received[0]["taskId"], "task-1");
+        assert_eq!(received[0]["reason"], "task_created");
+        assert_eq!(received[0]["taskMeta"]["taskId"], "task-1");
     }
     {
         let received = received_ready.lock().expect("recv");
-        assert_eq!(received.len(), 1);
+        assert_eq!(received.len(), 1, "{received:?}");
         assert_eq!(received[0]["taskId"], "task-1");
         assert_eq!(received[0]["reason"], "prompt_completed");
     }
 
     // 释放订阅后不再收到。
     sub_task_list();
-    bus.notify_task_list("task_meta_changed", None);
+    bus.notify_task_list(&WorkspaceTaskListChanged::new("D:/work/app", "task_meta_changed"));
     assert_eq!(received.lock().expect("recv").len(), 1);
     drop(sub_ready);
 

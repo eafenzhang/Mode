@@ -37,21 +37,100 @@ pub struct ModeTaskChannel {
     events: Arc<TaskEventBus>,
 }
 
-pub type TaskEventListeners = Arc<Mutex<HashMap<String, rpc_host::EventCallback>>>;
+/// TS `ModeWorkspaceTaskListChanged`（`onDynamicWorkspaceEvent` 的 wire 载荷）。
+#[derive(Clone, Debug)]
+pub struct WorkspaceTaskListChanged {
+    pub workspace_path: String,
+    pub workspace_identity: Option<String>,
+    pub task_id: Option<String>,
+    /// TS `TaskRealtimeReason`（task_created/task_meta_changed/task_status_changed/
+    /// task_deleted/task_title_changed/task_pinned/task_unpinned/task_archived/
+    /// task_unarchived）或 auto_archive/realtime_sync。
+    pub reason: &'static str,
+    pub task_meta: Option<serde_json::Value>,
+}
+
+impl WorkspaceTaskListChanged {
+    pub fn new(workspace_path: impl Into<String>, reason: &'static str) -> Self {
+        Self {
+            workspace_path: workspace_path.into(),
+            workspace_identity: None,
+            task_id: None,
+            reason,
+            task_meta: None,
+        }
+    }
+
+    fn to_json(&self) -> serde_json::Value {
+        let mut payload = serde_json::json!({
+            "type": "workspace_task_list_changed",
+            "workspacePath": self.workspace_path,
+            "reason": self.reason,
+        });
+        if let Some(identity) = &self.workspace_identity {
+            payload["workspaceIdentity"] = serde_json::json!(identity);
+        }
+        if let Some(task_id) = &self.task_id {
+            payload["taskId"] = serde_json::json!(task_id);
+        }
+        if let Some(meta) = &self.task_meta {
+            payload["taskMeta"] = meta.clone();
+        }
+        payload
+    }
+}
+
+/// `onDynamicWorkspaceEvent(workspace)` 的订阅 scope；键 = `identity?.trim() || path`。
+#[derive(Clone, Debug, Default)]
+pub struct WorkspaceEventScope {
+    pub workspace_path: Option<String>,
+    pub workspace_identity: Option<String>,
+}
+
+impl WorkspaceEventScope {
+    fn key(&self) -> Option<String> {
+        self.workspace_path.as_deref().map(|path| workspace_key_of(path, self.workspace_identity.as_deref()))
+    }
+}
+
+fn workspace_key_of(workspace_path: &str, workspace_identity: Option<&str>) -> String {
+    workspace_identity
+        .map(str::trim)
+        .filter(|identity| !identity.is_empty())
+        .unwrap_or(workspace_path)
+        .to_string()
+}
+
+#[derive(Clone)]
+struct WorkspaceEventListener {
+    /// `None` = 不过滤（进程内/测试订阅）。
+    scope_key: Option<String>,
+    emit: rpc_host::EventCallback,
+}
+
+#[derive(Clone)]
+struct ReadyEventListener {
+    /// `onDynamicTaskReady(taskId)` 的 task 过滤；`None` = 不过滤。
+    task_id: Option<String>,
+    emit: rpc_host::EventCallback,
+}
+
+type WorkspaceEventListeners = Arc<Mutex<HashMap<String, WorkspaceEventListener>>>;
+type ReadyEventListeners = Arc<Mutex<HashMap<String, ReadyEventListener>>>;
 
 /// 进程内任务事件监听者（不经 wire）：window-controller 等频道据此刷新投影。
-pub type TaskEventLocalListener = Arc<dyn Fn(&str, Option<&serde_json::Value>) + Send + Sync>;
+pub type TaskEventLocalListener = Arc<dyn Fn(&WorkspaceTaskListChanged) + Send + Sync>;
 pub type TaskEventLocalListeners = Arc<Mutex<HashMap<String, TaskEventLocalListener>>>;
 
-pub const ON_WORKSPACE_TASK_LIST_CHANGED: &str = "onWorkspaceTaskListChanged";
+pub const ON_DYNAMIC_WORKSPACE_EVENT: &str = "onDynamicWorkspaceEvent";
 pub const ON_DYNAMIC_TASK_READY: &str = "onDynamicTaskReady";
 
 /// mode-task 事件总线（broadcast 频道的 subscribe/notify 模式；TS Emitter 等价）。
 /// wire 监听者（renderer）与进程内监听者（同 server 的其他频道）共用同一通知点。
 #[derive(Default, Clone)]
 pub struct TaskEventBus {
-    task_list_listeners: TaskEventListeners,
-    ready_listeners: TaskEventListeners,
+    task_list_listeners: WorkspaceEventListeners,
+    ready_listeners: ReadyEventListeners,
     local_listeners: TaskEventLocalListeners,
 }
 
@@ -60,16 +139,24 @@ impl TaskEventBus {
         Self::default()
     }
 
-    fn subscribe(
-        listeners: &TaskEventListeners,
+    /// `onDynamicWorkspaceEvent`：按 scope 过滤投递（TS workspace emitter 等价）。
+    pub fn subscribe_task_list(
+        &self,
+        scope: WorkspaceEventScope,
         emit: rpc_host::EventCallback,
     ) -> rpc_host::Subscription {
         let id = uuid::Uuid::new_v4().to_string();
-        listeners
+        self.task_list_listeners
             .lock()
             .expect("task event listeners poisoned")
-            .insert(id.clone(), emit);
-        let map = Arc::clone(listeners);
+            .insert(
+                id.clone(),
+                WorkspaceEventListener {
+                    scope_key: scope.key(),
+                    emit,
+                },
+            );
+        let map = Arc::clone(&self.task_list_listeners);
         Box::new(move || {
             map.lock()
                 .expect("task event listeners poisoned")
@@ -77,19 +164,27 @@ impl TaskEventBus {
         })
     }
 
-    pub fn subscribe_task_list(&self, emit: rpc_host::EventCallback) -> rpc_host::Subscription {
-        Self::subscribe(&self.task_list_listeners, emit)
-    }
-
-    pub fn subscribe_ready(&self, emit: rpc_host::EventCallback) -> rpc_host::Subscription {
-        Self::subscribe(&self.ready_listeners, emit)
-    }
-
-    /// 进程内订阅 `onWorkspaceTaskListChanged`（TS Host 进程内 Emitter 等价）。
-    pub fn subscribe_local(
+    /// `onDynamicTaskReady(taskId)`：按 task 过滤投递。
+    pub fn subscribe_ready(
         &self,
-        listener: TaskEventLocalListener,
+        task_id: Option<String>,
+        emit: rpc_host::EventCallback,
     ) -> rpc_host::Subscription {
+        let id = uuid::Uuid::new_v4().to_string();
+        self.ready_listeners
+            .lock()
+            .expect("task event listeners poisoned")
+            .insert(id.clone(), ReadyEventListener { task_id, emit });
+        let map = Arc::clone(&self.ready_listeners);
+        Box::new(move || {
+            map.lock()
+                .expect("task event listeners poisoned")
+                .remove(&id);
+        })
+    }
+
+    /// 进程内订阅 workspace 任务列表变更（TS Host 进程内 Emitter 等价）。
+    pub fn subscribe_local(&self, listener: TaskEventLocalListener) -> rpc_host::Subscription {
         let id = uuid::Uuid::new_v4().to_string();
         self.local_listeners
             .lock()
@@ -103,7 +198,7 @@ impl TaskEventBus {
         })
     }
 
-    fn notify_local(&self, kind: &str, meta: Option<&serde_json::Value>) {
+    fn notify_local(&self, event: &WorkspaceTaskListChanged) {
         let listeners: Vec<TaskEventLocalListener> = self
             .local_listeners
             .lock()
@@ -112,44 +207,58 @@ impl TaskEventBus {
             .cloned()
             .collect();
         for listener in listeners {
-            listener(kind, meta);
+            listener(event);
         }
     }
 
-    /// TS `emitWorkspaceTaskListChanged`：task_created / task_meta_changed / task_list_changed。
-    pub fn notify_task_list(&self, kind: &str, meta: Option<&serde_json::Value>) {
-        let mut payload = serde_json::json!({ "kind": kind });
-        if let Some(meta) = meta {
-            payload["meta"] = meta.clone();
-        }
-        for emit in self
+    /// TS `emitWorkspaceTaskListChanged`：按 workspace scope 广播 `workspace_task_list_changed`。
+    pub fn notify_task_list(&self, event: &WorkspaceTaskListChanged) {
+        let Ok(text) = serde_json::to_string(&event.to_json()) else {
+            return;
+        };
+        let event_key = workspace_key_of(&event.workspace_path, event.workspace_identity.as_deref());
+        let listeners: Vec<WorkspaceEventListener> = self
             .task_list_listeners
             .lock()
             .expect("task event listeners poisoned")
             .values()
-        {
-            if let Ok(text) = serde_json::to_string(&payload) {
-                emit(WireValue::Json(text));
+            .cloned()
+            .collect();
+        for listener in listeners {
+            if listener
+                .scope_key
+                .as_deref()
+                .is_some_and(|scope_key| scope_key != event_key)
+            {
+                continue;
             }
+            (listener.emit)(WireValue::Json(text.clone()));
         }
-        self.notify_local(kind, meta);
+        self.notify_local(event);
     }
 
     /// TS `onDynamicTaskReady`：任务收口（prompt_completed/failed）。
-    pub fn notify_ready(&self, task_id: &str, reason: &str, error: Option<&str>) {
-        let mut payload = serde_json::json!({ "taskId": task_id, "reason": reason });
-        if let Some(error) = error {
-            payload["error"] = serde_json::json!(error);
-        }
-        for emit in self
+    pub fn notify_ready(&self, task_id: &str, reason: &str) {
+        let payload = serde_json::json!({ "taskId": task_id, "reason": reason });
+        let Ok(text) = serde_json::to_string(&payload) else {
+            return;
+        };
+        let listeners: Vec<ReadyEventListener> = self
             .ready_listeners
             .lock()
             .expect("task event listeners poisoned")
             .values()
-        {
-            if let Ok(text) = serde_json::to_string(&payload) {
-                emit(WireValue::Json(text));
+            .cloned()
+            .collect();
+        for listener in listeners {
+            if listener
+                .task_id
+                .as_deref()
+                .is_some_and(|filter| filter != task_id)
+            {
+                continue;
             }
+            (listener.emit)(WireValue::Json(text.clone()));
         }
     }
 }
@@ -243,12 +352,69 @@ fn snapshot_to_meta(
 
 // ── 参数形状（camelCase；TS modeTaskService 同名方法入参） ──
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WorkspaceScopeParams {
     workspace_path: String,
     #[serde(default)]
     workspace_identity: Option<String>,
+}
+
+/// TS `emitWorkspaceTaskListChanged` 的批量 scope 形态（grouped/排序保存等）。
+fn emit_workspace_events(
+    events: &TaskEventBus,
+    scopes: &[WorkspaceScopeParams],
+    reason: &'static str,
+    task_meta: Option<serde_json::Value>,
+) {
+    for scope in scopes {
+        let mut event = WorkspaceTaskListChanged::new(scope.workspace_path.clone(), reason);
+        event.workspace_identity = scope.workspace_identity.clone();
+        event.task_meta = task_meta.clone();
+        events.notify_task_list(&event);
+    }
+}
+
+/// 取 listen 参数的首个位置参数（wire body 可能是 Array，也可能是原样 JSON 文本）。
+fn first_listen_arg(arg: &WireValue) -> Option<serde_json::Value> {
+    let first = match arg {
+        WireValue::Array(items) => items.first().cloned(),
+        WireValue::Undefined => None,
+        other => Some(other.clone()),
+    }?;
+    match first {
+        WireValue::Str(text) => Some(serde_json::Value::String(text)),
+        other => match other.to_json() {
+            serde_json::Value::Array(items) => items.first().cloned(),
+            json => Some(json),
+        },
+    }
+}
+
+/// `onDynamicWorkspaceEvent(workspace)` 的参数：string path 或 `{workspacePath, workspaceIdentity}`。
+fn parse_workspace_event_scope(arg: &WireValue) -> WorkspaceEventScope {
+    match first_listen_arg(arg) {
+        Some(serde_json::Value::String(path)) => WorkspaceEventScope {
+            workspace_path: Some(path),
+            workspace_identity: None,
+        },
+        Some(json) => WorkspaceEventScope {
+            workspace_path: json
+                .get("workspacePath")
+                .and_then(|value| value.as_str())
+                .map(str::to_string),
+            workspace_identity: json
+                .get("workspaceIdentity")
+                .and_then(|value| value.as_str())
+                .map(str::to_string),
+        },
+        None => WorkspaceEventScope::default(),
+    }
+}
+
+/// `onDynamicTaskReady(taskId)` 的参数：首个位置参数为 taskId。
+fn parse_task_id_arg(arg: &WireValue) -> Option<String> {
+    first_listen_arg(arg)?.as_str().map(str::to_string)
 }
 
 #[derive(Debug, Deserialize)]
@@ -356,6 +522,7 @@ fn json_value(value: &serde_json::Value) -> Result<WireValue, ChannelError> {
 
 fn run_read(
     repo: &TaskIndexRepo,
+    events: &TaskEventBus,
     command: &str,
     arg: &WireValue,
 ) -> Result<WireValue, ChannelError> {
@@ -554,6 +721,8 @@ fn run_read(
                         .collect(),
                 })
                 .collect();
+            // TS adapter：排序保存后按每个 scope 广播 task_meta_changed，驱动 grouped 重拉。
+            let scopes = parsed.workspace_scopes.clone();
             let view = repo
                 .apply_grouped_task_view_order(&GroupedTaskViewOrderInput {
                     workspace_scopes: repo_scopes(parsed.workspace_scopes),
@@ -562,6 +731,7 @@ fn run_read(
                     provider: None,
                 })
                 .map_err(|error| ChannelError::error(error.to_string()))?;
+            emit_workspace_events(events, &scopes, "task_meta_changed", None);
             json_value(
                 &serde_json::to_value(&view)
                     .map_err(|error| ChannelError::error(error.to_string()))?,
@@ -594,9 +764,12 @@ fn run_read(
                 title: Option<String>,
                 #[serde(default)]
                 color: Option<String>,
+                #[serde(default)]
+                workspace_scopes: Vec<WorkspaceScopeParams>,
             }
             let parsed: P = parse(object)?;
-            match command {
+            let workspace_scopes = parsed.workspace_scopes;
+            let result = match command {
                 "renameTaskGroup" => {
                     let title = parsed
                         .title
@@ -607,7 +780,7 @@ fn run_read(
                     json_value(
                         &serde_json::to_value(&group)
                             .map_err(|error| ChannelError::error(error.to_string()))?,
-                    )
+                    )?
                 }
                 "updateTaskGroupColor" => {
                     let color = parsed.color.ok_or_else(|| {
@@ -619,14 +792,17 @@ fn run_read(
                     json_value(
                         &serde_json::to_value(&group)
                             .map_err(|error| ChannelError::error(error.to_string()))?,
-                    )
+                    )?
                 }
                 _ => {
                     repo.delete_task_group(&parsed.group_id)
                         .map_err(|error| ChannelError::error(error.to_string()))?;
-                    Ok(WireValue::Undefined)
+                    WireValue::Undefined
                 }
-            }
+            };
+            // TS adapter：分组结构变更无单任务 meta，按 scope 广播 task_meta_changed。
+            emit_workspace_events(events, &workspace_scopes, "task_meta_changed", None);
+            Ok(result)
         }
         "archiveWorkspaceTasks" => {
             // TS adapter 同语义：列出未归档 → 逐个 patch archived → 返回归档后列表。
@@ -656,6 +832,14 @@ fn run_read(
                 )
                 .map_err(|error| ChannelError::error(error.to_string()))?;
             }
+            // TS adapter：批量归档无逐任务 meta，一次 scope 事件驱动 membership 重拉。
+            events.notify_task_list(&WorkspaceTaskListChanged {
+                workspace_path: parsed.workspace_path.clone(),
+                workspace_identity: parsed.workspace_identity.clone(),
+                task_id: None,
+                reason: "task_meta_changed",
+                task_meta: None,
+            });
             let archived = repo
                 .list_task_metas(&ListTaskMetasParams {
                     workspace_path: Some(parsed.workspace_path),
@@ -683,12 +867,22 @@ fn run_read(
             let parsed: P = parse(object)?;
             let metas = repo
                 .archive_stale_tasks(&ArchiveStaleTasksParams {
-                    workspace_path: parsed.workspace_path,
-                    workspace_identity: parsed.workspace_identity,
+                    workspace_path: parsed.workspace_path.clone(),
+                    workspace_identity: parsed.workspace_identity.clone(),
                     older_than_days: parsed.older_than_days,
                     provider: None,
                 })
                 .map_err(|error| ChannelError::error(error.to_string()))?;
+            // TS adapter：逐任务带 meta 广播 task_meta_changed（membership 重拉收敛）。
+            for meta in &metas {
+                events.notify_task_list(&WorkspaceTaskListChanged {
+                    workspace_path: meta.workspace_path.clone(),
+                    workspace_identity: meta.workspace_identity.clone(),
+                    task_id: Some(meta.task_id.clone()),
+                    reason: "task_meta_changed",
+                    task_meta: serde_json::to_value(meta).ok(),
+                });
+            }
             json_value(
                 &serde_json::to_value(&metas)
                     .map_err(|error| ChannelError::error(error.to_string()))?,
@@ -886,9 +1080,13 @@ async fn run_orchestration(
                 }
             }
             // create 事件保留 task_created 语义（远控首页靠它插入新任务）。
-            channel
-                .events
-                .notify_task_list("task_created", Some(&result.clone()));
+            channel.events.notify_task_list(&WorkspaceTaskListChanged {
+                workspace_path: meta.workspace_path.clone(),
+                workspace_identity: meta.workspace_identity.clone(),
+                task_id: Some(meta.task_id.clone()),
+                reason: "task_created",
+                task_meta: Some(result.clone()),
+            });
             json_value(&result)
         }
         "closeTask" => {
@@ -924,7 +1122,13 @@ async fn run_orchestration(
             )
             .map_err(|error| ChannelError::error(error.to_string()))?;
             // 删除列表收敛由 sessions-index session.removed 驱动；广播沿用旧语义兜底。
-            channel.events.notify_task_list("task_meta_changed", None);
+            channel.events.notify_task_list(&WorkspaceTaskListChanged {
+                workspace_path: target.workspace_path.clone(),
+                workspace_identity: target.workspace_identity.clone(),
+                task_id: Some(parsed.task_id.clone()),
+                reason: "task_meta_changed",
+                task_meta: None,
+            });
             Ok(WireValue::Undefined)
         }
         "resumeTask" => {
@@ -1326,14 +1530,14 @@ impl ServerChannel for ModeTaskChannel {
         &self,
         _ctx: String,
         event: String,
-        _arg: WireValue,
+        arg: WireValue,
         emit: rpc_host::EventCallback,
     ) -> Result<rpc_host::Subscription, ChannelError> {
         match event.as_str() {
-            ON_WORKSPACE_TASK_LIST_CHANGED => {
-                Ok(self.events.subscribe_task_list(emit))
-            }
-            ON_DYNAMIC_TASK_READY => Ok(self.events.subscribe_ready(emit)),
+            ON_DYNAMIC_WORKSPACE_EVENT => Ok(self
+                .events
+                .subscribe_task_list(parse_workspace_event_scope(&arg), emit)),
+            ON_DYNAMIC_TASK_READY => Ok(self.events.subscribe_ready(parse_task_id_arg(&arg), emit)),
             other => Err(ChannelError::error(format!(
                 "mode-task channel: unknown event {other}"
             ))),
@@ -1348,6 +1552,7 @@ impl ServerChannel for ModeTaskChannel {
         _cancel: CancellationToken,
     ) -> BoxFuture<Result<WireValue, ChannelError>> {
         let repo = Arc::clone(&self.repo);
+        let events = Arc::clone(&self.events);
         let control = self.control.clone();
         let channel = ModeTaskChannel {
             repo: Arc::clone(&self.repo),
@@ -1371,7 +1576,9 @@ impl ServerChannel for ModeTaskChannel {
                     run_orchestration(&channel, &repo, &control, &command, object).await
                 }
                 // 读面（同步 repo，spawn_blocking 防阻塞 runtime）。
-                _ => tokio::task::spawn_blocking(move || run_read(&repo, &command, &arg))
+                _ => tokio::task::spawn_blocking(move || {
+                    run_read(&repo, &events, &command, &arg)
+                })
                     .await
                     .map_err(|error| {
                         ChannelError::error(format!("mode-task channel task failed: {error}"))

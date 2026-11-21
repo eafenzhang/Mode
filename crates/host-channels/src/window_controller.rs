@@ -40,24 +40,28 @@ pub struct WindowControllerChannel {
     repo: Arc<TaskIndexRepo>,
     /// V4 controller 帧总线（订阅注册 + snapshot/delta 广播）。
     frames: Arc<ControllerFrameBus>,
-    /// mode-task 任务事件桥（进程内）：创建/关闭等索引写入后刷新投影。
-    /// 仅构造方持有（per-call 克隆为 `None`，不重复订阅）。
+    /// mode-task 任务事件总线：桥订阅 + 本频道 mutation 的事件回发
+    /// （TS 两服务写同一索引、共用同一条 workspace 事件）。
+    task_events: Option<Arc<crate::mode_task::TaskEventBus>>,
+    /// 事件桥订阅句柄（仅构造方持有；per-call 克隆为 `None`，不重复订阅）。
     _task_event_bridge: Option<Subscription>,
 }
 
 impl WindowControllerChannel {
-    /// 独立频道（无跨频道事件桥）：refresh 只由本频道调用触发。
+    /// 独立频道（无跨频道事件总线）：refresh/事件回发只在本频道内生效。
     pub fn new(repo: Arc<TaskIndexRepo>) -> Self {
         let frames = Arc::new(ControllerFrameBus::new(Arc::clone(&repo)));
         Self {
             repo,
             frames,
+            task_events: None,
             _task_event_bridge: None,
         }
     }
 
     /// 装配用：订阅同一 server 的 mode-task 事件总线（TS Host 进程内 Emitter 等价），
-    /// `onWorkspaceTaskListChanged` 到达时刷新 controller 投影并广播 delta 帧。
+    /// `onDynamicWorkspaceEvent` 到达时刷新 controller 投影并广播 delta 帧；
+    /// mutation 成功后回发同一总线的事件，驱动 renderer 任务列表收敛。
     pub fn with_task_events(
         repo: Arc<TaskIndexRepo>,
         task_events: Arc<crate::mode_task::TaskEventBus>,
@@ -65,7 +69,7 @@ impl WindowControllerChannel {
         let frames = Arc::new(ControllerFrameBus::new(Arc::clone(&repo)));
         let bridge_frames = Arc::clone(&frames);
         let bridge = task_events.subscribe_local(Arc::new(
-            move |_kind: &str, _meta: Option<&JsonValue>| {
+            move |_event: &crate::mode_task::WorkspaceTaskListChanged| {
                 // 索引已在事件源侧提交；这里只把本地投影与新行做 diff 并广播。
                 let _ = bridge_frames.refresh();
             },
@@ -73,17 +77,38 @@ impl WindowControllerChannel {
         Self {
             repo,
             frames,
+            task_events: Some(task_events),
             _task_event_bridge: Some(bridge),
         }
     }
 
-    /// per-call 克隆：共享 repo/frames，但不持有事件桥订阅。
+    /// per-call 克隆：共享 repo/frames/事件总线，但不持有事件桥订阅。
     fn handle(&self) -> Self {
         Self {
             repo: Arc::clone(&self.repo),
             frames: Arc::clone(&self.frames),
+            task_events: self.task_events.clone(),
             _task_event_bridge: None,
         }
+    }
+
+    /// TS `emitWorkspaceTaskListChanged`：mutation/删除后回发 mode-task 事件。
+    fn notify_task_list(
+        &self,
+        address: &TaskAddress,
+        reason: &'static str,
+        task_meta: Option<JsonValue>,
+    ) {
+        let Some(events) = &self.task_events else {
+            return;
+        };
+        events.notify_task_list(&crate::mode_task::WorkspaceTaskListChanged {
+            workspace_path: address.workspace_path.clone(),
+            workspace_identity: address.workspace_identity.clone(),
+            task_id: Some(address.task_id.clone()),
+            reason,
+            task_meta,
+        });
     }
 }
 
@@ -756,6 +781,8 @@ fn run(
                 remote_session_id: None,
             }
             .into_ref();
+            // TS 各 mutation 对应的 workspace 事件 reason（None = 不广播）。
+            let mut emit_reason: Option<&'static str> = None;
             match parsed.mutation {
                 Mutation::Pin { pinned } => {
                     channel
@@ -768,6 +795,7 @@ fn run(
                             },
                         )
                         .map_err(|error| ChannelError::error(error.to_string()))?;
+                    emit_reason = Some(if pinned { "task_pinned" } else { "task_unpinned" });
                 }
                 Mutation::Archive { archived } => {
                     channel
@@ -780,6 +808,11 @@ fn run(
                             },
                         )
                         .map_err(|error| ChannelError::error(error.to_string()))?;
+                    emit_reason = Some(if archived {
+                        "task_archived"
+                    } else {
+                        "task_unarchived"
+                    });
                 }
                 Mutation::Delete => {
                     channel
@@ -792,22 +825,36 @@ fn run(
                             },
                         )
                         .map_err(|error| ChannelError::error(error.to_string()))?;
+                    emit_reason = Some("task_deleted");
                 }
                 Mutation::DeleteArchived => {
                     // TS executeMutation 返回 bool，但窗口 mutateTask 统一返回
                     // projection 里的 meta（或 null）——删除后任务不再可见即 null。
-                    channel
+                    let deleted = channel
                         .repo
                         .delete_archived_task(&task_ref)
                         .map_err(|error| ChannelError::error(error.to_string()))?;
+                    if deleted.is_some() {
+                        emit_reason = Some("task_deleted");
+                    }
                 }
                 Mutation::DeleteArchivedBatch { task_ids } => {
+                    let mut deleted_any = false;
                     for task_id in task_ids {
-                        let _ = channel.repo.delete_archived_task(&TaskRef {
-                            workspace_path: task_ref.workspace_path.clone(),
-                            workspace_identity: task_ref.workspace_identity.clone(),
-                            task_id,
-                        });
+                        let deleted = channel
+                            .repo
+                            .delete_archived_task(&TaskRef {
+                                workspace_path: task_ref.workspace_path.clone(),
+                                workspace_identity: task_ref.workspace_identity.clone(),
+                                task_id,
+                            })
+                            .ok()
+                            .flatten();
+                        deleted_any |= deleted.is_some();
+                    }
+                    // TS deleteArchivedTasks：整批只广播一次，且仅当有成功项。
+                    if deleted_any {
+                        emit_reason = Some("task_deleted");
                     }
                 }
                 Mutation::MarkRead { expected_unread_at } => {
@@ -820,7 +867,7 @@ fn run(
                             .get_task_meta(&task_ref)
                             .map_err(|error| ChannelError::error(error.to_string()))?;
                         if current.and_then(|meta| meta.unread_at) != Some(expected) {
-                            // CAS 未命中：不写入，但 mutateTask 仍返回当前 meta（TS 同）。
+                            // CAS 未命中：不写入，也不广播（TS 只在 cleared 时 emit）。
                         } else {
                             channel
                                 .repo
@@ -832,6 +879,7 @@ fn run(
                                     },
                                 )
                                 .map_err(|error| ChannelError::error(error.to_string()))?;
+                            emit_reason = Some("task_meta_changed");
                         }
                     }
                 }
@@ -846,6 +894,7 @@ fn run(
                             },
                         )
                         .map_err(|error| ChannelError::error(error.to_string()))?;
+                    emit_reason = Some("task_meta_changed");
                 }
                 Mutation::Open | Mutation::Resume => {
                     // Controller 职责是验证唯一 source；conversation 随后仍走
@@ -868,6 +917,14 @@ fn run(
                 .repo
                 .get_task_meta(&task_ref)
                 .map_err(|error| ChannelError::error(error.to_string()))?;
+            // TS 写路径经 taskService 方法 → emitWorkspaceTaskListChanged；壳内两频道
+            // 写同一索引，mutation 成功后同样回发事件驱动 renderer 列表收敛。
+            if let Some(reason) = emit_reason {
+                let task_meta = meta
+                    .as_ref()
+                    .and_then(|meta| serde_json::to_value(meta).ok());
+                channel.notify_task_list(&parsed.address, reason, task_meta);
+            }
             match meta {
                 Some(meta) => json_value(
                     &serde_json::to_value(&meta)
@@ -884,11 +941,25 @@ fn run(
             }
             let parsed: P = serde_json::from_value(serde_json::Value::Object(object))
                 .map_err(|error| ChannelError::error(format!("invalid arguments: {error}")))?;
+            if parsed.address.remote_session_id.is_some() {
+                return Err(ChannelError::error(
+                    "远程 source 当前离线，禁止列表写操作".to_string(),
+                ));
+            }
             let deleted = channel
                 .repo
-                .delete_archived_task(&parsed.address.into_ref())
+                .delete_archived_task(&TaskRef {
+                    workspace_path: parsed.address.workspace_path.clone(),
+                    workspace_identity: parsed.address.workspace_identity.clone(),
+                    task_id: parsed.address.task_id.clone(),
+                })
                 .map_err(|error| ChannelError::error(error.to_string()))?;
             channel.frames.refresh().map_err(ChannelError::error)?;
+            if let Some(meta) = &deleted {
+                // TS deleteArchivedTask：持久化成功后再发 task_deleted（带 meta）。
+                let task_meta = serde_json::to_value(meta).ok();
+                channel.notify_task_list(&parsed.address, "task_deleted", task_meta);
+            }
             json_value(&serde_json::json!(deleted.is_some()))
         }
         "deleteArchivedTasks" => {
@@ -901,7 +972,16 @@ fn run(
             }
             let parsed: P = serde_json::from_value(serde_json::Value::Object(object))
                 .map_err(|error| ChannelError::error(format!("invalid arguments: {error}")))?;
-            let base = parsed.address.into_ref();
+            if parsed.address.remote_session_id.is_some() {
+                return Err(ChannelError::error(
+                    "远程 source 当前离线，禁止列表写操作".to_string(),
+                ));
+            }
+            let base = TaskRef {
+                workspace_path: parsed.address.workspace_path.clone(),
+                workspace_identity: parsed.address.workspace_identity.clone(),
+                task_id: parsed.address.task_id.clone(),
+            };
             let mut result = ArchivedDeletionResult {
                 deleted_task_ids: Vec::new(),
                 skipped_task_ids: Vec::new(),
@@ -920,6 +1000,10 @@ fn run(
                 }
             }
             channel.frames.refresh().map_err(ChannelError::error)?;
+            if !result.deleted_task_ids.is_empty() {
+                // TS deleteArchivedTasks：整批只广播一次，无逐任务 meta。
+                channel.notify_task_list(&parsed.address, "task_deleted", None);
+            }
             json_value(
                 &serde_json::to_value(&result)
                     .map_err(|error| ChannelError::error(error.to_string()))?,

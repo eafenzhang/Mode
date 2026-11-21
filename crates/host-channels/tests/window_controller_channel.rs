@@ -642,7 +642,10 @@ async fn task_event_bridge_refreshes_frames_after_external_write() {
 
     // 外部写入索引（模拟 mode-task createTask）+ 事件通知 → 桥触发 refresh。
     seed(&r, "task-2", "D:/work/app", 2_000);
-    events.notify_task_list("task_created", None);
+    events.notify_task_list(&host_channels::mode_task::WorkspaceTaskListChanged::new(
+        "D:/work/app",
+        "task_created",
+    ));
     let captured = take_frames(&frames);
     assert_eq!(captured.len(), 1, "{captured:?}");
     let delta = &captured[0];
@@ -653,6 +656,74 @@ async fn task_event_bridge_refreshes_frames_after_external_write() {
     assert_eq!(deltas.len(), 1, "{deltas:?}");
     assert_eq!(deltas[0]["op"], "task.upserted");
     assert_eq!(deltas[0]["task"]["address"]["taskId"], "task-2");
+}
+
+#[tokio::test]
+async fn mutations_publish_workspace_task_events() {
+    let db = TempDb::new("emit");
+    let r = repo(&db);
+    seed(&r, "task-1", "D:/work/app", 1_000);
+    let events = Arc::new(host_channels::mode_task::TaskEventBus::new());
+    let channel = WindowControllerChannel::with_task_events(Arc::clone(&r), Arc::clone(&events));
+    let received = Arc::new(std::sync::Mutex::new(Vec::<Json>::new()));
+    let sink = Arc::clone(&received);
+    let _sub = events.subscribe_task_list(
+        host_channels::mode_task::WorkspaceEventScope::default(),
+        Arc::new(move |value| {
+            if let Value::Json(text) = value {
+                sink.lock()
+                    .expect("events")
+                    .push(serde_json::from_str(&text).expect("event JSON"));
+            }
+        }),
+    );
+
+    // pin → task_pinned（带 meta）。
+    call(&channel, "mutateTask", json!({
+        "address": address("task-1"),
+        "mutation": { "kind": "pin", "pinned": true },
+    }))
+    .await;
+    {
+        let received = received.lock().expect("events");
+        assert_eq!(received.len(), 1, "{received:?}");
+        assert_eq!(received[0]["type"], "workspace_task_list_changed");
+        assert_eq!(received[0]["workspacePath"], "D:/work/app");
+        assert_eq!(received[0]["taskId"], "task-1");
+        assert_eq!(received[0]["reason"], "task_pinned");
+        assert_eq!(received[0]["taskMeta"]["taskId"], "task-1");
+    }
+
+    // mark-unread → task_meta_changed；CAS 未命中的 mark-read 不广播。
+    call(&channel, "mutateTask", json!({
+        "address": address("task-1"),
+        "mutation": { "kind": "mark-unread" },
+    }))
+    .await;
+    call(&channel, "mutateTask", json!({
+        "address": address("task-1"),
+        "mutation": { "kind": "mark-read", "expectedUnreadAt": 999 },
+    }))
+    .await;
+    {
+        let received = received.lock().expect("events");
+        assert_eq!(received.len(), 2, "{received:?}");
+        assert_eq!(received[1]["reason"], "task_meta_changed");
+    }
+
+    // 归档删除 → task_deleted。
+    call(&channel, "mutateTask", json!({
+        "address": address("task-1"),
+        "mutation": { "kind": "archive", "archived": true },
+    }))
+    .await;
+    call(&channel, "deleteArchivedTask", json!({ "address": address("task-1") })).await;
+    {
+        let received = received.lock().expect("events");
+        let last = received.last().expect("event");
+        assert_eq!(last["reason"], "task_deleted");
+        assert_eq!(last["taskId"], "task-1");
+    }
 }
 
 #[test]
