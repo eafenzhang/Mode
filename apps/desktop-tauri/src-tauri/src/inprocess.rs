@@ -24,7 +24,7 @@ use host_channels::{
     CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL, CONVERSATION_MIRROR_CHANNEL,
     CREDENTIAL_CHANNEL, FILE_CHANNEL, FILE_WATCHER_CHANNEL, GIT_CHANNEL,
     GIT_CHECKPOINT_CHANNEL, HOOKS_CHANNEL, MCP_SYNC_CHANNEL, MEDIA_PREVIEW_CHANNEL,
-    MEMORY_CHANNEL, MODE_AGENT_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL,
+    MEMORY_CHANNEL, MODE_AGENT_CHANNEL, MODE_TASK_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL,
     SETTINGS_SYNC_CHANNEL, SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL,
     TERMINAL_CHANNEL, USAGE_STATS_CHANNEL,
 };
@@ -88,6 +88,7 @@ fn is_owned_channel(name: &str) -> bool {
             | GIT_CHECKPOINT_CHANNEL
             | PLUGIN_SYNC_CHANNEL
             | USAGE_STATS_CHANNEL
+            | MODE_TASK_CHANNEL
             | MCP_SYNC_CHANNEL
             | AGENT_HEALTH_CHANNEL
             | MODE_AGENT_CHANNEL
@@ -122,6 +123,7 @@ fn default_owned_channels() -> Vec<String> {
         GIT_CHECKPOINT_CHANNEL,
         PLUGIN_SYNC_CHANNEL,
         USAGE_STATS_CHANNEL,
+        MODE_TASK_CHANNEL,
         MCP_SYNC_CHANNEL,
         AGENT_HEALTH_CHANNEL,
         HOOKS_CHANNEL,
@@ -422,8 +424,10 @@ mod tests {
 
     #[test]
     fn host_owned_channels_stay_out_of_the_switch() {
+        // mode-task 已进壳（LT-16.1，2026-11-22）；仍在 Node Host 的独占面：
+        // window-controller 与 remote 系列等。
+        assert!(is_owned_channel(MODE_TASK_CHANNEL));
         assert!(!is_owned_channel("host"));
-        assert!(!is_owned_channel("mode-task"));
         assert!(!is_owned_channel("window-controller"));
     }
 

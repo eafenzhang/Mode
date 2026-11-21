@@ -38,6 +38,8 @@ rpc-wire = { path = "../rpc-wire" }
 provider-balance = { path = "../provider-balance" }
 provider-config-repository = { path = "../provider-config-repository" }
 provider-config-source = { path = "../provider-config-source" }
+# LT-16.1：mode-task 频道的任务索引底层（已与 TS 对拍）。
+task-index-repo = { path = "../task-index-repo" }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["rt"] }

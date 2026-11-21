@@ -29,6 +29,7 @@ fn every_local_channel_name_exists_in_service_channels() {
         ("git-checkpoint", "GitCheckpoint"),
         ("plugin-sync", "PluginSync"),
         ("usage-stats", "UsageStats"),
+        ("mode-task", "ModeTask"),
         ("terminal", "Terminal"),
     ];
     for (value, key) in names {

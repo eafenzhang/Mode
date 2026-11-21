@@ -29,6 +29,7 @@ pub mod mcp_sync;
 pub mod media_preview;
 pub mod assembly;
 pub mod memory_channel;
+pub mod mode_task;
 pub mod usage_stats;
 pub mod mode_agent;
 pub mod plugin_sync;
@@ -58,6 +59,7 @@ pub use assembly::{
     build_channel, register_service_channels, service_channel_names, ChannelAssemblyOptions,
 };
 pub use memory_channel::{MemoryChannel, LIST_MEMORIES, READ_MEMORY_FILE};
+pub use mode_task::{ModeTaskChannel, MODE_TASK_CHANNEL};
 pub use usage_stats::{
     channel_with_layer, default_provider_balance, empty_args, GET_PROVIDER_BALANCE_SNAPSHOT,
     USAGE_STATS_CHANNEL, UsageStatsChannel,

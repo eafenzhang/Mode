@@ -33,6 +33,7 @@ use crate::health::AgentHealthChannel;
 use crate::hooks::HooksChannel;
 use crate::media_preview::MediaPreviewChannel;
 use crate::memory_channel::MemoryChannel;
+use crate::mode_task::ModeTaskChannel;
 use crate::mcp_sync::McpSyncChannel;
 use crate::mode_agent::ModeAgentChannel;
 use crate::plugin_sync::PluginSyncChannel;
@@ -49,8 +50,9 @@ use crate::{
     CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL, CONVERSATION_MIRROR_CHANNEL, CREDENTIAL_CHANNEL,
     FILE_CHANNEL, FILE_WATCHER_CHANNEL, GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, HOOKS_CHANNEL,
     MCP_SYNC_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL, MODE_AGENT_CHANNEL,
-    PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL, SKILLS_CHANNEL, SKILL_SYNC_CHANNEL,
-    SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL, USAGE_STATS_CHANNEL,
+    MODE_TASK_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL,
+    SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL,
+    USAGE_STATS_CHANNEL,
 };
 
 /// 壳侧结构化日志（降级/不可观察事件）；`None` 时静默。
@@ -210,6 +212,14 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
         PLUGIN_SYNC_CHANNEL => Some(Arc::new(PluginSyncChannel::new(
             crate::plugin_sync::default_service(),
         ))),
+        MODE_TASK_CHANNEL => {
+            // 任务索引 DB 与桌面壳同位（{data_root}/v2/tasks-index.sqlite）；
+            // 首切只读 + 分组管理写面（16.1），编排面（16.2）未知方法显式报错。
+            let repo = task_index_repo::TaskIndexRepo::new(
+                data_root.join("v2").join("tasks-index.sqlite"),
+            );
+            Some(Arc::new(ModeTaskChannel::new(Arc::new(repo))))
+        }
         USAGE_STATS_CHANNEL => {
             // 余额查询凭据源：Personal 层仓库（1s 轮询 LKG）。路径显式 env 优先，
             // 回退 data_root/v2（与 agent_runtime 的 ProviderPaths fallback 同口径）。
@@ -329,6 +339,7 @@ pub fn service_channel_names() -> Vec<&'static str> {
         GIT_CHANNEL,
         GIT_CHECKPOINT_CHANNEL,
         PLUGIN_SYNC_CHANNEL,
+        MODE_TASK_CHANNEL,
         USAGE_STATS_CHANNEL,
         MCP_SYNC_CHANNEL,
         AGENT_HEALTH_CHANNEL,
