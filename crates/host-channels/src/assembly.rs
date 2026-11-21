@@ -218,7 +218,10 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
             let repo = task_index_repo::TaskIndexRepo::new(
                 data_root.join("v2").join("tasks-index.sqlite"),
             );
-            Some(Arc::new(ModeTaskChannel::new(Arc::new(repo))))
+            Some(Arc::new(ModeTaskChannel::new(
+                Arc::new(repo),
+                options.agent_control.clone(),
+            )))
         }
         USAGE_STATS_CHANNEL => {
             // 余额查询凭据源：Personal 层仓库（1s 轮询 LKG）。路径显式 env 优先，

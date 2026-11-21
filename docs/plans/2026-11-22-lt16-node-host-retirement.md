@@ -31,10 +31,14 @@
 16.2 细拆（调查结论 2026-11-22）：编排真源 = `modeTaskServiceAdapter.ts`（5768 行，
 任务↔agent 会话桥状态机）+ `modeTaskService.ts`（746 行）。**按依赖排序三片**：
 
-- **16.2a 会话桥接状态机**：createTask→agent-server createSession、sendPrompt→
-  sessionSend（inputId/traceId 对齐）、close/resume；`crates/agent-server` 的
-  session 面已 Rust（v4 protocol），桥接是「任务 meta ↔ 会话生命周期」同步 +
-  readyOutcome（prompt_completed/failed）事件。
+- **16.2a 会话桥接状态机**：🟡 命令面已落（2026-11-22）——`mode_task.rs` 编排
+  分发（async）+ 读面分发（spawn_blocking）双轨：createTask（ensure_provider_config
+  → create_session → snapshotToMeta → sync_task_meta + grouped top →
+  initialSlashCommands；automation/闲时 deferred persistence + 盖章）、closeTask
+  （close_session + deleted patch）、resumeTask（resume_session → meta sync）、
+  sendPrompt（sessionSend 直转发）；无控制面装配时显式 unsupported。真实 DB 测试
+  186 全过。**剩余**：draftSessionId 复用（readSession→setModel/setThoughtLevel
+  同步）与 v4Create 分支、readyOutcome 事件（16.2c）。
 - **16.2b 命令队列 + permission/elicitation**：enqueue/promote/cancel 命令队列、
   respondPermission/respondElicitation 转发（AgentControlClient 已在壳内可用）。
 - **16.2c snapshot 族 + 事件面**：getTaskSnapshot 族（store 读 + byteBudget 切片）、

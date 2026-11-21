@@ -89,7 +89,7 @@ async fn list_tasks_and_task_list_read_surface() {
     let r = repo(&db);
     seed_task(&r, "task-1", "实现登录页", "D:/work/app", 1_000);
     seed_task(&r, "task-2", "修复滚动条", "D:/work/app", 2_000);
-    let channel = ModeTaskChannel::new(Arc::clone(&r));
+    let channel = ModeTaskChannel::new(Arc::clone(&r), None);
 
     // listTasks：workspace 全量。
     let tasks = call(&channel, "listTasks", json!({ "workspacePath": "D:/work/app" })).await;
@@ -146,7 +146,7 @@ async fn group_crud_and_view_structure() {
     let db = TempDb::new("group");
     let r = repo(&db);
     seed_task(&r, "task-1", "实现登录页", "D:/work/app", 1_000);
-    let channel = ModeTaskChannel::new(Arc::clone(&r));
+    let channel = ModeTaskChannel::new(Arc::clone(&r), None);
 
     // 分组 CRUD。
     let group = call(
@@ -236,7 +236,7 @@ async fn archive_workspace_tasks_patches_and_lists() {
     let r = repo(&db);
     seed_task(&r, "task-1", "实现登录页", "D:/work/app", 1_000);
     seed_task(&r, "task-2", "修复滚动条", "D:/work/app", 2_000);
-    let channel = ModeTaskChannel::new(Arc::clone(&r));
+    let channel = ModeTaskChannel::new(Arc::clone(&r), None);
 
     let archived = call(
         &channel,
@@ -277,8 +277,30 @@ async fn archive_workspace_tasks_patches_and_lists() {
 #[tokio::test]
 async fn unknown_or_lifecycle_methods_error_explicitly() {
     let db = TempDb::new("unknown");
-    let channel = ModeTaskChannel::new(repo(&db));
-    for method in ["createTask", "sendPrompt", "getTaskSnapshot", "respondPermission"] {
+    let channel = ModeTaskChannel::new(repo(&db), None);
+    // 编排方法（16.2a）在无 agent 控制面装配时显式报错（可识别文案）。
+    for method in ["createTask", "sendPrompt"] {
+        let error = channel
+            .call(
+                "ctx".into(),
+                method.into(),
+                Value::Json(json!({ "workspacePath": "D:/work/app" }).to_string()),
+                CancellationToken::default(),
+            )
+            .await
+            .expect_err("no control plane assembled");
+        match error {
+            rpc_host::ChannelError::Error { message, .. } => {
+                assert!(
+                    message.contains("requires the agent control plane"),
+                    "{method} 应显式 unsupported: {message}"
+                );
+            }
+            other => panic!("期望 Error 变体，实际 {other:?}"),
+        }
+    }
+    // 尚未迁移的编排面（16.2b/c）与未知方法同样显式报错。
+    for method in ["getTaskSnapshot", "respondPermission", "notARealMethod"] {
         let error = channel
             .call(
                 "ctx".into(),
@@ -287,7 +309,7 @@ async fn unknown_or_lifecycle_methods_error_explicitly() {
                 CancellationToken::default(),
             )
             .await
-            .expect_err("lifecycle methods are not in this slice");
+            .expect_err("not in this slice");
         match error {
             rpc_host::ChannelError::Error { message, .. } => {
                 assert!(

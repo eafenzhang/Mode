@@ -10,6 +10,9 @@ use std::sync::Arc;
 
 use serde::Deserialize;
 
+use agent_process::{AgentControlClient, AgentWorkspaceTarget};
+use agent_protocol::session_write::SessionPersistence;
+use agent_protocol::snapshot::SessionStateSnapshot;
 use rpc_host::{BoxFuture, CancellationToken, ChannelError, ServerChannel};
 use rpc_wire::Value as WireValue;
 use task_index_repo::{
@@ -22,12 +25,86 @@ pub const MODE_TASK_CHANNEL: &str = "mode-task";
 
 pub struct ModeTaskChannel {
     repo: Arc<TaskIndexRepo>,
+    /// Agent 控制面（16.2a 编排方法需要）；`None` 时编排方法显式 unsupported
+    /// （server-mode 无 agent 面，与 usage-stats 频道同降级语义）。
+    control: Option<Arc<AgentControlClient>>,
 }
 
 impl ModeTaskChannel {
-    pub fn new(repo: Arc<TaskIndexRepo>) -> Self {
-        Self { repo }
+    pub fn new(repo: Arc<TaskIndexRepo>, control: Option<Arc<AgentControlClient>>) -> Self {
+        Self { repo, control }
     }
+}
+
+/// TS `snapshotToMeta`（modeTaskServiceAdapter.ts:1280）的直替：会话快照 →
+/// 任务索引 meta。经 JSON 组装复用 `parse_mode_task_meta` 的 schema 校验；
+/// lastError.code 取 `code ?? type`（TS 同映射）；overlay 属 Node Host 会话级
+/// 状态，16.2c 事件面再对齐。
+fn snapshot_to_meta(
+    snapshot: &SessionStateSnapshot,
+) -> Result<task_index_repo::ModeTaskMeta, ChannelError> {
+    use agent_protocol::session_read::SessionStatus;
+    let session = &snapshot.session;
+    let status = match session.status {
+        SessionStatus::Running => "running",
+        SessionStatus::Waiting => "waiting",
+        SessionStatus::Paused => "paused",
+        SessionStatus::Idle => "idle",
+        SessionStatus::Completed => "completed",
+        SessionStatus::Error => "error",
+    };
+    let mode_wire = match session.mode {
+        agent_protocol::session_read::SessionMode::Plan => "plan",
+        agent_protocol::session_read::SessionMode::Build => "build",
+        agent_protocol::session_read::SessionMode::Edit => "edit",
+        agent_protocol::session_read::SessionMode::Yolo => "yolo",
+        agent_protocol::session_read::SessionMode::Auto => "auto",
+    };
+    let mut value = serde_json::json!({
+        "taskId": session.session_id,
+        "traceId": session
+            .trace_id
+            .clone()
+            .unwrap_or_else(|| format!("mode-{}", session.session_id)),
+        "title": session.title,
+        "workspacePath": session.workspace.workspace_path,
+        "createdAt": session.created_at as i64,
+        "updatedAt": session.updated_at as i64,
+        "mode": mode_wire,
+        "provider": task_index_repo::MODE_AGENT_PROVIDER,
+        "status": status,
+    });
+    if let Some(identity) = &session.workspace.workspace_identity {
+        value["workspaceIdentity"] = serde_json::json!(identity);
+    }
+    if let Some(model) = &session.model {
+        value["model"] = serde_json::json!(format!("{}/{}", model.provider_id, model.model_id));
+    }
+    if let Some(thought_level) = &snapshot.settings.thought_level.current {
+        value["thoughtLevel"] = serde_json::json!(thought_level);
+    }
+    if let Some(error) = &snapshot.projection.last_error {
+        let mut error_value = serde_json::json!({
+            "code": error.code.clone().unwrap_or_else(|| error.error_type.clone()),
+            "message": error.message,
+        });
+        if let Some(detail) = &error.detail {
+            error_value["detail"] = serde_json::json!(detail);
+        }
+        if let Some(attribution) = &error.attribution {
+            if let Ok(attribution) = serde_json::to_value(attribution) {
+                error_value["attribution"] = attribution;
+            }
+        }
+        value["lastError"] = error_value;
+    }
+    if let Some(Some(goal)) = &snapshot.projection.target {
+        if let Ok(goal_value) = serde_json::to_value(goal) {
+            value["target"] = goal_value;
+        }
+    }
+    task_index_repo::parse_mode_task_meta(&value)
+        .ok_or_else(|| ChannelError::error("task meta snapshot conversion failed".to_string()))
 }
 
 // ── 参数形状（camelCase；TS modeTaskService 同名方法入参） ──
@@ -111,7 +188,7 @@ fn json_value(value: &serde_json::Value) -> Result<WireValue, ChannelError> {
 
 // ── 分发 ──
 
-fn run(
+fn run_read(
     repo: &TaskIndexRepo,
     command: &str,
     arg: &WireValue,
@@ -429,6 +506,253 @@ fn run(
     }
 }
 
+// ── 16.2a 编排面（async：AgentControlClient 的会话面调用）──
+async fn run_orchestration(
+    repo: &TaskIndexRepo,
+    control: &AgentControlClient,
+    command: &str,
+    object: serde_json::Map<String, serde_json::Value>,
+) -> Result<WireValue, ChannelError> {
+    match command {
+        "createTask" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+                #[serde(default)]
+                mode: Option<agent_protocol::session_read::SessionMode>,
+                #[serde(default)]
+                model: Option<agent_protocol::message::MessageModel>,
+                #[serde(default)]
+                thought_level: Option<String>,
+                #[serde(default)]
+                automation_id: Option<String>,
+                #[serde(default)]
+                off_peak_task_id: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            // control 已由 call 分流保证存在
+            let target = AgentWorkspaceTarget {
+                workspace_path: parsed.workspace_path.clone(),
+                workspace_identity: parsed.workspace_identity.clone(),
+                remote_session_id: None,
+            };
+            control
+                .ensure_provider_config(&target)
+                .await
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            // automation / 闲时任务新建空 session 后立即 sendText——V4 admission
+            // 必须在首发前统一持久化 session 主记录（TS deferred persistence 同因）。
+            let persistence = if parsed.automation_id.is_some() {
+                Some(SessionPersistence::Deferred)
+            } else {
+                None
+            };
+            let snapshot: SessionStateSnapshot = control
+                .create_session(
+                    &target,
+                    agent_process::CreateSessionOptions {
+                        session_id: None,
+                        parent_session_id: None,
+                        mode: parsed.mode,
+                        model: parsed.model,
+                        persistence,
+                        thought_level: parsed.thought_level,
+                        title_generation_enabled: parsed.automation_id.as_ref().map(|_| false),
+                        mcp_servers: None,
+                        tool_allowlist: None,
+                        tool_denylist: None,
+                        imported_history: None,
+                        off_peak_tool_enabled: false,
+                        dynamic_workflow_enabled: false,
+                    },
+                )
+                .await
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            let mut meta = snapshot_to_meta(&snapshot)?;
+            if parsed.automation_id.is_some() || parsed.off_peak_task_id.is_some() {
+                meta.cron_automation_id = parsed.automation_id.clone();
+                meta.off_peak_task_id = parsed.off_peak_task_id.clone();
+            }
+            repo.sync_task_meta(task_index_repo::SyncTaskMetaParams {
+                meta: meta.clone(),
+                pinned: None,
+                archived: None,
+                deleted: None,
+                title_overridden: None,
+                searchable_text: None,
+            })
+            .map_err(|error| ChannelError::error(error.to_string()))?;
+            let _ = repo.initialize_grouped_task_at_top(&GroupedTaskRef {
+                workspace_path: meta.workspace_path.clone(),
+                workspace_identity: meta.workspace_identity.clone(),
+                task_id: meta.task_id.clone(),
+            });
+            let mut result =
+                serde_json::to_value(&meta).map_err(|error| ChannelError::error(error.to_string()))?;
+            // task 创建结果携带 agent 协议快照里的命令列表（TS initialSlashCommands）。
+            if let Some(commands) = &snapshot.slash_commands {
+                if let Ok(value) = serde_json::to_value(commands) {
+                    result["initialSlashCommands"] = value;
+                }
+            }
+            json_value(&result)
+        }
+        "closeTask" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            // control 已由 call 分流保证存在
+            let target = AgentWorkspaceTarget {
+                workspace_path: parsed.workspace_path.clone(),
+                workspace_identity: parsed.workspace_identity.clone(),
+                remote_session_id: None,
+            };
+            control
+                .close_session(&target, &parsed.task_id, None)
+                .await
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            repo.update_task_state(
+                &task_index_repo::TaskRef {
+                    workspace_path: parsed.workspace_path,
+                    workspace_identity: parsed.workspace_identity,
+                    task_id: parsed.task_id,
+                },
+                &task_index_repo::TaskIndexStatePatch {
+                    deleted: Some(true),
+                    ..task_index_repo::TaskIndexStatePatch::default()
+                },
+            )
+            .map_err(|error| ChannelError::error(error.to_string()))?;
+            Ok(WireValue::Undefined)
+        }
+        "resumeTask" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                workspace_path: String,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+                #[serde(default)]
+                thought_level: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            // control 已由 call 分流保证存在
+            let target = AgentWorkspaceTarget {
+                workspace_path: parsed.workspace_path.clone(),
+                workspace_identity: parsed.workspace_identity.clone(),
+                remote_session_id: None,
+            };
+            let snapshot: SessionStateSnapshot = control
+                .resume_session(
+                    &target,
+                    agent_protocol::session_write::SessionResumeParams {
+                        session_id: parsed.task_id,
+                        workspace: None,
+                        thought_level: parsed.thought_level,
+                        mcp_servers: None,
+                        tool_allowlist: None,
+                        tool_denylist: None,
+                        off_peak_tool_enabled: None,
+                        dynamic_workflow_enabled: None,
+                    },
+                )
+                .await
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            let meta = snapshot_to_meta(&snapshot)?;
+            repo.sync_task_meta(task_index_repo::SyncTaskMetaParams {
+                meta: meta.clone(),
+                pinned: None,
+                archived: None,
+                deleted: None,
+                title_overridden: None,
+                searchable_text: None,
+            })
+            .map_err(|error| ChannelError::error(error.to_string()))?;
+            json_value(&serde_json::to_value(&meta).map_err(|error| ChannelError::error(error.to_string()))?)
+        }
+        "sendPrompt" => {
+            // TS sendPrompt = sessionSend 直转发（meta 更新事件在 16.2c 事件面）。
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                content: String,
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+                #[serde(default)]
+                input_id: Option<String>,
+                #[serde(default)]
+                query_id: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            // control 已由 call 分流保证存在
+            // TS getTaskTarget：任务归属 workspace 由任务索引读出（task_id 即 session id）。
+            let indexed = repo
+                .get_task_meta(&task_index_repo::TaskRef {
+                    workspace_path: parsed.workspace_path.clone().unwrap_or_default(),
+                    workspace_identity: parsed.workspace_identity.clone(),
+                    task_id: parsed.task_id.clone(),
+                })
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            let (workspace_path, workspace_identity) = match (&parsed.workspace_path, &indexed) {
+                (Some(path), _) => (path.clone(), parsed.workspace_identity.clone()),
+                (None, Some(meta)) => {
+                    (meta.workspace_path.clone(), meta.workspace_identity.clone())
+                }
+                (None, None) => {
+                    return Err(ChannelError::error(
+                        "sendPrompt requires workspacePath or an indexed task",
+                    ))
+                }
+            };
+            let target = AgentWorkspaceTarget {
+                workspace_path,
+                workspace_identity,
+                remote_session_id: None,
+            };
+            let result = control
+                .send_prompt(
+                    &target,
+                    agent_protocol::session::SessionSendParams {
+                        session_id: parsed.task_id,
+                        model_selection: None,
+                        model_execution: None,
+                        input_id: parsed.input_id,
+                        query_id: parsed.query_id,
+                        content: parsed.content,
+                        attachments: None,
+                        browser_ambient_context: None,
+                        expected_revision: None,
+                        expected_provider_revision: None,
+                        automation_id: None,
+                        off_peak_task_id: None,
+                        off_peak_run_type: None,
+                        bot_delivery_target: None,
+                        tool_denylist: None,
+                    },
+                )
+                .await
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            json_value(&serde_json::to_value(&result).map_err(|error| ChannelError::error(error.to_string()))?)
+        }
+        other => Err(ChannelError::error(format!(
+            "mode-task channel: unknown orchestration command {other}"
+        ))),
+    }
+}
+
 impl ServerChannel for ModeTaskChannel {
     fn call(
         &self,
@@ -438,12 +762,26 @@ impl ServerChannel for ModeTaskChannel {
         _cancel: CancellationToken,
     ) -> BoxFuture<Result<WireValue, ChannelError>> {
         let repo = Arc::clone(&self.repo);
+        let control = self.control.clone();
         Box::pin(async move {
-            tokio::task::spawn_blocking(move || run(&repo, &command, &arg))
-                .await
-                .map_err(|error| {
-                    ChannelError::error(format!("mode-task channel task failed: {error}"))
-                })?
+            match command.as_str() {
+                // 编排面（async：AgentControlClient 会话调用）。
+                "createTask" | "closeTask" | "resumeTask" | "sendPrompt" => {
+                    let object = crate::params::first_arg_object(&arg)?;
+                    let control = control.ok_or_else(|| {
+                        ChannelError::error(format!(
+                            "mode-task channel: {command} requires the agent control plane (not assembled)"
+                        ))
+                    })?;
+                    run_orchestration(&repo, &control, &command, object).await
+                }
+                // 读面（同步 repo，spawn_blocking 防阻塞 runtime）。
+                _ => tokio::task::spawn_blocking(move || run_read(&repo, &command, &arg))
+                    .await
+                    .map_err(|error| {
+                        ChannelError::error(format!("mode-task channel task failed: {error}"))
+                    })?,
+            }
         })
     }
 }
