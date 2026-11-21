@@ -96,9 +96,8 @@ fn is_owned_channel(name: &str) -> bool {
     )
 }
 
-/// `default` 特值展开的频道集：全部白名单业务频道，**不含 `mode-agent`**——
-/// 它的频道所有权翻面挂 W4 S2 的 20 任务验收（spec docs/specs/host-ownership-switch.md），
-/// 不随 W2 默认集翻面。`host` 永不在内（看门狗不能测壳自己）。
+/// `default` 特值展开的频道集：全部白名单业务频道，含 `mode-agent`
+/// （S2 翻面已随 W6 收口并入，2026-11-21）。`host` 永不在内（看门狗不能测壳自己）。
 /// 规范：docs/specs/w2-transport-cutover.md §3。
 fn default_owned_channels() -> Vec<String> {
     [
@@ -127,6 +126,7 @@ fn default_owned_channels() -> Vec<String> {
         AGENT_HEALTH_CHANNEL,
         HOOKS_CHANNEL,
         TERMINAL_CHANNEL,
+        MODE_AGENT_CHANNEL,
     ]
     .into_iter()
     .map(str::to_string)
@@ -138,14 +138,21 @@ fn default_owned_channels() -> Vec<String> {
 /// - `none` → 空集（显式回滚，优先级最高，出现即忽略其余项）；
 /// - 含 `default` → 默认集 ∪ 显式列出的频道名（去重保序）；
 /// - 其余 → 原样列表（白名单过滤与 ignored 留痕仍由 `from_env` 负责）。
-// 翻转点（W6 收口，spec w2-transport-cutover.md §5）：真机验收清单
-// `.plan/accept-w6/w2-flip-checklist.md` 七项全绿后，把「未设置」分支改为
-// 返回 `default_owned_channels()`（一行改动；回滚 = `none`）。
-// S2 翻转（mode-agent）在同函数的 default 集加入 MODE_AGENT_CHANNEL
-// （验收清单 `.plan/accept-w6/s2-mode-agent-checklist.md` 20 任务全过后）。
+// 翻转点（W6 收口，spec w2-transport-cutover.md §5）：**已翻转（2026-11-21，用户
+// 指令）**——「未设置」= 默认集（含 mode-agent）。真机验收清单
+// `.plan/accept-w6/w2-flip-checklist.md`（七项）与
+// `s2-mode-agent-checklist.md`（二十任务）转为翻转后的回归验证清单，逐项结果
+// 回填 `.plan/accept-w6/report-<版本>.md`。回滚 = `MODE_HOST_INPROCESS_CHANNELS=none`
+// （纯转发，回滚语义最强，出现即忽略其余项）。
 fn resolve_channel_requests(raw: Option<&str>) -> Vec<String> {
+    let Some(raw) = raw else {
+        // W2 翻面：默认集接管全部白名单业务频道。
+        let mut owned = default_owned_channels();
+        // S2 翻面：mode-agent 整体切换（spec host-ownership-switch.md，无半个频道）。
+        owned.push(MODE_AGENT_CHANNEL.to_string());
+        return owned;
+    };
     let requested: Vec<String> = raw
-        .unwrap_or_default()
         .split(',')
         .map(str::trim)
         .filter(|name| !name.is_empty())
@@ -421,10 +428,13 @@ mod tests {
     }
 
     #[test]
-    fn unset_switch_stays_forward_only() {
-        // W2 默认翻转的前置是真机验收（spec w2-transport-cutover.md §5）；
-        // 在那之前「未设置」必须保持纯转发，回归面为零。
-        assert!(resolve_channel_requests(None).is_empty());
+    fn unset_switch_takes_the_default_set_with_mode_agent() {
+        // W2+S2 已翻转（2026-11-21）：未设置 = 默认集（含 mode-agent）；
+        // 回滚 = 显式 `none`。
+        let resolved = resolve_channel_requests(None);
+        assert!(!resolved.is_empty());
+        assert!(resolved.iter().any(|name| name == MODE_AGENT_CHANNEL));
+        assert!(resolved.iter().any(|name| name == MEMORY_CHANNEL));
     }
 
     #[test]
@@ -435,10 +445,11 @@ mod tests {
     }
 
     #[test]
-    fn default_expands_without_mode_agent_or_host() {
+    fn default_expands_with_mode_agent_but_never_host() {
         let resolved = resolve_channel_requests(Some("default"));
         assert!(!resolved.is_empty());
-        assert!(!resolved.iter().any(|name| name == MODE_AGENT_CHANNEL));
+        // S2 翻面后 default 含 mode-agent；host 永不在内（看门狗不能测壳自己）。
+        assert!(resolved.iter().any(|name| name == MODE_AGENT_CHANNEL));
         assert!(!resolved.iter().any(|name| name == "host"));
         for channel in [
             MEMORY_CHANNEL,

@@ -73,7 +73,11 @@ host-channels/tests/pipeline.rs 3 条）。本文补齐的缺口：
   scope-ready 由 Node 发放 → 壳内频道在 scope 上应答 → detach 清理；换代（Host 重启）
   后 base+scope 一并 dispose。
 
-## 5. 默认翻转的前置（真机验收清单）
+## 5. 默认翻转（已执行 2026-11-21；本节清单转为翻转后的回归验证）
+
+> 状态更新：翻转已按用户指令执行（未设置 = §3 默认集）；验收清单从「翻转前置」
+> 转为「翻转后的回归验证」，逐项结果回填 `.plan/accept-w6/report-<版本>.md`。
+> 回滚 = `MODE_HOST_INPROCESS_CHANNELS=none`。
 
 把「未设置 → 纯转发」改成「未设置 → §3 默认集」之前，以下必须全绿（记录进
 `.plan/accept-<版本>-inprocess-default/`）：

@@ -137,11 +137,15 @@ native binary（C4 翻转上线，`resolve_agent_command`：env → native binar
 全绿后按 README §4 执行翻转，最后开删除窗口。本环境无法伪造真机验收——
 物理删除按门禁保留待验收。
 
-**W6 三步走**：
-1. W2 翻面（`w2-flip-checklist.md` 七项全绿 → 一行翻转）
-2. S2 翻面（`s2-mode-agent-checklist.md` 二十任务全过 → default 集加 mode-agent）
-3. Node Host 退役（删 stdioFrames/stdoutGuard/host-standalone/sidecar 发运集/
-   mode.cjs 回退 → `w6:readiness --fail-on-blockers` READY）
+**W6 三步走（2026-11-21 状态更新）**：
+1. **W2 翻面：已执行**（用户指令；`resolve_channel_requests(None)` = 默认集，
+   两个钉旧决策的测试按新语义改写；真机清单转为回归验证，回滚 = `none`）
+2. **S2 翻面：已执行**（default 集并入 MODE_AGENT_CHANNEL；spec 状态行已更新）
+3. **Node Host 退役：未开窗**——前置比验收清单更大：renderer 仍消费 Node Host
+   独占面（mode-task 任务系统、window-controller 窗口控制、remote-desktop/
+   remote-v3/lan-access；host-standalone 约 4404 行 TS + windowController 约
+   1716 行 + services 侧 mode-task/remote 实现面）。这些面迁入 Rust 后删除窗口
+   才开（每面为独立长任务，量级与 LT-15 的频道迁移相当）。
 
 ## 残项另册（2026-11-21 评估）
 

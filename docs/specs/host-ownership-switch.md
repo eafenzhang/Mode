@@ -151,7 +151,7 @@ sequenceDiagram
 | S1   | 方法覆盖矩阵与 `blocked` 清零；未实现方法返回 TS 同款错误 | 矩阵检查脚本绿                         |
 | S2   | `mode-agent` 频道适配器（默认不注册）+ 启动期开关 **实施中（2026-11-05）**：适配器已覆盖 88/100 请求面与全部 15 个事件面——会话只读/写组、sendPrompt、plugins（含 marketplace/cancelOperation）、workflows 六方法、生命周期/杂项、v4 帧/订阅/query 族、v4 命令转发（`sendConversationCommandV4`）、attachments、用量、process 遥测、TTFT 空事件、conversation telemetry、CUA 权限观察与 operation turn、连接流控、运行时偏好延迟应答、插件操作进度。剩余 automation 10（决策 4 改判 `not-needed`，Renderer 分调两个 owner）；provider/account 2 个网络方法按决策 2 返回显式 `unsupported_method`。壳内 inprocess 仅当开关显式包含 `mode-agent` 时注册。**已知保真缺口**：sendPrompt 的 `browserAmbientContext` 采集、createSession 的 Off-Peak 灰度 flag（动态工作流已支持 env 覆盖）仍待接；readSession 的 Account Config 预同步/`runtimePolicy`、mcp 与 create/resume/send 的 `unrecognized_keys` 重试已接（2026-11-05） | 打开开关后 20 个真实任务通过           |
 
-S2/W2 翻面的真机验收执行清单已工程化：`.plan/accept-w6/`（README 门禁链全景 + W2 七项 + S2 二十任务；验收全绿后的翻转改动与回滚路径见 README §4）。
+S2 翻面已随 W6 收口执行（2026-11-21，用户指令；回滚 = `none`）。真机验收清单已工程化：`.plan/accept-w6/`（README 门禁链全景 + W2 七项 + S2 二十任务；验收全绿后的翻转改动与回滚路径见 README §4）。
 | S3   | Host 侧删除 `mode-agent` 所有权路径（保留回滚开关）       | 关闭开关仍全绿；无孤儿进程             |
 | S4   | `hooks` 频道（load/save/grant）**已落（2026-11-05）**；剩 `mode-task`、会话索引写路由 | hooks 真机开关验收；`mode-task` 对应 spec 验收 |
 

@@ -1,7 +1,13 @@
 # W6 收口验收包（Node Host 退役专项）
 
-状态：**等待真机验收**（2026-11-21 建立）。本文档把 W6 的门禁链拆成可逐项执行的
-验收清单；全绿后按「翻转改动」节执行代码翻转，最后才允许物理删除。
+状态更新（2026-11-21）：
+- **W2+S2 翻转已执行**（用户指令；`resolve_channel_requests(None)` = 默认集 +
+  mode-agent）。两份清单转为**翻转后的回归验证清单**——逐项执行并回填
+  `report-<版本>.md`；发现回归时回滚 = `MODE_HOST_INPROCESS_CHANNELS=none`。
+- **物理删除仍未开窗**：renderer 仍消费 Node Host 独占面（mode-task 任务系统、
+  window-controller 窗口控制、remote-desktop/remote-v3/lan-access 等，不在
+  inprocess 白名单）——这些面迁入 Rust 前删除会断任务/窗口/远程功能。删除窗口的
+  前置从「两份清单全绿」扩大为「**Node Host 独占频道全部迁入 Rust**」。
 
 ## 1. 门禁链全景
 
@@ -13,9 +19,9 @@ S2 mode-agent 翻面 ────────┘
 
 | 步骤 | 内容 | 门禁 | 状态 |
 | --- | --- | --- | --- |
-| W2 翻面 | `MODE_HOST_INPROCESS_CHANNELS` 默认集接管 24 业务频道 | `w2-flip-checklist.md` 六项全绿 | 1/7（#1 19 频道真人路径 ✅ 2026-10-31） |
-| S2 翻面 | `mode-agent` 频道注册进默认集 | `s2-mode-agent-checklist.md` 20 任务全过 | 适配器 88/100 请求面 + 15 事件面已接（2026-11-05） |
-| W6 删除 | 删 stdioFrames/stdoutGuard、host-standalone、host-sidecar 发运集、mode.cjs 回退 | 上两步全绿 + 回滚窗口关闭 | ⬜ |
+| W2 翻面 | `MODE_HOST_INPROCESS_CHANNELS` 默认集接管 24 业务频道 | `w2-flip-checklist.md` 六项全绿 | **翻转已执行**（回归验证待真机：1/7 已跑） |
+| S2 翻面 | `mode-agent` 频道注册进默认集 | `s2-mode-agent-checklist.md` 20 任务全过 | **翻转已执行**（回归验证待真机；适配器 88/100 + 15 事件已接） |
+| W6 删除 | 删 stdioFrames/stdoutGuard、host-standalone、host-sidecar 发运集、mode.cjs 回退 | **Node Host 独占频道全部迁入 Rust**（mode-task/window-controller/remote-* 面） | ⬜ |
 
 ## 2. 为什么现在不能删（2026-11-21 评估）
 
@@ -40,14 +46,14 @@ S2 mode-agent 翻面 ────────┘
 5. 全绿 → 提交翻转 PR（W2 一行 + S2 白名单一行）→ 真机回归一遍
    （清单 #7 整机回归）→ 开 W6 删除窗口。
 
-## 4. 翻转改动（验收全绿后执行）
+## 4. 翻转改动（已执行 2026-11-21）
 
-- **W2**：`apps/desktop-tauri/src-tauri/src/inprocess.rs` 的
-  `resolve_channel_requests(None)` 从「空集」改为「返回 `default_owned_channels()`」
-  （spec w2-transport-cutover.md §5「一行改动」；回滚 = `none`）。
-- **S2**：同一文件的 `default_owned_channels()` 加入 `MODE_AGENT_CHANNEL`
-  （spec host-ownership-switch.md：整体切换，无半个 mode-agent）。
-- 两步各自独立可回滚：`MODE_HOST_INPROCESS_CHANNELS=none` 永远是纯转发。
+- **W2**：`resolve_channel_requests(None)` 返回 `default_owned_channels()`。
+- **S2**：`default_owned_channels()` 加入 `MODE_AGENT_CHANNEL`；两个钉住旧决策的
+  测试（`unset_switch_stays_forward_only`/`default_expands_without_mode_agent_or_host`）
+  已按新语义改写（`unset_switch_takes_the_default_set_with_mode_agent`/
+  `default_expands_with_mode_agent_but_never_host`）。
+- 回滚：`MODE_HOST_INPROCESS_CHANNELS=none` 永远是纯转发（单测钉住）。
 
 ## 5. 已知保真缺口（不阻塞翻面，随面迁移收口）
 
