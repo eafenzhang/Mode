@@ -115,10 +115,9 @@ async fn subscribe_topic_frames<F: TopicWireFrame>(
     client: &AgentControlClient,
     target: &AgentWorkspaceTarget,
     params: &ConversationSubscribeParams,
+    policy: RuntimePolicy,
 ) -> Result<(ConversationSubscribeAck, mpsc::Receiver<F>, AbortHandle), ControlError> {
-    let process = client
-        .client_for(target, RuntimePolicy::StartIfNeeded)
-        .await?;
+    let process = client.client_for(target, policy).await?;
     let mut notifications = process.client().subscribe_notifications();
     let wire =
         serde_json::to_value(params).expect("v4/conversation/subscribe params 序列化不会失败");
@@ -174,7 +173,7 @@ impl AgentControlClient {
         params
             .validate()
             .map_err(|message| ControlError::InvalidParams(message.to_string()))?;
-        let (ack, frames, abort) = subscribe_topic_frames(self, target, &params).await?;
+        let (ack, frames, abort) = subscribe_topic_frames(self, target, &params, RuntimePolicy::StartIfNeeded).await?;
         Ok(ConversationFrameSubscription { ack, frames, abort })
     }
 
@@ -193,7 +192,7 @@ impl AgentControlClient {
                 "invalid sessions-index topic".to_string(),
             ));
         }
-        let (ack, frames, abort) = subscribe_topic_frames(self, target, &params).await?;
+        let (ack, frames, abort) = subscribe_topic_frames(self, target, &params, RuntimePolicy::StartIfNeeded).await?;
         Ok(SessionsIndexFrameSubscription { ack, frames, abort })
     }
 
@@ -211,7 +210,7 @@ impl AgentControlClient {
                 "invalid workspace-config topic".to_string(),
             ));
         }
-        let (ack, frames, abort) = subscribe_topic_frames(self, target, &params).await?;
+        let (ack, frames, abort) = subscribe_topic_frames(self, target, &params, RuntimePolicy::StartIfNeeded).await?;
         Ok(WorkspaceConfigFrameSubscription { ack, frames, abort })
     }
 }
@@ -269,6 +268,37 @@ impl AgentControlClient {
             workflow_run_deltas: None,
         };
         self.subscribe_sessions_index_v4(target, params).await
+    }
+
+    /// sessions-index 帧订阅（existing-only）：被动观察者不得拉起 Agent runtime。
+    pub async fn subscribe_sessions_index_frames_if_running(
+        &self,
+        target: &AgentWorkspaceTarget,
+        base: Option<SubscribeBase>,
+        visibility: Option<SubscribeVisibility>,
+    ) -> Result<SessionsIndexFrameSubscription, ControlError> {
+        let params = ConversationSubscribeParams {
+            topic: format!("sessions-index/{}", target.workspace_key()),
+            base,
+            visibility,
+            connection_id: V4_LOCAL_CONNECTION_ID.to_string(),
+            client_mode: V4ClientMode::DesktopContinuous,
+            workspace: None,
+            legacy_task_ids: None,
+            resume_thought_level: None,
+            workflow_run_deltas: None,
+        };
+        params
+            .validate()
+            .map_err(|message| ControlError::InvalidParams(message.to_string()))?;
+        if parse_sessions_index_topic(&params.topic).is_none() {
+            return Err(ControlError::InvalidParams(
+                "invalid sessions-index topic".to_string(),
+            ));
+        }
+        let (ack, frames, abort) =
+            subscribe_topic_frames(self, target, &params, RuntimePolicy::ExistingOnly).await?;
+        Ok(SessionsIndexFrameSubscription { ack, frames, abort })
     }
 
     /// 按 workspaceKey 建立 workspace-config 帧订阅（topic=`workspace-config/<workspaceKey>`）。

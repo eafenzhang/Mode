@@ -22,6 +22,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
+use agent_process::AgentControlClient;
 use rpc_host::{
     BoxFuture, CancellationToken, ChannelError, EventCallback, ServerChannel, Subscription,
 };
@@ -42,6 +43,10 @@ pub struct WindowControllerChannel {
     frames: Arc<ControllerFrameBus>,
     /// sessions-index overlay（liveStatus/activity/title 富化）。
     overlays: Arc<SessionOverlayStore>,
+    /// Agent 控制面：sessions-index 被动观察器用它订阅（existing-only）。
+    control: Option<Arc<AgentControlClient>>,
+    /// 被动观察器（control 注入时创建；按 workspace 懒启动订阅）。
+    observer: Option<Arc<crate::sessions_observer::SessionsOverlayObserver>>,
     /// mode-task 任务事件总线：桥订阅 + 本频道 mutation 的事件回发
     /// （TS 两服务写同一索引、共用同一条 workspace 事件）。
     task_events: Option<Arc<crate::mode_task::TaskEventBus>>,
@@ -61,6 +66,8 @@ impl WindowControllerChannel {
             repo,
             frames,
             overlays,
+            control: None,
+            observer: None,
             task_events: None,
             _task_event_bridge: None,
         }
@@ -89,8 +96,60 @@ impl WindowControllerChannel {
             repo,
             frames,
             overlays,
+            control: None,
+            observer: None,
             task_events: Some(task_events),
             _task_event_bridge: Some(bridge),
+        }
+    }
+
+    /// 注入 Agent 控制面：创建 sessions-index 被动观察器（existing-only）。
+    pub fn with_control(mut self, control: Option<Arc<AgentControlClient>>) -> Self {
+        self.control = control.clone();
+        self.observer = control.map(|control| {
+            let frames = Arc::clone(&self.frames);
+            let on_change: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
+                let _ = frames.refresh();
+            });
+            Arc::new(crate::sessions_observer::SessionsOverlayObserver::new(
+                control,
+                Arc::clone(&self.overlays),
+                on_change,
+            ))
+        });
+        self
+    }
+
+    /// 确保给定 workspace scopes 有 sessions-index 观察任务。
+    pub fn ensure_observers<'a, I>(&self, scopes: I)
+    where
+        I: IntoIterator<Item = (&'a str, Option<&'a str>)>,
+    {
+        let Some(observer) = &self.observer else {
+            return;
+        };
+        for (workspace_path, workspace_identity) in scopes {
+            observer.ensure_workspace(workspace_path, workspace_identity);
+        }
+    }
+
+    /// 订阅入口没有 scope：按索引里出现过的 workspace 全量确保观察。
+    fn ensure_observers_from_index(&self) {
+        if self.observer.is_none() {
+            return;
+        }
+        let Ok(metas) = self.repo.list_task_metas(&ListTaskMetasParams::default()) else {
+            return;
+        };
+        let mut seen = std::collections::HashSet::new();
+        for meta in &metas {
+            let key = workspace_identity_key(meta.workspace_identity.as_deref(), &meta.workspace_path);
+            if seen.insert(key) {
+                self.ensure_observers([(
+                    meta.workspace_path.as_str(),
+                    meta.workspace_identity.as_deref(),
+                )]);
+            }
         }
     }
 
@@ -119,6 +178,8 @@ impl WindowControllerChannel {
             repo: Arc::clone(&self.repo),
             frames: Arc::clone(&self.frames),
             overlays: Arc::clone(&self.overlays),
+            control: self.control.clone(),
+            observer: self.observer.clone(),
             task_events: self.task_events.clone(),
             _task_event_bridge: None,
         }
@@ -630,7 +691,7 @@ fn list_metas(
     .map_err(|error| error.to_string())
 }
 
-fn workspace_identity_key(identity: Option<&str>, workspace_path: &str) -> String {
+pub(crate) fn workspace_identity_key(identity: Option<&str>, workspace_path: &str) -> String {
     identity
         .map(str::trim)
         .filter(|identity| !identity.is_empty())
@@ -878,6 +939,12 @@ fn run(
                 .map_err(|error| ChannelError::error(format!("invalid arguments: {error}")))?;
             // 壳内无 DB 观察者：每次读取前刷新投影，让其他频道写入的索引变更
             // 通过 delta 帧收敛（TS 由 workspace 事件触发 refresh）。
+            channel.ensure_observers(
+                parsed
+                    .workspace_scopes
+                    .iter()
+                    .map(|scope| (scope.workspace_path.as_str(), scope.workspace_identity.as_deref())),
+            );
             channel.frames.refresh().map_err(ChannelError::error)?;
             let kind = match parsed.kind.as_str() {
                 "pinned" => TaskListKind::Pinned,
@@ -1206,6 +1273,8 @@ fn run(
             let topic = ControllerTopic::parse(&parsed.topic).ok_or_else(|| {
                 ChannelError::error(format!("unknown controller topic: {}", parsed.topic))
             })?;
+            // 订阅入口无 scope：按索引里出现过的 workspace 确保观察器。
+            channel.ensure_observers_from_index();
             // 先刷新再建订阅：snapshot 覆盖到调用时刻的索引状态。
             channel.frames.refresh().map_err(ChannelError::error)?;
             let ack = channel

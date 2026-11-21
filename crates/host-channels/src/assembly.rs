@@ -238,10 +238,13 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
             let repo = task_index_repo::TaskIndexRepo::new(
                 data_root.join("v2").join("tasks-index.sqlite"),
             );
-            Some(Arc::new(WindowControllerChannel::with_task_events(
-                Arc::new(repo),
-                Arc::clone(&options.task_events),
-            )))
+            Some(Arc::new(
+                WindowControllerChannel::with_task_events(
+                    Arc::new(repo),
+                    Arc::clone(&options.task_events),
+                )
+                .with_control(options.agent_control.clone()),
+            ))
         }
         MODE_TASK_CHANNEL => {
             // 任务索引 DB 与桌面壳同位（{data_root}/v2/tasks-index.sqlite）；

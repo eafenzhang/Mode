@@ -137,8 +137,19 @@ completedSuccess|CompletedInterrupted→completed、error→error、draft→移�
 pendingInteraction/liveStatus（overlay 优先，否则 defaultLiveStatus）/activity；
 `listTaskList` 同步富化并透传 searchSnippets。
 
-**未覆盖（16.3 续 / 16.4）**：sessions-index 订阅泵（existing-only subscribe +
-分片装配 + resync/重启恢复，把帧喂给 overlay store）、remote source 聚合与重连换源、
+**sessions-index 观察器（2026-11-22 已落）**：`sessions_observer.rs` ——
+`listTaskList` 的 workspace scopes 与 `subscribeControllerV4`（按索引中出现的
+workspace）触发 `ensure_workspace`；每 workspace 一个 existing-only 订阅
+（`subscribe_sessions_index_frames_if_running`，runtime 缺席保持 dormant 不拉起），
+帧经 `SessionsIndexWireAssembler` 重组后维护 `sessionId → SessionSummary`，
+`session_overlay` 映射（waiting：pendingInteraction 或待处理计数>0；phase→
+running/completed/error/idle；title/titleSource/updatedAt/pendingInteraction/
+activity 含 pendingInteractions/workflowActivity）写入 `SessionOverlayStore` 并
+refresh 帧。故障/流结束：清空该 workspace overlay、停止观察，下次 list/subscribe
+重试。
+
+**未覆盖（16.3 续 / 16.4）**：observer 的 resync 与 Agent 重启恢复（TS 有
+resync/recovery 状态机，当前故障即清空重来）、remote source 聚合与重连换源、
 事件驱动的增量收敛（当前为调用时 refresh）、`registerSource`/
 `replaceDisconnectedSource` 的对外接线。
 
