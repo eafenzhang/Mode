@@ -13,9 +13,10 @@
 //!   enabled=false / port=null / addresses=[] / pairCode=null，clients 仍从凭据
 //!   读取（配对记录与逐设备授权是持久化事实，监听开关只管「现在能不能连进来」）。
 //!
-//! server 侧（setEnabled/createPairCode/removeClient/resetTokens）与网络
-//! side（discoverPeers/pairPeer/getPeerWorkspaces）依赖本机 LAN server
-//! supervisor 与端点探测，留 16.4a 续——显式报错，不返回假状态。
+//! server 侧（setEnabled/createPairCode/removeClient/resetTokens/onDidChange）
+//! 通过 [`LanAccessHostPort`] 注入：宿主实现 supervisor（监听生命周期 + 状态聚合），
+//! 未装配时显式报错，不返回假状态。网络 side（discoverPeers/pairPeer/
+//! getPeerWorkspaces）留 16.4a 续。
 
 use std::sync::Arc;
 
@@ -29,6 +30,20 @@ use rpc_wire::Value as WireValue;
 pub const LAN_ACCESS_CHANNEL: &str = "lan-access";
 pub const ON_DID_CHANGE: &str = "onDidChange";
 
+/// 本机 LAN server supervisor 的注入端口（宿主实现）。
+///
+/// 同步签名：频道调用已在 `spawn_blocking` 中执行，宿主可用自己的运行时桥接
+/// （bind/serve 是 async，由实现内部收敛）。
+pub trait LanAccessHostPort: Send + Sync {
+    fn state(&self) -> Result<serde_json::Value, String>;
+    fn set_enabled(&self, enabled: bool) -> Result<serde_json::Value, String>;
+    fn create_pair_code(&self) -> Result<serde_json::Value, String>;
+    fn remove_client(&self, client_id: &str) -> Result<serde_json::Value, String>;
+    fn reset_tokens(&self) -> Result<serde_json::Value, String>;
+    /// `onDidChange`：注册监听者；实现应立即补发当前状态快照（TS 幂等事实语义）。
+    fn subscribe_changes(&self, emit: EventCallback) -> Subscription;
+}
+
 const PEER_PREFIX: &str = "lan:peer:";
 const TOKEN_SUFFIX: &str = ":token";
 const META_SUFFIX: &str = ":meta";
@@ -37,11 +52,28 @@ const LAN_ACCESS_CLIENTS_CREDENTIAL_KEY: &str = "lan:access:clients";
 
 pub struct LanAccessChannel {
     credentials: Arc<CredentialStore>,
+    /// LAN server supervisor；`None` 时管理面方法显式报错。
+    host: Option<Arc<dyn LanAccessHostPort>>,
 }
 
 impl LanAccessChannel {
+    /// 无 supervisor（getState 走 offline 快照；管理面方法显式报错）。
     pub fn new(credentials: Arc<CredentialStore>) -> Self {
-        Self { credentials }
+        Self {
+            credentials,
+            host: None,
+        }
+    }
+
+    /// 装配 supervisor（监听生命周期/配对码/clients 由宿主实现）。
+    pub fn with_host(
+        credentials: Arc<CredentialStore>,
+        host: Arc<dyn LanAccessHostPort>,
+    ) -> Self {
+        Self {
+            credentials,
+            host: Some(host),
+        }
     }
 }
 
@@ -382,6 +414,23 @@ fn first_arg_object(
     }
 }
 
+fn require_host<'a>(
+    channel: &'a LanAccessChannel,
+    command: &str,
+) -> Result<&'a Arc<dyn LanAccessHostPort>, ChannelError> {
+    channel.host.as_ref().ok_or_else(|| {
+        ChannelError::error(format!(
+            "lan-access channel: {command} requires the LAN server supervisor (16.4a, not assembled)"
+        ))
+    })
+}
+
+fn json_text(value: serde_json::Value) -> Result<WireValue, ChannelError> {
+    let text =
+        serde_json::to_string(&value).map_err(|error| ChannelError::error(error.to_string()))?;
+    Ok(WireValue::Json(text))
+}
+
 fn run(
     channel: &LanAccessChannel,
     command: &str,
@@ -395,13 +444,54 @@ fn run(
             Ok(WireValue::Json(text))
         }
         "getState" => {
-            // 壳内暂无 LAN server supervisor：监听必然未开启，按 TS 的
-            // readDisabledLanAccessState 输出真实快照（clients 来自凭据）。
-            let state =
-                disabled_lan_access_state(&channel.credentials).map_err(ChannelError::error)?;
-            let text = serde_json::to_string(&state)
-                .map_err(|error| ChannelError::error(error.to_string()))?;
-            Ok(WireValue::Json(text))
+            match &channel.host {
+                Some(host) => json_text(host.state().map_err(ChannelError::error)?),
+                // 无 supervisor：监听必然未开启，按 TS readDisabledLanAccessState
+                // 输出真实快照（clients 来自凭据）。
+                None => {
+                    let state = disabled_lan_access_state(&channel.credentials)
+                        .map_err(ChannelError::error)?;
+                    json_text(state)
+                }
+            }
+        }
+        "setEnabled" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                enabled: bool,
+            }
+            let host = require_host(channel, command)?;
+            let first = first_arg_object(arg)?;
+            let parsed: P = serde_json::from_value(serde_json::Value::Object(first))
+                .map_err(|error| ChannelError::error(format!("invalid arguments: {error}")))?;
+            json_text(
+                host.set_enabled(parsed.enabled)
+                    .map_err(ChannelError::error)?,
+            )
+        }
+        "createPairCode" => {
+            let host = require_host(channel, command)?;
+            json_text(host.create_pair_code().map_err(ChannelError::error)?)
+        }
+        "removeClient" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                client_id: String,
+            }
+            let host = require_host(channel, command)?;
+            let first = first_arg_object(arg)?;
+            let parsed: P = serde_json::from_value(serde_json::Value::Object(first))
+                .map_err(|error| ChannelError::error(format!("invalid arguments: {error}")))?;
+            json_text(
+                host.remove_client(&parsed.client_id)
+                    .map_err(ChannelError::error)?,
+            )
+        }
+        "resetTokens" => {
+            let host = require_host(channel, command)?;
+            json_text(host.reset_tokens().map_err(ChannelError::error)?)
         }
         "removePairedPeer" => {
             #[derive(Deserialize)]
@@ -447,9 +537,10 @@ impl ServerChannel for LanAccessChannel {
         _cancel: CancellationToken,
     ) -> BoxFuture<Result<WireValue, ChannelError>> {
         let credentials = Arc::clone(&self.credentials);
+        let host = self.host.clone();
         Box::pin(async move {
             tokio::task::spawn_blocking(move || {
-                let channel = LanAccessChannel { credentials };
+                let channel = LanAccessChannel { credentials, host };
                 run(&channel, &command, &arg)
             })
             .await
@@ -464,12 +555,15 @@ impl ServerChannel for LanAccessChannel {
         _ctx: String,
         event: String,
         _arg: WireValue,
-        _emit: EventCallback,
+        emit: EventCallback,
     ) -> Result<Subscription, ChannelError> {
         match event.as_str() {
-            ON_DID_CHANGE => Err(ChannelError::error(
-                "lan-access channel: onDidChange requires the LAN server supervisor (16.4a, not assembled)",
-            )),
+            ON_DID_CHANGE => match &self.host {
+                Some(host) => Ok(host.subscribe_changes(emit)),
+                None => Err(ChannelError::error(
+                    "lan-access channel: onDidChange requires the LAN server supervisor (16.4a, not assembled)",
+                )),
+            },
             other => Err(ChannelError::error(format!(
                 "lan-access channel: unknown event {other}"
             ))),

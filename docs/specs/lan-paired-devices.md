@@ -109,9 +109,13 @@
   `lan:access:clients` 凭据读取并归一化（只认 id 非空；label 缺省 ""、
   createdAt 缺省 now、lastUsedAt 缺省 null、lastWorkspacePath 只保留非空、
   remoteDesktopAuthorized 只认显式 true；坏 JSON/非数组 = []）。
-- 其余接口（`setEnabled`/`createPairCode`/`removeClient`/`resetTokens`/
-  `discoverPeers`/`pairPeer`/`getPeerWorkspaces`）与 `onDidChange` 事件依赖本机
-  LAN server supervisor / 端点探测，未装配时显式报错，**不返回假状态**（16.4a 续）。
+- 管理面经 `LanAccessHostPort` 注入（宿主实现 supervisor）：
+  `setEnabled` / `createPairCode` / `removeClient` / `resetTokens` / `onDidChange`
+  全部委托端口；装配端口时 `getState` 读 supervisor 的实时状态（含 enabled/port/
+  addresses/pairCode），`onDidChange` 首个订阅者补当前快照。未注入端口时上述方法
+  显式报错，`getState` 退回 offline 快照——**不返回假状态**。
+- 尚未迁移：`discoverPeers` / `pairPeer` / `getPeerWorkspaces`（端点探测与凭据写入，
+  16.4a 续）。
 
 ## 不做
 

@@ -98,9 +98,12 @@ sessions-index observer）——**排序 16.2 先于 16.3**。
 幂等、renamePairedPeer 1–64 展示名）；server supervisor 与网络 side 显式报错，
 channel 已进 assembly/inprocess 默认集；另 `getState` 按 TS
 `readDisabledLanAccessState` 输出真实 offline 快照（clients 读凭据并归一化）；
-7 用例。**16.4a 剩余**：本机 server
-supervisor（loopback/LAN 双模式、/ws host 复用、静态资源/中继）、setEnabled/
-配对码/clients/reset、discoverPeers/pairPeer/getPeerWorkspaces、onDidChange。`w6:readiness` 四组 blocker（stdioFrames/stdoutGuard/host-sidecar/
+7 用例。**管理面端口（2026-11-22）**：`LanAccessHostPort` 注入后
+setEnabled/createPairCode/removeClient/resetTokens/onDidChange 全部委托 supervisor，
+getState 读实时状态；未注入时显式报错/offline 快照。**16.4a 剩余**：宿主侧
+`LanHostSupervisor` 实现（loopback/LAN 双模式 bind/serve、复用 lan_router +
+ws_host_router、静态资源/中继、enabled 持久化）、discoverPeers/pairPeer/
+getPeerWorkspaces。`w6:readiness` 四组 blocker（stdioFrames/stdoutGuard/host-sidecar/
 node-agent-fallback）均为 Node Host 发运物，随 16.6 删除归零。 |
 | 16.5 | **host-standalone 收口** | 骨架（~4.4k 行）随上述面退役：stdioFrames/stdoutGuard/scopedAttachments/rendererConnectionScope 退场 | 16.1–16.4 | `w6:readiness` 四组 blocker 归零 |
 | 16.6 | **物理删除窗口** | 删 host-standalone、host-sidecar 发运集/脚本、mode.cjs 回退随包、bundled-agents；四仪表终值复测 | 16.5 | `--fail-on-blockers` READY；体积/性能仪表落档 |

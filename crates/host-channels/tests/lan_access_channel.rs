@@ -10,7 +10,9 @@ use rpc_host::{CancellationToken, ServerChannel as _};
 use rpc_wire::Value;
 use serde_json::{json, Value as Json};
 
-use host_channels::lan_access::{LanAccessChannel, LAN_ACCESS_CHANNEL};
+use host_channels::lan_access::{
+    LanAccessChannel, LanAccessHostPort, LAN_ACCESS_CHANNEL, ON_DID_CHANGE,
+};
 
 struct TempDir(PathBuf);
 
@@ -363,6 +365,151 @@ async fn get_state_reads_clients_from_credentials() {
         .expect("non-array");
     let state = call(&channel, "getState", json!({})).await;
     assert!(state["clients"].as_array().expect("clients").is_empty());
+}
+
+/// supervisor 端口测试替身：状态可变、记录调用、广播 onDidChange。
+struct FakeHost {
+    state: std::sync::Mutex<Json>,
+    listeners:
+        Arc<std::sync::Mutex<std::collections::HashMap<String, rpc_host::EventCallback>>>,
+    calls: std::sync::Mutex<Vec<String>>,
+}
+
+impl FakeHost {
+    fn new() -> Self {
+        Self {
+            state: std::sync::Mutex::new(json!({
+                "enabled": true,
+                "port": 45880,
+                "addresses": ["10.0.0.5"],
+                "pairCode": null,
+                "clients": [],
+                "activeWebSessions": 0,
+                "publicRelayUrl": null,
+            })),
+            listeners: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            calls: std::sync::Mutex::new(Vec::new()),
+        }
+    }
+
+    fn record(&self, call: impl Into<String>) {
+        self.calls.lock().expect("calls").push(call.into());
+    }
+
+    fn notify(&self) {
+        let text = self.state.lock().expect("state").to_string();
+        let listeners: Vec<rpc_host::EventCallback> = self
+            .listeners
+            .lock()
+            .expect("listeners")
+            .values()
+            .cloned()
+            .collect();
+        for emit in listeners {
+            emit(Value::Json(text.clone()));
+        }
+    }
+
+    fn snapshot(&self) -> Json {
+        self.state.lock().expect("state").clone()
+    }
+}
+
+impl LanAccessHostPort for FakeHost {
+    fn state(&self) -> Result<Json, String> {
+        self.record("getState");
+        Ok(self.snapshot())
+    }
+
+    fn set_enabled(&self, enabled: bool) -> Result<Json, String> {
+        self.record(format!("setEnabled:{enabled}"));
+        self.state.lock().expect("state")["enabled"] = json!(enabled);
+        self.notify();
+        Ok(self.snapshot())
+    }
+
+    fn create_pair_code(&self) -> Result<Json, String> {
+        self.record("createPairCode");
+        self.state.lock().expect("state")["pairCode"] =
+            json!({ "code": "ABCDEF", "expiresAt": 2_000_000 });
+        Ok(self.snapshot())
+    }
+
+    fn remove_client(&self, client_id: &str) -> Result<Json, String> {
+        self.record(format!("removeClient:{client_id}"));
+        Ok(self.snapshot())
+    }
+
+    fn reset_tokens(&self) -> Result<Json, String> {
+        self.record("resetTokens");
+        Ok(self.snapshot())
+    }
+
+    fn subscribe_changes(&self, emit: rpc_host::EventCallback) -> rpc_host::Subscription {
+        static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let id = NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed).to_string();
+        self.listeners
+            .lock()
+            .expect("listeners")
+            .insert(id.clone(), Arc::clone(&emit));
+        // 首个订阅者补当前快照（TS 幂等事实语义）。
+        let text = self.snapshot().to_string();
+        emit(Value::Json(text));
+        let listeners = Arc::clone(&self.listeners);
+        Box::new(move || {
+            listeners.lock().expect("listeners").remove(&id);
+        })
+    }
+}
+
+#[tokio::test]
+async fn host_port_serves_management_state_and_events() {
+    let dir = TempDir::new("host");
+    let host = Arc::new(FakeHost::new());
+    let channel = LanAccessChannel::with_host(store(&dir), host.clone());
+
+    let state = call(&channel, "getState", json!({})).await;
+    assert_eq!(state["enabled"], true);
+    assert_eq!(state["port"], 45880);
+    assert_eq!(state["addresses"], json!(["10.0.0.5"]));
+
+    // onDidChange：订阅即补当前快照；后续动作广播。
+    let frames = Arc::new(std::sync::Mutex::new(Vec::<Json>::new()));
+    let sink = Arc::clone(&frames);
+    let _sub = channel
+        .listen(
+            "ctx".into(),
+            ON_DID_CHANGE.into(),
+            Value::Undefined,
+            Arc::new(move |value| {
+                if let Value::Json(text) = value {
+                    sink.lock()
+                        .expect("frames")
+                        .push(serde_json::from_str(&text).expect("state JSON"));
+                }
+            }),
+        )
+        .expect("listen onDidChange");
+    assert_eq!(frames.lock().expect("frames").len(), 1);
+
+    let state = call(&channel, "setEnabled", json!({ "enabled": false })).await;
+    assert_eq!(state["enabled"], false);
+    {
+        let frames = frames.lock().expect("frames");
+        assert_eq!(frames.len(), 2, "{frames:?}");
+        assert_eq!(frames[1]["enabled"], false);
+    }
+
+    let state = call(&channel, "createPairCode", json!({})).await;
+    assert_eq!(state["pairCode"]["code"], "ABCDEF");
+    call(&channel, "removeClient", json!({ "clientId": "c1" })).await;
+    call(&channel, "resetTokens", json!({})).await;
+
+    let calls = host.calls.lock().expect("calls");
+    assert!(calls.contains(&"setEnabled:false".to_string()), "{calls:?}");
+    assert!(calls.contains(&"createPairCode".to_string()), "{calls:?}");
+    assert!(calls.contains(&"removeClient:c1".to_string()), "{calls:?}");
+    assert!(calls.contains(&"resetTokens".to_string()), "{calls:?}");
 }
 
 #[test]
