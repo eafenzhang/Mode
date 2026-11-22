@@ -74,8 +74,9 @@ impl ServerChannel for OrcaRouterChannel {
                     json_value(&service.invalidate_connect(&params.reason))
                 }
                 "listModels" => {
-                    let params: ListModelsParams = serde_json::from_value(arg.to_json())
-                        .unwrap_or(ListModelsParams::default());
+                    // ProxyChannel 把方法入参包成数组；必须取首元素，否则 capability 恒空。
+                    let params: ListModelsParams =
+                        parse_params("listModels", arg).unwrap_or_default();
                     let capability = capability_from(&params.capability)?;
                     let modality = match params.required_input_modality.as_deref() {
                         None => None,
@@ -313,6 +314,28 @@ mod tests {
 
         let status = call(&channel, "clearCredential", serde_json::json!({})).await;
         assert_eq!(status["connected"], false);
+    }
+
+    #[tokio::test]
+    async fn list_models_accepts_proxychannel_array_args() {
+        let dir = TempDir::new("array-args");
+        let channel = channel(&dir);
+        let value = channel
+            .call(
+                "ctx".into(),
+                "listModels".into(),
+                Value::Array(vec![Value::Json(
+                    serde_json::json!({ "capability": "chat" }).to_string(),
+                )]),
+                CancellationToken::default(),
+            )
+            .await
+            .expect("call");
+        let Value::Json(text) = value else {
+            panic!("expected json");
+        };
+        let view: Json = serde_json::from_str(&text).expect("json");
+        assert_eq!(view["source"], "verified-seed");
     }
 
     #[tokio::test]
