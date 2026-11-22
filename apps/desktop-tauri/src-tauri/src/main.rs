@@ -95,10 +95,18 @@ fn main() {
             mode_tauri::power::KeepAwake::new(),
         );
         let data_root = mode_tauri::host::resolve_data_root(&handle);
+        // model-selection 频道需要随包 Built-in provider 配置；与 agent 进程注入同口径。
+        let bundled_provider_config_path = mode_tauri::agent_runtime::resolve_provider_snapshot_paths(
+            handle.path().resource_dir().ok().as_deref(),
+            &data_root,
+            &std::env::current_dir().unwrap_or_else(|_| data_root.clone()),
+        )
+        .map(|(bundled, _)| bundled);
         let inprocess = mode_tauri::inprocess::InprocessState::from_env(
             std::sync::Arc::clone(&supervisor),
             data_root.clone(),
             agent_control,
+            bundled_provider_config_path,
         );
         // G2.5：automation 宿主进壳（默认关闭）。开关 = `MODE_RUST_AUTOMATION=1`，
         // 与 sidecar 的 `serviceAccessor` 同判据——两边必须同开关，否则双派发。

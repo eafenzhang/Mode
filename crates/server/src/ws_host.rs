@@ -293,6 +293,7 @@ async fn bridge_host_socket(socket: WebSocket, deps: WsHostDeps, client_id: Opti
             task_events: std::sync::Arc::new(host_channels::mode_task::TaskEventBus::new()),
             // server-mode 的 lan-access 由宿主监督器注入（本入口 None）。
             lan_host: None,
+            mode_builtin_provider_config_path: None,
         },
     );
     let outbound = tokio::spawn(async move {

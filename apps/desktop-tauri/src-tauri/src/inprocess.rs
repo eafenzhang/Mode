@@ -23,6 +23,7 @@ use host_channels::{
     build_channel, AGENT_HEALTH_CHANNEL, ATTACHMENT_TRANSFER_CHANNEL, BROADCAST_CHANNEL,
     CLIENT_CONFIG_CHANNEL, CLIENT_SCENES_CHANNEL, COMMANDS_CHANNEL, CONVERSATION_MIRROR_CHANNEL,
     CREDENTIAL_CHANNEL, FILE_CHANNEL, FILE_WATCHER_CHANNEL, GIT_CHANNEL,
+    MODEL_SELECTION_CHANNEL,
     MODE_SESSION_CHANNEL,
     ONBOARDING_RECORD_CHANNEL,
     PLUGIN_MANAGEMENT_CHANNEL,
@@ -82,6 +83,7 @@ fn is_owned_channel(name: &str) -> bool {
             | CONVERSATION_MIRROR_CHANNEL
             | SETTING_CHANNEL
             | CREDENTIAL_CHANNEL
+            | MODEL_SELECTION_CHANNEL
             | MODE_SESSION_CHANNEL
             | ONBOARDING_RECORD_CHANNEL
             | PLUGIN_MANAGEMENT_CHANNEL
@@ -122,6 +124,7 @@ fn default_owned_channels() -> Vec<String> {
         CONVERSATION_MIRROR_CHANNEL,
         SETTING_CHANNEL,
         CREDENTIAL_CHANNEL,
+        MODEL_SELECTION_CHANNEL,
         MODE_SESSION_CHANNEL,
         ONBOARDING_RECORD_CHANNEL,
         PLUGIN_MANAGEMENT_CHANNEL,
@@ -230,6 +233,7 @@ impl InprocessState {
         supervisor: Arc<HostSupervisor>,
         data_root: PathBuf,
         agent_control: Arc<AgentControlClient>,
+        mode_builtin_provider_config_path: Option<String>,
     ) -> Arc<Self> {
         let mut owned = Vec::new();
         for name in resolve_channel_requests(std::env::var(ENV_CHANNELS).ok().as_deref()) {
@@ -255,6 +259,7 @@ impl InprocessState {
                 data_root,
                 Arc::clone(&agent_control),
                 StdArc::clone(&task_events),
+                mode_builtin_provider_config_path.clone(),
                 local_rx,
                 out_tx,
             ));
@@ -341,12 +346,15 @@ impl InprocessState {
     }
 }
 
+// 消费循环是频道装配的唯一参数汇聚点（与 build_server 同因）。
+#[allow(clippy::too_many_arguments)]
 async fn run_consumer(
     supervisor: Arc<HostSupervisor>,
     owned: Vec<String>,
     data_root: PathBuf,
     agent_control: StdArc<AgentControlClient>,
     task_events: StdArc<host_channels::mode_task::TaskEventBus>,
+    mode_builtin_provider_config_path: Option<String>,
     mut rx: UnboundedReceiver<(Option<u32>, Vec<u8>)>,
     out_tx: UnboundedSender<Vec<u8>>,
 ) {
@@ -357,6 +365,7 @@ async fn run_consumer(
         &data_root,
         &agent_control,
         &task_events,
+        mode_builtin_provider_config_path.as_deref(),
     );
     let mut scoped: std::collections::HashMap<u32, ChannelServer> =
         std::collections::HashMap::new();
@@ -374,6 +383,7 @@ async fn run_consumer(
                 &data_root,
                 &agent_control,
                 &task_events,
+                mode_builtin_provider_config_path.as_deref(),
             );
             generation = current;
         }
@@ -387,6 +397,7 @@ async fn run_consumer(
                         &data_root,
                         &agent_control,
                         &task_events,
+                        mode_builtin_provider_config_path.as_deref(),
                     )
                 });
                 server.handle_frame(&payload);
@@ -419,12 +430,16 @@ fn scoped_out(out: &UnboundedSender<Vec<u8>>, scope_id: u32) -> UnboundedSender<
     tx
 }
 
+// 频道装配参数随已迁移频道增长；保持单一构造点比拆结构体更不易漏传（同 automation
+// runtime 的 too_many_arguments 处理）。
+#[allow(clippy::too_many_arguments)]
 fn build_server(
     out_tx: UnboundedSender<Vec<u8>>,
     owned: &[String],
     data_root: &Path,
     agent_control: &StdArc<AgentControlClient>,
     task_events: &StdArc<host_channels::mode_task::TaskEventBus>,
+    mode_builtin_provider_config_path: Option<&str>,
 ) -> ChannelServer {
     let mut server = ChannelServer::new(
         out_tx,
@@ -443,6 +458,8 @@ fn build_server(
         task_events: StdArc::clone(task_events),
         // LAN supervisor 装配待 inprocess 接入（16.4a 续）：当前 lan-access 管理面显式报错。
         lan_host: None,
+        mode_builtin_provider_config_path: mode_builtin_provider_config_path
+            .map(str::to_string),
     };
     for name in owned {
         match build_channel(name, &options) {

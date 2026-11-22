@@ -35,6 +35,7 @@ use crate::lan_access::LanAccessChannel;
 use crate::media_preview::MediaPreviewChannel;
 use crate::memory_channel::MemoryChannel;
 use crate::mode_session::ModeSessionChannel;
+use crate::model_selection::{ModelSelectionChannel, ModelSelectionChannelOptions};
 use crate::mode_task::ModeTaskChannel;
 use crate::onboarding::OnboardingRecordChannel;
 use crate::mcp_sync::McpSyncChannel;
@@ -56,7 +57,7 @@ use crate::{
     FILE_CHANNEL, FILE_WATCHER_CHANNEL, GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, HOOKS_CHANNEL,
     LAN_ACCESS_CHANNEL, MCP_SYNC_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
     MODE_AGENT_CHANNEL,
-    MODE_SESSION_CHANNEL, MODE_TASK_CHANNEL, ONBOARDING_RECORD_CHANNEL,
+    MODEL_SELECTION_CHANNEL, MODE_SESSION_CHANNEL, MODE_TASK_CHANNEL, ONBOARDING_RECORD_CHANNEL,
     PLUGIN_MANAGEMENT_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL,
     SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL,
     USAGE_STATS_CHANNEL, WINDOW_CONTROLLER_CHANNEL,
@@ -78,6 +79,8 @@ pub struct ChannelAssemblyOptions {
     pub task_events: Arc<crate::mode_task::TaskEventBus>,
     /// LAN server supervisor（桌面/服务端宿主注入）；`None` 时 lan-access 管理面显式报错。
     pub lan_host: Option<Arc<dyn crate::lan_access::LanAccessHostPort>>,
+    /// Built-in provider 配置文件（随包/开发树）；`None` 时 model-selection 无法构造。
+    pub mode_builtin_provider_config_path: Option<String>,
 }
 
 impl ChannelAssemblyOptions {
@@ -303,6 +306,31 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
             );
             Some(Arc::new(OnboardingRecordChannel::new(Arc::new(service))))
         }
+        MODEL_SELECTION_CHANNEL => {
+            // ModelSelectionView 装配：Built-in/Personal 快照 + configuredDefault +
+            // onDidChange（spec model-selection-channel.md）。无随包 Built-in 路径时
+            // 不可构造，回落 Node。
+            let bundled = options.mode_builtin_provider_config_path.clone()?;
+            let on_shell_log = options.on_shell_log.clone();
+            let log_sink = move |message: &str| {
+                if let Some(on_shell_log) = &on_shell_log {
+                    on_shell_log(message);
+                }
+            };
+            match ModelSelectionChannel::new(ModelSelectionChannelOptions {
+                bundled_config_path: bundled,
+                personal_config_path: data_root
+                    .join("v2")
+                    .join(provider_config_repository::PERSONAL_PROVIDER_CONFIG_FILE_NAME),
+                on_log: Some(Arc::new(log_sink)),
+            }) {
+                Ok(channel) => Some(Arc::new(channel) as Arc<dyn ServerChannel>),
+                Err(error) => {
+                    log(&format!("model-selection channel unavailable: {error}"));
+                    None
+                }
+            }
+        }
         MODE_SESSION_CHANNEL => options.agent_control.as_ref().map(|control| {
             // renderer 只剩 readSession 走本频道（其余已切 mode-agent）；补回 Node 的
             // apiRetry 暂存与 Claude 导入历史修复（spec mode-session-channel.md）。
@@ -452,6 +480,7 @@ pub fn service_channel_names() -> Vec<&'static str> {
         MCP_SYNC_CHANNEL,
         AGENT_HEALTH_CHANNEL,
         HOOKS_CHANNEL,
+        MODEL_SELECTION_CHANNEL,
         MODE_SESSION_CHANNEL,
         ONBOARDING_RECORD_CHANNEL,
         PLUGIN_MANAGEMENT_CHANNEL,

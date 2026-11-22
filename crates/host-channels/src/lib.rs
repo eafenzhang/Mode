@@ -39,6 +39,7 @@ pub mod mode_session;
 pub mod mode_task;
 pub mod onboarding;
 pub mod model_selection_port;
+pub mod model_selection;
 pub mod model_trajectory;
 pub mod sessions_observer;
 pub mod task_command_queue;
@@ -76,6 +77,7 @@ pub use assembly::{
 pub use memory_channel::{MemoryChannel, LIST_MEMORIES, READ_MEMORY_FILE};
 pub use mode_task::{ModeTaskChannel, MODE_TASK_CHANNEL};
 pub use mode_session::{ModeSessionChannel, MODE_SESSION_CHANNEL};
+pub use model_selection::{ModelSelectionChannel, MODEL_SELECTION_CHANNEL};
 pub use plugin_management::{PluginManagementChannel, PLUGIN_MANAGEMENT_CHANNEL};
 pub use onboarding::{OnboardingRecordChannel, ONBOARDING_RECORD_CHANNEL};
 pub use window_controller::{WindowControllerChannel, WINDOW_CONTROLLER_CHANNEL};
