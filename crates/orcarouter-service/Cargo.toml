@@ -1,0 +1,15 @@
+[package]
+name = "orcarouter-service"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "OrcaRouter 服务（分阶段）：凭据存储、PKCE、目录与 provider overlay"
+
+[lib]
+name = "orcarouter_service"
+path = "src/lib.rs"
+
+[dependencies]
+credential-store = { path = "../credential-store" }
+serde.workspace = true
+serde_json.workspace = true
