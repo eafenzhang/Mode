@@ -34,6 +34,7 @@ use crate::hooks::HooksChannel;
 use crate::lan_access::LanAccessChannel;
 use crate::media_preview::MediaPreviewChannel;
 use crate::memory_channel::MemoryChannel;
+use crate::mode_session::ModeSessionChannel;
 use crate::mode_task::ModeTaskChannel;
 use crate::onboarding::OnboardingRecordChannel;
 use crate::mcp_sync::McpSyncChannel;
@@ -54,7 +55,7 @@ use crate::{
     FILE_CHANNEL, FILE_WATCHER_CHANNEL, GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, HOOKS_CHANNEL,
     LAN_ACCESS_CHANNEL, MCP_SYNC_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
     MODE_AGENT_CHANNEL,
-    MODE_TASK_CHANNEL, ONBOARDING_RECORD_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL,
+    MODE_SESSION_CHANNEL, MODE_TASK_CHANNEL, ONBOARDING_RECORD_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL,
     SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL,
     USAGE_STATS_CHANNEL, WINDOW_CONTROLLER_CHANNEL,
 };
@@ -300,6 +301,20 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
             );
             Some(Arc::new(OnboardingRecordChannel::new(Arc::new(service))))
         }
+        MODE_SESSION_CHANNEL => options.agent_control.as_ref().map(|control| {
+            // renderer 只剩 readSession 走本频道（其余已切 mode-agent）；补回 Node 的
+            // apiRetry 暂存与 Claude 导入历史修复（spec mode-session-channel.md）。
+            let on_shell_log = options.on_shell_log.clone();
+            Arc::new(
+                ModeSessionChannel::new(Arc::clone(control), data_root.clone()).with_log(Arc::new(
+                    move |message: &str| {
+                        if let Some(on_shell_log) = &on_shell_log {
+                            on_shell_log(message);
+                        }
+                    },
+                )),
+            ) as Arc<dyn ServerChannel>
+        }),
         USAGE_STATS_CHANNEL => {
             // 余额查询凭据源：Personal 层仓库（1s 轮询 LKG）。路径显式 env 优先，
             // 回退 data_root/v2（与 agent_runtime 的 ProviderPaths fallback 同口径）。
@@ -426,6 +441,7 @@ pub fn service_channel_names() -> Vec<&'static str> {
         MCP_SYNC_CHANNEL,
         AGENT_HEALTH_CHANNEL,
         HOOKS_CHANNEL,
+        MODE_SESSION_CHANNEL,
         ONBOARDING_RECORD_CHANNEL,
         TERMINAL_CHANNEL,
     ]

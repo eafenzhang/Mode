@@ -35,6 +35,7 @@ pub mod media_preview;
 pub mod assembly;
 pub mod memory_channel;
 pub mod mode_config_options;
+pub mod mode_session;
 pub mod mode_task;
 pub mod onboarding;
 pub mod model_selection_port;
@@ -73,6 +74,7 @@ pub use assembly::{
 };
 pub use memory_channel::{MemoryChannel, LIST_MEMORIES, READ_MEMORY_FILE};
 pub use mode_task::{ModeTaskChannel, MODE_TASK_CHANNEL};
+pub use mode_session::{ModeSessionChannel, MODE_SESSION_CHANNEL};
 pub use onboarding::{OnboardingRecordChannel, ONBOARDING_RECORD_CHANNEL};
 pub use window_controller::{WindowControllerChannel, WINDOW_CONTROLLER_CHANNEL};
 pub use task_command_queue::{
