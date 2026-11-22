@@ -2,6 +2,13 @@
 
 状态：2026-11-22 新建（恢复随 Electron 线删除、未重建的派发链）。
 
+> **产品边界（2026-11-22 复核）**：off-peak 已在去智谱化中整体下线——
+> `assertOfficialServiceRemoved("offPeak")` 在 `resolveOffPeakCredentials` 与
+> `offPeakServerClient.request` 的凭证/网络动作前短路，灰度配置 fail-closed，
+> UI 入口隐藏。本 crate 因此没有生产输入（不会有新任务翻到 `schedulable=1`），
+> 默认关闭且只由 `cargo test` 驱动；HTTP/凭据/管理频道迁移已取消。是否保留
+> 该 dormant 实现待产品裁决。
+
 ## 背景
 
 闲时任务的取号/轮询/管理面已在 `crates/off-peak-service` 与 Node Host 提供，但把
