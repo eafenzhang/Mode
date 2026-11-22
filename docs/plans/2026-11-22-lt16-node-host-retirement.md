@@ -110,7 +110,7 @@ getState 读实时状态；未注入时显式报错/offline 快照。**宿主监
 `onDidChange` 快照、`LanAccessHostPort` 同步端口；`ChannelAssemblyOptions.lan_host`
 注入频道；`WsHostDeps.agent_control` 补 LAN 客户端 agent 频道。**16.4a 剩余**：
 inprocess 装配 supervisor（ServerInfo/工作区动态投影、设置持久化、Host 代重建）、
-静态 Web 资源与公网中继、discoverPeers/pairPeer/getPeerWorkspaces。
+静态 Web 资源与公网中继、discoverPeers 已接（lan-discovery 复用），pairPeer/getPeerWorkspaces 待续。
 **翻转约束（必须先解决再接线）**：Node Host 的 `lanAccessService` 仍按
 `restoreOnStart` 启动自己的 loopback/LAN 监听并持有配对状态；Rust supervisor
 一旦同时上电会出现双监听（45880 被 Node 占用→回落随机端口）与状态分叉。

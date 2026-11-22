@@ -2555,6 +2555,7 @@ dependencies = [
  "git-checkpoint-service",
  "git-cli",
  "git-service",
+ "lan-discovery",
  "mcp-sync-service",
  "plugin-sync-service",
  "project-memory",

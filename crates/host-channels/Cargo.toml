@@ -44,6 +44,7 @@ task-index-repo = { path = "../task-index-repo" }
 uuid.workspace = true
 workspace-identity = { path = "../workspace-identity" }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+lan-discovery = { path = "../lan-discovery" }
 # getTaskSnapshotWithEtag 的 ETag（sha256(JSON)，TS createHash 同口径）。
 sha2.workspace = true
 serde.workspace = true

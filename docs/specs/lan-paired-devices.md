@@ -114,7 +114,12 @@
   全部委托端口；装配端口时 `getState` 读 supervisor 的实时状态（含 enabled/port/
   addresses/pairCode），`onDidChange` 首个订阅者补当前快照。未注入端口时上述方法
   显式报错，`getState` 退回 offline 快照——**不返回假状态**。
-- 尚未迁移：`discoverPeers` / `pairPeer` / `getPeerWorkspaces`（端点探测与凭据写入，
+- `discoverPeers`（2026-11-22 已落，单源无 supervisor 依赖）：直接复用
+  `lan-discovery::discover_lan_peers`（UDP 广播 + Tailscale 单播、1.5s 窗口、
+  合并/排序），输出 announcement 形状（magic/protocolVersion/serverId/name?/
+  version/port/requiresPairing/platform?/host/extraHosts?）；Rust 公告解析层未保留
+  `scheme`（缺省 http）。
+- 尚未迁移：`pairPeer` / `getPeerWorkspaces`（对端 HTTP + 端点选择 + 凭据写入，
   16.4a 续）。
 
 ## 不做

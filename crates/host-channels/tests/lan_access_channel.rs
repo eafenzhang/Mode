@@ -268,7 +268,6 @@ async fn server_supervisor_methods_report_missing_owner() {
         "createPairCode",
         "removeClient",
         "resetTokens",
-        "discoverPeers",
         "pairPeer",
         "getPeerWorkspaces",
     ] {
@@ -510,6 +509,23 @@ async fn host_port_serves_management_state_and_events() {
     assert!(calls.contains(&"createPairCode".to_string()), "{calls:?}");
     assert!(calls.contains(&"removeClient:c1".to_string()), "{calls:?}");
     assert!(calls.contains(&"resetTokens".to_string()), "{calls:?}");
+}
+
+#[tokio::test]
+async fn discover_peers_returns_announcement_shaped_array() {
+    let dir = TempDir::new("discover");
+    let channel = LanAccessChannel::new(store(&dir));
+    // 纯 UDP 探测：无对端时返回空数组，有对端时每行是 announcement 形状。
+    let peers = call(&channel, "discoverPeers", json!({})).await;
+    let peers = peers.as_array().expect("peers array");
+    if let Some(peer) = peers.first() {
+        assert_eq!(peer["magic"], "mode-lan");
+        assert_eq!(peer["protocolVersion"], 1);
+        assert!(peer["serverId"].is_string());
+        assert!(peer["host"].is_string());
+        assert!(peer["port"].as_u64().unwrap_or(0) > 0);
+        assert!(peer["requiresPairing"].is_boolean());
+    }
 }
 
 #[test]

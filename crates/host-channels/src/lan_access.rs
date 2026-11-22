@@ -425,6 +425,30 @@ fn require_host<'a>(
     })
 }
 
+/// TS `LanDiscoveredPeer` wire 形状：announcement 字段 + host/extraHosts。
+/// `scheme` 在 Rust 公告解析层未保留（旧/新对端缺省 http），因此不带该键。
+fn discovered_peer_to_value(peer: &lan_discovery::LanDiscoveredPeer) -> serde_json::Value {
+    let mut value = serde_json::json!({
+        "magic": "mode-lan",
+        "protocolVersion": lan_discovery::LAN_ACCESS_PROTOCOL_VERSION,
+        "serverId": peer.server_id,
+        "version": peer.version,
+        "port": peer.port,
+        "requiresPairing": peer.requires_pairing,
+        "host": peer.host,
+    });
+    if let Some(name) = &peer.name {
+        value["name"] = serde_json::json!(name);
+    }
+    if let Some(platform) = &peer.platform {
+        value["platform"] = serde_json::json!(platform);
+    }
+    if let Some(extra_hosts) = &peer.extra_hosts {
+        value["extraHosts"] = serde_json::json!(extra_hosts);
+    }
+    value
+}
+
 fn json_text(value: serde_json::Value) -> Result<WireValue, ChannelError> {
     let text =
         serde_json::to_string(&value).map_err(|error| ChannelError::error(error.to_string()))?;
@@ -488,6 +512,16 @@ fn run(
                 host.remove_client(&parsed.client_id)
                     .map_err(ChannelError::error)?,
             )
+        }
+        "discoverPeers" => {
+            // 与 TS discoverLanPeers 同源：UDP 广播 + Tailscale 单播，1.5s 收集窗口。
+            // 无 supervisor 依赖，也不读写凭据（纯探测）。
+            let peers = lan_discovery::discover_lan_peers(
+                &lan_discovery::LanDiscoveryOptions::default(),
+            );
+            let values: Vec<serde_json::Value> =
+                peers.iter().map(discovered_peer_to_value).collect();
+            json_text(serde_json::Value::Array(values))
         }
         "resetTokens" => {
             let host = require_host(channel, command)?;
