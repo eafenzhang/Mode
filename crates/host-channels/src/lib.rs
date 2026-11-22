@@ -45,6 +45,7 @@ pub mod task_command_queue;
 pub mod usage_stats;
 pub mod window_controller;
 pub mod mode_agent;
+pub mod plugin_management;
 pub mod plugin_sync;
 pub mod setting;
 pub mod settings_sync;
@@ -75,6 +76,7 @@ pub use assembly::{
 pub use memory_channel::{MemoryChannel, LIST_MEMORIES, READ_MEMORY_FILE};
 pub use mode_task::{ModeTaskChannel, MODE_TASK_CHANNEL};
 pub use mode_session::{ModeSessionChannel, MODE_SESSION_CHANNEL};
+pub use plugin_management::{PluginManagementChannel, PLUGIN_MANAGEMENT_CHANNEL};
 pub use onboarding::{OnboardingRecordChannel, ONBOARDING_RECORD_CHANNEL};
 pub use window_controller::{WindowControllerChannel, WINDOW_CONTROLLER_CHANNEL};
 pub use task_command_queue::{

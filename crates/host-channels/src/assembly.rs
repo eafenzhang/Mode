@@ -39,6 +39,7 @@ use crate::mode_task::ModeTaskChannel;
 use crate::onboarding::OnboardingRecordChannel;
 use crate::mcp_sync::McpSyncChannel;
 use crate::mode_agent::ModeAgentChannel;
+use crate::plugin_management::PluginManagementChannel;
 use crate::plugin_sync::PluginSyncChannel;
 use crate::setting::SettingChannel;
 use crate::settings_sync::SettingsSyncChannel;
@@ -55,7 +56,8 @@ use crate::{
     FILE_CHANNEL, FILE_WATCHER_CHANNEL, GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, HOOKS_CHANNEL,
     LAN_ACCESS_CHANNEL, MCP_SYNC_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
     MODE_AGENT_CHANNEL,
-    MODE_SESSION_CHANNEL, MODE_TASK_CHANNEL, ONBOARDING_RECORD_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL,
+    MODE_SESSION_CHANNEL, MODE_TASK_CHANNEL, ONBOARDING_RECORD_CHANNEL,
+    PLUGIN_MANAGEMENT_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL,
     SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL,
     USAGE_STATS_CHANNEL, WINDOW_CONTROLLER_CHANNEL,
 };
@@ -368,6 +370,15 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
             Arc::new(McpSyncChannel::from_process(Arc::clone(control)))
                 as Arc<dyn ServerChannel>
         }),
+        PLUGIN_MANAGEMENT_CHANNEL => options.agent_control.as_ref().map(|control| {
+            // 设置页插件管理：同名转发给 mode-agent（插件事实源在 agent 进程），
+            // 仅 overview 补 officialMarketplaceEnabled（spec plugin-management-channel.md）。
+            let agent = Arc::new(ModeAgentChannel::new(
+                Arc::clone(control),
+                data_root.join(".mode").join("plugin-workspace"),
+            ));
+            Arc::new(PluginManagementChannel::new(agent)) as Arc<dyn ServerChannel>
+        }),
         MODE_AGENT_CHANNEL => options.agent_control.as_ref().map(|control| {
             // S2（host-ownership-switch §5）：默认不注册，只有开关显式包含
             // mode-agent 时才接管；未迁移方法返回 unsupported_method。
@@ -443,6 +454,7 @@ pub fn service_channel_names() -> Vec<&'static str> {
         HOOKS_CHANNEL,
         MODE_SESSION_CHANNEL,
         ONBOARDING_RECORD_CHANNEL,
+        PLUGIN_MANAGEMENT_CHANNEL,
         TERMINAL_CHANNEL,
     ]
 }
