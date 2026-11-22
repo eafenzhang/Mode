@@ -62,6 +62,13 @@
 1. 回调/客户端均为同步接口；Host 的 async 依赖由频道适配层包一层 `spawn_blocking` 或内部运行时。
 2. 定时器、HTTP 客户端、凭证与 mock 网关仍由调用方实现；本 crate 只返回下一次延迟。
 3. `run_sync_cycle` 的返回值是建议延迟；TS 的 setTimeout 重排由调用方复刻。
+4. **调度执行器不在本仓库（2026-11-22 复核）**：把 `schedulable=1` 的 queued 任务
+   认领并转成会话 prompt 的 scheduler 原在 Electron main（`packages/desktop/src/scheduler/`、
+   `src/host/offPeakDispatchPlan.ts`、`src/main/desktopCronScheduler.ts`），随
+   `d71ed992b`（移除旧 Electron 线）删除且未在 Tauri 重建。`claimDue`/`markRunning`
+   在 TS/Rust 均无生产调用方，`off-peak-scheduler-wake-request` 无发送者。当前
+   off-peak 只剩管理面 + 取号/状态轮询；任务不会被执行。恢复执行需要新 spec
+   （认领 → 建/恢复会话 → sendPrompt → 终态结算）。
 
 ## 5. 验收
 
