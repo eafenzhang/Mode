@@ -148,10 +148,15 @@ activity 含 pendingInteractions/workflowActivity）写入 `SessionOverlayStore`
 refresh 帧。故障/流结束：清空该 workspace overlay、停止观察，下次 list/subscribe
 重试。
 
-**未覆盖（16.3 续 / 16.4）**：observer 的 resync 与 Agent 重启恢复（TS 有
-resync/recovery 状态机，当前故障即清空重来）、remote source 聚合与重连换源、
-事件驱动的增量收敛（当前为调用时 refresh）、`registerSource`/
-`replaceDisconnectedSource` 的对外接线。
+**observer 恢复（2026-11-22 已落）**：维护 `(logEpoch, seq)` 游标；snapshot 全量
+重置、deltas 必须与游标连续，否则或装配 fault 时 `assembler.abort` 后发
+`v4/conversation/resync`（base=游标、forceSnapshot，existing-only），30s 内未收到
+snapshot 或 resync 失败则重建订阅（不带 base）。流结束/订阅不可用按 1s 退避最多
+重试 5 次；`control.on_runtime_restarted` 命中 workspace 时清空投影与游标并用新
+runtime 重新订阅。
+
+**未覆盖（16.3 续 / 16.4）**：remote source 聚合与重连换源、事件驱动的增量收敛
+（当前为调用时 refresh）、`registerSource`/`replaceDisconnectedSource` 的对外接线。
 
 ## 验收场景
 

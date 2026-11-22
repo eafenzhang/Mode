@@ -87,7 +87,9 @@ pub use storage::{
     DEFAULT_FIRST_STATUS_TIMEOUT, STORAGE_STATE_NOTIFICATION,
 };
 pub use v4::{build_host_hello, validate_client_hello};
-pub use v4_transport::ConversationFrameSubscription;
+pub use v4_transport::{
+    ConversationFrameSubscription, SessionsIndexFrameSubscription, V4_LOCAL_CONNECTION_ID,
+};
 pub use workspace_policy::AppRuntimePreferences;
 
 const STDERR_CHANNEL_CAPACITY: usize = 256;

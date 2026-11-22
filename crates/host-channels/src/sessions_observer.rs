@@ -12,20 +12,34 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-use agent_process::{AgentControlClient, AgentWorkspaceTarget};
+use agent_process::{AgentControlClient, AgentWorkspaceTarget, RuntimePolicy};
+use agent_protocol::v4_queries::{ConversationResyncParams, ResyncBase};
 use agent_protocol::v4_sessions_index::{
-    SessionSummary, SessionsIndexDelta, SessionsIndexFramePayload,
+    SessionSummary, SessionsIndexDelta, SessionsIndexFramePayload, SessionsIndexTopicFrame,
 };
-use agent_protocol::v4_transport::SubscribeVisibility;
+use agent_protocol::v4_transport::{SubscribeBase, SubscribeVisibility};
 use agent_protocol::v4_wire_assembler::{
     SessionIndexAssemblyEvent, SessionsIndexWireAssembler,
 };
-use serde_json::{json, Value};
+use serde_json::{json, Number, Value};
 
 use crate::window_controller::{SessionOverlayStore, workspace_identity_key};
 
 type OnChange = Arc<dyn Fn() + Send + Sync>;
+
+/// 恢复等待 snapshot 的上限（TS `logicalFrameAssemblyTimeoutMs`）。
+const RECOVERY_SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(30);
+/// 流结束/不可用时的有限重试（TS 依赖 runtime lifecycle 事件；宿主侧用退避兜底）。
+const RESUBSCRIBE_ATTEMPTS: u32 = 5;
+const RESUBSCRIBE_DELAY: Duration = Duration::from_millis(1_000);
+
+#[derive(Clone)]
+struct OverlayCursor {
+    log_epoch: String,
+    seq: u64,
+}
 
 pub struct SessionsOverlayObserver {
     control: Arc<AgentControlClient>,
@@ -102,61 +116,182 @@ async fn run_observer(
         workspace_identity: workspace_identity.clone(),
         remote_session_id: None,
     };
-    let mut subscription = match control
-        .subscribe_sessions_index_frames_if_running(
-            &target,
-            None,
-            Some(SubscribeVisibility::Background),
-        )
-        .await
-    {
-        Ok(subscription) => subscription,
-        Err(_) => {
-            // dormant：下次 list/subscribe 再试。
-            observed.lock().expect("sessions observer poisoned").remove(&key);
-            return;
+    let topic = format!("sessions-index/{}", target.workspace_key());
+    let workspace_key = target.workspace_key();
+    let (restart_tx, mut restart_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+    let restart_subscription = control.on_runtime_restarted(Arc::new(move |event| {
+        if event.workspace_key == workspace_key {
+            let _ = restart_tx.send(());
         }
-    };
+    }));
+
     let mut summaries: HashMap<String, SessionSummary> = HashMap::new();
-    let mut assembler = SessionsIndexWireAssembler::new();
-    while let Some(wire) = subscription.recv().await {
-        let mut failed = false;
-        for event in assembler.accept(&wire, now_ms()) {
-            match event {
-                SessionIndexAssemblyEvent::Complete { frame, .. } => {
-                    apply_sessions_frame(&mut summaries, &frame.payload);
-                    let overlay_rows: Vec<Value> = summaries.values().map(session_overlay).collect();
-                    overlays.replace(&key, overlay_rows);
-                    on_change();
+    let mut cursor: Option<OverlayCursor> = None;
+    let mut attempts: u32 = 0;
+    'resubscribe: loop {
+        let base = cursor.as_ref().map(|cursor| SubscribeBase {
+            log_epoch: cursor.log_epoch.clone(),
+            seq: Number::from(cursor.seq),
+        });
+        let mut subscription = match control
+            .subscribe_sessions_index_frames_if_running(
+                &target,
+                base,
+                Some(SubscribeVisibility::Background),
+            )
+            .await
+        {
+            Ok(subscription) => subscription,
+            Err(_) => {
+                // dormant：有限退避重试，避免每次列表查询都打 dormant RPC。
+                attempts += 1;
+                if attempts > RESUBSCRIBE_ATTEMPTS {
+                    break 'resubscribe;
                 }
-                SessionIndexAssemblyEvent::Fault(_) => {
-                    failed = true;
+                tokio::time::sleep(RESUBSCRIBE_DELAY).await;
+                continue;
+            }
+        };
+        attempts = 0;
+        let subscription_id = subscription.ack.subscription_id.clone();
+        let mut assembler = SessionsIndexWireAssembler::new();
+        let mut awaiting_snapshot = false;
+        let mut need_resubscribe = false;
+
+        loop {
+            let received = if awaiting_snapshot {
+                // resync 后等待 snapshot；超时视为 recovery 失败 → 重建订阅。
+                match tokio::time::timeout(RECOVERY_SNAPSHOT_TIMEOUT, subscription.recv()).await {
+                    Ok(frame) => frame,
+                    Err(_) => {
+                        need_resubscribe = true;
+                        None
+                    }
+                }
+            } else {
+                tokio::select! {
+                    frame = subscription.recv() => frame,
+                    _ = restart_rx.recv() => {
+                        // Agent runtime 换代：清空投影与游标，用新 runtime 重新订阅。
+                        summaries.clear();
+                        cursor = None;
+                        publish_overlays(&overlays, &key, &summaries, &on_change);
+                        need_resubscribe = true;
+                        None
+                    }
+                }
+            };
+            let Some(wire) = received else {
+                break;
+            };
+            let mut request_recovery = false;
+            for event in assembler.accept(&wire, now_ms()) {
+                match event {
+                    SessionIndexAssemblyEvent::Complete { frame, .. } => {
+                        match apply_sessions_topic_frame(&mut summaries, &mut cursor, &frame) {
+                            FrameApply::Applied => {
+                                if matches!(
+                                    frame.payload,
+                                    SessionsIndexFramePayload::Snapshot(_)
+                                ) {
+                                    awaiting_snapshot = false;
+                                }
+                                publish_overlays(&overlays, &key, &summaries, &on_change);
+                            }
+                            FrameApply::NeedRecovery => request_recovery = true,
+                        }
+                    }
+                    SessionIndexAssemblyEvent::Fault(_) => request_recovery = true,
+                }
+            }
+            if request_recovery {
+                assembler.abort(&topic, &subscription_id);
+                let params = ConversationResyncParams {
+                    topic: topic.clone(),
+                    connection_id: agent_process::V4_LOCAL_CONNECTION_ID.to_string(),
+                    subscription_id: subscription_id.clone(),
+                    base: cursor.as_ref().map(|cursor| ResyncBase {
+                        log_epoch: cursor.log_epoch.clone(),
+                        seq: cursor.seq,
+                    }),
+                    force_snapshot: Some(true),
+                };
+                match control
+                    .resync_conversation_v4(&target, params, RuntimePolicy::ExistingOnly)
+                    .await
+                {
+                    Ok(_) => {
+                        awaiting_snapshot = true;
+                        assembler = SessionsIndexWireAssembler::new();
+                    }
+                    Err(_) => {
+                        need_resubscribe = true;
+                        break;
+                    }
                 }
             }
         }
-        if failed {
-            break;
+        drop(subscription);
+        // 重建订阅：不复用旧 base，由服务端新 snapshot 覆盖投影。
+        cursor = None;
+        attempts += 1;
+        if attempts > RESUBSCRIBE_ATTEMPTS {
+            break 'resubscribe;
         }
+        let _ = need_resubscribe;
+        tokio::time::sleep(RESUBSCRIBE_DELAY).await;
     }
-    // 流结束/失败：清空 overlay 并允许下次重建订阅。
+    restart_subscription();
+    // 最终放弃：清空 overlay 并允许下次 list/subscribe 重建观察。
     overlays.replace(&key, Vec::new());
     on_change();
-    observed.lock().expect("sessions observer poisoned").remove(&key);
+    observed
+        .lock()
+        .expect("sessions observer poisoned")
+        .remove(&key);
 }
 
-/// snapshot 全量替换 / deltas 增量维护。
-fn apply_sessions_frame(
-    summaries: &mut HashMap<String, SessionSummary>,
-    payload: &SessionsIndexFramePayload,
+fn publish_overlays(
+    overlays: &SessionOverlayStore,
+    key: &str,
+    summaries: &HashMap<String, SessionSummary>,
+    on_change: &OnChange,
 ) {
-    match payload {
+    let rows: Vec<Value> = summaries.values().map(session_overlay).collect();
+    overlays.replace(key, rows);
+    on_change();
+}
+
+enum FrameApply {
+    Applied,
+    NeedRecovery,
+}
+
+/// snapshot 全量替换并重置游标；deltas 必须与游标连续，否则请求 recovery。
+fn apply_sessions_topic_frame(
+    summaries: &mut HashMap<String, SessionSummary>,
+    cursor: &mut Option<OverlayCursor>,
+    frame: &SessionsIndexTopicFrame,
+) -> FrameApply {
+    match &frame.payload {
         SessionsIndexFramePayload::Snapshot(snapshot) => {
             summaries.clear();
             for session in &snapshot.snapshot.sessions {
                 summaries.insert(session.session_id.clone(), session.clone());
             }
+            *cursor = Some(OverlayCursor {
+                log_epoch: snapshot.snapshot.log_epoch.clone(),
+                seq: frame.to_seq.as_u64().unwrap_or(0),
+            });
+            FrameApply::Applied
         }
         SessionsIndexFramePayload::Deltas(deltas) => {
+            let Some(current) = cursor.as_mut() else {
+                return FrameApply::NeedRecovery;
+            };
+            if frame.from_seq.as_u64() != Some(current.seq) {
+                return FrameApply::NeedRecovery;
+            }
             for delta in &deltas.deltas {
                 match delta {
                     SessionsIndexDelta::SessionUpserted { session } => {
@@ -167,6 +302,8 @@ fn apply_sessions_frame(
                     }
                 }
             }
+            current.seq = frame.to_seq.as_u64().unwrap_or(current.seq);
+            FrameApply::Applied
         }
     }
 }
@@ -260,36 +397,85 @@ mod tests {
         })
     }
 
-    #[test]
-    fn snapshot_replaces_and_deltas_apply() {
-        let mut summaries = HashMap::new();
-        let frame: SessionsIndexFramePayload = serde_json::from_value(json!({
-            "kind": "snapshot",
-            "snapshot": {
-                "protocolVersion": 1,
-                "workspaceId": "ws-1",
-                "logEpoch": "epoch-1",
-                "sessions": [base("s1", "running"), base("s2", "draft")]
-            }
-        }))
-        .expect("snapshot payload");
-        apply_sessions_frame(&mut summaries, &frame);
-        assert_eq!(summaries.len(), 2);
+    fn topic_frame(value: Value) -> SessionsIndexTopicFrame {
+        serde_json::from_value(value).expect("valid topic frame")
+    }
 
-        let frame: SessionsIndexFramePayload = serde_json::from_value(json!({
-            "kind": "deltas",
-            "deltas": [
-                { "op": "session.upserted", "session": base("s1", "completedSuccess") },
-                { "op": "session.removed", "sessionId": "s2" }
-            ]
-        }))
-        .expect("deltas payload");
-        apply_sessions_frame(&mut summaries, &frame);
+    #[test]
+    fn snapshot_replaces_deltas_apply_and_gap_needs_recovery() {
+        let mut summaries = HashMap::new();
+        let mut cursor = None;
+        let snapshot = topic_frame(json!({
+            "topic": "sessions-index/ws-1",
+            "subscriptionId": "sub-1",
+            "fromSeq": 0,
+            "toSeq": 2,
+            "sentAt": 1,
+            "payload": {
+                "kind": "snapshot",
+                "snapshot": {
+                    "protocolVersion": 1,
+                    "workspaceId": "ws-1",
+                    "logEpoch": "epoch-1",
+                    "sessions": [base("s1", "running"), base("s2", "draft")]
+                }
+            }
+        }));
+        assert!(matches!(
+            apply_sessions_topic_frame(&mut summaries, &mut cursor, &snapshot),
+            FrameApply::Applied
+        ));
+        assert_eq!(summaries.len(), 2);
+        let current = cursor.as_ref().expect("cursor");
+        assert_eq!(current.log_epoch, "epoch-1");
+        assert_eq!(current.seq, 2);
+
+        let deltas = topic_frame(json!({
+            "topic": "sessions-index/ws-1",
+            "subscriptionId": "sub-1",
+            "fromSeq": 2,
+            "toSeq": 3,
+            "sentAt": 2,
+            "payload": {
+                "kind": "deltas",
+                "deltas": [
+                    { "op": "session.upserted", "session": base("s1", "completedSuccess") },
+                    { "op": "session.removed", "sessionId": "s2" }
+                ]
+            }
+        }));
+        assert!(matches!(
+            apply_sessions_topic_frame(&mut summaries, &mut cursor, &deltas),
+            FrameApply::Applied
+        ));
         assert_eq!(summaries.len(), 1);
         assert_eq!(
             summaries["s1"].phase,
             agent_protocol::v4_snapshot::SessionPhase::CompletedSuccess
         );
+        assert_eq!(cursor.as_ref().expect("cursor").seq, 3);
+
+        // fromSeq 与游标不连续 → 请求 recovery，且不应用增量。
+        let gap = topic_frame(json!({
+            "topic": "sessions-index/ws-1",
+            "subscriptionId": "sub-1",
+            "fromSeq": 5,
+            "toSeq": 6,
+            "sentAt": 3,
+            "payload": { "kind": "deltas", "deltas": [] }
+        }));
+        assert!(matches!(
+            apply_sessions_topic_frame(&mut summaries, &mut cursor, &gap),
+            FrameApply::NeedRecovery
+        ));
+        assert_eq!(cursor.as_ref().expect("cursor").seq, 3);
+
+        // 无游标的增量同样需要 recovery。
+        let mut empty_cursor = None;
+        assert!(matches!(
+            apply_sessions_topic_frame(&mut summaries, &mut empty_cursor, &deltas),
+            FrameApply::NeedRecovery
+        ));
     }
 
     #[test]
