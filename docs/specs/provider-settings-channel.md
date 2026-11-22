@@ -1,0 +1,76 @@
+# Spec：`provider-settings` 频道（Rust，分阶段迁移）
+
+状态：2026-11-23 阶段 0（provider-config 精确规则访问器）；View/写入/频道待后续。
+
+## 背景
+
+`IProviderSettingsService`（`packages/services/src/model-provider/providerFacadeServices.ts`）
+是设置页 Provider/Model 的唯一写面：View（分层配置 + issues + executable）与 14 个
+mutation（create/save/delete/reorder provider/model、enable、draft、连通性测试、
+远端目录）。Node 实现是 `ProviderSettingsFacade` + `SettingsMutationTarget`
+（`packages/provider/src/facades.ts`，688 行）。
+
+阶段 0（本 spec 覆盖）：`provider-config` 增加 TS `getExact` / `getExactRule`
+等价访问器，供 View 投影复用，不新增第二套规则匹配。
+
+## 1. 阶段 0：精确规则访问器（已完成）
+
+`ModelConfigRules`：
+- `get_exact(provider_id, model_id)`：按插入序叠加所有精确规则
+  （`ModelRule::Provider` 与 `ModelRule::Manual`），后者字段覆盖前者（`ModelConfig::overlay`）。
+- `get_exact_rule(provider_id, model_id)`：返回**最后一条**精确规则的类型
+  （`ExactModelRuleKind::Provider | Manual`）与配置；Manual 决定
+  `useRecommendedConfig=false`。
+- 测试：叠加、最后一条类型、缺失返回 None。
+
+## 2. 阶段 1：View 投影（待做）
+
+数据源：`provider-config-source::read_snapshot` + `ProviderConfigResolver` +
+Personal 仓库 revision。输出与 `ProviderSettingsView` 同构：
+
+- `providerTemplates`：Builtin 模板表（templateId/nameMap/config.toJSON）。
+- `providerOrder`：`resolved_providers` 中 `config.group == "standard-personal"`
+  且非 hidden 的顺序（TS 同义）。
+- `providers`：`resolved_providers` 非 hidden；每项
+  `{providerId, providerName, templateId, enabled, executable, templateConfig?,
+  effectiveBuiltinConfig?, personalConfig?, effectiveConfig, issues, models[]}`；
+  `executable = registry_providers` 包含该 id。
+- models：`{kind, modelId, builtin, effectiveBuiltinConfig, personalExactConfig?,
+  useRecommendedConfig?, effectiveConfig, enabled, executable, selectable, issues}`；
+  `personalExactConfig` 用阶段 0 的 `get_exact`，`useRecommendedConfig` 用
+  `get_exact_rule` 类型。
+- `accountState`：本 fork 官方账号体系已下线，account overlay 状态为空；
+  View 暂不输出该字段（与运行时一致，登记差异）。
+- revision：Host 进程内单调计数（快照 revision / 仓库通知推进），与
+  model-selection 同口径。
+
+## 3. 阶段 2：写入面（待做）
+
+`createPersonalProvider` / `savePersonalProviderOverlay` / `deletePersonalProvider` /
+`reorderPersonalProviders` / `reorderPersonalModels` / `addPersonalModel` /
+`renamePersonalModel` / `deletePersonalModel` / `savePersonalModelDraft` /
+`setPersonalModelEnabled`：
+- 全部经 `PersonalConfigRepository::update`（跨进程锁 + 原子写）；
+- 校验复用 `provider-config` 的完整规则 schema（TS `SettingsMutationTarget` 同义）；
+- 成功后重新读快照并返回新 View（revision+1）。
+
+## 4. 阶段 3：连通性 / 远端目录（待做，有外部依赖）
+
+- `testModelConnectivity`：Rust `mode-agent` 尚未实现该命令，需先补
+  `testModelConnectivity`（agent 协议往返）或保留 Node 代理。
+- `listRemoteModels`：`crates/provider-model-listing` 已有 build/parse 纯逻辑，
+  需补 reqwest executor + 草稿连接信息组装。
+
+## 5. 阶段 4：频道与装配（待做）
+
+- `host-channels::provider_settings` 频道同名映射；`onDidChange` 由 Personal 仓库
+  通知驱动（View 广播）。
+- 装配：Builtin 路径（同 model-selection 注入）+ Personal 仓库；进入 inprocess
+  默认集前必须先完成阶段 1–3，避免半个频道。
+
+## 6. 验收
+
+- 阶段 0：`cargo test -p provider-config --lib exact_rule`。
+- 后续阶段：View 投影 TS fixture 对拍 + mutation 幂等/CAS 用例 + 频道契约用例；
+  真机：Provider 设置页读写/排序/启停、连通性测试、远端模型探测。
+- `cargo clippy -p provider-config --all-targets -- -D warnings`。

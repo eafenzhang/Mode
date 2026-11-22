@@ -51,6 +51,37 @@ pub enum ModelRule {
     },
 }
 
+/// 精确模型规则类型（TS `ExactModelConfigRule.type`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExactModelRuleKind {
+    Provider,
+    Manual,
+}
+
+fn exact_rule<'a>(
+    rule: &'a ModelRule,
+    provider_id: &str,
+    model_id: &str,
+) -> Option<(ExactModelRuleKind, &'a ModelConfig)> {
+    match rule {
+        ModelRule::Provider {
+            provider_id: rule_provider,
+            model_id: rule_model,
+            config,
+        } if rule_provider == provider_id && rule_model == model_id => {
+            Some((ExactModelRuleKind::Provider, config))
+        }
+        ModelRule::Manual {
+            provider_id: rule_provider,
+            model_id: rule_model,
+            config,
+        } if rule_provider == provider_id && rule_model == model_id => {
+            Some((ExactModelRuleKind::Manual, config))
+        }
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ModelConfigRules {
     rules: Vec<ModelRule>,
@@ -67,6 +98,34 @@ impl ModelConfigRules {
 
     pub fn rules(&self) -> &[ModelRule] {
         &self.rules
+    }
+
+    /// TS `getExact`：按插入序叠加所有 `(providerId, modelId)` 精确规则
+    /// （`provider-model` 与 `manual-provider-model` 都是精确规则）。
+    pub fn get_exact(&self, provider_id: &str, model_id: &str) -> Option<ModelConfig> {
+        let mut result: Option<ModelConfig> = None;
+        for rule in &self.rules {
+            let Some((_, config)) = exact_rule(rule, provider_id, model_id) else {
+                continue;
+            };
+            result = Some(match result {
+                Some(current) => current.overlay(config),
+                None => config.clone(),
+            });
+        }
+        result
+    }
+
+    /// TS `getExactRule`：返回最后一条精确规则及其类型（决定 useRecommendedConfig）。
+    pub fn get_exact_rule<'a>(
+        &'a self,
+        provider_id: &str,
+        model_id: &str,
+    ) -> Option<(ExactModelRuleKind, &'a ModelConfig)> {
+        self.rules
+            .iter()
+            .rev()
+            .find_map(|rule| exact_rule(rule, provider_id, model_id))
     }
 
     /// `toModeBuiltinJSON()`：五组按 schema 顺序输出。
@@ -1002,5 +1061,67 @@ mod resolve_tests {
         // lookahead 在 Rust regex 不合法：判不命中而不是 panic。
         assert!(!matches_rule("(?=m)m", "m", true));
         assert!(matches_rule("m.*", "M1", true));
+    }
+}
+
+#[cfg(test)]
+mod exact_rule_tests {
+    use super::*;
+    use crate::model::{LimitOptionSpecConfig, ModelOptionSpecsConfig};
+
+    fn config_with_max(max: i64) -> ModelConfig {
+        ModelConfig {
+            option_specs: Field::Value(ModelOptionSpecsConfig {
+                reasoning_level: Field::Absent,
+                max_output_tokens: Field::Value(LimitOptionSpecConfig {
+                    max: Field::Value(max),
+                    map: Field::Absent,
+                }),
+            }),
+            ..ModelConfig::default()
+        }
+    }
+
+    #[test]
+    fn exact_rule_lookup_matches_last_rule_and_overlays() {
+        let rules = ModelConfigRules::new(vec![
+            ModelRule::Provider {
+                provider_id: "p1".to_string(),
+                model_id: "m1".to_string(),
+                config: config_with_max(100),
+            },
+            ModelRule::Provider {
+                provider_id: "p1".to_string(),
+                model_id: "other".to_string(),
+                config: config_with_max(999),
+            },
+            ModelRule::Manual {
+                provider_id: "p1".to_string(),
+                model_id: "m1".to_string(),
+                config: ModelConfig {
+                    enabled: Field::Value(false),
+                    ..ModelConfig::default()
+                },
+            },
+        ]);
+
+        // getExact：按序叠加（后者覆盖前者字段）。
+        let merged = rules.get_exact("p1", "m1").expect("exact");
+        assert_eq!(merged.enabled, Field::Value(false));
+        let Field::Value(specs) = &merged.option_specs else {
+            panic!("option specs");
+        };
+        let Field::Value(tokens) = &specs.max_output_tokens else {
+            panic!("tokens");
+        };
+        assert_eq!(tokens.max, Field::Value(100));
+
+        // getExactRule：最后一条精确规则的类型。
+        let (kind, config) = rules.get_exact_rule("p1", "m1").expect("rule");
+        assert_eq!(kind, ExactModelRuleKind::Manual);
+        assert_eq!(config.enabled, Field::Value(false));
+
+        assert!(rules.get_exact("p1", "missing").is_none());
+        assert!(rules.get_exact_rule("p1", "missing").is_none());
     }
 }

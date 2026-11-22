@@ -33,8 +33,8 @@ pub use provider::{
     ProviderVisibility, ZhipuAccountAccess, ZhipuAccountMode, ZhipuAccountType,
 };
 pub use rules::{
-    parse_mode_builtin_model_config_rules, parse_personal_model_config_rules, ModelConfigRules,
-    ModelConfigRuleResolutionInput, ModelRule,
+    parse_mode_builtin_model_config_rules, parse_personal_model_config_rules, ExactModelRuleKind,
+    ModelConfigRules, ModelConfigRuleResolutionInput, ModelRule,
 };
 pub use value::{Field, Issue, ParseError, ParseResult};
 

@@ -32,6 +32,8 @@
 - config-service 的文件轮询、revision 计算、Built-in/Personal/Account 合成。
 - registry / resolver / model listing / remote catalog / provider provisioning。
 - `ProviderConfigMap.overlay`、`ModelConfigRules.resolve`、`resolveOwnedOrder` 的排序编排。
+- `ModelConfigRules.get_exact` / `get_exact_rule`（2026-11-23）：TS `getExact`/
+  `getExactRule` 等价——按序叠加精确规则 / 返回最后一条精确规则类型（Provider|Manual）。
 - AccountProviderService 与 `createAccountProviderConfigSnapshot` 的 revision 生成。
 - 任何文件 IO、网络、凭据、进程或 UI 依赖。
 
