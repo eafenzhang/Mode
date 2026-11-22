@@ -71,7 +71,6 @@ members = [
   "crates/tasks-db",
   "crates/task-index-repo",
   "crates/off-peak-repo",
-  "crates/off-peak-runtime",
   "crates/off-peak-service",
   "crates/data-root",
   "crates/mode-api-retry",

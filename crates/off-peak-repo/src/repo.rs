@@ -957,23 +957,6 @@ impl OffPeakTaskRepo {
         })
     }
 
-    /// 调度运行时的重试上限判断用：读取累计派发尝试次数。
-    ///
-    /// Rust-only accessor：`OffPeakTask` 的对外序列化形状不含该列（与 TS 投影一致），
-    /// 运行时需要 DB 真值而不是进程内计数（宿主重启后不丢）。
-    pub fn attempt_count(&self, off_peak_task_id: &str) -> Result<i64> {
-        self.ensure_ready()?;
-        self.with_conn(|connection| {
-            let mut statement =
-                connection.prepare("SELECT attempt_count FROM off_peak_tasks WHERE off_peak_task_id = ?")?;
-            let mut rows = statement.query(params![off_peak_task_id])?;
-            match rows.next()? {
-                Some(row) => Ok(row.get(0)?),
-                None => Ok(0),
-            }
-        })
-    }
-
     /// 释放认领；带 error 时累计 attempt_count 并记 last_error，不改 status。
     pub fn release_claim(
         &self,

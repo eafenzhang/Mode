@@ -107,16 +107,10 @@ fn main() {
             &data_root,
             &inprocess,
         );
-        // G2.6 执行侧：闲时任务调度进壳（默认关闭）。Node 侧没有 scheduler，
-        // 开关只决定 Rust 是否认领并派发；取号/轮询仍由 Node Host 提供。
-        let off_peak = mode_tauri::off_peak::start_if_enabled(&data_root, &inprocess);
         app.manage(supervisor);
         app.manage(inprocess);
         if let Some(automation) = automation {
             app.manage(automation);
-        }
-        if let Some(off_peak) = off_peak {
-            app.manage(off_peak);
         }
 
         // 窗口必须在 Rust 侧建：`WindowConfig` 没有 `initialization_script` 字段，

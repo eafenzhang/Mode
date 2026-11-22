@@ -116,6 +116,6 @@ scheduler 轮询(20s) ─ claimDue / claimManualRuns ────┤
 
 ## 已知缺口
 
-- 闲时任务（off-peak）派发链同样随 Electron 线删除；本 spec 不恢复，执行侧已由
-  `crates/off-peak-runtime`（spec `docs/specs/off-peak-runtime.md`）单独恢复。
+- 闲时任务（off-peak）派发链同样随 Electron 线删除；本 spec 不恢复。off-peak 是
+  政策下线功能（官方服务断连），执行侧不再重建，Node 侧服务随 LT-16.6 删除。
 - keep-awake（运行会话时阻止系统休眠）已在 Tauri 线补齐（`apps/desktop-tauri/src-tauri/src/power.rs`）。

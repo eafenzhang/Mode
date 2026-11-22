@@ -31,7 +31,6 @@
 | `mark_terminal` | `markTerminal` | 终态不可逆出；`files_changed` 保留旧值；带 `dispatch_error` 时 `attempt_count + 1` 并记 `last_error` |
 | `set_paused` | `setPaused` | `queued ⇄ paused`；`claim_running=1` 时拒绝 |
 | `release_claim` | `releaseClaim` | 仅对在途认领生效；带 error 累计尝试次数 |
-| `attempt_count` | —（Rust-only） | 读取累计派发尝试次数；供调度运行时判断重试上限，不进入 `OffPeakTask` 输出形状 |
 | `recover_interrupted` | `recoverInterrupted` | 单事务：残留 `running → queued` + 清理超时认领，返回回收条数 |
 | `requeue_for_continuation` | `requeueForContinuation` | 仅 `running→queued`，保留会话与 `started_at` |
 | `list_non_terminal` | `listNonTerminal` | 按 `queued_at` 升序 |

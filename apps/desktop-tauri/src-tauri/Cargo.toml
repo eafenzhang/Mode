@@ -65,7 +65,6 @@ tauri-plugin-single-instance.workspace = true
 agent-process = { path = "../../../crates/agent-process" }
 agent-protocol = { path = "../../../crates/agent-protocol" }
 off-peak-repo = { path = "../../../crates/off-peak-repo" }
-off-peak-runtime = { path = "../../../crates/off-peak-runtime" }
 official-mcp-auth = { path = "../../../crates/official-mcp-auth" }
 account-api-key-resolver = { path = "../../../crates/account-api-key-resolver" }
 account-provider-overlay = { path = "../../../crates/account-provider-overlay" }
