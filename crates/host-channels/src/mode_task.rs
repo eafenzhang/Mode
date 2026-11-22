@@ -96,6 +96,14 @@ impl WorkspaceEventScope {
     }
 }
 
+/// `activePromptInputIds` 的 key：`workspaceKey\0taskId`。
+fn active_input_key(workspace_path: &str, workspace_identity: Option<&str>, task_id: &str) -> String {
+    format!(
+        "{}\u{0}{task_id}",
+        workspace_key_of(workspace_path, workspace_identity)
+    )
+}
+
 fn workspace_key_of(workspace_path: &str, workspace_identity: Option<&str>) -> String {
     workspace_identity
         .map(str::trim)
@@ -127,6 +135,18 @@ pub type TaskEventLocalListeners = Arc<Mutex<HashMap<String, TaskEventLocalListe
 
 pub const ON_DYNAMIC_WORKSPACE_EVENT: &str = "onDynamicWorkspaceEvent";
 pub const ON_DYNAMIC_TASK_READY: &str = "onDynamicTaskReady";
+pub const ON_DYNAMIC_TASK_TERMINAL_OUTCOME: &str = "onDynamicTaskTerminalOutcome";
+
+#[derive(Clone)]
+struct TerminalEventListener {
+    /// `onDynamicTaskTerminalOutcome(taskId)` 的 task 过滤；`None` = 不过滤。
+    task_id: Option<String>,
+    emit: rpc_host::EventCallback,
+}
+
+type TerminalEventListeners = Arc<Mutex<HashMap<String, TerminalEventListener>>>;
+/// `activePromptInputIds`：sendPrompt 记录的 inputId，终态事件用它收口对应 run。
+type ActivePromptInputs = Arc<Mutex<HashMap<String, String>>>;
 
 /// mode-task 事件总线（broadcast 频道的 subscribe/notify 模式；TS Emitter 等价）。
 /// wire 监听者（renderer）与进程内监听者（同 server 的其他频道）共用同一通知点。
@@ -134,7 +154,9 @@ pub const ON_DYNAMIC_TASK_READY: &str = "onDynamicTaskReady";
 pub struct TaskEventBus {
     task_list_listeners: WorkspaceEventListeners,
     ready_listeners: ReadyEventListeners,
+    terminal_listeners: TerminalEventListeners,
     local_listeners: TaskEventLocalListeners,
+    active_inputs: ActivePromptInputs,
 }
 
 impl TaskEventBus {
@@ -184,6 +206,87 @@ impl TaskEventBus {
                 .expect("task event listeners poisoned")
                 .remove(&id);
         })
+    }
+
+    /// `onDynamicTaskTerminalOutcome(taskId)`：按 task 过滤投递终态（automation/bots 结算）。
+    pub fn subscribe_terminal(
+        &self,
+        task_id: Option<String>,
+        emit: rpc_host::EventCallback,
+    ) -> rpc_host::Subscription {
+        let id = uuid::Uuid::new_v4().to_string();
+        self.terminal_listeners
+            .lock()
+            .expect("task event listeners poisoned")
+            .insert(id.clone(), TerminalEventListener { task_id, emit });
+        let map = Arc::clone(&self.terminal_listeners);
+        Box::new(move || {
+            map.lock()
+                .expect("task event listeners poisoned")
+                .remove(&id);
+        })
+    }
+
+    /// `sendPrompt` 记录本次输入轮次 id（TS `activePromptInputIds.set`）。
+    pub fn record_active_input(
+        &self,
+        workspace_path: &str,
+        workspace_identity: Option<&str>,
+        task_id: &str,
+        input_id: &str,
+    ) {
+        self.active_inputs
+            .lock()
+            .expect("task active inputs poisoned")
+            .insert(
+                active_input_key(workspace_path, workspace_identity, task_id),
+                input_id.to_string(),
+            );
+    }
+
+    /// 终态收口时取出并清除本次 inputId（TS 只保留最近一次输入）。
+    pub fn take_active_input(
+        &self,
+        workspace_path: &str,
+        workspace_identity: Option<&str>,
+        task_id: &str,
+    ) -> Option<String> {
+        self.active_inputs
+            .lock()
+            .expect("task active inputs poisoned")
+            .remove(&active_input_key(
+                workspace_path,
+                workspace_identity,
+                task_id,
+            ))
+    }
+
+    /// TS `onDynamicTaskTerminalOutcome`：phase 终态迁移 → `{taskId, inputId?, outcome}`。
+    pub fn notify_terminal(&self, task_id: &str, input_id: Option<&str>, outcome: &str) {
+        let mut payload = serde_json::json!({ "taskId": task_id, "outcome": outcome });
+        if let Some(input_id) = input_id {
+            payload["inputId"] = serde_json::json!(input_id);
+        }
+        let Ok(text) = serde_json::to_string(&payload) else {
+            return;
+        };
+        let listeners: Vec<TerminalEventListener> = self
+            .terminal_listeners
+            .lock()
+            .expect("task event listeners poisoned")
+            .values()
+            .cloned()
+            .collect();
+        for listener in listeners {
+            if listener
+                .task_id
+                .as_deref()
+                .is_some_and(|filter| filter != task_id)
+            {
+                continue;
+            }
+            (listener.emit)(WireValue::Json(text.clone()));
+        }
     }
 
     /// 进程内订阅 workspace 任务列表变更（TS Host 进程内 Emitter 等价）。
@@ -1634,6 +1737,15 @@ async fn run_orchestration(
                 workspace_identity,
                 remote_session_id: None,
             };
+            // 终态事件用本地记录的 inputId 收口本次 run（TS 在 dispatch 前记录）。
+            if let Some(input_id) = &parsed.input_id {
+                channel.events.record_active_input(
+                    &target.workspace_path,
+                    target.workspace_identity.as_deref(),
+                    &parsed.task_id,
+                    input_id,
+                );
+            }
             let result = control
                 .send_prompt(
                     &target,
@@ -2661,6 +2773,9 @@ impl ServerChannel for ModeTaskChannel {
                 .events
                 .subscribe_task_list(parse_workspace_event_scope(&arg), emit)),
             ON_DYNAMIC_TASK_READY => Ok(self.events.subscribe_ready(parse_task_id_arg(&arg), emit)),
+            ON_DYNAMIC_TASK_TERMINAL_OUTCOME => Ok(self
+                .events
+                .subscribe_terminal(parse_task_id_arg(&arg), emit)),
             other => Err(ChannelError::error(format!(
                 "mode-task channel: unknown event {other}"
             ))),

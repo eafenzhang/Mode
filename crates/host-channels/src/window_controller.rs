@@ -115,6 +115,7 @@ impl WindowControllerChannel {
                 control,
                 Arc::clone(&self.overlays),
                 on_change,
+                self.task_events.clone(),
             ))
         });
         self

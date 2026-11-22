@@ -19,6 +19,7 @@ use agent_protocol::v4_queries::{ConversationResyncParams, ResyncBase};
 use agent_protocol::v4_sessions_index::{
     SessionSummary, SessionsIndexDelta, SessionsIndexFramePayload, SessionsIndexTopicFrame,
 };
+use agent_protocol::v4_snapshot::SessionPhase;
 use agent_protocol::v4_transport::{SubscribeBase, SubscribeVisibility};
 use agent_protocol::v4_wire_assembler::{
     SessionIndexAssemblyEvent, SessionsIndexWireAssembler,
@@ -45,6 +46,8 @@ pub struct SessionsOverlayObserver {
     control: Arc<AgentControlClient>,
     overlays: Arc<SessionOverlayStore>,
     on_change: OnChange,
+    /// 同 server 的任务事件总线：phase 终态迁移 → terminal/ready 事件。
+    task_events: Option<Arc<crate::mode_task::TaskEventBus>>,
     /// 已观察的 workspaceKey；失败/结束时移除，供下次 ensure 重试。
     observed: Arc<Mutex<HashSet<String>>>,
 }
@@ -54,11 +57,13 @@ impl SessionsOverlayObserver {
         control: Arc<AgentControlClient>,
         overlays: Arc<SessionOverlayStore>,
         on_change: OnChange,
+        task_events: Option<Arc<crate::mode_task::TaskEventBus>>,
     ) -> Self {
         Self {
             control,
             overlays,
             on_change,
+            task_events,
             observed: Arc::new(Mutex::new(HashSet::new())),
         }
     }
@@ -84,33 +89,48 @@ impl SessionsOverlayObserver {
         let overlays = Arc::clone(&self.overlays);
         let on_change = Arc::clone(&self.on_change);
         let observed = Arc::clone(&self.observed);
+        let task_events = self.task_events.clone();
         let workspace_path = workspace_path.to_string();
         let workspace_identity = workspace_identity.map(str::to_string);
         let task_key = key.clone();
         handle.spawn(async move {
-            run_observer(
+            run_observer(ObserverTask {
                 control,
                 overlays,
                 on_change,
+                task_events,
                 observed,
-                task_key,
+                key: task_key,
                 workspace_path,
                 workspace_identity,
-            )
+            })
             .await;
         });
     }
 }
 
-async fn run_observer(
+struct ObserverTask {
     control: Arc<AgentControlClient>,
     overlays: Arc<SessionOverlayStore>,
     on_change: OnChange,
+    task_events: Option<Arc<crate::mode_task::TaskEventBus>>,
     observed: Arc<Mutex<HashSet<String>>>,
     key: String,
     workspace_path: String,
     workspace_identity: Option<String>,
-) {
+}
+
+async fn run_observer(task: ObserverTask) {
+    let ObserverTask {
+        control,
+        overlays,
+        on_change,
+        task_events,
+        observed,
+        key,
+        workspace_path,
+        workspace_identity,
+    } = task;
     let target = AgentWorkspaceTarget {
         workspace_path: workspace_path.clone(),
         workspace_identity: workspace_identity.clone(),
@@ -188,6 +208,7 @@ async fn run_observer(
             for event in assembler.accept(&wire, now_ms()) {
                 match event {
                     SessionIndexAssemblyEvent::Complete { frame, .. } => {
+                        let previous_phases = phase_snapshot(&summaries);
                         match apply_sessions_topic_frame(&mut summaries, &mut cursor, &frame) {
                             FrameApply::Applied => {
                                 if matches!(
@@ -197,6 +218,13 @@ async fn run_observer(
                                     awaiting_snapshot = false;
                                 }
                                 publish_overlays(&overlays, &key, &summaries, &on_change);
+                                emit_terminal_transitions(
+                                    &previous_phases,
+                                    &summaries,
+                                    &workspace_path,
+                                    workspace_identity.as_deref(),
+                                    task_events.as_ref(),
+                                );
                             }
                             FrameApply::NeedRecovery => request_recovery = true,
                         }
@@ -249,6 +277,81 @@ async fn run_observer(
         .lock()
         .expect("sessions observer poisoned")
         .remove(&key);
+}
+
+fn phase_snapshot(summaries: &HashMap<String, SessionSummary>) -> HashMap<String, SessionPhase> {
+    summaries
+        .iter()
+        .map(|(task_id, summary)| (task_id.clone(), summary.phase))
+        .collect()
+}
+
+struct TerminalTransition {
+    task_id: String,
+    failed: bool,
+}
+
+/// `phase` 终态：completedSuccess/completedInterrupted → 成功；error → 失败。
+fn terminal_phase(phase: SessionPhase) -> Option<bool> {
+    match phase {
+        SessionPhase::CompletedSuccess | SessionPhase::CompletedInterrupted => Some(false),
+        SessionPhase::Error => Some(true),
+        _ => None,
+    }
+}
+
+fn terminal_transitions(
+    previous: &HashMap<String, SessionPhase>,
+    summaries: &HashMap<String, SessionSummary>,
+) -> Vec<TerminalTransition> {
+    let mut transitions = Vec::new();
+    for (task_id, summary) in summaries {
+        let Some(failed) = terminal_phase(summary.phase) else {
+            continue;
+        };
+        // 只在非终态 → 终态迁移时发射；初始快照/新行不触发，避免启动误收口。
+        let Some(previous_phase) = previous.get(task_id) else {
+            continue;
+        };
+        if terminal_phase(*previous_phase).is_some() {
+            continue;
+        }
+        transitions.push(TerminalTransition {
+            task_id: task_id.clone(),
+            failed,
+        });
+    }
+    transitions
+}
+
+/// TS `emitTerminalAndReady`：先 turn 终态（收口当前 input），再 prompt ready。
+fn emit_terminal_transitions(
+    previous_phases: &HashMap<String, SessionPhase>,
+    summaries: &HashMap<String, SessionSummary>,
+    workspace_path: &str,
+    workspace_identity: Option<&str>,
+    task_events: Option<&Arc<crate::mode_task::TaskEventBus>>,
+) {
+    let Some(events) = task_events else {
+        return;
+    };
+    for transition in terminal_transitions(previous_phases, summaries) {
+        let input_id =
+            events.take_active_input(workspace_path, workspace_identity, &transition.task_id);
+        events.notify_terminal(
+            &transition.task_id,
+            input_id.as_deref(),
+            if transition.failed { "failed" } else { "succeeded" },
+        );
+        events.notify_ready(
+            &transition.task_id,
+            if transition.failed {
+                "prompt_failed"
+            } else {
+                "prompt_completed"
+            },
+        );
+    }
 }
 
 fn publish_overlays(
@@ -476,6 +579,97 @@ mod tests {
             apply_sessions_topic_frame(&mut summaries, &mut empty_cursor, &deltas),
             FrameApply::NeedRecovery
         ));
+    }
+
+    fn summaries_with(entries: &[(&str, &str)]) -> HashMap<String, SessionSummary> {
+        entries
+            .iter()
+            .map(|(task_id, phase)| {
+                (
+                    task_id.to_string(),
+                    summary(base(task_id, phase)),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn terminal_transitions_only_on_non_terminal_to_terminal() {
+        let previous = summaries_with(&[("s1", "running"), ("s2", "completedSuccess")]);
+        let mut next = previous.clone();
+        next.insert("s1".to_string(), summary(base("s1", "completedSuccess")));
+        // s2 已是终态，再变 error 不重复发射；s3 新行终态也不发射。
+        next.insert("s2".to_string(), summary(base("s2", "error")));
+        next.insert("s3".to_string(), summary(base("s3", "error")));
+        let phases: HashMap<String, SessionPhase> = previous
+            .iter()
+            .map(|(task_id, summary)| (task_id.clone(), summary.phase))
+            .collect();
+        let transitions = terminal_transitions(&phases, &next);
+        assert_eq!(transitions.len(), 1, "{}", transitions.len());
+        assert_eq!(transitions[0].task_id, "s1");
+        assert!(!transitions[0].failed);
+
+        let previous = summaries_with(&[("s4", "prewarming")]);
+        let next = summaries_with(&[("s4", "error")]);
+        let phases: HashMap<String, SessionPhase> = previous
+            .iter()
+            .map(|(task_id, summary)| (task_id.clone(), summary.phase))
+            .collect();
+        let transitions = terminal_transitions(&phases, &next);
+        assert_eq!(transitions.len(), 1);
+        assert!(transitions[0].failed);
+    }
+
+    #[tokio::test]
+    async fn terminal_transition_emits_terminal_then_ready_with_input_id() {
+        let bus = Arc::new(crate::mode_task::TaskEventBus::new());
+        bus.record_active_input("D:/work/app", None, "s1", "input-1");
+        let terminal = Arc::new(std::sync::Mutex::new(Vec::<Value>::new()));
+        let ready = Arc::new(std::sync::Mutex::new(Vec::<Value>::new()));
+        let terminal_sink = Arc::clone(&terminal);
+        let ready_sink = Arc::clone(&ready);
+        let _terminal_sub = bus.subscribe_terminal(
+            Some("s1".to_string()),
+            Arc::new(move |value| {
+                if let rpc_wire::Value::Json(text) = value {
+                    terminal_sink
+                        .lock()
+                        .expect("terminal")
+                        .push(serde_json::from_str(&text).expect("terminal json"));
+                }
+            }),
+        );
+        let _ready_sub = bus.subscribe_ready(
+            Some("s1".to_string()),
+            Arc::new(move |value| {
+                if let rpc_wire::Value::Json(text) = value {
+                    ready_sink
+                        .lock()
+                        .expect("ready")
+                        .push(serde_json::from_str(&text).expect("ready json"));
+                }
+            }),
+        );
+        let previous = summaries_with(&[("s1", "running")]);
+        let next = summaries_with(&[("s1", "error")]);
+        let phases: HashMap<String, SessionPhase> = previous
+            .iter()
+            .map(|(task_id, summary)| (task_id.clone(), summary.phase))
+            .collect();
+        emit_terminal_transitions(&phases, &next, "D:/work/app", None, Some(&bus));
+
+        let terminal = terminal.lock().expect("terminal");
+        assert_eq!(terminal.len(), 1, "{terminal:?}");
+        assert_eq!(terminal[0]["taskId"], "s1");
+        assert_eq!(terminal[0]["inputId"], "input-1");
+        assert_eq!(terminal[0]["outcome"], "failed");
+        let ready = ready.lock().expect("ready");
+        assert_eq!(ready.len(), 1, "{ready:?}");
+        assert_eq!(ready[0]["taskId"], "s1");
+        assert_eq!(ready[0]["reason"], "prompt_failed");
+        // inputId 已被消费：再次迁移不再携带。
+        assert!(bus.take_active_input("D:/work/app", None, "s1").is_none());
     }
 
     #[test]

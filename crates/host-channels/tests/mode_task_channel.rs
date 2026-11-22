@@ -490,6 +490,46 @@ async fn snapshot_stubs_return_undefined_and_snapshot_requires_control() {
 }
 
 #[tokio::test]
+async fn terminal_outcome_listen_filters_by_task_and_carries_input_id() {
+    use host_channels::mode_task::{
+        TaskEventBus, ON_DYNAMIC_TASK_TERMINAL_OUTCOME,
+    };
+    use rpc_host::ServerChannel as _;
+
+    let db = TempDb::new("terminal");
+    let bus = Arc::new(TaskEventBus::new());
+    let channel = ModeTaskChannel::new(repo(&db), None, None, Arc::clone(&bus));
+    let received = Arc::new(std::sync::Mutex::new(Vec::<Json>::new()));
+    let sink = Arc::clone(&received);
+    let _sub = channel
+        .listen(
+            "ctx".into(),
+            ON_DYNAMIC_TASK_TERMINAL_OUTCOME.into(),
+            Value::Json(json!(["task-1"]).to_string()),
+            Arc::new(move |value| {
+                if let Value::Json(text) = value {
+                    sink.lock()
+                        .expect("recv")
+                        .push(serde_json::from_str(&text).expect("json"));
+                }
+            }),
+        )
+        .expect("listen terminal");
+
+    // sendPrompt 侧记录的 inputId 由终态收口取出。
+    bus.record_active_input("D:/work/app", None, "task-1", "input-1");
+    let input_id = bus.take_active_input("D:/work/app", None, "task-1");
+    bus.notify_terminal("task-1", input_id.as_deref(), "succeeded");
+    bus.notify_terminal("task-2", None, "failed");
+
+    let received = received.lock().expect("recv");
+    assert_eq!(received.len(), 1, "{received:?}");
+    assert_eq!(received[0]["taskId"], "task-1");
+    assert_eq!(received[0]["inputId"], "input-1");
+    assert_eq!(received[0]["outcome"], "succeeded");
+}
+
+#[tokio::test]
 async fn native_session_log_file_returns_path_and_exists() {
     let db = TempDb::new("native-log");
     let channel = ModeTaskChannel::new(
