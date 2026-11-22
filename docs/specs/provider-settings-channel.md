@@ -1,6 +1,6 @@
 # Spec：`provider-settings` 频道（Rust，分阶段迁移）
 
-状态：2026-11-23 阶段 0（provider-config 精确规则访问器）；View/写入/频道待后续。
+状态：2026-11-23 阶段 0/1 已落（精确规则访问器 + View 投影 builder）；写入/频道待后续。
 
 ## 背景
 
@@ -23,7 +23,7 @@ mutation（create/save/delete/reorder provider/model、enable、draft、连通�
   `useRecommendedConfig=false`。
 - 测试：叠加、最后一条类型、缺失返回 None。
 
-## 2. 阶段 1：View 投影（待做）
+## 2. 阶段 1：View 投影（2026-11-23 已落）
 
 数据源：`provider-config-source::read_snapshot` + `ProviderConfigResolver` +
 Personal 仓库 revision。输出与 `ProviderSettingsView` 同构：
@@ -43,6 +43,9 @@ Personal 仓库 revision。输出与 `ProviderSettingsView` 同构：
   View 暂不输出该字段（与运行时一致，登记差异）。
 - revision：Host 进程内单调计数（快照 revision / 仓库通知推进），与
   model-selection 同口径。
+- 实现：`host-channels::provider_settings::build_provider_settings_view(snapshot, revision)`；
+  `personalConfig` 取 Personal 规则的 `config`（ProviderConfigObject），待 fixture
+  对拍确认与 TS 逐字段一致；`accountState` 暂不输出。
 
 ## 3. 阶段 2：写入面（待做）
 

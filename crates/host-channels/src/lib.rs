@@ -49,6 +49,7 @@ pub mod window_controller;
 pub mod mode_agent;
 pub mod plugin_management;
 pub mod plugin_sync;
+pub mod provider_settings;
 pub mod setting;
 pub mod settings_sync;
 pub mod skill_sync;
