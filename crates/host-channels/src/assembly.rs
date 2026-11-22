@@ -35,6 +35,7 @@ use crate::lan_access::LanAccessChannel;
 use crate::media_preview::MediaPreviewChannel;
 use crate::memory_channel::MemoryChannel;
 use crate::mode_task::ModeTaskChannel;
+use crate::onboarding::OnboardingRecordChannel;
 use crate::mcp_sync::McpSyncChannel;
 use crate::mode_agent::ModeAgentChannel;
 use crate::plugin_sync::PluginSyncChannel;
@@ -53,7 +54,7 @@ use crate::{
     FILE_CHANNEL, FILE_WATCHER_CHANNEL, GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, HOOKS_CHANNEL,
     LAN_ACCESS_CHANNEL, MCP_SYNC_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
     MODE_AGENT_CHANNEL,
-    MODE_TASK_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL,
+    MODE_TASK_CHANNEL, ONBOARDING_RECORD_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL,
     SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL,
     USAGE_STATS_CHANNEL, WINDOW_CONTROLLER_CHANNEL,
 };
@@ -280,6 +281,25 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
                 .with_data_root(data_root.clone()),
             ))
         }
+        ONBOARDING_RECORD_CHANNEL => {
+            // onboarding 记录是设备级数据（TS getAppConfigDir → dataRoot/v2）；
+            // 官方账号体系已下线（assertOfficialServiceRemoved("account")），
+            // TS loadUserId 同为空，这里保持同一口径。
+            let repo = Arc::new(task_index_repo::TaskIndexRepo::new(
+                data_root.join("v2").join("tasks-index.sqlite"),
+            ));
+            let service = onboarding_record_service::OnboardingRecordService::new(
+                data_root.join("v2").join("onboarding-record.json"),
+                Arc::new(HostOnboardingEnvironment { repo }),
+                Arc::new(|| {
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|elapsed| elapsed.as_millis() as i64)
+                        .unwrap_or(0)
+                }),
+            );
+            Some(Arc::new(OnboardingRecordChannel::new(Arc::new(service))))
+        }
         USAGE_STATS_CHANNEL => {
             // 余额查询凭据源：Personal 层仓库（1s 轮询 LKG）。路径显式 env 优先，
             // 回退 data_root/v2（与 agent_runtime 的 ProviderPaths fallback 同口径）。
@@ -406,6 +426,26 @@ pub fn service_channel_names() -> Vec<&'static str> {
         MCP_SYNC_CHANNEL,
         AGENT_HEALTH_CHANNEL,
         HOOKS_CHANNEL,
+        ONBOARDING_RECORD_CHANNEL,
         TERMINAL_CHANNEL,
     ]
+}
+
+/// onboarding-record 的宿主环境：当前用户恒为匿名（官方账号已下线），
+/// 「本机已有任务」读任务索引（TS `listTaskMetas({})` 非空判定）。
+struct HostOnboardingEnvironment {
+    repo: Arc<task_index_repo::TaskIndexRepo>,
+}
+
+impl onboarding_record_service::OnboardingRecordEnvironment for HostOnboardingEnvironment {
+    fn load_user_id(&self) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+
+    fn has_existing_local_task(&self) -> Result<bool, String> {
+        self.repo
+            .list_task_metas(&task_index_repo::ListTaskMetasParams::default())
+            .map(|metas| !metas.is_empty())
+            .map_err(|error| error.to_string())
+    }
 }

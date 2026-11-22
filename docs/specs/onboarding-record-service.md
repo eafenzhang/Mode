@@ -30,6 +30,24 @@ TS 构造参数；返回 `Err` 等价于 rejected promise。时钟以 `now_ms` �
 - 写入使用 `atomic-file`（临时文件 + rename + 跨进程锁），两空格缩进、无尾随换行，
   与 `JSON.stringify(file, null, 2)` 同形。
 
+## 2.1 频道适配（2026-11-22）
+
+- 频道名：`onboarding-record`（`ServiceChannels.OnboardingRecord`）。
+- 方法 ↔ 服务：`appendRecord(deviceMid, entry)` / `shouldOnboard(deviceMid)` /
+  `dismissOnboarding(deviceMid)` / `claimAnonymousRecord()` /
+  `getLatestEntry()` / `syncSettingsFromRecord()` /
+  `updateRecordPreferences(patch)` / `getRecords()` / `clearRecords()`。
+- 参数：位置参数数组（`ProxyChannel` 语义）；`entry` / `patch` 按 Rust 类型反序列化，
+  校验失败返回 `ChannelError`（文案为 Rust 校验信息，不影响文件内容）。
+- 返回：`void` 用 `undefined`；可空结果序列化为 JSON（`null` 保留）。
+- 文件 IO 统一 `spawn_blocking`，不阻塞 RPC 消费任务。
+- 装配（`host_channels::assembly`）：
+  - 记录路径 `<data_root>/v2/onboarding-record.json`（TS `getAppConfigDir()`）；
+  - `load_user_id` 恒返回 `None`：官方账号体系已下线
+    （`assertOfficialServiceRemoved("account")`），TS 的 `loadUserId` 同为空；
+  - `has_existing_local_task` 用任务索引 `list_task_metas({})` 非空判定；
+  - 进入 inprocess 默认集（与其它已迁频道一致），回退开关见 w2 spec。
+
 ## 3. 校验与损坏容忍
 
 - 读取：任何 IO 失败、非 JSON、schema 不匹配都按「从未记录」处理（`None`），不抛错；
@@ -57,7 +75,9 @@ TS 构造参数；返回 `Err` 等价于 rejected promise。时钟以 `now_ms` �
    （频道适配时用 `spawn_blocking`）。TS 的 `await` 顺序语义不变。
 2. **错误文案**：入参校验错误是 Rust 文案，不是 zod 的 issue 列表；正常路径与
    文件内容不受影响。
-3. **频道未接管**：`onboarding-record` 仍由 Host 的 TS 服务提供；本次只迁服务层。
+3. **频道已接管（2026-11-22）**：`onboarding-record` 频道由
+   `host-channels::onboarding::OnboardingRecordChannel` 提供（见 §2.1），
+   进入 inprocess 默认集；Node 服务保留为回退（`MODE_HOST_INPROCESS_CHANNELS=none`）。
    onboarding 流程本身仍受 OAuth / 任务库依赖约束。
 
 ## 6. 验收

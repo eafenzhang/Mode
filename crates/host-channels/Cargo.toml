@@ -10,6 +10,7 @@ name = "host_channels"
 path = "src/lib.rs"
 
 [dependencies]
+onboarding-record-service = { path = "../onboarding-record-service" }
 agent-process = { path = "../agent-process" }
 agent-protocol = { path = "../agent-protocol" }
 broadcast-service = { path = "../broadcast-service" }

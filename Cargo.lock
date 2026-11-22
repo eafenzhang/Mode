@@ -2559,6 +2559,7 @@ dependencies = [
  "git-service",
  "lan-discovery",
  "mcp-sync-service",
+ "onboarding-record-service",
  "plugin-sync-service",
  "project-memory",
  "provider-balance",
