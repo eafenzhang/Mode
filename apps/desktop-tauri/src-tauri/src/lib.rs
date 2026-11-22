@@ -10,6 +10,7 @@
 use tauri::Runtime;
 
 pub mod agent_runtime;
+pub mod automation;
 pub mod host;
 pub mod inprocess;
 pub mod power;

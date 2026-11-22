@@ -61,6 +61,9 @@ pub struct InprocessState {
     /// decide 的**门禁**——只有已挂接 scope 上的请求才由壳内服务面应答，未挂接/
     /// 已 detach（含登记表不可读时 fail-closed）一律回落 Node（见 decide_route）。
     scopes: std::sync::Mutex<LocalScopeRegistry>,
+    /// 进程级任务事件总线：per-window 频道的 mode-task/window-controller 与
+    /// automation 宿主共用同一通知点（终态事件不按窗口分叉）。
+    task_events: StdArc<host_channels::mode_task::TaskEventBus>,
 }
 
 /// 开关允许接管的频道集合。`mode-agent` / `agent-health` 与普通业务频道一样按名字
@@ -233,6 +236,7 @@ impl InprocessState {
         let enabled = !owned.is_empty();
         let router = FrameRouter::new(owned.iter().cloned());
         let (local_tx, local_rx) = unbounded_channel::<(Option<u32>, Vec<u8>)>();
+        let task_events = StdArc::new(host_channels::mode_task::TaskEventBus::new());
 
         if enabled {
             let (out_tx, mut out_rx) = unbounded_channel::<Vec<u8>>();
@@ -241,6 +245,7 @@ impl InprocessState {
                 owned.clone(),
                 data_root,
                 Arc::clone(&agent_control),
+                StdArc::clone(&task_events),
                 local_rx,
                 out_tx,
             ));
@@ -274,7 +279,16 @@ impl InprocessState {
             enabled,
             agent_control,
             scopes: std::sync::Mutex::new(LocalScopeRegistry::new()),
+            task_events,
         })
+    }
+
+    pub fn agent_control(&self) -> &StdArc<AgentControlClient> {
+        &self.agent_control
+    }
+
+    pub fn task_events(&self) -> &StdArc<host_channels::mode_task::TaskEventBus> {
+        &self.task_events
     }
 
     /// 壳退出时收掉 Rust 侧 Agent 运行时（带优雅关闭宽限，超时整树强杀）。
@@ -323,11 +337,18 @@ async fn run_consumer(
     owned: Vec<String>,
     data_root: PathBuf,
     agent_control: StdArc<AgentControlClient>,
+    task_events: StdArc<host_channels::mode_task::TaskEventBus>,
     mut rx: UnboundedReceiver<(Option<u32>, Vec<u8>)>,
     out_tx: UnboundedSender<Vec<u8>>,
 ) {
     let mut generation = supervisor.current().startup_id().to_string();
-    let mut base = build_server(out_tx.clone(), &owned, &data_root, &agent_control);
+    let mut base = build_server(
+        out_tx.clone(),
+        &owned,
+        &data_root,
+        &agent_control,
+        &task_events,
+    );
     let mut scoped: std::collections::HashMap<u32, ChannelServer> =
         std::collections::HashMap::new();
     while let Some((scope_id, payload)) = rx.recv().await {
@@ -338,7 +359,13 @@ async fn run_consumer(
             for (_, mut server) in scoped.drain() {
                 server.dispose();
             }
-            base = build_server(out_tx.clone(), &owned, &data_root, &agent_control);
+            base = build_server(
+                out_tx.clone(),
+                &owned,
+                &data_root,
+                &agent_control,
+                &task_events,
+            );
             generation = current;
         }
         match scope_id {
@@ -350,6 +377,7 @@ async fn run_consumer(
                         &owned,
                         &data_root,
                         &agent_control,
+                        &task_events,
                     )
                 });
                 server.handle_frame(&payload);
@@ -387,6 +415,7 @@ fn build_server(
     owned: &[String],
     data_root: &Path,
     agent_control: &StdArc<AgentControlClient>,
+    task_events: &StdArc<host_channels::mode_task::TaskEventBus>,
 ) -> ChannelServer {
     let mut server = ChannelServer::new(
         out_tx,
@@ -401,8 +430,8 @@ fn build_server(
         data_root: data_root.to_path_buf(),
         agent_control: Some(StdArc::clone(agent_control)),
         on_shell_log: Some(StdArc::new(|message: &str| crate::host::shell_log(message))),
-        // 同一 server 的 mode-task → window-controller 事件桥。
-        task_events: StdArc::new(host_channels::mode_task::TaskEventBus::new()),
+        // 进程级共享：mode-task → window-controller 事件桥与 automation 终态订阅同源。
+        task_events: StdArc::clone(task_events),
         // LAN supervisor 装配待 inprocess 接入（16.4a 续）：当前 lan-access 管理面显式报错。
         lan_host: None,
     };

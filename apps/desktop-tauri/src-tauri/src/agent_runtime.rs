@@ -162,6 +162,17 @@ fn resolve_provider_paths(
     })
 }
 
+/// automation 宿主用的 Provider 文件层路径（与 agent 进程注入同口径）。
+pub(crate) fn resolve_provider_snapshot_paths(
+    resources_dir: Option<&Path>,
+    data_root: &Path,
+    cwd: &Path,
+) -> Option<(String, PathBuf)> {
+    let env: BTreeMap<String, String> = std::env::vars().collect();
+    resolve_provider_paths(resources_dir, data_root, cwd, &env)
+        .map(|paths| (paths.bundled, paths.personal))
+}
+
 /// 反向请求解析器：把 `requestProviderRuntimeHeaders` 交给账号事实层。
 struct ShellRuntimeHeadersResolver {
     facts: Arc<ProviderAccountFacts<ReqwestCodingPlanHttp>>,

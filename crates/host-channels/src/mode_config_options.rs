@@ -207,6 +207,11 @@ pub fn settings_to_config_options(settings: &SessionSettings) -> Vec<Value> {
     config_options
 }
 
+/// automation 调度用的本地时区偏移（秒，东正西负）。
+pub fn local_utc_offset_secs() -> i32 {
+    chrono::Local::now().offset().local_minus_utc()
+}
+
 /// TS `resolveModeAgentCurrentLogFilePath`：`MODE_LOG_DIR` 或 `{home}/.mode/cli/log`。
 pub fn native_session_log_file(now: chrono::DateTime<chrono::Local>) -> Result<(String, bool), String> {
     let dir = std::env::var("MODE_LOG_DIR")

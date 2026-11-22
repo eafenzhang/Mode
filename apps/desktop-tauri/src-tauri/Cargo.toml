@@ -85,6 +85,9 @@ commands-service = { path = "../../../crates/commands-service" }
 broadcast-service = { path = "../../../crates/broadcast-service" }
 credential-store = { path = "../../../crates/credential-store" }
 host-channels = { path = "../../../crates/host-channels" }
+# G2.5 automation 宿主进壳：与 host-standalone 同一 repos/provider 来源。
+task-index-repo = { path = "../../../crates/task-index-repo" }
+provider-config-source = { path = "../../../crates/provider-config-source" }
 rpc-host = { path = "../../../crates/rpc-host" }
 rpc-wire = { path = "../../../crates/rpc-wire" }
 project-memory = { path = "../../../crates/project-memory" }

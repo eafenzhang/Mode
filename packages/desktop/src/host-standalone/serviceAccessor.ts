@@ -214,6 +214,10 @@ export async function createHostServiceSurface(
         ? await botRemoteHost.createBotRuntimePort(target)
         : { ok: false, error: "远程工作区服务尚未就绪。" },
   };
+  // G2.5：automation 宿主所有权开关。Tauri 壳在同一开关下启动 Rust `AutomationRuntime`
+  // （apps/desktop-tauri/src-tauri/src/automation.rs）；两个调度器共用 tasks-index.sqlite 会
+  // 重复派发，所以 Node 侧必须整个不创建（不是只不 start）。默认关闭，行为与现状一致。
+  const rustOwnsAutomation = process.env.MODE_RUST_AUTOMATION?.trim() === "1";
   const services = createLocalServices({
     // **Tauri Host 就是桌面本地权威**：CUA Helper 的准入（远程桌面的 raw_input 与 rd_media
     // 媒体面都经它）要求 `serviceAuthorityMode === "desktop-local"`（见
@@ -228,6 +232,11 @@ export async function createHostServiceSurface(
     // 创建（resolveTargetServices 依赖 registry），dispatcher 经可变引用延迟绑定；UI 只会在
     // Host ready 之后触发 run-now，此时 runtime 必已赋值。
     onAutomationManualRunRequested: async (params) => {
+      if (rustOwnsAutomation) {
+        // Rust 接管时 Node 侧没有 dispatcher：留痕后显式失败，不静默丢弃请求。
+        options.log("automation manual run requested while rust owns automation");
+        throw new Error("Automation 由 Rust 宿主接管，manual run 暂不可用。");
+      }
       if (!automationRuntime) {
         throw new Error("Automation runtime is not ready.");
       }
@@ -323,18 +332,22 @@ export async function createHostServiceSurface(
   botRemoteHost = remote;
   // Automation 运行时：调度循环与 manual 直派在单进程 sidecar 内完成；远端 workspace 经
   // registry 的 scoped services 派发，identity 是远端但无在线会话时抛错不回退本地。
-  automationRuntime = createAutomationRuntime({
-    resolveTargetServices: (request) => {
-      const remoteTarget = remote.resolveAutomationTargetServices(request);
-      if (remoteTarget) return remoteTarget.services;
-      if (request.workspaceIdentity && isRemoteWorkspaceIdentity(request.workspaceIdentity)) {
-        throw new Error("Automation 目标 Remote Host 当前不可用");
-      }
-      return services;
-    },
-    log: (level, message) => options.log(`${level === "info" ? "" : `${level} `}${message}`),
-  });
-  automationRuntime.start();
+  if (rustOwnsAutomation) {
+    options.log("automation runtime owned by rust host; node scheduler skipped");
+  } else {
+    automationRuntime = createAutomationRuntime({
+      resolveTargetServices: (request) => {
+        const remoteTarget = remote.resolveAutomationTargetServices(request);
+        if (remoteTarget) return remoteTarget.services;
+        if (request.workspaceIdentity && isRemoteWorkspaceIdentity(request.workspaceIdentity)) {
+          throw new Error("Automation 目标 Remote Host 当前不可用");
+        }
+        return services;
+      },
+      log: (level, message) => options.log(`${level === "info" ? "" : `${level} `}${message}`),
+    });
+    automationRuntime.start();
+  }
   // window-controller 聚合运行时：renderer 与手机 Web 远控的侧栏任务视图
   // （任务分区/置顶/时间线/grouped enrich）唯一数据源。source 路由必须先问远程 registry，
   // 远程身份绝不回落本地 tasks-index（同路径不同 authority 会串读）。

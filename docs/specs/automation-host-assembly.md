@@ -36,7 +36,30 @@ setAutomationSessionConfig/sendPrompt）。Rust：`automation-runtime`（状态�
 `create_automation_host` 只构造不启动；启动/停止所有权由宿主决定。翻转时必须先停
 Node `automationRuntime.start()`（双跑会双派发），并保持单实例。
 
+## Tauri 开关化装配（G2.5，默认关闭）
+
+开关：`MODE_RUST_AUTOMATION=1`（`apps/desktop-tauri/src-tauri/src/automation.rs`，
+只接受精确 `"1"`）。
+
+- **Rust 侧**：`start_if_enabled` 在 Tauri 进程内装配
+  - provider 快照路径复用 `agent_runtime::resolve_provider_snapshot_paths`（与 agent
+    进程注入同口径：resources builtin + data_root personal），
+    `provider_config_source::read_snapshot` → `ProviderConfigModelSelectionPort`；
+  - `AutomationRepo` 与 Node 同库：`<data_root>/v2/tasks-index.sqlite`；
+  - `ModeTaskChannel` 复用 `InprocessState` 的同一 `agent_control` 与
+    `task_events`（事件总线按进程共享，终态订阅才能收到 mode-task 发射）；
+  - 宿主 log 走壳的 `shell_log`；`utc_offset_secs` 用本机时区。
+- **Node 侧**：`serviceAccessor` 同开关下**不创建** `automationRuntime`（不是只不
+  `start()`）：两个调度器共用 tasks-index.sqlite，只停轮询仍可能被 manual-run 触达。
+  manual-run 在该开关下留痕并显式报错（Rust 侧暂未暴露 manual 入口）。
+- **默认关闭**：未设置开关时 Node 装配与行为完全不变。开关只用于真机验收与后续
+  翻转；翻转完成后再删除 Node 侧代码。
+- **已知风险（验收观察项）**：开关打开时 Rust 与 Node 两个进程仍同时持有
+  `tasks-index.sqlite`（Node 其余服务照常写索引），并发写可能触发 SQLite busy。
+  这是「双进程共存」阶段的固有限制，不是运行时逻辑；翻转（Node 不再起）后才消失。
+
 ## 验收
 
 `cargo test -p host-channels --lib automation_host`（宿主构造 + mark unread 索引/事件）+
-`cargo test -p automation-runtime`（状态机 fake-port 对拍）。
+`cargo test -p automation-runtime`（状态机 fake-port 对拍）+
+`cargo test -p mode-tauri automation`（开关判定）。

@@ -94,13 +94,24 @@ fn main() {
             mode_tauri::host::resolve_data_root(&handle),
             mode_tauri::power::KeepAwake::new(),
         );
+        let data_root = mode_tauri::host::resolve_data_root(&handle);
         let inprocess = mode_tauri::inprocess::InprocessState::from_env(
             std::sync::Arc::clone(&supervisor),
-            mode_tauri::host::resolve_data_root(&handle),
+            data_root.clone(),
             agent_control,
+        );
+        // G2.5：automation 宿主进壳（默认关闭）。开关 = `MODE_RUST_AUTOMATION=1`，
+        // 与 sidecar 的 `serviceAccessor` 同判据——两边必须同开关，否则双派发。
+        let automation = mode_tauri::automation::start_if_enabled(
+            handle.path().resource_dir().ok().as_deref(),
+            &data_root,
+            &inprocess,
         );
         app.manage(supervisor);
         app.manage(inprocess);
+        if let Some(automation) = automation {
+            app.manage(automation);
+        }
 
         // 窗口必须在 Rust 侧建：`WindowConfig` 没有 `initialization_script` 字段，
         // 配置里的窗口拿不到注入（见 mode_tauri::window 的模块文档）。
