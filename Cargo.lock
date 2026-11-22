@@ -2559,6 +2559,8 @@ dependencies = [
  "git-service",
  "lan-discovery",
  "mcp-sync-service",
+ "off-peak-repo",
+ "off-peak-runtime",
  "plugin-sync-service",
  "project-memory",
  "provider-balance",
@@ -3742,6 +3744,7 @@ dependencies = [
  "file-watcher",
  "host-channels",
  "off-peak-repo",
+ "off-peak-runtime",
  "official-mcp-auth",
  "platform",
  "project-memory",
@@ -4263,6 +4266,14 @@ dependencies = [
  "tasks-db",
  "uuid",
  "workspace-identity",
+]
+
+[[package]]
+name = "off-peak-runtime"
+version = "0.1.0"
+dependencies = [
+ "off-peak-repo",
+ "tokio",
 ]
 
 [[package]]

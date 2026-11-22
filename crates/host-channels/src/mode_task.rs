@@ -1536,7 +1536,13 @@ async fn run_orchestration(
                 None => {
                     // automation / 闲时任务新建空 session 后立即 sendText——V4 admission
                     // 必须在首发前统一持久化 session 主记录（TS deferred persistence 同因）。
-                    let persistence = if parsed.automation_id.is_some() {
+                    // 修复依据（TS createTask）：automation 与闲时任务都是「新建空 session
+                    // 后立即 sendText」。session_input 有 session 外键，必须让 V4 admission
+                    // 在首发前统一持久化 session 主记录，否则首条 prompt 稳定触发
+                    // FOREIGN KEY constraint failed。
+                    let persistence = if parsed.automation_id.is_some()
+                        || parsed.off_peak_task_id.is_some()
+                    {
                         Some(SessionPersistence::Deferred)
                     } else {
                         None
@@ -1712,8 +1718,30 @@ async fn run_orchestration(
                 query_id: Option<String>,
                 #[serde(default)]
                 automation_id: Option<String>,
+                #[serde(default)]
+                off_peak_task_id: Option<String>,
+                #[serde(default)]
+                off_peak_run_type: Option<String>,
+                #[serde(default)]
+                tool_denylist: Option<Vec<String>>,
             }
             let parsed: P = parse(object)?;
+            let off_peak_run_type = match parsed.off_peak_run_type.as_deref() {
+                None => None,
+                Some("init") => Some(agent_protocol::session_send::OffPeakRunType::Init),
+                Some("resume") => Some(agent_protocol::session_send::OffPeakRunType::Resume),
+                Some(other) => {
+                    return Err(ChannelError::error(format!(
+                        "sendPrompt invalid offPeakRunType: {other}"
+                    )))
+                }
+            };
+            // TS `resolvePromptToolDenylist`：按本轮身份纵深隐藏变更类工具。
+            let tool_denylist = resolve_prompt_tool_denylist(
+                parsed.automation_id.as_deref(),
+                parsed.off_peak_task_id.as_deref(),
+                parsed.tool_denylist,
+            );
             // control 已由 call 分流保证存在
             // TS getTaskTarget：任务归属 workspace 由任务索引读出（task_id 即 session id）。
             let indexed = repo
@@ -1763,10 +1791,10 @@ async fn run_orchestration(
                         expected_revision: None,
                         expected_provider_revision: None,
                         automation_id: parsed.automation_id.clone(),
-                        off_peak_task_id: None,
-                        off_peak_run_type: None,
+                        off_peak_task_id: parsed.off_peak_task_id.clone(),
+                        off_peak_run_type,
                         bot_delivery_target: None,
-                        tool_denylist: None,
+                        tool_denylist,
                     },
                 )
                 .await
@@ -2677,6 +2705,38 @@ fn sync_snapshot_to_index(
 }
 
 /// TS `toModeMode(...) ?? "build"`；`auto` 仍依赖 legacy session/setMode，显式报错。
+/// TS `resolvePromptToolDenylist`：显式 denylist 与身份规则合并（保序去重）。
+///
+/// - `automationId` → `CronCreate`/`CronUpdate`/`CronDelete`（只认本轮身份，
+///   `cronAutomationId` 持久标记不算）。
+/// - `offPeakTaskId` → `OffPeakCreate`（独立常量，绝不并入 cron 规则）。
+fn resolve_prompt_tool_denylist(
+    automation_id: Option<&str>,
+    off_peak_task_id: Option<&str>,
+    explicit: Option<Vec<String>>,
+) -> Option<Vec<String>> {
+    let mut names: Vec<String> = Vec::new();
+    let mut push = |name: &str| {
+        if !names.iter().any(|existing| existing == name) {
+            names.push(name.to_string());
+        }
+    };
+    if let Some(explicit) = explicit {
+        for name in explicit {
+            push(&name);
+        }
+    }
+    if automation_id.is_some() {
+        for name in ["CronCreate", "CronUpdate", "CronDelete"] {
+            push(name);
+        }
+    }
+    if off_peak_task_id.is_some() {
+        push("OffPeakCreate");
+    }
+    (!names.is_empty()).then_some(names)
+}
+
 fn mode_command_value(mode: &str, command: &str) -> Result<&'static str, ChannelError> {
     match mode {
         "build" | "autoEdit" => Ok("build"),
@@ -3022,5 +3082,34 @@ impl ServerChannel for ModeTaskChannel {
                     })?,
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_prompt_tool_denylist;
+
+    #[test]
+    fn prompt_denylist_merges_identity_rules() {
+        assert_eq!(resolve_prompt_tool_denylist(None, None, None), None);
+        assert_eq!(
+            resolve_prompt_tool_denylist(Some("a-1"), None, Some(vec!["Bash".to_string()])),
+            Some(vec![
+                "Bash".to_string(),
+                "CronCreate".to_string(),
+                "CronUpdate".to_string(),
+                "CronDelete".to_string(),
+            ])
+        );
+        // 闲时轮只隐藏 OffPeakCreate，不合并 cron 规则。
+        assert_eq!(
+            resolve_prompt_tool_denylist(None, Some("op-1"), None),
+            Some(vec!["OffPeakCreate".to_string()])
+        );
+        // 显式重复项保序去重。
+        assert_eq!(
+            resolve_prompt_tool_denylist(None, Some("op-1"), Some(vec!["OffPeakCreate".to_string()])),
+            Some(vec!["OffPeakCreate".to_string()])
+        );
     }
 }

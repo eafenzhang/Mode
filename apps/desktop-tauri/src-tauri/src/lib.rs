@@ -13,6 +13,7 @@ pub mod agent_runtime;
 pub mod automation;
 pub mod host;
 pub mod inprocess;
+pub mod off_peak;
 pub mod power;
 pub mod single_instance;
 pub mod terminal;

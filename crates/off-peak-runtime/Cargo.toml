@@ -1,0 +1,17 @@
+[package]
+name = "off-peak-runtime"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "闲时任务调度运行时：认领 → 派发 → 终态结算（进程内轮询）"
+
+[lib]
+name = "off_peak_runtime"
+path = "src/lib.rs"
+
+[dependencies]
+off-peak-repo = { path = "../off-peak-repo" }
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }

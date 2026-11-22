@@ -67,8 +67,10 @@
    `src/host/offPeakDispatchPlan.ts`、`src/main/desktopCronScheduler.ts`），随
    `d71ed992b`（移除旧 Electron 线）删除且未在 Tauri 重建。`claimDue`/`markRunning`
    在 TS/Rust 均无生产调用方，`off-peak-scheduler-wake-request` 无发送者。当前
-   off-peak 只剩管理面 + 取号/状态轮询；任务不会被执行。恢复执行需要新 spec
-   （认领 → 建/恢复会话 → sendPrompt → 终态结算）。
+   off-peak 只剩管理面 + 取号/状态轮询；任务不会被执行。**执行侧已在
+   `crates/off-peak-runtime` 恢复（2026-11-22，spec `docs/specs/off-peak-runtime.md`）**：
+   认领 → 建/恢复会话 → sendPrompt → 终态结算；取号/轮询仍由本 crate 的
+   `run_sync_cycle`（Node `startSync`）负责。
 
 ## 5. 验收
 

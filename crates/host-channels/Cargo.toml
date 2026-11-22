@@ -10,6 +10,8 @@ name = "host_channels"
 path = "src/lib.rs"
 
 [dependencies]
+off-peak-repo = { path = "../off-peak-repo" }
+off-peak-runtime = { path = "../off-peak-runtime" }
 agent-process = { path = "../agent-process" }
 agent-protocol = { path = "../agent-protocol" }
 broadcast-service = { path = "../broadcast-service" }
