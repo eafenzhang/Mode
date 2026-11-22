@@ -53,6 +53,16 @@ Personal 仓库 revision。输出与 `ProviderSettingsView` 同构：
 `ModelConfigRules.delete_exact_for_provider`、`provider_resolver::resolve_owned_order`
 公开，供 create/save/delete/reorder 复用。
 
+已落（2026-11-23）：
+- `host-channels::provider_settings::delete_personal_provider`：删 Provider +
+  该 Provider 精确模型规则 + 顺序项；默认模型选择原样保留。
+- `reorder_personal_providers`：只保留 standard-personal 成员，请求序在前、
+  未列出的按原顺序追加（复用 resolve_owned_order）。
+
+待做：`createPersonalProvider` / `savePersonalProviderOverlay` 需要先迁
+`normalizePersonalProviderMembership` / `withModelMembershipFrom` /
+`assertProviderLabelMutationIsUnique` 与 membership CAS；model 级 6 方法同理。
+
 ## 3. 阶段 2：写入面（待做）
 
 `createPersonalProvider` / `savePersonalProviderOverlay` / `deletePersonalProvider` /

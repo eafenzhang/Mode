@@ -4,6 +4,8 @@
 //! 与 TS `createProviderSettingsView` 同构的 JSON；写入面与频道在后续阶段。
 
 use provider_config::{Field, Issue, ProviderGroup, ProviderVisibility};
+use provider_config_file_codec::ProviderConfigLayerUpdate;
+use provider_config_source::PersonalLayer;
 use provider_config_source::ProviderConfigSnapshot;
 use provider_resolver::{ProviderConfigResolver, ProviderConfigResolverInput};
 use serde_json::{json, Map, Value as Json};
@@ -200,6 +202,79 @@ pub fn build_provider_settings_view(snapshot: &ProviderConfigSnapshot, revision:
     })
 }
 
+/// 删除 Personal Provider：同时清理它的精确模型规则与顺序项。
+pub fn delete_personal_provider(
+    current: &PersonalLayer,
+    provider_id: &str,
+) -> Result<ProviderConfigLayerUpdate, String> {
+    let provider_id = provider_id.trim();
+    if provider_id.is_empty() {
+        return Err("providerId 不能为空".to_string());
+    }
+    Ok(ProviderConfigLayerUpdate {
+        providers: current.providers.delete(provider_id),
+        models: current.models.delete_exact_for_provider(provider_id),
+        provider_order: current.provider_order.as_ref().map(|order| {
+            order
+                .iter()
+                .filter(|candidate| *candidate != provider_id)
+                .cloned()
+                .collect()
+        }),
+        default_model_selection: current
+            .default_model_selection
+            .as_ref()
+            .map(to_layer_selection),
+    })
+}
+
+/// 重排 Personal Provider 顺序：只保留 standard-personal 成员，未列出的按原顺序追加。
+pub fn reorder_personal_providers(
+    current: &PersonalLayer,
+    provider_ids: &[String],
+) -> ProviderConfigLayerUpdate {
+    let personal_ids: Vec<String> = current
+        .providers
+        .entries()
+        .filter(|(_, rule)| {
+            matches!(
+                &rule.config.group,
+                Field::Value(ProviderGroup::StandardPersonal)
+            )
+        })
+        .map(|(provider_id, _)| provider_id.clone())
+        .collect();
+    ProviderConfigLayerUpdate {
+        providers: current.providers.clone(),
+        models: current.models.clone(),
+        provider_order: Some(provider_resolver::resolve_owned_order(
+            &[],
+            &personal_ids,
+            provider_ids,
+        )),
+        default_model_selection: current
+            .default_model_selection
+            .as_ref()
+            .map(to_layer_selection),
+    }
+}
+
+/// Personal 层与文件 codec 各有一份同构 Selection 类型。
+fn to_layer_selection(
+    selection: &provider_config_source::ModelSelection,
+) -> model_selection::ModelSelection {
+    model_selection::ModelSelection {
+        provider_id: selection.provider_id.clone(),
+        model_id: selection.model_id.clone(),
+        options: selection
+            .options
+            .as_ref()
+            .map(|options| model_selection::SelectionOptions {
+                reasoning_level: options.reasoning_level.clone(),
+            }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,6 +293,87 @@ mod tests {
             personal_models: ModelConfigRules::empty(),
             personal_provider_order: Vec::new(),
         }
+    }
+
+    fn personal_rule(provider_id: &str) -> provider_config::ProviderConfigRule {
+        provider_config::ProviderConfigRule {
+            provider_id: provider_id.to_string(),
+            template_id: Field::Absent,
+            provider_name: Field::Value(provider_id.to_uppercase()),
+            enabled: Field::Value(true),
+            config: provider_config::ProviderConfig {
+                group: Field::Value(ProviderGroup::StandardPersonal),
+                ..provider_config::ProviderConfig::default()
+            },
+        }
+    }
+
+    fn personal_layer() -> PersonalLayer {
+        let mut providers = provider_config::ProviderConfigMap::empty();
+        providers = providers.set_rule(personal_rule("p1"));
+        providers = providers.set_rule(personal_rule("p2"));
+        let models = provider_config::ModelConfigRules::new(vec![
+            provider_config::ModelRule::Provider {
+                provider_id: "p1".to_string(),
+                model_id: "m1".to_string(),
+                config: provider_config::ModelConfig::default(),
+            },
+            provider_config::ModelRule::Provider {
+                provider_id: "p2".to_string(),
+                model_id: "m1".to_string(),
+                config: provider_config::ModelConfig::default(),
+            },
+        ]);
+        PersonalLayer {
+            revision: "rev-1".to_string(),
+            providers,
+            models,
+            provider_order: Some(vec!["p2".to_string(), "p1".to_string()]),
+            default_model_selection: Some(provider_config_source::ModelSelection {
+                provider_id: "p1".to_string(),
+                model_id: "m1".to_string(),
+                options: None,
+            }),
+        }
+    }
+
+    #[test]
+    fn delete_personal_provider_cleans_rules_and_order() {
+        let layer = personal_layer();
+        let update = delete_personal_provider(&layer, "p1").expect("delete");
+        assert!(update.providers.get("p1").is_none());
+        assert!(update.providers.get("p2").is_some());
+        assert!(update.models.get_exact_rule("p1", "m1").is_none());
+        assert!(update.models.get_exact_rule("p2", "m1").is_some());
+        assert_eq!(
+            update.provider_order.as_deref(),
+            Some(&["p2".to_string()][..])
+        );
+        // 默认模型选择原样保留。
+        assert_eq!(
+            update
+                .default_model_selection
+                .as_ref()
+                .map(|selection| selection.provider_id.as_str()),
+            Some("p1")
+        );
+        assert!(delete_personal_provider(&layer, "  ").is_err());
+    }
+
+    #[test]
+    fn reorder_providers_keeps_members_and_appends_rest() {
+        let layer = personal_layer();
+        let update = reorder_personal_providers(&layer, &["p2".to_string(), "missing".to_string()]);
+        assert_eq!(
+            update.provider_order.as_deref(),
+            Some(&["p2".to_string(), "p1".to_string()][..])
+        );
+        // 空请求按原 personal 顺序。
+        let update = reorder_personal_providers(&layer, &[]);
+        assert_eq!(
+            update.provider_order.as_deref(),
+            Some(&["p1".to_string(), "p2".to_string()][..])
+        );
     }
 
     #[test]
