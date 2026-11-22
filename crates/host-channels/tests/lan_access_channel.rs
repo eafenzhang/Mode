@@ -268,8 +268,6 @@ async fn server_supervisor_methods_report_missing_owner() {
         "createPairCode",
         "removeClient",
         "resetTokens",
-        "pairPeer",
-        "getPeerWorkspaces",
     ] {
         let error = channel
             .call(
@@ -509,6 +507,46 @@ async fn host_port_serves_management_state_and_events() {
     assert!(calls.contains(&"createPairCode".to_string()), "{calls:?}");
     assert!(calls.contains(&"removeClient:c1".to_string()), "{calls:?}");
     assert!(calls.contains(&"resetTokens".to_string()), "{calls:?}");
+}
+
+#[tokio::test]
+async fn peer_http_commands_report_argument_errors() {
+    let dir = TempDir::new("peer-http");
+    let channel = LanAccessChannel::new(store(&dir));
+
+    let error = channel
+        .call(
+            "ctx".into(),
+            "pairPeer".into(),
+            Value::Json(
+                json!({ "host": "   ", "port": 45880, "code": "ABCDEF" }).to_string(),
+            ),
+            CancellationToken::default(),
+        )
+        .await
+        .expect_err("empty host");
+    match error {
+        rpc_host::ChannelError::Error { message, .. } => {
+            assert!(message.contains("缺少对端地址"), "{message}");
+        }
+        other => panic!("期望 Error 变体，实际 {other:?}"),
+    }
+
+    let error = channel
+        .call(
+            "ctx".into(),
+            "getPeerWorkspaces".into(),
+            Value::Json(json!({ "serverId": "   " }).to_string()),
+            CancellationToken::default(),
+        )
+        .await
+        .expect_err("empty serverId");
+    match error {
+        rpc_host::ChannelError::Error { message, .. } => {
+            assert!(message.contains("缺少 serverId"), "{message}");
+        }
+        other => panic!("期望 Error 变体，实际 {other:?}"),
+    }
 }
 
 #[tokio::test]

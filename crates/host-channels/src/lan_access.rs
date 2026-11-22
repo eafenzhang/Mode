@@ -79,26 +79,26 @@ impl LanAccessChannel {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct LanPeerEndpoint {
-    scheme: String,
-    host: String,
-    port: u16,
-    kind: String,
+pub(crate) struct LanPeerEndpoint {
+    pub(crate) scheme: String,
+    pub(crate) host: String,
+    pub(crate) port: u16,
+    pub(crate) kind: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    path: Option<String>,
+    pub(crate) path: Option<String>,
 }
 
 /// `lanPeerMetaSchema`：v2（多端点）与 v1（单内网地址，读取时迁移）。
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
-enum RawLanPeerMeta {
+pub(crate) enum RawLanPeerMeta {
     V2(RawLanPeerMetaV2),
     V1(RawLanPeerMetaV1),
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct RawLanPeerMetaV2 {
+pub(crate) struct RawLanPeerMetaV2 {
     endpoints: Vec<LanPeerEndpoint>,
     #[serde(default)]
     name: Option<String>,
@@ -108,7 +108,7 @@ struct RawLanPeerMetaV2 {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct RawLanPeerMetaV1 {
+pub(crate) struct RawLanPeerMetaV1 {
     host: String,
     port: u16,
     #[serde(default)]
@@ -119,19 +119,31 @@ struct RawLanPeerMetaV1 {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct LanPeerMeta {
-    endpoints: Vec<LanPeerEndpoint>,
+pub(crate) struct LanPeerMeta {
+    pub(crate) endpoints: Vec<LanPeerEndpoint>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
+    pub(crate) name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    paired_at: Option<i64>,
+    pub(crate) paired_at: Option<i64>,
 }
 
 impl LanPeerMeta {
-    fn parse(raw: Option<String>) -> Option<Self> {
+    pub(crate) fn parse(raw: Option<String>) -> Option<Self> {
         let raw = raw?;
         let value: RawLanPeerMeta = serde_json::from_str(&raw).ok()?;
         Self::normalize(value)
+    }
+
+    pub(crate) fn from_endpoints(
+        endpoints: Vec<LanPeerEndpoint>,
+        name: Option<String>,
+        paired_at: Option<i64>,
+    ) -> Option<Self> {
+        Self::normalize(RawLanPeerMeta::V2(RawLanPeerMetaV2 {
+            endpoints,
+            name,
+            paired_at,
+        }))
     }
 
     fn normalize(value: RawLanPeerMeta) -> Option<Self> {
@@ -218,7 +230,7 @@ struct LanAccessClientRecord {
     remote_desktop_authorized: Option<bool>,
 }
 
-fn now_ms() -> i64 {
+pub(crate) fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_millis() as i64)
@@ -293,11 +305,11 @@ struct PairedPeer {
     paired_at: Option<i64>,
 }
 
-fn peer_token_key(server_id: &str) -> String {
+pub(crate) fn peer_token_key(server_id: &str) -> String {
     format!("{PEER_PREFIX}{server_id}{TOKEN_SUFFIX}")
 }
 
-fn peer_meta_key(server_id: &str) -> String {
+pub(crate) fn peer_meta_key(server_id: &str) -> String {
     format!("{PEER_PREFIX}{server_id}{META_SUFFIX}")
 }
 
@@ -573,14 +585,70 @@ impl ServerChannel for LanAccessChannel {
         let credentials = Arc::clone(&self.credentials);
         let host = self.host.clone();
         Box::pin(async move {
-            tokio::task::spawn_blocking(move || {
-                let channel = LanAccessChannel { credentials, host };
-                run(&channel, &command, &arg)
-            })
-            .await
-            .map_err(|error| {
-                ChannelError::error(format!("lan-access channel task failed: {error}"))
-            })?
+            match command.as_str() {
+                // 网络 side：异步 HTTP（reqwest），失败按对端/传输语义收口。
+                "pairPeer" => {
+                    #[derive(Deserialize)]
+                    #[serde(rename_all = "camelCase")]
+                    struct P {
+                        host: String,
+                        port: u16,
+                        code: String,
+                        #[serde(default)]
+                        label: Option<String>,
+                        #[serde(default)]
+                        scheme: Option<String>,
+                        #[serde(default)]
+                        path: Option<String>,
+                    }
+                    let first = first_arg_object(&arg)?;
+                    let parsed: P = serde_json::from_value(serde_json::Value::Object(first))
+                        .map_err(|error| {
+                            ChannelError::error(format!("invalid arguments: {error}"))
+                        })?;
+                    let result = crate::lan_peer_client::pair_peer(
+                        &credentials,
+                        crate::lan_peer_client::PairPeerParams {
+                            host: parsed.host,
+                            port: parsed.port,
+                            code: parsed.code,
+                            label: parsed.label,
+                            scheme: parsed.scheme,
+                            path: parsed.path,
+                        },
+                    )
+                    .await
+                    .map_err(ChannelError::error)?;
+                    json_text(result)
+                }
+                "getPeerWorkspaces" => {
+                    #[derive(Deserialize)]
+                    #[serde(rename_all = "camelCase")]
+                    struct P {
+                        server_id: String,
+                    }
+                    let first = first_arg_object(&arg)?;
+                    let parsed: P = serde_json::from_value(serde_json::Value::Object(first))
+                        .map_err(|error| {
+                            ChannelError::error(format!("invalid arguments: {error}"))
+                        })?;
+                    let result = crate::lan_peer_client::get_peer_workspaces(
+                        &credentials,
+                        &parsed.server_id,
+                    )
+                    .await
+                    .map_err(ChannelError::error)?;
+                    json_text(result)
+                }
+                _ => tokio::task::spawn_blocking(move || {
+                    let channel = LanAccessChannel { credentials, host };
+                    run(&channel, &command, &arg)
+                })
+                .await
+                .map_err(|error| {
+                    ChannelError::error(format!("lan-access channel task failed: {error}"))
+                })?,
+            }
         })
     }
 

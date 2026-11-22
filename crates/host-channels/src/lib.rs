@@ -28,6 +28,7 @@ pub mod git_checkpoint;
 pub mod health;
 pub mod hooks;
 pub mod lan_access;
+pub mod lan_peer_client;
 pub mod mcp_sync;
 pub mod media_preview;
 pub mod assembly;

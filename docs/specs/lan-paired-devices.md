@@ -119,8 +119,17 @@
   合并/排序），输出 announcement 形状（magic/protocolVersion/serverId/name?/
   version/port/requiresPairing/platform?/host/extraHosts?）；Rust 公告解析层未保留
   `scheme`（缺省 http）。
-- 尚未迁移：`pairPeer` / `getPeerWorkspaces`（对端 HTTP + 端点选择 + 凭据写入，
-  16.4a 续）。
+- `pairPeer` / `getPeerWorkspaces`（2026-11-22 已落，`lan_peer_client.rs`）：
+  - `pairPeer`：校验 host/port/路径前缀 → `POST /api/lan/pair`（code 大写、label
+    缺省本机主机名）→ 401/429/非 2xx 文案 → 令牌 + serverId + name + publicRelay
+    校验（tunnelId `[A-Za-z0-9_-]{16,128}`、baseUrl 必须 https）→ 公网端点自动
+    生成 `<baseUrl>/d/<tunnelId>` → 写 `lan:peer:<id>:token` 与合并后的 meta
+    （本次端点优先；旧 LAN 保留；新配对无公网端点时保留旧公网；去重/公网优先/
+    公网强制 HTTPS 复用 `LanPeerMeta` 归一化；重复配对覆盖展示名与 pairedAt）。
+  - `getPeerWorkspaces`：按 meta 端点优先级探测 `GET /api/server-info?token=`；
+    单端点 10s、多端点 LAN 2.5s / 公网 8s；401/403 立即收口，传输失败/404/5xx/
+    JSON 或协议不符才回退下一个端点；返回 `{name?, workspaces[{path,label?,
+    workspaceIdentity?}]}`（protocolVersion=1 校验）。
 
 ## 不做
 
