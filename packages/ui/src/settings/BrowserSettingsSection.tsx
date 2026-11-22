@@ -17,7 +17,7 @@ import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useModeSessionService } from "@/hooks/useModeSessionService.js";
+import { useModeAgentService } from "@/hooks/useModeAgentService.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/modeDraftSkillInvalidation.js";
 import { logger } from "@/logger.js";
@@ -81,7 +81,7 @@ export function BrowserSettingsSection({
   const { intl } = useModeIntl();
   const platform = usePlatform();
   const { pluginManagementService, skillsService } = useServices();
-  const modeSessionService = useModeSessionService(
+  const modeAgentService = useModeAgentService(
     workspacePath ?? undefined,
     undefined,
     workspaceIdentity,
@@ -121,7 +121,7 @@ export function BrowserSettingsSection({
 
   const refreshAfterPluginChange = useCallback(async () => {
     await invalidateDeferredDraftSessionForSkillChange({
-      modeSessionService,
+      modeAgentService,
       workspacePath,
       workspaceIdentity: normalizedWorkspaceIdentity ?? undefined,
       reason: "settings-browser-use-plugin-enabled",
@@ -140,7 +140,7 @@ export function BrowserSettingsSection({
     skillStoreWorkspacePath,
     skillsService,
     workspacePath,
-    modeSessionService,
+    modeAgentService,
   ]);
 
   const handleBrowserEnabledChange = useCallback(

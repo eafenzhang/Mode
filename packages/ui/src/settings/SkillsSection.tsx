@@ -13,7 +13,12 @@ import {
 } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/ui-foundation/adapters/dialog.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import type {
   ModeProvider,
@@ -28,7 +33,7 @@ import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
-import { useModeSessionService } from "@/hooks/useModeSessionService.js";
+import { useModeAgentService } from "@/hooks/useModeAgentService.js";
 import {
   useBaseWorkspaceServices,
   useWorkspaceServicesResolution,
@@ -200,7 +205,7 @@ export function SkillsSection({
   // 取服务，导致跨远程 host 误路由。技能读写和远端同步都改用同一 target 解析结果。
   const { pluginManagementService, skillSyncService, skillsService } =
     targetServiceResolution.services;
-  const modeSessionService = useModeSessionService(
+  const modeAgentService = useModeAgentService(
     activeWorkspacePath ?? undefined,
     undefined,
     activeWorkspaceIdentity,
@@ -380,7 +385,7 @@ export function SkillsSection({
           enabled,
         });
         await invalidateDeferredDraftSessionForSkillChange({
-          modeSessionService,
+          modeAgentService,
           workspacePath: activeWorkspacePath,
           workspaceIdentity: activeWorkspaceIdentity,
           reason: "settings-skill-enabled",
@@ -399,7 +404,7 @@ export function SkillsSection({
       refreshSharedSkillStoreForCurrentWorkspace,
       skills,
       skillsService,
-      modeSessionService,
+      modeAgentService,
     ],
   );
 
@@ -428,7 +433,7 @@ export function SkillsSection({
           skillId: skill.id,
         });
         await invalidateDeferredDraftSessionForSkillChange({
-          modeSessionService,
+          modeAgentService,
           workspacePath: activeWorkspacePath,
           workspaceIdentity: activeWorkspaceIdentity,
           reason: "settings-skill-delete",
@@ -449,7 +454,7 @@ export function SkillsSection({
       loadSkills,
       selectedSkill,
       skillsService,
-      modeSessionService,
+      modeAgentService,
     ],
   );
 
@@ -968,7 +973,7 @@ export function SkillsSection({
         onOpenChange={setImportDialogOpen}
         onImported={async () => {
           await invalidateDeferredDraftSessionForSkillChange({
-            modeSessionService,
+            modeAgentService,
             workspacePath: activeWorkspacePath,
             workspaceIdentity: activeWorkspaceIdentity,
             reason: "settings-skill-import",
@@ -993,7 +998,7 @@ export function SkillsSection({
         workspaceIdentity={activeWorkspaceIdentity}
         onSkillsSynced={async () => {
           await invalidateDeferredDraftSessionForSkillChange({
-            modeSessionService,
+            modeAgentService,
             workspacePath: activeWorkspacePath,
             workspaceIdentity: activeWorkspaceIdentity,
             reason: "settings-remote-skill-sync",

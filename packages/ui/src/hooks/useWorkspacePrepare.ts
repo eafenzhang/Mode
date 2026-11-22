@@ -1,1 +1,1 @@
-export { prepareWorkspaceWithModeSessionService } from "@/hooks/workspacePrepareRpc.js";
+export { prepareWorkspaceWithModeAgentService } from "@/hooks/workspacePrepareRpc.js";

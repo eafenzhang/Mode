@@ -459,9 +459,7 @@ export function WorkspaceHeaderTitleSection({
                           : intl.formatMessage(
                               { id: "taskList.botBind.conversation.private" },
                               {
-                                name:
-                                  binding.conversationLabel?.trim() ||
-                                  binding.conversationId,
+                                name: binding.conversationLabel?.trim() || binding.conversationId,
                               },
                             ),
                     },
@@ -770,7 +768,7 @@ export function WorkspaceHeaderTitleSection({
           workspaceIdentity={workspaceIdentity}
           onSkillsSynced={async () => {
             await invalidateDeferredDraftSessionForSkillChange({
-              modeSessionService: services.modeSessionService,
+              modeAgentService: services.modeAgentService,
               workspacePath: workspaceAbsPath,
               workspaceIdentity,
               reason: "header-remote-skill-sync",
@@ -799,7 +797,6 @@ export function WorkspaceHeaderTitleSection({
               workspaceIdentity,
               workspacePath: workspaceAbsPath,
               modeAgentService: services.modeAgentService,
-              modeSessionService: services.modeSessionService,
             });
           }}
         />

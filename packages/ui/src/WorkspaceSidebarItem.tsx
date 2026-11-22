@@ -1180,7 +1180,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
         workspaceIdentity={tab.workspaceIdentity}
         onSkillsSynced={async () => {
           await invalidateDeferredDraftSessionForSkillChange({
-            modeSessionService: services.modeSessionService,
+            modeAgentService: services.modeAgentService,
             workspacePath: tab.workspacePath,
             workspaceIdentity: tab.workspaceIdentity,
             reason: "sidebar-remote-skill-sync",
@@ -1209,7 +1209,6 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
             workspaceIdentity: tab.workspaceIdentity,
             workspacePath: tab.workspacePath,
             modeAgentService: services.modeAgentService,
-            modeSessionService: services.modeSessionService,
           });
         }}
       />

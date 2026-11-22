@@ -8,7 +8,7 @@ import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { usePluginStoreOrder } from "@/hooks/usePluginStoreOrder.js";
-import { useModeSessionService } from "@/hooks/useModeSessionService.js";
+import { useModeAgentService } from "@/hooks/useModeAgentService.js";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/modeDraftSkillInvalidation.js";
@@ -64,7 +64,7 @@ export function PluginStorePage({
   const { intl, locale } = useModeIntl();
   const { refresh: refreshStoreOrder } = usePluginStoreOrder();
   const { pluginManagementService, skillsService } = useServices();
-  const modeSessionService = useModeSessionService(
+  const modeAgentService = useModeAgentService(
     workspacePath ?? undefined,
     undefined,
     workspaceIdentity,
@@ -273,7 +273,7 @@ export function PluginStorePage({
   // 避免会话里残留悬挂或旧版本能力。
   const refreshAfterPluginChange = useCallback(async () => {
     await invalidateDeferredDraftSessionForSkillChange({
-      modeSessionService,
+      modeAgentService,
       workspacePath,
       workspaceIdentity: normalizedWorkspaceIdentity ?? undefined,
       reason: "settings-plugin-enabled",
@@ -283,7 +283,7 @@ export function PluginStorePage({
       workspaceIdentity: normalizedWorkspaceIdentity,
       skillsService,
     });
-  }, [normalizedWorkspaceIdentity, skillsService, workspacePath, modeSessionService]);
+  }, [normalizedWorkspaceIdentity, skillsService, workspacePath, modeAgentService]);
 
   const uninstall = usePluginUninstall({
     pluginService: pluginManagementService,

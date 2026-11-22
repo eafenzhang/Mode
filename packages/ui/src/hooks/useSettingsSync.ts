@@ -8,7 +8,7 @@ import type {
 } from "@mode/shared";
 import { logger } from "@/logger.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useModeSessionService } from "@/hooks/useModeSessionService.js";
+import { useModeAgentService } from "@/hooks/useModeAgentService.js";
 import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/modeDraftSkillInvalidation.js";
 import type { SettingsSyncUiState, SettingsSyncUiTask } from "@/settings-sync/types.js";
 
@@ -144,7 +144,7 @@ function applyTaskResults(
 
 export function useSettingsSync(params: { workspacePath?: string; workspaceIdentity?: string }) {
   const { settingsSyncService } = useServices();
-  const modeSessionService = useModeSessionService(
+  const modeAgentService = useModeAgentService(
     params.workspacePath,
     undefined,
     params.workspaceIdentity,
@@ -462,7 +462,7 @@ export function useSettingsSync(params: { workspacePath?: string; workspaceIdent
 
         if (selections.some((selection) => selection.category === "skills")) {
           await invalidateDeferredDraftSessionForSkillChange({
-            modeSessionService,
+            modeAgentService,
             workspacePath: params.workspacePath,
             workspaceIdentity: params.workspaceIdentity,
             reason: "settings-sync-skill-import",
@@ -515,7 +515,7 @@ export function useSettingsSync(params: { workspacePath?: string; workspaceIdent
       params.workspaceIdentity,
       params.workspacePath,
       settingsSyncService,
-      modeSessionService,
+      modeAgentService,
       state.discovery,
       state.selectedKeys,
     ],

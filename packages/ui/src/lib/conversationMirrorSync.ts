@@ -13,7 +13,12 @@ import {
   shouldReadMirrorSource,
   type ConversationMirrorSourceTask,
 } from "@mode/shared/conversation-mirror";
-import type { IModeSessionService, IModeTaskService, IServiceAccessor } from "@mode/services";
+import type {
+  IModeAgentService,
+  IModeSessionService,
+  IModeTaskService,
+  IServiceAccessor,
+} from "@mode/services";
 import type { ConversationMirrorReadBackoff } from "@/lib/conversationMirrorReadBackoff.js";
 import {
   MIRROR_SOURCE_DEEP_READ_LIMIT,
@@ -102,7 +107,7 @@ interface ImportScopeOutcome {
   unsupportedError: string;
 }
 
-type SourceMessages = Awaited<ReturnType<IModeSessionService["readSessionMessages"]>>;
+type SourceMessages = Awaited<ReturnType<IModeAgentService["readSessionMessages"]>>;
 
 /** 一份来源记录 + 它所在的机器：消息必须回它自己那台机器读。 */
 interface MirrorSourceScope {
@@ -128,11 +133,8 @@ export async function runConversationMirrorSync(
 
   // 侧栏可见条数只是基准：窗口口径统一在 shared（至少 10 条、至多 20 条）。
   const windowSize = resolveConversationMirrorWindowSize(params.windowSize);
-  const readMessagesFrom = (
-    services: IServiceAccessor,
-    taskId: string,
-  ): Promise<SourceMessages> =>
-    services.modeSessionService.readSessionMessages({
+  const readMessagesFrom = (services: IServiceAccessor, taskId: string): Promise<SourceMessages> =>
+    services.modeAgentService.readSessionMessages({
       workspacePath: params.workspacePath,
       sessionId: taskId,
       limit: MAX_MESSAGES_PER_READ,
@@ -167,7 +169,9 @@ export async function runConversationMirrorSync(
       modeTaskService: params.viewServices.modeTaskService,
       scope: {
         workspacePath: params.workspacePath,
-        ...(params.viewWorkspaceIdentity ? { workspaceIdentity: params.viewWorkspaceIdentity } : {}),
+        ...(params.viewWorkspaceIdentity
+          ? { workspaceIdentity: params.viewWorkspaceIdentity }
+          : {}),
       },
       base: indexByTaskId(viewTargets.items),
       warn,
@@ -320,7 +324,11 @@ async function readScopeTasksForWindow(
   for (;;) {
     const page = await readScopeTasks(modeTaskService, { ...scope, limit });
     const usable = page.items.reduce((count, task) => (keep(task) ? count + 1 : count), 0);
-    if (usable >= windowSize || page.items.length < limit || limit >= MIRROR_SOURCE_DEEP_READ_LIMIT) {
+    if (
+      usable >= windowSize ||
+      page.items.length < limit ||
+      limit >= MIRROR_SOURCE_DEEP_READ_LIMIT
+    ) {
       return page;
     }
     limit = Math.min(limit * 2, MIRROR_SOURCE_DEEP_READ_LIMIT);
@@ -441,7 +449,14 @@ async function importScopeRecords(params: {
     }
   }
 
-  return { imported, readFailures, suppressedFailures, importFailures, lastError, unsupportedError: "" };
+  return {
+    imported,
+    readFailures,
+    suppressedFailures,
+    importFailures,
+    lastError,
+    unsupportedError: "",
+  };
 }
 
 /**

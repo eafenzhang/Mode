@@ -4,17 +4,17 @@
  * 拆出原因：useWorkspacePrepare.ts 只保留可单测的轻量判定入口；
  * 这里只读取 workspace presentation（mode/slash commands）；模型选择事实由目标 Host View 提供。
  */
-import type { IModeSessionService } from "@mode/services";
+import type { IModeAgentService } from "@mode/services";
 import { type ModeProvider, type ModeWorkspacePrepareResult } from "@mode/shared";
 import { getChatErrorMessage } from "@/lib/chatPrepareError.js";
 import { logger } from "@/logger.js";
 import { modeWorkspacePresentationToConfigOptions } from "@/lib/modeSessionProjection.js";
 
-export async function prepareWorkspaceWithModeSessionService(params: {
+export async function prepareWorkspaceWithModeAgentService(params: {
   workspacePath: string;
   workspaceIdentity?: string;
   provider: ModeProvider;
-  modeSessionService: Pick<IModeSessionService, "readWorkspacePresentation">;
+  modeAgentService: Pick<IModeAgentService, "readWorkspacePresentation">;
 }): Promise<ModeWorkspacePrepareResult> {
   const startedAt = Date.now();
   logger.info("[mode-workspace-presentation] workspace prepare start", {
@@ -23,9 +23,9 @@ export async function prepareWorkspaceWithModeSessionService(params: {
     provider: params.provider,
   });
 
-  let presentation: Awaited<ReturnType<IModeSessionService["readWorkspacePresentation"]>>;
+  let presentation: Awaited<ReturnType<IModeAgentService["readWorkspacePresentation"]>>;
   try {
-    presentation = await params.modeSessionService.readWorkspacePresentation({
+    presentation = await params.modeAgentService.readWorkspacePresentation({
       workspacePath: params.workspacePath,
       workspaceIdentity: params.workspaceIdentity,
     });

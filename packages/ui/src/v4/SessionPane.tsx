@@ -71,7 +71,7 @@ import {
 import { useWorkflowRunJournalSummaries } from "@/hooks/useWorkflowRunJournalSummaries.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useWorkspaceHomePath } from "@/hooks/useWorkspaceHomePath.js";
-import { prepareWorkspaceWithModeSessionService } from "@/hooks/useWorkspacePrepare.js";
+import { prepareWorkspaceWithModeAgentService } from "@/hooks/useWorkspacePrepare.js";
 import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/modeCustomModelValue.js";
 import { parseModelPickerValue } from "@/lib/modeSessionProjection.js";
 import { completeNewModelSelection } from "@mode/provider";
@@ -552,6 +552,7 @@ export function SessionPane({
   const {
     conversationShareService,
     modelSelectionService,
+    modeAgentService,
     modeSessionService,
     modeTaskService,
     botsService,
@@ -3384,11 +3385,11 @@ export function SessionPane({
           bumpRuntimeEpoch: true,
         });
 
-        const prepareResult = await prepareWorkspaceWithModeSessionService({
+        const prepareResult = await prepareWorkspaceWithModeAgentService({
           workspacePath,
           workspaceIdentity,
           provider: displayProvider,
-          modeSessionService,
+          modeAgentService,
         });
         handleDraftSelectModel(modelSelection.providerId, modelSelection.modelId);
         store.setConfigOptions(workspacePath, prepareResult.configOptions ?? [], workspaceIdentity);
@@ -3418,7 +3419,7 @@ export function SessionPane({
       showModelChangeNotice,
       workspaceIdentity,
       workspacePath,
-      modeSessionService,
+      modeAgentService,
       modeTaskService,
     ],
   );
@@ -3921,7 +3922,6 @@ export function SessionPane({
     );
     const operationId = `share-operation-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
     let activePhase = "collecting";
-
 
     let collectedWarnings: ConversationShareDisplayWarnings | null = null;
     const progressSubscription = conversationShareService.onDynamicPublishProgress(operationId)((

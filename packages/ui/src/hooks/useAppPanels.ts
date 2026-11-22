@@ -178,7 +178,7 @@ export function useAppPanels(options: {
   } = options;
   const supportsEmbeddedBrowser = explicitSupportsEmbeddedBrowser ?? Boolean(isDesktop);
   const activeWorkspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
-  const { modeAgentService, modeSessionService } = useServices();
+  const { modeAgentService } = useServices();
   const isOfficeMode = useIsOfficeMode();
   const sidePaneMemoryKey = useMemo(
     () =>
@@ -1213,7 +1213,7 @@ export function useAppPanels(options: {
     (tab: Extract<WorkspaceSidePaneTab, { type: "selection-side-chat" }>) => {
       clearSelectionSideChat(tab.childSessionId);
       clearConversationSelectionReferenceScope(tab.childSessionId, tab.workspaceKey);
-      void modeSessionService
+      void modeAgentService
         .closeSession({
           workspacePath: tab.workspacePath,
           ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
@@ -1227,7 +1227,7 @@ export function useAppPanels(options: {
           });
         });
     },
-    [modeSessionService],
+    [modeAgentService],
   );
 
   useEffect(() => {

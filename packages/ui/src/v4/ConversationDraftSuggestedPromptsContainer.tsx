@@ -286,7 +286,7 @@ export function ConversationDraftSuggestedPromptsContainer({
   const revalidateAndPrependPlugin = useCallback(
     async (current: DraftSuggestedPluginFlow, requestVersion: number) => {
       await invalidateDeferredDraftSessionForSkillChange({
-        modeSessionService: resolution.services.modeSessionService,
+        modeAgentService: resolution.services.modeAgentService,
         workspacePath,
         workspaceIdentity,
         reason: "suggested-prompt-plugin-change",
@@ -307,7 +307,7 @@ export function ConversationDraftSuggestedPromptsContainer({
     [
       prependResolvedPlugin,
       resolution.services.pluginManagementService,
-      resolution.services.modeSessionService,
+      resolution.services.modeAgentService,
       targetParams,
       workspaceIdentity,
       workspacePath,

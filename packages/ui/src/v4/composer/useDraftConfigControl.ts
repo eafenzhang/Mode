@@ -22,8 +22,8 @@ import {
   type ModelSelectionRead,
 } from "@/hooks/useModelSelectionView.js";
 import { submissionModeSchema } from "@mode/shared/mode-protocol-v4";
-import { prepareWorkspaceWithModeSessionService } from "@/hooks/useWorkspacePrepare.js";
-import { useModeSessionService } from "@/hooks/useModeSessionService.js";
+import { prepareWorkspaceWithModeAgentService } from "@/hooks/useWorkspacePrepare.js";
+import { useModeAgentService } from "@/hooks/useModeAgentService.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { parseModelPickerValue } from "@/lib/modeSessionProjection.js";
 import {
@@ -128,7 +128,7 @@ export function useDraftConfigControl(params: {
   } = params;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
   const displayProvider = provider ?? MODE_AGENT_PROVIDER;
-  const modeSessionService = useModeSessionService(workspacePath, null, workspaceIdentity);
+  const modeAgentService = useModeAgentService(workspacePath, null, workspaceIdentity);
   const { settings: sharedSettings } = useSettings();
   const appFollowupMode = resolveAppFollowupMode(sharedSettings);
   const scopeId = resolveComposerDraftScopeId(sessionId, draftScopeId);
@@ -392,11 +392,11 @@ export function useDraftConfigControl(params: {
     }
 
     store.setConfigOptionsStatus(workspacePath, "loading", workspaceIdentity);
-    const flight = prepareWorkspaceWithModeSessionService({
+    const flight = prepareWorkspaceWithModeAgentService({
       workspacePath,
       workspaceIdentity,
       provider: displayProvider,
-      modeSessionService,
+      modeAgentService,
     })
       .then((prepareResult) => {
         const baseOptions = prepareResult.configOptions ?? [];
@@ -436,7 +436,7 @@ export function useDraftConfigControl(params: {
     workspaceIdentity,
     workspaceKey,
     workspacePath,
-    modeSessionService,
+    modeAgentService,
   ]);
 
   const handleDraftSelectModel = useCallback(

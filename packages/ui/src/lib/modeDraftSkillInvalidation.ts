@@ -1,4 +1,4 @@
-import type { IModeSessionService } from "@mode/services";
+import type { IModeAgentService } from "@mode/services";
 import { logger } from "@/logger.js";
 import { useModeSessionStore } from "@/store/modeSessionStore.js";
 
@@ -7,7 +7,7 @@ interface DeferredDraftRuntimeChangeParams {
   reason: string;
   workspacePath?: string | null;
   workspaceIdentity?: string | null;
-  modeSessionService: Pick<IModeSessionService, "closeSession">;
+  modeAgentService: Pick<IModeAgentService, "closeSession">;
 }
 
 export async function invalidateDeferredDraftSessionForRuntimeChange(
@@ -31,7 +31,7 @@ export async function invalidateDeferredDraftSessionForRuntimeChange(
   }
 
   try {
-    await params.modeSessionService.closeSession({
+    await params.modeAgentService.closeSession({
       workspacePath: params.workspacePath,
       ...(workspaceIdentity ? { workspaceIdentity } : {}),
       sessionId: draftSessionId,

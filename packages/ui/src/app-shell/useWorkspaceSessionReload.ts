@@ -7,7 +7,7 @@ import {
   shouldDebounceWorkspaceSessionReload,
 } from "@/lib/workspaceSessionReloadPlan.js";
 import { resolveWorkspaceModelConfigSyncScope } from "@/lib/modelConfigSync.js";
-import { prepareWorkspaceWithModeSessionService } from "@/hooks/useWorkspacePrepare.js";
+import { prepareWorkspaceWithModeAgentService } from "@/hooks/useWorkspacePrepare.js";
 import { logger } from "@/logger.js";
 import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
@@ -92,11 +92,11 @@ export function useWorkspaceSessionReload({
         });
 
         if (shouldPrepareWorkspace) {
-          const prepareResult = await prepareWorkspaceWithModeSessionService({
+          const prepareResult = await prepareWorkspaceWithModeAgentService({
             workspacePath: workspaceAbsPath,
             workspaceIdentity,
             provider,
-            modeSessionService: services.modeSessionService,
+            modeAgentService: services.modeAgentService,
           });
 
           const latestAfterPrepare = modeSessionStore.getWorkspaceState(
@@ -114,11 +114,7 @@ export function useWorkspaceSessionReload({
                 prepareResult.configOptions ?? [],
                 workspaceIdentity,
               );
-              modeSessionStore.setConfigOptionsStatus(
-                workspaceAbsPath,
-                "ready",
-                workspaceIdentity,
-              );
+              modeSessionStore.setConfigOptionsStatus(workspaceAbsPath, "ready", workspaceIdentity);
               modeSessionStore.setSlashCommands(
                 workspaceAbsPath,
                 prepareResult.slashCommands ?? [],
@@ -171,7 +167,7 @@ export function useWorkspaceSessionReload({
       reloadSessionDisabled,
       reloadSessionPending,
       services.modeTaskService,
-      services.modeSessionService,
+      services.modeAgentService,
       workspaceAbsPath,
       workspaceIdentity,
     ],

@@ -3,7 +3,6 @@ import type {
   IMcpSyncService,
   ISkillsService,
   IModeAgentService,
-  IModeSessionService,
 } from "@mode/services";
 import { logger } from "@/logger.js";
 import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/modeDraftSkillInvalidation.js";
@@ -91,7 +90,6 @@ export async function refreshWorkspacePluginCapabilitiesAfterRemoteSync(params: 
   workspaceIdentity?: string | null;
   workspacePath?: string | null;
   modeAgentService: IModeAgentService;
-  modeSessionService: Pick<IModeSessionService, "closeSession">;
 }): Promise<void> {
   const workspacePath = params.workspacePath;
   if (!workspacePath) {
@@ -109,7 +107,7 @@ export async function refreshWorkspacePluginCapabilitiesAfterRemoteSync(params: 
   }
 
   await invalidateDeferredDraftSessionForSkillChange({
-    modeSessionService: params.modeSessionService,
+    modeAgentService: params.modeAgentService,
     workspacePath,
     workspaceIdentity: workspaceIdentityParam,
     reason: params.reason,
