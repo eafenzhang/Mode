@@ -45,6 +45,7 @@ automation-runtime = { path = "../automation-runtime" }
 automation-repo = { path = "../automation-repo" }
 provider-config = { path = "../provider-config" }
 provider-resolver = { path = "../provider-resolver" }
+orcarouter-service = { path = "../orcarouter-service" }
 model-selection = { path = "../model-selection" }
 provider-config-file-codec = { path = "../provider-config-file-codec" }
 # resolveInteraction envelope 的 commandId 生成。

@@ -29,6 +29,11 @@ fn default_random(length: usize) -> Option<Vec<u8>> {
     Some(buffer)
 }
 
+/// 宿主默认随机源（OS CSPRNG）。
+pub fn default_random_source() -> RandomSource {
+    Arc::new(default_random)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OrcaPkceMaterial {
     pub verifier: String,

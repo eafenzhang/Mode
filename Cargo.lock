@@ -2561,6 +2561,7 @@ dependencies = [
  "mcp-sync-service",
  "model-selection",
  "onboarding-record-service",
+ "orcarouter-service",
  "plugin-sync-service",
  "project-memory",
  "provider-balance",

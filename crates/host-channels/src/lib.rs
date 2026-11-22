@@ -38,6 +38,7 @@ pub mod mode_config_options;
 pub mod mode_session;
 pub mod mode_task;
 pub mod onboarding;
+pub mod orcarouter;
 pub mod model_selection_port;
 pub mod model_selection;
 pub mod model_trajectory;
@@ -80,6 +81,7 @@ pub use mode_session::{ModeSessionChannel, MODE_SESSION_CHANNEL};
 pub use model_selection::{ModelSelectionChannel, MODEL_SELECTION_CHANNEL};
 pub use plugin_management::{PluginManagementChannel, PLUGIN_MANAGEMENT_CHANNEL};
 pub use onboarding::{OnboardingRecordChannel, ONBOARDING_RECORD_CHANNEL};
+pub use orcarouter::{OrcaRouterChannel, ORCAROUTER_CHANNEL};
 pub use window_controller::{WindowControllerChannel, WINDOW_CONTROLLER_CHANNEL};
 pub use task_command_queue::{
     CancelResult, EnqueueResult, QueueCommandParams, RuntimeCommand, RuntimeCommandStatus,

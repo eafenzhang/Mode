@@ -38,6 +38,7 @@ use crate::mode_session::ModeSessionChannel;
 use crate::model_selection::{ModelSelectionChannel, ModelSelectionChannelOptions};
 use crate::mode_task::ModeTaskChannel;
 use crate::onboarding::OnboardingRecordChannel;
+use crate::orcarouter::OrcaRouterChannel;
 use crate::mcp_sync::McpSyncChannel;
 use crate::mode_agent::ModeAgentChannel;
 use crate::plugin_management::PluginManagementChannel;
@@ -57,7 +58,7 @@ use crate::{
     FILE_CHANNEL, FILE_WATCHER_CHANNEL, GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, HOOKS_CHANNEL,
     LAN_ACCESS_CHANNEL, MCP_SYNC_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
     MODE_AGENT_CHANNEL,
-    MODEL_SELECTION_CHANNEL, MODE_SESSION_CHANNEL, MODE_TASK_CHANNEL, ONBOARDING_RECORD_CHANNEL,
+    MODEL_SELECTION_CHANNEL, MODE_SESSION_CHANNEL, ORCAROUTER_CHANNEL, MODE_TASK_CHANNEL, ONBOARDING_RECORD_CHANNEL,
     PLUGIN_MANAGEMENT_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL,
     SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL,
     USAGE_STATS_CHANNEL, WINDOW_CONTROLLER_CHANNEL,
@@ -65,6 +66,9 @@ use crate::{
 
 /// 壳侧结构化日志（降级/不可观察事件）；`None` 时静默。
 pub type ShellLogSink = Arc<dyn Fn(&str) + Send + Sync>;
+
+/// orcarouter 服务的 level+message 日志入口。
+type ServiceLogFn = Arc<dyn Fn(&str, &str) + Send + Sync>;
 
 /// 装配参数：壳与 server-mode 共用。
 pub struct ChannelAssemblyOptions {
@@ -306,6 +310,72 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
             );
             Some(Arc::new(OnboardingRecordChannel::new(Arc::new(service))))
         }
+        ORCAROUTER_CHANNEL => {
+            // 设置页 OrcaRouter 面板：凭据存储 + PKCE 连接 + 目录 + provider overlay。
+            // Personal 仓库只在写入时读，关闭轮询（绑定按需 read）。
+            let log_sink = options.on_shell_log.clone();
+            let log: ServiceLogFn = Arc::new(move |level: &str, message: &str| {
+                if let Some(on_shell_log) = &log_sink {
+                    on_shell_log(&format!("orcarouter {level}: {message}"));
+                }
+            });
+            let credentials = Arc::new(credential_store::CredentialStore::new(data_root.clone()));
+            let store = Arc::new(orcarouter_service::credential::OrcaCredentialStore::new(
+                credentials,
+            ));
+            let repository = match provider_config_repository::PersonalConfigRepository::new(
+                provider_config_repository::PersonalConfigRepositoryOptions {
+                    file_path: data_root
+                        .join("v2")
+                        .join(provider_config_repository::PERSONAL_PROVIDER_CONFIG_FILE_NAME),
+                    import_legacy: None,
+                    on_recovery: None,
+                    on_polling_error: None,
+                    polling_interval: provider_config_repository::PollingInterval::Disabled,
+                },
+            ) {
+                Ok(repository) => Arc::new(repository),
+                Err(error) => {
+                    log(
+                        "warn",
+                        &format!("orcarouter personal repository unavailable: {error}"),
+                    );
+                    return None;
+                }
+            };
+            let binding = Arc::new(
+                orcarouter_service::overlay::OrcaProviderCredentialBinding::new(
+                    Arc::clone(&store),
+                    Arc::clone(&repository),
+                )
+                .with_error_sink(Arc::new({
+                    let log = Arc::clone(&log);
+                    move |message: &str| log("warn", message)
+                })),
+            );
+            let origins = match orcarouter_service::origins::resolve_orca_origins(|key| {
+                std::env::var(key).ok()
+            }) {
+                Ok(origins) => origins,
+                Err(error) => {
+                    log("warn", &format!("orcarouter origins invalid: {error}"));
+                    return None;
+                }
+            };
+            match orcarouter_service::OrcaRouterService::build(
+                store,
+                origins,
+                Some(binding),
+                Some(Arc::clone(&log)),
+            ) {
+                Ok(service) => Some(Arc::new(OrcaRouterChannel::new(Arc::new(service)))
+                    as Arc<dyn ServerChannel>),
+                Err(error) => {
+                    log("warn", &format!("orcarouter service unavailable: {error}"));
+                    None
+                }
+            }
+        }
         MODEL_SELECTION_CHANNEL => {
             // ModelSelectionView 装配：Built-in/Personal 快照 + configuredDefault +
             // onDidChange（spec model-selection-channel.md）。无随包 Built-in 路径时
@@ -482,6 +552,7 @@ pub fn service_channel_names() -> Vec<&'static str> {
         HOOKS_CHANNEL,
         MODEL_SELECTION_CHANNEL,
         MODE_SESSION_CHANNEL,
+        ORCAROUTER_CHANNEL,
         ONBOARDING_RECORD_CHANNEL,
         PLUGIN_MANAGEMENT_CHANNEL,
         TERMINAL_CHANNEL,

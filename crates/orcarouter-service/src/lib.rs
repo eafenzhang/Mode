@@ -8,6 +8,7 @@ pub mod connect;
 pub mod credential;
 pub mod origins;
 pub mod overlay;
+pub mod service;
 
 pub use catalog::{
     filter_models, parse_catalog, parse_model_record, OrcaCapability, OrcaCatalogInput,
@@ -29,3 +30,7 @@ pub use origins::{
     ORCAROUTER_MODELS_PATH, ORCAROUTER_REQUESTED_SCOPE,
 };
 pub use overlay::{OrcaProviderCredentialBinding, ORCAROUTER_PROVIDER_TEMPLATE_ID};
+pub use service::{
+    OrcaConnectOutcome, OrcaRouterEndpoints, OrcaRouterResolvedCredential, OrcaRouterService,
+    OrcaRouterServiceOptions, OrcaUnauthorizedOutcome,
+};

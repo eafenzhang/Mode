@@ -84,8 +84,28 @@ needsReauthGeneration?`；`source` 只接受 `api-key|pkce`（其它按 `api-key
 - 幂等：与当前 `access.apiKey` 一致时不写盘；只改 access 叶子，保留其它
   Personal 叶子与 `defaultModelSelection`；写失败回调 onError，不反转凭据事实。
 
-## 6. 验收
+## 6. 阶段 5：服务编排与频道（2026-11-23 已落）
 
-- `cargo test -p orcarouter-service`（21 条）：阶段 1–4 全部 + catalog live
-  （Bearer/过滤）/无凭据 seed 降级 + overlay 写回/幂等/断开写 null/无实例 no-op。
-- `cargo clippy -p orcarouter-service --all-targets -- -D warnings`。
+`service`（`service.rs`）：
+- `saveApiKey` 空值=清除、格式不符拒绝；保存/清除/PKCE 成功/401 标记后都触发
+  provider overlay 对齐（失败只告警，不反转凭据事实）并 `catalog.invalidate()`。
+- `resolveCredential(source)`：api-key / pkce 两个 adapter 只校验 store 可用凭据
+  （pkce 还要求 source=pkce），返回脱敏 `{masked, source, generation}`。
+- `beginConnect` 先 cancel 旧尝试再 begin；`submitConnectCode` 返回
+  `{ok,state}` 或 `{ok:false,kind,message,state}`；`invalidateConnect` 清 pagehide
+  状态；`reportUnauthorized` 精确标记后同步清除 provider key。
+- `reconcileProviderCredential` 启动期兜底。
+
+`host-channels::orcarouter`（`orcarouter.rs`）：
+- 频道 `orcarouter`，12 个方法同名映射；未知方法显式报错。
+- 装配：CredentialStore + PersonalConfigRepository（`polling=Disabled`）+
+  `resolve_orca_origins(env)` + overlay binding；进入 inprocess 默认集。
+- 每个 Host 代/窗口一个服务实例（各自连接状态与目录缓存），凭据文件是唯一事实；
+  generation + 文件 CAS 保证并发不互相覆盖。Node 服务保留为回退。
+
+## 7. 验收
+
+- `cargo test -p orcarouter-service`（24 条）与 `cargo test -p host-channels --lib orcarouter`
+  （3 条）：阶段 1–5 全部 + 频道 endpoints/凭据生命周期/seed 降级/错误分类。
+- `cargo clippy -p orcarouter-service -p host-channels --all-targets -- -D warnings`。
+- 真机：设置页手填 key、PKCE 授权码、目录刷新与降级提示、断开后推理 fail closed。
