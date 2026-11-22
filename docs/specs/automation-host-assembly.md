@@ -57,6 +57,10 @@ Node `automationRuntime.start()`（双跑会双派发），并保持单实例。
 - **已知风险（验收观察项）**：开关打开时 Rust 与 Node 两个进程仍同时持有
   `tasks-index.sqlite`（Node 其余服务照常写索引），并发写可能触发 SQLite busy。
   这是「双进程共存」阶段的固有限制，不是运行时逻辑；翻转（Node 不再起）后才消失。
+- **已知限制（G2.4 Bot 回推未接）**：TS dispatch 内 `getOptional(IBotsService)` +
+  `watchAutomationRun` 的 best-effort 回推在 Rust 侧没有对应端口（等价 services
+  缺省 → 跳过）。`AutomationRepo::get_bot_delivery_target` 已实现，缺的是
+  botsService 迁移；开关打开且配置 Bot 回推的自动化会丢回推，默认关闭不受影响。
 
 ## 验收
 
