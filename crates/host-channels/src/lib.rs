@@ -17,6 +17,7 @@ pub mod attachment_transfer;
 pub mod broadcast;
 pub mod client_metadata;
 pub mod claude_import;
+pub mod claude_import_persist;
 pub mod commands;
 pub mod conversation_mirror;
 pub mod credential;

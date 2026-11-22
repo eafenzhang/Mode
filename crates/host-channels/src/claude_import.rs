@@ -121,7 +121,7 @@ pub fn scan_importable_sessions_from_roots(
     candidates
 }
 
-fn native_projects_roots() -> Vec<PathBuf> {
+pub(crate) fn native_projects_roots() -> Vec<PathBuf> {
     let mut homes: Vec<PathBuf> = Vec::new();
     for key in ["HOME", "USERPROFILE", "MODE_DATA_BASE_DIR"] {
         if let Ok(value) = std::env::var(key) {
@@ -141,7 +141,7 @@ fn native_projects_roots() -> Vec<PathBuf> {
         .collect()
 }
 
-fn collect_jsonl_files(dir: &Path, files: &mut Vec<PathBuf>) {
+pub(crate) fn collect_jsonl_files(dir: &Path, files: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
@@ -168,7 +168,7 @@ fn collect_jsonl_files(dir: &Path, files: &mut Vec<PathBuf>) {
     }
 }
 
-fn read_json_lines_head(path: &Path, max_lines: usize) -> Result<Vec<Value>, String> {
+pub(crate) fn read_json_lines_head(path: &Path, max_lines: usize) -> Result<Vec<Value>, String> {
     use std::io::{BufRead, BufReader};
     let file = std::fs::File::open(path).map_err(|error| error.to_string())?;
     let reader = BufReader::new(file);
@@ -194,13 +194,13 @@ fn read_json_lines_head(path: &Path, max_lines: usize) -> Result<Vec<Value>, Str
     Ok(records)
 }
 
-struct HeadInfo {
-    workspace_path: Option<String>,
-    preview_title: Option<String>,
-    created_at: Option<i64>,
+pub(crate) struct HeadInfo {
+    pub(crate) workspace_path: Option<String>,
+    pub(crate) preview_title: Option<String>,
+    pub(crate) created_at: Option<i64>,
 }
 
-fn extract_head_info(entries: &[Value]) -> Option<HeadInfo> {
+pub(crate) fn extract_head_info(entries: &[Value]) -> Option<HeadInfo> {
     let mut workspace_path: Option<String> = None;
     for entry in entries {
         let user_text = extract_user_text(entry);
@@ -224,7 +224,7 @@ fn extract_head_info(entries: &[Value]) -> Option<HeadInfo> {
     })
 }
 
-fn has_sidechain_marker(entries: &[Value]) -> bool {
+pub(crate) fn has_sidechain_marker(entries: &[Value]) -> bool {
     entries.iter().any(|entry| {
         let message = entry.get("message").and_then(Value::as_object);
         let request = entry.get("request").and_then(Value::as_object);
@@ -240,7 +240,7 @@ fn has_sidechain_marker(entries: &[Value]) -> bool {
     })
 }
 
-fn read_entry_workspace_path(entry: &Value) -> Option<String> {
+pub(crate) fn read_entry_workspace_path(entry: &Value) -> Option<String> {
     let message = entry.get("message").and_then(Value::as_object);
     let request = entry.get("request").and_then(Value::as_object);
     read_trimmed_string(entry.get("cwd"))
@@ -249,14 +249,14 @@ fn read_entry_workspace_path(entry: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
-fn read_entry_model(entry: &Value) -> Option<String> {
+pub(crate) fn read_entry_model(entry: &Value) -> Option<String> {
     let message = entry.get("message").and_then(Value::as_object);
     read_trimmed_string(entry.get("model"))
         .or_else(|| message.and_then(|message| read_trimmed_string(message.get("model"))))
         .map(str::to_string)
 }
 
-fn read_entry_timestamp(entry: &Value) -> Option<i64> {
+pub(crate) fn read_entry_timestamp(entry: &Value) -> Option<i64> {
     let message = entry.get("message").and_then(Value::as_object);
     let request = entry.get("request").and_then(Value::as_object);
     let candidates = [
@@ -396,7 +396,7 @@ fn extract_assistant_text(entry: &Value) -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
-fn extract_text_field(value: &Value) -> String {
+pub(crate) fn extract_text_field(value: &Value) -> String {
     if let Some(text) = value.as_str() {
         return text.to_string();
     }
@@ -409,7 +409,7 @@ fn extract_text_field(value: &Value) -> String {
         .to_string()
 }
 
-fn sanitize_claude_visible_text(text: &str) -> String {
+pub(crate) fn sanitize_claude_visible_text(text: &str) -> String {
     let text = remove_tag_blocks(text, "<ide_opened_file", "</ide_opened_file>");
     let text = remove_tag_blocks(&text, "<local-command-", "</local-command");
     let text = remove_tag_blocks(&text, "<command-", "</command>");
@@ -444,7 +444,7 @@ fn remove_tag_blocks(text: &str, open: &str, close: &str) -> String {
 }
 
 /// JS `deriveSessionTitle(content, [])`：UTF-16 长度 50 截断 + "..."。
-fn derive_session_title(content: &str) -> String {
+pub(crate) fn derive_session_title(content: &str) -> String {
     let units: Vec<u16> = content.encode_utf16().collect();
     if units.len() <= 50 {
         return content.to_string();
@@ -453,12 +453,12 @@ fn derive_session_title(content: &str) -> String {
     format!("{truncated}...")
 }
 
-fn read_trimmed_string(value: Option<&Value>) -> Option<&str> {
+pub(crate) fn read_trimmed_string(value: Option<&Value>) -> Option<&str> {
     let text = value?.as_str()?.trim();
     (!text.is_empty()).then_some(text)
 }
 
-fn normalize_path_for_comparison(path: &str) -> String {
+pub(crate) fn normalize_path_for_comparison(path: &str) -> String {
     let absolute = std::path::absolute(path).unwrap_or_else(|_| PathBuf::from(path));
     let text = absolute.to_string_lossy().replace('\\', "/");
     // TS `resolve()` 会去掉尾部分隔符；比较键保持一致。
@@ -470,7 +470,7 @@ fn normalize_path_for_comparison(path: &str) -> String {
     }
 }
 
-fn is_claude_worktree_workspace_path(path: &str) -> bool {
+pub(crate) fn is_claude_worktree_workspace_path(path: &str) -> bool {
     let normalized = path.replace('\\', "/");
     let segments: Vec<String> = normalized
         .split('/')

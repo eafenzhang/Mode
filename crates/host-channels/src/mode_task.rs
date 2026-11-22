@@ -36,6 +36,8 @@ pub struct ModeTaskChannel {
     queue: Option<Arc<TaskCommandQueue>>,
     /// 事件面（16.2c）：任务列表变更与任务收口（readyOutcome）广播。
     events: Arc<TaskEventBus>,
+    /// 数据根（`.mode`）：Claude 导入的文件复制与 legacy 快照落盘需要。
+    data_root: Option<std::path::PathBuf>,
 }
 
 /// TS `ModeWorkspaceTaskListChanged`（`onDynamicWorkspaceEvent` 的 wire 载荷）。
@@ -276,7 +278,14 @@ impl ModeTaskChannel {
             control,
             queue,
             events,
+            data_root: None,
         }
+    }
+
+    /// 注入数据根（Claude 导入路径）；未注入时 importClaudeSessions 显式报错。
+    pub fn with_data_root(mut self, data_root: std::path::PathBuf) -> Self {
+        self.data_root = Some(data_root);
+        self
     }
 }
 
@@ -2032,10 +2041,319 @@ async fn run_orchestration(
                     .map_err(|error| ChannelError::error(error.to_string()))?,
             )
         }
+        "importClaudeSessions" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+                #[serde(default)]
+                session_ids: Vec<String>,
+            }
+            let parsed: P = parse(object)?;
+            let Some(data_root) = channel.data_root.as_ref() else {
+                return Err(ChannelError::error(
+                    "mode-task channel: importClaudeSessions requires data_root",
+                ));
+            };
+            let mut seen = std::collections::HashSet::new();
+            let session_ids: Vec<String> = parsed
+                .session_ids
+                .into_iter()
+                .map(|session_id| session_id.trim().to_string())
+                .filter(|session_id| !session_id.is_empty())
+                .filter(|session_id| seen.insert(session_id.clone()))
+                .collect();
+            // 仅当显式 workspacePath 过滤时才绑定 identity（避免把当前 tab 的 identity
+            // 套到其它路径的导入目标）。
+            let target_identity = if parsed.workspace_path.is_some() {
+                parsed.workspace_identity.as_deref()
+            } else {
+                None
+            };
+            let mut imported: Vec<serde_json::Value> = Vec::new();
+            let mut skipped: Vec<serde_json::Value> = Vec::new();
+            let mut failed: Vec<serde_json::Value> = Vec::new();
+            for session_id in session_ids {
+                match import_claude_session(
+                    repo,
+                    control,
+                    data_root,
+                    parsed.workspace_path.as_deref(),
+                    target_identity,
+                    &session_id,
+                )
+                .await
+                {
+                    ImportOutcome::Imported(meta) => {
+                        channel.events.notify_task_list(&task_workspace_event(
+                            &meta.workspace_path,
+                            meta.workspace_identity.as_deref(),
+                            &meta.task_id,
+                            "task_meta_changed",
+                            &meta,
+                        ));
+                        imported.push(serde_json::json!({
+                            "provider": "claude",
+                            "sessionId": session_id,
+                            "taskId": meta.task_id,
+                            "workspacePath": meta.workspace_path,
+                        }));
+                    }
+                    ImportOutcome::Skipped {
+                        reason,
+                        workspace_path,
+                    } => {
+                        let mut value = serde_json::json!({
+                            "provider": "claude",
+                            "sessionId": session_id,
+                            "reason": reason,
+                        });
+                        if let Some(workspace_path) = workspace_path {
+                            value["workspacePath"] = serde_json::json!(workspace_path);
+                        }
+                        skipped.push(value);
+                    }
+                    ImportOutcome::Failed {
+                        reason,
+                        workspace_path,
+                    } => {
+                        let mut value = serde_json::json!({
+                            "provider": "claude",
+                            "sessionId": session_id,
+                            "reason": reason,
+                        });
+                        if let Some(workspace_path) = workspace_path {
+                            value["workspacePath"] = serde_json::json!(workspace_path);
+                        }
+                        failed.push(value);
+                    }
+                }
+            }
+            json_value(&serde_json::json!({
+                "imported": imported,
+                "skipped": skipped,
+                "failed": failed,
+            }))
+        }
         other => Err(ChannelError::error(format!(
             "mode-task channel: unknown orchestration command {other}"
         ))),
     }
+}
+
+enum ImportOutcome {
+    Imported(Box<ModeTaskMeta>),
+    Skipped {
+        reason: &'static str,
+        workspace_path: Option<String>,
+    },
+    Failed {
+        reason: String,
+        workspace_path: Option<String>,
+    },
+}
+
+fn ch_error_text(error: ChannelError) -> String {
+    match error {
+        ChannelError::Error { message, .. } => message,
+        other => format!("{other:?}"),
+    }
+}
+
+fn cleanup_copied_file(created: bool, path: &std::path::Path) {
+    if created {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+/// 单个 Claude session 导入：查找 → 复制 → 解析 → createSession(importedHistory)
+/// → legacy 快照 → 索引回写。任一步失败清理本次新建的副本（已创建 session 不回滚，TS 同）。
+async fn import_claude_session(
+    repo: &TaskIndexRepo,
+    control: &AgentControlClient,
+    data_root: &std::path::Path,
+    workspace_filter: Option<&str>,
+    target_identity: Option<&str>,
+    session_id: &str,
+) -> ImportOutcome {
+    use crate::claude_import_persist as persist;
+    use agent_protocol::session_create::{
+        ClaudeCodeImport, ClaudeCodeSource, ImportHistory, ImportMessage, ImportMessageRole,
+    };
+    use agent_protocol::session_write::SessionPersistence;
+
+    let Some(candidate) = crate::claude_import_persist::find_importable_session(workspace_filter, session_id)
+    else {
+        return ImportOutcome::Skipped {
+            reason: "session_not_found_or_workspace_mismatch",
+            workspace_path: workspace_filter.map(str::to_string),
+        };
+    };
+    let workspace_path = candidate.workspace_path.clone();
+    if std::fs::metadata(&workspace_path).is_err() {
+        return ImportOutcome::Skipped {
+            reason: "workspace_path_missing",
+            workspace_path: Some(workspace_path),
+        };
+    }
+    if let Some(filter) = workspace_filter {
+        if crate::claude_import::normalize_path_for_comparison(&workspace_path)
+            != crate::claude_import::normalize_path_for_comparison(filter)
+        {
+            return ImportOutcome::Skipped {
+                reason: "session_not_found_or_workspace_mismatch",
+                workspace_path: Some(workspace_path),
+            };
+        }
+    }
+
+    let (copied_path, created) = match persist::copy_session_file(
+        data_root,
+        &workspace_path,
+        target_identity,
+        &candidate.source_path,
+    ) {
+        Ok(result) => result,
+        Err(reason) => {
+            return ImportOutcome::Failed {
+                reason,
+                workspace_path: Some(workspace_path),
+            }
+        }
+    };
+
+    let source = match persist::parse_session_file(
+        &candidate.source_path,
+        &workspace_path,
+        session_id,
+        Some(&candidate.source_path),
+        candidate.created_at,
+        Some(candidate.updated_at),
+    ) {
+        Ok(source) => source,
+        Err(reason) => {
+            cleanup_copied_file(created, &copied_path);
+            return ImportOutcome::Failed {
+                reason,
+                workspace_path: Some(workspace_path),
+            };
+        }
+    };
+
+    let target = AgentWorkspaceTarget {
+        workspace_path: source.workspace_path.clone(),
+        workspace_identity: target_identity.map(str::to_string),
+        remote_session_id: None,
+    };
+    let imported_history = ImportHistory::ClaudeCode(ClaudeCodeImport {
+        source: ClaudeCodeSource::ClaudeCode,
+        title: source.title.clone(),
+        created_at: Some(source.created_at.max(0) as u64),
+        updated_at: Some(source.updated_at.max(0) as u64),
+        messages: source
+            .messages
+            .iter()
+            .map(|message| ImportMessage {
+                role: if message.role == "assistant" {
+                    ImportMessageRole::Assistant
+                } else {
+                    ImportMessageRole::User
+                },
+                content: message.content.clone(),
+                timestamp: Some(message.timestamp.max(0) as u64),
+            })
+            .collect(),
+    });
+    let snapshot = match control
+        .create_session(
+            &target,
+            agent_process::CreateSessionOptions {
+                session_id: Some(persist::build_imported_task_id(
+                    &source.workspace_path,
+                    session_id,
+                )),
+                persistence: Some(SessionPersistence::Immediate),
+                imported_history: Some(imported_history),
+                ..Default::default()
+            },
+        )
+        .await
+    {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            cleanup_copied_file(created, &copied_path);
+            return ImportOutcome::Failed {
+                reason: error.to_string(),
+                workspace_path: Some(workspace_path),
+            };
+        }
+    };
+    let meta = match snapshot_to_meta(&snapshot) {
+        Ok(meta) => meta,
+        Err(error) => {
+            cleanup_copied_file(created, &copied_path);
+            return ImportOutcome::Failed {
+                reason: ch_error_text(error),
+                workspace_path: Some(workspace_path),
+            };
+        }
+    };
+
+    // legacy 快照：过滤来源运行态（meta.mode/model/provider、messages[].model）。
+    let mut task_file = match persist::build_task_file(&source, Some(&meta.task_id)) {
+        Ok(file) => file,
+        Err(reason) => {
+            cleanup_copied_file(created, &copied_path);
+            return ImportOutcome::Failed {
+                reason,
+                workspace_path: Some(workspace_path),
+            };
+        }
+    };
+    if let Some(identity) = target_identity {
+        task_file["meta"]["workspaceIdentity"] = serde_json::json!(identity);
+    }
+    if let Err(reason) = persist::write_legacy_snapshot(
+        data_root,
+        &meta.workspace_path,
+        target_identity,
+        &meta.task_id,
+        &task_file,
+    ) {
+        cleanup_copied_file(created, &copied_path);
+        return ImportOutcome::Failed {
+            reason,
+            workspace_path: Some(workspace_path),
+        };
+    }
+
+    let mut index_meta = meta.clone();
+    index_meta.migration_source = Some("claudeCode".to_string());
+    if let Some(identity) = target_identity {
+        index_meta.workspace_identity = Some(identity.to_string());
+    }
+    let synced = match repo.sync_task_meta(task_index_repo::SyncTaskMetaParams {
+        meta: index_meta,
+        pinned: None,
+        // 重新导入要把会话恢复到列表：显式取消旧的隐藏状态。
+        archived: Some(false),
+        deleted: Some(false),
+        title_overridden: None,
+        searchable_text: Some(persist::build_searchable_text(&source.messages)),
+    }) {
+        Ok(meta) => meta,
+        Err(error) => {
+            cleanup_copied_file(created, &copied_path);
+            return ImportOutcome::Failed {
+                reason: error.to_string(),
+                workspace_path: Some(workspace_path),
+            };
+        }
+    };
+    ImportOutcome::Imported(Box::new(synced))
 }
 
 impl ServerChannel for ModeTaskChannel {
@@ -2072,6 +2390,7 @@ impl ServerChannel for ModeTaskChannel {
             control: self.control.clone(),
             queue: self.queue.clone(),
             events: Arc::clone(&self.events),
+            data_root: self.data_root.clone(),
         };
         Box::pin(async move {
             match command.as_str() {
@@ -2082,7 +2401,7 @@ impl ServerChannel for ModeTaskChannel {
                 | "getTaskSnapshot" | "getTaskSnapshotWithEtag"
                 | "stopGeneration" | "getTaskTokenUsage"
                 | "releaseWorkspacePreparation" | "restartWorkspaceProcess"
-                | "initialize" => {
+                | "initialize" | "importClaudeSessions" => {
                     let object = crate::params::first_arg_object(&arg)?;
                     let control = control.ok_or_else(|| {
                         ChannelError::error(format!(
