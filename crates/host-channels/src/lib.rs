@@ -14,6 +14,7 @@ mod base64;
 mod params;
 
 pub mod attachment_transfer;
+pub mod automation_host;
 pub mod broadcast;
 pub mod client_metadata;
 pub mod claude_import;

@@ -1710,6 +1710,8 @@ async fn run_orchestration(
                 input_id: Option<String>,
                 #[serde(default)]
                 query_id: Option<String>,
+                #[serde(default)]
+                automation_id: Option<String>,
             }
             let parsed: P = parse(object)?;
             // control 已由 call 分流保证存在
@@ -1760,7 +1762,7 @@ async fn run_orchestration(
                         browser_ambient_context: None,
                         expected_revision: None,
                         expected_provider_revision: None,
-                        automation_id: None,
+                        automation_id: parsed.automation_id.clone(),
                         off_peak_task_id: None,
                         off_peak_run_type: None,
                         bot_delivery_target: None,
@@ -2254,6 +2256,103 @@ async fn run_orchestration(
                     .await?;
                 }
                 _ => {}
+            }
+            let snapshot = resume_session_snapshot(control, &target, &parsed.task_id).await?;
+            sync_snapshot_to_index(repo, &snapshot)?;
+            let options = crate::mode_config_options::settings_to_config_options(&snapshot.settings);
+            json_value(&serde_json::Value::Array(options))
+        }
+        "setAutomationSessionConfig" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                model_selection: SelectionParam,
+                #[serde(default)]
+                thought_level: Option<String>,
+                #[serde(default)]
+                mode: Option<String>,
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct SelectionParam {
+                provider_id: String,
+                model_id: String,
+            }
+            let parsed: P = parse(object)?;
+            let (workspace_path, workspace_identity) = resolve_task_workspace(
+                repo,
+                parsed.workspace_path.as_deref(),
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+            )?;
+            let target = AgentWorkspaceTarget {
+                workspace_path,
+                workspace_identity,
+                remote_session_id: None,
+            };
+            let thought_level = parsed
+                .thought_level
+                .as_deref()
+                .map(str::trim)
+                .unwrap_or("")
+                .to_string();
+            // 一条 V4 switchModelConfig 原子更新 runtime 与投影；thoughtLevel 非空时
+            // 再以同模型命令显式收敛（跨模型切换会先采用目标模型默认档位，TS 同）。
+            send_host_cas_command_v4(
+                control,
+                &target,
+                agent_protocol::v4::CommandType::SwitchModelConfig,
+                serde_json::json!({
+                    "provider": parsed.model_selection.provider_id,
+                    "model": parsed.model_selection.model_id,
+                    "thought": thought_level,
+                }),
+                &parsed.task_id,
+                &format!(
+                    "automation session={} model={}/{} thought={thought_level}",
+                    parsed.task_id,
+                    parsed.model_selection.provider_id,
+                    parsed.model_selection.model_id
+                ),
+            )
+            .await?;
+            if !thought_level.is_empty() {
+                send_host_cas_command_v4(
+                    control,
+                    &target,
+                    agent_protocol::v4::CommandType::SwitchModelConfig,
+                    serde_json::json!({
+                        "provider": parsed.model_selection.provider_id,
+                        "model": parsed.model_selection.model_id,
+                        "thought": thought_level,
+                    }),
+                    &parsed.task_id,
+                    &format!(
+                        "automation session={} thought={thought_level}",
+                        parsed.task_id
+                    ),
+                )
+                .await?;
+            }
+            if let Some(mode) = parsed.mode.as_deref().map(str::trim).filter(|mode| !mode.is_empty()) {
+                let mode = mode_command_value(mode, "setAutomationSessionConfig")?;
+                send_host_cas_command_v4(
+                    control,
+                    &target,
+                    agent_protocol::v4::CommandType::SwitchCollaborationMode,
+                    serde_json::json!({ "mode": mode }),
+                    &parsed.task_id,
+                    &format!(
+                        "automation session={} mode={mode}",
+                        parsed.task_id
+                    ),
+                )
+                .await?;
             }
             let snapshot = resume_session_snapshot(control, &target, &parsed.task_id).await?;
             sync_snapshot_to_index(repo, &snapshot)?;
@@ -2810,7 +2909,7 @@ impl ServerChannel for ModeTaskChannel {
                 | "releaseWorkspacePreparation" | "restartWorkspaceProcess"
                 | "initialize" | "importClaudeSessions"
                 | "getTaskConfigOptions" | "getTaskModelSelection"
-                | "setMode" | "setConfigOption" => {
+                | "setMode" | "setConfigOption" | "setAutomationSessionConfig" => {
                     let object = crate::params::first_arg_object(&arg)?;
                     let control = control.ok_or_else(|| {
                         ChannelError::error(format!(

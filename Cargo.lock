@@ -2545,6 +2545,8 @@ version = "0.1.0"
 dependencies = [
  "agent-process",
  "agent-protocol",
+ "automation-repo",
+ "automation-runtime",
  "broadcast-service",
  "chrono",
  "commands-service",

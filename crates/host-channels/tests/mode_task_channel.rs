@@ -467,6 +467,7 @@ async fn snapshot_stubs_return_undefined_and_snapshot_requires_control() {
         "getTaskModelSelection",
         "setMode",
         "setConfigOption",
+        "setAutomationSessionConfig",
     ] {
         let error = channel
             .call(
