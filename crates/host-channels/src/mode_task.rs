@@ -1024,6 +1024,17 @@ fn run_read(
                 crate::model_trajectory::read_model_trajectory(&parsed.task_id, parsed.limit);
             json_value(&trajectory)
         }
+        "getTaskNativeSessionLogFile" => {
+            // TS：MODE_LOG_DIR 或 {home}/.mode/cli/log/mode-YYYY-MM-DD.jsonl（本地日期）。
+            let (path, exists) =
+                crate::mode_config_options::native_session_log_file(chrono::Local::now())
+                    .map_err(ChannelError::error)?;
+            json_value(&serde_json::json!({
+                "provider": task_index_repo::MODE_AGENT_PROVIDER,
+                "path": path,
+                "exists": exists,
+            }))
+        }
         "getTaskSessionFilePath" => {
             #[derive(Deserialize)]
             #[serde(rename_all = "camelCase")]
@@ -1962,6 +1973,181 @@ async fn run_orchestration(
                 .await;
             Ok(WireValue::Undefined)
         }
+        "getTaskConfigOptions" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let (workspace_path, workspace_identity) = resolve_task_workspace(
+                repo,
+                parsed.workspace_path.as_deref(),
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+            )?;
+            let target = AgentWorkspaceTarget {
+                workspace_path,
+                workspace_identity,
+                remote_session_id: None,
+            };
+            let snapshot = resume_session_snapshot(control, &target, &parsed.task_id).await?;
+            let options = crate::mode_config_options::settings_to_config_options(&snapshot.settings);
+            json_value(&serde_json::Value::Array(options))
+        }
+        "getTaskModelSelection" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let (workspace_path, workspace_identity) = resolve_task_workspace(
+                repo,
+                parsed.workspace_path.as_deref(),
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+            )?;
+            let target = AgentWorkspaceTarget {
+                workspace_path,
+                workspace_identity,
+                remote_session_id: None,
+            };
+            let snapshot = control
+                .read_session(&target, &parsed.task_id, None, None, None)
+                .await
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            match snapshot.settings.model.current {
+                Some(model) => json_value(
+                    &serde_json::to_value(&model)
+                        .map_err(|error| ChannelError::error(error.to_string()))?,
+                ),
+                None => json_value(&serde_json::Value::Null),
+            }
+        }
+        "setMode" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                mode: String,
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let (workspace_path, workspace_identity) = resolve_task_workspace(
+                repo,
+                parsed.workspace_path.as_deref(),
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+            )?;
+            let target = AgentWorkspaceTarget {
+                workspace_path,
+                workspace_identity,
+                remote_session_id: None,
+            };
+            let mode = mode_command_value(&parsed.mode, "setMode")?;
+            send_host_cas_command_v4(
+                control,
+                &target,
+                agent_protocol::v4::CommandType::SwitchCollaborationMode,
+                serde_json::json!({ "mode": mode }),
+                &parsed.task_id,
+                &format!("setMode session={} mode={mode}", parsed.task_id),
+            )
+            .await?;
+            let snapshot = resume_session_snapshot(control, &target, &parsed.task_id).await?;
+            sync_snapshot_to_index(repo, &snapshot)?;
+            Ok(WireValue::Undefined)
+        }
+        "setConfigOption" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                config_id: String,
+                value: String,
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let (workspace_path, workspace_identity) = resolve_task_workspace(
+                repo,
+                parsed.workspace_path.as_deref(),
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+            )?;
+            let target = AgentWorkspaceTarget {
+                workspace_path,
+                workspace_identity,
+                remote_session_id: None,
+            };
+            match parsed.config_id.as_str() {
+                "model" => {
+                    // TS 委托 service.setModel（legacy session/setModel），当前未迁移。
+                    return Err(ChannelError::error(
+                        "setConfigOption(model) 需要 legacy session/setModel，尚未迁移",
+                    ));
+                }
+                "thought_level" => {
+                    // v4 无独立思考深度命令：provider/model 取当前会话选型，thought 字段承载。
+                    let current = control
+                        .read_session(&target, &parsed.task_id, None, None, None)
+                        .await
+                        .map_err(|error| ChannelError::error(error.to_string()))?;
+                    let model = current
+                        .settings
+                        .model
+                        .current
+                        .ok_or_else(|| ChannelError::error("请先选择模型，再设置思考档位"))?;
+                    send_host_cas_command_v4(
+                        control,
+                        &target,
+                        agent_protocol::v4::CommandType::SwitchModelConfig,
+                        serde_json::json!({
+                            "provider": model.provider_id,
+                            "model": model.model_id,
+                            "thought": parsed.value,
+                        }),
+                        &parsed.task_id,
+                        &format!(
+                            "setConfigOption thought session={} value={}",
+                            parsed.task_id, parsed.value
+                        ),
+                    )
+                    .await?;
+                }
+                "mode" => {
+                    let mode = mode_command_value(&parsed.value, "setConfigOption")?;
+                    send_host_cas_command_v4(
+                        control,
+                        &target,
+                        agent_protocol::v4::CommandType::SwitchCollaborationMode,
+                        serde_json::json!({ "mode": mode }),
+                        &parsed.task_id,
+                        &format!("setConfigOption mode session={} mode={mode}", parsed.task_id),
+                    )
+                    .await?;
+                }
+                _ => {}
+            }
+            let snapshot = resume_session_snapshot(control, &target, &parsed.task_id).await?;
+            sync_snapshot_to_index(repo, &snapshot)?;
+            let options = crate::mode_config_options::settings_to_config_options(&snapshot.settings);
+            json_value(&serde_json::Value::Array(options))
+        }
         "stopGeneration" => {
             #[derive(Deserialize)]
             #[serde(rename_all = "camelCase")]
@@ -2142,6 +2328,112 @@ async fn run_orchestration(
             "mode-task channel: unknown orchestration command {other}"
         ))),
     }
+}
+
+/// `session/resume` 只读快照（TS `resumeSnapshot`：settings/configOptions 回源）。
+async fn resume_session_snapshot(
+    control: &AgentControlClient,
+    target: &AgentWorkspaceTarget,
+    task_id: &str,
+) -> Result<SessionStateSnapshot, ChannelError> {
+    control
+        .resume_session(
+            target,
+            agent_protocol::session_write::SessionResumeParams {
+                session_id: task_id.to_string(),
+                workspace: None,
+                thought_level: None,
+                mcp_servers: None,
+                tool_allowlist: None,
+                tool_denylist: None,
+                off_peak_tool_enabled: None,
+                dynamic_workflow_enabled: None,
+            },
+        )
+        .await
+        .map_err(|error| ChannelError::error(error.to_string()))
+}
+
+/// TS `syncTaskIndexSnapshot`（设置面写后回写索引投影）。
+fn sync_snapshot_to_index(
+    repo: &TaskIndexRepo,
+    snapshot: &SessionStateSnapshot,
+) -> Result<(), ChannelError> {
+    let meta = snapshot_to_meta(snapshot)?;
+    repo.sync_task_meta(task_index_repo::SyncTaskMetaParams {
+        meta,
+        pinned: None,
+        archived: None,
+        deleted: None,
+        title_overridden: None,
+        searchable_text: None,
+    })
+    .map_err(|error| ChannelError::error(error.to_string()))?;
+    Ok(())
+}
+
+/// TS `toModeMode(...) ?? "build"`；`auto` 仍依赖 legacy session/setMode，显式报错。
+fn mode_command_value(mode: &str, command: &str) -> Result<&'static str, ChannelError> {
+    match mode {
+        "build" | "autoEdit" => Ok("build"),
+        "edit" => Ok("edit"),
+        "plan" => Ok("plan"),
+        "yolo" => Ok("yolo"),
+        "auto" => Err(ChannelError::error(format!(
+            "{command}(auto) 需要 legacy session/setMode，尚未迁移"
+        ))),
+        _ => Ok("build"),
+    }
+}
+
+/// TS `sendHostCasCommandV4`：首发 baseRevision=0 探测，stale 用 revisionAtDecision
+/// 收敛重试（每次新 commandId），最多 4 次。
+async fn send_host_cas_command_v4(
+    control: &AgentControlClient,
+    target: &AgentWorkspaceTarget,
+    command_type: agent_protocol::v4::CommandType,
+    payload: serde_json::Value,
+    session_id: &str,
+    context: &str,
+) -> Result<(), ChannelError> {
+    use agent_protocol::v4::CommandAckStatus;
+
+    let mut base_revision = serde_json::Number::from(0);
+    let mut last_status = String::new();
+    for _ in 0..4 {
+        let envelope = agent_protocol::v4::ConversationCommandEnvelope {
+            ttft: None,
+            command_id: uuid::Uuid::new_v4().to_string(),
+            client_id: "mode-host".to_string(),
+            session_id: agent_protocol::v4::CommandSessionId(Some(session_id.to_string())),
+            base_revision: Some(base_revision.clone()),
+            base_log_epoch: None,
+            command_type,
+            payload: payload.clone(),
+            issued_at: serde_json::Number::from(now_ms_i64()),
+        };
+        let ack = control
+            .send_conversation_command_v4(target, &envelope)
+            .await
+            .map_err(|error| ChannelError::error(error.to_string()))?;
+        if ack.status == CommandAckStatus::Stale {
+            base_revision = ack.revision_at_decision.clone();
+            last_status = ack.status.as_str().to_string();
+            continue;
+        }
+        if ack.status.is_success() {
+            return Ok(());
+        }
+        let reason = ack.reason_code.unwrap_or_default();
+        let message = ack.message.unwrap_or_default();
+        return Err(ChannelError::error(format!(
+            "v4 command {} ({reason}) {message} — {context}",
+            ack.status.as_str()
+        )));
+    }
+    Err(ChannelError::error(format!(
+        "v4 command 连续 stale，放弃重试（last={last_status}）— {context}"
+    )))
 }
 
 enum ImportOutcome {
@@ -2401,7 +2693,9 @@ impl ServerChannel for ModeTaskChannel {
                 | "getTaskSnapshot" | "getTaskSnapshotWithEtag"
                 | "stopGeneration" | "getTaskTokenUsage"
                 | "releaseWorkspacePreparation" | "restartWorkspaceProcess"
-                | "initialize" | "importClaudeSessions" => {
+                | "initialize" | "importClaudeSessions"
+                | "getTaskConfigOptions" | "getTaskModelSelection"
+                | "setMode" | "setConfigOption" => {
                     let object = crate::params::first_arg_object(&arg)?;
                     let control = control.ok_or_else(|| {
                         ChannelError::error(format!(

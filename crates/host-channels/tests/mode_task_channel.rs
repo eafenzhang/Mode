@@ -463,6 +463,10 @@ async fn snapshot_stubs_return_undefined_and_snapshot_requires_control() {
         "restartWorkspaceProcess",
         "initialize",
         "importClaudeSessions",
+        "getTaskConfigOptions",
+        "getTaskModelSelection",
+        "setMode",
+        "setConfigOption",
     ] {
         let error = channel
             .call(
@@ -483,6 +487,23 @@ async fn snapshot_stubs_return_undefined_and_snapshot_requires_control() {
             other => panic!("期望 Error 变体，实际 {other:?}"),
         }
     }
+}
+
+#[tokio::test]
+async fn native_session_log_file_returns_path_and_exists() {
+    let db = TempDb::new("native-log");
+    let channel = ModeTaskChannel::new(
+        repo(&db),
+        None,
+        None,
+        Arc::new(host_channels::mode_task::TaskEventBus::new()),
+    );
+    let result = call(&channel, "getTaskNativeSessionLogFile", json!({})).await;
+    assert_eq!(result["provider"], "glm");
+    let path = result["path"].as_str().expect("path");
+    assert!(path.ends_with(".jsonl"), "{path}");
+    assert!(path.contains("mode-"), "{path}");
+    assert!(result["exists"].is_boolean());
 }
 
 #[tokio::test]

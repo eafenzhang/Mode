@@ -32,6 +32,7 @@ pub mod mcp_sync;
 pub mod media_preview;
 pub mod assembly;
 pub mod memory_channel;
+pub mod mode_config_options;
 pub mod mode_task;
 pub mod model_trajectory;
 pub mod sessions_observer;

@@ -43,6 +43,7 @@ task-index-repo = { path = "../task-index-repo" }
 # resolveInteraction envelope 的 commandId 生成。
 uuid.workspace = true
 workspace-identity = { path = "../workspace-identity" }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # getTaskSnapshotWithEtag 的 ETag（sha256(JSON)，TS createHash 同口径）。
 sha2.workspace = true
 serde.workspace = true

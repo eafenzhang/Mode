@@ -2546,6 +2546,7 @@ dependencies = [
  "agent-process",
  "agent-protocol",
  "broadcast-service",
+ "chrono",
  "commands-service",
  "conversation-mirror",
  "credential-store",
