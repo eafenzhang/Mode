@@ -2210,10 +2210,30 @@ async fn run_orchestration(
             };
             match parsed.config_id.as_str() {
                 "model" => {
-                    // TS 委托 service.setModel（legacy session/setModel），当前未迁移。
-                    return Err(ChannelError::error(
-                        "setConfigOption(model) 需要 legacy session/setModel，尚未迁移",
-                    ));
+                    // TS 委托 service.setModel；Rust 直接走 setModel 的 v4 CAS 路径。
+                    let (provider, model, level) =
+                        crate::mode_config_options::parse_model_picker_value(&parsed.value)
+                            .map_err(ChannelError::error)?;
+                    control
+                        .ensure_provider_config(&target)
+                        .await
+                        .map_err(|error| ChannelError::error(error.to_string()))?;
+                    send_host_cas_command_v4(
+                        control,
+                        &target,
+                        agent_protocol::v4::CommandType::SwitchModelConfig,
+                        serde_json::json!({
+                            "provider": provider,
+                            "model": model,
+                            "thought": level.as_deref().unwrap_or(""),
+                        }),
+                        &parsed.task_id,
+                        &format!(
+                            "setConfigOption model session={} value={}",
+                            parsed.task_id, parsed.value
+                        ),
+                    )
+                    .await?;
                 }
                 "thought_level" => {
                     // v4 无独立思考深度命令：provider/model 取当前会话选型，thought 字段承载。
@@ -2354,6 +2374,79 @@ async fn run_orchestration(
                 )
                 .await?;
             }
+            let snapshot = resume_session_snapshot(control, &target, &parsed.task_id).await?;
+            sync_snapshot_to_index(repo, &snapshot)?;
+            let options = crate::mode_config_options::settings_to_config_options(&snapshot.settings);
+            json_value(&serde_json::Value::Array(options))
+        }
+        "setModel" => {
+            // TS setModel 仍走 legacy session/setModel（runtimeModel/凭据解析）；Rust 侧
+            // 以「provider config 同步 + v4 CAS switchModelConfig + 快照回源」为同语义
+            // 替代路径（CLI 负责最终 provider 凭据校验），返回 configOptions。
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct P {
+                task_id: String,
+                model_selection: SelectionParam,
+                #[serde(default)]
+                workspace_path: Option<String>,
+                #[serde(default)]
+                workspace_identity: Option<String>,
+            }
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct SelectionParam {
+                provider_id: String,
+                model_id: String,
+                #[serde(default)]
+                options: Option<ReasoningParam>,
+            }
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct ReasoningParam {
+                #[serde(default)]
+                reasoning_level: Option<String>,
+            }
+            let parsed: P = parse(object)?;
+            let (workspace_path, workspace_identity) = resolve_task_workspace(
+                repo,
+                parsed.workspace_path.as_deref(),
+                parsed.workspace_identity.as_deref(),
+                &parsed.task_id,
+            )?;
+            let target = AgentWorkspaceTarget {
+                workspace_path,
+                workspace_identity,
+                remote_session_id: None,
+            };
+            control
+                .ensure_provider_config(&target)
+                .await
+                .map_err(|error| ChannelError::error(error.to_string()))?;
+            let thought = parsed
+                .model_selection
+                .options
+                .as_ref()
+                .and_then(|options| options.reasoning_level.as_deref())
+                .unwrap_or("");
+            send_host_cas_command_v4(
+                control,
+                &target,
+                agent_protocol::v4::CommandType::SwitchModelConfig,
+                serde_json::json!({
+                    "provider": parsed.model_selection.provider_id,
+                    "model": parsed.model_selection.model_id,
+                    "thought": thought,
+                }),
+                &parsed.task_id,
+                &format!(
+                    "setModel session={} model={}/{} thought={thought}",
+                    parsed.task_id,
+                    parsed.model_selection.provider_id,
+                    parsed.model_selection.model_id
+                ),
+            )
+            .await?;
             let snapshot = resume_session_snapshot(control, &target, &parsed.task_id).await?;
             sync_snapshot_to_index(repo, &snapshot)?;
             let options = crate::mode_config_options::settings_to_config_options(&snapshot.settings);
@@ -2909,7 +3002,8 @@ impl ServerChannel for ModeTaskChannel {
                 | "releaseWorkspacePreparation" | "restartWorkspaceProcess"
                 | "initialize" | "importClaudeSessions"
                 | "getTaskConfigOptions" | "getTaskModelSelection"
-                | "setMode" | "setConfigOption" | "setAutomationSessionConfig" => {
+                | "setMode" | "setConfigOption" | "setAutomationSessionConfig"
+                | "setModel" => {
                     let object = crate::params::first_arg_object(&arg)?;
                     let control = control.ok_or_else(|| {
                         ChannelError::error(format!(

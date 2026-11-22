@@ -56,6 +56,30 @@ pub fn format_model_picker_value(selection: Option<&MessageModel>) -> String {
     }
 }
 
+/// TS `parseModelPickerValue`：`provider/model[$level]`；分隔符在首/尾视为 model 一部分。
+pub fn parse_model_picker_value(value: &str) -> Result<(String, String, Option<String>), String> {
+    let normalized = value.trim();
+    let Some(provider_separator) = normalized.find('/') else {
+        return Err(format!("模型选择缺少 Provider: {normalized}"));
+    };
+    if provider_separator == 0 {
+        return Err(format!("模型选择缺少 Provider: {normalized}"));
+    }
+    let provider_id = normalized[..provider_separator].to_string();
+    let raw_model_id = &normalized[provider_separator + 1..];
+    let Some(reasoning_separator) = raw_model_id.find(MODE_MODEL_REASONING_SEPARATOR) else {
+        return Ok((provider_id, raw_model_id.to_string(), None));
+    };
+    if reasoning_separator == 0 || reasoning_separator >= raw_model_id.len() - 1 {
+        return Ok((provider_id, raw_model_id.to_string(), None));
+    }
+    Ok((
+        provider_id,
+        raw_model_id[..reasoning_separator].to_string(),
+        Some(raw_model_id[reasoning_separator + 1..].to_string()),
+    ))
+}
+
 /// TS `normalizeAvailableModeMode`：未知/auto 一律回填 build。
 pub fn normalize_available_mode(mode: SessionMode) -> &'static str {
     match mode {
@@ -331,6 +355,33 @@ mod tests {
         let options = settings_to_config_options(&settings_with(None, thought));
         assert_eq!(options.len(), 2);
         assert_eq!(options[0]["currentValue"], "");
+    }
+
+    #[test]
+    fn parses_model_picker_value() {
+        assert_eq!(
+            parse_model_picker_value("glm/glm-5").expect("parse"),
+            ("glm".to_string(), "glm-5".to_string(), None)
+        );
+        assert_eq!(
+            parse_model_picker_value(" glm/glm-5$high ").expect("parse"),
+            (
+                "glm".to_string(),
+                "glm-5".to_string(),
+                Some("high".to_string())
+            )
+        );
+        // 分隔符在首/尾 → 作为 modelId 一部分，不解析档位。
+        assert_eq!(
+            parse_model_picker_value("glm/$high").expect("parse"),
+            ("glm".to_string(), "$high".to_string(), None)
+        );
+        assert_eq!(
+            parse_model_picker_value("glm/glm-5$").expect("parse"),
+            ("glm".to_string(), "glm-5$".to_string(), None)
+        );
+        assert!(parse_model_picker_value("glm-5").is_err());
+        assert!(parse_model_picker_value("/glm-5").is_err());
     }
 
     #[test]

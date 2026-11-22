@@ -82,11 +82,11 @@ getTaskTarget 的索引归属回读抽为 `resolve_task_workspace` helper。
   重载会话入口 → `dispose_workspace`，2s 宽限与 mode-agent 同口径）、initialize
   （控制面预热 → {available, version}）、getModelTrajectory
   （`model_trajectory.rs`：model-io tail 读取 / delta 展开 / 消息与工具调用映射，
-   spec `model-trajectory-reader.md`；4 单测 + 频道分发用例）。**Claude 导入 Stage 1+2（2026-11-22）**：`scanImportableClaudeSessions` 与 `importClaudeSessions` 均已落（扫描/head 过滤、完整解析、文件复制、createSession(importedHistory)、legacy 快照过滤、索引回写与事件；spec `claude-native-session-import.md`）。**legacy 设置面部分（2026-11-22）**：configOptions 投影 + getTaskConfigOptions/getTaskModelSelection/setMode/setConfigOption(thought|mode)/getTaskNativeSessionLogFile 已落；setModel/setAutomationSessionConfig 仍阻塞于 legacy facade。**剩余**：rename 的
+   spec `model-trajectory-reader.md`；4 单测 + 频道分发用例）。**Claude 导入 Stage 1+2（2026-11-22）**：`scanImportableClaudeSessions` 与 `importClaudeSessions` 均已落（扫描/head 过滤、完整解析、文件复制、createSession(importedHistory)、legacy 快照过滤、索引回写与事件；spec `claude-native-session-import.md`）。**legacy 设置面（2026-11-22 全落）**：configOptions 投影 + getTaskConfigOptions/getTaskModelSelection/setMode/setConfigOption(全部 configId)/setModel/setAutomationSessionConfig/getTaskNativeSessionLogFile；setModel 走 provider config 同步 + v4 CAS（TS legacy 差异已注明）。**剩余**：rename 的
   v4 renameSession 同步（best-effort）与 updateIndexedTaskState 的「索引缺失时
   resume seed」兜底；会话设置面（initialize/releaseWorkspacePreparation/
   getTaskConfigOptions/getTaskModelSelection/setMode/setConfigOption/setModel/
-  setAutomationSessionConfig）、legacy 设置面只读/CAS 部分（getTaskConfigOptions/getTaskModelSelection/setMode/setConfigOption(thought|mode)/getTaskNativeSessionLogFile，spec `mode-task-legacy-settings.md`）与 compactSession/goalSession/
+  setAutomationSessionConfig）、legacy 设置面（configOptions/getTaskConfigOptions/getTaskModelSelection/setMode/setConfigOption(全部 configId)/setModel/setAutomationSessionConfig/getTaskNativeSessionLogFile，spec `mode-task-legacy-settings.md`）与 compactSession/goalSession/
   deliverSessionMessage/sendSessionMessageDeliveryResult/branchTaskFromPrompt
   等旧 facade 命令。
 

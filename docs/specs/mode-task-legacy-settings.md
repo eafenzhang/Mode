@@ -31,18 +31,25 @@
   - `thought_level` → `readSession` 取当前 provider/model（未绑定报「请先选择模型，
     再设置思考档位」）→ CAS `switchModelConfig{provider,model,thought}`；
   - `mode` → CAS `switchCollaborationMode`；
-  - `model` → 委托 legacy `setModel`（未迁移，显式报错）；
+  - `model` → 解析 picker `provider/model[$level]` 后走与 `setModel` 相同的
+    v4 CAS 路径（ensure_provider_config → switchModelConfig → resume/索引）；
   - 其他 id → 不改运行时，仍回源快照并返回 configOptions。
   写后 resume 快照 + 索引回写，返回最新 configOptions。
+- `setModel({taskId, modelSelection{providerId,modelId,options?},...})`：Rust 以
+  provider config 同步 + v4 CAS `switchModelConfig`（thought=reasoningLevel）+
+  resume 快照 + 索引回写实现，返回 configOptions（TS 仍用 legacy op，因 runtimeModel
+  凭据解析；Rust 依赖 CLI 最终校验，差异已注明）。
+- `setAutomationSessionConfig({taskId, modelSelection, thoughtLevel?, mode?})`：
+  v4 CAS switchModelConfig（thought 非空时二次收敛）+ mode CAS + resume + 索引，
+  返回 configOptions。
 - `getTaskNativeSessionLogFile()`：`{provider:"glm", path, exists}`，
   path = `{MODE_LOG_DIR 或 home/.mode/cli/log}/mode-YYYY-MM-DD.jsonl`（本地日期）。
 
 ## 已知差距
 
-`setModel` / `setAutomationSessionConfig` 仍依赖 legacy facade（runtimeModel 解析与
-Session 返回形状），未迁移；`compactSession`/`goalSession`/`deliverSessionMessage`/
-`branchTaskFromPrompt` 同属旧 facade 命令。真机需验证 v4 CAS 在旧 CLI 的 stale
-重试路径。
+`compactSession`/`goalSession`/`deliverSessionMessage`/`branchTaskFromPrompt` 仍属旧
+facade 命令（compact/goal 的 v4 CAS revision 与旧协议不可互换）。真机需验证 v4 CAS
+在旧 CLI 的 stale 重试路径与 setModel 的 provider 凭据边界。
 
 ## 验收
 
