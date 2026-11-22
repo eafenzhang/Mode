@@ -2566,6 +2566,7 @@ dependencies = [
  "provider-config-file-codec",
  "provider-config-repository",
  "provider-config-source",
+ "provider-resolver",
  "reqwest",
  "rpc-host",
  "rpc-wire",

@@ -20,8 +20,16 @@ setAutomationSessionConfig/sendPrompt）。Rust：`automation-runtime`（状态�
     `inputId` 缺省回退 runId；sendPrompt 失败立即退订。
   - `sendPrompt` 携带 `inputId=runId` 与 `automationId`（CronCreate 暴露面不丢失）。
   - `mark_task_unread`：best-effort 异步 `setTaskUnread(unread:true)`（失败不影响结算）。
-- `ModelSelectionPort`：宿主注入。provider selection facade（getView 的
-  effective/preferred/issue 解析）尚未迁 Rust；实现方必须给出真实解析，宿主侧不伪造。
+- `ModelSelectionPort`：`host-channels::model_selection_port` 提供生产实现
+  `ProviderConfigModelSelectionPort`（每次 getView 读 provider 配置快照）：
+  - `ProviderConfigResolver` → `registry_providers`（TS Registry 的可执行子集）；
+  - preferred：按顺序取首个非 hidden provider 的首个有档位 model，选最高档；
+  - effective：provider 缺失/hidden → issue + null；model 缺失 → issue + null；
+    档位缺失/不支持 → issue 且只保留模型身份（不带 options）；完整 → 原样返回；
+  - 输入组装：`provider-config-source::read_snapshot`（builtin/personal/active 路径由
+    宿主提供）。
+  **已知差距**：账号 provider 分类（account-plan/account-offpeak）与 account overlay
+  未接（一律 ordinary）、legacy reasoning 归一化未迁、configured-default 源未接。
 
 ## 所有权与翻转
 

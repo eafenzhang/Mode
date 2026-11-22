@@ -36,6 +36,7 @@ pub mod assembly;
 pub mod memory_channel;
 pub mod mode_config_options;
 pub mod mode_task;
+pub mod model_selection_port;
 pub mod model_trajectory;
 pub mod sessions_observer;
 pub mod task_command_queue;
