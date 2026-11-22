@@ -60,9 +60,32 @@ needsReauthGeneration?`；`source` 只接受 `api-key|pkce`（其它按 `api-key
   `cancel`/`invalidate_for_page_hide` 递增 generation，`reset` 不递增。
 - 成功时用阶段 1 的 store 保存 `source=pkce + grantedScope + accountId`。
 
-## 4. 验收
+## 4. 阶段 3：模型目录（2026-11-23 已落）
 
-- `cargo test -p orcarouter-service`（13 条）：阶段 1 全部 + origins 归一/优先级/
-  授权 URL、PKCE 确定性、state 比较、begin/cancel generation、真实本地 HTTP 交换
-  （成功/403/scope 降级）、cancel 取代在途交换。
+`catalog`（`catalog.rs`）：
+- 来源三态：`live` / `last-known-good` / `verified-seed`；后两者 `degraded=true`
+  且带脱敏 `error`。
+- live：GET `{apiBase}/v1/models`（`Authorization: Bearer <key>`、`Accept:
+  application/json`），10s 超时、响应 ≤512KiB、条目上限 500；未连接时失败。
+- 缓存 TTL 60s；`invalidate()` 递增 epoch 并清缓存，在途旧响应不得写回/发布；
+  `forceRefresh` 绕过 TTL；并发请求用 async 锁单飞（等锁后复用新缓存）。
+- 过滤与 shared 同口径：chat 需文本协议且排除非文本 endpoint，多模态入口要求
+  `input_modalities` 显式声明（未声明 fail closed）；embedding/image/video/rerank
+  只认对应 endpoint。
+- verified seed 5 个模型仅在 live 失败且无缓存时出现。
+
+## 5. 阶段 4：provider overlay 写回（2026-11-23 已落）
+
+`overlay`（`overlay.rs`）：
+- 在 Personal 层查找 `templateId == "orcarouter"` 的模板实例；无实例则 no-op
+  （Built-in 固定 Provider 的 access 由 Built-in Config 声明）。
+- 已连接 → 把 store 的同一把 key 写入该 provider `config.access.apiKey`；
+  `loadUsable` 为 null（断开/needsReauth）→ 写入显式 `null`，推理路径 fail closed。
+- 幂等：与当前 `access.apiKey` 一致时不写盘；只改 access 叶子，保留其它
+  Personal 叶子与 `defaultModelSelection`；写失败回调 onError，不反转凭据事实。
+
+## 6. 验收
+
+- `cargo test -p orcarouter-service`（21 条）：阶段 1–4 全部 + catalog live
+  （Bearer/过滤）/无凭据 seed 降级 + overlay 写回/幂等/断开写 null/无实例 no-op。
 - `cargo clippy -p orcarouter-service --all-targets -- -D warnings`。
