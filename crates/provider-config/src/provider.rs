@@ -1687,6 +1687,25 @@ impl ProviderConfigMap {
     pub fn rules(&self) -> impl Iterator<Item = &ProviderConfigRule> {
         self.values.values()
     }
+
+    /// TS `getRule`：返回规则本体（含身份字段与 config）。
+    pub fn get_rule(&self, provider_id: &str) -> Option<&ProviderConfigRule> {
+        self.values.get(provider_id)
+    }
+
+    /// TS `setRule`：写入/替换规则；已存在时保留原位置（IndexMap replace 不移动）。
+    pub fn set_rule(&self, rule: ProviderConfigRule) -> ProviderConfigMap {
+        let mut values = self.values.clone();
+        values.insert(rule.provider_id.clone(), rule);
+        ProviderConfigMap { values }
+    }
+
+    /// TS `Map.delete`：删除规则并保持其余顺序（`shift_remove`）。
+    pub fn delete(&self, provider_id: &str) -> ProviderConfigMap {
+        let mut values = self.values.clone();
+        values.shift_remove(provider_id);
+        ProviderConfigMap { values }
+    }
 }
 
 #[cfg(test)]
@@ -1887,5 +1906,49 @@ mod overlay_tests {
 
     fn provider_id_to_group(_provider_id: &str) -> ProviderGroup {
         ProviderGroup::ZaiFamily
+    }
+}
+
+#[cfg(test)]
+mod map_mutation_tests {
+    use super::*;
+
+    fn rule(provider_id: &str) -> ProviderConfigRule {
+        ProviderConfigRule {
+            provider_id: provider_id.to_string(),
+            template_id: Field::Absent,
+            provider_name: Field::Value(provider_id.to_uppercase()),
+            enabled: Field::Value(true),
+            config: ProviderConfig::default(),
+        }
+    }
+
+    #[test]
+    fn set_rule_replaces_in_place_and_delete_preserves_order() {
+        let mut map = ProviderConfigMap::empty();
+        for id in ["a", "b", "c"] {
+            map = map.set_rule(rule(id));
+        }
+        assert_eq!(map.keys(), vec!["a", "b", "c"]);
+        assert_eq!(
+            map.get_rule("b").expect("rule").provider_name,
+            Field::Value("B".to_string())
+        );
+
+        // 替换 b 不移动位置。
+        let mut updated = rule("b");
+        updated.provider_name = Field::Value("B2".to_string());
+        let map = map.set_rule(updated);
+        assert_eq!(map.keys(), vec!["a", "b", "c"]);
+        assert_eq!(
+            map.get_rule("b").expect("rule").provider_name,
+            Field::Value("B2".to_string())
+        );
+
+        let map = map.delete("b");
+        assert_eq!(map.keys(), vec!["a", "c"]);
+        assert!(map.get_rule("b").is_none());
+        // 缺失删除幂等。
+        assert_eq!(map.delete("missing").keys(), vec!["a", "c"]);
     }
 }

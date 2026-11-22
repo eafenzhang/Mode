@@ -391,7 +391,7 @@ fn resolve_provider_order(
     result
 }
 
-fn resolve_owned_order(
+pub fn resolve_owned_order(
     builtin_ids: &[String],
     personal_ids: &[String],
     requested_order: &[String],

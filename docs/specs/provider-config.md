@@ -34,6 +34,9 @@
 - `ProviderConfigMap.overlay`、`ModelConfigRules.resolve`、`resolveOwnedOrder` 的排序编排。
 - `ModelConfigRules.get_exact` / `get_exact_rule`（2026-11-23）：TS `getExact`/
   `getExactRule` 等价——按序叠加精确规则 / 返回最后一条精确规则类型（Provider|Manual）。
+- `ModelConfigRules.delete_exact_for_provider`、`ProviderConfigMap.get_rule` /
+  `set_rule` / `delete`（2026-11-23）：TS `deleteExactForProvider` / `getRule` /
+  `setRule` / `Map.delete` 等价（替换保持位置、删除保持其余顺序）。
 - AccountProviderService 与 `createAccountProviderConfigSnapshot` 的 revision 生成。
 - 任何文件 IO、网络、凭据、进程或 UI 依赖。
 

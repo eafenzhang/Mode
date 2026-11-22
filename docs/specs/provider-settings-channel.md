@@ -47,6 +47,12 @@ Personal 仓库 revision。输出与 `ProviderSettingsView` 同构：
   `personalConfig` 取 Personal 规则的 `config`（ProviderConfigObject），待 fixture
   对拍确认与 TS 逐字段一致；`accountState` 暂不输出。
 
+## 3. 阶段 2：写入面（地基已落，方法待做）
+
+地基（2026-11-23）：`ProviderConfigMap.get_rule/set_rule/delete`、
+`ModelConfigRules.delete_exact_for_provider`、`provider_resolver::resolve_owned_order`
+公开，供 create/save/delete/reorder 复用。
+
 ## 3. 阶段 2：写入面（待做）
 
 `createPersonalProvider` / `savePersonalProviderOverlay` / `deletePersonalProvider` /

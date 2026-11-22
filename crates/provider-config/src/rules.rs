@@ -116,6 +116,26 @@ impl ModelConfigRules {
         result
     }
 
+    /// TS `deleteExactForProvider`：删除该 provider 的所有精确规则（Provider/Manual），
+    /// 保留模板/站点/模型名等非精确规则。
+    pub fn delete_exact_for_provider(&self, provider_id: &str) -> ModelConfigRules {
+        ModelConfigRules {
+            rules: self
+                .rules
+                .iter()
+                .filter(|rule| {
+                    !matches!(
+                        rule,
+                        ModelRule::Provider { provider_id: rule_provider, .. }
+                            | ModelRule::Manual { provider_id: rule_provider, .. }
+                            if rule_provider == provider_id
+                    )
+                })
+                .cloned()
+                .collect(),
+        }
+    }
+
     /// TS `getExactRule`：返回最后一条精确规则及其类型（决定 useRecommendedConfig）。
     pub fn get_exact_rule<'a>(
         &'a self,
@@ -1123,5 +1143,46 @@ mod exact_rule_tests {
 
         assert!(rules.get_exact("p1", "missing").is_none());
         assert!(rules.get_exact_rule("p1", "missing").is_none());
+    }
+}
+
+#[cfg(test)]
+mod delete_exact_tests {
+    use super::*;
+
+    #[test]
+    fn delete_exact_for_provider_keeps_non_exact_rules() {
+        let rules = ModelConfigRules::new(vec![
+            ModelRule::Provider {
+                provider_id: "p1".to_string(),
+                model_id: "m1".to_string(),
+                config: ModelConfig::default(),
+            },
+            ModelRule::Manual {
+                provider_id: "p1".to_string(),
+                model_id: "m2".to_string(),
+                config: ModelConfig::default(),
+            },
+            ModelRule::Provider {
+                provider_id: "p2".to_string(),
+                model_id: "m1".to_string(),
+                config: ModelConfig::default(),
+            },
+            ModelRule::Template {
+                template_id: "t1".to_string(),
+                model_id: "m1".to_string(),
+                config: ModelConfig::default(),
+            },
+            ModelRule::Model {
+                model_match: "m.*".to_string(),
+                config: ModelConfig::default(),
+            },
+        ]);
+        let trimmed = rules.delete_exact_for_provider("p1");
+        assert!(trimmed.get_exact_rule("p1", "m1").is_none());
+        assert!(trimmed.get_exact_rule("p1", "m2").is_none());
+        assert!(trimmed.get_exact_rule("p2", "m1").is_some());
+        // 非精确规则保留：Template/Model 共 2 条 + p2 Provider 1 条。
+        assert_eq!(trimmed.rules().len(), 3);
     }
 }
