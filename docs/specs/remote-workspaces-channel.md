@@ -79,8 +79,40 @@ dispose(sessionId)
 | ssh 且 state=online | 只清 idle 定时器 | ready 的 SSH 连接是窗口 cache，取消一次 attach 不该炸掉后续复用 |
 | 其余且有 handle | 立即销毁 | — |
 
-「迟到完成」的守卫体现在 `settle` 里：entry 已 disposed 或 session 数归零时，
-**完成结果必须立刻释放，不能复活旧连接**。
+「迟到完成」的守卫体现在 `complete_connect` 里：entry 已 disposed/aborted 或
+session 数归零时，**完成结果必须立刻释放，不能复活旧连接**。
+
+### 3.4 workspace 运行时归属（只有 WSL 有）
+
+TS 把「同一个 workspace 的运行时」与「连接」分开记账，Rust 侧原样搬了这一层：
+
+```text
+entry.workspace_runtime[workspaceKey] = {
+  context:              { workspacePath, workspaceIdentity? }   # 释放时回传给调用方
+  generation:           u32                                     # 归属代际，不是连接代际
+  pending_release_generation: Option<u32>                       # 因 running task 推迟
+  release_in_flight:    bool                                    # 是否有一次释放在进行
+}
+```
+
+三条不变量：
+
+1. **代际只在「没有别的 owner」时 +1**。上一代 release 还在飞（等 running task 归零）时
+   新 owner 抢到同一 workspace，代际必须递增，否则旧 release 完成后会把**新 owner 的**
+   runtime 删掉。
+2. **running task > 0 时推迟释放**，记下 `pending_release_generation`；归零后再补做。
+   归零补做时必须校验代际——旧代际的待办要失效。
+3. **释放必须成对**：`ReleaseWorkspace` 发出后调用方要回传
+   `complete_workspace_release(entry_id, workspace_key, generation)`，否则
+   `release_in_flight` 永远为真，同 workspace 的下一代 owner 会一直停在 `Pending`。
+
+`requestWorkspaceRelease` 的四种「不释放」情形原样保留：非 WSL、缺 key/代际、
+还有别的 owner、running task > 0。少一条就会把别人还在用的 runtime 拆掉。
+
+### 3.5 `find_session_for_workspace` 的歧义处理
+
+多个候选（例如两个 docker session 指向同一 workspace）时**报错而不是挑一个**。
+静默选择会把消息发到错误的会话；TS 同（抛错）。
 
 ## 4. 未迁与降级语义
 
@@ -94,8 +126,10 @@ dispose(sessionId)
 
 ## 5. 验收
 
-- `cargo test -p remote-session-registry`：连接键五种 kind、docker 不复用、requestId
-  重复拒绝、取消幂等、generation 递增、迟到完成不复活、bindContext 换 workspace 释放旧归属。
-- `cargo test -p workspace-identity`：`build_ssh_remote_host_key` 的 authKind 优先级
-  （privateKey > password > agent）与私钥路径归一（盘符大小写、`..` 越界、UNC）。
+- `cargo test -p remote-session-registry`（20 条）：连接键五种 kind、docker 不复用、
+  requestId 重复拒绝、取消幂等、generation 递增、迟到完成不复活（含 fail 之后）、
+  WSL workspace 代际与释放成对、running task 推迟与补做、旧代际待办失效、
+  `findSessionForWorkspace` 歧义报错、stats 分别计数。
+- `cargo test -p workspace-identity`（10 条）：`build_ssh_remote_host_key` 的 authKind
+  优先级（privateKey > password > agent）与私钥路径归一（盘符大小写、`..` 越界、UNC）。
 - 全套门禁：clippy -D warnings、typecheck、lint、architecture。
