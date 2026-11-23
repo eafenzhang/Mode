@@ -17,9 +17,12 @@ const botsServiceSource = await readFile(
 );
 
 function windowAfter(source: string, marker: string, lineSpan: number): string {
-  const index = source.indexOf(marker);
+  // 规范化换行再断言：锚点里含换行，而 Windows 检出（core.autocrlf=true）是 CRLF。
+  // 不依赖开发者的行尾配置，Linux CI 与 Windows 本地都成立。
+  const normalized = source.replace(/\r\n/g, "\n");
+  const index = normalized.indexOf(marker);
   assert.ok(index >= 0, `未找到锚点：${marker}`);
-  return source.slice(index).split("\n").slice(0, lineSpan).join("\n");
+  return normalized.slice(index).split("\n").slice(0, lineSpan).join("\n");
 }
 
 test("群聊命令过滤放行 /send 与 /help，仍丢弃其它管理命令", () => {

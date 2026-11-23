@@ -114,7 +114,10 @@ function createMachine(params: MachineParams) {
     },
   };
 
-  const modeSessionService = {
+  // LT-16：读消息归 modeAgentService（mode-session 的三个纯转发方法已改指 mode-agent），
+  // 建会话仍走 modeSessionService。两者分开伪造：读路径拿到 undefined 会静默降级为
+  // degraded，13 条用例会全部变红而错误信息与真正的根因无关。
+  const modeAgentService = {
     async readSessionMessages(input: { sessionId: string }) {
       readCalls.push(input.sessionId);
       if (params.readMessages) {
@@ -122,6 +125,9 @@ function createMachine(params: MachineParams) {
       }
       return [textMessage(`内容-${input.sessionId}`)];
     },
+  };
+
+  const modeSessionService = {
     async createSession(createParams: CreateCall) {
       createCalls.push(createParams);
       if (params.createSession) {
@@ -132,7 +138,7 @@ function createMachine(params: MachineParams) {
   };
 
   return {
-    services: { modeTaskService, modeSessionService } as never,
+    services: { modeTaskService, modeAgentService, modeSessionService } as never,
     createCalls,
     readCalls,
     listScopes,

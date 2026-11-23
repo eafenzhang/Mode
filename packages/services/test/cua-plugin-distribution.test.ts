@@ -101,7 +101,11 @@ test("docs/computer-use.md 以反引号覆盖全部 14 个方法名", async () =
 });
 
 test("SKILL frontmatter name=computer-use 且正文给出观察入口", async () => {
-  const skill = await readText(join(pluginRoot, "skills", "computer-use", "SKILL.md"));
+  // 规范化换行再匹配 frontmatter：Windows 检出是 CRLF，正则以 \n 为界。
+  const skill = (await readText(join(pluginRoot, "skills", "computer-use", "SKILL.md"))).replace(
+    /\r\n/g,
+    "\n",
+  );
   const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/);
   assert.ok(frontmatter, "SKILL 必须有 frontmatter");
   assert.match(frontmatter[1], /^name: computer-use$/m);
