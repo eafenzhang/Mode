@@ -549,11 +549,22 @@ fn resolve_model_config(
         .ok_or_else(|| ChannelError::error(format!("Provider 不存在: {provider_id}")))?;
     let resolve_input = resolution_input(provider, &model_id);
 
-    let inherited = snapshot.mode_builtin_model_rules.resolve(&resolve_input);
-    let effective = match input.get("personalConfig").filter(|value| !value.is_null()) {
-        None => inherited.clone(),
+    // 无 `personalConfig`：TS 用 composeEffective(builtin, personal) 解析，
+    // inherited 与 effective 是同一份（草稿里没有未保存的自动配置）。
+    // 有 `personalConfig`：inherited 只取 Built-in 规则，effective 才叠加草稿。
+    let (inherited, effective) = match input.get("personalConfig").filter(|value| !value.is_null())
+    {
+        None => {
+            let composed = provider_config::ModelConfigRules::compose_effective(
+                &snapshot.mode_builtin_model_rules,
+                &snapshot.personal_models,
+            )
+            .resolve(&resolve_input);
+            (composed.clone(), composed)
+        }
         Some(value) => {
             let personal = parse_model_config(value)?;
+            let inherited = snapshot.mode_builtin_model_rules.resolve(&resolve_input);
             let original_model_id =
                 json_string(input, "originalModelId").unwrap_or_else(|| model_id.clone());
             let mut personal_rules = snapshot.personal_models.clone();
@@ -561,20 +572,28 @@ fn resolve_model_config(
                 personal_rules =
                     personal_rules.rename_exact_model(&provider_id, &original_model_id, &model_id);
             }
+            // TS 这里固定传 `useRecommendedConfig = true`：草稿预览不沿用旧的固定标记。
             personal_rules =
                 personal_rules.set_exact(&provider_id, &model_id, personal, Some(true));
-            provider_config::ModelConfigRules::compose_effective(
+            let effective = provider_config::ModelConfigRules::compose_effective(
                 &snapshot.mode_builtin_model_rules,
                 &personal_rules,
             )
-            .resolve(&resolve_input)
+            .resolve(&resolve_input);
+            (inherited, effective)
         }
     };
     let issues = effective.validate_complete();
     Ok(json!({
         "inheritedConfig": to_serde(&inherited.to_json()),
         "effectiveConfig": to_serde(&effective.to_json()),
-        "issues": issues.iter().map(issue_json).collect::<Vec<_>>(),
+        // TS 用 `validateComplete(["providers", providerId, "models", modelId])`：
+        // 问题路径带定位前缀，renderer 据此把问题挂到具体模型行。缺前缀会让所有
+        // 问题路径都相对根节点，行内提示会全部落到错误位置。
+        "issues": issues
+            .iter()
+            .map(|issue| issue_json(issue, &provider_id, &model_id))
+            .collect::<Vec<_>>(),
     }))
 }
 
@@ -650,10 +669,18 @@ fn to_serde(value: &provider_config::JsonValue) -> Json {
     serde_json::from_str(&value.to_json_string()).unwrap_or(Json::Null)
 }
 
-fn issue_json(issue: &provider_config::Issue) -> Json {
+/// `resolveModelConfig` 的问题路径前缀：TS 传 `["providers", providerId, "models", modelId]`。
+fn issue_json(issue: &provider_config::Issue, provider_id: &str, model_id: &str) -> Json {
+    let mut path = vec![
+        "providers".to_string(),
+        provider_id.to_string(),
+        "models".to_string(),
+        model_id.to_string(),
+    ];
+    path.extend(issue.path.iter().cloned());
     json!({
         "code": issue.code,
-        "path": issue.path,
+        "path": path,
         "message": issue.message,
     })
 }

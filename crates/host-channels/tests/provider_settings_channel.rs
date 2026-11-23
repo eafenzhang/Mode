@@ -268,6 +268,62 @@ async fn test_model_connectivity_reports_unavailable_before_reaching_the_agent()
 }
 
 #[tokio::test]
+async fn resolve_model_config_without_draft_reports_inherited_equal_to_effective() {
+    // TS 无 personalConfig 分支：inheritedConfig 与 effectiveConfig 是同一份
+    // composeEffective(builtin, personal) 结果；把它写成「只取 builtin」会让设置页在
+    // 有 Personal 覆盖时预览到错误的继承值。
+    let dir = TempDir::new("resolve-inherited");
+    let channel = channel(&dir);
+    let created = call(&channel, "createPersonalProvider", vec![json!({})]).await;
+    let provider_id = created["providerId"]
+        .as_str()
+        .expect("providerId")
+        .to_string();
+
+    let resolution = call(
+        &channel,
+        "resolveModelConfig",
+        vec![json!({ "providerId": provider_id, "modelId": "m1" })],
+    )
+    .await;
+    assert_eq!(
+        resolution["inheritedConfig"], resolution["effectiveConfig"],
+        "无草稿时两个配置必须同源"
+    );
+}
+
+#[tokio::test]
+async fn resolve_model_config_prefixes_issue_paths_with_the_model_locator() {
+    // TS 传 `validateComplete(["providers", providerId, "models", modelId])`：问题路径必须
+    // 带定位前缀，否则 renderer 把每个问题都挂到根节点（行内提示全部错位）。
+    let dir = TempDir::new("resolve");
+    let channel = channel(&dir);
+    let created = call(&channel, "createPersonalProvider", vec![json!({})]).await;
+    let provider_id = created["providerId"]
+        .as_str()
+        .expect("providerId")
+        .to_string();
+
+    let resolution = call(
+        &channel,
+        "resolveModelConfig",
+        vec![json!({ "providerId": provider_id, "modelId": "m1" })],
+    )
+    .await;
+    // 空白 provider 的 m1 必然不完整 → 至少有 issues；重点是路径形状。
+    let issues = resolution["issues"].as_array().expect("issues");
+    assert!(!issues.is_empty(), "空白 Provider 的模型不应通过完整校验");
+    for issue in issues {
+        let path = issue["path"].as_array().expect("path");
+        assert_eq!(path[0], "providers");
+        assert_eq!(path[1], provider_id.as_str());
+        assert_eq!(path[2], "models");
+        assert_eq!(path[3], "m1");
+        assert!(path.len() >= 5, "问题路径应续接字段段: {path:?}");
+    }
+}
+
+#[tokio::test]
 async fn list_remote_models_rejects_unsupported_api_type_without_touching_config() {
     let dir = TempDir::new("remote");
     let channel = channel(&dir);

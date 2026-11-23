@@ -129,7 +129,7 @@ builtin/personal 冲突拒绝）、`rename_personal_model`（builtin 归属保�
 | `getView` | 读快照 → `build_provider_settings_view` | revision = 进程内计数器，快照 revision 变更时 +1 |
 | `refresh(reason)` | 重读快照后返回 View | Rust 每次 `getView` 都重读文件，`reason` 只进日志 |
 | `createPersonalProvider(input?)` | 模板实例/空白 Provider | 返回 `{providerId, view}` |
-| `resolveModelConfig(input)` | 合成 Rule 解析 + `validateComplete` | 无 `personalConfig` = 继承；有 = 临时 `setExact` 预览，不落盘 |
+| `resolveModelConfig(input)` | 合成 Rule 解析 + `validateComplete` | 无 `personalConfig` = `composeEffective(builtin, personal)`，inherited 与 effective **同源**；有 = inherited 只取 Builtin、effective 叠加草稿（`setExact(..., useRecommended=true)`），不落盘；问题路径带 `["providers", providerId, "models", modelId]` 前缀 |
 | `savePersonalProviderOverlay(providerId, config, metadata?)` | 覆盖写 | 返回新 View |
 | `deletePersonalProvider(providerId)` / `reorderPersonalProviders(ids)` | 删除 / 排序 | 返回新 View |
 | `reorderPersonalModels(providerId, ids)` / `addPersonalModel(providerId, modelId, config, useRecommended?)` / `renamePersonalModel(providerId, from, to)` / `deletePersonalModel(providerId, modelId)` / `setPersonalModelEnabled(providerId, modelId, enabled)` | 模型写面 | 返回新 View |
@@ -164,10 +164,11 @@ writeGeneration、不触发 onDidChange**（锁内失败必须能被反复重试
 ## 6. 验收
 
 - 阶段 0：`cargo test -p provider-config --lib exact_rule`。
-- 阶段 4 频道契约（2026-11-23，`crates/host-channels/tests/provider_settings_channel.rs`，7 条）：
+- 阶段 4 频道契约（2026-11-23，`crates/host-channels/tests/provider_settings_channel.rs`，9 条）：
   View 投影可读且读面不落盘、create/delete 返回新 View、**校验失败不落盘**、
   `onDidChange` 只在真实写入后广播一次且退订后静默、连通性前置资格
   （不存在/未启用 → `success:false` + `code`，缺字段显式报错）、
+  `resolveModelConfig` 无草稿时 inherited == effective 且问题路径带模型定位前缀、
   远端目录对不支持的 apiType 返回 `success:false` 且不写配置、未知方法拒绝。
 - 仓库层：`cargo test -p provider-config-repository --test repository`（12 条，含
   `try_update_leaves_no_trace_when_the_transform_rejects`）。
