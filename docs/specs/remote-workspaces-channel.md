@@ -1,6 +1,6 @@
 # Spec：`remote` workspaces 迁移（LT-16.4d）
 
-状态：**频道 + LAN transport 均已落地，仍未翻面（2026-11-23）**——registry 状态机、SSH host key、RPC 客户端、频道包装、scoped 服务面、attach/detach、LAN 端口均已进 Rust；SSH/WSL/Docker 与 v3 的端口实现未做。
+状态：**频道 + LAN 端口 + 分派器均已落地，仍未翻面（2026-11-23）**——registry 状态机、SSH host key、RPC 客户端、频道包装、scoped 服务面、attach/detach、LAN 端口、transport 分派器均已进 Rust；SSH/WSL/Docker 与 v3 的端口实现未做。
 
 ## 1. 面拆解
 
@@ -186,7 +186,26 @@ entry.workspace_runtime[workspaceKey] = {
 `release_workspace` 对 LAN 是 **no-op**：对端是「已经在跑的 Mode 实例」，不部署也不
 启动任何东西，没有 workspace 运行时需要释放（TS 同：只有 wsl 有 release）。
 
-## 6. 未迁与降级语义
+## 6. transport 分派器（已落）
+
+`host_channels::remote_transport::RemoteTransportRouter` 按 **target kind** 把
+`RemoteTransportPort` 的调用路由到具体端口。
+
+为什么需要它：`RemoteChannel` 只认一个 `RemoteTransportPort`，而目标有五种 kind，
+阻塞点各不相同。没有分派器时只能二选一——要么被迫给所有 kind 共用同一个端口（LAN
+的端口会拿到 SSH 目标），要么翻面后所有非 LAN 目标都落到同一条含糊错误上。
+
+三条记账要求：
+
+1. **`entry_id` → kind 必须记下来**。`abort`/`dispose`/`release_workspace` 只拿到
+   entry id；不能靠 target 反推——session 生命周期里 target 未必在手边。
+2. **未注册 kind 的错误要准确**，说清「这种传输还没落地」而不是「远程服务未就绪」
+   ——后者会让用户以为是配对或网络问题。例如：
+   `SSH 远程工作区尚未支持：需要 SSH 客户端（未落地）`。
+3. **失败与回收都不留悬空记录**：`connect` 失败不登记 entry（否则 `dispose` 会去断
+   一个不存在的连接）；`abort`/`dispose` 先摘记录再转发，重复调用不会重复断开。
+
+## 7. 未迁与降级语义
 
 - **SSH/WSL/Docker 与 v3 的端口**：分别需 `russh` 一类 SSH 客户端与 `snow` 一类
   Noise 实现。LAN 已完成。
@@ -194,7 +213,7 @@ entry.workspace_runtime[workspaceKey] = {
   「所有 transport 都有降级路径」，而当前只有 LAN 一种端口。翻面后 SSH/v3 目标会
   返回 `{ok:false}`（可读错误，不是崩溃），是否可接受属产品决策，未擅自决定。
 
-## 7. 验收
+## 8. 验收
 
 - `cargo test -p remote-session-registry`（20 条）：连接键五种 kind、docker 不复用、
   requestId 重复拒绝、取消幂等、generation 递增、迟到完成不复活（含 fail 之后）、
@@ -208,5 +227,8 @@ entry.workspace_runtime[workspaceKey] = {
 - `cargo test -p host-channels --test remote_lan_port`（4 条）：未配对在建连前失败
   （不换票、不升级 WS）、真 axum 服务的 connect→attach→dispose 全链路、LAN 的
   `release_workspace` no-op、端口 drop 不 panic。
+- `cargo test -p host-channels --test remote_transport_router`（7 条）：按 kind 路由、
+  未注册 kind 报准确错误、失败连接不留 entry、abort/dispose 按记录路由、未知 entry
+  的 abort/dispose/release 都不打到端口、release 只打到归属端口、重复 dispose 不泄漏。
 - `cargo test -p rpc-host --test scoped_registry`（7 条）：见 `scoped-server-registry.md`。
 - 全套门禁：clippy -D warnings、typecheck、lint、architecture。
