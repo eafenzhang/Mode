@@ -16,7 +16,7 @@
 | 16.2c snapshot/事件/写面 | 🟡 大部分已落 | `02d76edce` → `62c15bdd5`（修正虚报）→ 后续 10 提交；剩 rename 的 v4 同步与 3 个旧 facade 命令 |
 | 16.3 window-controller | 🟡 主链已落 | `fa39214f6`…`df94025dd`；剩 remote source 聚合与 registerSource 对外接线 |
 | 16.4a lan-access | 🟡 首切 + supervisor 已落，**未翻转** | `a7c78bfed`…`86bf08fbc`；inprocess 仍 `lan_host: None` |
-| 16.4b remote-desktop | 🟡 首切已落（设置面/授权/能力探测），**未翻面** | `12f6692b8`；会话面待 `RemoteDesktopPort` 生产实现 |
+| 16.4b remote-desktop | 🟡 设置面 + 会话状态机已落，**未翻面** | `12f6692b8`（设置面/授权/能力探测）+ 会话状态机（准入/同意/两个 TTL，见 `docs/specs/remote-desktop-session.md`）；媒体与信令链路、控制器侧未做 |
 | 16.4c remote-v3 | ⬜ 未开始 | 仅调查拆分（`a249f1229`） |
 | 16.4d remote workspaces | ✅ **已翻面**（LAN 可用，其余降级为可读错误） | `c6ac57065`：频道进 `service_channel_names()` + inprocess 默认集；LanTransportPort + 分派器 + 远端频道代理已装配。SSH/WSL/Docker/v3 端口未做，这些目标返回准确错误 |
 | 16.5 频道收口 | 🟡 5 个频道已迁 + **provider-settings 阶段 0–4 全落** | 见下「剩余 live 频道」 |
