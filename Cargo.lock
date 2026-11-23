@@ -5487,10 +5487,16 @@ dependencies = [
 name = "rpc-client"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "futures-util",
+ "reqwest",
  "rpc-host",
  "rpc-wire",
+ "rustls",
+ "serde",
  "serde_json",
  "tokio",
+ "tokio-tungstenite 0.26.2",
 ]
 
 [[package]]

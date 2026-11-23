@@ -20,6 +20,8 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 
+pub mod lan;
+
 use rpc_host::{CancellationToken, ChannelError, EventCallback};
 use rpc_wire::{
     decode_rpc_response, encode_rpc_message, RequestHeader, ResponseHeader, RpcMessage, Value,

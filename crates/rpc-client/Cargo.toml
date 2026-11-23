@@ -3,7 +3,7 @@ name = "rpc-client"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
-description = "壳内 RPC 客户端（对应 packages/rpc/src/channelClient.ts）"
+description = "壳内 RPC 客户端与 LAN transport（对应 packages/rpc/src/channelClient.ts 与 lanRemoteAttach.ts）"
 
 [lib]
 name = "rpc_client"
@@ -12,8 +12,17 @@ path = "src/lib.rs"
 [dependencies]
 rpc-wire = { path = "../rpc-wire" }
 rpc-host = { path = "../rpc-host" }
+serde = { workspace = true }
 serde_json.workspace = true
 tokio.workspace = true
+# LAN transport：/ws/host 的 WS 客户端。TLS 走 rustls + webpki roots，
+# 与 workspace 的 rustls 0.23/ring 口径一致（不引入 native-tls）。
+tokio-tungstenite.workspace = true
+futures-util = { workspace = true, features = ["sink", "std"] }
+reqwest.workspace = true
+rustls.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
+# ws feature 是 axum 的 opt-in：不打开就没有 `extract::ws`（真 WS 端到端测试需要它）。
+axum = { workspace = true, features = ["ws"] }

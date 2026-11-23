@@ -1,7 +1,7 @@
 # Spec：RPC 客户端与 LAN transport（LT-16.4d 续段）
 
-状态：**首切落地（2026-11-23）**——`rpc-client` 的 `ChannelClient` 已进 Rust 并有真服务端对拍；
-LAN / SSH / WSL / Docker / v3 的接线尚未落地。
+状态：**首切落地（2026-11-23）**——`rpc-client` 的 `ChannelClient` 与 LAN transport 已进
+Rust，两者都有真服务端端到端对拍；SSH / WSL / Docker / v3 尚未落地。
 
 ## 1. 为什么先做客户端
 
@@ -69,15 +69,53 @@ TS 注释说明了后果：不这么做，上层的 in-flight 去重 Promise 会
    Rust 不做 `notifyTransportClosed` 的「保留订阅、拒绝在途」二段式——transport 断开
    由调用方处置（transport 归 transport 层）。
 
-## 4. 未落部分
+## 4. LAN transport（已落）
 
-- LAN transport（`POST /api/rpc-host-capability` + `GET /ws/host` + 帧桥）未实现；
-- SSH / WSL / Docker 与 v3 未开始；
-- 因此 `remote` 频道仍未进 `service_channel_names()` 与 inprocess 默认集。
+三步，与 `attachLanRemoteConnection` 同序：
 
-## 5. 验收
+1. `POST /api/rpc-host-capability` 换一次性 capability（30s TTL、先删后比）；
+   令牌走 **Cookie** 而不是 query——服务端只从 `?token=` 或 `mode_lite_token`
+   Cookie 取，用 Cookie 可避免令牌进 URL 与访问日志。
+2. 建 WS 到 `<ws(s)>://host:port<basePath>/ws/host`，带
+   `x-mode-rpc-host-capability` header 与同款 Cookie。
+3. 建 `ChannelClient` 并把二进制帧双向搬运。
 
-- `cargo test -p rpc-client`：与**真 `rpc_host::ChannelServer`** 端到端对拍——
-  Initialize 门、排队请求补发、事件订阅与释放、PromiseError 形状、dispose 的
-  fail-closed、重连重放订阅。
+### 4.1 一个必须守住的顺序
+
+**`ChannelClient` 必须在启动读循环之前构造好**。服务端的 `Initialize` 与 WS 握手回包
+常在同一批到达；若等 `await open` 之后再建协议层，那帧会被静默丢弃且**不重发**，
+客户端永久停在 Uninitialized——表现为「所有 RPC 无报错无日志地排队」
+（TS 里是目录浏览器卡在「加载中…」）。TS 在 `lanRemoteAttach.ts` 里为此专门写了
+注释；Rust 侧靠「先建 sink 与 client，再 split socket 起读循环」保证同一件事。
+
+### 4.2 URL 构造
+
+`buildLanApiUrl` 的坑：`new URL("/api/...", base)` 会**丢掉 base 的路径前缀**，
+所以中继前缀 `/d/<tunnelId>` 必须用相对拼接保留。Rust 侧同样按「base 去尾斜杠 +
+`/` + api 去首斜杠」拼，并有断言。
+
+`https` 端点自动映射到 `wss`（`buildLanWsUrl` 同）。
+
+### 4.3 断线语义
+
+WS 关闭或出错时，读循环退出前调用 `client.dispose()`——**必须 fail-closed**，
+否则在途 RPC 永久挂起，上层的 in-flight 去重会一直占着 workspace key。
+
+## 5. 未落部分
+
+- SSH / WSL / Docker（需 `russh` 一类 SSH 客户端）与 v3（需 `snow` 一类 Noise 实现）
+  未开始；
+- `remote` 频道本身（`IRemoteService` 的 RPC 包装与 attach/detach）未落地，
+  因此仍未进 `service_channel_names()` 与 inprocess 默认集。
+
+## 6. 验收
+
+- `cargo test -p rpc-client`（16 条）：
+  - `tests/channel_client.rs`（10 条）：对着真 `ChannelServer` 端到端跑——Initialize 门
+    与排队补发、echo 往返、Error 与透传字段、非 Error 拒绝值、事件触发与订阅释放、
+    重连重放订阅、dispose 分别覆盖排队与在途、cancel、错误方向帧忽略。
+  - `tests/lan_transport.rs`（3 条）：起真 axum（capability + `/ws/host` + 真
+    `ChannelServer`），验换票→握手→Initialize→RPC 往返、错令牌在换票阶段就失败
+    且不尝试 WS、断开后客户端 fail-closed。
+  - `src/lan.rs` 单测（3 条）：WS/API URL 形态（含中继前缀与 wss）与 Cookie 编码。
 - 全套门禁：clippy -D warnings、typecheck、lint、architecture。
