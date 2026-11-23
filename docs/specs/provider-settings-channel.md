@@ -61,9 +61,19 @@ Personal 仓库 revision。输出与 `ProviderSettingsView` 同构：
 - `delete_personal_provider` / `reorder_personal_providers`（同上）。
 - 用例 7 条（create 3 条 + delete/reorder + view）。
 
-待做：`savePersonalProviderOverlay` 仍需 `normalizePersonalProviderMembership` /
-`withModelMembershipFrom` / `assertProviderLabelMutationIsUnique` 与 membership
-CAS；model 级 6 方法同理（先补这些辅助再接线）。
+已落补充（2026-11-23）：
+
+- `save_personal_provider_overlay`：membership CAS（providerId + personalRevision；
+  TS 的外部 assertCurrent 不适用 Host，登记差异）、account provider 禁用/access
+  守卫、builtin 组不可改写（保存时去掉 group）、personal-only 强制
+  standard-personal、`normalizePersonalProviderMembership` +
+  `withModelMembershipFrom`、`assertProviderLabelMutationIsUnique`（仅拦截本次
+  变更新引入的重名）、metadata 覆盖 identity 字段。
+- 用例 10 条（新增：builtin overlay 去 group/保留 key、account 守卫、未知
+  provider/membership revision/重名、成员归一）。
+
+待做：model 级 6 方法（add/rename/delete/enable/draft/reorder models）复用上述
+membership 辅助。
 
 ## 3. 阶段 2：写入面（待做）
 

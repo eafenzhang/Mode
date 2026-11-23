@@ -404,6 +404,266 @@ pub fn create_personal_provider(
     })
 }
 
+pub struct ProviderModelMembershipRef<'a> {
+    pub provider_id: &'a str,
+    pub inherited_model_ids: &'a [String],
+    pub personal_revision: &'a str,
+}
+
+pub struct SaveOverlayMetadata {
+    pub template_id: Option<String>,
+    pub enabled: Option<bool>,
+    pub provider_name: Option<String>,
+}
+
+fn unique_strings(values: &[String]) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut result = Vec::new();
+    for value in values {
+        if seen.insert(value.clone()) {
+            result.push(value.clone());
+        }
+    }
+    result
+}
+
+fn field_builtin_model_ids(config: Option<&provider_config::ProviderConfig>) -> Vec<String> {
+    match config.and_then(|config| match &config.builtin_model_ids {
+        Field::Value(values) => Some(values.clone()),
+        _ => None,
+    }) {
+        Some(values) => unique_strings(&values),
+        None => Vec::new(),
+    }
+}
+
+/// TS `normalizePersonalProviderMembership`：personalModelIds 去掉 builtin 成员，
+/// modelOrder 按 builtin/personal 成员归一。
+fn normalize_personal_provider_membership(
+    personal: &provider_config::ProviderConfig,
+    builtin: Option<&provider_config::ProviderConfig>,
+    inherited_model_ids: Option<&[String]>,
+) -> provider_config::ProviderConfig {
+    let inherited = inherited_model_ids
+        .map(|values| values.to_vec())
+        .unwrap_or_else(|| field_builtin_model_ids(builtin));
+    let builtin_ids = unique_strings(&inherited);
+    let builtin_set: std::collections::HashSet<String> = builtin_ids.iter().cloned().collect();
+    let personal_ids: Vec<String> = match &personal.personal_model_ids {
+        Field::Value(values) => unique_strings(values)
+            .into_iter()
+            .filter(|model_id| !builtin_set.contains(model_id))
+            .collect(),
+        _ => Vec::new(),
+    };
+    let mut normalized = personal.clone();
+    normalized.personal_model_ids = Field::Value(personal_ids.clone());
+    if let Field::Value(requested) = &personal.model_order {
+        normalized.model_order = Field::Value(provider_resolver::resolve_owned_order(
+            &builtin_ids,
+            &personal_ids,
+            requested,
+        ));
+    }
+    normalized
+}
+
+/// TS `withModelMembershipFrom`：把成员字段拷到目标 config。
+fn with_model_membership_from(
+    config: &provider_config::ProviderConfig,
+    source: &provider_config::ProviderConfig,
+) -> provider_config::ProviderConfig {
+    let mut next = config.clone();
+    next.personal_model_ids = source.personal_model_ids.clone();
+    next.model_order = source.model_order.clone();
+    next
+}
+
+/// TS `assertProviderLabelMutationIsUnique`：只拦截本次变更新引入的重名。
+fn assert_provider_label_mutation_is_unique(
+    provider_id: &str,
+    current: &provider_config::ProviderConfigMap,
+    next: &provider_config::ProviderConfigMap,
+) -> Result<(), String> {
+    let label = |map: &provider_config::ProviderConfigMap| {
+        map.get_rule(provider_id)
+            .and_then(|rule| match &rule.provider_name {
+                Field::Value(value) if !value.trim().is_empty() => {
+                    Some(value.trim().to_lowercase())
+                }
+                _ => None,
+            })
+    };
+    let current_label = label(current);
+    let Some(next_key) = label(next) else {
+        return Ok(());
+    };
+    if Some(&next_key) == current_label.as_ref() {
+        return Ok(());
+    }
+    for rule in next.rules() {
+        if rule.provider_id == provider_id {
+            continue;
+        }
+        if let Field::Value(candidate) = &rule.provider_name {
+            if candidate.trim().to_lowercase() == next_key {
+                return Err(format!("Provider 名称已存在: {}", candidate.trim()));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn assert_membership_current(
+    membership: Option<&ProviderModelMembershipRef<'_>>,
+    provider_id: &str,
+    personal_revision: &str,
+) -> Result<(), String> {
+    let Some(membership) = membership else {
+        return Ok(());
+    };
+    if membership.provider_id != provider_id {
+        return Err("Provider Membership 与目标 Provider 不匹配".to_string());
+    }
+    if membership.personal_revision != personal_revision {
+        return Err("Personal Provider Config 已更新，请刷新后重试".to_string());
+    }
+    Ok(())
+}
+
+/// TS `savePersonalProviderOverlay`：普通保存只更新现有配置，不存在即拒绝。
+#[allow(clippy::too_many_arguments)]
+pub fn save_personal_provider_overlay(
+    snapshot: &ProviderConfigSnapshot,
+    current: &PersonalLayer,
+    provider_id: &str,
+    config: &provider_config::ProviderConfig,
+    metadata: Option<&SaveOverlayMetadata>,
+    membership: Option<&ProviderModelMembershipRef<'_>>,
+) -> Result<ProviderConfigLayerUpdate, String> {
+    let provider_id = provider_id.trim();
+    if provider_id.is_empty() {
+        return Err("providerId 不能为空".to_string());
+    }
+    assert_membership_current(membership, provider_id, &current.revision)?;
+    let builtin_rule = snapshot.mode_builtin_providers.get_rule(provider_id);
+    let current_personal = current.providers.get_rule(provider_id);
+    if let Some(builtin) = builtin_rule {
+        if matches!(
+            &builtin.config.access,
+            Field::Value(provider_config::ProviderAccess::ZhipuAccount(_))
+        ) {
+            if metadata.and_then(|metadata| metadata.enabled) == Some(false) {
+                return Err(format!("Account Provider 不允许禁用: {provider_id}"));
+            }
+            if !config.access.is_absent() {
+                return Err(format!(
+                    "固定 Account Provider 的 Access 只能由 Mode Built-in Config 声明: {provider_id}"
+                ));
+            }
+        }
+    }
+    if current_personal.is_none() && builtin_rule.is_none() {
+        return Err(format!("Personal Provider 尚未创建: {provider_id}"));
+    }
+    let normalized = if let Some(builtin) = builtin_rule {
+        if let Field::Value(group) = &config.group {
+            let same = matches!(&builtin.config.group, Field::Value(builtin_group) if builtin_group == group);
+            if !same {
+                return Err(format!(
+                    "Personal Overlay 不能改写 Built-in Provider group: {provider_id}"
+                ));
+            }
+        }
+        config.without_group()
+    } else {
+        let group = match &config.group {
+            Field::Value(group) => *group,
+            _ => match current_personal.map(|rule| &rule.config.group) {
+                Some(Field::Value(group)) => *group,
+                _ => {
+                    return Err(format!(
+                        "Personal-only Provider 必须使用 standard-personal group: {provider_id}"
+                    ))
+                }
+            },
+        };
+        if group != ProviderGroup::StandardPersonal {
+            return Err(format!(
+                "Personal-only Provider 必须使用 standard-personal group: {provider_id}"
+            ));
+        }
+        config.overlay(&provider_config::ProviderConfig {
+            group: Field::Value(ProviderGroup::StandardPersonal),
+            ..provider_config::ProviderConfig::default()
+        })
+    };
+    let template_baseline = current_personal
+        .and_then(|rule| match &rule.template_id {
+            Field::Value(template_id) => snapshot.mode_builtin_provider_templates.get(template_id),
+            _ => None,
+        })
+        .map(|template| &template.config);
+    let membership_baseline = builtin_rule.map(|rule| &rule.config).or(template_baseline);
+    let next_config = match current_personal.map(|rule| &rule.config) {
+        Some(personal_config) => {
+            let source = normalize_personal_provider_membership(
+                personal_config,
+                membership_baseline,
+                membership.map(|membership| membership.inherited_model_ids),
+            );
+            with_model_membership_from(&normalized, &source)
+        }
+        None => normalized,
+    };
+    let template_id = match metadata.and_then(|metadata| metadata.template_id.clone()) {
+        Some(template_id) => Field::Value(template_id),
+        None => current_personal
+            .map(|rule| rule.template_id.clone())
+            .unwrap_or(Field::Absent),
+    };
+    let enabled = match metadata.and_then(|metadata| metadata.enabled) {
+        Some(enabled) => Field::Value(enabled),
+        None => current_personal
+            .map(|rule| rule.enabled.clone())
+            .unwrap_or(Field::Absent),
+    };
+    let provider_name = match metadata.and_then(|metadata| metadata.provider_name.clone()) {
+        Some(name) => {
+            let trimmed = name.trim();
+            if trimmed.is_empty() {
+                Field::Null
+            } else {
+                Field::Value(trimmed.to_string())
+            }
+        }
+        None => current_personal
+            .map(|rule| rule.provider_name.clone())
+            .unwrap_or(Field::Absent),
+    };
+    let providers = current
+        .providers
+        .set_rule(provider_config::ProviderConfigRule {
+            provider_id: provider_id.to_string(),
+            template_id,
+            enabled,
+            provider_name,
+            config: next_config,
+        });
+    let current_effective = snapshot.mode_builtin_providers.overlay(&current.providers);
+    let next_effective = snapshot.mode_builtin_providers.overlay(&providers);
+    assert_provider_label_mutation_is_unique(provider_id, &current_effective, &next_effective)?;
+    Ok(ProviderConfigLayerUpdate {
+        providers,
+        models: current.models.clone(),
+        provider_order: current.provider_order.clone(),
+        default_model_selection: current
+            .default_model_selection
+            .as_ref()
+            .map(to_layer_selection),
+    })
+}
+
 /// 删除 Personal Provider：同时清理它的精确模型规则与顺序项。
 pub fn delete_personal_provider(
     current: &PersonalLayer,
@@ -783,5 +1043,220 @@ mod create_provider_tests {
             rule.config.access,
             Field::Value(provider_config::ProviderAccess::ApiKey(_))
         ));
+    }
+}
+#[cfg(test)]
+mod save_overlay_tests {
+    use super::*;
+    use provider_config::{
+        ModelConfigRules, ProviderConfig, ProviderConfigMap, ProviderTemplate, ProviderTemplateMap,
+        ProviderTemplateNameMap,
+    };
+
+    fn snapshot(access: provider_config::ProviderAccess) -> ProviderConfigSnapshot {
+        let mut builtin = ProviderConfigMap::empty();
+        builtin = builtin.set_rule(provider_config::ProviderConfigRule {
+            provider_id: "builtin-1".into(),
+            template_id: Field::Absent,
+            provider_name: Field::Value("Builtin".into()),
+            enabled: Field::Value(true),
+            config: ProviderConfig {
+                group: Field::Value(ProviderGroup::StandardPersonal),
+                access: Field::Value(access),
+                ..ProviderConfig::default()
+            },
+        });
+        ProviderConfigSnapshot {
+            revision: "[]".into(),
+            mode_builtin_revision: String::new(),
+            personal_revision: String::new(),
+            mode_builtin_providers: builtin,
+            mode_builtin_provider_templates: ProviderTemplateMap::empty(),
+            personal_providers: ProviderConfigMap::empty(),
+            mode_builtin_model_rules: ModelConfigRules::empty(),
+            personal_models: ModelConfigRules::empty(),
+            personal_provider_order: Vec::new(),
+        }
+    }
+    fn layer(rule: Option<provider_config::ProviderConfigRule>) -> PersonalLayer {
+        PersonalLayer {
+            revision: "rev-1".into(),
+            providers: rule
+                .map(|rule| ProviderConfigMap::empty().set_rule(rule))
+                .unwrap_or_else(ProviderConfigMap::empty),
+            models: ModelConfigRules::empty(),
+            provider_order: None,
+            default_model_selection: None,
+        }
+    }
+    fn api_config(key: Option<&str>) -> ProviderConfig {
+        ProviderConfig {
+            access: Field::Value(provider_config::ProviderAccess::ApiKey(
+                provider_config::ApiKeyAccess {
+                    access_type: provider_config::ApiKeyAccessType::ApiKey,
+                    api_key: key
+                        .map(|value| Field::Value(value.into()))
+                        .unwrap_or(Field::Absent),
+                    api_key_management_url: Field::Absent,
+                },
+            )),
+            ..ProviderConfig::default()
+        }
+    }
+    fn api_access() -> provider_config::ProviderAccess {
+        provider_config::ProviderAccess::ApiKey(provider_config::ApiKeyAccess {
+            access_type: provider_config::ApiKeyAccessType::ApiKey,
+            api_key: Field::Absent,
+            api_key_management_url: Field::Absent,
+        })
+    }
+
+    #[test]
+    fn save_builtin_overlay_strips_group() {
+        let snapshot = snapshot(api_access());
+        let current = layer(None);
+        let mut config = api_config(Some("sk-1"));
+        config.group = Field::Value(ProviderGroup::StandardPersonal);
+        let update =
+            save_personal_provider_overlay(&snapshot, &current, "builtin-1", &config, None, None)
+                .expect("save");
+        let rule = update.providers.get("builtin-1").expect("rule");
+        assert!(rule.config.group.is_absent());
+        // Built-in 身份名由 resolver 从 Built-in 配置合并；Personal Overlay 不复制。
+        assert!(rule.provider_name.is_absent());
+        let Field::Value(provider_config::ProviderAccess::ApiKey(access)) = &rule.config.access
+        else {
+            panic!("access")
+        };
+        assert_eq!(access.api_key, Field::Value("sk-1".to_string()));
+    }
+
+    #[test]
+    fn save_guards_account_unknown_membership_and_labels() {
+        let account = snapshot(provider_config::ProviderAccess::ZhipuAccount(
+            provider_config::ZhipuAccountAccess::default(),
+        ));
+        let current = layer(None);
+        let metadata = SaveOverlayMetadata {
+            template_id: None,
+            enabled: Some(false),
+            provider_name: None,
+        };
+        assert!(save_personal_provider_overlay(
+            &account,
+            &current,
+            "builtin-1",
+            &ProviderConfig::default(),
+            Some(&metadata),
+            None
+        )
+        .is_err());
+        assert!(save_personal_provider_overlay(
+            &account,
+            &current,
+            "builtin-1",
+            &api_config(Some("sk-1")),
+            None,
+            None
+        )
+        .is_err());
+        assert!(save_personal_provider_overlay(
+            &snapshot(api_access()),
+            &current,
+            "missing",
+            &ProviderConfig::default(),
+            None,
+            None
+        )
+        .is_err());
+        let membership = ProviderModelMembershipRef {
+            provider_id: "builtin-1",
+            inherited_model_ids: &[],
+            personal_revision: "rev-2",
+        };
+        assert!(save_personal_provider_overlay(
+            &snapshot(api_access()),
+            &current,
+            "builtin-1",
+            &ProviderConfig::default(),
+            None,
+            Some(&membership)
+        )
+        .is_err());
+        let p1 = provider_config::ProviderConfigRule {
+            provider_id: "p1".into(),
+            template_id: Field::Absent,
+            provider_name: Field::Value("Taken".into()),
+            enabled: Field::Absent,
+            config: ProviderConfig {
+                group: Field::Value(ProviderGroup::StandardPersonal),
+                ..ProviderConfig::default()
+            },
+        };
+        let taken = SaveOverlayMetadata {
+            template_id: None,
+            enabled: None,
+            provider_name: Some("Taken".into()),
+        };
+        assert!(save_personal_provider_overlay(
+            &snapshot(api_access()),
+            &layer(Some(p1)),
+            "builtin-1",
+            &ProviderConfig::default(),
+            Some(&taken),
+            None
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn save_normalizes_membership_from_current_personal() {
+        let mut templates = ProviderTemplateMap::empty();
+        templates.values.insert(
+            "tmpl".into(),
+            ProviderTemplate {
+                template_id: "tmpl".into(),
+                template_name_map: ProviderTemplateNameMap {
+                    zh_cn: None,
+                    en_us: None,
+                },
+                config: ProviderConfig {
+                    builtin_model_ids: Field::Value(vec!["b1".into()]),
+                    ..ProviderConfig::default()
+                },
+            },
+        );
+        let mut snapshot = snapshot(api_access());
+        snapshot.mode_builtin_provider_templates = templates;
+        let rule = provider_config::ProviderConfigRule {
+            provider_id: "p1".into(),
+            template_id: Field::Value("tmpl".into()),
+            provider_name: Field::Value("P1".into()),
+            enabled: Field::Absent,
+            config: ProviderConfig {
+                group: Field::Value(ProviderGroup::StandardPersonal),
+                personal_model_ids: Field::Value(vec!["b1".into(), "p-a".into(), "p-a".into()]),
+                model_order: Field::Value(vec!["p-a".into(), "b1".into()]),
+                ..ProviderConfig::default()
+            },
+        };
+        let update = save_personal_provider_overlay(
+            &snapshot,
+            &layer(Some(rule)),
+            "p1",
+            &ProviderConfig::default(),
+            None,
+            None,
+        )
+        .expect("save");
+        let saved = update.providers.get("p1").expect("rule");
+        assert_eq!(
+            saved.config.personal_model_ids,
+            Field::Value(vec!["p-a".to_string()])
+        );
+        assert_eq!(
+            saved.config.model_order,
+            Field::Value(vec!["p-a".to_string(), "b1".to_string()])
+        );
     }
 }
