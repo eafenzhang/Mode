@@ -74,6 +74,7 @@ pub mod v4;
 pub mod v4_delta;
 pub mod v4_queries;
 pub mod v4_rows;
+pub mod sessions_index_workflow_activity;
 pub mod v4_sessions_index;
 pub mod v4_snapshot;
 pub mod v4_transport;
