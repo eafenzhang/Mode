@@ -25,16 +25,43 @@ const SKIP_DIRS = new Set([
   "build",
   "coverage",
 ]);
-const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".mjs", ".js", ".rs", ".json", ".toml", ".yml", ".yaml"];
+const SOURCE_EXTENSIONS = [
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".mjs",
+  ".js",
+  ".rs",
+  ".json",
+  ".toml",
+  ".yml",
+  ".yaml",
+];
 
-const BLOCKERS = [
+interface Blocker {
+  id: string;
+  pattern: RegExp;
+  label: string;
+}
+
+interface Hit {
+  file: string;
+  line: number;
+  isTest: boolean;
+}
+
+const BLOCKERS: Blocker[] = [
   { id: "stdioFrames", pattern: /\bstdioFrames\b/g, label: "stdio 帧传输仍在产品代码" },
   { id: "stdoutGuard", pattern: /\bstdoutGuard\b/g, label: "stdout 守卫仍在产品代码" },
   { id: "host-sidecar", pattern: /host-sidecar/g, label: "host-sidecar 发运集/脚本仍存在" },
-  { id: "node-agent-fallback", pattern: /\bbundledAgentRuntime\b|\bmode\.cjs\b/g, label: "Node agent 回退仍随包" },
+  {
+    id: "node-agent-fallback",
+    pattern: /\bbundledAgentRuntime\b|\bmode\.cjs\b/g,
+    label: "Node agent 回退仍随包",
+  },
 ];
 
-function walk(directory, files) {
+function walk(directory: string, files: string[]): void {
   let entries;
   try {
     entries = readdirSync(directory, { withFileTypes: true });
@@ -53,10 +80,10 @@ function walk(directory, files) {
   }
 }
 
-const files = [];
+const files: string[] = [];
 for (const root of SCAN_ROOTS) walk(join(ROOT, root), files);
 
-const findings = new Map(BLOCKERS.map((blocker) => [blocker.id, []]));
+const findings = new Map<string, Hit[]>(BLOCKERS.map((blocker) => [blocker.id, []]));
 for (const file of files) {
   const text = readFileSync(file, "utf8");
   if (text.length > 4 * 1024 * 1024) continue;
@@ -67,29 +94,41 @@ for (const file of files) {
     let match;
     while ((match = blocker.pattern.exec(text)) !== null) {
       const line = text.slice(0, match.index).split("\n").length;
-      findings.get(blocker.id).push({ file: relativePath, line, isTest });
+      findings.get(blocker.id)?.push({ file: relativePath, line, isTest });
     }
   }
 }
 
+interface BlockerReport {
+  id: string;
+  label: string;
+  total: number;
+  product: number;
+  tests: number;
+  files: string[];
+  sample: Hit[];
+}
+
+const blockers: BlockerReport[] = BLOCKERS.map((blocker) => {
+  const hits = findings.get(blocker.id) ?? [];
+  const product = hits.filter((hit) => !hit.isTest);
+  return {
+    id: blocker.id,
+    label: blocker.label,
+    total: hits.length,
+    product: product.length,
+    tests: hits.length - product.length,
+    files: [...new Set(product.map((hit) => hit.file))].sort(),
+    sample: product.slice(0, 12),
+  };
+});
+
 const report = {
   generatedAt: new Date().toISOString(),
   scannedFiles: files.length,
-  blockers: BLOCKERS.map((blocker) => {
-    const hits = findings.get(blocker.id);
-    const product = hits.filter((hit) => !hit.isTest);
-    return {
-      id: blocker.id,
-      label: blocker.label,
-      total: hits.length,
-      product: product.length,
-      tests: hits.length - product.length,
-      files: [...new Set(product.map((hit) => hit.file))].sort(),
-      sample: product.slice(0, 12),
-    };
-  }),
+  blockers,
+  ready: blockers.every((blocker) => blocker.product === 0),
 };
-report.ready = report.blockers.every((blocker) => blocker.product === 0);
 
 if (process.argv.includes("--json")) {
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);

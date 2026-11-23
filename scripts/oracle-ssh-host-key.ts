@@ -1,9 +1,26 @@
-// 对拍脚本：用 Node 24 的 type-stripping 直接加载 TS 真源，产出 SSH host key 与
-// WSL/connection-key 的期望值，供 Rust 侧断言使用。
-// 运行：node scripts/oracle-ssh-host-key.mjs
+// 对拍脚本：直接加载 TS 真源，产出 SSH host key 的期望值，供 Rust 侧断言使用。
+// 运行：pnpm oracle:ssh-host-key
+//
+// 为什么保留这个脚本：`crates/workspace-identity` 的 `build_ssh_remote_host_key`
+// 必须与 TS 的 `buildSshRemoteHostKey` **逐字节相等**——共享键一旦漂移，同一主机
+// 会被当成两个远端，SSH 连接复用静默失效。这个脚本是那条断言的期望值来源。
 import { buildSshRemoteHostKey } from "../packages/shared/src/remoteSshHostKey.ts";
 
-const cases = [
+interface SshTarget {
+  kind: "ssh";
+  host: string;
+  port?: number;
+  username: string;
+  password?: string;
+  privateKeyPath?: string;
+}
+
+interface OracleCase {
+  label: string;
+  target: SshTarget;
+}
+
+const cases: OracleCase[] = [
   {
     label: "private-key with windows drive path",
     target: {
