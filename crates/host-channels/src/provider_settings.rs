@@ -664,6 +664,159 @@ pub fn save_personal_provider_overlay(
     })
 }
 
+fn writable_provider_config(
+    snapshot: &ProviderConfigSnapshot,
+    current: &PersonalLayer,
+    provider_id: &str,
+) -> Result<provider_config::ProviderConfig, String> {
+    if let Some(rule) = current.providers.get_rule(provider_id) {
+        return Ok(rule.config.clone());
+    }
+    if snapshot
+        .mode_builtin_providers
+        .get_rule(provider_id)
+        .is_some()
+    {
+        return Ok(provider_config::ProviderConfig::default());
+    }
+    Err(format!("Provider 不存在: {provider_id}"))
+}
+
+fn provider_builtin_model_ids(
+    snapshot: &ProviderConfigSnapshot,
+    current: &PersonalLayer,
+    provider_id: &str,
+) -> Vec<String> {
+    if let Some(rule) = snapshot.mode_builtin_providers.get_rule(provider_id) {
+        return field_builtin_model_ids(Some(&rule.config));
+    }
+    let template_ids = current
+        .providers
+        .get_rule(provider_id)
+        .and_then(|rule| match &rule.template_id {
+            Field::Value(template_id) => snapshot.mode_builtin_provider_templates.get(template_id),
+            _ => None,
+        })
+        .map(|template| field_builtin_model_ids(Some(&template.config)))
+        .unwrap_or_default();
+    template_ids
+}
+
+fn set_provider_config(
+    current: &PersonalLayer,
+    provider_id: &str,
+    config: provider_config::ProviderConfig,
+) -> provider_config::ProviderConfigMap {
+    match current.providers.get_rule(provider_id) {
+        Some(rule) => current
+            .providers
+            .set_rule(provider_config::ProviderConfigRule {
+                config,
+                ..rule.clone()
+            }),
+        None => current
+            .providers
+            .set_rule(provider_config::ProviderConfigRule {
+                provider_id: provider_id.to_string(),
+                template_id: Field::Absent,
+                provider_name: Field::Absent,
+                enabled: Field::Absent,
+                config,
+            }),
+    }
+}
+
+/// TS `reorderPersonalModels`：顺序只含 builtin+personal 成员。
+pub fn reorder_personal_models(
+    snapshot: &ProviderConfigSnapshot,
+    current: &PersonalLayer,
+    provider_id: &str,
+    model_ids: &[String],
+    membership: Option<&ProviderModelMembershipRef<'_>>,
+) -> Result<ProviderConfigLayerUpdate, String> {
+    let provider_id = provider_id.trim();
+    if provider_id.is_empty() {
+        return Err("providerId 不能为空".to_string());
+    }
+    assert_membership_current(membership, provider_id, &current.revision)?;
+    let mut provider = writable_provider_config(snapshot, current, provider_id)?;
+    let builtin_ids = match membership {
+        Some(membership) => unique_strings(membership.inherited_model_ids),
+        None => provider_builtin_model_ids(snapshot, current, provider_id),
+    };
+    let personal_ids = match &provider.personal_model_ids {
+        Field::Value(values) => values.clone(),
+        _ => Vec::new(),
+    };
+    provider.model_order = Field::Value(provider_resolver::resolve_owned_order(
+        &builtin_ids,
+        &personal_ids,
+        model_ids,
+    ));
+    Ok(ProviderConfigLayerUpdate {
+        providers: set_provider_config(current, provider_id, provider),
+        models: current.models.clone(),
+        provider_order: current.provider_order.clone(),
+        default_model_selection: current
+            .default_model_selection
+            .as_ref()
+            .map(to_layer_selection),
+    })
+}
+
+/// TS `setPersonalModelEnabled`：只改最新 enabled，不动成员/模式/其它字段。
+pub fn set_personal_model_enabled(
+    snapshot: &ProviderConfigSnapshot,
+    current: &PersonalLayer,
+    provider_id: &str,
+    model_id: &str,
+    enabled: bool,
+    membership: Option<&ProviderModelMembershipRef<'_>>,
+) -> Result<ProviderConfigLayerUpdate, String> {
+    let provider_id = provider_id.trim();
+    let model_id = model_id.trim();
+    if provider_id.is_empty() {
+        return Err("providerId 不能为空".to_string());
+    }
+    if model_id.is_empty() {
+        return Err("modelId 不能为空".to_string());
+    }
+    assert_membership_current(membership, provider_id, &current.revision)?;
+    let provider = current.providers.get_rule(provider_id);
+    let builtin_ids = match membership {
+        Some(membership) => unique_strings(membership.inherited_model_ids),
+        None => provider_builtin_model_ids(snapshot, current, provider_id),
+    };
+    let is_personal = provider
+        .and_then(|rule| match &rule.config.personal_model_ids {
+            Field::Value(values) => Some(values.iter().any(|candidate| candidate == model_id)),
+            _ => None,
+        })
+        .unwrap_or(false);
+    if !builtin_ids.iter().any(|candidate| candidate == model_id) && !is_personal {
+        return Err(format!("Model 不存在: {provider_id}/{model_id}"));
+    }
+    let config = current
+        .models
+        .get_exact(provider_id, model_id)
+        .unwrap_or_default()
+        .overlay(&provider_config::ModelConfig {
+            enabled: Field::Value(enabled),
+            ..provider_config::ModelConfig::default()
+        });
+    Ok(ProviderConfigLayerUpdate {
+        providers: current.providers.clone(),
+        models: current
+            .models
+            .set_exact(provider_id, model_id, config, None),
+        provider_order: current.provider_order.clone(),
+        default_model_selection: current
+            .default_model_selection
+            .as_ref()
+            .map(to_layer_selection),
+    })
+}
+
 /// 删除 Personal Provider：同时清理它的精确模型规则与顺序项。
 pub fn delete_personal_provider(
     current: &PersonalLayer,
@@ -1258,5 +1411,123 @@ mod save_overlay_tests {
             saved.config.model_order,
             Field::Value(vec!["p-a".to_string(), "b1".to_string()])
         );
+    }
+}
+#[cfg(test)]
+mod model_mutations_tests {
+    use super::*;
+    use provider_config::{ModelConfigRules, ProviderConfig, ProviderConfigMap};
+
+    fn snapshot() -> ProviderConfigSnapshot {
+        let mut builtin = ProviderConfigMap::empty();
+        builtin = builtin.set_rule(provider_config::ProviderConfigRule {
+            provider_id: "builtin-1".into(),
+            template_id: Field::Absent,
+            provider_name: Field::Value("Builtin".into()),
+            enabled: Field::Value(true),
+            config: ProviderConfig {
+                group: Field::Value(ProviderGroup::StandardPersonal),
+                builtin_model_ids: Field::Value(vec!["b1".into()]),
+                ..ProviderConfig::default()
+            },
+        });
+        ProviderConfigSnapshot {
+            revision: "[]".into(),
+            mode_builtin_revision: String::new(),
+            personal_revision: String::new(),
+            mode_builtin_providers: builtin,
+            mode_builtin_provider_templates: provider_config::ProviderTemplateMap::empty(),
+            personal_providers: ProviderConfigMap::empty(),
+            mode_builtin_model_rules: ModelConfigRules::empty(),
+            personal_models: ModelConfigRules::empty(),
+            personal_provider_order: Vec::new(),
+        }
+    }
+    fn layer() -> PersonalLayer {
+        let rule = provider_config::ProviderConfigRule {
+            provider_id: "p1".into(),
+            template_id: Field::Absent,
+            provider_name: Field::Value("P1".into()),
+            enabled: Field::Absent,
+            config: ProviderConfig {
+                group: Field::Value(ProviderGroup::StandardPersonal),
+                personal_model_ids: Field::Value(vec!["p1m".into(), "p2m".into()]),
+                ..ProviderConfig::default()
+            },
+        };
+        PersonalLayer {
+            revision: "rev-1".into(),
+            providers: ProviderConfigMap::empty().set_rule(rule),
+            models: ModelConfigRules::empty(),
+            provider_order: None,
+            default_model_selection: None,
+        }
+    }
+
+    #[test]
+    fn enable_builtin_model_writes_exact_rule_only() {
+        let update =
+            set_personal_model_enabled(&snapshot(), &layer(), "builtin-1", "b1", false, None)
+                .expect("enable");
+        let (kind, config) = update
+            .models
+            .get_exact_rule("builtin-1", "b1")
+            .expect("rule");
+        assert_eq!(kind, provider_config::ExactModelRuleKind::Provider);
+        assert_eq!(config.enabled, Field::Value(false));
+        assert!(
+            update.providers.get("builtin-1").is_none(),
+            "不创建 Personal provider 规则"
+        );
+    }
+
+    #[test]
+    fn enable_unknown_model_errors() {
+        assert!(set_personal_model_enabled(
+            &snapshot(),
+            &layer(),
+            "builtin-1",
+            "missing",
+            false,
+            None
+        )
+        .is_err());
+        assert!(
+            set_personal_model_enabled(&snapshot(), &layer(), "p1", "missing", false, None)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn reorder_models_keeps_members_and_uses_builtin_order() {
+        let membership = ProviderModelMembershipRef {
+            provider_id: "p1",
+            inherited_model_ids: &["b1".to_string()],
+            personal_revision: "rev-1",
+        };
+        let update = reorder_personal_models(
+            &snapshot(),
+            &layer(),
+            "p1",
+            &["p2m".to_string()],
+            Some(&membership),
+        )
+        .expect("reorder");
+        let rule = update.providers.get("p1").expect("rule");
+        assert_eq!(
+            rule.config.model_order,
+            Field::Value(vec!["b1".to_string(), "p2m".to_string(), "p1m".to_string()])
+        );
+        assert_eq!(
+            rule.config.personal_model_ids,
+            Field::Value(vec!["p1m".to_string(), "p2m".to_string()])
+        );
+        // membership revision 不匹配拒绝。
+        let stale = ProviderModelMembershipRef {
+            provider_id: "p1",
+            inherited_model_ids: &[],
+            personal_revision: "rev-2",
+        };
+        assert!(reorder_personal_models(&snapshot(), &layer(), "p1", &[], Some(&stale)).is_err());
     }
 }

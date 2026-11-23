@@ -116,6 +116,107 @@ impl ModelConfigRules {
         result
     }
 
+    /// TS `setExact`：替换/新增精确规则；保留第一条位置并丢弃后续重复。
+    pub fn set_exact(
+        &self,
+        provider_id: &str,
+        model_id: &str,
+        config: ModelConfig,
+        use_recommended_config: Option<bool>,
+    ) -> ModelConfigRules {
+        let manual = match use_recommended_config {
+            Some(use_recommended) => !use_recommended,
+            None => matches!(
+                self.get_exact_rule(provider_id, model_id),
+                Some((ExactModelRuleKind::Manual, _))
+            ),
+        };
+        let replacement = if manual {
+            ModelRule::Manual {
+                provider_id: provider_id.to_string(),
+                model_id: model_id.to_string(),
+                config,
+            }
+        } else {
+            ModelRule::Provider {
+                provider_id: provider_id.to_string(),
+                model_id: model_id.to_string(),
+                config,
+            }
+        };
+        let mut replaced = false;
+        let mut rules = Vec::with_capacity(self.rules.len());
+        for rule in &self.rules {
+            if exact_rule(rule, provider_id, model_id).is_some() {
+                if !replaced {
+                    rules.push(replacement.clone());
+                    replaced = true;
+                }
+                continue;
+            }
+            rules.push(rule.clone());
+        }
+        if !replaced {
+            rules.push(replacement);
+        }
+        ModelConfigRules { rules }
+    }
+
+    /// TS `deleteExact`：删除指定 `(providerId, modelId)` 的全部精确规则。
+    pub fn delete_exact(&self, provider_id: &str, model_id: &str) -> ModelConfigRules {
+        ModelConfigRules {
+            rules: self
+                .rules
+                .iter()
+                .filter(|rule| exact_rule(rule, provider_id, model_id).is_none())
+                .cloned()
+                .collect(),
+        }
+    }
+
+    /// TS `renameExactModel`：同 provider 下精确规则的 modelId 改名（保持位置）。
+    pub fn rename_exact_model(
+        &self,
+        provider_id: &str,
+        current_model_id: &str,
+        next_model_id: &str,
+    ) -> ModelConfigRules {
+        if current_model_id == next_model_id {
+            return self.clone();
+        }
+        ModelConfigRules {
+            rules: self
+                .rules
+                .iter()
+                .map(|rule| match rule {
+                    ModelRule::Provider {
+                        provider_id: rule_provider,
+                        model_id: rule_model,
+                        config,
+                    } if rule_provider == provider_id && rule_model == current_model_id => {
+                        ModelRule::Provider {
+                            provider_id: rule_provider.clone(),
+                            model_id: next_model_id.to_string(),
+                            config: config.clone(),
+                        }
+                    }
+                    ModelRule::Manual {
+                        provider_id: rule_provider,
+                        model_id: rule_model,
+                        config,
+                    } if rule_provider == provider_id && rule_model == current_model_id => {
+                        ModelRule::Manual {
+                            provider_id: rule_provider.clone(),
+                            model_id: next_model_id.to_string(),
+                            config: config.clone(),
+                        }
+                    }
+                    other => other.clone(),
+                })
+                .collect(),
+        }
+    }
+
     /// TS `deleteExactForProvider`：删除该 provider 的所有精确规则（Provider/Manual），
     /// 保留模板/站点/模型名等非精确规则。
     pub fn delete_exact_for_provider(&self, provider_id: &str) -> ModelConfigRules {
@@ -1184,5 +1285,59 @@ mod delete_exact_tests {
         assert!(trimmed.get_exact_rule("p2", "m1").is_some());
         // 非精确规则保留：Template/Model 共 2 条 + p2 Provider 1 条。
         assert_eq!(trimmed.rules().len(), 3);
+    }
+}
+#[cfg(test)]
+mod exact_rule_mutation_tests {
+    use super::*;
+
+    fn exact(provider_id: &str, model_id: &str) -> ModelRule {
+        ModelRule::Provider {
+            provider_id: provider_id.to_string(),
+            model_id: model_id.to_string(),
+            config: ModelConfig::default(),
+        }
+    }
+
+    #[test]
+    fn set_exact_replaces_first_and_can_switch_to_manual() {
+        let rules = ModelConfigRules::new(vec![
+            exact("p1", "m1"),
+            exact("p1", "m1"),
+            exact("p2", "m1"),
+        ]);
+        let config = ModelConfig {
+            enabled: Field::Value(false),
+            ..ModelConfig::default()
+        };
+        let updated = rules.set_exact("p1", "m1", config, Some(false));
+        assert_eq!(updated.rules().len(), 2, "重复精确规则只留一条");
+        let (kind, saved) = updated.get_exact_rule("p1", "m1").expect("rule");
+        assert_eq!(kind, ExactModelRuleKind::Manual);
+        assert_eq!(saved.enabled, Field::Value(false));
+        assert!(updated.get_exact_rule("p2", "m1").is_some());
+
+        // 新 pair 追加，默认沿用 previous（无 → Provider）。
+        let appended = updated.set_exact("p1", "m2", ModelConfig::default(), None);
+        assert_eq!(
+            appended.get_exact_rule("p1", "m2").expect("rule").0,
+            ExactModelRuleKind::Provider
+        );
+    }
+
+    #[test]
+    fn delete_and_rename_exact_rules() {
+        let rules = ModelConfigRules::new(vec![exact("p1", "m1"), exact("p1", "m2")]);
+        let renamed = rules.rename_exact_model("p1", "m1", "m9");
+        assert!(renamed.get_exact_rule("p1", "m1").is_none());
+        assert!(renamed.get_exact_rule("p1", "m9").is_some());
+        let deleted = renamed.delete_exact("p1", "m9");
+        assert!(deleted.get_exact_rule("p1", "m9").is_none());
+        assert!(deleted.get_exact_rule("p1", "m2").is_some());
+        // 同名 rename 幂等。
+        assert_eq!(
+            deleted.rename_exact_model("p1", "m2", "m2").rules().len(),
+            1
+        );
     }
 }

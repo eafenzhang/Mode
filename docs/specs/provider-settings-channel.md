@@ -72,8 +72,17 @@ Personal 仓库 revision。输出与 `ProviderSettingsView` 同构：
 - 用例 10 条（新增：builtin overlay 去 group/保留 key、account 守卫、未知
   provider/membership revision/重名、成员归一）。
 
-待做：model 级 6 方法（add/rename/delete/enable/draft/reorder models）复用上述
-membership 辅助。
+已落补充（2026-11-23）：
+
+- `ModelConfigRules::set_exact / delete_exact / rename_exact_model`（TS 同义：
+  setExact 保留首条位置并去重、可切 manual；rename 保持位置）。
+- `set_personal_model_enabled`：只改最新 enabled，写精确规则（沿用原类型），
+  不清成员/顺序；builtin/personal 成员均可启停，缺失拒绝。
+- `reorder_personal_models`：顺序只含 builtin+personal 成员；membership
+  inheritedModelIds 优先。
+- 用例：provider-config 17 条、host provider_settings 13 条。
+
+待做：model 级 `add/rename/delete/saveDraft` 四个方法。
 
 ## 3. 阶段 2：写入面（待做）
 
