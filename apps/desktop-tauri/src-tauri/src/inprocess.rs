@@ -519,6 +519,26 @@ mod tests {
     }
 
     #[test]
+    fn default_set_matches_the_shared_service_channel_list() {
+        // 两份名单（壳内 inprocess 与 assembly::service_channel_names）必须同步：
+        // 漏一边 = 「桌面端接管了、server-mode 没接管」或反之，且两边都不会报错，
+        // 只会表现为某个环境里频道静默回落 Node。这里用集合相等把它钉住。
+        let owned = resolve_channel_requests(None);
+        let mut shell: Vec<&str> = owned.iter().map(|name| name.as_str()).collect();
+        let mut shared: Vec<&str> = host_channels::service_channel_names();
+        // assembly 的名单按契约不含 mode-agent（S2 门禁由调用方持有）。
+        shared.push(MODE_AGENT_CHANNEL);
+        shell.sort_unstable();
+        shell.dedup();
+        shared.sort_unstable();
+        shared.dedup();
+        assert_eq!(
+            shell, shared,
+            "inprocess 默认集与 assembly::service_channel_names 不一致"
+        );
+    }
+
+    #[test]
     fn default_expands_with_mode_agent_but_never_host() {
         let resolved = resolve_channel_requests(Some("default"));
         assert!(!resolved.is_empty());
