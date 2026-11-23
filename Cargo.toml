@@ -201,3 +201,12 @@ lto = true
 codegen-units = 1
 strip = "symbols"
 opt-level = "z"
+
+# 本地 dev / test / clippy 构建关闭调试符号。
+# 起因（2026-11-23）：target/debug/build 下累计了 122G 残留——每个 test unit 带一个
+# ~133MB 的 PDB，而项目每 1-2 小时跑一轮 `cargo clippy --all-targets`，cargo 对
+# `build/<pkg>/<hash>/` 的旧 unit 目录零回收，于是每轮留下一整套。dev 档不需要完整
+# 调试信息，关掉后单产物从 ~133MB 降到几 MB，同样的堆积速度下体积降一个数量级。
+# 需要断点调试时临时把这里改回 `debug = 2`（或 `"line-tables-only"`）。
+[profile.dev]
+debug = 0
