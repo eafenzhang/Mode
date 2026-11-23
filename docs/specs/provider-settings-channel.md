@@ -1,7 +1,7 @@
 # Spec：`provider-settings` 频道（Rust，分阶段迁移）
 
-状态：2026-11-23 阶段 0–3 已落（精确规则访问器 + View 投影 + 10 个写入方法 + 连通性测试 +
-远端模型目录）；**阶段 4（频道 + onDidChange + inprocess 装配）待做**，因此该频道仍未进默认集。
+状态：**2026-11-23 阶段 0–4 全部已落**（精确规则访问器 / View 投影 / 10 个写入方法 /
+连通性测试 / 远端模型目录 / 频道 + onDidChange + inprocess 装配）；已进默认集，剩真机走查。
 
 ## 背景
 
@@ -119,16 +119,58 @@ builtin/personal 冲突拒绝）、`rename_personal_model`（builtin 归属保�
   404 附「Base URL 是否含 /v1」提示；纯读不写配置。本地两页分页用例。
   另修正 OrcaRouter `listModels` 对 `ProxyChannel` 数组参数的解析（`d47534748`）。
 
-## 5. 阶段 4：频道与装配（待做）
+## 5. 阶段 4：频道与装配（2026-11-23 已落）
 
-- `host-channels::provider_settings` 频道同名映射；`onDidChange` 由 Personal 仓库
-  通知驱动（View 广播）。
-- 装配：Builtin 路径（同 model-selection 注入）+ Personal 仓库；进入 inprocess
-  默认集前必须先完成阶段 1–3，避免半个频道。
+**频道** `host-channels::provider_settings_channel`（`PROVIDER_SETTINGS_CHANNEL = "provider-settings"`）：
+15 个方法同名映射，位置参数按 `ProxyChannel` 约定（`arg` 是数组，对象在首位）。
+
+| 方法 | 语义 | 备注 |
+| --- | --- | --- |
+| `getView` | 读快照 → `build_provider_settings_view` | revision = 进程内计数器，快照 revision 变更时 +1 |
+| `refresh(reason)` | 重读快照后返回 View | Rust 每次 `getView` 都重读文件，`reason` 只进日志 |
+| `createPersonalProvider(input?)` | 模板实例/空白 Provider | 返回 `{providerId, view}` |
+| `resolveModelConfig(input)` | 合成 Rule 解析 + `validateComplete` | 无 `personalConfig` = 继承；有 = 临时 `setExact` 预览，不落盘 |
+| `savePersonalProviderOverlay(providerId, config, metadata?)` | 覆盖写 | 返回新 View |
+| `deletePersonalProvider(providerId)` / `reorderPersonalProviders(ids)` | 删除 / 排序 | 返回新 View |
+| `reorderPersonalModels(providerId, ids)` / `addPersonalModel(providerId, modelId, config, useRecommended?)` / `renamePersonalModel(providerId, from, to)` / `deletePersonalModel(providerId, modelId)` / `setPersonalModelEnabled(providerId, modelId, enabled)` | 模型写面 | 返回新 View |
+| `savePersonalModelDraft(input)` | 草稿保存（可改名） | `basedOnRevision` 见下方差异 |
+| `testModelConnectivity(input)` | 走 `mode-agent` 的 `provider/testModelConnectivity` | 未装配 agent 控制面 → 显式报错；失败一律返回 `{success:false,error:{message,code?}}` |
+| `listRemoteModels(input)` | `provider-model-listing::fetch_remote_model_catalog` | 纯读；失败返回 `{success:false,message}` |
+
+`onDidChange`：Personal 仓库 `on_did_change` 驱动，重建 View 后广播；监听者首订阅时才挂
+仓库订阅（与 `model-selection` 同款）。
+
+**与 TS 的三处已登记差异**（都不改变渲染层可见语义）：
+
+1. **membership 在锁内构造**。TS 由 facade 在写之前从 snapshot 构造 `ProviderModelMembership`
+   并断言 revision；Rust 的写入本就落在 `PersonalConfigRepository` 的跨进程锁内、从锁眼看
+   到的 `PersonalLayer` 计算，因此频道直接按锁内层构造 membership 的 `personalRevision`，
+   不存在「读到旧 revision 再写」的窗口（比 TS 更强，不是放宽）。
+2. **`savePersonalModelDraft.basedOnRevision` 不做跨快照 CAS**。TS 比对 Registry revision；
+   Rust 的读-改-写在锁内完成，`originalModelId → nextModelId` 的改名冲突由写面自身校验
+   （`Provider 名称已存在` / `Model 已存在`）拒绝，不会静默覆盖。
+3. **`waitForProviderOperations` 不存在**。TS 用它等 mutation tail 收敛；Rust 写入同步完成
+   并立即返回新 View，无需等待。
+
+为支持「校验失败不落盘」，`provider-config-repository` 新增
+`PersonalConfigRepository::try_update`：变换返回 `Err` 时**不写文件、不推进
+writeGeneration、不触发 onDidChange**（锁内失败必须能被反复重试且无副作用）。
+
+**装配**：`ChannelAssemblyOptions.mode_builtin_provider_config_path` 提供 Builtin 路径
+（同 `model-selection`）；Personal 路径 = `data_root/v2/provider_config.json`。缺 Builtin
+路径时频道不可构造（留痕跳过，回落 Node），与 model-selection 同口径。频道已进
+`service_channel_names()` 与 inprocess `default_owned_channels()`（35 个）。
 
 ## 6. 验收
 
 - 阶段 0：`cargo test -p provider-config --lib exact_rule`。
-- 后续阶段：View 投影 TS fixture 对拍 + mutation 幂等/CAS 用例 + 频道契约用例；
-  真机：Provider 设置页读写/排序/启停、连通性测试、远端模型探测。
-- `cargo clippy -p provider-config --all-targets -- -D warnings`。
+- 阶段 4 频道契约（2026-11-23，`crates/host-channels/tests/provider_settings_channel.rs`，7 条）：
+  View 投影可读且读面不落盘、create/delete 返回新 View、**校验失败不落盘**、
+  `onDidChange` 只在真实写入后广播一次且退订后静默、连通性前置资格
+  （不存在/未启用 → `success:false` + `code`，缺字段显式报错）、
+  远端目录对不支持的 apiType 返回 `success:false` 且不写配置、未知方法拒绝。
+- 仓库层：`cargo test -p provider-config-repository --test repository`（12 条，含
+  `try_update_leaves_no_trace_when_the_transform_rejects`）。
+- 全量：`cargo test -p host-channels`（33 个测试目标全绿）与
+  `cargo clippy -p host-channels -p provider-config-repository -p mode-tauri --all-targets -- -D warnings`。
+- 真机（待用户）：Provider 设置页读写/排序/启停、连通性测试、远端模型探测。

@@ -21,7 +21,7 @@ S2 mode-agent 翻面 ────────┘
 | --- | --- | --- | --- |
 | W2 翻面 | `MODE_HOST_INPROCESS_CHANNELS` 默认集接管业务频道（2026-11-23：**34 个**，含 mode-task / window-controller / orcarouter 等） | `w2-flip-checklist.md` 六项全绿 | **翻转已执行**（回归验证待真机：1/7 已跑） |
 | S2 翻面 | `mode-agent` 频道注册进默认集 | `s2-mode-agent-checklist.md` 20 任务全过 | **翻转已执行**（回归验证待真机；适配器 88/100 + 15 事件已接） |
-| W6 删除 | 删 stdioFrames/stdoutGuard、host-standalone、host-sidecar 发运集、mode.cjs 回退 | **Node Host 独占频道全部迁入 Rust** | ⬜ **未开窗（2026-11-23 复测）**：`mode-task` / `window-controller` 已迁；剩余 `cua-permission` / `bots` / `remote` / `remote-desktop` / `remote-v3` + `provider-settings` 阶段 4；`node scripts/w6-readiness.mjs` = NOT READY |
+| W6 删除 | 删 stdioFrames/stdoutGuard、host-standalone、host-sidecar 发运集、mode.cjs 回退 | **Node Host 独占频道全部迁入 Rust** | ⬜ **未开窗（2026-11-23 复测）**：`mode-task` / `window-controller` / `provider-settings` 已迁；剩余 `cua-permission` / `bots` / `remote` / `remote-desktop` / `remote-v3`；`node scripts/w6-readiness.mjs` = NOT READY |
 
 ## 2. 为什么现在不能删（2026-11-23 复测）
 

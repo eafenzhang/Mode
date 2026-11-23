@@ -167,6 +167,34 @@ fn update_on_invalid_file_errors_and_preserves_it() {
 }
 
 #[test]
+fn try_update_leaves_no_trace_when_the_transform_rejects() {
+    // 设置页校验失败的路径：锁内判定后必须**不写文件、不变 revision、不通知订阅者**。
+    let dir = temp_dir();
+    let path = dir.join("provider_config.json");
+    let repo = repository(&path);
+    let notified = Arc::new(Mutex::new(0usize));
+    let sink = Arc::clone(&notified);
+    let _subscription = repo.on_did_change(Arc::new(move |_reason: &str| {
+        *sink.lock().unwrap() += 1;
+    }));
+
+    let rejected: Result<Result<_, &str>, RepositoryError> =
+        repo.try_update(|_| Err("membership conflict"));
+    let inner = rejected.expect("io 层不应失败");
+    assert_eq!(inner.err(), Some("membership conflict"));
+    assert!(!path.exists(), "校验失败不得创建文件");
+    assert_eq!(*notified.lock().unwrap(), 0, "失败写入不应通知");
+
+    // 成功路径照常落盘并通知一次。
+    let accepted: Result<Result<_, &str>, RepositoryError> =
+        repo.try_update(|_| Ok(empty_update()));
+    accepted.expect("io").expect("update");
+    assert!(path.exists());
+    assert_eq!(*notified.lock().unwrap(), 1);
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn empty_file_path_is_rejected() {
     let error = match PersonalConfigRepository::new(PersonalConfigRepositoryOptions {
         file_path: PathBuf::from("  "),

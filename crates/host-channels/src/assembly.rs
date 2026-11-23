@@ -43,6 +43,9 @@ use crate::mcp_sync::McpSyncChannel;
 use crate::mode_agent::ModeAgentChannel;
 use crate::plugin_management::PluginManagementChannel;
 use crate::plugin_sync::PluginSyncChannel;
+use crate::provider_settings_channel::{
+    ProviderSettingsChannel, ProviderSettingsChannelOptions,
+};
 use crate::setting::SettingChannel;
 use crate::settings_sync::SettingsSyncChannel;
 use crate::skill_sync::SkillSyncChannel;
@@ -58,10 +61,11 @@ use crate::{
     FILE_CHANNEL, FILE_WATCHER_CHANNEL, GIT_CHANNEL, GIT_CHECKPOINT_CHANNEL, HOOKS_CHANNEL,
     LAN_ACCESS_CHANNEL, MCP_SYNC_CHANNEL, MEDIA_PREVIEW_CHANNEL, MEMORY_CHANNEL,
     MODE_AGENT_CHANNEL,
-    MODEL_SELECTION_CHANNEL, MODE_SESSION_CHANNEL, ORCAROUTER_CHANNEL, MODE_TASK_CHANNEL, ONBOARDING_RECORD_CHANNEL,
-    PLUGIN_MANAGEMENT_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL, SETTINGS_SYNC_CHANNEL,
-    SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL, TERMINAL_CHANNEL,
-    USAGE_STATS_CHANNEL, WINDOW_CONTROLLER_CHANNEL,
+    MODEL_SELECTION_CHANNEL,
+    MODE_SESSION_CHANNEL, ORCAROUTER_CHANNEL, MODE_TASK_CHANNEL, ONBOARDING_RECORD_CHANNEL,
+    PLUGIN_MANAGEMENT_CHANNEL, PLUGIN_SYNC_CHANNEL, PROVIDER_SETTINGS_CHANNEL, SETTING_CHANNEL,
+    SETTINGS_SYNC_CHANNEL, SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL,
+    TERMINAL_CHANNEL, USAGE_STATS_CHANNEL, WINDOW_CONTROLLER_CHANNEL,
 };
 
 /// 壳侧结构化日志（降级/不可观察事件）；`None` 时静默。
@@ -401,6 +405,31 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
                 }
             }
         }
+        PROVIDER_SETTINGS_CHANNEL => {
+            // 设置页 Provider/Model 写面：Builtin 快照 + Personal 仓库 + onDidChange
+            // （spec provider-settings-channel.md §5）。无随包 Built-in 路径时不可构造。
+            let bundled = options.mode_builtin_provider_config_path.clone()?;
+            let on_shell_log = options.on_shell_log.clone();
+            let log_sink = move |message: &str| {
+                if let Some(on_shell_log) = &on_shell_log {
+                    on_shell_log(message);
+                }
+            };
+            match ProviderSettingsChannel::new(ProviderSettingsChannelOptions {
+                bundled_config_path: bundled,
+                personal_config_path: data_root
+                    .join("v2")
+                    .join(provider_config_repository::PERSONAL_PROVIDER_CONFIG_FILE_NAME),
+                agent_control: options.agent_control.clone(),
+                on_log: Some(Arc::new(log_sink)),
+            }) {
+                Ok(channel) => Some(Arc::new(channel) as Arc<dyn ServerChannel>),
+                Err(error) => {
+                    log(&format!("provider-settings channel unavailable: {error}"));
+                    None
+                }
+            }
+        }
         MODE_SESSION_CHANNEL => options.agent_control.as_ref().map(|control| {
             // renderer 只剩 readSession 走本频道（其余已切 mode-agent）；补回 Node 的
             // apiRetry 暂存与 Claude 导入历史修复（spec mode-session-channel.md）。
@@ -552,6 +581,7 @@ pub fn service_channel_names() -> Vec<&'static str> {
         HOOKS_CHANNEL,
         MODEL_SELECTION_CHANNEL,
         MODE_SESSION_CHANNEL,
+        PROVIDER_SETTINGS_CHANNEL,
         ORCAROUTER_CHANNEL,
         ONBOARDING_RECORD_CHANNEL,
         PLUGIN_MANAGEMENT_CHANNEL,

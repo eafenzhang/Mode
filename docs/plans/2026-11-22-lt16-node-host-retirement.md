@@ -17,12 +17,13 @@
 | 16.3 window-controller | 🟡 主链已落 | `fa39214f6`…`df94025dd`；剩 remote source 聚合与 registerSource 对外接线 |
 | 16.4a lan-access | 🟡 首切 + supervisor 已落，**未翻转** | `a7c78bfed`…`86bf08fbc`；inprocess 仍 `lan_host: None` |
 | 16.4b/c/d remote 面 | ⬜ 未开始 | 仅调查拆分（`a249f1229`） |
-| 16.5 频道收口 | 🟡 5 个频道已迁 + provider-settings 阶段 0–3 | 见下「剩余 live 频道」 |
+| 16.5 频道收口 | 🟡 5 个频道已迁 + **provider-settings 阶段 0–4 全落** | 见下「剩余 live 频道」 |
 | G2 automation 宿主 | 🟡 开关化装配已落（默认关） | `b342f2a7f`；G2.6 off-peak 已按政策回退（`03649fef7`） |
 | 16.6 物理删除 | ⬜ 未开窗 | `node scripts/w6-readiness.mjs` = NOT READY（6/6/119/95） |
 
-**剩余 live 频道（6）**：`cua-permission`（需先有 Rust 原生 CUA 端口）、`bots`（8k+）、
-`remote`、`remote-desktop`、`remote-v3`（~5.6k，最大块）、`provider-settings`（仅剩阶段 4）。
+**剩余 live 频道（5）**：`cua-permission`（需先有 Rust 原生 CUA 端口）、`bots`（8k+）、
+`remote`、`remote-desktop`、`remote-v3`（~5.6k，最大块）。`provider-settings` 阶段 4
+已于 2026-11-23 落地（频道 + onDidChange + 默认集装配）。
 
 ## 1. 现状（2026-11-21 立项时；11-23 差异见 §0）
 
@@ -145,9 +146,9 @@ node-agent-fallback）均为 Node Host 发运物，随 16.6 删除归零。 |
 **model-selection 已迁（2026-11-22）**：`host-channels::model_selection` 实现 getView/saveConfiguredDefault/onDidChange（生产口径 ordinary：生产 facade 未传 classifier）。数据源 provider-config-source 快照 + resolver；configuredDefault/变更通知/写回走 PersonalConfigRepository；View 投影用 `ProviderConfig::to_json`。桌面 inprocess 由壳注入 bundled 路径，进入默认集；无 bundled 路径（server-mode）回落 Node。spec `model-selection-channel.md` 记录边界（builtin 静态不订阅、account-*/legacy reasoning 显式不做）。
 **非桌面 Host 能力（2026-11-23 复核）**：`provider-provisioning-target` 只在 `isDesktopAttachedRemote` 或 `providerProvisioningTargetEnabled` 时注册；全仓唯一开启点是 `packages/server/src/entry-http.ts`（`Boolean(authToken)`）。桌面本地 Host 不注册该频道，**不属于 LT-16 桌面 Node 删除范围**，Node 实现保留给 server/SSH remote Environment。
 **orcarouter 已全量迁入（2026-11-23，阶段 1–5）**：`crates/orcarouter-service`（凭据/PKCE/目录/overlay/service 编排，24 条测试）+ `host-channels::orcarouter` 频道（12 方法，4 条测试）+ inprocess 默认集装配；spec `orcarouter-service.md`。真机验收待回填（手填 key/PKCE/目录降级/断开 fail closed）。
-**provider-settings 进展（2026-11-23）**：阶段 0–3 已落——精确规则访问器、View 投影、10 个 provider/model 写入方法（15 条用例）、`mode-agent testModelConnectivity`、`provider-model-listing` reqwest 分页 executor（两页用例）；剩余阶段 4：频道 + onDidChange + inprocess 装配 + 真机。
-**剩余 live 长任务顺序（2026-11-23 14:14 再修订）**：~~②`orcarouter`~~ **已全量迁入（阶段 1–5 + 频道）**；当前顺序为 ①`cua-permission`（~2.2k 原生 helper，UI 在用，需先有 Rust 原生 CUA 端口）→ ②`provider-settings` 阶段 4（仅剩频道 + onDidChange + 装配；阶段 0–3 已落）→ ③`bots`（8k+）→ ④`remote`/`remote-desktop`（16.4b）→ ⑤`remote-v3`（~5.6k，16.4c）→ ⑥`remote` workspaces（16.4d）。
-**结论**：删除 Node Host 前需迁 6 个 live 频道 + 复核 mode-session（readSession 已迁，纯 passthrough 3 方法已改指 mode-agent）；6 个下线/退役频道不投入迁移；onboarding-record / plugin-management / model-selection / mode-session / orcarouter 已迁。 |
+**provider-settings 进展（2026-11-23，阶段 0–4 全落）**：阶段 0–3——精确规则访问器、View 投影、10 个 provider/model 写入方法（15 条用例）、`mode-agent testModelConnectivity`、`provider-model-listing` reqwest 分页 executor（两页用例）。**阶段 4（2026-11-23）**：`host-channels::provider_settings_channel` 15 方法频道 + `onDidChange` + `assembly`/`inprocess` 默认集装配；为「校验失败不落盘」新增 `PersonalConfigRepository::try_update`；7 条频道契约用例 + 1 条仓库用例。剩真机走查。
+**剩余 live 长任务顺序（2026-11-23 15:30 再修订）**：~~②`orcarouter`~~ 已全量迁入（阶段 1–5 + 频道）；~~②`provider-settings` 阶段 4~~ 已落。当前顺序为 ①`cua-permission`（~2.2k 原生 helper，UI 在用，需先有 Rust 原生 CUA 端口）→ ②`bots`（8k+）→ ③`remote`/`remote-desktop`（16.4b）→ ④`remote-v3`（~5.6k，16.4c）→ ⑤`remote` workspaces（16.4d）。
+**结论**：删除 Node Host 前需迁 5 个 live 频道 + 复核 mode-session（readSession 已迁，纯 passthrough 3 方法已改指 mode-agent）；6 个下线/退役频道不投入迁移；onboarding-record / plugin-management / model-selection / mode-session / orcarouter / provider-settings 已迁。 |
 | 16.6 | **物理删除窗口** | 删 host-standalone、host-sidecar 发运集/脚本、mode.cjs 回退随包、bundled-agents；四仪表终值复测 | 16.5 | `--fail-on-blockers` READY；体积/性能仪表落档 |
 
 ## 3. 执行原则

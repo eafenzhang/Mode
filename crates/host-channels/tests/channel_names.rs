@@ -33,6 +33,7 @@ fn every_local_channel_name_exists_in_service_channels() {
         ("window-controller", "WindowController"),
         ("lan-access", "LanAccess"),
         ("terminal", "Terminal"),
+        ("provider-settings", "ProviderSettings"),
     ];
     for (value, key) in names {
         let expected = format!("{key}: \"{value}\"");
@@ -68,6 +69,7 @@ fn local_channel_names_are_unique() {
         host_channels::PLUGIN_SYNC_CHANNEL,
         host_channels::TERMINAL_CHANNEL,
         host_channels::LAN_ACCESS_CHANNEL,
+        host_channels::PROVIDER_SETTINGS_CHANNEL,
     ];
     let mut sorted = names.to_vec();
     sorted.sort_unstable();

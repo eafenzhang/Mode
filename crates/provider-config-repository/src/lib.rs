@@ -165,6 +165,20 @@ impl PersonalConfigRepository {
         result
     }
 
+    /// 同 `update`，但变换本身可失败。
+    ///
+    /// 变换返回 `Err` 时**不落盘、不推进 writeGeneration、不通知订阅者** —— 设置页的
+    /// 写入校验（成员冲突、Account 守卫、重名）必须在锁内完成，却又不能因为一次非法
+    /// 输入把配置文件重写一遍（会触发一轮无意义的 onDidChange）。
+    pub fn try_update<E, F>(&self, transform: F) -> Result<Result<PersonalLayer, E>, RepositoryError>
+    where
+        F: FnOnce(&PersonalLayer) -> Result<ProviderConfigLayerUpdate, E>,
+    {
+        let result = self.inner.try_update(transform);
+        self.inner.ensure_polling();
+        result
+    }
+
     /// 订阅变更通知；返回的句柄 drop 时解除订阅。
     pub fn on_did_change(&self, listener: ChangeListener) -> ChangeSubscription {
         let token = self.inner.next_listener.fetch_add(1, Ordering::SeqCst);
@@ -238,6 +252,29 @@ impl Inner {
         lock(&self.state).observed_revision = Some(layer.revision.clone());
         self.emit("updated");
         Ok(layer)
+    }
+
+    fn try_update<E, F>(&self, transform: F) -> Result<Result<PersonalLayer, E>, RepositoryError>
+    where
+        F: FnOnce(&PersonalLayer) -> Result<ProviderConfigLayerUpdate, E>,
+    {
+        if self.disposed.load(Ordering::SeqCst) {
+            return Err(RepositoryError::Invalid(
+                "Personal Provider Config Repository 已 dispose".to_string(),
+            ));
+        }
+        let _lock = self.acquire_lock()?;
+        let current = self.read_locked()?;
+        // 校验失败必须在锁内判定（读到的是权威快照），但绝不能落盘：
+        // 直接返回 Err 让调用方拿到原始校验文案，且不产生 onDidChange。
+        let next = match transform(&current) {
+            Ok(next) => next,
+            Err(error) => return Ok(Err(error)),
+        };
+        let layer = self.write_locked(next)?;
+        lock(&self.state).observed_revision = Some(layer.revision.clone());
+        self.emit("updated");
+        Ok(Ok(layer))
     }
 
     fn acquire_lock(&self) -> Result<FileLock, RepositoryError> {

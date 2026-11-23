@@ -50,6 +50,7 @@ pub mod mode_agent;
 pub mod plugin_management;
 pub mod plugin_sync;
 pub mod provider_settings;
+pub mod provider_settings_channel;
 pub mod setting;
 pub mod settings_sync;
 pub mod skill_sync;
@@ -97,6 +98,7 @@ pub use mode_agent::{
     MCP_STATUS_MODE_UNSUPPORTED_CODE, MODE_AGENT_CHANNEL, UNSUPPORTED_METHOD_CODE,
 };
 pub use plugin_sync::PluginSyncChannel;
+pub use provider_settings_channel::{ProviderSettingsChannel, PROVIDER_SETTINGS_CHANNEL};
 pub use setting::SettingChannel;
 pub use settings_sync::SettingsSyncChannel;
 pub use skill_sync::SkillSyncChannel;
