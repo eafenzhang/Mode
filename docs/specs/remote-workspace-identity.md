@@ -45,7 +45,26 @@ remote:lan:<host>:<port>:<path>        ← path 见下
 6. UI 删除本地 `normalizeWorkspacePathForIdentity`/`buildRemoteWorkspaceIdentity`，
    改调 shared；`pnpm typecheck` 全绿。
 
+## Rust 侧实现（LT-16.4d 底座，2026-11-23）
+
+`crates/workspace-identity`（已有 crate，之前只覆盖归一与 hash）新增三组 API，
+与本文契约逐条对齐：
+
+| Rust | TS | 说明 |
+| --- | --- | --- |
+| `RemoteTargetRef`（`Ssh`/`Wsl`/`Docker`/`Lan`/`V3`） | `RemoteTarget` | 只保留构造/判等需要的字段；secret 与展示字段**不进结构** |
+| `build_remote_workspace_identity(path, target)` | 同名 | 段格式与归一完全对齐（含 ssh port 缺省 22、wsl 可选 user、lan/v3 盘符） |
+| `parse_remote_workspace_identity(identity)` | 同名 | 逐段推进而非 split；lan/v3 三种历史形态归一；ssh/wsl/docker fail-closed |
+| `is_same_remote_target(a, b)` | 同名 | 只比 authority，不比 secret 与展示字段 |
+
+测试（`crates/workspace-identity/src/lib.rs`，9 条）：覆盖本文验收场景 1–5 的全部形态
+（含 `D:/…`、`/D:/…`、posix、相对路径拒绝、wsl 有/无 user 段、ssh port 缺省与
+privateKeyPath 判等、跨 kind false）。
+
 ## 不做
 
 - ssh 指向 Windows 主机的盘符身份（无此场景，保持 posix 规则）。
 - 已持久化 identity 的批量迁移。
+
+**未接产品路径**：`host-channels` 已有 `workspace-identity` 依赖，但 16.4d 的
+`remote` 频道尚未落地，这三组 API 目前只被自身测试覆盖。
