@@ -18,7 +18,7 @@
 | 16.4a lan-access | 🟡 首切 + supervisor 已落，**未翻转** | `a7c78bfed`…`86bf08fbc`；inprocess 仍 `lan_host: None` |
 | 16.4b remote-desktop | 🟡 首切已落（设置面/授权/能力探测），**未翻面** | `12f6692b8`；会话面待 `RemoteDesktopPort` 生产实现 |
 | 16.4c remote-v3 | ⬜ 未开始 | 仅调查拆分（`a249f1229`） |
-| 16.4d remote workspaces | 🟡 状态机 + RPC 客户端 + LAN transport + `remote` 频道已落，**未翻面** | `84191a723` + `cb823c658` + `3c0e1306f` + `5bf713a5a` + `4e1acc5da`；SSH/WSL/Docker/v3 端口与 attach/detach 未迁 |
+| 16.4d remote workspaces | 🟡 状态机 + RPC 客户端 + LAN transport + `remote` 频道 + scoped 登记表已落，**未翻面** | `84191a723` + `cb823c658` + `3c0e1306f` + `5bf713a5a` + `4e1acc5da` + `967b6ce36`；SSH/WSL/Docker/v3 端口与 attach/detach 接线未做 |
 | 16.5 频道收口 | 🟡 5 个频道已迁 + **provider-settings 阶段 0–4 全落** | 见下「剩余 live 频道」 |
 | G2 automation 宿主 | 🟡 开关化装配已落（默认关） | `b342f2a7f`；G2.6 off-peak 已按政策回退（`03649fef7`） |
 | 16.6 物理删除 | ⬜ 未开窗 | `node scripts/w6-readiness.mjs` = NOT READY（6/6/119/95） |
