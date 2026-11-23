@@ -103,16 +103,44 @@ impl SessionsIndexHub {
 
     /// 行变化 → 对每个可能的 workspace 主题 upsert（等价摘要不产帧）。
     ///
+    /// **store 侧路径**：store 行不含后台任务状态，所以这里**保留**已有摘要里的
+    /// `has_background_work`（新条目按 `false`）。用 `false` 覆盖会把正在跑的
+    /// 后台任务在列表里抹掉——store 不知道 ≠ 确认没有。
+    ///
     /// 主题 key 既可能是 workspaceIdentity（远程），也可能是 workspacePath（本地）；
     /// `list_sessions` 按 directory 过滤，所以这里两者都当作候选，并补上已经包含
     /// 该会话的既有主题。
-    pub fn upsert(&self, record: &SessionRecord) -> Vec<SessionsIndexEvent> {
+    pub fn upsert_from_store(&self, record: &SessionRecord) -> Vec<SessionsIndexEvent> {
+        self.write_record(record, None)
+    }
+
+    /// 行变化 → upsert，且**明确给出**后台任务事实（运行时路径）。
+    pub fn upsert(
+        &self,
+        record: &SessionRecord,
+        has_background_work: bool,
+    ) -> Vec<SessionsIndexEvent> {
+        self.write_record(record, Some(has_background_work))
+    }
+
+    fn write_record(
+        &self,
+        record: &SessionRecord,
+        has_background_work: Option<bool>,
+    ) -> Vec<SessionsIndexEvent> {
         let mut workspaces = self.lock();
         let keys = workspace_keys(&workspaces, record);
         let mut events = Vec::new();
         for workspace_id in keys {
             let sessions = workspaces.entry(workspace_id.clone()).or_default();
-            let mut summary = summary_from_record(record);
+            // store 路径（None）沿用该会话已有的布尔；新条目按 false 起步。
+            let known = has_background_work.unwrap_or_else(|| {
+                sessions
+                    .get(&record.id)
+                    .map(|existing| existing.has_background_work)
+                    .unwrap_or(false)
+            });
+            let mut summary = summary_from_record(record, known);
             summary.workspace_id = workspace_id.clone();
             if sessions.get(&summary.session_id) == Some(&summary) {
                 continue;
@@ -189,7 +217,11 @@ fn workspace_keys(
 pub type SharedSessionsIndexHub = Arc<SessionsIndexHub>;
 
 /// store 行 → 侧栏摘要。与迁移前的本地映射保持一致（phase 缺省 Draft）。
-pub fn summary_from_record(record: &SessionRecord) -> SessionSummary {
+///
+/// `has_background_work` 由调用方给出：store 行**不含**后台任务状态，它是运行时
+/// 事实（`TaskRegistry`）。传 `false` 是「不知道」，不是「确认没有」——所以
+/// 有运行时的调用方必须自己查一次再传。
+pub fn summary_from_record(record: &SessionRecord, has_background_work: bool) -> SessionSummary {
     SessionSummary {
         session_id: record.id.clone(),
         workspace_id: record.workspace_id.clone().unwrap_or_default(),
@@ -198,7 +230,7 @@ pub fn summary_from_record(record: &SessionRecord) -> SessionSummary {
         title_source: None,
         phase: agent_protocol::v4_snapshot::SessionPhase::Draft,
         session_ended: record.time_archived.is_some(),
-        has_background_work: false,
+        has_background_work,
         workflow_activity: None,
         pending_interaction: None,
         pending_interaction_summary: None,
@@ -244,15 +276,49 @@ mod tests {
     }
 
     #[test]
+    fn store_upsert_keeps_the_existing_background_work_flag() {
+        // store 行不含后台任务状态：upsert_from_store 必须保留已有摘要里的布尔，
+        // 否则一次改名就会把正在跑的后台任务从侧栏抹掉。
+        let hub = SessionsIndexHub::new();
+        let mut summary = summary_from_record(&record("a", "标题", Some("ws")), true);
+        summary.workspace_id = "ws".to_string();
+        hub.upsert_summary(summary);
+
+        let events = hub.upsert_from_store(&record("a", "新标题", Some("ws")));
+        assert!(!events.is_empty(), "改名要产帧");
+        let stored = &hub.snapshot("ws")[0];
+        assert_eq!(stored.title, "新标题");
+        assert!(
+            stored.has_background_work,
+            "store 路径不得把已有 true 覆盖成 false"
+        );
+    }
+
+    #[test]
+    fn runtime_upsert_can_clear_the_background_work_flag() {
+        // 运行时路径**明确给出**事实：任务跑完后必须能把 true 落回 false。
+        let hub = SessionsIndexHub::new();
+        let mut summary = summary_from_record(&record("a", "标题", Some("ws")), true);
+        summary.workspace_id = "ws".to_string();
+        hub.upsert_summary(summary);
+
+        let events = hub.upsert(&record("a", "标题", Some("ws")), false);
+        assert!(!events.is_empty(), "布尔变化要产帧");
+        assert!(!hub.snapshot("ws")[0].has_background_work);
+    }
+
+    #[test]
     fn upsert_is_conflated_and_remove_emits_once() {
         let hub = SessionsIndexHub::new();
-        let first = hub.upsert(&record("a", "标题", Some("ws")));
+        let first = hub.upsert_from_store(&record("a", "标题", Some("ws")));
         assert_eq!(first.len(), 2, "identity + directory 两个主题");
         assert!(matches!(
             first[0].delta,
             SessionsIndexDelta::SessionUpserted { .. }
         ));
-        assert!(hub.upsert(&record("a", "标题", Some("ws"))).is_empty());
+        assert!(hub
+            .upsert_from_store(&record("a", "标题", Some("ws")))
+            .is_empty());
         assert_eq!(hub.snapshot("ws").len(), 1);
         let removed = hub.remove_record(&record("a", "标题", Some("ws")));
         assert_eq!(removed.len(), 2);
@@ -269,10 +335,12 @@ mod tests {
     #[test]
     fn directory_is_used_as_workspace_key_when_identity_missing() {
         let hub = SessionsIndexHub::new();
-        let events = hub.upsert(&record("a", "标题", None));
+        let events = hub.upsert_from_store(&record("a", "标题", None));
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].workspace_id, "/ws");
-        assert!(hub.upsert(&record("a", "标题", Some(""))).is_empty());
+        assert!(hub
+            .upsert_from_store(&record("a", "标题", Some("")))
+            .is_empty());
     }
 
     #[test]
@@ -280,14 +348,14 @@ mod tests {
         let hub = SessionsIndexHub::new();
         let mut row = record("a", "标题", None);
         row.directory.clear();
-        assert!(hub.upsert(&row).is_empty());
+        assert!(hub.upsert_from_store(&row).is_empty());
     }
 
     #[test]
     fn ensure_workspace_does_not_overwrite_live_state() {
         let hub = SessionsIndexHub::new();
-        hub.upsert(&record("a", "live", Some("ws")));
-        let stale = summary_from_record(&record("a", "stale", Some("ws")));
+        hub.upsert_from_store(&record("a", "live", Some("ws")));
+        let stale = summary_from_record(&record("a", "stale", Some("ws")), false);
         hub.ensure_workspace("ws", &[stale]);
         assert_eq!(hub.snapshot("ws")[0].title, "live");
     }

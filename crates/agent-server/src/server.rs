@@ -723,7 +723,7 @@ async fn run_v4_forward(
                             .iter()
                             .map(|record| {
                                 let mut summary =
-                                    crate::sessions_index::summary_from_record(record);
+                                    crate::sessions_index::summary_from_record(record, false);
                                 summary.workspace_id = workspace_id.clone();
                                 summary
                             })

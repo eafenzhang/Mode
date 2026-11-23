@@ -681,7 +681,7 @@ fn handle_rename_session(
         Ok(()) => {
             if let Ok(store) = server.store() {
                 if let Ok(Some(record)) = store.get_session(session_id) {
-                    server.sessions_index().upsert(&record);
+                    server.sessions_index().upsert_from_store(&record);
                 }
             }
             Ok(accepted_ack(&envelope.command_id, revision, None))

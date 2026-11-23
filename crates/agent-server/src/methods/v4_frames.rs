@@ -457,7 +457,7 @@ fn sessions_index_sessions(server: &AgentServer, workspace_id: &str) -> Vec<Sess
     records
         .into_iter()
         .map(|record| {
-            let mut summary = summary_from_record(&record);
+            let mut summary = summary_from_record(&record, false);
             summary.workspace_id = workspace_id.to_string();
             summary
         })

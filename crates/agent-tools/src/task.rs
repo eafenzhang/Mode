@@ -331,6 +331,17 @@ impl TaskRegistry {
         TaskRegistration { id, output_path }
     }
 
+    /// 是否有正在跑的后台任务（`hasBackgroundWork` 的唯一判据）。
+    ///
+    /// 与 `snapshot(status === running)` 同源：这里只回答「有没有」，不读输出、
+    /// 不阻塞。侧栏小圆点要的是这个布尔，不必为它订阅整个 backgroundWorks。
+    pub fn has_running(&self) -> bool {
+        let entries = self.entries.lock().expect("task registry poisoned");
+        entries
+            .values()
+            .any(|entry| entry.lock().expect("task entry poisoned").status == TaskStatus::Running)
+    }
+
     /// 任务是否存在（`TaskOutput` 的启动前检查用）。
     pub fn contains(&self, id: &str) -> bool {
         self.entries

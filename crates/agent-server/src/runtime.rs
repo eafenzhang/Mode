@@ -816,7 +816,14 @@ impl Shared {
             }
         };
         let title = live.title.as_deref().unwrap_or(&self.record.title);
-        let mut summary = crate::sessions_index::summary_from_record(&self.record);
+        // 后台任务事实来自 TaskRegistry（store 行不含它）。
+        let has_background_work = self
+            .tasks
+            .get()
+            .map(|tasks| tasks.has_running())
+            .unwrap_or(false);
+        let mut summary =
+            crate::sessions_index::summary_from_record(&self.record, has_background_work);
         summary.phase = phase;
         summary.title = title.to_string();
         // 预览只在 turn 终态后刷新（不在 TurnStarted 时读库）。
