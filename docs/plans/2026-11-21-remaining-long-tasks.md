@@ -21,7 +21,7 @@
 | **LT-12** | W3 剩余域 | W1/W2 | provider 写路径/usage 网络凭据、LAN WS/公网中继、CUA PiP/Windows helper host、远程工作区、云账号 | 🟡 拆分后大半归 LT-16：`orcarouter`（阶段 1–5）与 `provider-settings`（阶段 0–4 全落，含频道 + onDidChange + 默认集）已迁；**仍缺**：CUA PiP/Windows helper host（`cua-permission` 频道未迁）、远程工作区（`remoteWorkspaceService` 917 行仍 Node）、LAN supervisor 翻转；云账号云端已实现（`packages/cloud-relay`，2026-10-21 MVP），桌面侧未接 |
 | **LT-13** | W1 SQLite 迁移门禁 | 无 | 基线改由 Rust 迁移生成 + `--base-ref` 只增校验 | ✅ 门禁已具备（`--base-ref` + TS/Rust 对拍）；生产者切换等 Rust 接管写库 |
 | **LT-14** | LT-1 C4 唯一 PARTIAL 收尾 | 真机 | 20 任务全 PASS；随后删 Node 回退路径 | 🟡 19 PASS / 1 PARTIAL；sessions-index live upsert/remove + phase/goalStatus/title/lastAssistantPreview 已接（turn 事件驱动 + store 读尾）；**复测确认** `hasBackgroundWork`/`workflowActivity` 仍恒空（`crates/agent-server/src/sessions_index.rs:201-202` 写死 `false`/`None`，`crates/tui` 同），依赖 backgroundWorks 运行时状态迁移；任务 16 真机重连待用户环境 |
-| **LT-16** | Node Host 退役专项（W6 续段） | LT-15 | `w6:readiness --fail-on-blockers` READY → 物理删除窗口 | 🟡 **进行中（本轮唯一主线）**：16.1–16.3 已落（`mode-task` 读面/编排/命令队列/snapshot/事件/写面、`window-controller` 帧订阅 + sessions-index 观察器）、16.4a 首切 + `LanHostSupervisor`（**未接 inprocess，`lan_host: None`**）、16.5 已迁 5 个频道（onboarding-record / plugin-management / mode-session / model-selection / orcarouter）+ **provider-settings 阶段 0–4 全落**；inprocess 默认集现 35 个频道；**剩余 live 频道 5**：cua-permission、bots、remote、remote-desktop、remote-v3。详见 `2026-11-22-lt16-node-host-retirement.md` |
+| **LT-16** | Node Host 退役专项（W6 续段） | LT-15 | `w6:readiness --fail-on-blockers` READY → 物理删除窗口 | 🟡 **进行中（本轮唯一主线）**：16.1–16.3 已落（`mode-task` 读面/编排/命令队列/snapshot/事件/写面、`window-controller` 帧订阅 + sessions-index 观察器）、16.4a 首切 + `LanHostSupervisor`（**未接 inprocess，`lan_host: None`**）、16.5 已迁 5 个频道（onboarding-record / plugin-management / mode-session / model-selection / orcarouter）+ **provider-settings 阶段 0–4 全落**、**16.4b `remote-desktop` 首切**（设置面/授权/能力探测，刻意未翻面）；inprocess 默认集现 35 个频道；**剩余 live 面 4**：cua-permission、bots、remote-v3、remote workspaces，外加 remote-desktop 会话面续段（`RemoteDesktopPort` 生产实现）。详见 `2026-11-22-lt16-node-host-retirement.md` |
 
 ## LT-15 生态收口（2026-11-21，已完成）
 
@@ -52,7 +52,8 @@ W2/S2 翻面执行（P6）。状态见 `2026-11-21-lt15-ecosystem-closeout.md`�
 
 当前主线是 **LT-16**（Node Host 退役），其余长任务围绕它的门禁穿插：
 
-1. **LT-16 续段**：~~`provider-settings` 阶段 4~~ **已落（2026-11-23）** → `cua-permission`
+1. **LT-16 续段**：~~`provider-settings` 阶段 4~~ **已落（2026-11-23）** → ~~`remote-desktop` 首切~~
+   **已落（2026-11-23）** → `cua-permission`
    （前置 Rust 原生 CUA 端口）→ `bots` → `remote`/`remote-desktop`/`remote-v3` →
    16.5（LAN supervisor 单例翻转、G2 automation 真机开关、Bot 回推）→ 16.6 删除窗口。
 2. **LT-11 随 LT-16.6 收口**：四组 blocker 归零后跑四仪表终值复测；不再单独排期。
