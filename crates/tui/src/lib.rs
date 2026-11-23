@@ -8,9 +8,14 @@ pub mod agent_events;
 pub mod agent_wire;
 pub mod model;
 pub mod render;
+pub mod submit;
 
 pub use agent_client::AgentClient;
 pub use agent_events::{apply_delta, apply_snapshot, session_from_summary};
 pub use agent_wire::apply_agent_notification;
 pub use model::{SessionPhase, TuiModel, TuiSession};
 pub use render::render;
+pub use submit::{
+    build_send_params, parse_error_reply, parse_send_result, prepare_submit, SendOutcome,
+    SubmitRejection, SubmitState,
+};
