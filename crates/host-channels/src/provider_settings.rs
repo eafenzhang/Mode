@@ -202,6 +202,208 @@ pub fn build_provider_settings_view(snapshot: &ProviderConfigSnapshot, revision:
     })
 }
 
+pub struct CreatePersonalProviderInput {
+    pub template_id: Option<String>,
+    pub provider_name: Option<String>,
+    /// 默认 `en-US`；与 TS `resolveProviderTemplateName` 同口径。
+    pub locale: Option<String>,
+    pub initial_config: Option<provider_config::ProviderConfig>,
+}
+
+pub struct CreatedPersonalProvider {
+    pub provider_id: String,
+    pub update: ProviderConfigLayerUpdate,
+}
+
+fn normalize_provider_id_seed(value: &str) -> String {
+    let seed: String = value
+        .trim()
+        .to_lowercase()
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let trimmed = seed.trim_matches('-');
+    if trimmed.is_empty() {
+        "new-provider".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn next_personal_provider_id(
+    occupied: &std::collections::HashSet<String>,
+    template_id: Option<&str>,
+) -> String {
+    let base = template_id
+        .map(normalize_provider_id_seed)
+        .unwrap_or_else(|| "new-provider".to_string());
+    if !occupied.contains(&base) {
+        return base;
+    }
+    let mut suffix = 2;
+    loop {
+        let candidate = format!("{base}-{suffix}");
+        if !occupied.contains(&candidate) {
+            return candidate;
+        }
+        suffix += 1;
+    }
+}
+
+fn next_personal_provider_label(seed: &str, labels: &[String]) -> String {
+    let base = if seed.trim().is_empty() {
+        "new-provider".to_string()
+    } else {
+        seed.trim().to_string()
+    };
+    let existing: std::collections::HashSet<String> =
+        labels.iter().map(|label| label.to_lowercase()).collect();
+    if !existing.contains(&base.to_lowercase()) {
+        return base;
+    }
+    let mut suffix = 2;
+    loop {
+        let candidate = format!("{base} {suffix}");
+        if !existing.contains(&candidate.to_lowercase()) {
+            return candidate;
+        }
+        suffix += 1;
+    }
+}
+
+fn template_name(template: &provider_config::ProviderTemplate, locale: Option<&str>) -> String {
+    let localized = match locale {
+        Some("zh-CN") => template.template_name_map.zh_cn.as_deref(),
+        _ => None,
+    };
+    localized
+        .or(template.template_name_map.en_us.as_deref())
+        .or(template.template_name_map.zh_cn.as_deref())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(&template.template_id)
+        .to_string()
+}
+
+/// TS `createPersonalProvider`：模板实例或空 Personal Provider。
+pub fn create_personal_provider(
+    snapshot: &ProviderConfigSnapshot,
+    current: &PersonalLayer,
+    input: CreatePersonalProviderInput,
+) -> Result<CreatedPersonalProvider, String> {
+    let template_id = input
+        .template_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let template = match &template_id {
+        Some(template_id) => Some(
+            snapshot
+                .mode_builtin_provider_templates
+                .get(template_id)
+                .ok_or_else(|| format!("Provider Template 不存在: {template_id}"))?,
+        ),
+        None => None,
+    };
+    let initial = input.initial_config.unwrap_or_default();
+    if !initial.group.is_absent() {
+        return Err("initialConfig 不能包含 group".to_string());
+    }
+    if !initial.builtin_model_ids.is_absent() {
+        return Err("initialConfig 不能包含 builtinModelIds".to_string());
+    }
+    let mut occupied: std::collections::HashSet<String> =
+        snapshot.mode_builtin_providers.keys().into_iter().collect();
+    occupied.extend(current.providers.keys());
+    let provider_id = next_personal_provider_id(&occupied, template_id.as_deref());
+    let label_seed = input
+        .provider_name
+        .clone()
+        .unwrap_or_else(|| match &template {
+            Some(template) => template_name(template, input.locale.as_deref()),
+            None => "new-provider".to_string(),
+        });
+    let existing_labels: Vec<String> = snapshot
+        .mode_builtin_providers
+        .rules()
+        .chain(current.providers.rules())
+        .filter_map(|rule| match &rule.provider_name {
+            Field::Value(value) if !value.trim().is_empty() => Some(value.clone()),
+            _ => None,
+        })
+        .collect();
+    let label = next_personal_provider_label(&label_seed, &existing_labels);
+
+    let access = if template.is_some() {
+        Field::Absent
+    } else {
+        Field::Value(provider_config::ProviderAccess::ApiKey(
+            provider_config::ApiKeyAccess {
+                access_type: provider_config::ApiKeyAccessType::ApiKey,
+                api_key: Field::Absent,
+                api_key_management_url: Field::Absent,
+            },
+        ))
+    };
+    let base = provider_config::ProviderConfig {
+        group: Field::Value(ProviderGroup::StandardPersonal),
+        access,
+        personal_model_ids: Field::Value(Vec::new()),
+        model_order: Field::Value(Vec::new()),
+        ..provider_config::ProviderConfig::default()
+    };
+    let config = base.overlay(&initial);
+    let rule = provider_config::ProviderConfigRule {
+        provider_id: provider_id.clone(),
+        template_id: template_id
+            .as_deref()
+            .map(|value| Field::Value(value.to_string()))
+            .unwrap_or(Field::Absent),
+        provider_name: Field::Value(label),
+        enabled: Field::Absent,
+        config,
+    };
+    let providers = current.providers.set_rule(rule);
+    let personal_ids: Vec<String> = providers
+        .entries()
+        .filter(|(_, rule)| {
+            matches!(
+                &rule.config.group,
+                Field::Value(ProviderGroup::StandardPersonal)
+            )
+        })
+        .map(|(provider_id, _)| provider_id.clone())
+        .collect();
+    let requested: Vec<String> = current
+        .provider_order
+        .clone()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|candidate| candidate != &provider_id)
+        .chain(std::iter::once(provider_id.clone()))
+        .collect();
+    let provider_order = provider_resolver::resolve_owned_order(&[], &personal_ids, &requested);
+    Ok(CreatedPersonalProvider {
+        provider_id,
+        update: ProviderConfigLayerUpdate {
+            providers,
+            models: current.models.clone(),
+            provider_order: Some(provider_order),
+            default_model_selection: current
+                .default_model_selection
+                .as_ref()
+                .map(to_layer_selection),
+        },
+    })
+}
+
 /// 删除 Personal Provider：同时清理它的精确模型规则与顺序项。
 pub fn delete_personal_provider(
     current: &PersonalLayer,
@@ -403,5 +605,183 @@ mod tests {
             .as_str()
             .is_some_and(|id| !id.is_empty()));
         assert!(first["config"].is_object());
+    }
+}
+
+#[cfg(test)]
+mod create_provider_tests {
+    use super::*;
+
+    use provider_config::{
+        ModelConfigRules, ProviderConfigMap, ProviderTemplate, ProviderTemplateMap,
+        ProviderTemplateNameMap,
+    };
+
+    fn snapshot_with_template() -> ProviderConfigSnapshot {
+        let mut templates = ProviderTemplateMap::empty();
+        templates.values.insert(
+            "tmpl".to_string(),
+            ProviderTemplate {
+                template_id: "tmpl".to_string(),
+                template_name_map: ProviderTemplateNameMap {
+                    zh_cn: None,
+                    en_us: Some("Template One".to_string()),
+                },
+                config: provider_config::ProviderConfig::default(),
+            },
+        );
+        let mut builtin = ProviderConfigMap::empty();
+        builtin = builtin.set_rule(provider_config::ProviderConfigRule {
+            provider_id: "builtin-1".to_string(),
+            template_id: Field::Absent,
+            provider_name: Field::Value("Builtin".to_string()),
+            enabled: Field::Value(true),
+            config: provider_config::ProviderConfig::default(),
+        });
+        ProviderConfigSnapshot {
+            revision: "[]".to_string(),
+            mode_builtin_revision: String::new(),
+            personal_revision: String::new(),
+            mode_builtin_providers: builtin,
+            mode_builtin_provider_templates: templates,
+            personal_providers: ProviderConfigMap::empty(),
+            mode_builtin_model_rules: ModelConfigRules::empty(),
+            personal_models: ModelConfigRules::empty(),
+            personal_provider_order: Vec::new(),
+        }
+    }
+
+    fn empty_personal() -> PersonalLayer {
+        PersonalLayer {
+            revision: "rev-1".to_string(),
+            providers: ProviderConfigMap::empty(),
+            models: ModelConfigRules::empty(),
+            provider_order: None,
+            default_model_selection: None,
+        }
+    }
+
+    #[test]
+    fn create_from_template_uses_template_identity_and_defaults() {
+        let snapshot = snapshot_with_template();
+        let current = empty_personal();
+        let created = create_personal_provider(
+            &snapshot,
+            &current,
+            CreatePersonalProviderInput {
+                template_id: Some("tmpl".to_string()),
+                provider_name: None,
+                locale: None,
+                initial_config: None,
+            },
+        )
+        .expect("create");
+        assert_eq!(created.provider_id, "tmpl");
+        let rule = created.update.providers.get("tmpl").expect("rule");
+        assert_eq!(rule.provider_name, Field::Value("Template One".to_string()));
+        assert_eq!(rule.template_id, Field::Value("tmpl".to_string()));
+        assert_eq!(
+            rule.config.group,
+            Field::Value(ProviderGroup::StandardPersonal)
+        );
+        // 模板实例不注入默认 ApiKey access。
+        assert!(rule.config.access.is_absent());
+        assert_eq!(
+            rule.config.personal_model_ids,
+            Field::Value(Vec::<String>::new())
+        );
+        assert_eq!(
+            created.update.provider_order.as_deref(),
+            Some(&["tmpl".to_string()][..])
+        );
+    }
+
+    #[test]
+    fn create_dedupes_id_and_label_and_validates_input() {
+        let snapshot = snapshot_with_template();
+        let first = create_personal_provider(
+            &snapshot,
+            &empty_personal(),
+            CreatePersonalProviderInput {
+                template_id: Some("tmpl".to_string()),
+                provider_name: None,
+                locale: None,
+                initial_config: None,
+            },
+        )
+        .expect("first");
+        let layer = PersonalLayer {
+            revision: "rev-1".to_string(),
+            providers: first.update.providers.clone(),
+            models: ModelConfigRules::empty(),
+            provider_order: first.update.provider_order.clone(),
+            default_model_selection: None,
+        };
+        let second = create_personal_provider(
+            &snapshot,
+            &layer,
+            CreatePersonalProviderInput {
+                template_id: Some("tmpl".to_string()),
+                provider_name: None,
+                locale: None,
+                initial_config: None,
+            },
+        )
+        .expect("second");
+        assert_eq!(second.provider_id, "tmpl-2");
+        let rule = second.update.providers.get("tmpl-2").expect("rule");
+        assert_eq!(
+            rule.provider_name,
+            Field::Value("Template One 2".to_string())
+        );
+
+        assert!(create_personal_provider(
+            &snapshot,
+            &layer,
+            CreatePersonalProviderInput {
+                template_id: Some("missing".to_string()),
+                provider_name: None,
+                locale: None,
+                initial_config: None,
+            }
+        )
+        .is_err());
+        assert!(create_personal_provider(
+            &snapshot,
+            &layer,
+            CreatePersonalProviderInput {
+                template_id: None,
+                provider_name: None,
+                locale: None,
+                initial_config: Some(provider_config::ProviderConfig {
+                    group: Field::Value(ProviderGroup::StandardPersonal),
+                    ..provider_config::ProviderConfig::default()
+                }),
+            }
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn create_without_template_gets_api_key_access() {
+        let snapshot = snapshot_with_template();
+        let created = create_personal_provider(
+            &snapshot,
+            &empty_personal(),
+            CreatePersonalProviderInput {
+                template_id: None,
+                provider_name: Some("Mine".to_string()),
+                locale: None,
+                initial_config: None,
+            },
+        )
+        .expect("create");
+        assert_eq!(created.provider_id, "new-provider");
+        let rule = created.update.providers.get("new-provider").expect("rule");
+        assert_eq!(rule.provider_name, Field::Value("Mine".to_string()));
+        assert!(matches!(
+            rule.config.access,
+            Field::Value(provider_config::ProviderAccess::ApiKey(_))
+        ));
     }
 }
