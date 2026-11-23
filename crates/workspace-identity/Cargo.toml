@@ -11,3 +11,6 @@ path = "src/lib.rs"
 
 [dependencies]
 sha2.workspace = true
+# `build_ssh_remote_host_key` 要与 TS 的 `JSON.stringify([...])` 逐字节一致，
+# 含引号转义；手写转义在 host/username 带特殊字符时会漂移。
+serde_json.workspace = true

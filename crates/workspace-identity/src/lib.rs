@@ -262,6 +262,141 @@ pub fn is_remote_workspace_identity(identity: &str) -> bool {
     parse_remote_workspace_identity(identity).is_some()
 }
 
+/// 私钥路径归一（TS `normalizePrivateKeyPath`）：分隔符转 `/`、盘符大写、
+/// 折叠 `.`、按段消解 `..`（但**不越过根**：盘符/UNC share/POSIX root 下的 `..`
+/// 直接丢弃，否则 `/a/../../etc` 会逃出根）。
+fn normalize_private_key_path(value: Option<&str>) -> String {
+    let Some(trimmed) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return String::new();
+    };
+    let unified = trimmed.replace('\\', "/");
+    // 盘符大写（TS 用 replace(/^([a-z]):/i, ...)）。
+    let with_upper_drive = {
+        let bytes = unified.as_bytes();
+        if bytes.len() >= 2 && bytes[0].is_ascii_lowercase() && bytes[1] == b':' {
+            format!("{}{}", unified[..1].to_ascii_uppercase(), &unified[1..])
+        } else {
+            unified.clone()
+        }
+    };
+
+    // 拆出「根」：盘符、UNC share、POSIX root、`~/`，其余为相对路径或裸盘符。
+    let (prefix, body, blocks_parent_traversal): (String, &str, bool) = {
+        let bytes = with_upper_drive.as_bytes();
+        let is_drive_abs = bytes.len() >= 3
+            && bytes[0].is_ascii_uppercase()
+            && bytes[1] == b':'
+            && bytes[2] == b'/';
+        if is_drive_abs {
+            (
+                with_upper_drive[..3].to_string(),
+                &with_upper_drive[3..],
+                true,
+            )
+        } else if let Some(rest) = with_upper_drive.strip_prefix("//") {
+            let segments: Vec<&str> = rest.split('/').filter(|s| !s.is_empty()).collect();
+            if segments.len() >= 2 {
+                let prefix = format!("//{}/{}/", segments[0], segments[1]);
+                let body_start = 2 + segments[0].len() + segments[1].len();
+                (prefix, &rest[body_start..], true)
+            } else {
+                ("//".to_string(), rest.trim_start_matches('/'), true)
+            }
+        } else if let Some(rest) = with_upper_drive.strip_prefix('/') {
+            ("/".to_string(), rest.trim_start_matches('/'), true)
+        } else if let Some(rest) = with_upper_drive.strip_prefix("~/") {
+            ("~/".to_string(), rest, false)
+        } else {
+            // 裸盘符相对形态（`C:foo`）或普通相对路径。
+            let bytes = with_upper_drive.as_bytes();
+            let is_drive_relative =
+                bytes.len() >= 2 && bytes[0].is_ascii_uppercase() && bytes[1] == b':';
+            if is_drive_relative {
+                (
+                    with_upper_drive[..2].to_string(),
+                    &with_upper_drive[2..],
+                    false,
+                )
+            } else {
+                (String::new(), with_upper_drive.as_str(), false)
+            }
+        }
+    };
+
+    let mut segments: Vec<&str> = Vec::new();
+    for segment in body.split('/') {
+        if segment.is_empty() || segment == "." {
+            continue;
+        }
+        if segment == ".." {
+            if let Some(last) = segments.last() {
+                if *last != ".." {
+                    segments.pop();
+                    continue;
+                }
+            }
+            // 盘符/UNC share/POSIX root 不是普通路径段，`..` 不能把根弹掉；
+            // 相对路径与 `~` 无法在浏览器侧安全求值，保留未消解的 parent 段。
+            if blocks_parent_traversal {
+                continue;
+            }
+            segments.push(segment);
+            continue;
+        }
+        segments.push(segment);
+    }
+
+    let joined = segments.join("/");
+    if joined.is_empty() {
+        prefix
+    } else {
+        format!("{prefix}{joined}")
+    }
+}
+
+/// SSH 共享身份的 authKind 判定（TS `resolveSshAuthKind`）：私钥 > 密码 > agent。
+///
+/// 密码本身**不进**身份键——只有「用哪种认证」进。私钥路径参与，因为同一主机用
+/// 不同密钥是不同信任边界。
+fn ssh_auth_kind(private_key_path: Option<&str>, has_password: bool) -> &'static str {
+    if private_key_path
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty())
+    {
+        return "private-key";
+    }
+    if has_password {
+        return "password";
+    }
+    "agent"
+}
+
+/// 窗口内 SSH Remote Host 的共享身份（TS `buildSshRemoteHostKey`）。
+///
+/// 输出是 `JSON.stringify([...])` 的等价形态；密码与口令只用于建连，**禁止**进入
+/// 共享键或日志，因此这里只收 `has_password` 布尔。
+///
+/// 注意 `port` 在数组里是**数字**而不是字符串（TS 传的是 number），
+/// 编码成 `"2222"` 会让 Rust 与 TS 派生出不同的共享键，SSH 连接复用直接失效。
+pub fn build_ssh_remote_host_key(
+    host: &str,
+    port: Option<u16>,
+    username: &str,
+    private_key_path: Option<&str>,
+    has_password: bool,
+) -> String {
+    let parts = serde_json::json!([
+        "ssh:v1",
+        host.trim().to_lowercase(),
+        port.unwrap_or(22),
+        username.trim(),
+        ssh_auth_kind(private_key_path, has_password),
+        normalize_private_key_path(private_key_path),
+    ]);
+    // serde_json 的数组序列化即是 `[...]`、逗号分隔、无空格，与 JSON.stringify 一致。
+    serde_json::to_string(&parts).unwrap_or_else(|_| "[]".to_string())
+}
+
 /// 两个 target 是否指向同一远端（只比 authority，不比 secret 与展示字段）。
 pub fn is_same_remote_target(left: &RemoteTargetRef, right: &RemoteTargetRef) -> bool {
     match (left, right) {
@@ -495,6 +630,55 @@ mod tests {
                 container: "box".to_string()
             }
         ));
+    }
+
+    #[test]
+    fn ssh_host_key_matches_the_ts_oracle() {
+        // 期望值来自 `node scripts/oracle-ssh-host-key.mjs`（直接跑 TS 真源）。
+        // 这条断言锁的是**逐字节相等**：共享键一旦漂移，SSH 连接复用会静默失效
+        // （同一主机被当成两个端，重复建连、重复部署）。
+        assert_eq!(
+            build_ssh_remote_host_key(
+                " Build-01 ",
+                Some(2222),
+                " dev ",
+                Some("c:\\\\keys\\\\..\\\\id_ed25519"),
+                false
+            ),
+            r#"["ssh:v1","build-01",2222,"dev","private-key","C:/id_ed25519"]"#
+        );
+        assert_eq!(
+            build_ssh_remote_host_key("10.0.0.9", None, "root", None, true),
+            r#"["ssh:v1","10.0.0.9",22,"root","password",""]"#
+        );
+        assert_eq!(
+            build_ssh_remote_host_key("10.0.0.9", None, "root", None, false),
+            r#"["ssh:v1","10.0.0.9",22,"root","agent",""]"#
+        );
+        // 私钥路径的 `..` 不能越过根。
+        assert_eq!(
+            build_ssh_remote_host_key("h", None, "u", Some("/a/../../etc/ssh/id"), false),
+            r#"["ssh:v1","h",22,"u","private-key","/etc/ssh/id"]"#
+        );
+        // UNC share 是根，`..` 同样不越界。
+        assert_eq!(
+            build_ssh_remote_host_key("h", None, "u", Some("//server/share/a/../b/id"), false),
+            r#"["ssh:v1","h",22,"u","private-key","//server/share/b/id"]"#
+        );
+        // `~` 相对路径保留未消解的 parent 段（浏览器侧无法安全求值）。
+        assert_eq!(
+            build_ssh_remote_host_key("h", None, "u", Some("~/a/../../b"), false),
+            r#"["ssh:v1","h",22,"u","private-key","~/../b"]"#
+        );
+        // 空白私钥路径 = 没给，回落到 agent；密码与私钥同时存在时私钥优先。
+        assert_eq!(
+            build_ssh_remote_host_key("h", None, "u", Some("   "), false),
+            r#"["ssh:v1","h",22,"u","agent",""]"#
+        );
+        assert_eq!(
+            build_ssh_remote_host_key("h", None, "u", Some("/k/id"), true),
+            r#"["ssh:v1","h",22,"u","private-key","/k/id"]"#
+        );
     }
 
     #[test]

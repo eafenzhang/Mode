@@ -5398,6 +5398,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "remote-session-registry"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "workspace-identity",
+]
+
+[[package]]
 name = "reqwest"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8587,6 +8595,7 @@ dependencies = [
 name = "workspace-identity"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "sha2",
 ]
 
