@@ -7,8 +7,13 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use host_channels::remote::{RemoteChannel, RemoteTransportPort, ON_DYNAMIC_CONNECTION_EVENT};
-use rpc_host::{BoxFuture, CancellationToken, ServerChannel};
+use host_channels::remote::{
+    RemoteChannel, RemoteScopeFactory, RemoteTransportPort, ON_DYNAMIC_CONNECTION_EVENT,
+};
+use remote_session_registry::RemoteSessionSnapshot;
+use rpc_host::{
+    BoxFuture, CancellationToken, ChannelError, ChannelServer, ScopedServerRegistry, ServerChannel,
+};
 use rpc_wire::Value;
 use serde_json::{json, Value as Json};
 
@@ -341,21 +346,23 @@ async fn dispose_and_cancel_tell_the_transport() {
 }
 
 #[tokio::test]
-async fn attach_and_detach_report_the_missing_capability_instead_of_faking_it() {
+async fn attach_without_scopes_reports_the_missing_wiring() {
+    // 未装配 scoped 服务面时必须显式报错，不能给个假 scopeId。
     let channel = RemoteChannel::new(None);
-    for method in ["attach", "detach"] {
-        let error = call(
-            &channel,
-            method,
-            json!({ "sessionId": "s", "attachmentId": "a" }),
-        )
+    let error = call(&channel, "attach", json!({ "sessionId": "s" }))
         .await
         .expect_err("必须显式报错");
-        assert!(
-            error.contains("scoped 服务集合注册能力"),
-            "{method}: {error}"
-        );
-    }
+    assert!(error.contains("scoped 服务面装配"), "{error}");
+    assert_eq!(channel.attachment_count(), 0);
+}
+
+#[tokio::test]
+async fn detach_unknown_attachment_is_idempotent() {
+    // TS 同：找不到 attachmentId 就 return，不报错。
+    let channel = RemoteChannel::new(None);
+    call(&channel, "detach", json!({ "attachmentId": "nope" }))
+        .await
+        .expect("幂等");
 }
 
 #[tokio::test]
@@ -435,4 +442,273 @@ async fn unknown_command_and_event_are_rejected() {
         .err()
         .expect("unknown event");
     assert!(format!("{error:?}").contains("unknown event"));
+}
+
+/// 最小服务面工厂：注册一个 echo 频道，并记录被调用次数。
+#[derive(Default)]
+struct FakeScopeFactory {
+    calls: AtomicUsize,
+}
+
+struct EchoChannel;
+
+impl ServerChannel for EchoChannel {
+    fn call(
+        &self,
+        _ctx: String,
+        command: String,
+        arg: Value,
+        _cancel: CancellationToken,
+    ) -> BoxFuture<Result<Value, ChannelError>> {
+        let result = match command.as_str() {
+            "echo" => Ok(arg),
+            other => Err(ChannelError::error(format!("unknown command {other}"))),
+        };
+        Box::pin(async move { result })
+    }
+
+    fn listen(
+        &self,
+        _ctx: String,
+        _event: String,
+        _arg: Value,
+        _emit: rpc_host::EventCallback,
+    ) -> Result<rpc_host::Subscription, ChannelError> {
+        Ok(Box::new(|| {}))
+    }
+}
+
+impl RemoteScopeFactory for FakeScopeFactory {
+    fn register(
+        &self,
+        server: &mut ChannelServer,
+        _session: &RemoteSessionSnapshot,
+    ) -> Result<(), String> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        server.register_channel("memory", Arc::new(EchoChannel));
+        Ok(())
+    }
+}
+
+/// 组装一个带 scoped 服务面的频道。
+fn channel_with_scopes(
+    transport: Arc<FakeTransport>,
+) -> (
+    RemoteChannel,
+    Arc<ScopedServerRegistry>,
+    Arc<FakeScopeFactory>,
+) {
+    let scopes = Arc::new(ScopedServerRegistry::new(Arc::new(|_frame: Vec<u8>| {})));
+    let factory = Arc::new(FakeScopeFactory::default());
+    let channel = RemoteChannel::new(Some(transport as Arc<dyn RemoteTransportPort>)).with_scopes(
+        Arc::clone(&scopes),
+        factory.clone() as Arc<dyn RemoteScopeFactory>,
+    );
+    (channel, scopes, factory)
+}
+
+#[tokio::test]
+async fn attach_requires_a_bound_workspace_context() {
+    let transport = Arc::new(FakeTransport::default());
+    let (channel, scopes, factory) = channel_with_scopes(Arc::clone(&transport));
+
+    // connect 时不给 workspacePath/identity：session 存在但未绑定上下文。
+    let connected = call(&channel, "connect", json!({ "target": lan_target("h", 1) }))
+        .await
+        .expect("connect");
+    let session_id = connected["descriptor"]["remoteSessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+
+    let error = call(&channel, "attach", json!({ "sessionId": session_id }))
+        .await
+        .expect_err("未绑定上下文必须报错");
+    assert!(
+        error.contains("先 bindContext 再 attach"),
+        "报错必须指向正确的修复动作：{error}"
+    );
+    // 失败不得留下 scope 或 attachment。
+    assert_eq!(scopes.count(), 0);
+    assert_eq!(channel.attachment_count(), 0);
+    assert_eq!(factory.calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn attach_creates_a_scope_that_is_not_ready_yet() {
+    let transport = Arc::new(FakeTransport::default());
+    let (channel, scopes, factory) = channel_with_scopes(Arc::clone(&transport));
+    let connected = call(
+        &channel,
+        "connect",
+        json!({ "target": lan_target("h", 1), "workspacePath": "/w" }),
+    )
+    .await
+    .expect("connect");
+    let session_id = connected["descriptor"]["remoteSessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+
+    let attachment = call(
+        &channel,
+        "attach",
+        json!({ "sessionId": session_id.clone() }),
+    )
+    .await
+    .expect("attach");
+
+    // 描述符三件套齐备，scopeId 从 1 起。
+    assert_eq!(attachment["scopeId"], 1);
+    assert_eq!(attachment["sessionId"], session_id);
+    assert!(attachment["attachmentId"]
+        .as_str()
+        .is_some_and(|id| !id.is_empty()));
+    assert_eq!(scopes.count(), 1);
+    assert_eq!(channel.attachment_count(), 1);
+    assert_eq!(factory.calls.load(Ordering::SeqCst), 1);
+
+    // **attach 不 ready**：页面端口没注册就发 Initialize 会被丢弃且不重发。
+    // scopes.start 才是发 Initialize 的时机（这里只验「scope 已建但不 ready」的
+    // 语义由 ScopedServerRegistry 的用例覆盖）。
+    let attachment_id = attachment["attachmentId"].as_str().expect("id").to_string();
+    assert_eq!(
+        channel.attachment_ids_for_session(&session_id),
+        vec![attachment_id.clone()]
+    );
+
+    // detach 回收 scope 与登记。
+    call(&channel, "detach", json!({ "attachmentId": attachment_id }))
+        .await
+        .expect("detach");
+    assert_eq!(scopes.count(), 0);
+    assert_eq!(channel.attachment_count(), 0);
+}
+
+#[tokio::test]
+async fn detach_only_reclaims_the_named_attachment() {
+    let transport = Arc::new(FakeTransport::default());
+    let (channel, scopes, _factory) = channel_with_scopes(Arc::clone(&transport));
+    let connected = call(
+        &channel,
+        "connect",
+        json!({ "target": lan_target("h", 1), "workspacePath": "/w" }),
+    )
+    .await
+    .expect("connect");
+    let session_id = connected["descriptor"]["remoteSessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+
+    let first = call(
+        &channel,
+        "attach",
+        json!({ "sessionId": session_id.clone() }),
+    )
+    .await
+    .expect("attach 1");
+    let second = call(
+        &channel,
+        "attach",
+        json!({ "sessionId": session_id.clone() }),
+    )
+    .await
+    .expect("attach 2");
+    assert_eq!(scopes.count(), 2, "两次 attach 必须是两个独立 scope");
+    assert_ne!(first["scopeId"], second["scopeId"], "scope id 不复用");
+
+    call(
+        &channel,
+        "detach",
+        json!({ "attachmentId": first["attachmentId"].as_str().expect("id") }),
+    )
+    .await
+    .expect("detach 1");
+
+    // 只回收第一个：第二个仍活着。
+    assert_eq!(scopes.count(), 1);
+    assert_eq!(channel.attachment_count(), 1);
+    assert_eq!(
+        channel.attachment_ids_for_session(&session_id),
+        vec![second["attachmentId"].as_str().expect("id").to_string()]
+    );
+}
+
+#[tokio::test]
+async fn dispose_reclaims_every_attachment_of_the_session() {
+    let transport = Arc::new(FakeTransport::default());
+    let (channel, scopes, _factory) = channel_with_scopes(Arc::clone(&transport));
+    let connected = call(
+        &channel,
+        "connect",
+        json!({ "target": lan_target("h", 1), "workspacePath": "/w" }),
+    )
+    .await
+    .expect("connect");
+    let session_id = connected["descriptor"]["remoteSessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+
+    for _ in 0..3 {
+        call(
+            &channel,
+            "attach",
+            json!({ "sessionId": session_id.clone() }),
+        )
+        .await
+        .expect("attach");
+    }
+    assert_eq!(scopes.count(), 3);
+
+    call(
+        &channel,
+        "dispose",
+        json!({ "sessionId": session_id.clone() }),
+    )
+    .await
+    .expect("dispose");
+
+    // TS 同序：session 释放时它的 scope 必须一起回收，否则 scope 泄漏。
+    assert_eq!(scopes.count(), 0, "dispose 必须回收该 session 的全部 scope");
+    assert_eq!(channel.attachment_count(), 0);
+    assert!(channel.attachment_ids_for_session(&session_id).is_empty());
+}
+
+#[tokio::test]
+async fn scope_factory_failure_leaves_no_attachment_or_scope() {
+    struct FailingFactory;
+    impl RemoteScopeFactory for FailingFactory {
+        fn register(
+            &self,
+            _server: &mut ChannelServer,
+            _session: &RemoteSessionSnapshot,
+        ) -> Result<(), String> {
+            Err("服务面注册失败".to_string())
+        }
+    }
+
+    let transport = Arc::new(FakeTransport::default());
+    let scopes = Arc::new(ScopedServerRegistry::new(Arc::new(|_frame: Vec<u8>| {})));
+    let channel = RemoteChannel::new(Some(Arc::clone(&transport) as Arc<dyn RemoteTransportPort>))
+        .with_scopes(Arc::clone(&scopes), Arc::new(FailingFactory));
+    let connected = call(
+        &channel,
+        "connect",
+        json!({ "target": lan_target("h", 1), "workspacePath": "/w" }),
+    )
+    .await
+    .expect("connect");
+    let session_id = connected["descriptor"]["remoteSessionId"]
+        .as_str()
+        .expect("sessionId")
+        .to_string();
+
+    let error = call(&channel, "attach", json!({ "sessionId": session_id }))
+        .await
+        .expect_err("注册失败必须上抛");
+    assert!(error.contains("服务面注册失败"), "{error}");
+    assert_eq!(scopes.count(), 0, "注册失败要回收 scope");
+    assert_eq!(channel.attachment_count(), 0, "失败不得登记 attachment");
 }

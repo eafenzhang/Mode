@@ -19,7 +19,8 @@ use remote_session_registry::{
     RemoteSessionRegistry, RemoteSessionSnapshot, RemoteTargetSpec, RemoteWorkspaceContext,
 };
 use rpc_host::{
-    BoxFuture, CancellationToken, ChannelError, EventCallback, ServerChannel, Subscription,
+    BoxFuture, CancellationToken, ChannelError, ChannelServer, EventCallback, ScopedServerRegistry,
+    ServerChannel, Subscription,
 };
 use rpc_wire::Value as WireValue;
 use serde::Deserialize;
@@ -50,6 +51,30 @@ pub trait RemoteTransportPort: Send + Sync {
         generation: u32,
         context: RemoteWorkspaceContext,
     ) -> BoxFuture<Result<(), String>>;
+}
+
+/// scoped 服务面工厂（TS `ServiceCollection.exposeOnChannelServer` 的等价物）。
+///
+/// 一次 attach 要在新 scope 上注册**一整套**频道：remote workspace 的服务集合由装配方
+/// 决定（本地集合 / 远端集合），频道本身不假设内容。返回 `Err` 时 scope 会被回收。
+///
+/// **频道守卫的位置**：TS 在 `registerChannel` 入口包一层 `guardedServer`。Rust 侧
+/// `ChannelServer` 没有可拦截的注册入口，因此守卫由**工厂实现**在注册时自行套用
+/// （spec §5 登记该差异）。
+pub trait RemoteScopeFactory: Send + Sync {
+    fn register(
+        &self,
+        server: &mut ChannelServer,
+        session: &RemoteSessionSnapshot,
+    ) -> Result<(), String>;
+}
+
+/// 一条 attachment 的登记记录。
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AttachmentRecord {
+    attachment_id: String,
+    session_id: String,
+    scope_id: u32,
 }
 
 type Listener = (String, EventCallback);
@@ -102,6 +127,11 @@ pub struct RemoteChannel {
     registry: Arc<Mutex<RemoteSessionRegistry>>,
     events: Arc<ConnectionEventBus>,
     transport: Option<Arc<dyn RemoteTransportPort>>,
+    /// scoped 服务面登记表（attach/detach 用）；`None` 时 attach 显式报错。
+    scopes: Option<Arc<ScopedServerRegistry>>,
+    /// 每次 attach 要在新 scope 上注册的服务面；`None` 时 attach 显式报错。
+    scope_factory: Option<Arc<dyn RemoteScopeFactory>>,
+    attachments: Arc<Mutex<HashMap<String, AttachmentRecord>>>,
 }
 
 impl RemoteChannel {
@@ -110,6 +140,9 @@ impl RemoteChannel {
             registry: Arc::new(Mutex::new(RemoteSessionRegistry::new())),
             events: Arc::new(ConnectionEventBus::new()),
             transport,
+            scopes: None,
+            scope_factory: None,
+            attachments: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -121,7 +154,98 @@ impl RemoteChannel {
             registry: Arc::new(Mutex::new(registry)),
             events: Arc::new(ConnectionEventBus::new()),
             transport,
+            scopes: None,
+            scope_factory: None,
+            attachments: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    /// 装配 scoped 服务面（attach/detach 的前提）。
+    pub fn with_scopes(
+        mut self,
+        scopes: Arc<ScopedServerRegistry>,
+        factory: Arc<dyn RemoteScopeFactory>,
+    ) -> Self {
+        self.scopes = Some(scopes);
+        self.scope_factory = Some(factory);
+        self
+    }
+
+    /// 宿主用它处理 `scope-ready` 控制帧（页面端口就绪 → 发 Initialize）。
+    pub fn scopes(&self) -> Option<Arc<ScopedServerRegistry>> {
+        self.scopes.clone()
+    }
+
+    /// 某 session 的全部 attachment id（dispose 清理与测试断言用）。
+    pub fn attachment_ids_for_session(&self, session_id: &str) -> Vec<String> {
+        let mut ids: Vec<String> = self
+            .attachments
+            .lock()
+            .expect("attachments poisoned")
+            .values()
+            .filter(|record| record.session_id == session_id)
+            .map(|record| record.attachment_id.clone())
+            .collect();
+        ids.sort();
+        ids
+    }
+
+    /// 当前 attachment 总数（`count()` 的业务判据）。
+    pub fn attachment_count(&self) -> usize {
+        self.attachments.lock().expect("attachments poisoned").len()
+    }
+
+    fn attach(&self, session_id: &str) -> Result<Json, ChannelError> {
+        let (Some(scopes), Some(factory)) = (self.scopes.clone(), self.scope_factory.clone())
+        else {
+            return Err(ChannelError::error(
+                "remote channel: attach 需要 scoped 服务面装配（scope registry + factory）",
+            ));
+        };
+        let session = {
+            let registry = self.registry.lock().expect("registry poisoned");
+            registry.get_session(session_id)
+        }
+        .ok_or_else(|| {
+            ChannelError::error(format!(
+                "未找到远程 logical session，sessionId={session_id}"
+            ))
+        })?;
+        // TS 同：没绑定上下文就 attach 是调用方 bug，必须显式报错而不是给个空服务面。
+        if session.workspace_path.is_none() || session.workspace_identity.is_none() {
+            return Err(ChannelError::error(
+                "远程 workspace 尚未绑定上下文，先 bindContext 再 attach",
+            ));
+        }
+
+        let snapshot = session.clone();
+        // **不 start**：页面端口注册完 ChannelClient 后由宿主发 scope-ready 再 start。
+        let attachment = scopes
+            .attach(move |server: &mut ChannelServer| factory.register(server, &snapshot))
+            .map_err(ChannelError::error)?;
+        let scope_id = attachment.scope_id();
+        // 句柄的生命周期由本频道的 attachment 表管理（detach 时按 scope_id 回收），
+        // 所以这里只丢弃句柄——它持有的两个闭包都是 Arc 克隆，丢弃不影响 scope。
+        drop(attachment);
+
+        let attachment_id = uuid::Uuid::new_v4().to_string();
+        self.attachments
+            .lock()
+            .expect("attachments poisoned")
+            .insert(
+                attachment_id.clone(),
+                AttachmentRecord {
+                    attachment_id: attachment_id.clone(),
+                    session_id: session_id.to_string(),
+                    scope_id,
+                },
+            );
+
+        Ok(json!({
+            "scopeId": scope_id,
+            "attachmentId": attachment_id,
+            "sessionId": session_id,
+        }))
     }
 }
 
@@ -136,6 +260,9 @@ impl ServerChannel for RemoteChannel {
         let transport = self.transport.clone();
         let registry = Arc::clone(&self.registry);
         let events = Arc::clone(&self.events);
+        let scopes = self.scopes.clone();
+        let scope_factory = self.scope_factory.clone();
+        let attachments = Arc::clone(&self.attachments);
         Box::pin(async move {
             match command.as_str() {
                 "connect" => connect(registry, events, transport, arg).await,
@@ -168,6 +295,8 @@ impl ServerChannel for RemoteChannel {
                 }
                 "dispose" => {
                     let params: SessionParams = parse(&arg, "dispose")?;
+                    // TS 同序：先摘 attachment，再释放 session 本身。
+                    detach_session_attachments(&attachments, scopes.as_ref(), &params.session_id);
                     let effects = {
                         let mut guard = registry.lock().expect("registry poisoned");
                         guard.dispose_session(&params.session_id)
@@ -193,9 +322,24 @@ impl ServerChannel for RemoteChannel {
                     };
                     json_text(Json::Array(snapshots.iter().map(snapshot_value).collect()))
                 }
-                "attach" | "detach" => Err(ChannelError::error(format!(
-                    "remote channel: {command} 需要 scoped 服务集合注册能力（壳内尚未装配）"
-                ))),
+                "attach" => {
+                    let params: SessionParams = parse(&arg, "attach")?;
+                    let channel = RemoteChannel {
+                        registry: Arc::clone(&registry),
+                        events: Arc::clone(&events),
+                        transport: transport.clone(),
+                        scopes: scopes.clone(),
+                        scope_factory: scope_factory.clone(),
+                        attachments: Arc::clone(&attachments),
+                    };
+                    json_text(channel.attach(&params.session_id)?)
+                }
+                "detach" => {
+                    let params: DetachParams = parse(&arg, "detach")?;
+                    // 未知 attachmentId 幂等返回（TS 同：找不到就 return）。
+                    detach_attachment(&attachments, scopes.as_ref(), &params.attachment_id);
+                    Ok(WireValue::Undefined)
+                }
                 other => Err(ChannelError::error(format!(
                     "remote channel: unknown command {other}"
                 ))),
@@ -478,6 +622,12 @@ struct SessionParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct DetachParams {
+    attachment_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SessionIdParams {
     request_id: String,
 }
@@ -560,4 +710,46 @@ fn json_text(value: Json) -> Result<WireValue, ChannelError> {
     serde_json::to_string(&value)
         .map(WireValue::Json)
         .map_err(|error| ChannelError::error(error.to_string()))
+}
+
+/// 回收一个 attachment（detach 与 session dispose 共用）。
+fn detach_attachment(
+    attachments: &Arc<Mutex<HashMap<String, AttachmentRecord>>>,
+    scopes: Option<&Arc<ScopedServerRegistry>>,
+    attachment_id: &str,
+) -> bool {
+    let record = attachments
+        .lock()
+        .expect("attachments poisoned")
+        .remove(attachment_id);
+    let Some(record) = record else {
+        return false;
+    };
+    if let Some(scopes) = scopes {
+        scopes.detach(record.scope_id);
+    }
+    true
+}
+
+/// 回收某 session 的全部 attachment（TS `detachSessionAttachments`）。
+fn detach_session_attachments(
+    attachments: &Arc<Mutex<HashMap<String, AttachmentRecord>>>,
+    scopes: Option<&Arc<ScopedServerRegistry>>,
+    session_id: &str,
+) -> usize {
+    let ids: Vec<String> = {
+        let guard = attachments.lock().expect("attachments poisoned");
+        guard
+            .values()
+            .filter(|record| record.session_id == session_id)
+            .map(|record| record.attachment_id.clone())
+            .collect()
+    };
+    let mut detached = 0;
+    for id in ids {
+        if detach_attachment(attachments, scopes, &id) {
+            detached += 1;
+        }
+    }
+    detached
 }

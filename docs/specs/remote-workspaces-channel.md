@@ -1,8 +1,8 @@
 # Spec：`remote` workspaces 迁移（LT-16.4d）
 
-状态：**RPC 频道已落地，仍未翻面（2026-11-23）**——registry 状态机、SSH host key、
-RPC 客户端与 LAN transport、`remote` 频道包装均已进 Rust；SSH/WSL/Docker/v3 四种
-transport 的端口实现与 attach/detach 未做。
+状态：**频道完整落地，仍未翻面（2026-11-23）**——registry 状态机、SSH host key、
+RPC 客户端与 LAN transport、`remote` 频道包装、scoped 服务面与 attach/detach 均已进
+Rust；SSH/WSL/Docker/v3 四种 transport 的端口实现未做。
 
 ## 1. 面拆解
 
@@ -126,10 +126,38 @@ entry.workspace_runtime[workspaceKey] = {
 | `bindContext` | 转发 `bind_context`；空 `workspacePath` 显式报错 |
 | `dispose` | 转发 `dispose_session` |
 | `getSession` / `listSessions` | 快照（`state`/`sourceAvailability`/`generation`） |
-| `attach` / `detach` | **显式报错**（需 scoped 服务集合注册能力） |
+| `attach` | 为 session 建 scoped 服务面，返回 `{scopeId, attachmentId, sessionId}` |
+| `detach` | 回收指定 attachment（未知 id 幂等） |
 | `onDynamicConnectionEvent` | 只发当前订阅者，**不重放历史** |
 
-三条与 TS 对齐的关键取舍：
+### 4.1 `attach` / `detach`
+
+`attach` 的四条约束：
+
+1. **必须先 `bindContext`**。`workspacePath` / `workspaceIdentity` 缺失时报
+   「先 bindContext 再 attach」——指向正确的修复动作，而不是给个空服务面。
+2. **建 scope 但不 ready**。页面端口注册完 `ChannelClient` 后由宿主发
+   `scope-ready` 控制帧 → `registry.start(scopeId)`。这条时序由
+   `ScopedServerRegistry` 保证（见 `scoped-server-registry.md` §3.1）。
+3. **服务面由工厂提供**（`RemoteScopeFactory::register`）。频道本身不假设
+   服务集合内容——本地与远端集合都能挂。
+4. **注册失败要回收**：scope 与 attachment 都不留。
+
+`detach` 只回收**指定的**那一个 attachment（多个 attach 各自独立 scope）；
+`dispose` 则回收该 session 的**全部** attachment（TS `detachSessionAttachments` 同序：
+先摘 attachment，再释放 session）。
+
+**未装配 scoped 服务面时**（`scopes`/`scope_factory` 为 `None`），`attach` 仍显式报错
+而不是返回假 `scopeId`——假 id 会让 renderer 以为挂接成功，后续帧全部丢弃。
+
+### 4.2 与 TS 的差异（登记）
+
+**频道守卫的位置**：TS 在 `registerChannel` 入口包一层 `guardedServer`，一次覆盖全部
+服务。Rust 的 `ChannelServer` 没有可拦截的注册入口，因此守卫由**工厂实现**在注册时
+自行套用（例如包一层带校验的 `ServerChannel` 再 `register_channel`）。语义要求相同：
+未知事件名不得让服务端 panic。
+
+四条与 TS 对齐的关键取舍：
 
 1. **`connect` 失败不抛 RPC 错误**，而是返回 `{ok:false,error}`。renderer 按 `ok`
    分支处理；抛错会走成未捕获异常。传输端口缺失同此。
@@ -141,8 +169,13 @@ entry.workspace_runtime[workspaceKey] = {
 
 ## 5. 未迁与降级语义
 
+- **四种 transport 的端口实现**：LAN 的连接层（`rpc_client::lan`）已就绪，
+  但把它接到 `RemoteTransportPort` 上还没做；SSH/WSL/Docker 需 `russh` 一类客户端，
+  v3 需 `snow` 一类 Noise 实现。
+- **频道仍未进 `service_channel_names()` 与 inprocess 默认集**：整频道切换的前提是
+  至少一种 transport 端口可用，否则翻面后所有远程连接都会返回 `{ok:false}`。
 
-## 5. 验收
+## 6. 验收
 
 - `cargo test -p remote-session-registry`（20 条）：连接键五种 kind、docker 不复用、
   requestId 重复拒绝、取消幂等、generation 递增、迟到完成不复活（含 fail 之后）、
@@ -150,4 +183,8 @@ entry.workspace_runtime[workspaceKey] = {
   `findSessionForWorkspace` 歧义报错、stats 分别计数。
 - `cargo test -p workspace-identity`（10 条）：`build_ssh_remote_host_key` 的 authKind
   优先级（privateKey > password > agent）与私钥路径归一（盘符大小写、`..` 越界、UNC）。
+- `cargo test -p host-channels --test remote_channel`（16 条）：除前 10 条外新增
+  attach 未绑定上下文报错、attach 建 scope 但不 ready、detach 只回收指定 attachment、
+  dispose 回收该 session 全部 attachment、工厂注册失败不留 scope/attachment。
+- `cargo test -p rpc-host --test scoped_registry`（7 条）：见 `scoped-server-registry.md`。
 - 全套门禁：clippy -D warnings、typecheck、lint、architecture。
