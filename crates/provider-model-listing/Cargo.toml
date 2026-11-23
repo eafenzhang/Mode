@@ -10,7 +10,13 @@ name = "provider_model_listing"
 path = "src/lib.rs"
 
 [dependencies]
+reqwest = { workspace = true, features = ["json"] }
+rustls.workspace = true
+tokio = { workspace = true, features = ["rt", "time"] }
 provider-config = { path = "../provider-config" }
 serde.workspace = true
 serde_json.workspace = true
 url.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "io-util", "sync", "time"] }

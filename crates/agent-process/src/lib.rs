@@ -23,6 +23,7 @@ mod cua_operation_tracker;
 mod initialize;
 mod mcp;
 mod plugins;
+mod provider_connectivity;
 mod official_mcp_auth_headers;
 mod provider_runtime_headers;
 mod provider_sync;

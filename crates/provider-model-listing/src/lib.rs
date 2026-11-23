@@ -296,3 +296,137 @@ mod tests {
         }
     }
 }
+/// 检测可用模型的 HTTP 执行器（TS `createRemoteModelCatalogExecutor` 同义）。
+/// 纯读：任何失败或成功都不写配置、不改 Registry。
+pub const REMOTE_MODEL_CATALOG_MAX_PAGES: usize = 10;
+pub const REMOTE_MODEL_CATALOG_TIMEOUT_MS: u64 = 15_000;
+
+pub async fn fetch_remote_model_catalog(
+    input: &RemoteModelCatalogRequest,
+) -> Result<Vec<String>, String> {
+    fetch_remote_model_catalog_with(input, REMOTE_MODEL_CATALOG_TIMEOUT_MS).await
+}
+
+pub async fn fetch_remote_model_catalog_with(
+    input: &RemoteModelCatalogRequest,
+    timeout_ms: u64,
+) -> Result<Vec<String>, String> {
+    // reqwest 以 rustls-no-provider 编译：必须先安装 provider。
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_millis(timeout_ms.max(1)))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let mut request = build_remote_model_list_request(input)?;
+    let mut model_ids: Vec<String> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for _ in 0..REMOTE_MODEL_CATALOG_MAX_PAGES {
+        let mut builder = client.get(&request.url);
+        for (key, value) in &request.headers {
+            builder = builder.header(key, value);
+        }
+        let response = builder.send().await.map_err(|error| {
+            if error.is_timeout() {
+                format!("请求超时（GET {}）", request.url)
+            } else {
+                format!("无法连接 Provider（GET {}）", request.url)
+            }
+        })?;
+        let status = response.status();
+        if !status.is_success() {
+            let reason = status.canonical_reason().unwrap_or("");
+            let status_text = if reason.is_empty() {
+                format!("Provider 返回 {}", status.as_u16())
+            } else {
+                format!("Provider 返回 {} {reason}", status.as_u16())
+            };
+            let hint = if status.as_u16() == 404 {
+                format!(
+                    "（请求：GET {}；若为 OpenAI 兼容网关，请检查 Base URL 是否遗漏 /v1 前缀）",
+                    request.url
+                )
+            } else {
+                format!("（请求：GET {}）", request.url)
+            };
+            return Err(format!("{status_text}{hint}"));
+        }
+        let payload: Value = response.json().await.map_err(|error| {
+            format!(
+                "Provider 模型列表不是合法 JSON：{error}（请求：GET {}）",
+                request.url
+            )
+        })?;
+        let page = parse_remote_model_list_page(&payload)?;
+        for model_id in page.model_ids {
+            if seen.insert(model_id.clone()) {
+                model_ids.push(model_id);
+            }
+        }
+        let Some(cursor) = page.cursor else {
+            break;
+        };
+        let mut next = reqwest::Url::parse(&request.url)
+            .map_err(|error| format!("Provider 模型列表 URL 无效：{error}"))?;
+        next.query_pairs_mut().append_pair("after", &cursor);
+        request.url = next.to_string();
+    }
+    Ok(model_ids)
+}
+#[cfg(test)]
+mod executor_tests {
+    use super::*;
+    use std::collections::BTreeMap;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    #[tokio::test]
+    async fn paginates_dedupes_and_sets_after_cursor() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        let server = tokio::spawn(async move {
+            let mut requests = Vec::new();
+            for index in 0..2 {
+                let (mut socket, _) = listener.accept().await.expect("accept");
+                let mut data = Vec::new();
+                let mut buffer = [0_u8; 4096];
+                loop {
+                    let read = socket.read(&mut buffer).await.expect("read");
+                    if read == 0 {
+                        break;
+                    }
+                    data.extend_from_slice(&buffer[..read]);
+                    if data.windows(4).any(|window| window == [13, 10, 13, 10]) {
+                        break;
+                    }
+                }
+                requests.push(String::from_utf8_lossy(&data).into_owned());
+                let body = if index == 0 {
+                    serde_json::json!({ "data": [{ "id": "m1" }, { "id": "m2" }], "has_more": true, "last_id": "m2" })
+                } else {
+                    serde_json::json!({ "data": [{ "id": "m2" }, { "id": "m3" }], "has_more": false })
+                };
+                let text = body.to_string();
+                let crlf = String::from_utf8(vec![13, 10]).expect("crlf");
+                let response = format!("HTTP/1.1 200 OK{crlf}Content-Type: application/json{crlf}Content-Length: {}{crlf}Connection: close{crlf}{crlf}{text}", text.len());
+                let _ = socket.write_all(response.as_bytes()).await;
+                let _ = socket.shutdown().await;
+            }
+            requests
+        });
+        let input = RemoteModelCatalogRequest {
+            api_type: "openai-chat-completions".to_string(),
+            base_url: format!("http://127.0.0.1:{port}/v1"),
+            api_key: Some("sk-test".to_string()),
+            headers: None,
+        };
+        let models = fetch_remote_model_catalog(&input).await.expect("catalog");
+        assert_eq!(
+            models,
+            vec!["m1".to_string(), "m2".to_string(), "m3".to_string()]
+        );
+        let requests = server.await.expect("server");
+        assert!(requests[0].starts_with("GET /v1/models"), "{}", requests[0]);
+        assert!(requests[1].contains("after=m2"), "{}", requests[1]);
+        let _ = BTreeMap::<String, String>::new();
+    }
+}

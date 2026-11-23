@@ -88,7 +88,16 @@ builtin/personal 冲突拒绝）、`rename_personal_model`（builtin 归属保�
 `save_personal_model_draft`（expectedRevision CAS、recommended/manual 类型沿用、
 结构空 + recommended 删除精确规则）。阶段 2 的 10 个方法全部完成，15 条用例。
 
-待做：阶段 3（testModelConnectivity / 远端目录）与阶段 4（频道装配）。
+阶段 3 已落（2026-11-23）：
+
+- `agent-process::test_model_connectivity`：legacy `provider/testModelConnectivity`
+  请求（workspace + selection），结果必须是 `{success:true}`，失败以请求错误上抛；
+  `mode-agent` 频道新增同名命令。
+- `provider-model-listing::fetch_remote_model_catalog`：按 Provider API 类型构造
+  请求，HTTP GET 分页（`after` 游标，最多 10 页/15s），按 id 去重聚合；404 附
+  Base URL 含 /v1 的提示；纯读不写配置。本地两页分页用例。
+
+待做：阶段 4（provider-settings 频道 + onDidChange + inprocess 装配）。
 
 ## 3. 阶段 2：写入面（待做）
 

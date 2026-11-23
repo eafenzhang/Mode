@@ -58,6 +58,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use model_selection::ModelSelection;
 use agent_process::{
     external_runtime_preferences_handler, AgentControlClient, AgentWorkspaceTarget,
     AppRuntimePreferences, ControlError, GrantTrustResult, ListSessionsOptions,
@@ -270,6 +271,14 @@ struct ReadSessionParams {
     /// 被动索引/观察者用 `existing-only`；缺省 `start-if-needed`。
     #[serde(default)]
     runtime_policy: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TestModelConnectivityParams {
+    #[serde(flatten)]
+    workspace: WorkspaceParams,
+    selection: ModelSelection,
 }
 
 #[derive(Debug, Deserialize)]
@@ -509,6 +518,15 @@ impl ServerChannel for ModeAgentChannel {
                         .await
                         .map_err(control_error)?;
                     json_value(&messages)
+                }
+                "testModelConnectivity" => {
+                    let params: TestModelConnectivityParams =
+                        parse_params("testModelConnectivity", arg)?;
+                    control
+                        .test_model_connectivity(&params.workspace.target(), &params.selection)
+                        .await
+                        .map_err(control_error)?;
+                    json_value(&serde_json::json!({ "success": true }))
                 }
                 "readSessionEvents" => {
                     let params: ReadSessionEventsParams = parse_params("readSessionEvents", arg)?;
