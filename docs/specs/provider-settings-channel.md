@@ -161,6 +161,9 @@ writeGeneration、不触发 onDidChange**（锁内失败必须能被反复重试
 路径时频道不可构造（留痕跳过，回落 Node），与 model-selection 同口径。频道已进
 `service_channel_names()` 与 inprocess `default_owned_channels()`（35 个）。
 
+**提交**：阶段 4 首版 `82bdb5a47`；`b26feb475` 修正 `resolveModelConfig` 的两处语义偏差
+（inherited 同源、问题路径前缀），见 §6 契约用例。
+
 ## 6. 验收
 
 - 阶段 0：`cargo test -p provider-config --lib exact_rule`。
