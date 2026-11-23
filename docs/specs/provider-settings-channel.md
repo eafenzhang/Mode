@@ -82,7 +82,13 @@ Personal 仓库 revision。输出与 `ProviderSettingsView` 同构：
   inheritedModelIds 优先。
 - 用例：provider-config 17 条、host provider_settings 13 条。
 
-待做：model 级 `add/rename/delete/saveDraft` 四个方法。
+已落补充 2（2026-11-23）：`add_personal_model`（enabled 强制 true、成员追加、
+builtin/personal 冲突拒绝）、`rename_personal_model`（builtin 归属保护、成员与
+精确规则改名、顺序映射）、`delete_personal_model`（builtin 保护、成员/规则清理）、
+`save_personal_model_draft`（expectedRevision CAS、recommended/manual 类型沿用、
+结构空 + recommended 删除精确规则）。阶段 2 的 10 个方法全部完成，15 条用例。
+
+待做：阶段 3（testModelConnectivity / 远端目录）与阶段 4（频道装配）。
 
 ## 3. 阶段 2：写入面（待做）
 

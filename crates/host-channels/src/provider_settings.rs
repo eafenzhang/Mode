@@ -817,6 +817,339 @@ pub fn set_personal_model_enabled(
     })
 }
 
+fn personal_model_ids(config: &provider_config::ProviderConfig) -> Vec<String> {
+    match &config.personal_model_ids {
+        Field::Value(values) => values.clone(),
+        _ => Vec::new(),
+    }
+}
+
+fn model_order(config: &provider_config::ProviderConfig) -> Vec<String> {
+    match &config.model_order {
+        Field::Value(values) => values.clone(),
+        _ => Vec::new(),
+    }
+}
+
+fn builtin_ids_for(
+    snapshot: &ProviderConfigSnapshot,
+    current: &PersonalLayer,
+    provider_id: &str,
+    membership: Option<&ProviderModelMembershipRef<'_>>,
+) -> Vec<String> {
+    match membership {
+        Some(membership) => unique_strings(membership.inherited_model_ids),
+        None => provider_builtin_model_ids(snapshot, current, provider_id),
+    }
+}
+
+/// TS `addPersonalModel`：追加 personal model，enabled 强制 true。
+#[allow(clippy::too_many_arguments)]
+pub fn add_personal_model(
+    snapshot: &ProviderConfigSnapshot,
+    current: &PersonalLayer,
+    provider_id: &str,
+    model_id: &str,
+    config: &provider_config::ModelConfig,
+    membership: Option<&ProviderModelMembershipRef<'_>>,
+    use_recommended_config: Option<bool>,
+) -> Result<ProviderConfigLayerUpdate, String> {
+    let provider_id = provider_id.trim();
+    let model_id = model_id.trim();
+    if provider_id.is_empty() {
+        return Err("providerId 不能为空".to_string());
+    }
+    if model_id.is_empty() {
+        return Err("modelId 不能为空".to_string());
+    }
+    assert_membership_current(membership, provider_id, &current.revision)?;
+    let mut provider = writable_provider_config(snapshot, current, provider_id)?;
+    let builtin_ids = builtin_ids_for(snapshot, current, provider_id, membership);
+    let current_ids = personal_model_ids(&provider);
+    if builtin_ids.iter().any(|id| id == model_id) || current_ids.iter().any(|id| id == model_id) {
+        return Err(format!("Model 已存在: {provider_id}/{model_id}"));
+    }
+    let mut next_ids = current_ids.clone();
+    next_ids.push(model_id.to_string());
+    provider.personal_model_ids = Field::Value(next_ids.clone());
+    provider.model_order = Field::Value(provider_resolver::resolve_owned_order(
+        &builtin_ids,
+        &next_ids,
+        &model_order(&provider),
+    ));
+    let saved = config.overlay(&provider_config::ModelConfig {
+        enabled: Field::Value(true),
+        ..provider_config::ModelConfig::default()
+    });
+    Ok(ProviderConfigLayerUpdate {
+        providers: set_provider_config(current, provider_id, provider),
+        models: current
+            .models
+            .set_exact(provider_id, model_id, saved, use_recommended_config),
+        provider_order: current.provider_order.clone(),
+        default_model_selection: current
+            .default_model_selection
+            .as_ref()
+            .map(to_layer_selection),
+    })
+}
+
+/// TS `renamePersonalModel`：builtin 归属不可改名，personal 改名保持位置。
+#[allow(clippy::too_many_arguments)]
+pub fn rename_personal_model(
+    snapshot: &ProviderConfigSnapshot,
+    current: &PersonalLayer,
+    provider_id: &str,
+    current_model_id: &str,
+    next_model_id: &str,
+    membership: Option<&ProviderModelMembershipRef<'_>>,
+) -> Result<ProviderConfigLayerUpdate, String> {
+    let provider_id = provider_id.trim();
+    let current_model_id = current_model_id.trim();
+    let next_model_id = next_model_id.trim();
+    if provider_id.is_empty() || current_model_id.is_empty() || next_model_id.is_empty() {
+        return Err("providerId/modelId 不能为空".to_string());
+    }
+    assert_membership_current(membership, provider_id, &current.revision)?;
+    let unchanged = || ProviderConfigLayerUpdate {
+        providers: current.providers.clone(),
+        models: current.models.clone(),
+        provider_order: current.provider_order.clone(),
+        default_model_selection: current
+            .default_model_selection
+            .as_ref()
+            .map(to_layer_selection),
+    };
+    if current_model_id == next_model_id {
+        return Ok(unchanged());
+    }
+    let provider_rule = current
+        .providers
+        .get_rule(provider_id)
+        .ok_or_else(|| format!("Personal Model 不存在: {provider_id}/{current_model_id}"))?;
+    let builtin_ids = builtin_ids_for(snapshot, current, provider_id, membership);
+    if builtin_ids.iter().any(|id| id == current_model_id) {
+        return Err(format!(
+            "Built-in Model 不能重命名: {provider_id}/{current_model_id}"
+        ));
+    }
+    let ids = personal_model_ids(&provider_rule.config);
+    if !ids.iter().any(|id| id == current_model_id) {
+        return Err(format!(
+            "Personal Model 不存在: {provider_id}/{current_model_id}"
+        ));
+    }
+    if ids.iter().any(|id| id == next_model_id) || builtin_ids.iter().any(|id| id == next_model_id)
+    {
+        return Err(format!("Model 已存在: {provider_id}/{next_model_id}"));
+    }
+    let next_ids: Vec<String> = ids
+        .iter()
+        .map(|id| {
+            if id == current_model_id {
+                next_model_id.to_string()
+            } else {
+                id.clone()
+            }
+        })
+        .collect();
+    let requested_order: Vec<String> = model_order(&provider_rule.config)
+        .into_iter()
+        .map(|id| {
+            if id == current_model_id {
+                next_model_id.to_string()
+            } else {
+                id
+            }
+        })
+        .collect();
+    let mut provider = provider_rule.config.clone();
+    provider.personal_model_ids = Field::Value(next_ids.clone());
+    provider.model_order = Field::Value(provider_resolver::resolve_owned_order(
+        &builtin_ids,
+        &next_ids,
+        &requested_order,
+    ));
+    Ok(ProviderConfigLayerUpdate {
+        providers: set_provider_config(current, provider_id, provider),
+        models: current
+            .models
+            .rename_exact_model(provider_id, current_model_id, next_model_id),
+        provider_order: current.provider_order.clone(),
+        default_model_selection: current
+            .default_model_selection
+            .as_ref()
+            .map(to_layer_selection),
+    })
+}
+
+/// TS `deletePersonalModel`：builtin 归属不可删，personal 删除并清理精确规则。
+pub fn delete_personal_model(
+    snapshot: &ProviderConfigSnapshot,
+    current: &PersonalLayer,
+    provider_id: &str,
+    model_id: &str,
+    membership: Option<&ProviderModelMembershipRef<'_>>,
+) -> Result<ProviderConfigLayerUpdate, String> {
+    let provider_id = provider_id.trim();
+    let model_id = model_id.trim();
+    if provider_id.is_empty() || model_id.is_empty() {
+        return Err("providerId/modelId 不能为空".to_string());
+    }
+    assert_membership_current(membership, provider_id, &current.revision)?;
+    let provider_rule = current.providers.get_rule(provider_id);
+    let builtin_ids = builtin_ids_for(snapshot, current, provider_id, membership);
+    if builtin_ids.iter().any(|id| id == model_id) {
+        return Err(format!("Built-in Model 不能删除: {provider_id}/{model_id}"));
+    }
+    let ids = provider_rule
+        .map(|rule| personal_model_ids(&rule.config))
+        .unwrap_or_default();
+    if !ids.iter().any(|id| id == model_id) {
+        return Err(format!("Personal Model 不存在: {provider_id}/{model_id}"));
+    }
+    let next_ids: Vec<String> = ids.iter().filter(|id| *id != model_id).cloned().collect();
+    let mut provider = provider_rule
+        .map(|rule| rule.config.clone())
+        .unwrap_or_default();
+    provider.personal_model_ids = Field::Value(next_ids.clone());
+    provider.model_order = Field::Value(provider_resolver::resolve_owned_order(
+        &builtin_ids,
+        &next_ids,
+        &model_order(&provider),
+    ));
+    Ok(ProviderConfigLayerUpdate {
+        providers: set_provider_config(current, provider_id, provider),
+        models: current.models.delete_exact(provider_id, model_id),
+        provider_order: current.provider_order.clone(),
+        default_model_selection: current
+            .default_model_selection
+            .as_ref()
+            .map(to_layer_selection),
+    })
+}
+
+fn json_is_structurally_empty(value: &provider_config::JsonValue) -> bool {
+    match value {
+        provider_config::JsonValue::Object(entries) => {
+            entries.values().all(json_is_structurally_empty)
+        }
+        provider_config::JsonValue::Array(items) => items.is_empty(),
+        _ => false,
+    }
+}
+
+/// TS `savePersonalModelDraft`：成员/顺序/精确规则在同一次 update 中提交。
+#[allow(clippy::too_many_arguments)]
+pub fn save_personal_model_draft(
+    snapshot: &ProviderConfigSnapshot,
+    current: &PersonalLayer,
+    provider_id: &str,
+    original_model_id: &str,
+    next_model_id: &str,
+    config: &provider_config::ModelConfig,
+    expected_personal_revision: &str,
+    use_recommended_config: Option<bool>,
+    membership: Option<&ProviderModelMembershipRef<'_>>,
+) -> Result<ProviderConfigLayerUpdate, String> {
+    let provider_id = provider_id.trim();
+    let original_id = original_model_id.trim();
+    let next_id = next_model_id.trim();
+    if provider_id.is_empty() || original_id.is_empty() || next_id.is_empty() {
+        return Err("providerId/modelId 不能为空".to_string());
+    }
+    assert_membership_current(membership, provider_id, &current.revision)?;
+    if current.revision != expected_personal_revision {
+        return Err(format!(
+            "Personal Provider Config revision conflict: expected {expected_personal_revision}, current {}",
+            current.revision
+        ));
+    }
+    let recommended = use_recommended_config.unwrap_or_else(|| {
+        !matches!(
+            current.models.get_exact_rule(provider_id, original_id),
+            Some((provider_config::ExactModelRuleKind::Manual, _))
+        )
+    });
+    let provider_rule = current.providers.get_rule(provider_id);
+    let builtin_ids = builtin_ids_for(snapshot, current, provider_id, membership);
+    let renaming = original_id != next_id;
+    let builtin_has = |id: &str| builtin_ids.iter().any(|candidate| candidate == id);
+    if renaming && builtin_has(original_id) {
+        return Err(format!(
+            "Built-in Model 不能重命名: {provider_id}/{original_id}"
+        ));
+    }
+    if renaming && builtin_has(next_id) {
+        return Err(format!("Model 已存在: {provider_id}/{next_id}"));
+    }
+    let personal_ids = provider_rule
+        .map(|rule| personal_model_ids(&rule.config))
+        .unwrap_or_default();
+    if !builtin_has(original_id) && !personal_ids.iter().any(|id| id == original_id) {
+        return Err(format!("Model 不存在: {provider_id}/{original_id}"));
+    }
+    if renaming && (personal_ids.iter().any(|id| id == next_id) || builtin_has(next_id)) {
+        return Err(format!("Model 已存在: {provider_id}/{next_id}"));
+    }
+    let mut providers = current.providers.clone();
+    let mut models = current.models.clone();
+    if renaming {
+        if !personal_ids.iter().any(|id| id == original_id) {
+            return Err(format!(
+                "Personal Model 不存在: {provider_id}/{original_id}"
+            ));
+        }
+        let next_personal: Vec<String> = personal_ids
+            .iter()
+            .map(|id| {
+                if id == original_id {
+                    next_id.to_string()
+                } else {
+                    id.clone()
+                }
+            })
+            .collect();
+        let requested_order: Vec<String> = provider_rule
+            .map(|rule| model_order(&rule.config))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|id| {
+                if id == original_id {
+                    next_id.to_string()
+                } else {
+                    id
+                }
+            })
+            .collect();
+        let mut provider = provider_rule
+            .map(|rule| rule.config.clone())
+            .unwrap_or_default();
+        provider.personal_model_ids = Field::Value(next_personal.clone());
+        provider.model_order = Field::Value(provider_resolver::resolve_owned_order(
+            &builtin_ids,
+            &next_personal,
+            &requested_order,
+        ));
+        providers = set_provider_config(current, provider_id, provider);
+        models = models.rename_exact_model(provider_id, original_id, next_id);
+    }
+    models = if recommended && json_is_structurally_empty(&config.to_json()) {
+        models.delete_exact(provider_id, next_id)
+    } else {
+        models.set_exact(provider_id, next_id, config.clone(), Some(recommended))
+    };
+    Ok(ProviderConfigLayerUpdate {
+        providers,
+        models,
+        provider_order: current.provider_order.clone(),
+        default_model_selection: current
+            .default_model_selection
+            .as_ref()
+            .map(to_layer_selection),
+    })
+}
+
 /// 删除 Personal Provider：同时清理它的精确模型规则与顺序项。
 pub fn delete_personal_provider(
     current: &PersonalLayer,
@@ -1529,5 +1862,186 @@ mod model_mutations_tests {
             personal_revision: "rev-2",
         };
         assert!(reorder_personal_models(&snapshot(), &layer(), "p1", &[], Some(&stale)).is_err());
+    }
+}
+#[cfg(test)]
+mod model_crud_tests {
+    use super::*;
+    use provider_config::{ModelConfig, ModelConfigRules, ProviderConfig, ProviderConfigMap};
+
+    fn snapshot() -> ProviderConfigSnapshot {
+        let mut builtin = ProviderConfigMap::empty();
+        builtin = builtin.set_rule(provider_config::ProviderConfigRule {
+            provider_id: "builtin-1".into(),
+            template_id: Field::Absent,
+            provider_name: Field::Value("Builtin".into()),
+            enabled: Field::Value(true),
+            config: ProviderConfig {
+                group: Field::Value(ProviderGroup::StandardPersonal),
+                builtin_model_ids: Field::Value(vec!["b1".into()]),
+                ..ProviderConfig::default()
+            },
+        });
+        ProviderConfigSnapshot {
+            revision: "[]".into(),
+            mode_builtin_revision: String::new(),
+            personal_revision: String::new(),
+            mode_builtin_providers: builtin,
+            mode_builtin_provider_templates: provider_config::ProviderTemplateMap::empty(),
+            personal_providers: ProviderConfigMap::empty(),
+            mode_builtin_model_rules: ModelConfigRules::empty(),
+            personal_models: ModelConfigRules::empty(),
+            personal_provider_order: Vec::new(),
+        }
+    }
+    fn layer(models: ModelConfigRules) -> PersonalLayer {
+        let rule = provider_config::ProviderConfigRule {
+            provider_id: "p1".into(),
+            template_id: Field::Absent,
+            provider_name: Field::Value("P1".into()),
+            enabled: Field::Absent,
+            config: ProviderConfig {
+                group: Field::Value(ProviderGroup::StandardPersonal),
+                personal_model_ids: Field::Value(vec!["p1m".into()]),
+                model_order: Field::Value(vec!["p1m".into()]),
+                ..ProviderConfig::default()
+            },
+        };
+        PersonalLayer {
+            revision: "rev-1".into(),
+            providers: ProviderConfigMap::empty().set_rule(rule),
+            models,
+            provider_order: None,
+            default_model_selection: None,
+        }
+    }
+
+    #[test]
+    fn add_rename_delete_personal_model() {
+        let added = add_personal_model(
+            &snapshot(),
+            &layer(ModelConfigRules::empty()),
+            "p1",
+            "p2m",
+            &ModelConfig::default(),
+            None,
+            None,
+        )
+        .expect("add");
+        let rule = added.providers.get("p1").expect("rule");
+        assert_eq!(
+            rule.config.personal_model_ids,
+            Field::Value(vec!["p1m".to_string(), "p2m".to_string()])
+        );
+        let saved = added.models.get_exact("p1", "p2m").expect("exact");
+        assert_eq!(saved.enabled, Field::Value(true));
+        assert!(add_personal_model(
+            &snapshot(),
+            &layer(ModelConfigRules::empty()),
+            "p1",
+            "p1m",
+            &ModelConfig::default(),
+            None,
+            None
+        )
+        .is_err());
+        assert!(add_personal_model(
+            &snapshot(),
+            &layer(ModelConfigRules::empty()),
+            "builtin-1",
+            "b1",
+            &ModelConfig::default(),
+            None,
+            None
+        )
+        .is_err());
+
+        let models =
+            ModelConfigRules::empty().set_exact("p1", "p1m", ModelConfig::default(), Some(true));
+        let renamed =
+            rename_personal_model(&snapshot(), &layer(models.clone()), "p1", "p1m", "p9", None)
+                .expect("rename");
+        let rule = renamed.providers.get("p1").expect("rule");
+        assert_eq!(
+            rule.config.personal_model_ids,
+            Field::Value(vec!["p9".to_string()])
+        );
+        assert!(renamed.models.get_exact_rule("p1", "p9").is_some());
+        assert!(renamed.models.get_exact_rule("p1", "p1m").is_none());
+        assert!(rename_personal_model(
+            &snapshot(),
+            &layer(models.clone()),
+            "builtin-1",
+            "b1",
+            "b2",
+            None
+        )
+        .is_err());
+
+        let deleted =
+            delete_personal_model(&snapshot(), &layer(models), "p1", "p1m", None).expect("delete");
+        assert_eq!(
+            deleted
+                .providers
+                .get("p1")
+                .expect("rule")
+                .config
+                .personal_model_ids,
+            Field::Value(Vec::<String>::new())
+        );
+        assert!(deleted.models.get_exact_rule("p1", "p1m").is_none());
+    }
+
+    #[test]
+    fn draft_revision_conflict_and_recommended_empty() {
+        let models =
+            ModelConfigRules::empty().set_exact("p1", "p1m", ModelConfig::default(), Some(true));
+        let current = layer(models);
+        assert!(save_personal_model_draft(
+            &snapshot(),
+            &current,
+            "p1",
+            "p1m",
+            "p1m",
+            &ModelConfig::default(),
+            "rev-2",
+            None,
+            None
+        )
+        .is_err());
+        // recommended + 结构空 → 删除精确规则。
+        let update = save_personal_model_draft(
+            &snapshot(),
+            &current,
+            "p1",
+            "p1m",
+            "p1m",
+            &ModelConfig::default(),
+            "rev-1",
+            Some(true),
+            None,
+        )
+        .expect("draft");
+        assert!(update.models.get_exact_rule("p1", "p1m").is_none());
+        // manual + enabled=false（非空）→ 写入 Manual 规则。
+        let config = ModelConfig {
+            enabled: Field::Value(false),
+            ..ModelConfig::default()
+        };
+        let update = save_personal_model_draft(
+            &snapshot(),
+            &current,
+            "p1",
+            "p1m",
+            "p1m",
+            &config,
+            "rev-1",
+            Some(false),
+            None,
+        )
+        .expect("draft");
+        let (kind, saved) = update.models.get_exact_rule("p1", "p1m").expect("rule");
+        assert_eq!(kind, provider_config::ExactModelRuleKind::Manual);
+        assert_eq!(saved.enabled, Field::Value(false));
     }
 }
