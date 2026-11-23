@@ -1,7 +1,8 @@
 # Spec：`remote` workspaces 迁移（LT-16.4d）
 
-状态：**首切落地（2026-11-23）**——registry 状态机 + SSH host key 已进 Rust；RPC 频道与
-四种 transport 未迁。
+状态：**RPC 频道已落地，仍未翻面（2026-11-23）**——registry 状态机、SSH host key、
+RPC 客户端与 LAN transport、`remote` 频道包装均已进 Rust；SSH/WSL/Docker/v3 四种
+transport 的端口实现与 attach/detach 未做。
 
 ## 1. 面拆解
 
@@ -114,15 +115,32 @@ entry.workspace_runtime[workspaceKey] = {
 多个候选（例如两个 docker session 指向同一 workspace）时**报错而不是挑一个**。
 静默选择会把消息发到错误的会话；TS 同（抛错）。
 
-## 4. 未迁与降级语义
+## 4. RPC 频道（已落，未翻面）
 
-- **RPC 频道 `remote` 未落地**：registry 目前只有库 API，没有 `ServerChannel` 包装，
-  所以**不进 `service_channel_names()`、不进 inprocess 默认集**。
-- **`attach`/`detach` 未迁**：依赖 scoped service 集合 + `MessagePort`，壳内
-  `rpc-host::LocalScopeRegistry` 只有 scope 挂接表，没有「把另一套服务集合注册进去」的
-  能力。这一半必须等 transport 与 service-collection 暴露一起做。
-- **`onDynamicConnectionEvent` 未接**：registry 已产出事件值（`RemoteWorkspaceEvent`），
-  但发射器与 RPC 订阅绑定在频道层。
+`host-channels::remote`（`REMOTE_CHANNEL = "remote"`）把状态机包成 `ServerChannel`：
+
+| 方法 | 语义 |
+| --- | --- |
+| `connect` | 派生 identity → `begin_connect` → 起端口传输 → `complete_connect`；返回 `{ok:true,descriptor}` 或 `{ok:false,error}` |
+| `cancelConnect` | 转发 `cancel_connect`（未知 requestId 幂等） |
+| `bindContext` | 转发 `bind_context`；空 `workspacePath` 显式报错 |
+| `dispose` | 转发 `dispose_session` |
+| `getSession` / `listSessions` | 快照（`state`/`sourceAvailability`/`generation`） |
+| `attach` / `detach` | **显式报错**（需 scoped 服务集合注册能力） |
+| `onDynamicConnectionEvent` | 只发当前订阅者，**不重放历史** |
+
+三条与 TS 对齐的关键取舍：
+
+1. **`connect` 失败不抛 RPC 错误**，而是返回 `{ok:false,error}`。renderer 按 `ok`
+   分支处理；抛错会走成未捕获异常。传输端口缺失同此。
+2. **secret 一律不下发**：`descriptor.target` 里没有 `password` / `token` /
+   `privateKeyPassphrase`。SSH 只保留 `privateKeyPath`（它参与共享键，属于身份而非
+   秘密）。
+3. **`attach`/`detach` 报错而不是返回假 id**。假 id 会让 renderer 以为挂接成功，
+   后续帧全部丢弃。
+
+## 5. 未迁与降级语义
+
 
 ## 5. 验收
 

@@ -2572,6 +2572,7 @@ dependencies = [
  "provider-config-source",
  "provider-model-listing",
  "provider-resolver",
+ "remote-session-registry",
  "reqwest",
  "rpc-host",
  "rpc-wire",

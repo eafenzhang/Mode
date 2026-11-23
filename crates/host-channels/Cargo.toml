@@ -53,6 +53,7 @@ provider-config-file-codec = { path = "../provider-config-file-codec" }
 # resolveInteraction envelope 的 commandId 生成。
 uuid.workspace = true
 workspace-identity = { path = "../workspace-identity" }
+remote-session-registry = { path = "../remote-session-registry" }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 lan-discovery = { path = "../lan-discovery" }
 reqwest = { workspace = true, features = ["json"] }
