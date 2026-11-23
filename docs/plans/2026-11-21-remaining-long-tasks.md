@@ -18,10 +18,10 @@
 | **LT-9** | W5 Web/远程服务端改 axum | W2/W4 稳定 | 契约对拍 + 手机远控验收 | 🟡 HTTP + WS 已全收口：axum health/version/server-info + LAN 六端点 + **`/ws/host` 帧桥**（`crates/server/src/ws_host.rs`，一次性 capability 30s TTL + 每连接 `ChannelServer` + 复用 `host_channels::assembly`；`crates/server/src/main.rs` 同时挂 `router_with_lan` 与 `router_with_ws_host`）；**剩余**：手机远控真机验收、`/ws/v1/direct`（v3 ControlLink） |
 | **LT-10** | W5 插件市场逻辑进壳 | `plugin-host` 资产层 | 目录/安装/卸载走壳，素材仍按资产层 | 🟡 源码已远超原状态：`crates/plugin-sync-service`（14 文件）覆盖记录层（5 测试）、卸载编排、安装编排（依赖闭包 BFS/跨市场阻断/循环检测）、config 写回（enable/remove/suppression，5 测试）、网络源（github/git/url/git-subdir 走 `git clone` 子进程：`MODE_GIT_BINARY`、90s 超时、网络型 3 次重试）、**zip 源**（sha256 + 四重限额 + 根定位，7 测试）；`npm`/`pip` 显式不支持（与 TS 同口径）。**剩余**：真机走查与 TS 逐字段对拍补齐 |
 | **LT-11** | W6 收口 | LT-7 ~ LT-10 | `stdioFrames`/`stdoutGuard` 退场、删 TS 宿主编排与 `host-sidecar` 发运集、插件宿主换嵌入引擎、四仪表终值复测 | 🟡 `node scripts/w6-readiness.mjs`（2026-11-23 实跑，扫描 5871 文件）仍 **NOT READY**：stdioFrames 6 / stdoutGuard 6 / host-sidecar 119（22 文件）/ node-agent-fallback 95（34 文件），与 11-21 计数一致；退出条件转由 LT-16.6 承载 |
-| **LT-12** | W3 剩余域 | W1/W2 | provider 写路径/usage 网络凭据、LAN WS/公网中继、CUA PiP/Windows helper host、远程工作区、云账号 | 🟡 拆分后大半归 LT-16：`orcarouter`（阶段 1–5）与 `provider-settings`（阶段 0–4 全落，含频道 + onDidChange + 默认集）已迁；**仍缺**：CUA PiP/Windows helper host（`cua-permission` 频道未迁）、远程工作区（`remoteWorkspaceService` 917 行仍 Node）、LAN supervisor 翻转；云账号云端已实现（`packages/cloud-relay`，2026-10-21 MVP），桌面侧未接 |
+| **LT-12** | W3 剩余域 | W1/W2 | provider 写路径/usage 网络凭据、LAN WS/公网中继、CUA PiP/Windows helper host、远程工作区、云账号 | 🟡 拆分后大半归 LT-16：`orcarouter`（阶段 1–5）与 `provider-settings`（阶段 0–4 全落，含频道 + onDidChange + 默认集）已迁；**仍缺**：CUA 权限面（已评估**不可按频道直迁**，见 `docs/specs/cua-permission-migration.md`：macOS-only + prebuilt `.app` + 托管 helper 生命周期）、远程工作区（`remoteWorkspaceService` 917 行仍 Node）、LAN supervisor 翻转；云账号云端已实现（`packages/cloud-relay`，2026-10-21 MVP），桌面侧未接 |
 | **LT-13** | W1 SQLite 迁移门禁 | 无 | 基线改由 Rust 迁移生成 + `--base-ref` 只增校验 | ✅ 门禁已具备（`--base-ref` + TS/Rust 对拍）；生产者切换等 Rust 接管写库 |
 | **LT-14** | LT-1 C4 唯一 PARTIAL 收尾 | 真机 | 20 任务全 PASS；随后删 Node 回退路径 | 🟡 19 PASS / 1 PARTIAL；sessions-index live upsert/remove + phase/goalStatus/title/lastAssistantPreview 已接（turn 事件驱动 + store 读尾）；**复测确认** `hasBackgroundWork`/`workflowActivity` 仍恒空（`crates/agent-server/src/sessions_index.rs:201-202` 写死 `false`/`None`，`crates/tui` 同），依赖 backgroundWorks 运行时状态迁移；任务 16 真机重连待用户环境 |
-| **LT-16** | Node Host 退役专项（W6 续段） | LT-15 | `w6:readiness --fail-on-blockers` READY → 物理删除窗口 | 🟡 **进行中（本轮唯一主线）**：16.1–16.3 已落（`mode-task` 读面/编排/命令队列/snapshot/事件/写面、`window-controller` 帧订阅 + sessions-index 观察器）、16.4a 首切 + `LanHostSupervisor`（**未接 inprocess，`lan_host: None`**）、16.5 已迁 5 个频道（onboarding-record / plugin-management / mode-session / model-selection / orcarouter）+ **provider-settings 阶段 0–4 全落**、**16.4b `remote-desktop` 首切**（设置面/授权/能力探测，刻意未翻面）；inprocess 默认集现 35 个频道；**剩余 live 面 4**：cua-permission、bots、remote-v3、remote workspaces，外加 remote-desktop 会话面续段（`RemoteDesktopPort` 生产实现）。详见 `2026-11-22-lt16-node-host-retirement.md` |
+| **LT-16** | Node Host 退役专项（W6 续段） | LT-15 | `w6:readiness --fail-on-blockers` READY → 物理删除窗口 | 🟡 **进行中（本轮唯一主线）**：16.1–16.3 已落（`mode-task` 读面/编排/命令队列/snapshot/事件/写面、`window-controller` 帧订阅 + sessions-index 观察器）、16.4a 首切 + `LanHostSupervisor`（**未接 inprocess，`lan_host: None`**）、16.5 已迁 5 个频道（onboarding-record / plugin-management / mode-session / model-selection / orcarouter）+ **provider-settings 阶段 0–4 全落**、**16.4b `remote-desktop` 首切**（设置面/授权/能力探测，刻意未翻面）、**`cua-permission` 可行性评估**（结论：不可按频道直迁）；inprocess 默认集现 35 个频道；**剩余 live 面 3**：bots、remote-v3、remote workspaces，外加 remote-desktop 会话面与 cua-permission（共用 helper 准入，需 `RemoteDesktopPort` 生产实现）。详见 `2026-11-22-lt16-node-host-retirement.md` |
 
 ## LT-15 生态收口（2026-11-21，已完成）
 
@@ -53,7 +53,8 @@ W2/S2 翻面执行（P6）。状态见 `2026-11-21-lt15-ecosystem-closeout.md`�
 当前主线是 **LT-16**（Node Host 退役），其余长任务围绕它的门禁穿插：
 
 1. **LT-16 续段**：~~`provider-settings` 阶段 4~~ **已落（2026-11-23）** → ~~`remote-desktop` 首切~~
-   **已落（2026-11-23）** → `cua-permission`
+   **已落（2026-11-23）** → ~~`cua-permission`~~ **评估为不可按频道直迁**（并入 16.4b 会话端口）
+   → `bots`
    （前置 Rust 原生 CUA 端口）→ `bots` → `remote`/`remote-desktop`/`remote-v3` →
    16.5（LAN supervisor 单例翻转、G2 automation 真机开关、Bot 回推）→ 16.6 删除窗口。
 2. **LT-11 随 LT-16.6 收口**：四组 blocker 归零后跑四仪表终值复测；不再单独排期。

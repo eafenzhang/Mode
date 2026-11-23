@@ -22,9 +22,12 @@
 | G2 automation 宿主 | 🟡 开关化装配已落（默认关） | `b342f2a7f`；G2.6 off-peak 已按政策回退（`03649fef7`） |
 | 16.6 物理删除 | ⬜ 未开窗 | `node scripts/w6-readiness.mjs` = NOT READY（6/6/119/95） |
 
-**剩余 live 频道（5）**：`cua-permission`（需先有 Rust 原生 CUA 端口）、`bots`（8k+）、
-`remote`、`remote-desktop`、`remote-v3`（~5.6k，最大块）。`provider-settings` 阶段 4
-已于 2026-11-23 落地（频道 + onDidChange + 默认集装配）。
+**剩余 live 频道（4）**：`bots`（8k+/47 方法）、`remote-v3`（~5.6k）、`remote` workspaces、
+`cua-permission`。其中 **`cua-permission` 已评估为「不可按频道直迁」**
+（`docs/specs/cua-permission-migration.md`）：平台面 macOS-only、权限真值来自仓库中
+无源码的 prebuilt `Mode Computer Use.app`、`restartHelper` 依赖托管式 helper 生命周期，
+硬搬只会造出半个频道。建议与 16.4b 的 `RemoteDesktopPort` 一并处理（两者共用 helper 准入）。
+`provider-settings` 阶段 4 与 `remote-desktop` 首切已于 2026-11-23 落地。
 
 ## 1. 现状（2026-11-21 立项时；11-23 差异见 §0）
 
@@ -148,7 +151,7 @@ node-agent-fallback）均为 Node Host 发运物，随 16.6 删除归零。 |
 **非桌面 Host 能力（2026-11-23 复核）**：`provider-provisioning-target` 只在 `isDesktopAttachedRemote` 或 `providerProvisioningTargetEnabled` 时注册；全仓唯一开启点是 `packages/server/src/entry-http.ts`（`Boolean(authToken)`）。桌面本地 Host 不注册该频道，**不属于 LT-16 桌面 Node 删除范围**，Node 实现保留给 server/SSH remote Environment。
 **orcarouter 已全量迁入（2026-11-23，阶段 1–5）**：`crates/orcarouter-service`（凭据/PKCE/目录/overlay/service 编排，24 条测试）+ `host-channels::orcarouter` 频道（12 方法，4 条测试）+ inprocess 默认集装配；spec `orcarouter-service.md`。真机验收待回填（手填 key/PKCE/目录降级/断开 fail closed）。
 **provider-settings 进展（2026-11-23，阶段 0–4 全落）**：阶段 0–3——精确规则访问器、View 投影、10 个 provider/model 写入方法（15 条用例）、`mode-agent testModelConnectivity`、`provider-model-listing` reqwest 分页 executor（两页用例）。**阶段 4（2026-11-23）**：`host-channels::provider_settings_channel` 15 方法频道 + `onDidChange` + `assembly`/`inprocess` 默认集装配；为「校验失败不落盘」新增 `PersonalConfigRepository::try_update`；9 条频道契约用例 + 1 条仓库用例。剩真机走查。
-**剩余 live 长任务顺序（2026-11-23 16:15 再修订）**：~~`orcarouter`~~ 已全量迁入（阶段 1–5 + 频道）；~~`provider-settings` 阶段 4~~ 已落；~~`remote-desktop` 首切~~ 已落（设置面/授权/能力探测，未翻面）。当前顺序为 ①`cua-permission`（~2.2k 原生 helper，UI 在用，需先有 Rust 原生 CUA 端口）→ ②`bots`（8k+）→ ③`remote-desktop` 续段（`RemoteDesktopPort` 生产实现：被控 server + 主控 controller + 媒体/信令）→ ④`remote-v3`（~5.6k，16.4c）→ ⑤`remote` workspaces（16.4d）。
+**剩余 live 长任务顺序（2026-11-23 16:40 再修订）**：~~`orcarouter`~~、~~`provider-settings` 阶段 4~~、~~`remote-desktop` 首切~~ 均已落。**`cua-permission` 经评估改为「与 16.4b 会话端口同批」**（`docs/specs/cua-permission-migration.md`：macOS-only + prebuilt `.app` + 托管 helper 生命周期，不满足整频道切换条件）。当前顺序：①`bots`（8k+/47 方法，底座 `bots-core`/`bots-adapters` 已存在）→ ②`remote-v3`（~5.6k，16.4c）→ ③`remote` workspaces（16.4d）→ ④`remote-desktop` 会话面续段 + `cua-permission`（共用 helper 准入，需 `RemoteDesktopPort` 生产实现）。
 **结论**：删除 Node Host 前需迁 5 个 live 频道 + 复核 mode-session（readSession 已迁，纯 passthrough 3 方法已改指 mode-agent）；6 个下线/退役频道不投入迁移；onboarding-record / plugin-management / model-selection / mode-session / orcarouter / provider-settings 已迁。 |
 | 16.6 | **物理删除窗口** | 删 host-standalone、host-sidecar 发运集/脚本、mode.cjs 回退随包、bundled-agents；四仪表终值复测 | 16.5 | `--fail-on-blockers` READY；体积/性能仪表落档 |
 
