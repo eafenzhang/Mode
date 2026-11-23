@@ -32,6 +32,10 @@ use crate::git_checkpoint::GitCheckpointChannel;
 use crate::health::AgentHealthChannel;
 use crate::hooks::HooksChannel;
 use crate::lan_access::LanAccessChannel;
+use crate::remote::RemoteChannel;
+use crate::remote_lan::LanTransportPort;
+use crate::remote_services::RemoteServicesScopeFactory;
+use crate::remote_transport::RemoteTransportRouter;
 use crate::media_preview::MediaPreviewChannel;
 use crate::memory_channel::MemoryChannel;
 use crate::mode_session::ModeSessionChannel;
@@ -63,7 +67,8 @@ use crate::{
     MODE_AGENT_CHANNEL,
     MODEL_SELECTION_CHANNEL,
     MODE_SESSION_CHANNEL, ORCAROUTER_CHANNEL, MODE_TASK_CHANNEL, ONBOARDING_RECORD_CHANNEL,
-    PLUGIN_MANAGEMENT_CHANNEL, PLUGIN_SYNC_CHANNEL, PROVIDER_SETTINGS_CHANNEL, SETTING_CHANNEL,
+    PLUGIN_MANAGEMENT_CHANNEL, PLUGIN_SYNC_CHANNEL, PROVIDER_SETTINGS_CHANNEL, REMOTE_CHANNEL,
+    SETTING_CHANNEL,
     SETTINGS_SYNC_CHANNEL, SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL,
     TERMINAL_CHANNEL, USAGE_STATS_CHANNEL, WINDOW_CONTROLLER_CHANNEL,
 };
@@ -89,6 +94,12 @@ pub struct ChannelAssemblyOptions {
     pub lan_host: Option<Arc<dyn crate::lan_access::LanAccessHostPort>>,
     /// Built-in provider 配置文件（随包/开发树）；`None` 时 model-selection 无法构造。
     pub mode_builtin_provider_config_path: Option<String>,
+    /// scoped 回帧的出站 sink（已带 `0xFF + scopeId` 前缀）。
+    ///
+    /// 只有 `remote` 频道的 attach 需要它：一次性挂接要在新 scope 上注册一整套频道，
+    /// 回帧必须带前缀才能被页面侧按 scope 解复用。`None` 时 attach 显式报错
+    /// （connect/dispose 等其余方法不受影响）。
+    pub remote_scope_out: Option<crate::remote_lan::ScopedOutSink>,
 }
 
 impl ChannelAssemblyOptions {
@@ -405,6 +416,23 @@ pub fn build_channel(name: &str, options: &ChannelAssemblyOptions) -> Option<Arc
                 }
             }
         }
+        REMOTE_CHANNEL => {
+            // 16.4d：连接管理面 + LAN transport（唯一的已落地传输）。
+            // 其余 kind 由分派器报「该传输尚未支持」，而不是笼统的服务未就绪。
+            let credentials = Arc::new(credential_store::CredentialStore::new(data_root.clone()));
+            let lan = Arc::new(LanTransportPort::new(credentials));
+            let router: Arc<dyn crate::remote::RemoteTransportPort> =
+                Arc::new(RemoteTransportRouter::new().with_port("lan", lan));
+            let channel = RemoteChannel::new(Some(router));
+            // scoped 服务面：只有拿到出站 sink 才能挂（否则 attach 显式报错）。
+            Some(match options.remote_scope_out.clone() {
+                Some(sink) => Arc::new(channel.with_scopes(
+                    Arc::new(rpc_host::ScopedServerRegistry::new(sink)),
+                    Arc::new(RemoteServicesScopeFactory::for_local_service_surface()),
+                )),
+                None => Arc::new(channel),
+            })
+        }
         PROVIDER_SETTINGS_CHANNEL => {
             // 设置页 Provider/Model 写面：Builtin 快照 + Personal 仓库 + onDidChange
             // （spec provider-settings-channel.md §5）。无随包 Built-in 路径时不可构造。
@@ -582,6 +610,7 @@ pub fn service_channel_names() -> Vec<&'static str> {
         MODEL_SELECTION_CHANNEL,
         MODE_SESSION_CHANNEL,
         PROVIDER_SETTINGS_CHANNEL,
+        REMOTE_CHANNEL,
         ORCAROUTER_CHANNEL,
         ONBOARDING_RECORD_CHANNEL,
         PLUGIN_MANAGEMENT_CHANNEL,

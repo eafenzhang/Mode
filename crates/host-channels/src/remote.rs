@@ -43,6 +43,14 @@ pub trait RemoteTransportPort: Send + Sync {
     fn abort(&self, entry_id: u64);
     /// 销毁一条连接。
     fn dispose(&self, entry_id: u64);
+    /// 该 entry 的 RPC 客户端（LAN 等「本进程有客户端」的传输才有）。
+    ///
+    /// scoped 服务面要用它把远端频道代理进来；没有客户端的传输返回 `None`，
+    /// attach 时按「该传输不支持服务面」显式报错。
+    fn channel_client(&self, _entry_id: u64) -> Option<Arc<rpc_client::ChannelClient>> {
+        None
+    }
+
     /// 释放某个 workspace 的运行时（仅 WSL）。
     fn release_workspace(
         &self,
@@ -62,10 +70,13 @@ pub trait RemoteTransportPort: Send + Sync {
 /// `ChannelServer` 没有可拦截的注册入口，因此守卫由**工厂实现**在注册时自行套用
 /// （spec §5 登记该差异）。
 pub trait RemoteScopeFactory: Send + Sync {
+    /// `client` 是该 session 所属连接的 RPC 客户端；`None` 表示这种传输在壳内没有
+    /// 客户端（例如尚未落地的 SSH/v3），此时工厂必须**显式报错**而不是挂空代理。
     fn register(
         &self,
         server: &mut ChannelServer,
         session: &RemoteSessionSnapshot,
+        client: Option<Arc<rpc_client::ChannelClient>>,
     ) -> Result<(), String>;
 }
 
@@ -218,10 +229,20 @@ impl RemoteChannel {
             ));
         }
 
+        // 服务面要用远端连接的客户端：session → entry → transport → client。
+        let client = self.transport.as_ref().and_then(|port| {
+            let entry_id = self
+                .registry
+                .lock()
+                .expect("registry poisoned")
+                .entry_for_session(session_id)?;
+            port.channel_client(entry_id)
+        });
+
         let snapshot = session.clone();
         // **不 start**：页面端口注册完 ChannelClient 后由宿主发 scope-ready 再 start。
         let attachment = scopes
-            .attach(move |server: &mut ChannelServer| factory.register(server, &snapshot))
+            .attach(move |server: &mut ChannelServer| factory.register(server, &snapshot, client))
             .map_err(ChannelError::error)?;
         let scope_id = attachment.scope_id();
         // 句柄的生命周期由本频道的 attachment 表管理（detach 时按 scope_id 回收），

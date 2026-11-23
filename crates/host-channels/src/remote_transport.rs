@@ -121,6 +121,18 @@ impl RemoteTransportPort for RemoteTransportRouter {
         })
     }
 
+    fn channel_client(&self, entry_id: u64) -> Option<Arc<rpc_client::ChannelClient>> {
+        let kind = self
+            .entries
+            .lock()
+            .expect("router entries poisoned")
+            .get(&entry_id)
+            .copied()?;
+        self.ports
+            .get(kind)
+            .and_then(|factory| factory().channel_client(entry_id))
+    }
+
     fn abort(&self, entry_id: u64) {
         let kind = self
             .entries

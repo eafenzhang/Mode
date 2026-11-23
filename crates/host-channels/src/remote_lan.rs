@@ -27,6 +27,9 @@ use rpc_host::BoxFuture;
 use crate::lan_access::{peer_meta_key, peer_token_key, LanPeerMeta};
 use crate::remote::RemoteTransportPort;
 
+/// scoped 回帧的出站 sink（已带 `0xFF + scopeId` 前缀）。
+pub type ScopedOutSink = Arc<dyn Fn(Vec<u8>) + Send + Sync>;
+
 type Entries = Arc<Mutex<HashMap<u64, LanEntry>>>;
 
 /// 一条 LAN 连接的运行期登记。
@@ -128,6 +131,14 @@ impl RemoteTransportPort for LanTransportPort {
                 .insert(entry_id, LanEntry { connection });
             Ok(())
         })
+    }
+
+    fn channel_client(&self, entry_id: u64) -> Option<Arc<rpc_client::ChannelClient>> {
+        self.entries
+            .lock()
+            .expect("lan entries poisoned")
+            .get(&entry_id)
+            .map(|entry| Arc::clone(&entry.connection.client))
     }
 
     fn abort(&self, entry_id: u64) {

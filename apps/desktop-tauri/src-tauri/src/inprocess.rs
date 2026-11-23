@@ -33,7 +33,7 @@ use host_channels::{
     MEDIA_PREVIEW_CHANNEL,
     MEMORY_CHANNEL, MODE_AGENT_CHANNEL, MODE_TASK_CHANNEL, PLUGIN_SYNC_CHANNEL, SETTING_CHANNEL,
     SETTINGS_SYNC_CHANNEL, SKILLS_CHANNEL, SKILL_SYNC_CHANNEL, SUBAGENTS_CHANNEL, SYSTEM_CHANNEL,
-    TERMINAL_CHANNEL, USAGE_STATS_CHANNEL, WINDOW_CONTROLLER_CHANNEL,
+    REMOTE_CHANNEL, TERMINAL_CHANNEL, USAGE_STATS_CHANNEL, WINDOW_CONTROLLER_CHANNEL,
 };
 use rpc_host::{ChannelServer, FrameRoute, FrameRouter, LocalScopeRegistry};
 use std::sync::Arc as StdArc;
@@ -112,6 +112,7 @@ fn is_owned_channel(name: &str) -> bool {
             | MODE_AGENT_CHANNEL
             | HOOKS_CHANNEL
             | TERMINAL_CHANNEL
+            | REMOTE_CHANNEL
     )
 }
 
@@ -154,6 +155,7 @@ fn default_owned_channels() -> Vec<String> {
         AGENT_HEALTH_CHANNEL,
         HOOKS_CHANNEL,
         TERMINAL_CHANNEL,
+        REMOTE_CHANNEL,
         MODE_AGENT_CHANNEL,
     ]
     .into_iter()
@@ -448,7 +450,8 @@ fn build_server(
     mode_builtin_provider_config_path: Option<&str>,
 ) -> ChannelServer {
     let mut server = ChannelServer::new(
-        out_tx,
+        // 同时给 remote attach 的 scoped 出站用，所以先克隆再交出所有权。
+        out_tx.clone(),
         "mode-host-sidecar",
         Duration::from_millis(1000),
         true,
@@ -466,6 +469,13 @@ fn build_server(
         lan_host: None,
         mode_builtin_provider_config_path: mode_builtin_provider_config_path
             .map(str::to_string),
+        // remote attach 的 scoped 回帧：走页面桥同一条出站通道（帧已带 0xFF+scopeId）。
+        remote_scope_out: Some({
+            let out = out_tx.clone();
+            StdArc::new(move |frame: Vec<u8>| {
+                let _ = out.send(frame);
+            })
+        }),
     };
     for name in owned {
         match build_channel(name, &options) {

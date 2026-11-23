@@ -483,6 +483,7 @@ impl RemoteScopeFactory for FakeScopeFactory {
         &self,
         server: &mut ChannelServer,
         _session: &RemoteSessionSnapshot,
+        _client: Option<Arc<rpc_client::ChannelClient>>,
     ) -> Result<(), String> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         server.register_channel("memory", Arc::new(EchoChannel));
@@ -684,6 +685,7 @@ async fn scope_factory_failure_leaves_no_attachment_or_scope() {
             &self,
             _server: &mut ChannelServer,
             _session: &RemoteSessionSnapshot,
+            _client: Option<Arc<rpc_client::ChannelClient>>,
         ) -> Result<(), String> {
             Err("服务面注册失败".to_string())
         }

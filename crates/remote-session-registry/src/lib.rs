@@ -800,6 +800,13 @@ impl RemoteSessionRegistry {
         self.sessions.get(remote_session_id).map(Session::snapshot)
     }
 
+    /// 某 session 所属的连接 entry（proxy 服务面据此定位远端连接）。
+    pub fn entry_for_session(&self, remote_session_id: &str) -> Option<u64> {
+        self.sessions
+            .get(remote_session_id)
+            .map(|session| session.entry_id)
+    }
+
     /// TS `listSessions`。
     pub fn list_sessions(&self) -> Vec<RemoteSessionSnapshot> {
         let mut sessions: Vec<RemoteSessionSnapshot> =

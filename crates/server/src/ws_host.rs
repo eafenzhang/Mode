@@ -294,6 +294,8 @@ async fn bridge_host_socket(socket: WebSocket, deps: WsHostDeps, client_id: Opti
             // server-mode 的 lan-access 由宿主监督器注入（本入口 None）。
             lan_host: None,
             mode_builtin_provider_config_path: None,
+            // server-mode 的 /ws/host 不承载 remote attach（那是桌面 Host 的事）。
+            remote_scope_out: None,
         },
     );
     let outbound = tokio::spawn(async move {
