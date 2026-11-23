@@ -41,6 +41,12 @@ pub enum RemoteTargetSpec {
     Lan {
         host: String,
         port: u16,
+        /// 已配对对端的稳定 id：端口据此从凭据里取令牌与端点列表。
+        server_id: Option<String>,
+        /// 连接期透明携带的一次性令牌（TS `LanConnectOptions.token` 同语义）。
+        ///
+        /// **不进 identity、不进连接键、不进任何下发描述符**——落盘一律走凭据服务。
+        token: Option<String>,
     },
     V3 {
         device_id: String,
@@ -80,7 +86,7 @@ impl RemoteTargetSpec {
             Self::Docker { container } => RemoteTargetRef::Docker {
                 container: container.clone(),
             },
-            Self::Lan { host, port } => RemoteTargetRef::Lan {
+            Self::Lan { host, port, .. } => RemoteTargetRef::Lan {
                 host: host.clone(),
                 port: *port,
             },
@@ -151,7 +157,7 @@ pub fn build_connection_key(target: &RemoteTargetSpec, remote_session_id: &str) 
         ),
         // Docker 保持 dedicated 生命周期：每次 connect 都是独立通道。
         RemoteTargetSpec::Docker { .. } => format!("docker:dedicated:{remote_session_id}"),
-        RemoteTargetSpec::Lan { host, port } => {
+        RemoteTargetSpec::Lan { host, port, .. } => {
             format!("lan:{}:{port}", host.trim().to_lowercase())
         }
         RemoteTargetSpec::V3 { device_id } => format!("v3:{device_id}"),
@@ -1136,6 +1142,8 @@ mod tests {
         RemoteTargetSpec::Lan {
             host: host.to_string(),
             port,
+            server_id: None,
+            token: None,
         }
     }
 

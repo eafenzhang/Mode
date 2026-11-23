@@ -1,8 +1,6 @@
 # Spec：`remote` workspaces 迁移（LT-16.4d）
 
-状态：**频道完整落地，仍未翻面（2026-11-23）**——registry 状态机、SSH host key、
-RPC 客户端与 LAN transport、`remote` 频道包装、scoped 服务面与 attach/detach 均已进
-Rust；SSH/WSL/Docker/v3 四种 transport 的端口实现未做。
+状态：**频道 + LAN transport 均已落地，仍未翻面（2026-11-23）**——registry 状态机、SSH host key、RPC 客户端、频道包装、scoped 服务面、attach/detach、LAN 端口均已进 Rust；SSH/WSL/Docker 与 v3 的端口实现未做。
 
 ## 1. 面拆解
 
@@ -164,18 +162,39 @@ entry.workspace_runtime[workspaceKey] = {
 2. **secret 一律不下发**：`descriptor.target` 里没有 `password` / `token` /
    `privateKeyPassphrase`。SSH 只保留 `privateKeyPath`（它参与共享键，属于身份而非
    秘密）。
-3. **`attach`/`detach` 报错而不是返回假 id**。假 id 会让 renderer 以为挂接成功，
-   后续帧全部丢弃。
+3. **`attach`/`detach` 见 §4.1**：建 scope 但不 ready、服务面由工厂提供、
+   dispose 回收该 session 的全部 attachment。
 
-## 5. 未迁与降级语义
+## 5. LAN transport 端口（已落）
 
-- **四种 transport 的端口实现**：LAN 的连接层（`rpc_client::lan`）已就绪，
-  但把它接到 `RemoteTransportPort` 上还没做；SSH/WSL/Docker 需 `russh` 一类客户端，
-  v3 需 `snow` 一类 Noise 实现。
-- **频道仍未进 `service_channel_names()` 与 inprocess 默认集**：整频道切换的前提是
-  至少一种 transport 端口可用，否则翻面后所有远程连接都会返回 `{ok:false}`。
+`host_channels::remote_lan::LanTransportPort` 把 `rpc_client::lan` 接到
+`RemoteTransportPort`。它只做三件事：**按 entry_id 记账连接**、委派建连、
+在 abort/dispose 时断开。
 
-## 6. 验收
+四条容易写错的地方：
+
+1. **令牌从凭据取，不从 target 抄**。`target.token` 只在连接流程内透明传递
+   （TS `stripRemoteTargetSecrets` 同语义）；落盘与复用一律走凭据服务。
+   为此 `RemoteTargetSpec::Lan` 增加了 `server_id` / `token` 两个字段——但两者
+   **都不进 identity、不进连接键、不进任何下发描述符**（有断言）。
+2. **没有配对就没有令牌**：建连**前**直接报「这台设备还没有配对」。先建 WS 再失败
+   会在对端留下一次失败鉴权（测试断言 `issued == 0 && upgraded == 0`）。
+3. **abort 与 dispose 都可能命中同一 entry**：map 先摘再断，避免重复 close。
+4. **`entries` 用 `Arc<Mutex<…>>`**：`connect` 的 async 块是 `'static`，借不到 `&self`。
+   端口 `Drop` 时断开全部连接，避免 Host 退出后 WS 悬挂。
+
+`release_workspace` 对 LAN 是 **no-op**：对端是「已经在跑的 Mode 实例」，不部署也不
+启动任何东西，没有 workspace 运行时需要释放（TS 同：只有 wsl 有 release）。
+
+## 6. 未迁与降级语义
+
+- **SSH/WSL/Docker 与 v3 的端口**：分别需 `russh` 一类 SSH 客户端与 `snow` 一类
+  Noise 实现。LAN 已完成。
+- **频道仍未进 `service_channel_names()` 与 inprocess 默认集**：整频道切换要求
+  「所有 transport 都有降级路径」，而当前只有 LAN 一种端口。翻面后 SSH/v3 目标会
+  返回 `{ok:false}`（可读错误，不是崩溃），是否可接受属产品决策，未擅自决定。
+
+## 7. 验收
 
 - `cargo test -p remote-session-registry`（20 条）：连接键五种 kind、docker 不复用、
   requestId 重复拒绝、取消幂等、generation 递增、迟到完成不复活（含 fail 之后）、
@@ -183,8 +202,11 @@ entry.workspace_runtime[workspaceKey] = {
   `findSessionForWorkspace` 歧义报错、stats 分别计数。
 - `cargo test -p workspace-identity`（10 条）：`build_ssh_remote_host_key` 的 authKind
   优先级（privateKey > password > agent）与私钥路径归一（盘符大小写、`..` 越界、UNC）。
-- `cargo test -p host-channels --test remote_channel`（16 条）：除前 10 条外新增
-  attach 未绑定上下文报错、attach 建 scope 但不 ready、detach 只回收指定 attachment、
-  dispose 回收该 session 全部 attachment、工厂注册失败不留 scope/attachment。
+- `cargo test -p host-channels --test remote_channel`（16 条）：connect 三种结局、
+  secret 不下发、attach 未绑定上下文报错、attach 建 scope 但不 ready、detach 只回收
+  指定 attachment、dispose 回收该 session 全部 attachment、工厂注册失败不留残留。
+- `cargo test -p host-channels --test remote_lan_port`（4 条）：未配对在建连前失败
+  （不换票、不升级 WS）、真 axum 服务的 connect→attach→dispose 全链路、LAN 的
+  `release_workspace` no-op、端口 drop 不 panic。
 - `cargo test -p rpc-host --test scoped_registry`（7 条）：见 `scoped-server-registry.md`。
 - 全套门禁：clippy -D warnings、typecheck、lint、architecture。

@@ -34,6 +34,8 @@ system-service = { path = "../system-service" }
 workspace-hooks-service = { path = "../workspace-hooks-service" }
 terminal-service = { path = "../terminal-service" }
 rpc-host = { path = "../rpc-host" }
+# LAN transport 端口：把 rpc_client::lan 接到 RemoteTransportPort。
+rpc-client = { path = "../rpc-client" }
 rpc-wire = { path = "../rpc-wire" }
 # LT-15 P4：usage-stats 频道的余额查询链路（凭据 + HTTP 取回）。
 provider-balance = { path = "../provider-balance" }
@@ -68,3 +70,6 @@ tokio = { workspace = true, features = ["rt"] }
 tokio = { workspace = true, features = ["net", "io-util", "rt", "rt-multi-thread", "macros", "sync", "time"] }
 provider-config = { path = "../provider-config" }
 provider-config-file-codec = { path = "../provider-config-file-codec" }
+# LAN 端口端到端用例要起真 axum 服务（capability + /ws/host），ws 是 opt-in feature。
+axum = { workspace = true, features = ["ws"] }
+futures-util = { workspace = true, features = ["sink", "std"] }

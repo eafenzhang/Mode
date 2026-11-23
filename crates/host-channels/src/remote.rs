@@ -549,6 +549,10 @@ enum TargetParams {
     Lan {
         host: String,
         port: u16,
+        #[serde(default)]
+        server_id: Option<String>,
+        #[serde(default)]
+        token: Option<String>,
     },
     V3 {
         device_id: String,
@@ -591,7 +595,12 @@ impl TargetParams {
                     container: container.to_string(),
                 }
             }
-            Self::Lan { host, port } => {
+            Self::Lan {
+                host,
+                port,
+                server_id,
+                token,
+            } => {
                 let host = host.trim();
                 if host.is_empty() {
                     return Err(ChannelError::error("lan 目标缺少 host"));
@@ -599,6 +608,12 @@ impl TargetParams {
                 RemoteTargetSpec::Lan {
                     host: host.to_string(),
                     port,
+                    server_id: server_id
+                        .map(|value| value.trim().to_string())
+                        .filter(|value| !value.is_empty()),
+                    token: token
+                        .map(|value| value.trim().to_string())
+                        .filter(|value| !value.is_empty()),
                 }
             }
             Self::V3 { device_id } => {
@@ -684,7 +699,8 @@ fn target_descriptor(target: &RemoteTargetSpec) -> Json {
         RemoteTargetSpec::Docker { container } => {
             json!({ "kind": "docker", "container": container })
         }
-        RemoteTargetSpec::Lan { host, port } => {
+        // token 是连接期透明值，**不进描述符**（下发给 renderer 的形状里不能有秘密）。
+        RemoteTargetSpec::Lan { host, port, .. } => {
             json!({ "kind": "lan", "host": host, "port": port })
         }
         RemoteTargetSpec::V3 { device_id } => {
