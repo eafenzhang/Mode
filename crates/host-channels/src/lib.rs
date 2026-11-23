@@ -52,6 +52,7 @@ pub mod plugin_sync;
 pub mod provider_settings;
 pub mod remote;
 pub mod remote_desktop;
+pub mod remote_desktop_displays;
 pub mod remote_desktop_session;
 pub mod remote_lan;
 pub mod remote_proxy;
@@ -112,7 +113,11 @@ pub use remote_proxy::RemoteProxyChannel;
 pub use remote_services::RemoteServicesScopeFactory;
 pub use remote_transport::RemoteTransportRouter;
 pub use remote_desktop::{RemoteDesktopChannel, RemoteDesktopPort, REMOTE_DESKTOP_CHANNEL};
-pub use remote_desktop_session::{ControlledSession, ControlledSessionMachine, ConsentResult};
+pub use remote_desktop_session::{ConsentResult, ControlledSession, ControlledSessionMachine};
+pub use remote_desktop_displays::{
+    encoder_capability_from_start_result, load_persisted_encoder_capability,
+    persist_encoder_capability, sanitize_local_displays, LocalDisplay,
+};
 pub use setting::SettingChannel;
 pub use settings_sync::SettingsSyncChannel;
 pub use skill_sync::SkillSyncChannel;

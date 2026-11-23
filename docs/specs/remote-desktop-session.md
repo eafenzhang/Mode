@@ -1,7 +1,7 @@
 # Spec：`remote-desktop` 会话状态机（16.4b 续段）
 
-状态：**状态机已落（2026-11-23）**——`host_channels::remote_desktop_session`，10 条契约测试。
-真实媒体/信令链路与控制器侧未做。
+状态：**状态机 + 显示器校验 + 编码能力已落（2026-11-23）**——`remote_desktop_session`
+（10 条契约测试）与 `remote_desktop_displays`（6 条）。真实媒体/信令链路与控制器侧未做。
 
 ## 1. 为什么先做状态机
 
@@ -80,9 +80,42 @@ kill-switch 在第 1 位是刻意的：它**只能关不能开**，即使总开�
 - 被控态只在 `false→true`、`true→false` 各通知一次，退订后不再通知；
 - `dispose` 终止会话并让后续请求一律 `disabled`。
 
-## 8. 未做
+## 8. 状态机验收
 
 - 真实媒体/信令链路（`MediaStart`/媒体 WS/中继口）；
 - 控制器侧（`startSession`/`sendSignal`/`endSession` 的远端协议）；
 - `setLocalDisplays` 的显示器合法性校验（TS 有 7 条过滤规则）；
 - 编码能力观测写入（`rd-encoder-capability.json` 的写侧，读侧已在频道里）。
+
+## 9. 显示器校验与编码能力（已落）
+
+两块都不依赖媒体面，所以先落（`host_channels::remote_desktop_displays`）。
+
+### 9.1 `setLocalDisplays` 的校验
+
+TS 的过滤器有 **7 条**，任一不满足即丢弃该条：
+是对象、`displayId` 是非空字符串、`xPx`/`yPx`/`widthPx`/`heightPx` 四个都有限、
+宽高都 > 0。
+
+归一 6 条：`displayId` trim、`label` 非字符串给空串、坐标 `trunc`（**向零取整，
+负数不是向下取整**）、宽高至少 1、`scaleFactor` 非有限或 ≤0 时取 1、
+`primary` 只在严格 `true` 时为真。
+
+**兜底**：非空列表里若一个 primary 都没有，第一条置为 primary——否则对端没有可投的
+主显示器，会话画面会全黑（这个坑不报错，只是没画面）。
+
+### 9.2 编码能力的三步
+
+| 步骤 | 函数 | 语义 |
+| --- | --- | --- |
+| 从会话结果映射 | `encoder_capability_from_start_result` | 只有显式 `encoder:"software"` 才是 `software`，其余一律 `available` |
+| 读 | `load_persisted_encoder_capability` | 缺失/损坏/未知枚举值 → `None`（无缓存） |
+| 写 | `persist_encoder_capability` | 只允许白名单值落盘；目录不存在时自建 |
+
+**为什么「其余一律 available」**：会话已经建流成功，能力面就只能是「可用」这一档。
+字段缺失或形状异常时猜成 `unavailable` 会误报失败，让用户去查一个不存在的问题。
+
+**为什么写侧也要校验白名单**：写入未知值后读侧会把它丢弃，形成「写得进去、读不出来」的
+静默不一致。
+
+## 10. 未做
