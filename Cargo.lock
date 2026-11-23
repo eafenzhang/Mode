@@ -5484,6 +5484,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpc-client"
+version = "0.1.0"
+dependencies = [
+ "rpc-host",
+ "rpc-wire",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "rpc-host"
 version = "0.1.0"
 dependencies = [

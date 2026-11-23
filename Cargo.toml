@@ -58,6 +58,7 @@ members = [
   "crates/terminal-service",
   "crates/remote-desktop-streaming",
   "crates/remote-session-registry",
+  "crates/rpc-client",
   "crates/lan-discovery",
   "crates/lan-pairing",
   "crates/lan-http",
