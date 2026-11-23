@@ -48,7 +48,7 @@ const PEER_PREFIX: &str = "lan:peer:";
 const TOKEN_SUFFIX: &str = ":token";
 const META_SUFFIX: &str = ":meta";
 /// 已配对客户端注册表（JSON 数组）；LAN server 与设置页快照共用的持久事实。
-const LAN_ACCESS_CLIENTS_CREDENTIAL_KEY: &str = "lan:access:clients";
+pub(crate) const LAN_ACCESS_CLIENTS_CREDENTIAL_KEY: &str = "lan:access:clients";
 
 pub struct LanAccessChannel {
     credentials: Arc<CredentialStore>,
@@ -219,15 +219,15 @@ struct StoredLanAccessClientRecord {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct LanAccessClientRecord {
-    id: String,
-    label: String,
-    created_at: i64,
-    last_used_at: Option<i64>,
+pub(crate) struct LanAccessClientRecord {
+    pub(crate) id: String,
+    pub(crate) label: String,
+    pub(crate) created_at: i64,
+    pub(crate) last_used_at: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    last_workspace_path: Option<String>,
+    pub(crate) last_workspace_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    remote_desktop_authorized: Option<bool>,
+    pub(crate) remote_desktop_authorized: Option<bool>,
 }
 
 pub(crate) fn now_ms() -> i64 {
@@ -238,7 +238,7 @@ pub(crate) fn now_ms() -> i64 {
 }
 
 /// TS `readLanAccessClientRecords`：只认 id 非空的记录；坏 JSON/非数组 = []。
-fn read_client_records(credentials: &CredentialStore) -> Result<Vec<LanAccessClientRecord>, String> {
+pub(crate) fn read_client_records(credentials: &CredentialStore) -> Result<Vec<LanAccessClientRecord>, String> {
     let Some(raw) = credentials
         .load(LAN_ACCESS_CLIENTS_CREDENTIAL_KEY)
         .map_err(|error| error.to_string())?
@@ -289,6 +289,20 @@ fn disabled_lan_access_state(credentials: &CredentialStore) -> Result<serde_json
         "activeWebSessions": 0,
         "publicRelayUrl": serde_json::Value::Null,
     }))
+}
+
+/// TS `writeLanAccessClientRecords`：写回整份注册表（调用方已持有读到的记录）。
+///
+/// 唯一写者是 LAN server；远程桌面逐设备授权在没有活服务端时也走这里（TS 同口径：
+/// 「本机没有第二个写者」，串行由宿主保证）。
+pub(crate) fn write_client_records(
+    credentials: &CredentialStore,
+    records: &[LanAccessClientRecord],
+) -> Result<(), String> {
+    let text = serde_json::to_string(records).map_err(|error| error.to_string())?;
+    credentials
+        .save(LAN_ACCESS_CLIENTS_CREDENTIAL_KEY, &text)
+        .map_err(|error| error.to_string())
 }
 
 #[derive(Debug, Serialize)]

@@ -49,11 +49,11 @@ fn normalize_base_path(path: Option<&str>) -> Result<String, String> {
     Ok(trimmed.trim_end_matches('/').to_string())
 }
 
-fn build_http_base(host: &str, port: u16, scheme: &str, base_path: &str) -> String {
+pub(crate) fn build_http_base(host: &str, port: u16, scheme: &str, base_path: &str) -> String {
     format!("{scheme}://{host}:{port}{base_path}")
 }
 
-fn request_client(timeout: Duration) -> Result<reqwest::Client, String> {
+pub(crate) fn request_client(timeout: Duration) -> Result<reqwest::Client, String> {
     ensure_tls_provider();
     reqwest::Client::builder()
         .timeout(timeout)
@@ -280,12 +280,12 @@ pub async fn pair_peer(
 }
 
 /// 端点探测错误：`retryable` 决定是否回退下一个端点。
-struct ProbeError {
-    message: String,
-    retryable: bool,
+pub(crate) struct ProbeError {
+    pub(crate) message: String,
+    pub(crate) retryable: bool,
 }
 
-fn endpoint_probe_timeout(endpoint: &LanPeerEndpoint, endpoint_count: usize) -> Duration {
+pub(crate) fn endpoint_probe_timeout(endpoint: &LanPeerEndpoint, endpoint_count: usize) -> Duration {
     if endpoint_count <= 1 {
         return INFO_TIMEOUT;
     }
@@ -296,7 +296,12 @@ fn endpoint_probe_timeout(endpoint: &LanPeerEndpoint, endpoint_count: usize) -> 
     }
 }
 
-async fn probe_endpoint(
+/// 拉取对端 `server-info` 的**原始**载荷（不做 schema 收窄）。
+///
+/// 供 `remote-desktop` 的能力位探测复用：那里要读 `capabilities.remoteDesktop*`，
+/// 而 [`parse_server_info`] 只保留 workspaces/name 子集。传输/状态码口径与
+/// [`probe_endpoint`] 完全一致（同 URL、同超时、同 retryable 判定）。
+pub(crate) async fn fetch_server_info_payload(
     endpoint: &LanPeerEndpoint,
     token: &str,
     timeout: Duration,
@@ -338,10 +343,18 @@ async fn probe_endpoint(
         }
         _ => {}
     }
-    let payload: Value = response.json().await.map_err(|_| ProbeError {
+    response.json().await.map_err(|_| ProbeError {
         message: "对端返回的信息不是合法 JSON".to_string(),
         retryable: true,
-    })?;
+    })
+}
+
+async fn probe_endpoint(
+    endpoint: &LanPeerEndpoint,
+    token: &str,
+    timeout: Duration,
+) -> Result<Value, ProbeError> {
+    let payload = fetch_server_info_payload(endpoint, token, timeout).await?;
     parse_server_info(&payload).ok_or_else(|| ProbeError {
         message: "对端返回的信息不符合局域网连接协议，请确认两端 Mode 版本一致".to_string(),
         retryable: true,
