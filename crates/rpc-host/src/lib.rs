@@ -6,6 +6,7 @@
 mod channel;
 mod router;
 mod scope_registry;
+mod scoped_registry;
 mod server;
 
 pub use channel::{
@@ -13,4 +14,7 @@ pub use channel::{
 };
 pub use router::{FrameRoute, FrameRouter};
 pub use scope_registry::LocalScopeRegistry;
+pub use scoped_registry::{
+    ScopeLogSink, ScopedAttachment, ScopedFrameSink, ScopedServerRegistry,
+};
 pub use server::ChannelServer;
