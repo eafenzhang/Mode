@@ -33,7 +33,7 @@
   「停止自实现四通道」裁决。16.6 删除窗口**不包含** bots。
 - **`cua-permission` → 并入 16.4b 会话端口**：见 `docs/specs/cua-permission-migration.md`。
 
-`provider-settings` 阶段 4 与 `remote-desktop` 首切已于 2026-11-23 落地。
+`provider-settings` 阶段 4 与 `remote-desktop` 首切已于 2026-11-23 落地。**真机验收**：`remote` 频道已翻面，验收清单见 `docs/specs/accept-lan-remote-workspace.md`（21 条编号项）。
 
 ## 1. 现状（2026-11-21 立项时；11-23 差异见 §0）
 
