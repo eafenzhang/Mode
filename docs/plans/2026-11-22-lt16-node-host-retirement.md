@@ -6,7 +6,25 @@
 > READY，开物理删除窗口（删 stdioFrames/stdoutGuard、host-standalone、
 > host-sidecar 发运集、mode.cjs 回退随包）。
 
-## 1. 现状（2026-11-21）
+## 0. 进度摘要（2026-11-23 14:14 复核）
+
+| 子任务 | 状态 | 依据 |
+| --- | --- | --- |
+| 16.1 mode-task 读面 | ✅ 已收口 | `f5a7595a1` 首切 + `e8ce1f0a7` archiveWorkspaceTasks |
+| 16.2a 编排面 | 🟡 主链已落 | `2190dd482`、`e723a2285`；剩 v4 createSession 分支 |
+| 16.2b 命令队列/交互 | ✅ 已收口 | `574877ab1`、`42d16bef5`（209 测试全过，当期） |
+| 16.2c snapshot/事件/写面 | 🟡 大部分已落 | `02d76edce` → `62c15bdd5`（修正虚报）→ 后续 10 提交；剩 rename 的 v4 同步与 3 个旧 facade 命令 |
+| 16.3 window-controller | 🟡 主链已落 | `fa39214f6`…`df94025dd`；剩 remote source 聚合与 registerSource 对外接线 |
+| 16.4a lan-access | 🟡 首切 + supervisor 已落，**未翻转** | `a7c78bfed`…`86bf08fbc`；inprocess 仍 `lan_host: None` |
+| 16.4b/c/d remote 面 | ⬜ 未开始 | 仅调查拆分（`a249f1229`） |
+| 16.5 频道收口 | 🟡 5 个频道已迁 + provider-settings 阶段 0–3 | 见下「剩余 live 频道」 |
+| G2 automation 宿主 | 🟡 开关化装配已落（默认关） | `b342f2a7f`；G2.6 off-peak 已按政策回退（`03649fef7`） |
+| 16.6 物理删除 | ⬜ 未开窗 | `node scripts/w6-readiness.mjs` = NOT READY（6/6/119/95） |
+
+**剩余 live 频道（6）**：`cua-permission`（需先有 Rust 原生 CUA 端口）、`bots`（8k+）、
+`remote`、`remote-desktop`、`remote-v3`（~5.6k，最大块）、`provider-settings`（仅剩阶段 4）。
+
+## 1. 现状（2026-11-21 立项时；11-23 差异见 §0）
 
 - W2+S2 翻面已执行（`dc095d729`）：默认集接管全部白名单频道含 mode-agent。
 - renderer 仍消费 Node Host **独占面**（不在 inprocess 白名单）：
@@ -26,6 +44,7 @@
 | # | 子任务 | 内容 | 依赖 | 出口 |
 | --- | --- | --- | --- | --- |
 | 16.1 | **mode-task 读面进壳** | `host-channels` 增 `mode-task` 频道（首切只读 + 分组管理写面）：listTasks/listPinnedTaskIds/listPinnedTasks/listDeletedTaskIds/listTaskList/listGroupedTaskViewStructure/applyGroupedTaskViewOrder/listArchivedTasks/archiveStaleTasks/archiveWorkspaceTasks + 分组 CRUD（create/rename/color/delete group，底层 repo 全齐） | 无（repo 已迁） | 频道对拍（TS 形状逐字段）+ 真机任务列表渲染一致 |
+|  |  | ✅ **已收口（2026-11-22）**：`f5a7595a1` 首切（读面 + 分组 CRUD）、`e8ce1f0a7` 补 archiveWorkspaceTasks；频道已进 assembly/inprocess 默认集；真机渲染验收随 `.plan/accept-w6/` 回归清单执行（未回填）。 |
 | 16.2 | **mode-task 编排面进壳** | 生命周期/命令队列/permission/elicitation/close/resume/snapshot 族 | 16.1 | 20 任务清单中任务系统场景全过 |
 
 16.2 细拆（调查结论 2026-11-22）：编排真源 = `modeTaskServiceAdapter.ts`（5768 行，
@@ -37,8 +56,9 @@
   initialSlashCommands；automation/闲时 deferred persistence + 盖章）、closeTask
   （close_session + deleted patch）、resumeTask（resume_session → meta sync）、
   sendPrompt（sessionSend 直转发）；无控制面装配时显式 unsupported。真实 DB 测试
-  186 全过。**剩余**：draftSessionId 复用（readSession→setModel/setThoughtLevel
-  同步）与 v4Create 分支、readyOutcome 事件（16.2c）。
+  186 全过。**2026-11-23 复核**：draftSessionId 复用已落（`e723a2285`，
+  `mode_task.rs:1444/1463/1469`）；**剩余**：v4 createSession 分支（现有 v4 调用只到
+  `v4::ConversationCommandEnvelope` 的 resolveInteraction）、readyOutcome 事件源（16.2c 已接）。
 - **16.2b 命令队列**：🟡 队列状态机已落（2026-11-22）——`task_command_queue.rs`
   （owner 门控三态：NO_ACTIVE_TASK_OWNER/STALE_TASK_OWNER_COMMAND/缺省跳过；
   enqueue 队尾追加 accepted → promote 队首 accepted 化 → cancel not_found 容忍；
@@ -82,13 +102,12 @@ getTaskTarget 的索引归属回读抽为 `resolve_task_workspace` helper。
   重载会话入口 → `dispose_workspace`，2s 宽限与 mode-agent 同口径）、initialize
   （控制面预热 → {available, version}）、getModelTrajectory
   （`model_trajectory.rs`：model-io tail 读取 / delta 展开 / 消息与工具调用映射，
-   spec `model-trajectory-reader.md`；4 单测 + 频道分发用例）。**Claude 导入 Stage 1+2（2026-11-22）**：`scanImportableClaudeSessions` 与 `importClaudeSessions` 均已落（扫描/head 过滤、完整解析、文件复制、createSession(importedHistory)、legacy 快照过滤、索引回写与事件；spec `claude-native-session-import.md`）。**legacy 设置面（2026-11-22 全落）**：configOptions 投影 + getTaskConfigOptions/getTaskModelSelection/setMode/setConfigOption(全部 configId)/setModel/setAutomationSessionConfig/getTaskNativeSessionLogFile；setModel 走 provider config 同步 + v4 CAS（TS legacy 差异已注明）。**剩余**：rename 的
-  v4 renameSession 同步（best-effort）与 updateIndexedTaskState 的「索引缺失时
-  resume seed」兜底；会话设置面（initialize/releaseWorkspacePreparation/
-  getTaskConfigOptions/getTaskModelSelection/setMode/setConfigOption/setModel/
-  setAutomationSessionConfig）、legacy 设置面（configOptions/getTaskConfigOptions/getTaskModelSelection/setMode/setConfigOption(全部 configId)/setModel/setAutomationSessionConfig/getTaskNativeSessionLogFile，spec `mode-task-legacy-settings.md`）与 compactSession/goalSession/
-  deliverSessionMessage/sendSessionMessageDeliveryResult/branchTaskFromPrompt
-  等旧 facade 命令。
+   spec `model-trajectory-reader.md`；4 单测 + 频道分发用例）。**Claude 导入 Stage 1+2（2026-11-22）**：`scanImportableClaudeSessions` 与 `importClaudeSessions` 均已落（扫描/head 过滤、完整解析、文件复制、createSession(importedHistory)、legacy 快照过滤、索引回写与事件；spec `claude-native-session-import.md`）。**legacy 设置面（2026-11-22 全落）**：configOptions 投影 + getTaskConfigOptions/getTaskModelSelection/setMode/setConfigOption(全部 configId)/setModel/setAutomationSessionConfig/getTaskNativeSessionLogFile；setModel 走 provider config 同步 + v4 CAS（TS legacy 差异已注明）。**剩余（2026-11-23 复核，已剔重）**：rename 的
+  v4 renameSession 同步（best-effort，`mode_task.rs:1053` 注释确认仍只写 tasks-index）与
+  updateIndexedTaskState 的「索引缺失时 resume seed」兜底；`compactSession`/`goalSession`
+  经 `mode_agent.rs:700/716` 承载；`deliverSessionMessage`/`sendSessionMessageDeliveryResult`/
+  `branchTaskFromPrompt` 三个旧 facade 命令在 `host-channels` **零实现**（renderer 无引用，
+  登记为已知差异）。
 
 window-controller（16.3）依赖 16.2a+b（多源聚合消费 IModeTaskService 事件与
 sessions-index observer）——**排序 16.2 先于 16.3**。
@@ -125,10 +144,10 @@ node-agent-fallback）均为 Node Host 发运物，随 16.6 删除归零。 |
 |  |  | 🟡 **Node-only 频道处置盘点（2026-11-22，16.5 输入）**：按证据分三类。**①政策下线，删除不迁（4）**：`coding-plan-subscription`（`bigmodelCodingPlanSubscriptionProvider.ts:1275` `assertOfficialServiceRemoved("codingPlan")`）、`conversation-share`（`conversationShareService.ts:777/1330/1843` `assertConversationShareRemoved`）、`oauth`（`oauthService.ts` account 下线，读取恒 signed-out/空）、`off-peak-task`（`offPeakRuntimeModel.ts:140` offPeak 下线）；UI 入口均已 fail-closed，Node 服务随 16.6 删除。**②Node 内部 facade（1）**：`mode-session`。**已切 3 个纯 passthrough 到 `mode-agent`（2026-11-22）**：`readWorkspacePresentation`（workspace prepare 全链路）、`readSessionMessages`（conversation mirror 读侧）与 `closeSession`（草稿失效/远端插件同步），Rust `mode-agent` 均已实现；mirror 的 `createSession` 仍保留在 mode-session（Node 侧含 MCP 解析与 trace id，避免行为变化）。**readSession 已由 Rust `mode-session` 频道接管（2026-11-22）**：`host-channels::mode_session` 实现 readSession（apiRetry 快照暂存 + Claude 导入历史修复，spec `mode-session-channel.md`），进入 inprocess 默认集；renderer 已不依赖 Node mode-session，Node 服务随 16.6 删除。**③已迁（2）**：`onboarding-record`（2026-11-22：`host-channels::onboarding` + 装配 + inprocess 默认集，spec onboarding-record-service §2.1）与 `plugin-management`（2026-11-22：`host-channels::plugin_management` 薄别名转发 mode-agent，overview 补 officialMarketplaceEnabled，spec plugin-management-channel.md）；真机验收见 16.5 清单。**live，需迁移（6）**：bots、cua-permission、provider-settings、remote、remote-desktop、remote-v3（自托管 `MODE_REMOTE_V3_URL`，不依赖官方账号；~5.6k 行，最大块）。`lan-access` RPC 已由 Rust 接管（supervisor 待接）。**①补充（2026-11-22 复核）**：`cua-pip-session` 无任何 renderer/remote 消费者（仓库内只有 descriptor 与 node.ts 内部 publish，`packages/ui`/`web`/`desktop` 无引用），属 Node 内部 PiP 投影残留，**频道删除不迁**（内部 publish 不依赖频道）。`plugins` 也是退役通道——`pluginsService.ts` 的 getOverview 恒返回空/unsupported，六个写方法恒抛 "Legacy plugin management has been retired"；renderer 侧只有 `usePlugins`/`pluginStore` 引用，且没有任何组件使用 `usePlugins`（活路径已是 plugin-management），因此**删除不迁**，归入①的下线/退役组（共 6 个）。
 **model-selection 已迁（2026-11-22）**：`host-channels::model_selection` 实现 getView/saveConfiguredDefault/onDidChange（生产口径 ordinary：生产 facade 未传 classifier）。数据源 provider-config-source 快照 + resolver；configuredDefault/变更通知/写回走 PersonalConfigRepository；View 投影用 `ProviderConfig::to_json`。桌面 inprocess 由壳注入 bundled 路径，进入默认集；无 bundled 路径（server-mode）回落 Node。spec `model-selection-channel.md` 记录边界（builtin 静态不订阅、account-*/legacy reasoning 显式不做）。
 **非桌面 Host 能力（2026-11-23 复核）**：`provider-provisioning-target` 只在 `isDesktopAttachedRemote` 或 `providerProvisioningTargetEnabled` 时注册；全仓唯一开启点是 `packages/server/src/entry-http.ts`（`Boolean(authToken)`）。桌面本地 Host 不注册该频道，**不属于 LT-16 桌面 Node 删除范围**，Node 实现保留给 server/SSH remote Environment。
-**orcarouter 已全量迁入（2026-11-23，阶段 1–5）**：`crates/orcarouter-service`（凭据/PKCE/目录/overlay/service 编排，24 条测试）+ `host-channels::orcarouter` 频道（12 方法，3 条测试）+ inprocess 默认集装配；spec `orcarouter-service.md`。真机验收待回填（手填 key/PKCE/目录降级/断开 fail closed）。
+**orcarouter 已全量迁入（2026-11-23，阶段 1–5）**：`crates/orcarouter-service`（凭据/PKCE/目录/overlay/service 编排，24 条测试）+ `host-channels::orcarouter` 频道（12 方法，4 条测试）+ inprocess 默认集装配；spec `orcarouter-service.md`。真机验收待回填（手填 key/PKCE/目录降级/断开 fail closed）。
 **provider-settings 进展（2026-11-23）**：阶段 0–3 已落——精确规则访问器、View 投影、10 个 provider/model 写入方法（15 条用例）、`mode-agent testModelConnectivity`、`provider-model-listing` reqwest 分页 executor（两页用例）；剩余阶段 4：频道 + onDidChange + inprocess 装配 + 真机。
-**剩余 live 长任务顺序（2026-11-23 修订）**：①`cua-permission`（~2.2k 原生 helper，UI 在用，需先有 Rust 原生 CUA 端口）→ ②`orcarouter`（1.3k：PKCE/OAuth + provider overlay 写回）→ ③`provider-settings`（完整 settings facade，体量大）→ ④`bots`（8k+）→ ⑤`remote`/`remote-desktop`/`remote-v3`（16.4 remote 域，remote-v3 ~5.6k 最大）。
-**结论**：删除 Node Host 前需迁 6 个 live 频道 + 复核 mode-session；4 个下线频道不投入迁移；onboarding-record 已迁。 |
+**剩余 live 长任务顺序（2026-11-23 14:14 再修订）**：~~②`orcarouter`~~ **已全量迁入（阶段 1–5 + 频道）**；当前顺序为 ①`cua-permission`（~2.2k 原生 helper，UI 在用，需先有 Rust 原生 CUA 端口）→ ②`provider-settings` 阶段 4（仅剩频道 + onDidChange + 装配；阶段 0–3 已落）→ ③`bots`（8k+）→ ④`remote`/`remote-desktop`（16.4b）→ ⑤`remote-v3`（~5.6k，16.4c）→ ⑥`remote` workspaces（16.4d）。
+**结论**：删除 Node Host 前需迁 6 个 live 频道 + 复核 mode-session（readSession 已迁，纯 passthrough 3 方法已改指 mode-agent）；6 个下线/退役频道不投入迁移；onboarding-record / plugin-management / model-selection / mode-session / orcarouter 已迁。 |
 | 16.6 | **物理删除窗口** | 删 host-standalone、host-sidecar 发运集/脚本、mode.cjs 回退随包、bundled-agents；四仪表终值复测 | 16.5 | `--fail-on-blockers` READY；体积/性能仪表落档 |
 
 ## 3. 执行原则

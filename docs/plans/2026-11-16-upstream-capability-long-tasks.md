@@ -50,17 +50,21 @@
 | **LT-6** | 插件生态兼容层                  | Claude marketplace/triplet、hooks 兼容、managed settings、MCP 合并 | P2     | M    | LT-2、LT-3       | `packages/services/src/plugins`、`plugin-sync`、`workspace-hooks-service`       |
 | **LT-0** | 决策与门禁（跨任务）            | Android/PWA、自建配置/分享通道、M2/M4/M5 收口门禁                  | P1     | S    | 无               | ADR + 门禁清单                                                                  |
 
-### 进度快照（2026-11-21）
+### 进度快照（2026-11-23 复核）
+
+复核口径：`011e7e388..6e09a49b7`（72 提交）逐个核对源码与 spec 是否存在，不采信旧状态文字。
+本轮活动集中在 `docs/plans/2026-10-29-full-rust-rewrite.md` 的 W6/LT-16 轨道，本文件 6 个
+长任务**均无新交付**。
 
 | 长任务 | 状态 |
 | --- | --- |
-| **LT-1** | **C1–C4 已完成并合并 main**：C1 Rust Agent Server 最小闭环、C2 上下文/记忆/压缩、C3 流恢复/目标续跑/故障收口、C4 生态面接入与默认翻转（merge `ddbd18238`）；随包 Rust agent 成为默认运行时（Node 保留显式回退），真机验收 19 PASS / 1 PARTIAL；残余 `d3eec12b7` 补齐 v4 命令面、安全加固与首任务性能。 |
-| **LT-2** | 本轮无新增交付。 |
-| **LT-3** | 本轮无新增交付（`packages/ui/src/plugin-runtime` 尚未建立）。 |
-| **LT-4** | **完成**：首片 `b6f254186` + 续片 `c96690818`；`mode eval run\|replay\|diff`、34 条测试、CI opt-in `eval.yml`。 |
-| **LT-5** | 本轮无新增交付（既有工作台能力不计入本轨道）。 |
-| **LT-6** | 本轮无新增交付。 |
-| **LT-0** | 本轮无新增决策/门禁交付。 |
+| **LT-1** | **C1–C4 已完成并合并 main**：C1 Rust Agent Server 最小闭环、C2 上下文/记忆/压缩、C3 流恢复/目标续跑/故障收口、C4 生态面接入与默认翻转（merge `ddbd18238`）；随包 Rust agent 成为默认运行时（Node 保留显式回退），真机验收 19 PASS / 1 PARTIAL；残余 `d3eec12b7`（=`74d49e074`）补齐 v4 命令面、安全加固与首任务性能，**已确认在 main 上**。剩余：唯一 PARTIAL 项（任务 16 远程/手机重连，需真机）与 `hasBackgroundWork`/`workflowActivity` 忠实投影（`crates/agent-server/src/sessions_index.rs` 仍写死空值）。 |
+| **LT-2** | 无进展：`docs/specs/mcp-modern-protocol.md` 不存在，MCP dual-era/OAuth/输出预算/目录缓存均未开工。 |
+| **LT-3** | 无进展：`packages/ui/src/plugin-runtime/` 与 `docs/specs/ui-plugin-runtime.md` 均不存在。 |
+| **LT-4** | **完成**：首片 `b6f254186` + 续片 `c96690818`；`mode eval run\|replay\|diff`、34 条测试、CI opt-in `eval.yml`。2026-11-23 复核：`apps/mode-cli/packages/eval` 与 `docs/specs/cli-eval-trajectory.md` 在库，本轮零改动。 |
+| **LT-5** | 无进展：`docs/specs/workbench-ux-parity.md` 不存在。 |
+| **LT-6** | 无进展：`docs/specs/plugin-compat.md` 不存在（插件安装/卸载/网络源/zip 源属 `plugin-sync-service` 的 W5 轨道，见 LT-10，不是本 LT 的 marketplace/triplet/hooks 兼容面）。 |
+| **LT-0** | 无新增决策/门禁交付。 |
 
 ## 依赖与波次
 

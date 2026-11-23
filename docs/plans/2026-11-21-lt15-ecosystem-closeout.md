@@ -1,10 +1,13 @@
 # LT-15 生态面收口长任务（P1–P6）
 
-状态：**执行中（2026-11-21，P1 完成）**。上位：
+状态：**P1–P5 完成，P6 转 LT-16 承载（2026-11-23 复核）**。上位：
 `docs/plans/2026-10-29-full-rust-rewrite.md` §10、
 `docs/plans/2026-11-16-upstream-capability-long-tasks.md`。
 本文件把剩余生态面收口收敛成**一个** program-level 长任务，按依赖顺序执行；
 子项对应 `2026-11-21-remaining-long-tasks.md` 的 LT-8/9/10/12/14/11。
+
+> P6（W6 物理删除）已拆出为 **LT-16 Node Host 退役专项**
+> （`docs/plans/2026-11-22-lt16-node-host-retirement.md`）；本文件不再跟踪其进度。
 
 ## 目标与边界
 
@@ -16,10 +19,10 @@ W6 收口」推进。每个阶段先补 spec/测试，再改代码；W6 只有�
 | --- | --- | --- | --- |
 | **P1** | TUI Agent 传输接线 | `agent-server` stdio spawn、sessions-index 订阅、live 增量、Ctrl-N 新建；单测 + 真子进程 e2e | ✅ 2026-11-21 |
 | **P2** | axum LAN/WS | LAN 六端点全部桥接（state/pair/enable/pair-code/reset/clients 删除，11 测试；pair 含 Set-Cookie、enable 走监听视图）；剩 `/ws/host` RPC 帧桥接与凭据装配 | ✅ HTTP 全收口 + `/ws/host` 帧桥 + LAN 凭据落盘 + 「最近打开目录」录制已接（25 测试）；remote-desktop/direct 面 W3 遗留另册 |
-| **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | 🟡 记录层+卸载编排+安装编排+config 写回+网络源（git clone）已迁 `plugin-sync-service`（34 测试 + 3 对拍）；zip/npm/pip 源与 TS 对拍补充待做 |
+| **P3** | 插件安装/卸载进壳 | 本地目录/归档安装、卸载、manifest 校验；与 Agent/TS 行为对拍 | ✅ 记录层+卸载编排+安装编排+config 写回+网络源（git clone）+**zip 源（sha256 + 四重限额 + 根定位）**已迁 `plugin-sync-service`；npm/pip 显式不支持（与 TS 同口径）。2026-11-23 复核实测：`installed_records` 5 + `config_write_back` 5 + `marketplace_install` 15 + `zip_source` 7 用例。剩真机走查 |
 | **P4** | LAN WS / usage 网络 | W3 剩余 LAN WebSocket/中继与 usage-stats 网络/凭据接线；注入 HTTP 测试 | ✅ usage-stats 频道全链路（凭据→fetcher→快照）；`/ws/host` + 录制全接；remote-desktop/direct W3 遗留另册（见 LT-16） |
 | **P5** | C4 phase 投影 | sessions-index 从会话快照派生 phase/预览/后台工作并 live 更新；19 PASS/1 PARTIAL 收尾 | ✅ phase/goalStatus/title/lastAssistantPreview 已接（turn 事件驱动 + store 读尾）；hasBackgroundWork/workflowActivity 诚实投影为空（依赖 W4 backgroundWorks 运行时状态迁移，见 P5 说明） |
-| **P6** | W6 收口 | `w6:readiness --fail-on-blockers` 通过；删 stdioFrames/stdoutGuard、TS 宿主编排与 host-sidecar 发运集 | ⬜ |
+| **P6** | W6 收口 | `w6:readiness --fail-on-blockers` 通过；删 stdioFrames/stdoutGuard、TS 宿主编排与 host-sidecar 发运集 | ➡️ **移交 LT-16**（2026-11-23 实跑仍 NOT READY：6/6/119/95） |
 
 ## P1 交付（2026-11-21）
 

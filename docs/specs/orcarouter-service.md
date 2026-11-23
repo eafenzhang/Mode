@@ -1,6 +1,7 @@
 # Spec：OrcaRouter 服务（Rust，分阶段迁移）
 
-状态：2026-11-23 阶段 1（凭据存储）；连接/目录/overlay/频道待后续。
+状态：2026-11-23 **阶段 1–5 全部已落**（凭据存储 / PKCE 连接控制 / 模型目录 / provider
+overlay 写回 / 服务编排 + 频道），已进 inprocess 默认集；剩真机验收（见 §7）。
 
 ## 背景
 
@@ -9,8 +10,8 @@
 把同一把 key 对齐进 OrcaRouter provider 的推理配置（`access.apiKey`）→ 目录
 按能力/模态过滤。总约 1.3k 行 TS。
 
-本 crate 分阶段迁移：**阶段 1 凭据存储**、**阶段 2 PKCE 连接控制**已落；后续
-阶段：`catalog`（208 行）→ `provider_overlay`（94 行）→ 频道与装配。
+本 crate 分阶段迁移：**阶段 1 凭据存储**、**阶段 2 PKCE 连接控制**、**阶段 3 模型目录**、
+**阶段 4 provider overlay 写回**、**阶段 5 服务编排与频道**——五个阶段均已于 2026-11-23 落地。
 
 ## 1. 阶段 1：凭据存储（本 spec 覆盖）
 
@@ -106,6 +107,8 @@ needsReauthGeneration?`；`source` 只接受 `api-key|pkce`（其它按 `api-key
 ## 7. 验收
 
 - `cargo test -p orcarouter-service`（24 条）与 `cargo test -p host-channels --lib orcarouter`
-  （3 条）：阶段 1–5 全部 + 频道 endpoints/凭据生命周期/seed 降级/错误分类。
+  （4 条：`endpoints_and_credential_lifecycle`、`list_models_accepts_proxychannel_array_args`、
+  `list_models_falls_back_to_seed_without_credential`、
+  `invalid_capability_and_unknown_command_error`）。
 - `cargo clippy -p orcarouter-service -p host-channels --all-targets -- -D warnings`。
 - 真机：设置页手填 key、PKCE 授权码、目录刷新与降级提示、断开后推理 fail closed。

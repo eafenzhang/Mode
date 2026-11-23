@@ -1,6 +1,7 @@
 # Spec：`provider-settings` 频道（Rust，分阶段迁移）
 
-状态：2026-11-23 阶段 0/1 已落（精确规则访问器 + View 投影 builder）；写入/频道待后续。
+状态：2026-11-23 阶段 0–3 已落（精确规则访问器 + View 投影 + 10 个写入方法 + 连通性测试 +
+远端模型目录）；**阶段 4（频道 + onDidChange + inprocess 装配）待做**，因此该频道仍未进默认集。
 
 ## 背景
 
@@ -99,22 +100,24 @@ builtin/personal 冲突拒绝）、`rename_personal_model`（builtin 归属保�
 
 待做：阶段 4（provider-settings 频道 + onDidChange + inprocess 装配）。
 
-## 3. 阶段 2：写入面（待做）
+## 3. 阶段 2：写入面（已完成，2026-11-23）
 
-`createPersonalProvider` / `savePersonalProviderOverlay` / `deletePersonalProvider` /
-`reorderPersonalProviders` / `reorderPersonalModels` / `addPersonalModel` /
-`renamePersonalModel` / `deletePersonalModel` / `savePersonalModelDraft` /
-`setPersonalModelEnabled`：
-- 全部经 `PersonalConfigRepository::update`（跨进程锁 + 原子写）；
-- 校验复用 `provider-config` 的完整规则 schema（TS `SettingsMutationTarget` 同义）；
-- 成功后重新读快照并返回新 View（revision+1）。
+10 个方法全部落在 `host-channels::provider_settings`（`pub fn` 纯函数 + `PersonalConfigRepository`
+写入由调用方持锁）：`create_personal_provider` / `save_personal_provider_overlay` /
+`delete_personal_provider` / `reorder_personal_providers` / `reorder_personal_models` /
+`add_personal_model` / `rename_personal_model` / `delete_personal_model` /
+`save_personal_model_draft` / `set_personal_model_enabled`；15 条用例。
+仍待频道层补齐的部分见上（步骤 5「频道与装配」）。
 
-## 4. 阶段 3：连通性 / 远端目录（待做，有外部依赖）
+## 4. 阶段 3：连通性 / 远端目录（已完成，2026-11-23）
 
-- `testModelConnectivity`：Rust `mode-agent` 尚未实现该命令，需先补
-  `testModelConnectivity`（agent 协议往返）或保留 Node 代理。
-- `listRemoteModels`：`crates/provider-model-listing` 已有 build/parse 纯逻辑，
-  需补 reqwest executor + 草稿连接信息组装。
+- `testModelConnectivity`：`agent-process::test_model_connectivity` 发 legacy
+  `provider/testModelConnectivity` 请求（workspace + selection），成功必须是
+  `{success:true}`，失败以请求错误上抛；`host-channels::mode_agent` 已加同名命令。
+- `listRemoteModels`：`crates/provider-model-listing::fetch_remote_model_catalog`——按 Provider
+  API 类型构造请求，HTTP GET 分页（`after` 游标，最多 10 页 / 15s），按 id 去重聚合；
+  404 附「Base URL 是否含 /v1」提示；纯读不写配置。本地两页分页用例。
+  另修正 OrcaRouter `listModels` 对 `ProxyChannel` 数组参数的解析（`d47534748`）。
 
 ## 5. 阶段 4：频道与装配（待做）
 
